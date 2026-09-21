@@ -107,36 +107,53 @@ fn lower_data_definition_with_argument_origins(
     data_definition: &syntax::item::DataDefinition,
 ) -> Result<DataDefinition, Diagnostic> {
     // A `data` header admits a `Value` binder (`data Wrap<Count:u32>`) so the
-    // runtime subject rides the same spine as on machine signatures. What a
-    // later leg must still own is instantiation: the static identity of
-    // `Wrap<4>` versus `Wrap<7>` and the construction-time obligation live in
-    // typed-tree equality and seeded-instance code outside this boundary, and
-    // without them a runtime argument would silently erase from the type.
-    // Refuse the template here rather than admit an unsound instance.
+    // runtime subject rides the same spine as on machine signatures. The
+    // binder is kept as ordinary data: it lowers to an implicit leading
+    // descriptor field of its carrier type, so a construction spells the
+    // argument positionally by name (`Wrap { Count: 4, .. }`), `where` facts
+    // over the binder discharge at the construction gate like any other
+    // field, and the index participates in the write-net obligations a
+    // declared field does. The binder's own `Value` parameter identity is
+    // retained on the lowered template so later legs can still distinguish
+    // it from an authored field; a template-level argument spelling
+    // (`Wrap<4>` in static position) remains a separate leg.
+    let type_parameters =
+        lower_type_parameters(lowerer, syntax_trees, data_definition.type_parameters)?;
+    let case_fact_gate = GenericCaseFactGate::new(syntax_trees, data_definition.type_parameters);
+    let mut members = HandleSpan::empty();
     for parameter in syntax_trees
         .items
         .type_parameters(data_definition.type_parameters)
     {
-        if let syntax::item::TypeParameterKind::Value { .. } = parameter.kind {
-            return Err(Diagnostic::error(format!(
-                "data `{}`: a value parameter (`{}`) is not supported on a data \
-                 template yet -- a runtime subject in static argument position has \
-                 no construction obligation and no distinct type identity; a \
-                 `const` parameter still specializes statically",
-                data_definition.name.as_str(),
-                parameter.name.as_str(),
-            )));
-        }
+        let syntax::item::TypeParameterKind::Value { type_reference } = &parameter.kind else {
+            continue;
+        };
+        let field = DataMember::Field(DataField {
+            identity: None,
+            symbol: SymbolHandle::invalid(),
+            name: crate::lowering::name::lower_name(&parameter.name),
+            relevance: language_core::BindingRelevance::default(),
+            type_reference: lower_type_reference_handle(lowerer, syntax_trees, *type_reference)?,
+        });
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .data_members
+            .append_to_span(&mut members, field);
     }
-    let type_parameters =
-        lower_type_parameters(lowerer, syntax_trees, data_definition.type_parameters)?;
-    let case_fact_gate = GenericCaseFactGate::new(syntax_trees, data_definition.type_parameters);
-    let members = lower_data_members(
-        lowerer,
-        syntax_trees,
-        data_definition.members,
-        &case_fact_gate,
-    )?;
+    for member in syntax_trees.items.data_members(data_definition.members) {
+        if matches!(member, syntax::item::DataMember::Retired(_)) {
+            continue;
+        }
+        let member = lower_data_member(lowerer, syntax_trees, member, &case_fact_gate)?;
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .data_members
+            .append_to_span(&mut members, member);
+    }
     let retired_identities = syntax_trees
         .items
         .data_members(data_definition.members)
@@ -489,30 +506,6 @@ where_facts: contract.where_facts })?;
     Ok(span)
 }
 
-fn lower_data_members(
-    lowerer: &mut Lowerer,
-    syntax_trees: &SyntaxTrees,
-    members: HandleSpan<syntax::item::DataMember>,
-    case_fact_gate: &GenericCaseFactGate,
-) -> Result<HandleSpan<DataMember>, Diagnostic> {
-    let mut span = HandleSpan::empty();
-
-    for member in syntax_trees.items.data_members(members) {
-        if matches!(member, syntax::item::DataMember::Retired(_)) {
-            continue;
-        }
-        let member = lower_data_member(lowerer, syntax_trees, member, case_fact_gate)?;
-        lowerer
-            .symbol_resolved_trees
-            .tables
-            .declarations
-            .data_members
-            .append_to_span(&mut span, member);
-    }
-
-    Ok(span)
-}
-
 fn lower_data_member(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
@@ -603,8 +596,9 @@ struct GenericCaseFactGate {
     /// equation against the closed argument identity.
     types: HashSet<String>,
     /// `const` binder names: rewritten to their literal argument inside
-    /// expression position only, so a mention in a membership value or domain
-    /// path, or in a nested type reference's name position, still refuses.
+    /// expression position and inside a membership fact's indexed domain
+    /// arguments, so a mention in a membership value or domain path, or in a
+    /// nested type reference's name position, still refuses.
     consts: HashSet<String>,
 }
 
@@ -675,6 +669,8 @@ fn generic_case_facts_unsupported(
             // The membership value must stay a place/name the
             // construction-side domain check can own, and the domain path is
             // a fixed declaration spelling: no binder may appear in either.
+            // The domain's index arguments substitute like type-reference
+            // positions, so `type`/`const` binders admit there.
             syntax::item::ProofFact::Membership(membership) => {
                 case_fact_expression_mentions(syntax_trees, membership.value, gate, false)
                     || syntax_trees
@@ -691,18 +687,22 @@ fn generic_case_facts_unsupported(
         })
 }
 
-/// An indexed application's argument is a type-position leaf: a named binder
-/// refuses like the domain path, and an open const expression refuses like the
-/// membership value.
+/// An indexed application's argument substitutes like a type position on the
+/// instance copy: a named `type` binder lands as the closed type argument and
+/// a named `const` binder as its literal, while value/machine/proposition
+/// binders still refuse. A const-expression argument admits `const` binders
+/// only; the copy's fresh `Name` leaves rewrite to their literals.
 fn membership_argument_mentions(
     syntax_trees: &SyntaxTrees,
     argument: syntax::types::TypeReferenceHandle,
     gate: &GenericCaseFactGate,
 ) -> bool {
     match syntax_trees.type_references.type_reference(argument) {
-        syntax::types::TypeReferenceNode::Named(name) => gate.mentions(name.as_str()),
+        syntax::types::TypeReferenceNode::Named(name) => {
+            gate.unsubstituted.contains(name.as_str()) && !gate.types.contains(name.as_str())
+        }
         syntax::types::TypeReferenceNode::ConstExpression(expression) => {
-            case_fact_expression_mentions(syntax_trees, *expression, gate, false)
+            case_fact_expression_mentions(syntax_trees, *expression, gate, true)
         }
         _ => false,
     }

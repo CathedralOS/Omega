@@ -70,8 +70,15 @@ fn direct_lift_runtime_accepts_exact_nested_integer_array_literals() {
     };
     let request = push_representative(&mut program, &[(fixed_integers, false, false)], carrier);
 
-    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
-        .expect("every integer-matrix leaf follows the exact scalar landing rule");
+    let plan = derive_direct_terminal_plan(
+        &program,
+        &program,
+        &Machine::default(),
+        &state,
+        &call,
+        &request,
+    )
+    .expect("every integer-matrix leaf follows the exact scalar landing rule");
     assert_eq!(
         plan.input_relations,
         [InputRelation::ExactEquality(fixed_integers)]
@@ -187,8 +194,15 @@ fn direct_lift_runtime_accepts_exact_float_array_literals() {
         carrier,
     );
 
-    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
-        .expect("each fixed float-array element follows the exact scalar format rule");
+    let plan = derive_direct_terminal_plan(
+        &program,
+        &program,
+        &Machine::default(),
+        &state,
+        &call,
+        &request,
+    )
+    .expect("each fixed float-array element follows the exact scalar format rule");
     assert_eq!(
         plan.input_relations,
         [
@@ -290,8 +304,15 @@ fn direct_lift_runtime_accepts_exact_nested_float_array_literals() {
     };
     let request = push_representative(&mut program, &[(fixed_floats, false, false)], carrier);
 
-    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
-        .expect("every float-matrix leaf follows the exact scalar format rule");
+    let plan = derive_direct_terminal_plan(
+        &program,
+        &program,
+        &Machine::default(),
+        &state,
+        &call,
+        &request,
+    )
+    .expect("every float-matrix leaf follows the exact scalar format rule");
     assert_eq!(
         plan.input_relations,
         [InputRelation::ExactEquality(fixed_floats)]
@@ -1416,7 +1437,14 @@ fn define_does_not_admit_closed_literal_arguments() {
     request.kind = QuotientOperationKind::Define;
 
     assert_eq!(
-        derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request,),
+        derive_direct_terminal_plan(
+            &program,
+            &program,
+            &Machine::default(),
+            &state,
+            &call,
+            &request,
+        ),
         Err(RelationPlanError::UnresolvedArgumentType(0)),
     );
 }

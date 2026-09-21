@@ -1,0 +1,17 @@
+// COMPILE CANARY: register-only `mov`/`movq` spell a structured data move that
+// desugars to an ordinary checked assignment, so provenance, permission and
+// exact-type obligations are the assignment's own. Bracketed `[address]`
+// memory operands keep refusing as unmodeled access; authorized memory data
+// moves through a typed view index such as `self.buffer[0]`.
+
+data Main {
+    value: u64;
+    buffer: [u64; 4];
+}
+
+machine Main::main(&mut self) {
+    asm {
+        mov self.value, 41;
+        movq self.buffer[0], self.value
+    }
+}

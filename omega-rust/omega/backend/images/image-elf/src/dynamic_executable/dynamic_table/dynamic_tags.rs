@@ -3,7 +3,7 @@
 //! The generic [System V ABI dynamic section] defines the required tag/value
 //! relationships and the significant relative order of `DT_NEEDED` rows. The
 //! [LSB symbol-version ABI] defines `DT_VERSYM`, `DT_VERNEED`, and
-//! `DT_VERNEEDNUM`. This module retains those meanings as typed rows and eight
+//! `DT_VERNEEDNUM`. This module retains those meanings as typed rows and nine
 //! semantic address obligations; it emits no `Elf64_Dyn` bytes or addresses.
 //! The [original GNU implementation] defines `DT_GNU_HASH` custody for the
 //! companion `.gnu.hash` payload.
@@ -26,14 +26,14 @@ use target::TargetProfile;
 const ELF64_DYNAMIC_SYMBOL_SIZE: u64 = 24;
 const ELF64_RELA_SIZE: usize = 24;
 const ELF64_DYN_VALUE_SIZE: u8 = 8;
-const FIXED_NON_NEEDED_ROW_COUNT: usize = 14;
-const ADDRESS_OBLIGATION_COUNT: usize = 8;
+const FIXED_NON_NEEDED_ROW_COUNT: usize = 16;
+const ADDRESS_OBLIGATION_COUNT: usize = 9;
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
 /// Independently validated semantic `.dynamic` rows and address obligations.
 ///
-/// The exact ten-section descriptor carrier remains owned by this non-clone
+/// The exact eleven-section descriptor carrier remains owned by this non-clone
 /// plan. No row contains a placed pointer, final section index, serialized
 /// `Elf64_Dyn`, program header, image mutation, or runnable-image authority.
 #[derive(Debug)]
@@ -67,7 +67,7 @@ impl ValidatedElfDynamicTagPlan {
         self.contents.address_obligations.len()
     }
 
-    /// Compatibility fingerprint of the owning ten-section descriptor
+    /// Compatibility fingerprint of the owning eleven-section descriptor
     /// identity, exact typed row sequence, and eight semantic address
     /// obligations. This is not final-byte or loader identity.
     pub const fn non_authoritative_tag_compatibility_fingerprint(&self) -> u64 {
@@ -91,7 +91,7 @@ impl ValidatedElfDynamicTagPlan {
 
 /// Rejected semantic dynamic-tag planning with exact descriptor custody.
 #[derive(Debug)]
-#[must_use = "ELF dynamic-tag rejection retains the ten-section carrier"]
+#[must_use = "ELF dynamic-tag rejection retains the eleven-section carrier"]
 pub struct ElfDynamicTagPlanningError {
     descriptors: ValidatedElfProcedureLinkageSectionDescriptorPlan,
     diagnostic: Diagnostic,
@@ -137,6 +137,7 @@ pub(crate) enum ElfDynamicTag {
     DynamicString = 5,
     DynamicSymbol = 6,
     Rela = 7,
+    GeneralRelocationSize = 8,
     DynamicStringSize = 10,
     DynamicSymbolEntrySize = 11,
     ProcedureRelocationKind = 20,
@@ -151,6 +152,7 @@ pub(crate) enum ElfDynamicTag {
 pub(crate) enum ElfDynamicValue {
     NeededStringOffset(u32),
     ProcedureRelocationByteCount(u64),
+    GeneralRelocationByteCount(u64),
     AddressPlaceholder,
     DynamicStringByteCount(u64),
     DynamicSymbolEntryByteCount(u64),
@@ -176,6 +178,7 @@ pub(crate) enum ElfDynamicAddressTarget {
     GnuSymbolVersion = 6,
     GnuVersionRequirement = 7,
     GnuHash = 8,
+    GeneralRelocation = 9,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -196,7 +199,7 @@ struct CandidateValidationError {
     diagnostic: Diagnostic,
 }
 
-/// Consume the exact ten-section address-free carrier into a complete
+/// Consume the exact eleven-section address-free carrier into a complete
 /// semantic `.dynamic` tag sequence and typed future-address obligations.
 ///
 /// The planner deliberately stops before `Elf64_Dyn` serialization, `.dynamic`
@@ -307,6 +310,19 @@ fn derive_contents(
     push_address_row(
         &mut rows,
         &mut address_obligations,
+        ElfDynamicTag::Rela,
+        ElfDynamicAddressTarget::GeneralRelocation,
+    )?;
+    rows.push(ElfDynamicSemanticRow {
+        tag: ElfDynamicTag::GeneralRelocationSize,
+        value: ElfDynamicValue::GeneralRelocationByteCount(checked_u64(
+            descriptors.templates().general_relocation_byte_count(),
+            "general relocation byte count",
+        )?),
+    });
+    push_address_row(
+        &mut rows,
+        &mut address_obligations,
         ElfDynamicTag::GnuSymbolVersion,
         ElfDynamicAddressTarget::GnuSymbolVersion,
     )?;
@@ -407,8 +423,8 @@ fn validate_contents(
     contents: &ElfDynamicTagContents,
 ) -> Result<(), Diagnostic> {
     require(
-        descriptors.descriptor_count() == 10,
-        "ELF dynamic tags require the exact ten-section descriptor carrier",
+        descriptors.descriptor_count() == 11,
+        "ELF dynamic tags require the exact eleven-section descriptor carrier",
     )?;
     require(
         matches!(
@@ -532,6 +548,14 @@ fn validate_fixed_rows(
             value: ElfDynamicValue::RelocationTag(ElfDynamicTag::Rela),
         },
         address_row(ElfDynamicTag::ProcedureRelocation),
+        address_row(ElfDynamicTag::Rela),
+        ElfDynamicSemanticRow {
+            tag: ElfDynamicTag::GeneralRelocationSize,
+            value: ElfDynamicValue::GeneralRelocationByteCount(checked_u64(
+                descriptors.templates().general_relocation_byte_count(),
+                "validated general relocation size",
+            )?),
+        },
         address_row(ElfDynamicTag::GnuSymbolVersion),
         address_row(ElfDynamicTag::GnuVersionRequirement),
         ElfDynamicSemanticRow {
@@ -603,6 +627,10 @@ fn validate_address_obligations(contents: &ElfDynamicTagContents) -> Result<(), 
             ElfDynamicAddressTarget::ProcedureRelocation,
         ),
         (
+            ElfDynamicTag::Rela,
+            ElfDynamicAddressTarget::GeneralRelocation,
+        ),
+        (
             ElfDynamicTag::GnuSymbolVersion,
             ElfDynamicAddressTarget::GnuSymbolVersion,
         ),
@@ -645,8 +673,12 @@ fn validate_relocation_closure(
 ) -> Result<(), Diagnostic> {
     let linkage = descriptors.templates().linkage();
     require(
-        linkage.general_dynamic_relocation_count() == 0,
-        "semantic dynamic tags cannot omit a required general relocation table",
+        checked_product(
+            linkage.general_dynamic_relocation_count(),
+            ELF64_RELA_SIZE,
+            "general relocation table byte count",
+        )? == descriptors.templates().general_relocation_byte_count(),
+        "general relocation table drifts from its semantic relocation rows",
     )?;
     let future_dynamic = descriptors
         .templates()
@@ -708,6 +740,10 @@ fn non_authoritative_tag_compatibility_fingerprint(
             }
             ElfDynamicValue::ProcedureRelocationByteCount(count) => {
                 hash.byte(2);
+                hash.bytes(&count.to_le_bytes());
+            }
+            ElfDynamicValue::GeneralRelocationByteCount(count) => {
+                hash.byte(9);
                 hash.bytes(&count.to_le_bytes());
             }
             ElfDynamicValue::AddressPlaceholder => hash.byte(3),

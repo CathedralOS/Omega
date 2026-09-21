@@ -1,3 +1,11 @@
+// A contained-machine call result lands in a carrier field as a runtime
+// value: `reward.gold = 1 + self.rng.one()`. The deployable shape matches the
+// sibling runtime canaries: the stored value is checked in a guard ladder and
+// the process exits 70 only when exact.
+
+use omega_language_std::console;
+use omega::language::core::service;
+
 data Reward {
     gold: i32;
 }
@@ -6,16 +14,28 @@ data Random {
 }
 
 data Main {
+    console: Service<Console>;
     rng: Random;
+    reward: Reward;
 }
 
 machine Random::one(&mut self) -> i32 {
     1
 }
 
-machine Main::main(
-    &mut self,
-    reward: &mut Reward
-) {
-    reward.gold = 1 + self.rng.one();
+machine Main::main(&mut self) reaches Console {
+    self.reward.gold = 1 + self.rng.one();
+
+    transition self.reward.gold == 2 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
 }

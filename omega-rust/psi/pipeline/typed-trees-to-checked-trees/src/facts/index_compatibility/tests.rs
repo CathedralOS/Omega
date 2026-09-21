@@ -148,3 +148,57 @@ fn restating_let_accepts_the_instance_the_declared_return_type_names() {
         &[],
     );
 }
+
+/// A semantic-domain cast mints a predicate-free, route-free family instance
+/// unconditionally at the value position; a restating `let` is where the
+/// write gets judged. On a custody-marked carrier — one that already
+/// declares a predicate-bearing or `established by`-routed domain — the
+/// vacuous member is managed custody state, so the mint is refused with the
+/// family's missing-establishment diagnostic (the bump-allocator canary's
+/// `as Extent in Resident<P, T>` shape at unit scale).
+#[test]
+fn restating_let_refuses_a_cast_mint_on_a_custody_marked_carrier() {
+    check_rejecting(
+        r#"
+            data Tile [linear] { id: u64; }
+            domain Tile::AtTop;
+            domain Tile::Claimed
+            established by Maker::claim;
+            boundary trait Maker {
+                machine claim(tile: Tile) -> Tile in Claimed
+                ensures result == tile;
+            }
+            machine entry(tile: Tile) -> Tile in AtTop
+            {
+                let marked: Tile in AtTop = tile as Tile in AtTop;
+                marked
+            }
+        "#,
+        false,
+        &[
+            "declared instance `AtTop` has no establishment",
+            "`as` mints an instance of domain family `AtTop` on custody-marked carrier `Tile`",
+        ],
+    );
+}
+
+/// On a carrier whose domain set is all predicate-free and route-free the
+/// staged mint stays the sanctioned introduction: a `Left -> Right` retag is
+/// a value tag, not custody, and the family needs no establishment route.
+#[test]
+fn restating_let_keeps_a_cast_mint_on_an_all_vacuous_domain_carrier() {
+    check_rejecting(
+        r#"
+            data Region [linear] { id: u64; }
+            domain Region::Left;
+            domain Region::Right;
+            machine retag(region: Region in Left) -> Region in Right
+            {
+                let moved: Region in Right = region as Region in Right;
+                moved
+            }
+        "#,
+        true,
+        &[],
+    );
+}

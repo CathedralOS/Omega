@@ -120,8 +120,10 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
     ];
     machine.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(910),
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: operation_place,
             structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -200,13 +202,16 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
             entry: block_id(900),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(900),
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: caller_operation,
                     result: OperationResult::Structural(StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
                         place: caller_operation_place,
                         structural_type,
                         multiplicity: StructuralMultiplicity::Unrestricted,
@@ -233,6 +238,7 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: contract_id(900),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -322,6 +328,7 @@ fn nominal_affine_cleanup_composes_the_cleanup_machine_bound() {
         entry: block_id(901),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(901),
             parameters: Vec::new(),
@@ -333,6 +340,7 @@ fn nominal_affine_cleanup_composes_the_cleanup_machine_bound() {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: contract_id(901),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -952,12 +960,14 @@ fn unit_affine_local_establishments_are_in_the_fixed_entry_bound() {
     machine.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(900),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishTrivialAffineLocal { destination: first },
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(901),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishTrivialAffineLocal {
@@ -1162,12 +1172,14 @@ fn each_trivial_affine_local_establishment_adds_one_fixed_fuel_unit() {
     machine.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(900),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishTrivialAffineLocal { destination: local },
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(901),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishTrivialAffineLocal {

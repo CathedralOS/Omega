@@ -118,10 +118,11 @@ def main():
         parser.error('full-profile stack loops run in the native seed only')
     mac = sys.platform == 'darwin' and platform.machine() == 'arm64'
     windows = sys.platform.startswith(('win32', 'msys', 'cygwin')) and platform.machine().lower() in ('amd64', 'x86_64')
-    if not args.reference and not (mac or windows):
-        parser.error('the audited native seed executes only on macOS arm64 or Windows x64')
-    seed_path = ROOT / 'bootstrap/0_alpha' / ('alpha_arm64_macos' if mac else 'alpha_x64_windows.exe')
-    offset = 32768 if mac else 5120
+    linux = sys.platform.startswith('linux') and platform.machine().lower() in ('amd64', 'x86_64')
+    if not args.reference and not (mac or windows or linux):
+        parser.error('the audited native seed executes only on macOS arm64, Windows x64, or Linux x86-64')
+    seed_path = ROOT / 'bootstrap/0_alpha' / ('alpha_arm64_macos' if mac else ('alpha_x64_linux' if linux else 'alpha_x64_windows.exe'))
+    offset = 32768 if mac else (12288 if linux else 5120)
     seed = seed_path.read_bytes() if not args.reference else None
     failures = 0
     count = 0
@@ -136,7 +137,7 @@ def main():
                 subject.write_bytes(tape)
                 command = [sys.executable, str(ROOT / 'tests/alpha/reference/alpha_ref.py'), str(subject)]
             else:
-                subject = scratch / ('case' if mac else 'case.exe')
+                subject = scratch / ('case.exe' if windows else 'case')
                 container = bytearray(seed)
                 container[offset:offset+4] = struct.pack('<I', len(tape) if declared is None else declared)
                 container[offset+4:offset+4+len(tape)] = tape
@@ -147,7 +148,7 @@ def main():
                 command = [str(subject)]
             try:
                 result = subprocess.run(command, input=b'Z', capture_output=True, timeout=300)
-                trap_codes = (132,) if args.reference else ((-4,) if mac else (0xc000001d, -1073741795))
+                trap_codes = (132,) if args.reference else ((0xc000001d, -1073741795) if windows else (-4,))
                 correct_status = result.returncode in trap_codes if status == 'trap' else result.returncode == status
                 if not correct_status or result.stdout != expected or result.stderr:
                     failures += 1

@@ -94,6 +94,7 @@ fn goal_free_scalar_rows_emit_equations_through_one_interpreter() {
     let result = ValueId::new(3).unwrap();
     let operation = Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -154,6 +155,7 @@ fn goal_free_scalar_rows_fail_closed_on_type_drift() {
     let result = ValueId::new(3).unwrap();
     let operation = Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -178,6 +180,7 @@ fn constant_leaf_folds_only_when_every_operand_is_literal() {
     let result = ValueId::new(3).unwrap();
     let add = Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -211,6 +214,7 @@ fn constant_leaf_evaluates_comparisons_and_rejects_nonleaf_rows() {
     let result = ValueId::new(3).unwrap();
     let less = Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(2).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

@@ -68,6 +68,24 @@ pub(super) fn call_result_matches(
     matches_function_result(operation_signature(result), callee)
 }
 
+/// A `ReturnStructural` source matches the machine's declared result when the
+/// result introduces at least the source's whole-root qualifications: the
+/// signature's `established by` authority mints declared domains onto the
+/// returned value at the edge, so the source need not already carry them.
+/// The source may never carry a qualification the result does not declare.
+pub(super) fn matches_return_source(
+    source: StructuralResultSignature<'_>,
+    result: &terminal_psi::StructuralResultDeclaration,
+) -> bool {
+    source.structural_type == result.structural_type
+        && source.multiplicity == result.multiplicity
+        && source
+            .qualifications
+            .iter()
+            .all(|domain| result.qualifications.contains(domain))
+        && source.projected_qualifications == result.projected_qualifications
+}
+
 pub(super) fn has_empty_qualification_rosters(
     qualifications: &[StructuralDomainId],
     projected: &[terminal_psi::StructuralPathQualification],
@@ -159,6 +177,7 @@ pub(super) fn has_plain_owned_shape(module: &TerminalModule, root: StructuralTyp
                 terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
             ) => true,
             StructuralTypeShape::ByteSequence(_) => false,
+            StructuralTypeShape::ElementView { .. } => false,
             StructuralTypeShape::Reference { .. } => false,
             StructuralTypeShape::Record { fields } => fields.iter().all(&mut field_is_owned),
             StructuralTypeShape::Sum { cases } => cases

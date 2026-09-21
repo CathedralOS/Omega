@@ -1,0 +1,69 @@
+// Fail canary: the managed `Quotient::define` admission shape as a
+// standalone user source. Without package provenance the quotient
+// declaration's source origin stays non-hermetic (`User`), so the
+// composed define-certificate cannot reach canonical Terminal
+// correspondence and admission refuses the batch.
+
+use omega::language::core::relation;
+
+data Representative {
+    case Zero;
+    case Next(previous: Representative);
+}
+
+proposition equivalent(a: Representative, b: Representative) = a == b;
+
+machine equivalent_reflexive(a: Representative)
+ensures a == a
+{
+}
+
+machine equivalent_symmetric(a: Representative, b: Representative)
+requires
+    a == b
+ensures b == a
+{
+}
+
+machine equivalent_transitive(
+    a: Representative,
+    b: Representative,
+    c: Representative
+)
+requires
+    a == b
+    b == c
+ensures a == c
+{
+}
+
+RepresentativeEquivalence: satisfies Equivalence<Representative, equivalent> {
+    Reflexive::reflexive = equivalent_reflexive;
+    Symmetric::symmetric = equivalent_symmetric;
+    Transitive::transitive = equivalent_transitive;
+}
+
+data EquivalenceClass = Representative % equivalent
+where equivalent satisfies
+    Equivalence<Representative, equivalent>
+    as RepresentativeEquivalence;
+
+machine representative(value: Representative) -> Representative {
+    value
+}
+
+machine representative_respects(left: Representative, right: Representative)
+requires equivalent(left, right)
+ensures equivalent(representative(left), representative(right))
+{
+}
+
+machine admitted(value: EquivalenceClass) -> EquivalenceClass {
+    Quotient::define<representative, representative_respects>(value)
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

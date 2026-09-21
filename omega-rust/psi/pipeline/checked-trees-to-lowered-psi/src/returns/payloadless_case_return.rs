@@ -91,11 +91,14 @@ pub(crate) fn lower_payloadless_case_return_machine(
             id: block_id(1),
             parameters: Vec::new(),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation,
                 result: terminal_psi::OperationResult::Structural(
                     terminal_psi::StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
                         place: operation_result_place,
                         structural_type: result_type,
                         multiplicity: StructuralMultiplicity::Unrestricted,
@@ -120,6 +123,7 @@ pub(crate) fn lower_payloadless_case_return_machine(
             id: contract_id(1),
             crash_routes: Vec::new(),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
             outcome_specific_ensures: Vec::new(),

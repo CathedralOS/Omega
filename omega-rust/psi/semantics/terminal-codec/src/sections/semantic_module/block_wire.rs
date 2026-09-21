@@ -24,6 +24,7 @@ use super::CodecError;
 use super::machine_wire::{
     decode_declaration, decode_declarations, encode_declaration, encode_declarations,
 };
+use super::proof_term_wire::{decode_proof_formals, encode_proof_formals};
 use super::structural_result_wire::{decode_operation_result, encode_operation_result};
 use super::structural_signature_wire::{
     decode_structural_parameters, encode_structural_parameters,
@@ -79,6 +80,7 @@ pub(crate) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
         "block erased scalar formals",
         &block.erased_scalar_formals,
     )?;
+    encode_proof_formals(writer, &block.erased_proof_formals)?;
     encode_structural_parameters(writer, &block.structural_parameters)?;
     writer.len("operations", block.operations.len())?;
     for operation in &block.operations {
@@ -89,6 +91,7 @@ pub(crate) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
 
 /// One operation row: its id, static reach binding and result, then its
 /// kind behind the kind's tag; each kind's layout is owned by its family.
+/// A trailing possibly-suspending crossing marker closes the row.
 fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), CodecError> {
     writer.id(operation.id);
     writer.boolean(operation.static_reach_binding.is_some());
@@ -272,6 +275,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             callee,
             arguments,
             erased_arguments,
+            erased_proof_arguments,
             requirement_obligations,
             crash_continuations,
         } => call_operations::encode_call(
@@ -279,6 +283,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             callee,
             arguments,
             erased_arguments,
+            erased_proof_arguments.clone(),
             requirement_obligations,
             crash_continuations,
         )?,
@@ -286,6 +291,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             callee,
             arguments,
             erased_arguments,
+            erased_proof_arguments,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
@@ -295,6 +301,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             callee,
             arguments,
             erased_arguments,
+            erased_proof_arguments.clone(),
             structural_arguments,
             claim_transfers,
             requirement_obligations,
@@ -304,6 +311,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             callee,
             arguments,
             erased_arguments,
+            erased_proof_arguments,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
@@ -313,6 +321,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             callee,
             arguments,
             erased_arguments,
+            erased_proof_arguments.clone(),
             structural_arguments,
             claim_transfers,
             requirement_obligations,
@@ -384,6 +393,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             callee,
             arguments,
             erased_arguments,
+            erased_proof_arguments,
             structural_arguments,
             claim_transfers,
             returned_claim_transfers,
@@ -394,6 +404,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             callee,
             arguments,
             erased_arguments,
+            erased_proof_arguments.clone(),
             structural_arguments,
             claim_transfers,
             returned_claim_transfers,
@@ -564,6 +575,10 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             scalar_operations::encode_saturating_integer_multiply(writer, left, right)?
         }
     }
+    writer.boolean(operation.suspension_crossing.is_some());
+    if let Some(crossing) = operation.suspension_crossing {
+        writer.id(crossing);
+    }
     Ok(())
 }
 
@@ -571,6 +586,7 @@ pub(crate) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
     let id = reader.id("BlockId")?;
     let parameters = decode_declarations(reader)?;
     let erased_scalar_formals = decode_declarations(reader)?;
+    let erased_proof_formals = decode_proof_formals(reader)?;
     let structural_parameters = decode_structural_parameters(reader)?;
     let operation_count = reader.count()?;
     let mut operations = Vec::new();
@@ -582,6 +598,7 @@ pub(crate) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
         id,
         parameters,
         erased_scalar_formals,
+        erased_proof_formals,
         structural_parameters,
         operations,
         terminator,
@@ -788,8 +805,14 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         }
         tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
     };
+    let suspension_crossing = if reader.boolean()? {
+        Some(reader.id("SuspensionCrossingId")?)
+    } else {
+        None
+    };
     Ok(Operation {
         static_reach_binding,
+        suspension_crossing,
         id: operation_id,
         result,
         kind,
@@ -824,6 +847,7 @@ mod tests {
     fn jump_block(residual_affine_discards: Vec<terminal_psi::StructuralAffineDiscard>) -> Block {
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id(1),
             parameters: Vec::new(),
@@ -834,6 +858,7 @@ mod tests {
                 target: id(3),
                 arguments: vec![id(4)],
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 trivial_affine_discards: vec![id(5)],
                 residual_affine_discards,
             },
@@ -851,11 +876,15 @@ mod tests {
             0_u32.to_le_bytes().as_slice(),
             0_u32.to_le_bytes().as_slice(),
             0_u32.to_le_bytes().as_slice(),
+            0_u32.to_le_bytes().as_slice(),
+            0_u32.to_le_bytes().as_slice(),
             &[1],
             2_u64.to_le_bytes().as_slice(),
             3_u64.to_le_bytes().as_slice(),
             1_u32.to_le_bytes().as_slice(),
             4_u64.to_le_bytes().as_slice(),
+            0_u32.to_le_bytes().as_slice(),
+            0_u32.to_le_bytes().as_slice(),
             0_u32.to_le_bytes().as_slice(),
             1_u32.to_le_bytes().as_slice(),
             5_u64.to_le_bytes().as_slice(),
@@ -904,7 +933,7 @@ mod tests {
         let mut writer = Writer::default();
         encode_block(&mut writer, &block).unwrap();
         let bytes = writer.finish();
-        assert_eq!(bytes[20], 10);
+        assert_eq!(bytes[28], 10);
         let mut reader = Reader::new(&bytes);
         let decoded = decode_block(&mut reader).unwrap();
         assert_eq!(decoded, block);
@@ -919,7 +948,7 @@ mod tests {
         let mut writer = Writer::default();
         encode_block(&mut writer, &jump_block(Vec::new())).unwrap();
         let mut bytes = writer.finish();
-        bytes[20] = 10;
+        bytes[28] = 10;
         bytes.extend(0_u32.to_le_bytes());
         assert_eq!(
             decode_block(&mut Reader::new(&bytes)),
@@ -930,13 +959,16 @@ mod tests {
     fn structural_call_block() -> Block {
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(1),
                 result: OperationResult::Structural(StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place: id::<PlaceId>(2),
                     structural_type: id::<StructuralTypeId>(3),
                     multiplicity: StructuralMultiplicity::Linear,
@@ -971,11 +1003,13 @@ mod tests {
     fn write_only_primitive_store_uses_exact_stable_wire_fields() {
         let block = Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Unit,
                 kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -992,16 +1026,16 @@ mod tests {
         let mut writer = Writer::default();
         encode_block(&mut writer, &block).expect("write-only primitive store block encodes");
         let bytes = writer.finish();
-        assert_eq!(bytes[28], 0, "absent static reach binder marker");
-        assert_eq!(bytes[29], 0, "Unit OperationResult wire tag");
-        assert_eq!(bytes[30], 43, "WriteOnlyPrimitiveStore wire tag");
+        assert_eq!(bytes[36], 0, "absent static reach binder marker");
+        assert_eq!(bytes[37], 0, "Unit OperationResult wire tag");
+        assert_eq!(bytes[38], 43, "WriteOnlyPrimitiveStore wire tag");
         assert_eq!(
-            &bytes[31..39],
+            &bytes[39..47],
             &id::<PlaceId>(3).get().to_le_bytes(),
             "destination is the first exact operation field",
         );
         assert_eq!(
-            &bytes[39..47],
+            &bytes[47..55],
             &id::<semantic_vocabulary::ValueId>(4).get().to_le_bytes(),
             "source value is the second exact operation field",
         );
@@ -1010,7 +1044,7 @@ mod tests {
         assert_eq!(reader.remaining(), 0);
 
         let mut invalid = bytes;
-        invalid[30] = 255;
+        invalid[38] = 255;
         assert_eq!(
             decode_block(&mut Reader::new(&invalid)),
             Err(CodecError::InvalidTag("OperationKind", 255)),
@@ -1021,11 +1055,13 @@ mod tests {
     fn structural_scalar_field_operations_use_exact_stable_wire_fields() {
         let store = Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Unit,
                 kind: OperationKind::StructuralScalarFieldStore {
@@ -1044,15 +1080,15 @@ mod tests {
         let mut writer = Writer::default();
         encode_block(&mut writer, &store).expect("structural scalar-field store encodes");
         let bytes = writer.finish();
-        assert_eq!(bytes[30], 46, "StructuralScalarFieldStore wire tag");
-        assert_eq!(&bytes[31..39], &id::<PlaceId>(3).get().to_le_bytes());
-        assert_eq!(&bytes[39..43], &1_u32.to_le_bytes());
-        assert_eq!(bytes[43], 1, "Field structural-path segment wire tag");
+        assert_eq!(bytes[38], 46, "StructuralScalarFieldStore wire tag");
+        assert_eq!(&bytes[39..47], &id::<PlaceId>(3).get().to_le_bytes());
+        assert_eq!(&bytes[47..51], &1_u32.to_le_bytes());
+        assert_eq!(bytes[51], 1, "Field structural-path segment wire tag");
         assert_eq!(
-            &bytes[52..60],
+            &bytes[60..68],
             &id::<StructuralFieldId>(4).get().to_le_bytes()
         );
-        assert_eq!(&bytes[60..68], &id::<ValueId>(5).get().to_le_bytes());
+        assert_eq!(&bytes[68..76], &id::<ValueId>(5).get().to_le_bytes());
         assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(store.clone()));
 
         let mut bounded = store;
@@ -1066,16 +1102,16 @@ mod tests {
         let mut writer = Writer::default();
         encode_block(&mut writer, &bounded).expect("bounded store encodes");
         let bounded_bytes = writer.finish();
-        assert_eq!(bounded_bytes[30], 75, "bounded scalar store extension tag");
-        assert_eq!(&bounded_bytes[31..68], &bytes[31..68]);
+        assert_eq!(bounded_bytes[38], 75, "bounded scalar store extension tag");
+        assert_eq!(&bounded_bytes[39..76], &bytes[39..76]);
         assert_eq!(
-            &bounded_bytes[68..76],
+            &bounded_bytes[76..84],
             &id::<ObligationId>(7).get().to_le_bytes()
         );
         assert_eq!(decode_block(&mut Reader::new(&bounded_bytes)), Ok(bounded));
 
         let mut invalid_path = bytes;
-        invalid_path[43] = 255;
+        invalid_path[51] = 255;
         assert_eq!(
             decode_block(&mut Reader::new(&invalid_path)),
             Err(CodecError::InvalidTag("StructuralPathSegment", 255)),
@@ -1084,11 +1120,13 @@ mod tests {
         let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
         let read = Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(7),
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(8),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -1131,6 +1169,7 @@ mod tests {
         let operations = [
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -1148,6 +1187,7 @@ mod tests {
             },
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(6),
                 result: OperationResult::Unit,
                 kind: OperationKind::StructuralByteSequenceFieldByteStore {
@@ -1167,6 +1207,7 @@ mod tests {
         for (operation, tag) in operations.into_iter().zip([59, 60]) {
             let block = Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: id::<BlockId>(1),
                 parameters: Vec::new(),
@@ -1181,7 +1222,7 @@ mod tests {
             let bytes = writer.finish();
             // Results follow the absent static reach marker; scalar declarations
             // also include the eight-byte qualification-set ID.
-            let operation_tag_offset = if tag == 59 { 50 } else { 30 };
+            let operation_tag_offset = if tag == 59 { 58 } else { 38 };
             assert_eq!(bytes[operation_tag_offset], tag);
             let mut reader = Reader::new(&bytes);
             assert_eq!(decode_block(&mut reader), Ok(block));
@@ -1197,8 +1238,10 @@ mod tests {
         let operations = [
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(31),
                 result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place: id(23),
                     structural_type: id(7),
                     multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
@@ -1210,6 +1253,7 @@ mod tests {
             },
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(32),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -1223,13 +1267,16 @@ mod tests {
             },
         ];
         // Empty block rosters precede the operation ID, absent static reach
-        // marker, and typed result.
+        // marker, and typed result; the structural result's four empty rosters
+        // (memberships, projections, establishments, claims) push its kind tag
+        // sixteen bytes later than the scalar result's.
         for (operation, (tag, tag_offset, operand)) in operations
             .into_iter()
-            .zip([(61, 59, 11_u64), (62, 47, 23_u64)])
+            .zip([(61, 71, 11_u64), (62, 55, 23_u64)])
         {
             let block = Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: id(1),
                 parameters: Vec::new(),
                 structural_parameters: Vec::new(),
@@ -1271,12 +1318,14 @@ mod tests {
         ];
         let block = Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id(1),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: id(1),
                     result: OperationResult::Unit,
                     kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -1287,6 +1336,7 @@ mod tests {
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: id(2),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -1330,11 +1380,13 @@ mod tests {
     fn byte_field_store_roundtrips_every_identity_and_rejects_truncation() {
         let block = Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Unit,
                 kind: OperationKind::StructuralByteSequenceFieldStore {
@@ -1357,7 +1409,7 @@ mod tests {
         let mut writer = Writer::default();
         encode_block(&mut writer, &block).unwrap();
         let bytes = writer.finish();
-        assert_eq!(bytes[30], 58);
+        assert_eq!(bytes[38], 58);
         let mut reader = Reader::new(&bytes);
         assert_eq!(decode_block(&mut reader), Ok(block));
         assert_eq!(reader.remaining(), 0);
@@ -1370,11 +1422,13 @@ mod tests {
     fn byte_sequence_length_wire_binds_exact_source_and_result() {
         let block = Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -1427,13 +1481,16 @@ mod tests {
     fn byte_sequence_subslice_wire_binds_each_operand_and_structural_result() {
         let block = Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place: id::<PlaceId>(9),
                     structural_type: id::<StructuralTypeId>(10),
                     multiplicity: StructuralMultiplicity::Unrestricted,
@@ -1486,11 +1543,13 @@ mod tests {
     fn byte_sequence_write_wire_binds_all_operands_and_unit_result() {
         let block = Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Unit,
                 kind: OperationKind::ByteSequenceWrite {
@@ -1538,11 +1597,13 @@ mod tests {
     fn byte_sequence_read_wire_binds_all_operands() {
         let block = Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -1589,11 +1650,13 @@ mod tests {
     fn structural_scalar_call_round_trips_scalar_arguments() {
         let block = Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -1602,6 +1665,7 @@ mod tests {
                 }),
                 kind: OperationKind::CallStructuralScalar {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     callee: id::<MachineId>(4),
                     arguments: vec![id::<ValueId>(5)],
                     structural_arguments: vec![StructuralArgument {
@@ -1635,11 +1699,13 @@ mod tests {
     fn scalar_call_erased_lane_round_trips_and_rejects_pre_change_bytes() {
         let mut block = Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -1648,6 +1714,7 @@ mod tests {
                 }),
                 kind: OperationKind::CallStructuralScalar {
                     erased_arguments: vec![ScalarTerm::boolean(true)],
+                    erased_proof_arguments: Vec::new(),
                     callee: id::<MachineId>(4),
                     arguments: vec![id::<ValueId>(5)],
                     structural_arguments: vec![StructuralArgument {
@@ -1708,25 +1775,26 @@ mod tests {
 
         // Block id + scalar/structural parameter counts + operation count +
         // operation id + absent static reach marker.
-        assert_eq!(bytes[28], 0, "absent static reach binder marker");
-        assert_eq!(bytes[29], 2, "structural OperationResult wire tag");
-        // The fixture has no qualifications and one whole-root claim, so the
-        // operation-kind tag follows its fixed-width result metadata here.
-        assert_eq!(bytes[71], 41, "CallStructural wire tag");
+        assert_eq!(bytes[36], 0, "absent static reach binder marker");
+        assert_eq!(bytes[37], 2, "structural OperationResult wire tag");
+        // The fixture has no qualifications, no establishment bindings, and one
+        // whole-root claim, so the operation-kind tag follows its fixed-width
+        // result metadata plus the empty rosters here.
+        assert_eq!(bytes[83], 41, "CallStructural wire tag");
 
         let mut reader = Reader::new(&bytes);
         assert_eq!(decode_block(&mut reader), Ok(block));
         assert_eq!(reader.remaining(), 0);
 
         let mut invalid_result = bytes.clone();
-        invalid_result[29] = 3;
+        invalid_result[37] = 3;
         assert_eq!(
             decode_block(&mut Reader::new(&invalid_result)),
             Err(CodecError::InvalidTag("OperationResult", 3))
         );
 
         let mut invalid_call = bytes;
-        invalid_call[71] = 255;
+        invalid_call[83] = 255;
         assert_eq!(
             decode_block(&mut Reader::new(&invalid_call)),
             Err(CodecError::InvalidTag("OperationKind", 255))
@@ -1811,19 +1879,20 @@ mod tests {
         let mut writer = Writer::default();
         encode_block(&mut writer, &block).unwrap();
         let bytes = writer.finish();
-        // Claim-free structural result metadata ends after its three empty rosters.
-        assert_eq!(bytes[59], 68);
+        // Claim-free structural result metadata ends after its four empty
+        // rosters (memberships, projections, establishments, claims).
+        assert_eq!(bytes[71], 68);
         assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(block));
         for retired in [51, 67] {
             let mut changed = bytes.clone();
-            changed[59] = retired;
+            changed[71] = retired;
             assert_eq!(
                 decode_block(&mut Reader::new(&changed)),
                 Err(CodecError::InvalidTag("OperationKind", retired))
             );
         }
         let mut changed = bytes.clone();
-        changed[72] = 255;
+        changed[84] = 255;
         assert_eq!(
             decode_block(&mut Reader::new(&changed)),
             Err(CodecError::InvalidTag("RecordFieldValue", 255))

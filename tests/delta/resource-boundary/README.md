@@ -25,7 +25,7 @@ source has SHA-256
 It remains outside the default gate, with a 7,200-second host watchdog. This is
 one exact refusal control, not profiling infrastructure or a language limit.
 It must return status 2, empty stderr, and only the 40-byte DCOUT resource-12
-frame: payload coordinate and limit 16,777,212, requested 477,932,916.
+frame: payload coordinate and limit 16,777,212, requested 477,934,574.
 The [source-level count and capture argument](../../../bootstrap/3_delta/implementation/normalization/README.md#full-width-payload-refusal)
 derives that complete requested count independently of compiler output.
 This case tests whether compilation reaches canonical refusal within the

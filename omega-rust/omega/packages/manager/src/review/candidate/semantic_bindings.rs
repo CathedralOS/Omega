@@ -427,6 +427,9 @@ pub(super) fn candidate_target_entry_binding(
         target::ProgramEntryPhysicalContractPackage::MacosArm64 => {
             AcceptedSemanticBindingRole::MacosArm64ProgramEntry
         }
+        target::ProgramEntryPhysicalContractPackage::MacosX64 => {
+            AcceptedSemanticBindingRole::MacosX64ProgramEntry
+        }
         target::ProgramEntryPhysicalContractPackage::LinuxX86_64 => {
             AcceptedSemanticBindingRole::LinuxX86_64ProgramEntry
         }

@@ -1,3 +1,4 @@
+use omega::language::core::service;
 use omega_language_std::console;
 
 pub data Token [copy] { payload: i32; }
@@ -12,7 +13,7 @@ satisfies Token::consume
     token
 }
 
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 
 machine Main::main(&mut self)
 reaches Console

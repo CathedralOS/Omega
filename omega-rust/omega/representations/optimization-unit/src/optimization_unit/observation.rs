@@ -420,6 +420,7 @@ fn operation_observations(
         | O::PrimitiveScalarRead { .. }
         | O::StructuralCaseMembership { .. }
         | O::WriteOnlyPrimitiveStore { .. }
+        | O::WriteOnlyIndexedPrimitiveStore { .. }
         | O::ByteSequenceWrite { .. }
         | O::StructuralByteSequenceFieldStore { .. }
         | O::StructuralByteSequenceFieldByteStore { .. }

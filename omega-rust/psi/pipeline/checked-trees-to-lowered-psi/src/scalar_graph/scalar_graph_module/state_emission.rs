@@ -102,6 +102,7 @@ impl GraphEmission<'_> {
                 target,
                 arguments,
                 erased_arguments,
+                erased_proof_arguments,
                 structural_arguments,
                 trivial_affine_discards,
             } => {
@@ -123,7 +124,7 @@ impl GraphEmission<'_> {
                 if let [LoweredDirectExpression::Boolean { expression }] = arguments.as_slice()
                     && contains_short_circuit(expression)
                 {
-                    if !erased_arguments.is_empty() {
+                    if !erased_arguments.is_empty() || !erased_proof_arguments.is_empty() {
                         return unsupported(
                             "erased call operands do not stage through Boolean decisions",
                         );
@@ -164,7 +165,7 @@ impl GraphEmission<'_> {
                     .iter()
                     .any(direct_expression_contains_short_circuit)
                 {
-                    if !erased_arguments.is_empty() {
+                    if !erased_arguments.is_empty() || !erased_proof_arguments.is_empty() {
                         return unsupported(
                             "erased call operands do not stage through tuple entry",
                         );
@@ -190,6 +191,7 @@ impl GraphEmission<'_> {
                         target: target.block,
                         arguments: target.arguments,
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         residual_affine_discards: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     }
@@ -226,6 +228,7 @@ impl GraphEmission<'_> {
                         target: scalar_source_block(self.identity_base, *target),
                         arguments,
                         erased_arguments,
+                        erased_proof_arguments: erased_proof_arguments.clone(),
                         residual_affine_discards: Vec::new(),
                         trivial_affine_discards: trivial_affine_discards.clone(),
                     }
@@ -236,9 +239,11 @@ impl GraphEmission<'_> {
                 when_true_target,
                 when_true_arguments,
                 when_true_erased_arguments,
+                when_true_erased_proof_arguments,
                 when_false_target,
                 when_false_arguments,
                 when_false_erased_arguments,
+                when_false_erased_proof_arguments,
             } => {
                 if when_true_erased_arguments
                     .iter()
@@ -289,6 +294,8 @@ impl GraphEmission<'_> {
                     )?;
                     if !when_true_erased_arguments.is_empty()
                         || !when_false_erased_arguments.is_empty()
+                        || !when_true_erased_proof_arguments.is_empty()
+                        || !when_false_erased_proof_arguments.is_empty()
                     {
                         return unsupported(
                             "erased call operands do not stage through guard decisions",
@@ -389,6 +396,34 @@ impl GraphEmission<'_> {
                         }
                         Vec::new()
                     };
+                    // Proof terms are already position-resolved against the
+                    // source roster — they stage only through direct targets.
+                    let proof_terms = |arguments: &[semantic_vocabulary::ProofTerm],
+                                       direct: bool|
+                     -> Result<
+                        Vec<semantic_vocabulary::ProofTerm>,
+                        LoweringError,
+                    > {
+                        if direct {
+                            Ok(arguments.to_vec())
+                        } else if arguments.is_empty() {
+                            Ok(Vec::new())
+                        } else {
+                            unsupported(
+                                "erased proof call operands do not stage through tuple entry",
+                            )
+                        }
+                    };
+                    let when_true_proof = proof_terms(
+                        when_true_erased_proof_arguments,
+                        when_true.block
+                            == scalar_source_block(self.identity_base, *when_true_target),
+                    )?;
+                    let when_false_proof = proof_terms(
+                        when_false_erased_proof_arguments,
+                        when_false.block
+                            == scalar_source_block(self.identity_base, *when_false_target),
+                    )?;
                     Terminator::Conditional {
                         condition,
                         when_true: SuccessorEdge {
@@ -397,6 +432,7 @@ impl GraphEmission<'_> {
                             target: when_true.block,
                             arguments: when_true.arguments,
                             erased_arguments: when_true_erased,
+                            erased_proof_arguments: when_true_proof,
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
@@ -405,6 +441,7 @@ impl GraphEmission<'_> {
                             target: when_false.block,
                             arguments: when_false.arguments,
                             erased_arguments: when_false_erased,
+                            erased_proof_arguments: when_false_proof,
                             trivial_affine_discards: Vec::new(),
                         },
                     }
@@ -483,11 +520,17 @@ impl GraphEmission<'_> {
         } else {
             self.state_erased_formals[index].clone()
         };
+        let erased_proof_formals = if index == 0 && loop_plan.is_none() {
+            Vec::new()
+        } else {
+            self.state_erased_proof_formals[index].clone()
+        };
         self.blocks.push(Block {
             structural_parameters: Vec::new(),
             id: source_block,
             parameters: source_block_parameters,
             erased_scalar_formals,
+            erased_proof_formals,
             operations: self.all_operations[operation_start..].to_vec(),
             terminator,
         });

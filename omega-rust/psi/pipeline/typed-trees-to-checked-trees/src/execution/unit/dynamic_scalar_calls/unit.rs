@@ -290,10 +290,8 @@ pub(super) fn build_checked_dynamic_unit_call(
         return None;
     }
 
-    let row_realization_machine = program
-        .machines()
-        .iter()
-        .find(|candidate| candidate.symbol == row.realization_machine)?;
+    let row_realization_machine =
+        crate::lookup::machine_by_symbol(program, row.realization_machine)?;
     let row_realization_state = program
         .machine_states(row_realization_machine)
         .iter()

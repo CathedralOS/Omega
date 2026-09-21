@@ -1,0 +1,45 @@
+{
+  "schema": "omega-matching-logic-slice-case/1",
+  "subject": "negative: equality substitution applied to the wrong side",
+  "symbols": {"zero": 0, "succ": 1, "s0": 0, "s1": 0, "counter": 1},
+  "refinements": {"Nat": ["pred", "is_nat", [["var", "x"]]]},
+  "axioms": {
+    "step_s0_s1": ["pred", "step", [["sym", "s0", []], ["sym", "s1", []]]],
+    "counter_eq": ["equals",
+      ["sym", "counter", [["sym", "s1", []]]],
+      ["sym", "succ", [["sym", "counter", [["sym", "s0", []]]]]]],
+    "cheat": ["in", ["sym", "counter", [["sym", "s1", []]]], "Nat"]
+  },
+  "obligation": {
+    "kind": "refinement_after_transition",
+    "pre_state": "s0",
+    "transition": "step",
+    "post_variable": "s'",
+    "refinement": ["in", ["sym", "counter", [["var", "s'"]]], "Nat"]
+  },
+  "expect": "reject",
+  "certificate": {
+    "schema": "omega-matching-logic-certificate/1",
+    "derivation": {
+      "rule": "exists_intro",
+      "var": "s'",
+      "body": ["and",
+        ["pred", "step", [["sym", "s0", []], ["var", "s'"]]],
+        ["in", ["sym", "counter", [["var", "s'"]]], "Nat"]],
+      "witness": ["sym", "s1", []],
+      "defined": {"rule": "defined_closed", "term": ["sym", "s1", []]},
+      "premise": {
+        "rule": "and_intro",
+        "left": {"rule": "axiom", "name": "step_s0_s1"},
+        "right": {
+          "rule": "eq_subst",
+          "var": "m",
+          "pattern": ["in", ["var", "m"], "Nat"],
+          "direction": "right",
+          "equality": {"rule": "axiom", "name": "counter_eq"},
+          "premise": {"rule": "axiom", "name": "cheat"}
+        }
+      }
+    }
+  }
+}

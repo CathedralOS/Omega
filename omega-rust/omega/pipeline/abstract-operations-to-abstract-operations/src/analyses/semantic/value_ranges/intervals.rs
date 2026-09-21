@@ -93,6 +93,7 @@ fn extract_conjunct(
         | Proposition::IntegerMathLessThan(_, _)
         | Proposition::IntegerMathLessOrEqual(_, _)
         | Proposition::IeeeFloatComparison { .. }
+        | Proposition::ScalarIeeeFloatComparison { .. }
         | Proposition::ByteSequenceEqual { .. }
         | Proposition::StructuralCaseMembership { .. }
         | Proposition::Disjunction(_)

@@ -54,8 +54,10 @@ fn module() -> TerminalModule {
     });
     machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: producer,
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place,
             structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -166,6 +168,7 @@ fn constructed_scalar_record_block_transport_retains_exact_source_contract() {
         target: target.id,
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: vec![StructuralArgument {
             place: PlaceId::new(1).unwrap(),
             path: Vec::new(),
@@ -215,6 +218,7 @@ fn constructed_scalar_record_block_transport_retains_exact_source_contract() {
 fn read() -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(2).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             id: ValueId::new(3).unwrap(),
@@ -358,6 +362,7 @@ fn runtime_scalar_record_shared_getter_preserves_exclusive_overlap_rejection() {
         .collect();
     getter.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(12).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             id: ValueId::new(13).unwrap(),
@@ -377,10 +382,12 @@ fn runtime_scalar_record_shared_getter_preserves_exclusive_overlap_rejection() {
     };
     let call = Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(2).unwrap(),
         result: read().result,
         kind: OperationKind::CallStructuralScalar {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: getter.id,
             arguments: Vec::new(),
             claim_transfers: Vec::new(),
@@ -426,6 +433,7 @@ fn branch_local_record_cannot_be_read_on_a_bypass_but_unused_record_allows_join(
         target: BlockId::new(902).unwrap(),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
@@ -439,6 +447,7 @@ fn branch_local_record_cannot_be_read_on_a_bypass_but_unused_record_allows_join(
         target: BlockId::new(target).unwrap(),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };

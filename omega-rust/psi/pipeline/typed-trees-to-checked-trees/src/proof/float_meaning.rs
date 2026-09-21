@@ -185,10 +185,7 @@ fn direct_structural_float_leaf_source(
     checked_trees::CheckedStructuralParameterField,
 )> {
     let (owner_machine, _) = direct_machine_contract_owner(program, proof, fact)?;
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == owner_machine)?;
+    let machine = crate::lookup::machine_by_symbol(program, owner_machine)?;
     let entry = program.machine_states(machine).first()?;
     let parameters = program.state_parameters(entry);
     let place = crate::flow::canonical_place_from_expression(program, fact.source)?;
@@ -294,10 +291,7 @@ fn direct_machine_result_source(
     if !owning_contract {
         return None;
     }
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == owner_machine)?;
+    let machine = crate::lookup::machine_by_symbol(program, owner_machine)?;
     let entry = program.machine_states(machine).first()?;
     if program
         .state_parameters(entry)
@@ -332,10 +326,7 @@ fn direct_machine_parameter_source(
         return None;
     }
     let (owner_machine, _) = direct_machine_contract_owner(program, proof, fact)?;
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == owner_machine)?;
+    let machine = crate::lookup::machine_by_symbol(program, owner_machine)?;
     let entry = program.machine_states(machine).first()?;
     let parameter = program
         .state_parameters(entry)
@@ -379,10 +370,7 @@ fn direct_block_parameter_source(
     }
     let (owner_machine, owner_state) = direct_machine_contract_owner(program, proof, fact)?;
     let owner_state = owner_state?;
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == owner_machine)?;
+    let machine = crate::lookup::machine_by_symbol(program, owner_machine)?;
     let entry = program.machine_states(machine).first()?;
     if entry.symbol == owner_state {
         return None;

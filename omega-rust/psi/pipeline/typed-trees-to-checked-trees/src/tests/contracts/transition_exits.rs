@@ -300,8 +300,8 @@ fn loop_exits_do_not_refresh_authored_entry_assumptions() {
 #[test]
 fn loop_reference_origins_retain_unknown_incoming_alternatives() {
     for (declaration, argument) in [
-        ("let alias: &mut [u8; 4] = destination;", "alias"),
         ("let mut local: [u8; 4] = [0, 0, 0, 0];", "&mut local"),
+        ("let mut alias: &mut [u8; 4] = destination;", "alias"),
     ] {
         let source = format!(
             r#"
@@ -329,6 +329,30 @@ fn loop_reference_origins_retain_unknown_incoming_alternatives() {
             "{declaration}: {diagnostics:#?}"
         );
     }
+}
+
+#[test]
+fn loop_reference_origins_follow_immutable_local_alias() {
+    // An immutable `let` local keeps custody of the parameter it was bound
+    // from: forwarding `alias` carries `destination`'s exact origin, so the
+    // loop still proves the entry contract.
+    let source = r#"
+        domain [u8; 4]::Utf8 requires valid_utf8(self);
+        machine fill(out_line: &mut [u8; 4], repeat: bool)
+        ensures out_line in Utf8 {
+            transition { _ -> visit(out_line, repeat) }
+            state visit(destination: &mut [u8; 4], repeat: bool) {
+                transition repeat { true -> again(destination, repeat) false -> write(destination) }
+            }
+            state again(destination: &mut [u8; 4], repeat: bool) {
+                let alias: &mut [u8; 4] = destination;
+                transition { _ -> visit(alias, repeat) }
+            }
+            state write(result: &mut [u8; 4]) { result = "ok"; }
+        }
+    "#;
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("an immutable local alias forwards the loop-carried parameter origin");
 }
 
 #[test]

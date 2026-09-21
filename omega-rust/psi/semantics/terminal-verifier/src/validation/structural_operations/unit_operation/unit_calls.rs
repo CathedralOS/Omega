@@ -31,6 +31,7 @@ pub(super) fn validate_call_unit(
         callee,
         arguments,
         erased_arguments,
+        erased_proof_arguments,
         structural_arguments,
         claim_transfers,
         requirement_obligations,
@@ -229,6 +230,12 @@ pub(super) fn validate_call_unit(
         });
     }
     crate::validation::validate_erased_argument_terms(machine, operation.id, erased_arguments)?;
+    crate::validation::validate_erased_proof_terms(
+        crate::validation::proof_formals_in_scope(machine, operation.id),
+        &callee.contract.erased_proof_formals,
+        erased_proof_arguments,
+        operation.id,
+    )?;
 
     validate_unit_call_claim_transfers(
         module,

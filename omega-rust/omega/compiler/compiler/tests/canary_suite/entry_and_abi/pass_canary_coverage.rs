@@ -5,8 +5,8 @@ use crate::{
     CROSS_TARGET_PASS_CANARIES, ROOTED_BACKEND_PASS_CANARIES, ROOTED_TARGET_BACKEND_PASS_CANARIES,
     check_canary, compile_canary_without_output_for_target, compile_native_canary_without_output,
     compile_rooted_backend_canary_without_output,
-    compile_rooted_backend_canary_without_output_for_target, exact_native_coverage, pass_canary,
-    run_bounded_canary_jobs,
+    compile_rooted_backend_canary_without_output_for_target, exact_native_coverage,
+    native_hosted_target, pass_canary, run_bounded_canary_jobs,
 };
 
 #[test]
@@ -425,6 +425,26 @@ fn discovered_exact_native_coverage_is_consistent() {
         coverage.rooted_target_owner_count("time/runtime_time_host_native_exit", "windows_x86_64"),
         0,
         "known rooted-target control without a dedicated exact owner must remain in the umbrella"
+    );
+    // Required platform runs: every runner row the release matrix requires
+    // keeps qualifying compile coverage in this suite, and this host's own
+    // row keeps a non-empty host-executed cohort — a runner with no
+    // qualifying owners would leave its row open rather than pass.
+    for required in exact_native_coverage::REQUIRED_PLATFORM_RUNNER_TARGETS {
+        assert!(
+            coverage.target_compile_owner_count(required) > 0,
+            "{required}: required platform runner row retains qualifying \
+             compile-coverage owners"
+        );
+    }
+    assert!(
+        exact_native_coverage::REQUIRED_PLATFORM_RUNNER_TARGETS.contains(&native_hosted_target()),
+        "the host's compiled-in runner row is one of the required platform \
+         runners"
+    );
+    assert!(
+        coverage.native_execution_owner_count() > 0,
+        "the host runner row retains a non-empty host-executed cohort"
     );
     eprintln!(
         "exact-native coverage index: files={} bytes={} test-bodies={} qualifying-tests={} qualifying-target-compiles={} unique-rooted-active={} unique-direct-active={} unique-cross-target={} unique-rooted-target={} scan-micros={}",

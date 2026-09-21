@@ -743,6 +743,18 @@ fn collect_authored_storage_reads(
             {
                 member_paths.push(path.clone());
             }
+            // A member read against a closed record constructor is a
+            // projection of one declared field's closed value: the complete
+            // constructor, every sibling initializer, and the field identity
+            // all replay together, not just the selected leaf.
+            if member.case_variant.is_none()
+                && let ExpressionNode::StructLiteral(literal) =
+                    checked.expression_table.expression(member.receiver)
+                && literal.case_name.is_none()
+                && validation::closed_record_scalar_projection(&checked.typed, expression).is_none()
+            {
+                return unsupported("closed record member lost its complete authored projection");
+            }
             if let Some((symbol, primitive, kind)) =
                 authored_owned_field(checked, state, expression)?
             {
@@ -875,7 +887,8 @@ fn collect_scalar_storage_reads(
         | CheckedScalarExpression::IntegerWiden { operand, .. }
         | CheckedScalarExpression::IntegerExactCast { operand, .. }
         | CheckedScalarExpression::IntegerTrappingCast { operand, .. }
-        | CheckedScalarExpression::IntegerWrappingCast { operand, .. } => {
+        | CheckedScalarExpression::IntegerWrappingCast { operand, .. }
+        | CheckedScalarExpression::IntegerSaturatingCast { operand, .. } => {
             collect_scalar_storage_reads(operand, namespace, path, reads, needs_value_replay);
         }
         CheckedScalarExpression::Boolean(expression) => {
@@ -990,7 +1003,8 @@ fn collect_boolean_storage_reads(
                 path.pop();
             }
         }
-        CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+        CheckedBooleanExpression::IntegerComparison { left, right, .. }
+        | CheckedBooleanExpression::ScalarIeeeFloatComparison { left, right, .. } => {
             for (position, operand) in [(0, left), (1, right)] {
                 path.push(position);
                 collect_scalar_storage_reads(operand, namespace, path, reads, needs_value_replay);
