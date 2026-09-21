@@ -7837,6 +7837,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `wiki/drafts/squalr_seed_parity.md`). The repair still belongs to the
   port lane (submodule publication + gitlink), and Windows validation
   still has no host; no independent slice exists under this name.
+  Re-verified at `8f58b6676b00` (z133, linux x86-64): the gitlink has
+  advanced `5b0307c3` → `ef6682f75f48` — the submodule republished the
+  lock with std Git pin `13433c1a` (post-`32f5182254`, so the recorded
+  std-pin staleness is repaired) and landed the region-alignment ports
+  (`52bcf25` NormalizedRegion `set_alignment`/`expand`). Both re-entry
+  paths stay red on this host anyway: `omega --check
+  squalr-tests/main.omg` still rejects the tracked lock ("fresh source
+  key or immutable content differs" — the lock's external-local lineage
+  keys the publisher's absolute checkout path, so any other checkout
+  needs an `omega update` review to re-key), and `omega update
+  --offline` still refuses refreshed Git selection on the same pin.
+  The residual ask narrows accordingly: per-checkout lock re-keying
+  (online `omega update` review) or a portable-lock repair — not
+  std-pin advancement. Fence map refreshed: no `samples/apps/squalr`
+  path claim; live item claims SQUALR-NAMED-TRAIT-OPERATORS ~10:24Z,
+  GEOMETRY-WINDOWS-VALIDATION ~13:53Z, SQUALR-SEED-PARITY ~15:14Z,
+  SQUALR-DEBUG-ASSERTIONS ~16:25Z, SEED-PARITY-ASSERTIONS ~11:09Z.
+  Windows leg still host-gated; no independent slice exists.
 - **SQUALR-NAMED-TRAIT-OPERATORS.** Named trait operators. Landed (`samples/apps/squalr`): `NormalizedRegion` ports upstream's `Ord`/`PartialOrd` — `NormalizedRegion::TotalOrder` is a `satisfies Order::before` conformance (the named-trait surface a trait-selected sort binds), all four fixed-token operators (`machine <`/`<=`/`>`/`>=`) are declared comparing `base_address` alone, and `base_address_order(&self, other)` is the callable spelling exercised natively in squalr-tests' `ordering` state (strict order both directions, base-tie order-equal while `equals` still distinguishes sizes). Compiler edge recorded: token operators need owned operands and by-value data arguments do not cross the selected ProgramEntry boundary ("rejoins 0 Terminal attachment identities"), so the `<`/`<=`/`>`/`>=` bindings are declared but unreachable from application code today. `Hash` deferred until a hash-keyed region collection is ported.
 - **SQUALR-REGION-ALIGNMENT-EXPANSION.** Region alignment expansion.
 - **SQUALR-SEED-PARITY.** Resolved — merged alias of SQUALR-GEOMETRY-PARITY's "finish the mapped Rust behavior still absent from the seed" clause, adjudicated at `a3ab15b7611`. The submodule's TASKS.md carries no seed-parity item; the phrase mines the GEOMETRY-PARITY residual list, whose enumerated gaps are each already a sibling row: alignment string parsing (SQUALR-ALIGNMENT-STRING-PARSING), clone/serialization (SQUALR-CLONE-SERIALIZATION-PARITY), region alignment/expansion (SQUALR-REGION-ALIGNMENT-EXPANSION), named trait operators (SQUALR-NAMED-TRAIT-OPERATORS), Rust debug-only assertions (SQUALR-GEOMETRY-PARITY), and the Windows validation leg plus the std-pin `32f5182254` upgrade (both recorded open inside SQUALR-GEOMETRY-PARITY's verified-scope audit). The implementing surface `samples/apps/squalr` stays with the port's own lane; no independent slice exists under this name. Re-verified at `59610bf809`: the submodule board still carries no seed-parity row, and the surface stays fenced — `samples/apps/squalr` under SQUALR-TARGETS-AND-THROUGHPUT (21:39Z) plus a same-item sibling claim `Jarod / swarm-w9-squalr-seed-parity` (02:08Z).
