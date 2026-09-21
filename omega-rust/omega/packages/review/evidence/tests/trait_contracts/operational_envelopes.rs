@@ -65,18 +65,17 @@ fn public_trait_termination_is_parameter_rooted_review_shape() {
     let package = TempPackage::new();
     package.write(
         "main.omg",
-        r#"use omega::language::core::service;
-pub boundary trait SchedulerRuntime {
-    machine wait(&self, scheduler: Service<SchedulerRuntime>)
-    requires self in WeakFair
-    requires scheduler in WeakFair
-    terminates;
-}
-pub domain SchedulerRuntime::WeakFair
+        r#"pub data SchedulerHandle { }
+pub domain SchedulerHandle::WeakFair
 satisfies ProgressProfile
 established by SchedulerAdmission::grant;
 pub boundary trait SchedulerAdmission {
-    machine grant(scheduler: Service<SchedulerRuntime>) -> Service<SchedulerRuntime> in WeakFair;
+    machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair;
+}
+pub boundary trait SchedulerRuntime {
+    machine wait(scheduler: SchedulerHandle)
+    requires scheduler in WeakFair
+    terminates;
 }
 "#,
     );
@@ -112,17 +111,16 @@ pub boundary trait SchedulerAdmission {
         .termination()
         .premises()
         .expect("wait must promise termination");
-    assert_eq!(premises.len(), 2);
-    for premise in premises {
-        assert_eq!(premise.profile().path(), "SchedulerRuntime::WeakFair");
-        assert_eq!(
-            premise.profile().owner(),
-            PackageReviewNominalOwner::Package(package_identity())
-        );
-        assert!(premise.projections().is_empty());
-    }
-    assert!(premises[0].subject().is_receiver());
-    assert_eq!(premises[1].subject().parameter(), Some(0));
+    let [premise] = premises else {
+        panic!("one parameter-rooted premise")
+    };
+    assert_eq!(premise.profile().path(), "SchedulerHandle::WeakFair");
+    assert_eq!(
+        premise.profile().owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    assert!(premise.projections().is_empty());
+    assert_eq!(premise.subject().parameter(), Some(0));
 }
 
 #[test]

@@ -1,19 +1,19 @@
 use super::OwnedImageProvider;
 use crate::executable_installation::test_support::{
     admit, artifact, artifact_placement_constraints, authority_commitments, certificate, entry_id,
-    frozen, id, installed_code, relocatable_artifact,
+    frozen_for_audience, id, installed_code, relocatable_artifact,
 };
 use crate::executable_installation::{
     AdmittedArtifact, Artifact, ArtifactEntry, ArtifactId, ArtifactRelocationKind,
     DecodedArtifactRelocation, EntryContractDigest, EntryReferenceAuthority,
     EntryReferenceFactDigest, EntryReferenceReceipt, EntrySetId, InstallAuthority,
-    InstallationFactDigest, InstalledCode, InstalledCodeId, InstalledEntryReference,
-    MachineContractSetId, MachineFootprintId, MappingQuarantineCause, PlacementPlanId,
-    QuarantinedInstallation, RelocationSetId, ReplacementAuthority, ReplacementFactDigest,
-    ReplacementOutcome, RetiredInstallation, RetirementAuthority, RetirementFactDigest,
-    RetirementReceipt, UninstallOutcome, ValidatedPlacement, install_validated,
-    quarantine_installed, replace_installed, retire_installed, uninstall_installed,
-    validate_final_placement,
+    InstallationAudience, InstallationFactDigest, InstalledCode, InstalledCodeId,
+    InstalledEntryReference, MachineContractSetId, MachineFootprintId, MappingQuarantineCause,
+    PlacementPlanId, QuarantinedInstallation, RelocationSetId, ReplacementAuthority,
+    ReplacementFactDigest, ReplacementOutcome, RetiredInstallation, RetirementAuthority,
+    RetirementFactDigest, RetirementReceipt, UninstallOutcome, ValidatedPlacement,
+    install_validated, quarantine_installed, replace_installed, retire_installed,
+    uninstall_installed, validate_final_placement,
 };
 use layout_plans::{EntryStubId, RelocationTarget};
 use target::Architecture;
@@ -44,7 +44,21 @@ fn two_site_artifact(identity: u64) -> Artifact {
 }
 
 fn validated(admitted: &AdmittedArtifact, placement: u64, base: u64) -> ValidatedPlacement {
-    let frozen = frozen(admitted, placement, base);
+    validated_for_audience(
+        admitted,
+        placement,
+        base,
+        InstallationAudience::FutureFetcher,
+    )
+}
+
+fn validated_for_audience(
+    admitted: &AdmittedArtifact,
+    placement: u64,
+    base: u64,
+    audience: InstallationAudience,
+) -> ValidatedPlacement {
+    let frozen = frozen_for_audience(admitted, placement, base, audience);
     let certificate = certificate(&frozen, 500 + placement);
     validate_final_placement(frozen, &certificate).expect("validated placement")
 }
@@ -59,8 +73,24 @@ fn install_through_provider(
     placement: u64,
     base: u64,
 ) -> (InstalledCodeId, InstalledCode) {
+    install_through_provider_for_audience(
+        provider,
+        artifact,
+        placement,
+        base,
+        InstallationAudience::FutureFetcher,
+    )
+}
+
+fn install_through_provider_for_audience(
+    provider: &mut OwnedImageProvider,
+    artifact: &Artifact,
+    placement: u64,
+    base: u64,
+    audience: InstallationAudience,
+) -> (InstalledCodeId, InstalledCode) {
     let admitted = admit(artifact);
-    let validated = validated(&admitted, placement, base);
+    let validated = validated_for_audience(&admitted, placement, base, audience);
     let authority = InstallAuthority::from_admitted_provider(&validated)
         .with_required_facts(OwnedImageProvider::install_facts());
     let (installed, receipt) = provider
@@ -131,10 +161,20 @@ fn install_refuses_an_artifact_for_another_architecture() {
 #[test]
 fn patch_splices_admitted_fragments_at_declared_sites_and_the_receipt_replaces() {
     let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
-    let (superseded_id, superseded) =
-        install_through_provider(&mut provider, &two_site_artifact(41), 41, 0x4000);
-    let (_successor_id, successor) =
-        install_through_provider(&mut provider, &artifact(42), 42, 0x8000);
+    let (superseded_id, superseded) = install_through_provider_for_audience(
+        &mut provider,
+        &two_site_artifact(41),
+        41,
+        0x4000,
+        InstallationAudience::PossibleCurrentExecutor,
+    );
+    let (_successor_id, successor) = install_through_provider_for_audience(
+        &mut provider,
+        &artifact(42),
+        42,
+        0x8000,
+        InstallationAudience::PossibleCurrentExecutor,
+    );
 
     let site_a = entry_id(1041);
     let site_b = entry_id(2041);

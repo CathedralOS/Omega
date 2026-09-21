@@ -560,6 +560,123 @@ fn mutable_self_mixed_field_index_path_can_supply_shared_receiver() {
     );
 }
 
+fn omission_stage(
+    checked: &checked_trees::CheckedTrees,
+    name: &str,
+) -> checked_trees::CheckedUnitPlanOmissionStage {
+    let machine = machine_named(checked, name);
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    assert!(
+        plans.for_machine(machine).is_none(),
+        "expected no Unit plan for `{name}`"
+    );
+    plans
+        .omission_for_machine(machine)
+        .unwrap_or_else(|| panic!("expected an omission row for `{name}`"))
+        .stage
+}
+
+#[test]
+fn explicit_shared_indexed_argument_still_omits_caller_in_call_operation() {
+    for (label, source) in [
+        (
+            "literal index",
+            "data Cell { value: u64; }
+             data Rack { cells: [Cell; 2]; }
+             machine take(view: &Cell) -> u64 { view.value }
+             machine Rack::run(&mut self) -> u64 { take(&self.cells[0]) }",
+        ),
+        (
+            "dynamic index",
+            "data Cell { value: u64; }
+             data Rack { cells: [Cell; 2]; }
+             machine take(view: &Cell) -> u64 { view.value }
+             machine Rack::run(&mut self, i: u64 [0..=1]) -> u64 { take(&self.cells[i]) }",
+        ),
+    ] {
+        let checked = check_source(source)
+            .unwrap_or_else(|diagnostics| panic!("{label}: source still checks: {diagnostics:#?}"));
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(machine_named(&checked, "take"))
+                .is_some(),
+            "{label}: the callee keeps its own Unit plan"
+        );
+        let stage = omission_stage(&checked, "run");
+        assert!(
+            matches!(
+                stage,
+                checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { phase, .. }
+                    if phase.contains("call operation")
+            ),
+            "{label}: an indexed explicit `&` argument still stops the caller in call operation: {stage:?}"
+        );
+    }
+}
+
+#[test]
+fn local_indexed_receiver_still_omits_in_call_statement_shape() {
+    let checked = check_source(
+        "data Cell { value: u64; }
+         machine Cell::get(&self) -> u64 { self.value }
+         machine run() -> u64 {
+             let cells: [Cell; 2] = [Cell { value: 1 }, Cell { value: 2 }];
+             cells[1].get()
+         }",
+    )
+    .expect("local indexed receiver still checks at the source stage");
+    let stage = omission_stage(&checked, "run");
+    assert!(
+        matches!(
+            stage,
+            checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { phase, .. }
+                if phase.contains("call statement shape")
+        ),
+        "a literal index on a local-rooted receiver still stops in call statement shape: {stage:?}"
+    );
+}
+
+#[test]
+fn dynamic_indexed_parameter_receiver_stops_at_receiver_reconciliation() {
+    let checked = check_source(
+        "data Cell { value: u64; }
+         machine Cell::get(&self) -> u64 { self.value }
+         machine run(cells: &[Cell; 2], i: u64 [0..=1]) -> u64 { cells[i].get() }",
+    )
+    .expect("dynamic indexed parameter receiver still checks at the source stage");
+    let stage = omission_stage(&checked, "run");
+    assert!(
+        matches!(
+            stage,
+            checked_trees::CheckedUnitPlanOmissionStage::ReceiverReconciliation
+        ),
+        "a runtime index through a parameter receiver still drops at receiver reconciliation: {stage:?}"
+    );
+}
+
+#[test]
+fn literal_indexed_parameter_receiver_can_supply_shared_receiver() {
+    let checked = check_source(
+        "data Cell { value: u64; }
+         machine Cell::get(&self) -> u64 { self.value }
+         machine run(cells: &[Cell; 2]) -> u64 { cells[1].get() }",
+    )
+    .expect("literal indexed parameter receiver still checks");
+    let run = machine_named(&checked, "run");
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(run)
+            .is_some(),
+        "a literal index on a parameter-rooted receiver keeps the Unit plan"
+    );
+}
+
 #[test]
 fn dynamic_indexed_element_still_cannot_supply_shared_receiver() {
     let checked = check_source(

@@ -17,6 +17,12 @@ terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 bounded-process = { path = "../../tooling/bounded-process" }
 
 [dev-dependencies]
+compiler = { path = "../../compiler/compiler" }
 component-description = { path = "../../backend/artifacts/component-description", features = ["test-support"] }
 libc = "0.2.186"
+native-realization = { path = "../../compiler/native-realization" }
+package-manager = { path = "../manager" }
+package-source = { path = "../sources/acquisition" }
+proof-admission = { path = "../../../psi/semantics/proof-admission" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+target = { path = "../../representations/target" }

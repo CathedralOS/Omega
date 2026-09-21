@@ -10,7 +10,12 @@ Hello, Omega.
 Ordinary package review, CLI compilation, and native execution pass on macOS
 ARM64: EOF and Enter produce exactly those bytes (including both newlines),
 empty stderr, and exit 0. Both lines appear before input; with stdin open the
-program waits until Enter. Windows and Linux execution remain open in
+program waits until Enter. On Linux x86-64 the compiler-library regression
+(`samples_with_documented_exit_run_correctly`, filtered to this sample)
+compiles and publishes natively and the receipt-bound executable exits 0 with
+stdin closed, producing the documented output — that harness supplies its own
+acceptance, so the ordinary CLI review route on Linux remains unverified.
+Windows execution and the ordinary Linux CLI route remain open in
 [SAMPLE-CORPUS](../../../../TASKS.md). Cross-compilation is not host execution.
 
 ## Review the project

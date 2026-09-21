@@ -5,10 +5,6 @@ use super::scalar_plans::integer_return;
 use super::{edge_id, identity, machine_id, operation_id};
 use calling_conventions::ValueShape;
 use function_identity::{MachineFunctionIdentity, StateKey};
-use image_emission::{
-    InstallationError, decode_installation_record, encode_installation_record,
-    installation_fingerprint, validate_installation_record,
-};
 use installation_evidence::ProviderExecutionEvidence;
 use machine_code::{
     BoundarySettlementRecord, InternalCallRelocation, MachineCodeFunction, MachineCodePlan,
@@ -780,41 +776,6 @@ pub(super) fn port_effect_plan(provider: &WriteExitProvider) -> MachineCodePlan 
             structural_return: None,
         }],
     }
-}
-
-/// Shared one-field-substitution driver for installation-header coverage: a
-/// representable substitution still encodes and round-trips, the recomputed
-/// installation fingerprint differs from the authentic record's published
-/// identity, and replay against the unchanged image rejects the substitution.
-pub(super) fn assert_header_substitution_rejected(
-    record: &image_emission::InstallationRecord,
-    image: &image_emission::ExecutableImage,
-    authentic: image_emission::InstallationFingerprint,
-    field: &str,
-    mutate: impl Fn(&mut image_emission::InstallationRecord),
-) {
-    let mut changed = record.clone();
-    mutate(&mut changed);
-    assert_ne!(changed, *record, "{field}: substitution changes the record");
-    let bytes = encode_installation_record(&changed)
-        .unwrap_or_else(|error| panic!("{field}: substituted record encodes: {error:?}"));
-    let replayed = decode_installation_record(&bytes)
-        .unwrap_or_else(|error| panic!("{field}: substituted record decodes: {error:?}"));
-    assert_eq!(
-        replayed, changed,
-        "{field}: codec preserves the substituted record"
-    );
-    assert_ne!(
-        installation_fingerprint(&replayed)
-            .unwrap_or_else(|error| panic!("{field}: substituted fingerprint: {error:?}")),
-        authentic,
-        "{field}: recomputed identity differs from the authentic record"
-    );
-    assert_eq!(
-        validate_installation_record(&replayed, image),
-        Err(InstallationError::ImageBindingMismatch),
-        "{field}: independent replay rejects the substitution"
-    );
 }
 
 pub(super) fn artifact_symbol(artifact: &image_emission::ObjectArtifact) -> &str {

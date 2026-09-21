@@ -45,7 +45,9 @@ impl SpecializedStateEdge {
         self.argument
     }
 
-    /// The proven Boolean the dispatch condition takes on this path.
+    /// The Boolean the dispatch condition takes on this path — the supplied
+    /// constant itself for a Boolean argument, or the evaluated comparison
+    /// result (`parameter CMP literal`) for an integer argument.
     pub const fn constant(&self) -> bool {
         self.constant
     }
@@ -186,9 +188,13 @@ impl std::fmt::Display for StateArgumentSpecializationError {
 impl std::error::Error for StateArgumentSpecializationError {}
 
 /// The independently derived specialization plan for one dispatch state:
-/// every constant-supplied unconditional incoming edge, sorted by edge
-/// identity. Proposal and validation both recompute this plan; the candidate
-/// is accepted only when its claimed rows equal the replayed plan exactly.
+/// every constant-supplied incoming edge — unconditional `Jump` successors
+/// and `Conditional` predecessor arms — sorted by edge identity. The state
+/// argument an edge supplies is a proven Boolean when the dispatch reads the
+/// parameter directly, or a proven integer when the condition computes
+/// `parameter CMP literal` in-block. Proposal and validation both recompute
+/// this plan; the candidate is accepted only when its claimed rows equal the
+/// replayed plan exactly.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DispatchSpecializationPlan {
     pub(crate) machine: MachineId,

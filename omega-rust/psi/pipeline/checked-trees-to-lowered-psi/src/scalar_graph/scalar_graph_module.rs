@@ -41,6 +41,10 @@ pub(super) struct GraphEmission<'a> {
     pub(super) state_parameters: Vec<Vec<ValueDeclaration>>,
     /// Per-state proof-only erased formal rosters in authored order.
     pub(super) state_erased_formals: Vec<Vec<ValueDeclaration>>,
+    /// Per-state erased-proof declarations, mirroring
+    /// `state_erased_formals`: each state's blocks redeclare them so
+    /// `ProofTerm::Formal` positions stay in scope.
+    pub(super) state_erased_proof_formals: Vec<Vec<terminal_psi::ErasedProofFormal>>,
     pub(super) loop_plan:
         Option<&'a crate::scalar_graph::scalar_graph_lowering::cycles::ScalarLoopPlan>,
     pub(super) terminal_machine: MachineId,
@@ -212,6 +216,10 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         .expect("generated identities follow parameter identities");
     let mut state_parameters = Vec::with_capacity(states.len());
     let mut state_erased_formals = Vec::with_capacity(states.len());
+    let state_erased_proof_formals = states
+        .iter()
+        .map(|state| state.erased_proof_formals.clone())
+        .collect::<Vec<_>>();
     for (position, state) in states.iter().enumerate() {
         if position == 0 && loop_plan.is_none() {
             state_parameters.push(parameters.clone());
@@ -281,6 +289,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         states,
         state_parameters,
         state_erased_formals,
+        state_erased_proof_formals,
         loop_plan,
         terminal_machine,
         identity_base,
@@ -577,6 +586,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             id: entry,
             parameters: Vec::new(),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Jump {
@@ -584,6 +594,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                 target: graph_entry,
                 arguments: parameters.iter().map(|parameter| parameter.id).collect(),
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: structural_parameters
                     .iter()
                     .map(|parameter| StructuralArgument {
@@ -683,6 +694,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                     id: contract_id(terminal_machine.get()),
                     crash_routes,
                     erased_scalar_formals,
+                    erased_proof_formals: states[0].erased_proof_formals.clone(),
                     requires,
                     ensures,
                     outcome_specific_ensures: Vec::new(),

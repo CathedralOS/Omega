@@ -253,6 +253,7 @@ pub(crate) fn lower_claim_free_affine_return_machines(
                 id: block,
                 parameters: Vec::new(),
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 operations: Vec::new(),
                 terminator: Terminator::ReturnStructural {
                     edge: edge_id(identity_base.checked_add(1).ok_or(
@@ -269,6 +270,7 @@ pub(crate) fn lower_claim_free_affine_return_machines(
                 id: contract_id(terminal_machine.get()),
                 crash_routes: Vec::new(),
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
                 outcome_specific_ensures: Vec::new(),

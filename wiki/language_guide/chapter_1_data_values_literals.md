@@ -19,7 +19,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -44,7 +44,7 @@ These are the central source forms, not a complete package setup. The
 declarations and target bindings.
 
 The invocation selects an exact target; naming a binding does not select it.
-`Service<Console>` is a compiler-known service carrier, not a Console provider
+`Binding<Console>` is a compiler-known service carrier, not a Console provider
 object. Its binding must be established before use. Missing or incompatible
 build supply rejects compilation; no additional domain annotation is needed.
 The target's entry bridge provisions one receiver and the admitted storage and

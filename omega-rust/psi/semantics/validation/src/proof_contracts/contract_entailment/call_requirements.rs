@@ -161,7 +161,7 @@ impl CallRequirement<'_> {
                     instantiated_fact_judgment(
                         program,
                         &site_judge,
-                        self.callee,
+                        parameters,
                         self.expression,
                         &substitution
                     ),

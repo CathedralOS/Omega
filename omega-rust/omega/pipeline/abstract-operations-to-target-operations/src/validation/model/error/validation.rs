@@ -11,10 +11,6 @@ pub enum AbstractToTargetTranslationValidationError {
         machine: MachineId,
         operation: OperationId,
     },
-    UnsupportedPartialAffineContinuation {
-        machine: MachineId,
-        edge: semantic_vocabulary::EdgeId,
-    },
     PsiMismatch,
     TargetMismatch,
     EntryMismatch,

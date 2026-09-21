@@ -10,11 +10,11 @@
 | `examples/` | Small executable encoding fixtures. | Delete a fixture only when an equally direct generated control subsumes it. |
 
 Run `sh tests/beta/compiler/word-prefix.sh` from the repository root on macOS
-arm64, or from Git Bash on Windows x64 with Python 3 available as `python3`.
-The Alpha-to-Beta edge gate includes it. The Python helper supplies literal
-inputs and checks exact process status, stdout, and stderr; it does not assemble
-source or produce a trusted artifact. A rejected raw stdout prefix is not a
-published tape. `register-address-regression.sh` runs on the same two audited
-seed hosts (macOS arm64, or Git Bash on Windows x64; other hosts refuse) and
-additionally checks the build wrapper preserves existing artifacts after late
-failures.
+arm64 or Linux x86-64, or from Git Bash on Windows x64 with Python 3 available
+as `python3`. The Alpha-to-Beta edge gate includes it. The Python helper
+supplies literal inputs and checks exact process status, stdout, and stderr;
+it does not assemble source or produce a trusted artifact. A rejected raw
+stdout prefix is not a published tape. `register-address-regression.sh` runs
+on the same audited seed hosts (macOS arm64, Linux x86-64, or Git Bash on
+Windows x64; other hosts refuse) and additionally checks the build wrapper
+preserves existing artifacts after late failures.
