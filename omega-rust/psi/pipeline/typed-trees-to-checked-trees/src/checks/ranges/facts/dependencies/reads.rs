@@ -20,6 +20,8 @@ pub(super) fn collect_reads(
     reads: &mut Vec<CanonicalPlace>,
     depth: usize,
 ) -> bool {
+    // Depth bound shared with the captures.rs walks and pinned by
+    // tests/depth.rs; name it once when any of the three next moves.
     if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
         return false;
     }
