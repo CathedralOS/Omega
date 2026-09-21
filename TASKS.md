@@ -13502,6 +13502,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ENTRY-CONTENT-ROOTS owner or a dispatch including hosted_receiver.rs.
   Sibling aliases naming the same surface: PHYSICAL-ENTRY-BRIDGES,
   ENTRY-CONTENT-ROOTS.
+- **NEW-GCE-CYCLIC-CONTROLS-SPEC-STATUS.** Inserted row, slice landed
+  (planner-scoped to `wiki/spec/terminal-psi/verification.md`) — appended
+  the cyclic-controls status paragraph to "General proof integration
+  status": the spec's cyclic rules (acyclic-only merge tokens, checked
+  invariant establishment for cyclic reconvergence, unproved cyclic
+  arrivals blocking primitive-read equality, the scalar block-predicate
+  rule's existing cyclic cuts) are now stated with their implementation
+  status — bounded families implemented in source (`exits/cyclic_headers`,
+  `cyclic_guarantees::strengthen`, cyclic call fixtures) while the general
+  cyclic execution composition stays an open ledger leg under
+  GENERAL-CYCLIC-EXECUTION; no proved general cyclic composition theorem
+  is claimed. Prose-only spec edit; consistency reviewed, no code path
+  touched.
 - **NEW-LSC-MULTI-SOURCE-LIFETIME-LEAVES.** Inserted row, scope verified at `b868b9ee8f27` (planner-scoped to `typed-trees-to-checked-trees/src/borrow/view_link.rs`) — the multi-source lifetime-leaf machinery is already implemented in that file: `structural_view_return_source` enumerates input leaves via `carried_lifetimes`, an elided output requires exactly one leaf across the frontier (`ElidedMultipleInputs` at `matching.len() != 1`, covering one parameter carrying several unnamed sources), an explicit output lifetime emits one `ViewReturnFieldSource` per matching leaf within a single input, and one lifetime shared across parameters rejects as `LifetimeMatchesMultipleInputs` ("a single returned view borrowing several inputs is not modelled yet"). No bounded slice remains inside view_link.rs: modelling multi-source borrows changes `ViewReturnSource`'s shape and therefore both consumers — `checks::borrows::elision`'s diagnostic and `borrow::loans`' call-site loan attributor — which sit outside the assigned file. No live fence covers the file; the cross-file leg needs its own dispatch with `elision.rs` + `loans.rs` in scope.
 - **NEW-NATIVE-DIFF-IGNORED-OPERAND-PROBE-INTENT.** Inserted row, scope
   verified (planner-scoped to `tests/native-differential/tests/real_fs.rs`)
