@@ -1,9 +1,10 @@
 use super::{
     SymbolHandle, TypeIdentityContext, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
-    array_length, atom, index,
+    array_length, atom, compound, index, range_endpoint,
 };
 use crate::name::Identifier;
 use crate::type_identity::TypeIdentityRequest;
+use crate::type_identity::identity_context::TypeIdentityQualification;
 use crate::types::FixedArrayLength;
 use std::cell::Cell;
 
@@ -97,6 +98,110 @@ fn cyclic_substitutions_reject_exact_package_identity() {
             .contains("unsupported-const-substitution")
     );
     assert!(rejected.get());
+}
+
+#[test]
+fn substituted_nonatom_references_use_their_structural_type_identity() {
+    let mut program = TypedTrees::default();
+    let symbol = SymbolHandle::from_arena_index(91);
+    let element = named(&mut program, SymbolHandle::invalid(), "u8");
+    let slice = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Slice {
+            element_type: element,
+        });
+    let array = program
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type: element,
+            length: FixedArrayLength::Literal(4),
+        });
+    let borrow = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Reference {
+            referee: element,
+            access: language_core::ReferenceAccess::Shared,
+            lifetime: None,
+        });
+    let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+    let mut identities = Vec::new();
+    for actual in [slice, array, borrow, unit] {
+        let substitutions = [(symbol, actual)];
+        let context = TypeIdentityContext {
+            substitutions: &substitutions,
+            ..Default::default()
+        };
+        let expected = program.normalized_type_identity(actual).0;
+        assert_eq!(
+            index(&program, symbol, "Count", &context),
+            Some(expected.clone())
+        );
+        assert_eq!(
+            array_length(&program, symbol, "Count", &context),
+            Some(expected.clone())
+        );
+        assert_eq!(
+            range_endpoint(&program, symbol, true, &context),
+            Some(expected)
+        );
+        identities.push(index(&program, symbol, "Count", &context).unwrap());
+    }
+    let distinct: std::collections::BTreeSet<_> = identities.iter().collect();
+    assert_eq!(
+        distinct.len(),
+        identities.len(),
+        "distinct substituted type references must not share one identity"
+    );
+}
+
+#[test]
+fn substituted_nonatom_range_endpoint_keeps_end_kind() {
+    let mut program = TypedTrees::default();
+    let symbol = SymbolHandle::from_arena_index(91);
+    let element = named(&mut program, SymbolHandle::invalid(), "u8");
+    let slice = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Slice {
+            element_type: element,
+        });
+    let substitutions = [(symbol, slice)];
+    let context = TypeIdentityContext {
+        substitutions: &substitutions,
+        ..Default::default()
+    };
+    let identity = program.normalized_type_identity(slice).0;
+    assert_eq!(
+        range_endpoint(&program, symbol, false, &context),
+        Some(compound("exclusive-end", [identity]))
+    );
+}
+
+#[test]
+fn nonatom_substitution_does_not_poison_exact_owner_identity() {
+    let mut program = TypedTrees::default();
+    let symbol = SymbolHandle::from_arena_index(91);
+    let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+    let substitutions = [(symbol, unit)];
+    let missing = Cell::new(false);
+    let context = TypeIdentityContext {
+        substitutions: &substitutions,
+        qualification: TypeIdentityQualification::PackageQualified,
+        missing_exact_nominal_owner: Some(&missing),
+        ..Default::default()
+    };
+    assert_eq!(
+        index(&program, symbol, "Count", &context),
+        Some("unit".to_owned())
+    );
+    assert_eq!(
+        array_length(&program, symbol, "Count", &context),
+        Some("unit".to_owned())
+    );
+    assert_eq!(
+        range_endpoint(&program, symbol, true, &context),
+        Some("unit".to_owned())
+    );
+    assert!(!missing.get());
 }
 
 #[test]
