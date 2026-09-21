@@ -330,15 +330,28 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   across the required hosted matrix. Record unavailable hosts explicitly;
   scoped reruns do not establish a new complete baseline.
 
-  z168 wave state: `samples/` and the integration harness
-  (`compiler/tests/samples_compile.rs`) are fenced to six live claims —
-  FFIVAL, SQUALR-TARGETS-AND-THROUGHPUT, BENCHMARK-PROOF-SUBJECT-SELECTION
-  (also `samples_compile.rs`, 22:34Z), PROOF-SAMPLES-CHECKED-CALL-SELECTION,
-  BENCHMARK-SUBJECT-CORPUS-EXPANSION (00:34Z), and SAMPLE-CORPUS/wire-protocol
-  (01:08Z). The linux x86-64 focused oracle
-  (`samples_with_documented_exit_run_correctly`) was left running past
-  28 minutes at `12ecbe98f8` — per-sample native compile+run is the slow
-  leg; its result belongs to whichever claim holder refreshes the table.
+  z203 wave state (re-measured on linux x86-64 at `50559da3ab9`): the
+  checked-cohort leg was driven sample-by-sample with the same
+  `compile_sample_to_checked` plumbing as `all_samples_reach_checked_trees`
+  — **146 of 147 maintained `samples/cli|gui|uefi` mains reach checked
+  trees, zero check failures; `gui/windowed_calculator` is the sole
+  outlier: it does not terminate** (observed >25 minutes at ~100% CPU with
+  zero further file I/O inside checked compile, then killed). The sample is
+  1007 lines — 3–6x the sibling GUI mains (166–372) — and the previous
+  full-cohort run shows the same signature (froze at identical input
+  position, ~40.3 MB read). Superlinear blowup in source checking or
+  provider selection, not a diagnostic: no error is ever emitted.
+  `samples_with_documented_exit_run_correctly` remains the un-run native
+  leg; `OMEGA_SAMPLE_RUNTIME_FILTER` per-sample runs stay with the fenced
+  owners below.
+
+  Live fences this wave: `samples/gui` + `source/library/std/macos_gui.omg`
+  + `source/library/std/targets/macos_arm64` under
+  MACOS-APPLICATION-PUBLICATION (~08:13Z), `samples/cli/arithmetic/
+  prime_counter` under PRIME-COUNTER-BENCHMARK-ROW (~07:13Z), and
+  `samples/apps/squalr` under SQUALR-WINDOWS-GEOMETRY-VALIDATION (~05:49Z).
+  The windowed_calculator spin is inside the checked-compile surface — the
+  row's acceptance can move forward without touching the fenced lanes.
 
   `calendar`'s next native dependency is **ARITHMETIC-POLICY-REALIZATION**:
   its numeric helpers reach `checked trapping conversion requires runtime
