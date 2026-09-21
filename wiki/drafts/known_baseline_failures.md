@@ -692,9 +692,16 @@ and `syntax-trees-to-symbol-resolved-trees/src/selection/signature_free_requirem
 program-wide, filtered only by resolution stratum, so the package's trait and
 `core`'s collide as `TraitNotUnique`. Per wiki/spec/language/modules.md a
 package's declarations are not in `core`'s scope, so the fixture is valid and
-the resolver over-collects; the fix is scoping candidates to the occurrence's
-module/dependency scope, whose predicate lives under the live
-MODULE-NAMESPACE-RESOLUTION claim.
+the resolver over-collected. Repaired at `9898f252ec` ("psi: signature-free
+trait routes scope candidates to the occurrence's package") with
+`0d51bad72a`: `signature_free_trait_candidates` and
+`signature_free_machine_candidates` now select through
+`lookup_signature_free_top_level_from_source_matching(..., use_span, ...)`
+rather than collecting every same-named top level program-wide, and
+`tests/module_namespace_residuals.rs::signature_free_route_keeps_the_imported_trait_with_an_unimported_competitor`
+pins the imported trait winning over an unimported competitor. This paragraph
+is retained for the diagnostic's history; the over-collection it describes is
+closed.
 
 ## native-differential `terminal_psi_source`
 
