@@ -14078,6 +14078,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   stays fenced (BASELINE-NATIVE-DIFF-PIPELINE-OWNERSHIP ~07:31Z). The
   sequence leg itself is now unfenced, and it belongs to the canonical
   item — this stub still folds; no independent slice.
+- **UNSEQUENCED-SPILL-STAGES-SEQUENCE-OR-DELETE.** — mined candidate;
+  scope verified, resolved — seventh mined duplicate of the canonical
+  UNSEQUENCED-SPILL-STAGES-DISPOSITION row (~this file, same
+  UNSEQUENCED-SPILL-* cluster): 'sequence-or-delete' is verbatim that
+  item's disposition over the 18 staged spill families in
+  `unsequenced_spill_stages/` — each family either supplies a needed
+  executable operation behind `stage_register_allocation` or is
+  deleted with its exports/test consumers/architecture tables.
+  Re-verified at `7241e02227` (z181): the wholesale dir fence
+  (POC-SPILL-FAMILY-SEQUENCING) drained; only a pathless
+  SPILL-STAGES-OWNERSHIP sibling claim (~15:06Z) is live. `stack_
+  slot_coloring` is already sequenced (`a5dd60617e`); every remaining
+  family is exercised by the native-differential register_allocation
+  suite, so deletion needs consumer proof, and sequencing belongs to
+  SPILL-REALIZATION — no independent slice exists under this name.
+
 - **UNSEQUENCED-SPILL-STAGE-DISPOSITION** — mined candidate; verify scope then implement.
   recorded on the sibling rows. Territory fenced this wave: the directory
   wholesale under POC-SPILL-FAMILY-SEQUENCING (~06:53Z Sep 21) and the
