@@ -76,11 +76,54 @@ fn appends_directly_to_contiguous_handle_spans() {
 }
 
 #[test]
-#[should_panic(expected = "arena span append must be contiguous")]
-fn panics_when_extending_stale_contiguous_spans() {
+fn relocates_stale_spans_to_the_tail_before_appending() {
     let mut arena = Arena::new();
     let mut span = crate::HandleSpan::empty();
     arena.append_to_span(&mut span, "alpha".to_owned());
+    let gap = arena.append("gap".to_owned());
+
+    let beta = arena.append_to_span(&mut span, "beta".to_owned());
+
+    // The stale span is copied to the tail so the appended row sequence stays
+    // readable; unrelated rows and earlier member handles still resolve.
+    assert_eq!(beta.arena_index(), 4);
+    assert_eq!(span.start().arena_index(), 3);
+    assert_eq!(span.count(), 2);
+    assert_eq!(
+        arena.span(span).expect("span should resolve"),
+        &["alpha".to_owned(), "beta".to_owned()]
+    );
+    assert_eq!(arena.get(gap).as_str(), "gap");
+}
+
+#[test]
+fn interleaved_appends_relocate_the_outer_span() {
+    let mut arena = Arena::new();
+    let mut outer = crate::HandleSpan::empty();
+
+    arena.append_to_span(&mut outer, "first".to_owned());
+    // A nested pass emits its own rows into the same arena between outer
+    // span appends, the interleave that used to panic.
+    let nested = arena.insert_many(["nested-a".to_owned(), "nested-b".to_owned()]);
+    arena.append_to_span(&mut outer, "second".to_owned());
+
+    assert_eq!(
+        arena.span(outer).expect("span should resolve"),
+        &["first".to_owned(), "second".to_owned()]
+    );
+    assert_eq!(
+        arena.span(nested).expect("span should resolve"),
+        &["nested-a".to_owned(), "nested-b".to_owned()]
+    );
+}
+
+#[test]
+#[should_panic(expected = "arena span append on an unresolvable span")]
+fn panics_when_extending_a_span_with_freed_rows() {
+    let mut arena = Arena::new();
+    let mut span = crate::HandleSpan::empty();
+    let alpha = arena.append_to_span(&mut span, "alpha".to_owned());
+    assert!(arena.free(alpha));
     arena.append("gap".to_owned());
 
     arena.append_to_span(&mut span, "beta".to_owned());
