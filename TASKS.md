@@ -9170,6 +9170,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   565,909-byte customer, 45-byte expected observation); executing half
   stays seed-host-gated per the frontier. No unbound residual under this
   name.
+  Re-witnessed at `3dac85e5ccc` on linux x86-64 (z181): `sh
+  tests/bootstrap/omega-request/run.sh --identity` PASS — identical bound
+  identities (622,933-byte receipt request, 565,909-byte customer, 45-byte
+  expected observation); execution legs stay seed-host-gated per the
+  frontier.
 - **CHAIN-MANIFEST-OCREQ-ENTRY-BINDING.** Mined candidate — resolved as a
   re-mine of the CHAIN-MANIFEST OCREQ-entry surface already bound on
   main (sibling CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING resolution):
