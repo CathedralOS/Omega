@@ -75,6 +75,7 @@ fn byte_sequence_length_retains_exact_source_result_type_and_rejects_drift() {
         1,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(3),
             result: OperationResult::Scalar(terminal_psi::ValueDeclaration {
                 qualifications: Default::default(),
@@ -293,6 +294,7 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
                 operations: vec![
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(1),
                         result: OperationResult::Unit,
                         kind: OperationKind::EstablishByteSequenceLiteral {
@@ -302,6 +304,7 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(2),
                         result: OperationResult::Unit,
                         kind: OperationKind::BoundaryCall {

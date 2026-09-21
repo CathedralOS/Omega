@@ -90,6 +90,7 @@ fn record_establishment(
 ) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(operation, OperationId::new),
         result: record_result(place, structural_type),
         kind: OperationKind::EstablishRecord { fields },

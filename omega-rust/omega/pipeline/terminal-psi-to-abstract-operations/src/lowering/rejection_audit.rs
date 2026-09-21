@@ -84,6 +84,7 @@ fn unit_block(id: u64, operations: Vec<Operation>) -> Block {
 fn op(id: u64, result: OperationResult, kind: OperationKind) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result,
         kind,

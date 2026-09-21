@@ -398,6 +398,7 @@ fn mutable_reference_temporarily_lends_shared_read_and_write_only_store() {
             1,
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(91),
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {

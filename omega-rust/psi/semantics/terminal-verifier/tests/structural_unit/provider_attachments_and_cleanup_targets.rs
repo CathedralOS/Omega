@@ -60,6 +60,7 @@ fn provider_attachment_verifier_keeps_callee_requirements_independent() {
     callee.blocks[0].operations.push(provider_boundary_call());
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(2),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -221,6 +222,7 @@ fn unused_provider_attachment_verifier_rejects_runtime_scalar_field_projection()
         });
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(1),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -405,6 +407,7 @@ fn direct_write_only_primitive_store_rejects_custody_shape_and_value_mutations()
     late_value.machines[0].parameters.clear();
     late_value.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(3),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -1239,6 +1242,7 @@ fn two_nominal_affine_roots_allow_distinct_and_shared_executable_cleanup_bodies(
         .operations
         .push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(2),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
@@ -1275,6 +1279,7 @@ fn two_nominal_affine_roots_allow_distinct_and_shared_executable_cleanup_bodies(
         .operations
         .push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(1),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {

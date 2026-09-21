@@ -108,6 +108,7 @@ fn provider_attachment_root() -> StructuralPlaceDeclaration {
 fn provider_boundary_call() -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
@@ -191,6 +192,7 @@ fn projected_boundary_qualification_module() -> TerminalModule {
         }];
     machine.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
@@ -234,6 +236,7 @@ fn write_only_primitive_store_module() -> TerminalModule {
     let destination = parameter.place;
     let store = |raw| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(raw),
         result: OperationResult::Unit,
         kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -391,6 +394,7 @@ fn hard_root_module() -> TerminalModule {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(1),
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
@@ -448,6 +452,7 @@ fn hard_root_module() -> TerminalModule {
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(2),
                     result: OperationResult::Unit,
                     kind: OperationKind::PortWrite {
@@ -458,6 +463,7 @@ fn hard_root_module() -> TerminalModule {
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(3),
                     result: OperationResult::Unit,
                     kind: OperationKind::BoundaryCall {
@@ -646,6 +652,7 @@ fn partial_affine_field_module() -> TerminalModule {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(1),
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
@@ -1289,6 +1296,7 @@ fn two_root_one_executable_nominal_affine_module() -> TerminalModule {
     helper.contract.id = contract_id(4);
     module.machines[1].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -1323,6 +1331,7 @@ fn executable_nominal_affine_module() -> TerminalModule {
     module.structural_types.push(helper_type.clone());
     module.machines[1].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -1379,6 +1388,7 @@ fn two_call_executable_nominal_affine_module() -> TerminalModule {
     module.structural_types.push(helper_type.clone());
     module.machines[1].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(2),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -1416,6 +1426,7 @@ fn three_call_executable_nominal_affine_module() -> TerminalModule {
     module.structural_types.push(helper_type.clone());
     module.machines[1].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(3),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -1457,6 +1468,7 @@ fn five_call_executable_nominal_affine_module() -> TerminalModule {
         helper.contract.id = contract_id(raw);
         module.machines[1].blocks[0].operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(raw - 2),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {

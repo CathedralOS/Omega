@@ -148,6 +148,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: id::<OperationId>(1),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -160,6 +161,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: id::<OperationId>(2),
                             result: OperationResult::Unit,
                             kind: OperationKind::StructuralScalarFieldStore {
@@ -172,6 +174,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: id::<OperationId>(3),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -242,6 +245,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: id::<OperationId>(4),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -628,6 +632,7 @@ fn rejects_mixed_structural_call_scalar_argument_corruption() {
         2,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id::<OperationId>(5),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

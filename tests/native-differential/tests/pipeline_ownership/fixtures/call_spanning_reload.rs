@@ -134,6 +134,7 @@ fn call_spanning_reload_module(target: NativeTarget) -> TerminalModule {
     let incoming = ValueId::new(CALL_SPANNING_RELOAD_INCOMING).unwrap();
     let constant = |id, result, n: u64| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Scalar(declaration(result)),
         kind: OperationKind::IntegerConstant {
@@ -142,6 +143,7 @@ fn call_spanning_reload_module(target: NativeTarget) -> TerminalModule {
     };
     let unit_call = |id, callee, arguments| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {

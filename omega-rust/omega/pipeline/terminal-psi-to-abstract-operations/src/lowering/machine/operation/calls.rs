@@ -456,6 +456,7 @@ mod tests {
             let lowered = lower(
                 &Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(index as u64 + 1).unwrap(),
                     result,
                     kind,

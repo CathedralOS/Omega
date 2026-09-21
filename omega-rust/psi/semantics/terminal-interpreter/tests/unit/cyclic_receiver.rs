@@ -101,6 +101,7 @@ fn cyclic_receiver_module(projected: bool) -> TerminalModule {
     let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
     let scalar = |identity, kind| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(identity),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -129,6 +130,7 @@ fn cyclic_receiver_module(projected: bool) -> TerminalModule {
     };
     let store = |identity, destination, field, value| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(identity),
         result: OperationResult::Unit,
         kind: OperationKind::StructuralScalarFieldStore {
@@ -141,6 +143,7 @@ fn cyclic_receiver_module(projected: bool) -> TerminalModule {
     };
     let call = |identity, callee, receiver| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(identity),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -240,6 +243,7 @@ fn cyclic_receiver_module(projected: bool) -> TerminalModule {
                 constant(21, 4),
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(22),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),

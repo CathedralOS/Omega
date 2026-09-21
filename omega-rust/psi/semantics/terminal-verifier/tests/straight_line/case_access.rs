@@ -16,6 +16,7 @@ fn membership_module(access: StructuralAccess) -> TerminalModule {
     machine.blocks.truncate(1);
     machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             id: ValueId::new(1).unwrap(),
@@ -50,6 +51,7 @@ fn constructed_case_call_module(
     };
     caller.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Structural(StructuralOperationResult {
             qualification_establishments: Vec::new(),
@@ -105,6 +107,7 @@ fn constructed_case_call_module(
         });
         callee.blocks[0].operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(901).unwrap(),
             result: OperationResult::Scalar(value),
             kind: OperationKind::BooleanConstant { value: true },
@@ -155,6 +158,7 @@ fn constructed_case_call_module(
     };
     caller.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(2).unwrap(),
         result,
         kind,
@@ -601,6 +605,7 @@ fn owned_operation_result_keeps_structural_case_dispatch() {
     };
     machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation,
         result: OperationResult::Structural(StructuralOperationResult {
             qualification_establishments: Vec::new(),

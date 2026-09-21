@@ -59,6 +59,7 @@ pub(super) fn write_only_primitive_call_module() -> TerminalModule {
     caller.structural_places = vec![place(caller_place, 0)];
     caller.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(91),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -102,6 +103,7 @@ pub(super) fn write_only_primitive_call_module() -> TerminalModule {
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(92),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -114,6 +116,7 @@ pub(super) fn write_only_primitive_call_module() -> TerminalModule {
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(93),
                     result: OperationResult::Unit,
                     kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -213,6 +216,7 @@ pub(super) fn structural_scalar_field_call_module() -> TerminalModule {
     caller.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(1),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -225,6 +229,7 @@ pub(super) fn structural_scalar_field_call_module() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(2),
             result: OperationResult::Unit,
             kind: OperationKind::StructuralScalarFieldStore {
@@ -237,6 +242,7 @@ pub(super) fn structural_scalar_field_call_module() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(3),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -297,6 +303,7 @@ pub(super) fn structural_scalar_field_call_module() -> TerminalModule {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(4),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -491,6 +498,7 @@ pub(super) fn parameter_dynamic_scalar_call_module() -> TerminalModule {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: helper_operation,
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -624,6 +632,7 @@ pub(super) fn joined_parameter_dynamic_scalar_call_module() -> TerminalModule {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(3),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -655,6 +664,7 @@ pub(super) fn joined_parameter_dynamic_scalar_call_module() -> TerminalModule {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(7),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -791,6 +801,7 @@ pub(super) fn internal_structural_call_module(crashes: bool) -> TerminalModule {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(1),
                 result: OperationResult::Structural(StructuralOperationResult {
                     qualification_establishments: Vec::new(),

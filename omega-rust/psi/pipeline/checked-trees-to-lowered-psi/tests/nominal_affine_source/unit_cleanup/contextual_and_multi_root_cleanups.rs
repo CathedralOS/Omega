@@ -206,6 +206,7 @@ fn contextual_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
     mutator.blocks[0].operations.extend([
         terminal_psi::Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: semantic_vocabulary::OperationId::new(9001).unwrap(),
             result: OperationResult::Scalar(terminal_psi::ValueDeclaration {
                 qualifications: Default::default(),
@@ -216,6 +217,7 @@ fn contextual_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
         },
         terminal_psi::Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: semantic_vocabulary::OperationId::new(9002).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::StructuralScalarFieldStore {
@@ -258,6 +260,7 @@ fn contextual_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
         .operations
         .push(terminal_psi::Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: semantic_vocabulary::OperationId::new(8999).unwrap(),
             result: OperationResult::Scalar(terminal_psi::ValueDeclaration {
                 qualifications: Default::default(),
@@ -270,6 +273,7 @@ fn contextual_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
         .operations
         .push(terminal_psi::Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: semantic_vocabulary::OperationId::new(9000).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {

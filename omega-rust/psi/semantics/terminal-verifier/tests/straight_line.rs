@@ -163,6 +163,7 @@ impl Fixture {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(1).expect("constant operation"),
                         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),

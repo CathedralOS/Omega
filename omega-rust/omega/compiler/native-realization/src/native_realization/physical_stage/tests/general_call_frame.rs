@@ -36,6 +36,7 @@ pub(super) fn preserving_call_artifact() -> (Vec<u8>, Vec<u8>) {
     let third = ValueId::new(CALLER_BASE + 5).unwrap();
     let operation = |id: u64, result: u64, kind: OperationKind| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Scalar(value(result)),
         kind,

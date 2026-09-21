@@ -115,6 +115,7 @@ pub(super) fn provider_module() -> TerminalModule {
                 contract_id(1),
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(1),
                     result: OperationResult::Unit,
                     kind: OperationKind::BoundaryCall {
@@ -223,6 +224,7 @@ fn machine(
 fn port_write(id: OperationId, service: ServiceId, value: u8) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Unit,
         kind: OperationKind::PortWrite {

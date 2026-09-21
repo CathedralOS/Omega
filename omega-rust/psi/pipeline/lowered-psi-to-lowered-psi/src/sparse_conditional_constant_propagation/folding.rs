@@ -161,6 +161,7 @@ mod tests {
     fn constant(ordinal: u64, result: u64, value: i128) -> Operation {
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(ordinal).unwrap(),
             result: OperationResult::Scalar(i32(result)),
             kind: OperationKind::IntegerConstant {
@@ -172,6 +173,7 @@ mod tests {
     fn add(ordinal: u64, result: u64, left: u64, right: u64) -> Operation {
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(ordinal).unwrap(),
             result: OperationResult::Scalar(i32(result)),
             kind: OperationKind::WrappingIntegerAdd {
@@ -200,6 +202,7 @@ mod tests {
                 constant(11, 11, 3),
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(12).unwrap(),
                     result: OperationResult::Scalar(i32(12)),
                     kind: OperationKind::ExactIntegerDivide {
@@ -318,12 +321,14 @@ mod tests {
             vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(10).unwrap(),
                     result: OperationResult::Scalar(i32(10)),
                     kind: OperationKind::BooleanConstant { value: true },
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(11).unwrap(),
                     result: OperationResult::Scalar(boolean(11)),
                     kind: OperationKind::WrappingIntegerAdd {

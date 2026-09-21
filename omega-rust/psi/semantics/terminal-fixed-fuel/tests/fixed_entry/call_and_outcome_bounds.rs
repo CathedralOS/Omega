@@ -266,6 +266,7 @@ fn projected_unit_calls_compose_each_callee_bound_in_call_order() {
     caller.blocks[0].operations = (0..2)
         .map(|index| Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(950 + index),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
@@ -484,6 +485,7 @@ fn mixed_call_outcomes_do_not_cross_product_crash_and_caller_return_costs() {
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(3),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -494,6 +496,7 @@ fn mixed_call_outcomes_do_not_cross_product_crash_and_caller_return_costs() {
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(4),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),

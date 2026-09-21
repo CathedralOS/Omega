@@ -251,6 +251,7 @@ fn an_owned_self_receiver_claim_retires_at_scalar_return() {
     });
     machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(1),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

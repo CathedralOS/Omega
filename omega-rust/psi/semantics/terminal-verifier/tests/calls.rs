@@ -111,12 +111,14 @@ fn boundary_call_module() -> TerminalModule {
                 operations: vec![
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(1),
                         result: OperationResult::Scalar(boolean_declaration(value_id(1))),
                         kind: OperationKind::BooleanConstant { value: true },
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(2),
                         result: OperationResult::Unit,
                         kind: OperationKind::BoundaryCall {
@@ -281,6 +283,7 @@ fn call_module() -> TerminalModule {
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(1),
                             result: terminal_psi::OperationResult::Scalar(boolean_declaration(
                                 caller_constant,
@@ -289,6 +292,7 @@ fn call_module() -> TerminalModule {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(2),
                             result: terminal_psi::OperationResult::Scalar(boolean_declaration(
                                 call_result,
@@ -464,6 +468,7 @@ fn payloadless_guarded_call_module() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: call_operation,
                         result: OperationResult::Structural(StructuralOperationResult {
                             qualification_establishments: Vec::new(),
@@ -547,6 +552,7 @@ fn payloadless_guarded_call_module() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: constructor_operation,
                         result: OperationResult::Structural(StructuralOperationResult {
                             qualification_establishments: Vec::new(),

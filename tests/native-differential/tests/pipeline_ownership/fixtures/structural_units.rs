@@ -264,6 +264,7 @@ pub(crate) fn structural_extent_call_unit_parts() -> (TerminalModule, ProofBundl
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(3_611).unwrap(),
                         result: OperationResult::Unit,
                         kind: OperationKind::CallUnit {

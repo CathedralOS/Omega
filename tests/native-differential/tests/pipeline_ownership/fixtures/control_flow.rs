@@ -220,6 +220,7 @@ pub(crate) fn constant_conditional_prune_artifact() -> (Vec<u8>, Vec<u8>) {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(4_108).unwrap(),
                         result: OperationResult::Scalar(declaration(
                             condition,
@@ -507,6 +508,7 @@ pub(crate) fn adjacent_block_merge_artifact() -> (Vec<u8>, Vec<u8>) {
                     parameters: vec![boolean(forwarded)],
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(4_258).unwrap(),
                         result: OperationResult::Scalar(boolean(computed)),
                         kind: OperationKind::BooleanNot { operand: forwarded },
@@ -1114,6 +1116,7 @@ pub(crate) fn joined_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(4_613).unwrap(),
                         result: OperationResult::Scalar(declaration(left, scalar_type)),
                         kind: OperationKind::IntegerConstant {
@@ -1139,6 +1142,7 @@ pub(crate) fn joined_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(4_615).unwrap(),
                         result: OperationResult::Scalar(declaration(right, scalar_type)),
                         kind: OperationKind::IntegerConstant {

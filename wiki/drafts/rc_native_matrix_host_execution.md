@@ -146,3 +146,15 @@ owner rather than reaching across the fence.
   programs.
 - The `windows_x86_64` row remains the only runner with no execution of any
   kind.
+
+## Re-verification — `5bb9a74842` (linux x86-64, Zergling-126, claim `5a2e0ee2`)
+
+Harness compile state improved: `cargo check -p omega-native-differential-test
+--all-targets` now finishes clean — the `pipeline_ownership` custody-handle
+drift (`optimized_target()` → `optimized_target_owner()`), the uncovered
+`LegalizedScalarTerminator::Crash` arm, and the dropped
+`produce_checked_canonical_integer_proof` symbol recorded at `f3d0d1748e`
+have all been repaired upstream. The gate can now report red/green again
+rather than failing to build; the per-host re-run belongs to the canonical
+RC-NATIVE-MATRIX-LINUX-X86-64 owner, so no leg sweep was executed under this
+claim.

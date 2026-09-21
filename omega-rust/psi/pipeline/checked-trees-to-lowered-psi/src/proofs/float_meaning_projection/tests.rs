@@ -560,6 +560,7 @@ fn transported_ensures_result_lowers_to_the_emitted_call_result() {
             structural_parameters: Vec::new(),
             operations: vec![terminal_psi::Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: producer_id,
                 result: terminal_psi::OperationResult::Scalar(terminal_psi::ValueDeclaration {
                     id: produced,

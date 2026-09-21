@@ -335,6 +335,7 @@ mod tests {
             let mut operations = (1..=3)
                 .map(|ordinal| Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(ordinal).unwrap(),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -348,6 +349,7 @@ mod tests {
                 .collect::<Vec<_>>();
             operations.push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(4).unwrap(),
                 result: OperationResult::Structural(StructuralOperationResult {
                     qualification_establishments: Vec::new(),
@@ -457,6 +459,7 @@ mod tests {
         let operations = [10, 11]
             .map(|ordinal| Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(ordinal).unwrap(),
                 result: OperationResult::Scalar(declaration(ordinal)),
                 kind: O::BooleanConstant { value: true },
@@ -773,6 +776,7 @@ mod tests {
         };
         let constant = |ordinal: u64| Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(ordinal).unwrap(),
             result: OperationResult::Scalar(declaration(ordinal)),
             kind: O::BooleanConstant { value: true },
@@ -867,6 +871,7 @@ mod tests {
 
         let call = |continuations: Vec<terminal_psi::CrashRouteBucket>| Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(20).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

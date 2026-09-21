@@ -31,6 +31,7 @@ fn view_argument(place: u64) -> StructuralArgument {
 fn length_operation(operation: u64, value: u64, source: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(operation, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -121,6 +122,7 @@ pub(super) fn view_cycle() -> TerminalModule {
     machine.blocks[2].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(11, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -138,6 +140,7 @@ pub(super) fn view_cycle() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(12, OperationId::new),
             result: OperationResult::Structural(StructuralOperationResult {
                 qualification_establishments: Vec::new(),
@@ -398,6 +401,7 @@ fn boundary_view_call(module: &mut TerminalModule, source: u64) -> Operation {
     });
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(40, OperationId::new),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {

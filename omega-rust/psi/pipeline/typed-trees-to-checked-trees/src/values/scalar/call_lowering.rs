@@ -343,7 +343,7 @@ pub(crate) fn lower_proof_term(
                 && proof_only
                     .proof_only_mention(program, parameter.type_reference)
                     .is_some())
-            .then(|| CheckedProofTerm::Formal {
+            .then_some(CheckedProofTerm::Formal {
                 parameter_symbol: parameter.symbol,
             })
         }

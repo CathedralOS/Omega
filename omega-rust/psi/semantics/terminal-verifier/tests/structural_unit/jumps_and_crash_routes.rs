@@ -404,6 +404,7 @@ fn affine_structural_arguments_transfer_at_most_once() {
         StructuralMultiplicity::Affine;
     let boundary_call = Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
@@ -499,6 +500,7 @@ fn unit_calls_preserve_exact_crash_routes_and_remain_acyclic() {
     let mut recursive = hard_root_module();
     recursive.machines[1].blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(2),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -728,6 +730,7 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
     let mut computed = module;
     computed.machines[0].blocks[2].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(100),
         result: OperationResult::Scalar(declaration(60)),
         kind: OperationKind::BooleanConstant { value: true },

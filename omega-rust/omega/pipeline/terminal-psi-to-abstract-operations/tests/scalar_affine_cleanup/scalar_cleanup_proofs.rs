@@ -410,6 +410,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: semantic_vocabulary::OperationId::new(1).expect("operation"),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),

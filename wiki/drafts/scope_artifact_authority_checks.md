@@ -2,11 +2,13 @@
 
 Scope-verification record for the dispatched name `ARTIFACT-AUTHORITY-CHECKS`
 (planner item NEW-SV-ARTIFACT-AUTHORITY-CHECKS-SCOPE). Audited at
-`f2c1762c2c3` on linux x86-64.
+`f2c1762c2c3`; re-audited at `c924529921d` on linux x86-64 (z157).
 
 ## Resolution
 
-The name appears on no board row. The surface it names — artifact/install
+The name carries only a mined stub row (`TASKS.md` ~:8439,
+"mined candidate; verify scope then implement"), minted after the first
+audit. The surface it names — artifact/install
 authority checks — is owned by **WIRE-RUNTIME-AND-INSTALLATION**
 (TASKS.md, the admitted executable installation contract from
 [executable_installation.md](../spec/build/executable_installation.md)):
@@ -45,36 +47,45 @@ Crate `executable-installation`
 
 Verified substrate health at audit time: the owning row's re-verification
 records the crate at 130/130 (`cargo nextest run -p
-executable-installation`, linux x86-64 at `8570ba9ae8`).
+executable-installation`, linux x86-64 at `8570ba9ae8`); re-witnessed
+130/130 green at `c924529921d` and again at `c2530203d7`.
 
 ## Open legs (all live on the owning row, none unowned)
 
-- **Provider write-to-execute operation**: no provider performs the
-  write-to-execute transition, the target cache and ordering work, or
-  instruction-fetch visibility — `InstallationReceipt` still only records
-  what a provider would report.
-- **Physical invocation**: no caller invokes installed code through an
-  `InstalledEntryReference`; entry references are produced but never
-  exercised by a live call path.
-- **Provider patching operation**: the replacement join's receipts likewise
-  only record what a provider would report.
+At `c924529921d` this list still named provider write-to-execute, physical
+invocation, and provider patching as open. Those legs have since landed on
+main: `owned_image_provider.rs` performs the contracted write-to-execute
+transition (final bytes into the resident image, ordering, readback,
+write-authority suspension minted into the receipt), `provider_driver.rs`
+composes each provider operation with its lifecycle gate, and the provider
+`call` demands a sealed `InstalledEntryReference` — the physical-invocation
+leg. The owning row's sole open bullet at `c2530203d7`:
+
 - **Omega source route**: no `.omg` file names an admitted artifact, a
-  placement, or installed code, so no canary reaches the surface.
+  placement, or installed code, so no canary reaches the surface. Grammar
+  and provider-surface work outside `executable-installation`, ahead of the
+  acceptance witness.
 
 ## Slice verdict
 
 No independent slice exists under this name. The authority-check
-substrate is landed and exercised; every open leg is enumerated on
-WIRE-RUNTIME-AND-INSTALLATION's row and is provider/runtime work rather
+substrate is landed and exercised; the remaining open leg is enumerated on
+WIRE-RUNTIME-AND-INSTALLATION's row and is source-route work rather
 than a doc or check slice. The name should be retired from the dispatch
 list in favor of the owning row (or dispatched as an explicit
 WIRE-RUNTIME-AND-INSTALLATION leg).
 
 ## Fences observed at audit time
 
-No live claim fences `executable-installation/` or this file. Provider and
-physical-invocation neighbors were claim-held in recent wave dumps
+No live claim fences `executable-installation/` or this file (159 live
+claims at `c924529921d`; TOPOLOGY-PRIVATE-PIPE-INSTALLATION is held only
+by item name, no path overlap). Provider and
+physical-invocation neighbors were claim-held in earlier wave dumps
 (UEFI-PHYSICAL-SEMANTIC-ENTRY on native-realization surfaces); re-check
 `tools/claims.py status` before starting a code leg.
 
 > Field note (e1dc35c92948..97be15c1b592 review): the dispatched name has no board row; either mint one resolved row pointing at WIRE-RUNTIME-AND-INSTALLATION (so the planner stops re-dispatching it) or delete this draft once the landed-substrate table is folded into that row.
+
+> Field note (z157, `c924529921d`): a mined stub row now exists at ~:8439 — stamp it with this verdict (resolved-by-delegation to WIRE-RUNTIME-AND-INSTALLATION's enumerated legs) at the next board-touching leg; the slice verdict is unchanged.
+
+> Field note (z40, `c2530203d7`): done — the board row (~:8708) is stamped resolved, delegating to WIRE-RUNTIME-AND-INSTALLATION, and the open-legs section above now tracks that row's current frontier rather than the older audit's.

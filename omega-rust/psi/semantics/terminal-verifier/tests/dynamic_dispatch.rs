@@ -218,6 +218,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation,
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -270,6 +271,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: id::<OperationId>(2),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -434,6 +436,7 @@ fn parameter_dynamic_dispatch_module() -> TerminalModule {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: helper_operation,
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),

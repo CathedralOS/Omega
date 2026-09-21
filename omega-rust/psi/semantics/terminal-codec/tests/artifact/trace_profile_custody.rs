@@ -704,6 +704,7 @@ fn custody_module() -> TerminalModule {
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(1),
                             result: OperationResult::Unit,
                             kind: OperationKind::PortWrite {
@@ -714,6 +715,7 @@ fn custody_module() -> TerminalModule {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(2),
                             result: OperationResult::Structural(StructuralOperationResult {
                                 qualification_establishments: Vec::new(),
@@ -744,6 +746,7 @@ fn custody_module() -> TerminalModule {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(3),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),

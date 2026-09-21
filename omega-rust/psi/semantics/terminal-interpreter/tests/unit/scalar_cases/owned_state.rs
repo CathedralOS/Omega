@@ -254,6 +254,7 @@ fn owned_case_block_parameter_rejects_forged_transfer_and_origin() {
                     structural_parameters: vec![],
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(90),
                         result: OperationResult::Scalar(ValueDeclaration {
                             id: value_id(90),

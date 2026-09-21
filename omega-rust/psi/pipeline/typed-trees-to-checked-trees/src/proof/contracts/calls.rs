@@ -403,12 +403,9 @@ pub(crate) fn contract_target_from_state_symbol(
         return Some((machine.symbol, entry.symbol));
     }
 
-    if let Some(target_machine) = program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .any(|state| state.symbol == target_state_symbol)
-    }) {
+    if let Some((target_machine, _)) =
+        crate::semantic_calls::find_state_with_machine(program, target_state_symbol)
+    {
         return Some((target_machine.symbol, target_state_symbol));
     }
 

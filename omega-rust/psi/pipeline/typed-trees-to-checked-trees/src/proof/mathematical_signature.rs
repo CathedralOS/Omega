@@ -1374,9 +1374,7 @@ impl<'a> Elaborator<'a> {
                     .match_arms(matched.arms)
                     .iter()
                 {
-                    let Some(arm_carrier) = self.operand_carrier(arm.value) else {
-                        return None;
-                    };
+                    let arm_carrier = self.operand_carrier(arm.value)?;
                     match carrier {
                         None => carrier = Some(arm_carrier),
                         Some(agreed) if agreed == arm_carrier => {}

@@ -71,6 +71,7 @@ fn boundary_fixture() -> TerminalModule {
         structural_parameters: Vec::new(),
         operations: vec![Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(1),
             result: OperationResult::Unit,
             kind: OperationKind::BoundaryCall {

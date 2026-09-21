@@ -8,14 +8,17 @@ These contracts do not imply implementation support for every native route.
 
 ## Binding values
 
-`ForeignBinding` is the compile-time native-locator carrier, distinct from the
-established runtime authority [`Binding<R>`](component_publication.md#bindings-and-era-entry).
-Neither equal spelling nor a validated locator establishes a runtime binding.
+`Binding<ObjectLength, SymbolLength, VersionLength>`
+(`source/library/core/external_binding.omg`) is the compile-time
+native-locator carrier. It shares its spelling with the
+[established runtime authority](component_publication.md#bindings-and-era-entry),
+and that is the point of the warning: neither the equal spelling nor a
+validated locator establishes a runtime binding.
 
 A bodyless leaf declares `satisfies Requirement` and uses `via expression` only
 for an irreducible payload not determined by declaration, signature, and target.
 The expression is compile-time evaluable to an ordinary closed
-`ForeignBinding<ObjectLength, SymbolLength, VersionLength>` value. Each const argument
+`Binding<ObjectLength, SymbolLength, VersionLength>` value. Each const argument
 is a `u64` byte-array length and part of type identity; unused coordinates are
 zero.
 
@@ -23,7 +26,12 @@ zero.
 | --- | --- |
 | `DllImport` | One `DllImport<ObjectLength, SymbolLength, VersionLength>` locator. |
 | `Syscall` | `number: u64`, validated against the selected target's syscall mechanism. |
-| `VtableField` | `field: NativeFieldIdentity` from one validated native layout. |
+
+Those two are the whole sum. `VtableField` is deliberately *not* a case of
+it: the declaration's own comment says it "remains on its explicit legacy
+carrier until NativeFieldIdentity has an ordinary typed source form; it must
+not be smuggled into this sum". Provider evaluation enforces that, admitting
+only "the exact Binding::DllImport or Binding::Syscall payload".
 
 | DllImport case | Coordinates |
 | --- | --- |
@@ -39,8 +47,15 @@ mismatch rejects. No evaluator reference or dynamically sized byte primitive
 crosses this boundary.
 
 The sum extends only for a genuinely distinct irreducible binding mechanism.
-It has no generic `Value`, `CompilerIntrinsic`, or `Instruction` case and no
-`host:` mini-language. Foreign constants and offsets belong to checked target
+It has no generic `Value` or `Instruction` case and no `host:` mini-language.
+
+Do not read that as the closed list of `via` spellings. `via` accepts a
+wider source-level vocabulary (`ExternalBinding`) that evaluation resolves:
+`Syscall`, `CompilerIntrinsic`, `VtableField`, `TableFunction`, and
+`VtableSlot` (compatibility-only; the parser rejects newly authored
+`Binding::VtableSlot`). `via Binding::CompilerIntrinsic` is in fact the most
+common spelling in the shipped library. Only `DllImport` and `Syscall` reach
+the evaluated `Binding` sum above. Foreign constants and offsets belong to checked target
 code and [layout plans](../layouts/plans.md). A table call names a validated
 field, not an authored numeric slot ordinal. Privileged instructions use parsed,
 contract-emitting `asm`, not a second binding instruction language.

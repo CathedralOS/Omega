@@ -101,6 +101,7 @@ fn integer_equality_axiom_proves_the_return_contract() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(40).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -319,6 +320,7 @@ fn integer_ordering_axioms_prove_return_contracts() {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(50).expect("operation"),
                         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -529,6 +531,7 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(60).expect("operation"),
                         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -682,6 +685,7 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(65).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -821,6 +825,7 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(68).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -1079,6 +1084,7 @@ fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligatio
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(170).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -1225,6 +1231,7 @@ fn exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(180).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -1341,6 +1348,7 @@ fn exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(190).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -1445,6 +1453,7 @@ fn exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(194).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(declaration(computed)),
                     kind: OperationKind::ExactIntegerAdd {

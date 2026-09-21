@@ -551,6 +551,7 @@ mod tests {
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: OperationId::new(1).unwrap(),
                             result: OperationResult::Structural(StructuralOperationResult {
                                 place: pending_place,
@@ -580,6 +581,7 @@ mod tests {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: OperationId::new(2).unwrap(),
                             result: OperationResult::Structural(StructuralOperationResult {
                                 place: restored_place,

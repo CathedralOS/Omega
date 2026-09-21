@@ -254,6 +254,7 @@ pub(super) fn ordered_one_executable_nominal_affine_module() -> TerminalModule {
     helper.contract.id = contract_id(4);
     module.machines[2].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -370,6 +371,7 @@ pub(super) fn ordered_two_distinct_executable_nominal_affine_module() -> Termina
     helper.contract.id = contract_id(5);
     module.machines[1].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(2),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -407,6 +409,7 @@ pub(super) fn ordered_shared_executable_nominal_affine_module() -> TerminalModul
     helper.contract.id = contract_id(3);
     module.machines[1].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -473,6 +476,7 @@ pub(super) fn executable_nominal_affine_module() -> TerminalModule {
     module.structural_types.push(helper_type.clone());
     module.machines[1].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -529,6 +533,7 @@ pub(super) fn two_helper_nominal_affine_module() -> TerminalModule {
     module.structural_types.push(second_helper_type.clone());
     module.machines[1].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(2),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -585,6 +590,7 @@ pub(super) fn three_helper_nominal_affine_module() -> TerminalModule {
     module.structural_types.push(third_helper_type.clone());
     module.machines[1].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(3),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -677,6 +683,7 @@ pub(super) fn partial_affine_field_module() -> TerminalModule {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(1),
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
