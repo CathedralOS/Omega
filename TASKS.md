@@ -11564,6 +11564,33 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `calling_policy_source::inherited_requirement_retains_declaring_trait_and_concrete_parent_application`
   expects `pub boundary trait ProcedureBase<Value>` in rendered fixture
   source — preexisting drift on the base commit, outside this claim.
+- **PACKAGE-EVIDENCE-OPAQUE-USE-ATTRIBUTION.** Mined candidate; scope
+  verified, resolved — the opaque-use attribution leg is landed and
+  pinned: `review/evidence/src/record/calling/opaque.rs` carries
+  `PackagePolicyCallingOpaqueUse` (per-opaque identity, carrier,
+  selection owner, conformance application, origin/lifecycle/copy
+  dispositions, and the exact sorted occurrence roster with
+  carrier-shape roots, movement roles, paths, and placements), and
+  `capture/calling/opaque.rs::project` attributes every
+  `opaque_representation_uses()` entry of a boundary calling signature
+  to its exact `OpaqueRepresentationSelection` — fail-closed on a
+  missing or ambiguous selection, an unresolved selection owner, stale
+  representation custody (`validate_selection_use` re-checks opaque,
+  conformance, carrier, both fingerprints/commitments, schema version,
+  origin, lifecycle, copy disposition, selected-application
+  commitment), or a missing/duplicated occurrence. The row contract
+  sits in `EVIDENCE_SCHEMA.md` ("Actual by-value consumer demand …
+  exact opaque occurrences/paths, replay-validated placement").
+  Re-verified green at `758e8ad9e241a` (linux x86-64):
+  `cargo nextest run -p package-evidence -E 'test(/calling_policy_opaque/)'`
+  → 2/2 (`opaque_calling_policy_retains_exact_occurrences_and_excludes_unused_selections`,
+  `foreign_opaque_declarations_keep_the_local_selection_owner`). The
+  genuinely unfinished ledger joins (certificates, transitive open
+  obligations, schema migration, admission decisions) stay with sibling
+  PACKAGE-PROJECTION-EVIDENCE-MIGRATION, not here. No independent slice.
+  Sibling stubs on this surface: PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE,
+  PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION,
+  PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.
 - **PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.** Mined candidate;
   scope verified, covered — the name re-mines the package-evidence contract
   pair in `omega-rust/omega/packages/review/evidence/EVIDENCE_SCHEMA.md`:
