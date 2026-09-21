@@ -9561,6 +9561,30 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   re-mine names are listed on the WRAPPER-OBJECT-OWNERSHIP row;
   OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION and
   OPTIMIZED-WRAPPER-OBJECT-RELOCATION name the same surface.
+- **OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP.** — mined candidate; scope
+  verified, covered — same settled surface as the adjacent
+  OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION row: the keep/move/delete
+  ownership question for `native-realization/src/
+  optimized_semantic_wrapper_{encoding,object}/` is an enumerated
+  PIPELINE-OWNER-CONSOLIDATION bullet in TASKS_OPTIMIZER.md and the codec
+  move leg stays deferred to DURABLE-CODEC-RELOCATION /
+  REPRESENTATION-OWNERSHIP. One correction to the older annotations at
+  `e7c0099cb2b7`: the "no caller outside their own tests" clause no
+  longer holds — `native_realization/optimized_fragment_projection.rs`
+  stages `stage_validated_optimized_program_storage_semantic_wrapper_
+  object` for a ProgramEntry carrying a planned semantic-entry wrapper
+  (bound placed-view establishments, PLAN-LAID-VIEWS lane), so the
+  predicted "first real caller" leg arrived through entry settlement
+  rather than UEFI-PHYSICAL-SEMANTIC-ENTRY. Composition still rejects a
+  child with `relocation_record_count != 0` and both modules remain
+  unrelocated under `omega/compiler/native-realization/src/`. The
+  remaining legs (disposition decision, codec relocation) stay owned by
+  their named items; no independent slice exists here. Sibling stubs:
+  SEMANTIC-WRAPPER-OBJECT-OWNERSHIP, SEMANTIC-WRAPPER-OWNERSHIP,
+  SEMANTIC-WRAPPER-OWNER-RELOCATION, SEMANTIC-WRAPPER-OWNER-RESOLUTION,
+  SEMANTIC-WRAPPER-COORDINATOR-RESIDUE, OPTIMIZED-SEMANTIC-WRAPPER-
+  RELOCATION, OPTIMIZED-WRAPPER-OBJECT-RELOCATION,
+  WRAPPER-OBJECT-OWNERSHIP, PIPELINE-WRAPPER-OBJECT-ORPHAN.
 - **OPTIMIZED-WRAPPER-DISPOSITION.** Mined candidate — bare re-mine of
   the adjacent OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION row (verified
   `8ccd793fa8`): the keep/move/delete disposition of the
