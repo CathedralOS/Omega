@@ -806,6 +806,20 @@ The four scalar-return custody failures
 (`tests/owned_record_return_source.rs`) are owned by
 C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES.
 
+Scoped residual re-verification at `59e0b5ec22d` (2026-09-21, Linux
+x86-64; `cargo nextest run -p checked-trees-to-lowered-psi -E
+'test(~owned_record_return_source) or test(~scalar_array_source)'` — 80
+run, 75 passed, 5 failed): the residual set is unchanged. The single
+scalar-return custody member still fails at
+`Lowering(Unsupported("composed Unit scalar call requires structural call
+custody"))`, and all four `scalar_array_source::cyclic` members still
+panic `index out of bounds: the len is 1 but the index is 3` at
+`src/scalar_graph/scalar_graph_lowering/call_lowering.rs:419`. Ownership
+stands as recorded above: scalar-return custody under
+C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES and the cyclic establishment
+panic under the scalar-graph call-lowering lane; the unattributed tail
+remains empty.
+
 ## compiler build-target activation
 
 `mbx nextest run -p compiler --test build_target_activation` — 49/51 pass; 2
