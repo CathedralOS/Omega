@@ -12945,7 +12945,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **NATIVE-MATRIX-MATCHING-HOSTS** — mined candidate; verify scope then implement.
 - **NON-X86-LAYOUT-RELAXATION** — mined candidate; verify scope then implement.
 - **OBLIGATION-NORMALIZED-IDENTITY** — mined candidate; verify scope then implement.
-- **OCREQ-ENTRY-BINDING** — mined candidate; verify scope then implement.
+- **OCREQ-ENTRY-BINDING** — mined candidate; resolved as a re-mine of the
+  bound OCREQ request-entry surface (siblings CHAIN-OCREQ-ENTRY-BINDING,
+  D-OCREQ-ENTRY-BINDING resolved the same row). Re-verified at this
+  revision on linux x86-64: `sh tests/bootstrap/omega-request/run.sh
+  --identity` PASSes — `compiler_env.sh` pins
+  `OMEGA_REQUEST_ENTRY_SIZE=4115`/`SHA256=0d612813…` and
+  `OMEGA_EXECUTABLE_OCREQ_ENTRY_SIZE=19249`/`SHA256=5d5d0b8e…` (the
+  executable-entry pin re-minted upstream since the sibling row's
+  19253-byte stamp — stream follows the moving source closure; identity
+  binding intact), `gate.py:130` publishes `coverage_request_semantics`,
+  and `omega-identity.sh` refuses a mutated entry. Execution half stays
+  seed-host-gated. Sibling stubs on this surface:
+  CHAIN-MANIFEST-OCREQ-BINDING, OCREQ-REQUEST-BINDING,
+  OCREQ-REQUEST-ENTRY-BINDING.
 - **OCREQ-REQUEST-BINDING** — mined candidate; verify scope then implement.
 - **OCREQ-REQUEST-ENTRY-BINDING** — mined candidate; verify scope then implement.
 - **OMEGA-C** — mined candidate; verify scope then implement.
