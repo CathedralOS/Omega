@@ -76,6 +76,7 @@ pub(crate) mod content_conservation;
 pub(crate) mod contract_predicates;
 pub(crate) mod control_cycle_proofs;
 pub(crate) mod crash_routes;
+pub(crate) mod entry_requirement_certificates;
 pub(crate) mod evidence_lowering;
 pub(crate) mod float_meaning_projection;
 pub(crate) mod mathematical_declarations;
