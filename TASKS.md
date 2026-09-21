@@ -11546,7 +11546,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **GAMMA-CERT-CHAIN-PRODUCTION** — mined candidate; verify scope then implement.
 - **GAMMA-CERT-FULL-CHECK** — mined candidate; verify scope then implement.
 - **GAMMA-CERTIFICATE-CHECK** — mined candidate; verify scope then implement.
-- **GAMMA-CERTIFICATE-CHECK-UNDER-PROFILE** — mined candidate; verify scope then implement.
 - **GAMMA-CERTIFICATE-CHECKING** — mined candidate; verify scope then implement.
 - **GAMMA-CERTIFICATE-NATIVE-CHECK** — mined candidate; verify scope then implement.
 - **GAMMA-CERTIFICATE-NATIVE-EXECUTION** — mined candidate; verify scope then implement.
@@ -11567,7 +11566,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   manifest legs stay named in their own rows.
 - **GATE-LOCAL-PREFIX-BINDING** — mined candidate; scope verified, residual
 - **GAMMA-CERT-FULL-CHECK.** — mined candidate; verify scope then implement.
-- **GAMMA-CERTIFICATE-CHECK-UNDER-PROFILE.** — mined candidate; verify scope then implement.
+- **GAMMA-CERTIFICATE-CHECK-UNDER-PROFILE.** Mined candidate; scope
+  verified at `fff3918dc4` — same provision-bounded full-certificate
+  check leg as GAMMA-PROVISION-NATIVE-ACCEPTANCE: run
+  `tests/gamma/beta-encoding-check/run.sh` on a seed host and record
+  the Checked observation (rows, work, wall time). The recorded fences
+  have all drained (zergling-165's gate+checker lease ~08:53Z,
+  z78's GAMMA-CERTIFICATE-NATIVE-EXECUTION ~12:58Z, the BETA-ENCODING
+  container sweep ~17:09Z and CHAIN-MANIFEST/CHAIN-CERTIFICATE-
+  ADMISSION-BINDING rows all past expiry). The gate runs on this
+  linux x86-64 host (ALPHA_SEED_EXECUTABLE=1): it bound the theory
+  producer/checker identities and emitted the 116,900-byte theory
+  before entering the Checked-observation leg — the long stepper run
+  (projected 45-52M work units against the 2^26 provision, 6h timeout)
+  remains the open measured leg; no shorter independent slice exists
+  under this name. Duplicate plain stub above folded into this row.
 - **GAMMA-CERTIFICATE-NATIVE-CHECK.** Mined candidate — scope verified
   at `e7c0099cb2b7`, folds into the gamma certificate-check cluster
   (sibling roster on GAMMA-CERTIFICATE-PRODUCTION /
