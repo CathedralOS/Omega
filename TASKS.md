@@ -14133,6 +14133,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   DeviceLoanProvider::complete` — "the domain owner authorizes exactly
   this admitted root crossing"), and resident ownership
   `Extent::Resident<P,T>` over an exact placement per
+||||||| parent of b99994452030 (TASKS: PLACE-STORAGE-EXTENT-OWNER — restamp at 0a0662ad27ad, refreshed fence map)
+  `797e99ead7`: names the storage-extent ownership surface — `Extent`
+  (linear `base`/`length`, `source/library/core/extent.omg`) qualified
+  `Extent in Granted` only through an owner-authorized route
+  (`established by ExtentRootProvider::grant, ProgramStorageEntry::enter,
+  DeviceLoanProvider::complete` — "the domain owner authorizes exactly this
+  admitted root crossing"), and resident ownership `Extent::Resident<P,T>`
+  over an exact placement per
+  `0a0662ad27ad` (restamped from `797e99ead7`): names the storage-extent
+  ownership surface — `Extent` (linear `base`/`length`,
+  `source/library/core/extent.omg`) qualified `Extent in Granted` only
+  through an owner-authorized route (`established by
+  ExtentRootProvider::grant, ProgramStorageEntry::enter,
+  DeviceLoanProvider::complete` — "the domain owner authorizes exactly this
+  admitted root crossing"), and resident ownership `Extent::Resident<P,T>`
+  over an exact placement per
   [placed_access](wiki/spec/resources/placed_access.md) /
   [chapter_20](wiki/language_guide/chapter_20_memory_layout_abi.md#admission-and-placement).
   Still unworkable — every implementing surface sits inside live fences:
@@ -14175,6 +14191,38 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   owns provider-backed view establishment and access-plan realization; this
   indexed-store delivery does not complete that larger contract.
 - **POC-NATIVE-WRAPPER-RELOCATION.** — scope verified 2026-09-20: the name
+||||||| parent of b99994452030 (TASKS: PLACE-STORAGE-EXTENT-OWNER — restamp at 0a0662ad27ad, refreshed fence map)
+  Currently unworkable — every implementing surface sits inside live
+  fences this wave: the `ProgramStorageEntry`/`initial_storage` entry leg
+  is **ENTRY-CONTENT-ROOTS** (Zergling-193, ~2026-09-21T01:45Z) with the
+  UEFI arrival leg under UEFI-PHYSICAL-SEMANTIC-ENTRY (~22:59Z); the
+  placed-access route (terminal-psi ownership/placement, access-plans
+  `owned_placement_lifecycle`, placed_view_referent, native-realization)
+  is split across PLAN-LAID-VIEWS (~02:30Z) and PLACED-ACCESS-NATIVE-OPS
+  (~00:56Z — space-joined path entry `conflicts()` does not match; treat
+  as claimed intent per the PROCESS-EXIT-PORTABLE-OBSERVATION note); the
+  alias-analysis crate is PLACE-ALIAS-ANALYSIS-PRODUCER (~22:30Z). No
+  unfenced slice remains. Sibling re-mines on this family:
+  PLACE-ACCESS-GEOMETRY, PLACED-ACCESS-NATIVE-OPS (claimed), plus the
+  entered-extent siblings under ENTRY-CONTENT-ROOTS.
+- **PLACED-ACCESS-NATIVE-OPS** — mined candidate; verify scope then implement.
+- **PLATFORM-RUN-LINUX-X86-64** — mined candidate; verify scope then implement.
+- **POC-NATIVE-WRAPPER-RELOCATION** — scope verified 2026-09-20: the name
+  Currently unworkable — every implementing surface sits inside live
+  fences this wave: the extents crate itself (`psi/foundation/extents`)
+  is under DEVICE-EXTENT-ACCESS (11:04Z), the placed-access route
+  (hosted_receiver + access-plans legs) under PLAN-LAID-VIEWS (09:25Z),
+  the alias-analysis crate under PLACE-ALIAS-ANALYSIS-PRODUCER (10:06Z),
+  and the UEFI arrival leg under UEFI-PHYSICAL-SEMANTIC-ENTRY (08:44Z);
+  RUNTIME-SIZED-ACTIVATION-STORAGE-CONTRACT (09:09Z) and SNAPSHOT-STORAGE
+  (15:21Z) hold adjacent board/storage rows. The prior ENTRY-CONTENT-ROOTS
+  and PLACED-ACCESS-NATIVE-OPS fences have since drained, but no unfenced
+  slice remains. Sibling re-mines on this family: PLACE-ACCESS-GEOMETRY,
+  PLACED-ACCESS-NATIVE-OPS, plus the entered-extent siblings under
+  ENTRY-CONTENT-ROOTS.
+- **PLACED-ACCESS-NATIVE-OPS** — mined candidate; verify scope then implement.
+- **PLATFORM-RUN-LINUX-X86-64** — mined candidate; verify scope then implement.
+- **POC-NATIVE-WRAPPER-RELOCATION** — scope verified 2026-09-20: the name
   re-mines the `optimized_semantic_wrapper_{encoding,object}` surface in
   `omega-rust/omega/compiler/native-realization/` — the wrapper object's
   relocation handling, where composition deliberately admits only a
