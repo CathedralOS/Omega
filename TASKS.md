@@ -13998,10 +13998,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `selected-instructions-to-register-homes/src/unsequenced_spill_stages/`;
   the verified scope, family inventory, dependency chain and the
   `stack_slot_coloring`/`runtime_spill/slot.rs` duplicate-owner pair are
-  recorded on the sibling rows. Territory fenced this wave: the directory
-  wholesale under POC-SPILL-FAMILY-SEQUENCING (~06:53Z Sep 21) and the
-  adjacent UNSEQUENCED-SPILL-STAGE-DISPOSITION claim (~08:13Z). No
-  independent slice.
+  recorded on the sibling rows. Re-verified at `58b08fc20f2`: the
+  earlier wholesale dir fence (POC-SPILL-FAMILY-SEQUENCING ~06:53Z Sep
+  21) and the adjacent UNSEQUENCED-SPILL-STAGE-DISPOSITION claim have
+  both expired; only `tests/native-differential/tests/pipeline_ownership*`
+  stays fenced (BASELINE-NATIVE-DIFF-PIPELINE-OWNERSHIP ~07:31Z). The
+  sequence leg itself is now unfenced, and it belongs to the canonical
+  item — this stub still folds; no independent slice.
 - **UNSEQUENCED-SPILL-STAGE-DISPOSITION** — mined candidate; verify scope then implement.
 - **UNSEQUENCED-SPILL-STAGE-TRIAGE.** Mined candidate — resolved at
   `0f5ae41e7d`: one of the four mined duplicates the
