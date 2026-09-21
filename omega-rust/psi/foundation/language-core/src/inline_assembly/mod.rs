@@ -138,6 +138,20 @@ pub enum AsmSchedulingHintKind {
     /// occupies an instruction slot without changing program semantics or
     /// machine-state obligations.
     Nop,
+    /// AArch64 `wfe`: wait-for-event hint; the core may suspend until the
+    /// event register is set, and is equally permitted to complete as a
+    /// no-op — the suspended wait bounds nothing the source observes.
+    WaitForEvent,
+    /// AArch64 `wfi`: wait-for-interrupt hint; the core may suspend until an
+    /// interrupt arrives, and is equally permitted to complete as a no-op.
+    WaitForInterrupt,
+    /// AArch64 `sev`: send-event hint; signals an event to all cores, and is
+    /// equally permitted to complete as a no-op — the signal is advisory.
+    SendEvent,
+    /// AArch64 `sevl`: send-event-local hint; like `sev` but signaled only
+    /// within the local cluster, and equally permitted to complete as a
+    /// no-op.
+    SendEventLocal,
 }
 
 impl AsmSchedulingHintKind {
@@ -146,6 +160,10 @@ impl AsmSchedulingHintKind {
             Self::SpinPause => "pause",
             Self::Yield => "yield",
             Self::Nop => "nop",
+            Self::WaitForEvent => "wfe",
+            Self::WaitForInterrupt => "wfi",
+            Self::SendEvent => "sev",
+            Self::SendEventLocal => "sevl",
         }
     }
 
@@ -154,13 +172,25 @@ impl AsmSchedulingHintKind {
             Self::SpinPause => "asm#pause",
             Self::Yield => "asm#yield",
             Self::Nop => "asm#nop",
+            Self::WaitForEvent => "asm#wfe",
+            Self::WaitForInterrupt => "asm#wfi",
+            Self::SendEvent => "asm#sev",
+            Self::SendEventLocal => "asm#sevl",
         }
     }
 
     pub fn from_intrinsic_name(name: &str) -> Option<Self> {
-        [Self::SpinPause, Self::Yield, Self::Nop]
-            .into_iter()
-            .find(|kind| kind.intrinsic_name() == name)
+        [
+            Self::SpinPause,
+            Self::Yield,
+            Self::Nop,
+            Self::WaitForEvent,
+            Self::WaitForInterrupt,
+            Self::SendEvent,
+            Self::SendEventLocal,
+        ]
+        .into_iter()
+        .find(|kind| kind.intrinsic_name() == name)
     }
 }
 
@@ -559,7 +589,9 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
         RestoreFromOperand as RestoreInterruptFlag,
     };
     use AsmMemoryOrdering::{Fence, None as NoOrdering};
-    use AsmSchedulingHintKind::{Nop, SpinPause, Yield};
+    use AsmSchedulingHintKind::{
+        Nop, SendEvent, SendEventLocal, SpinPause, WaitForEvent, WaitForInterrupt, Yield,
+    };
     use AsmTargetApplicability::{Aarch64, Any, X86_64};
 
     if let Some(register) = AsmControlRegister::from_read_mnemonic(mnemonic) {
@@ -799,6 +831,54 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             availability: UserChecked,
             shape: SchedulingHint(Nop),
             target: Any,
+            required_authority: NoAuthority,
+            operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: NO_CLOBBERS,
+        }),
+        // The remaining AArch64 architectural HINT encodings: `wfe`/`wfi`
+        // suspend-until-event and `sev`/`sevl` signal one — every member is
+        // architecturally permitted to complete as a no-op, so each carries
+        // the same empty contract as `yield`.
+        "wfe" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: SchedulingHint(WaitForEvent),
+            target: Aarch64,
+            required_authority: NoAuthority,
+            operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: NO_CLOBBERS,
+        }),
+        "wfi" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: SchedulingHint(WaitForInterrupt),
+            target: Aarch64,
+            required_authority: NoAuthority,
+            operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: NO_CLOBBERS,
+        }),
+        "sev" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: SchedulingHint(SendEvent),
+            target: Aarch64,
+            required_authority: NoAuthority,
+            operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: NO_CLOBBERS,
+        }),
+        "sevl" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: SchedulingHint(SendEventLocal),
+            target: Aarch64,
             required_authority: NoAuthority,
             operands: NO_OPERANDS,
             memory_ordering: NoOrdering,
