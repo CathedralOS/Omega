@@ -300,7 +300,7 @@ them. Development use is not consumer or release acceptance. A provider-slot
 grant covers only its exact selected plan; unselected or partial candidates
 cannot inherit that receipt merely by implementing the same requirement.
 
-A boundary claim that the checker can refute against declared ranges, domains,
+A boundary claim that the checker can refute against established bounds, domains,
 or accepted statements rejects even when granted. This veto is not a proof that
 the complete assumption set is consistent.
 
@@ -328,6 +328,11 @@ removing one disputed guarantee does not make all foreign execution untrusted
 or safe by default. Validation establishes facts about its exact observed
 subjects, not a universal provider promise. A post-call check cannot undo
 external effects or contain arbitrary provider corruption.
+
+[Requirement-based tests](../build/testing.md) obey the same rule. Their
+registration changes execution roots, not the facts available to checking or
+optimization. Passing a test grants no admission and is not a universal proof;
+mandatory verdict checks remain distinct from optional diagnostic assertions.
 
 [Build-level behavior exclusions](../build/behavior_exclusions.md) let a selected
 composition establish absence of named crashes, services or physical authority

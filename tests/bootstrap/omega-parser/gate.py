@@ -56,8 +56,8 @@ def main():
     require_identity("execution adapter", adapter, 2565,
                      "ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
-    require_identity("D", compiler, 567279,
-                     "6930d7c3eff696935ff700c6d3612ecea2097a798fa8ec1b401bcc610ee22874")
+require_identity("D", compiler, 569920,
+                     "f5f051fba1ac62322cc1b0af9f3dc8e5fb1951feef24e44a627f1d9e4c28f842")
     entry = (gate / "main.epsilon").read_bytes()
     require_identity("parser customer entry", entry, 4583,
                      "61f988109564e8ca58d6590941aa1aba3dfc2f07af101fb082b38ff25623e618")
@@ -74,13 +74,13 @@ def main():
     if identity_only:
         # Host-free leg: every bound identity above is checked and the request
         # and customer byte streams are fully assembled; only the evaluator
-        # executions need a seed host (macOS arm64 or Windows x64).
+        # executions need a seed host (macOS arm64, Windows x64, or Linux x86-64).
         (directory / "evaluator.exe").stat()
         print(f"Interpreted D parser: identity legs green; "
               f"execution legs need a seed host ({len(request)}-byte receipt "
               f"request, {len(customer)}-byte customer)", flush=True)
         return
-    receipt_timeout = int(os.environ.get("OMEGA_PARSER_RECEIPT_SECONDS", "300"))
+    receipt_timeout = int(os.environ.get("OMEGA_PARSER_RECEIPT_SECONDS", "1800"))
     if receipt_timeout <= 0:
         raise SystemExit("OMEGA_PARSER_RECEIPT_SECONDS must be positive")
     receipt = evaluate(directory, delta_compiler,

@@ -225,6 +225,79 @@ pub(crate) fn lower_trait_definition(
                     base.name.as_str(),
                 )));
             }
+            let wildcard = clause
+                .service_reaches
+                .iter()
+                .any(|reach| reach.as_str() == "_");
+            if wildcard && clause.service_reaches.len() > 1 {
+                return Err(Diagnostic::error(
+                    "refinement clause `reaches _;` is an independent abstract row and does not combine with named services",
+                ));
+            }
+            let mut clause_services = Vec::new();
+            for reach in &clause.service_reaches {
+                // `reaches _;` is the independent abstract row bounded by the
+                // inherited row; the clause-location row variant is pending.
+                if reach.as_str() == "_" {
+                    continue;
+                }
+                let service = lowerer
+                    .source_trees
+                    .symbols
+                    .find_top_level_by_name_and_kinds_from_source(
+                        reach.as_str(),
+                        &[symbols::SymbolKind::Trait],
+                        reach.source_span(),
+                    )
+                    .and_then(|symbol| lowerer.source_trees.service_reaches.id_for_symbol(symbol));
+                let Some(service) = service else {
+                    return Err(Diagnostic::error(format!(
+                        "refinement clause `reaches` names `{reach}`, which is not a boundary service",
+                    )));
+                };
+                if let Some(machine) = covered.iter().find(|machine| {
+                    !lowerer
+                        .source_trees
+                        .service_reach_rows
+                        .services(machine.service_reach_row)
+                        .contains(&service)
+                }) {
+                    return Err(Diagnostic::error(format!(
+                        "refinement clause narrows `reaches` to `{reach}`, but `{}` of base trait `{}` does not reach it — a refinement narrows, it cannot add a reach",
+                        machine.name.as_str(),
+                        base.name.as_str(),
+                    )));
+                }
+                clause_services.push(service);
+            }
+            // `reaches` binds at the clause location: an omitted clause
+            // inherits, authored `reaches;` narrows to the empty row, named
+            // reaches intern a concrete row, and `reaches _;` mints one
+            // independent abstract row per covered requirement bounded by
+            // that requirement's inherited row.
+            let service_reach = if clause.service_reach_keyword_source_spans.is_empty() {
+                typed::trait_definition::TraitRefinementReach::Inherited
+            } else if wildcard {
+                typed::trait_definition::TraitRefinementReach::IndependentBounded(
+                    covered
+                        .iter()
+                        .map(|machine| typed::trait_definition::ClauseAbstractReachRow {
+                            requirement: crate::lowerer::name::lower_name(&machine.name),
+                            row: lowerer
+                                .typed_trees
+                                .service_reach_rows
+                                .intern_abstract(machine.service_reach_row),
+                        })
+                        .collect(),
+                )
+            } else {
+                typed::trait_definition::TraitRefinementReach::Concrete(
+                    lowerer
+                        .typed_trees
+                        .service_reach_rows
+                        .intern(clause_services),
+                )
+            };
             typed_trait
                 .refinement_clauses
                 .push(typed::trait_definition::TraitRefinementClause {
@@ -238,6 +311,7 @@ pub(crate) fn lower_trait_definition(
                         .iter()
                         .map(crate::lowerer::name::lower_name)
                         .collect(),
+                    service_reach,
                 });
         }
     }

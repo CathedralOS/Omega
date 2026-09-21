@@ -47,10 +47,7 @@ pub(super) fn replay(source: &mut TypedTrees, program: &TypedTrees, machine: &Ma
         else {
             continue;
         };
-        let Some(instance_machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == instance.instance)
+        let Some(instance_machine) = crate::lookup::machine_by_symbol(program, instance.instance)
         else {
             continue;
         };

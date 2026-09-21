@@ -1,9 +1,10 @@
-//! Exact invocation predicates over Boolean fields and total integer comparisons.
+//! Exact invocation predicates over Boolean fields, total integer
+//! comparisons, and scalar IEEE equality comparisons.
 use crate::values::operator_is_builtin;
 
 use checked_trees::{
-    CheckedBooleanExpression, CheckedOperatorFacts, CheckedScalarExpression,
-    CheckedStructuralPredicatePathSegment,
+    CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedOperatorFacts,
+    CheckedScalarExpression, CheckedStructuralPredicatePathSegment,
 };
 use symbols::{BuiltinTypeAtom, SymbolKind};
 use typed_trees::TypedTrees;
@@ -232,6 +233,18 @@ impl<'program> Reader<'program> {
                         depth + 1,
                     );
                 }
+                if matches!(
+                    binary.operator,
+                    BinaryOperator::Equal | BinaryOperator::NotEqual
+                ) && self.has_float_operand([binary.left, binary.right], depth + 1)?
+                {
+                    return self.float_comparison(
+                        expression,
+                        [binary.left, binary.right],
+                        binary.operator,
+                        depth + 1,
+                    );
+                }
                 let left = Box::new(self.boolean(binary.left, depth + 1)?);
                 let right = Box::new(self.boolean(binary.right, depth + 1)?);
                 if self.machine.is_none()
@@ -386,6 +399,165 @@ impl<'program> Reader<'program> {
             expression,
             subjects,
         )
+    }
+
+    /// An IEEE equality over scalar float operands is a total operation whose
+    /// guard lowers to a dedicated proposition. This slice covers scalar
+    /// parameter operands only: float literals and structural float fields have
+    /// no scalar-term carrier yet and keep failing closed.
+    fn float_comparison(
+        &mut self,
+        expression: ExpressionHandle,
+        operands: [ExpressionHandle; 2],
+        operator: BinaryOperator,
+        depth: usize,
+    ) -> Option<CheckedBooleanExpression> {
+        // Dense scalar positions depend on the entire entry telescope, exactly
+        // as integer comparisons do.
+        for parameter in self.parameters {
+            if parameter.is_const
+                || self.program.symbols.name(parameter.symbol) != parameter.name.as_str()
+            {
+                return None;
+            }
+            self.primitive(parameter.type_reference, depth + 1)?;
+        }
+        let mut subjects = [None, None];
+        for (position, operand) in operands.into_iter().enumerate() {
+            self.charge(depth)?;
+            if !self.program.expression_table.expression_is_valid(operand) {
+                return None;
+            }
+            let ExpressionNode::Name(_) = self.program.expression_table.expression(operand) else {
+                return None;
+            };
+            let parameter_position = self.parameter(operand, false)?;
+            let type_reference = self.parameters[parameter_position].type_reference;
+            let (primitive_type, atom) = self.primitive(type_reference, depth + 1)??;
+            if !ieee_float_atom(atom) {
+                return None;
+            }
+            let mut scalar_position = 0;
+            for parameter in &self.parameters[..parameter_position] {
+                if self
+                    .primitive(parameter.type_reference, depth + 1)?
+                    .is_some()
+                {
+                    scalar_position += 1;
+                }
+            }
+            subjects[position] = Some((
+                CheckedScalarExpression::Parameter {
+                    position: scalar_position,
+                    primitive_type,
+                },
+                type_reference,
+            ));
+        }
+        let operand_types = subjects
+            .each_ref()
+            .map(|subject| subject.as_ref().map(|(_, type_reference)| *type_reference));
+        let [Some((left, _)), Some((right, _))] = subjects else {
+            return None;
+        };
+        if self.operators.uses.iter().any(|(_, operator)| {
+            operator.expression == expression
+                && operator.status
+                    != checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+        }) {
+            return None;
+        }
+        // A machine-less reader still requires the authored `==`/`!=` to carry
+        // builtin equality meaning over these operands before it becomes logic.
+        // A boundary operator declaration supplies that meaning: it is the
+        // spelling's own builtin backing, not an overriding interpretation.
+        if self.machine.is_none()
+            && !self.builtin_or_boundary_spelled_meaning(
+                expression,
+                if operator == BinaryOperator::Equal {
+                    language_core::OperatorSpelling::Equal
+                } else {
+                    language_core::OperatorSpelling::NotEqual
+                },
+                &operand_types,
+            )
+        {
+            return None;
+        }
+        Some(CheckedBooleanExpression::ScalarIeeeFloatComparison {
+            kind: if operator == BinaryOperator::Equal {
+                CheckedIeeeFloatComparisonKind::Equal
+            } else {
+                CheckedIeeeFloatComparisonKind::NotEqual
+            },
+            left: Box::new(left),
+            right: Box::new(right),
+        })
+    }
+
+    /// `has_builtin_spelled_expression_meaning` admits builtin meaning only
+    /// when no declared spelling matches at all. A crash guard on a boundary
+    /// operator may spell `==` over operands the boundary itself declares —
+    /// the boundary is the spelling's builtin backing rather than an override,
+    /// so every operand-matching candidate being `boundary` still qualifies.
+    /// Selected trait meanings and non-builtin authored selections disqualify
+    /// exactly as they do there.
+    fn builtin_or_boundary_spelled_meaning(
+        &self,
+        expression: ExpressionHandle,
+        spelling: language_core::OperatorSpelling,
+        operand_types: &[Option<TypeReferenceHandle>],
+    ) -> bool {
+        use language_semantics::declaration_selection::{
+            AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+            AuthoredDeclarationSelectionLateBinding as LateBinding,
+            AuthoredDeclarationSelectionTarget as Target,
+        };
+        typed_trees::operator::resolve_spelling_for_operands(self.program, spelling, operand_types)
+            .iter()
+            .all(|candidate| candidate.operator.is_boundary)
+            && typed_trees::operator::selected_trait_operator_meanings(
+                self.program,
+                self.owner,
+                spelling,
+                operand_types,
+            )
+            .is_empty()
+            && self
+                .program
+                .expression_table
+                .authored_selection_occurrences(expression)
+                .all(|occurrence| {
+                    self.program
+                        .authored_declaration_selections()
+                        .get(occurrence)
+                        .is_some_and(|selection| {
+                            matches!(
+                                selection.target(),
+                                Target::Intrinsic(Intrinsic::BuiltinOperator)
+                                    | Target::LateBound(LateBinding::CheckedOperator)
+                            )
+                        })
+                })
+    }
+
+    fn has_float_operand(&mut self, operands: [ExpressionHandle; 2], depth: usize) -> Option<bool> {
+        for operand in operands {
+            self.charge(depth)?;
+            if !self.program.expression_table.expression_is_valid(operand) {
+                return None;
+            }
+            if let ExpressionNode::Name(_) = self.program.expression_table.expression(operand) {
+                let position = self.parameter(operand, false)?;
+                if self
+                    .primitive(self.parameters[position].type_reference, depth + 1)?
+                    .is_some_and(|(_, atom)| ieee_float_atom(atom))
+                {
+                    return Some(true);
+                }
+            }
+        }
+        Some(false)
     }
 
     fn parameter(&self, expression: ExpressionHandle, allow_self: bool) -> Option<usize> {
@@ -636,4 +808,8 @@ fn fixed_integer_atom(atom: BuiltinTypeAtom) -> bool {
             | BuiltinTypeAtom::U32
             | BuiltinTypeAtom::U64
     )
+}
+
+fn ieee_float_atom(atom: BuiltinTypeAtom) -> bool {
+    matches!(atom, BuiltinTypeAtom::F32 | BuiltinTypeAtom::F64)
 }

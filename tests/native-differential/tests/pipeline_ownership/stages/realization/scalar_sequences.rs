@@ -179,6 +179,7 @@ fn parameter_sequence_artifact(parameter_count: usize) -> (Vec<u8>, Vec<u8>) {
     let body = &mut machine.blocks[0];
     body.operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(9_410).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -194,6 +195,7 @@ fn parameter_sequence_artifact(parameter_count: usize) -> (Vec<u8>, Vec<u8>) {
     };
     body.operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(9_411).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -230,6 +232,7 @@ fn sequence_artifact(extra_operations: usize) -> (Vec<u8>, Vec<u8>) {
         let result = ValueId::new(9_100 + index as u64).unwrap();
         body.operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(9_200 + index as u64).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

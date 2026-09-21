@@ -62,6 +62,7 @@ pub(crate) fn operation_result_cfg_unit(shape: OperationResultCfgShape) -> PsiOp
     let call = || AbstractOperation::CallStructural {
         psi_operation: id(382, OperationId::new),
         result: terminal_psi::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: call_result,
             structural_type,
             multiplicity: terminal_psi::StructuralMultiplicity::Linear,

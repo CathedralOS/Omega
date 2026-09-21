@@ -287,6 +287,7 @@ pub(crate) fn decode_unit_affine_scalar_records(
             psi_operation: OperationId::new(reader.u64()?)
                 .ok_or(InstallationError::InvalidUnitAffineScalarRecord)?,
             result: terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: PlaceId::new(reader.u64()?)
                     .ok_or(InstallationError::InvalidUnitAffineScalarRecord)?,
                 structural_type: StructuralTypeId::new(reader.u64()?)
@@ -345,6 +346,7 @@ mod tests {
         UnitAffineScalarRecordEstablishmentRecord {
             psi_operation: OperationId::new(1).unwrap(),
             result: terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: PlaceId::new(2).unwrap(),
                 structural_type: StructuralTypeId::new(3).unwrap(),
                 multiplicity: terminal_psi::StructuralMultiplicity::Affine,

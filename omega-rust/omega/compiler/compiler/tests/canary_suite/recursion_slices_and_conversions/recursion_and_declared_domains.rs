@@ -226,6 +226,35 @@ fn runtime_result_domain_machine_overload_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_result_domain_attached_overload_exit_canary_runs() {
+    // Member-receiver selection on an attached result-overload family: each
+    // `self.helper.pick()` must rebind to the overload matching the typed LET
+    // destination's dispatch set (70 qualified, 69 empty) or exit 77.
+    let canary = pass_canary(fixture_roster::RUNTIME_RESULT_DOMAIN_ATTACHED_OVERLOAD_EXIT);
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-attached-result-overload-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("attached result-domain overload canary should compile");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("attached result overload canary should retain its executable receipt");
+    let output = Command::new(executable)
+        .output()
+        .expect("attached result-domain overload canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected member calls to select distinct attached overloads, got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_std_math_sin_cos_exit_canary_runs() {
     // std math natively: sin's polynomial (exit 72 on miss), the binary
     // ladder at sin(10) (73), and the let-bound cos composition (74) --

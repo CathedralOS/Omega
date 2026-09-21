@@ -1,7 +1,7 @@
 # Structural comparison gate
 
 Run `sh tests/gamma/derivation-comparison/run.sh` from the repository root on
-macOS arm64 or Windows x64 in Git Bash. Python 3 and the selected checked-in
+macOS arm64 or Linux x86-64, or Windows x64 in Git Bash. Python 3 and the selected checked-in
 Alpha seed are required; macOS also requires `codesign`. Windows runtime
 validation is not implied by this portable entrypoint.
 

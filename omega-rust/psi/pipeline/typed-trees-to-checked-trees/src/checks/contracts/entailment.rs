@@ -174,11 +174,11 @@ pub(super) fn transparent_proposition_proves_exit(
     }) else {
         return false;
     };
-    let Some(state) = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == state_flow.state_symbol)
-    else {
+    let Some(state) = crate::semantic_calls::find_state_in_machine(
+        program,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+    ) else {
         return false;
     };
     validation::transparent_proposition_application_entailed(program, machine, state, application)
@@ -194,11 +194,7 @@ fn entry_premises_are_preserved(
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     resolver: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol) else {
         return false;
     };
     if resolver.is_some_and(|resolver| {
@@ -241,29 +237,20 @@ pub(super) fn structural_call_requirement(
     resolver: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let classification = typed_trees::proof_only::classify(program);
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == state_flow.machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
         return false;
     };
     if !entry_premises_are_preserved(program, facts, machine.symbol, &classification, resolver) {
         return false;
     }
-    let Some(state) = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == state_flow.state_symbol)
-    else {
+    let Some(state) = crate::semantic_calls::find_state_in_machine(
+        program,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+    ) else {
         return false;
     };
-    let Some(callee) = program
-        .machines()
-        .iter()
-        .flat_map(|machine| program.machine_states(machine))
-        .find(|state| state.symbol == call_flow.target_symbol)
-    else {
+    let Some(callee) = crate::semantic_calls::find_state(program, call_flow.target_symbol) else {
         return false;
     };
     let Some(call_site) = crate::semantic_calls::find_call_site(
@@ -355,11 +342,7 @@ fn isolated_proof_values(
                 .span_or_empty(state.calls)
                 .iter()
                 .all(|call| {
-                    program
-                        .machines()
-                        .iter()
-                        .flat_map(|machine| program.machine_states(machine))
-                        .find(|target| target.symbol == call.target_symbol)
+                    crate::semantic_calls::find_state(program, call.target_symbol)
                         .is_some_and(isolated_parameters)
                 })
         })

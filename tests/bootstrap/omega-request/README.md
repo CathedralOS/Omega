@@ -46,11 +46,16 @@ input to the boundary, not output from it; mutating it is how the refusal
 cases are built. This is the request edge's own observation — no raw-source
 stdin convention, and no host compiler meaning is supplied.
 
-From the repository root on macOS arm64, or Windows x64 with Git Bash:
+From the repository root on macOS arm64, Linux x86-64, or Windows x64 with Git Bash:
 
 ```sh
 sh tests/bootstrap/omega-request/run.sh
 ```
+
+`run.sh --identity` is a host-free leg: it validates every bound identity and
+the expected observation, and assembles the customer and receipt-request byte
+streams on any Python-3 host (including Linux, or a Windows host before the
+multi-hour run). Only the evaluator executions need a seed host.
 
 The gate requires Python 3, the selected checked-in Alpha seed, and the
 existing shell tools; macOS also requires `codesign` for the materialized
@@ -65,8 +70,8 @@ semantics.
 
 The [entry](main.epsilon) is bound at 4,115 bytes, SHA-256
 `0d612813e17cfbe2e755b7398d90bb3572f5ed32da249c8863b37f545d3822c0`, and packs
-on top of the bound member closure to 571,394 bytes, SHA-256
-`571d738bbc140cfff0de150f281aabd2fe7d048860320ee14def7cc7025762fa`. The
+on top of the bound member closure to 574,035 bytes, SHA-256
+`9ee93e13f56ed6937be21e0a24c9469d817a5498806dc0c4c03089e6c98a4bfc`. The
 canonical request fixture is bound at 132 bytes, SHA-256
 `ab2e980a89d20651b69782446cd8a8333313dce109636fd3e26cc7f52bc98062`.
 `tools/bootstrap/omega/compiler_env.sh` checks both identities before every

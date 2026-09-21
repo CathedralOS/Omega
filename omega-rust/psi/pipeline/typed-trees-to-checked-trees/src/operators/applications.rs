@@ -219,10 +219,7 @@ pub(crate) fn bind_boundary_operator_application_demands(
             ));
             continue;
         };
-        let rejoins = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == requirement_use.requirement_symbol)
+        let rejoins = crate::lookup::machine_by_symbol(program, requirement_use.requirement_symbol)
             .is_some_and(|requirement| {
                 program
                     .machine_states(requirement)
@@ -312,10 +309,7 @@ fn spelled_symbolic_boundary_application(
         return None;
     }
     let machine_symbol = operator_use.origin.machine_symbol()?;
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
+    let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
     let arguments = typed_trees::operator::symbolic_operator_type_application_for_operands(
         program,
         machine,
@@ -537,11 +531,7 @@ fn rejoin_validated_symbolic_arguments(
         } => Some(*machine_owner),
         _ => None,
     })?;
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol) else {
         diagnostics.push(diagnostics::Diagnostic::error(
             "symbolic boundary application lost its enclosing generic machine",
         ));

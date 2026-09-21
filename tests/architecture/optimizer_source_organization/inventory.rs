@@ -9,7 +9,7 @@ use crate::Audit;
 /// The optimizer surfaces whose source organization is architecture-governed.
 /// Keep these roots explicit: silently losing a moved or renamed tree must
 /// fail this test rather than shrinking its jurisdiction.
-const GOVERNED_ROOTS: &[&str] = &[
+pub(super) const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/backend/machine-emission/src/text_placement",
     "omega-rust/omega/backend/machine-emission/src/exit_contract",
     "omega-rust/omega/backend/machine-emission/src/fragments",
@@ -55,14 +55,21 @@ const GOVERNED_ROOTS: &[&str] = &[
 ];
 
 /// One rule-owning stage's complete navigation contract. Keeping these fields
-/// together prevents the entrance, catalog, marker, and next rung from
-/// drifting across parallel architecture-test tables.
+/// together prevents the entrance, catalog, marker, next rung, and consumer
+/// rows from drifting across parallel architecture-test tables.
 pub(super) struct RuleStageDescriptor {
     pub(super) entrance: &'static str,
     pub(super) catalog: &'static str,
     pub(super) coordination_marker: &'static str,
     pub(super) catalog_marker: &'static str,
     pub(super) next_rungs: &'static [&'static str],
+    /// The callable symbol the entrance hands its successors; a consumer file
+    /// names it without the `pub fn` prefix.
+    pub(super) output_marker: &'static str,
+    /// Coordinator or successor files outside the stage tree that must name
+    /// `output_marker`. A produced route no successor calls is an orphan
+    /// output; see the placement rules in `omega-rust/pipeline.md`.
+    pub(super) consumers: &'static [&'static str],
 }
 
 pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
@@ -75,6 +82,8 @@ pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
             "omega-rust/psi/pipeline/lowered-psi-to-lowered-psi/src/dead_scalar_elimination",
             "omega-rust/psi/semantics/terminal-verifier/src/optimization.rs",
         ],
+        output_marker: "run_psi_optimization",
+        consumers: &["omega-rust/psi/compiler/terminal-production/src/terminal_production.rs"],
     },
     RuleStageDescriptor {
         entrance: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/mod.rs",
@@ -84,6 +93,10 @@ pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
         next_rungs: &[
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes",
         ],
+        output_marker: "built_in_psi_registries",
+        consumers: &[
+            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/entry.rs",
+        ],
     },
     RuleStageDescriptor {
         entrance: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/mod.rs",
@@ -92,6 +105,10 @@ pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
         catalog_marker: "SELECTED_LOWERING_RULE_CATALOG",
         next_rungs: &[
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold",
+        ],
+        output_marker: "resolve_selected_lowering_rules",
+        consumers: &[
+            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_folds/mod.rs",
         ],
     },
     RuleStageDescriptor {
@@ -103,6 +120,10 @@ pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy",
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/pressure_rematerialization",
         ],
+        output_marker: "selected_allocation_recovery_rule",
+        consumers: &[
+            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/register_allocation.rs",
+        ],
     },
     RuleStageDescriptor {
         entrance: "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/x86_branch_relaxation/mod.rs",
@@ -113,6 +134,8 @@ pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
             "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/x86_branch_relaxation/compute.rs",
             "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/x86_branch_relaxation/validation.rs",
         ],
+        output_marker: "stage_optimized_x86_branch_relaxation",
+        consumers: &["omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/phase.rs"],
     },
 ];
 

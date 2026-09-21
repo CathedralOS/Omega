@@ -24,11 +24,14 @@ pub(super) fn reconstruct(
         .structural_parameters
         .get(position)
         .ok_or(invalid.clone())?;
+    // Whole-root domain qualifications are signature preconditions whose
+    // discharge was verified at the call edge upstream; admission binds the
+    // roster and re-checks it exactly wherever an argument binds to a
+    // parameter. Projected (path-beneath-root) qualifications still decline.
     if !argument.path.is_empty()
         || destination.access != terminal_psi::StructuralAccess::Owned
         || destination.multiplicity == StructuralMultiplicity::Linear
         || destination.is_self
-        || !destination.qualifications.is_empty()
         || !destination.projected_qualifications.is_empty()
     {
         return Err(invalid);
@@ -55,7 +58,7 @@ pub(super) fn reconstruct(
             || parameter.access != destination.access
             || parameter.multiplicity != destination.multiplicity
             || parameter.is_self
-            || !parameter.qualifications.is_empty()
+            || parameter.qualifications != destination.qualifications
             || !parameter.projected_qualifications.is_empty()
         {
             return Err(invalid);
@@ -86,7 +89,7 @@ pub(super) fn reconstruct(
         if result.structural_type != destination.structural_type
             || result.multiplicity != destination.multiplicity
             || !result.claims.is_empty()
-            || !result.qualifications.is_empty()
+            || result.qualifications != destination.qualifications
             || !result.projected_qualifications.is_empty()
         {
             return Err(invalid);

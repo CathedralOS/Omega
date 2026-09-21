@@ -11,11 +11,14 @@ use typed_trees::statement::StatementNode;
 /// row names the service it may reach; this evidence states which privileged
 /// classes the produced image may exercise at all.
 ///
-/// `Build.freestanding` is the only authored evidence today: the freestanding
+/// `Build.freestanding` is the machine-owner supply: the freestanding
 /// selection is the boot-root machine owner, and the machine owner can
 /// self-grant the mediated classes (port permission maps, interrupt-table
-/// publication) alongside machine control itself. A hosted build admits no
-/// class: privileged instructions would fault at ring 3. Consumer-defined
+/// publication) alongside machine control itself. A hosted build begins with
+/// no class but may grant each mediated class independently through
+/// `Build.privileged_services` flags — port permission without
+/// interrupt-table control, and so on. Machine-owner authority itself has no
+/// granular grant and stays `freestanding`-only. Consumer-defined
 /// publication authority stays receiver-side per the permissions spec and
 /// never enters this input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -52,6 +55,19 @@ impl AsmAuthorityAdmission {
         }
     }
 
+    /// Widen by each authored `Build.privileged_services` flag. Grants are
+    /// independent: `port_io` admits port I/O only and `interrupt_table`
+    /// admits interrupt-table publication only; neither claims machine-owner
+    /// authority, which stays `freestanding`-only and already covers both
+    /// mediated classes when set.
+    pub const fn with_grants(self, port_io: bool, interrupt_table: bool) -> Self {
+        Self {
+            machine_owner: self.machine_owner,
+            port_io: self.port_io || port_io,
+            idt_control: self.idt_control || interrupt_table,
+        }
+    }
+
     /// Whether this admission supplies the exact authority class one
     /// instruction contract requires. `None`-authority instructions admit
     /// unconditionally and never reach the gate's rejection path.
@@ -74,11 +90,33 @@ impl AsmAuthorityAdmission {
     }
 }
 
+/// The authored supply the diagnostic names for the missing class. A
+/// freestanding boundary root always suffices; each mediated class also
+/// accepts its exact `Build.privileged_services` flag, while machine-owner
+/// authority has no granular grant.
+fn authored_admission_fix(requirement: AsmAuthorityRequirement) -> &'static str {
+    match requirement {
+        AsmAuthorityRequirement::PortIo => {
+            "Set `b.freestanding = true` or grant exactly this class with \
+             `b.privileged_services.port_io = true` in build.omg, \
+             or remove the asm block"
+        }
+        AsmAuthorityRequirement::IdtControl => {
+            "Set `b.freestanding = true` or grant exactly this class with \
+             `b.privileged_services.interrupt_table = true` in build.omg, \
+             or remove the asm block"
+        }
+        AsmAuthorityRequirement::None | AsmAuthorityRequirement::MachineOwner => {
+            "Set `b.freestanding = true` in build.omg, or remove the asm block"
+        }
+    }
+}
+
 /// Per-capability admission gate for authority-bearing assembly intrinsics.
 /// Each instruction's contract authority class is checked against the build's
 /// supplied admission evidence; instructions with no authority requirement
-/// pass unconditionally. Hosted compilation supplies no class and rejects
-/// each authority-bearing emission with its exact missing class.
+/// pass unconditionally. A build supplying no class rejects each
+/// authority-bearing emission with its exact missing class.
 pub fn validate_asm_discharge(
     program: &TypedTrees,
     admission: AsmAuthorityAdmission,
@@ -101,12 +139,12 @@ pub fn validate_asm_discharge(
                 }
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` uses asm instruction `{}`, which requires a FREESTANDING \
-                     boundary root (the contract requires {}, and this build supplies no \
-                     privileged-service admission). Set `b.freestanding = true` in build.omg, \
-                     or remove the asm block",
+                     boundary root (the contract requires {}, and this build's \
+                     privileged-service admission does not supply it). {}",
                     machine.name,
                     instruction,
-                    AsmAuthorityAdmission::description(required_authority)
+                    AsmAuthorityAdmission::description(required_authority),
+                    authored_admission_fix(required_authority)
                 )));
             }
         }
@@ -235,6 +273,9 @@ fn statement_asm_intrinsic(
         symbols::BuiltinFunction::AsmWriteCr0 => "write_cr0",
         symbols::BuiltinFunction::AsmWriteCr3 => "write_cr3",
         symbols::BuiltinFunction::AsmWriteCr4 => "write_cr4",
+        symbols::BuiltinFunction::AsmWriteBackInvalidate => "wbinvd",
+        symbols::BuiltinFunction::AsmInvalidate => "invd",
+        symbols::BuiltinFunction::AsmWriteBackNoInvalidate => "wbnoinvd",
         _ => return None,
     };
     let language_core::inline_assembly::AsmCatalogEntry::Contract(contract) =

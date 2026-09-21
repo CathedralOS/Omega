@@ -6,9 +6,10 @@ any matching-logic comparison measure checker, translation, and theory size;
 certificate size and checking time; and every imported rule, assumption, or
 trusted bridge — over identical pinned positive and negative cases. This tool
 measures the route that exists today (the bounded-entailment checker plus the
-certificate route through the proof-admission kernel) and records the
-matching-logic encoding column as pending; the compared encoding needs the
-bounded slice under ``tools/matching-logic-slice``.
+certificate route through the proof-admission kernel) and, when the bounded
+slice under ``tools/matching-logic-slice`` is present, measures the
+matching-logic encoding route as well; otherwise that column records
+``pending``.
 
 Axis → measured surface:
 
@@ -64,6 +65,16 @@ CASES_SCHEMA = "omega-matching-logic-pinned-cases/1"
 TIMING_LINE = re.compile(r"^\s*([0-9]+(?:\.[0-9]+)?) ms  (.+)$")
 COMPILE_PHASE = "compile: sources -> requested product"
 MEASUREMENTS_LINE = "OMEGA_PROOF_MEASUREMENTS"
+
+# Matching-logic encoding route: the bounded slice checker (the candidate
+# certificate-deciding program) and the typed-to-one-sorted encoder that
+# emits the clause inventory every certificate side consumes.
+ENCODING_CHECKER_PATH = "tools/matching-logic-slice"
+ENCODING_TRANSLATION_PATH = "tools/matching-logic-sort-encoding"
+ENCODING_SLICE_TOOL = "tools/matching-logic-slice/slice_checker.py"
+ENCODING_SLICE_CASES = "tools/matching-logic-slice/cases"
+ENCODING_ENCODER_TOOL = "tools/matching-logic-sort-encoding/sort_encoding.py"
+ENCODING_ENCODER_CASES = "tools/matching-logic-sort-encoding/cases"
 
 KERNEL_PATH = "omega-rust/psi/semantics/proof-admission/src"
 TRANSLATION_PATHS = (
@@ -151,13 +162,17 @@ def is_test_source(path):
     )
 
 
-def source_inventory(root):
-    """Files, non-test/test lines and bytes for one source tree or file."""
+def source_inventory(root, pattern="*.rs"):
+    """Files, non-test/test lines and bytes for one source tree or file.
+
+    ``pattern`` selects the glob for directory walks (the default Rust
+    source shape); single files are always counted regardless of suffix.
+    """
     root = Path(root)
     if root.is_file():
         candidates = [root]
     elif root.is_dir():
-        candidates = sorted(root.rglob("*.rs"))
+        candidates = sorted(root.rglob(pattern))
     else:
         return None
     files = lines = bytes_total = 0
@@ -305,6 +320,182 @@ def run_check(omega, root):
     }
 
 
+def run_python_tool(tool, *argv):
+    """Run one Python tool, returning (exit code, wall ms, parsed stdout)."""
+    started = time.monotonic()
+    completed = subprocess.run(
+        [sys.executable, str(tool), *argv], stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        check=False, text=True,
+    )
+    wall_ms = (time.monotonic() - started) * 1000.0
+    try:
+        parsed = json.loads(completed.stdout) if completed.stdout else None
+    except ValueError:
+        parsed = None
+    return completed.returncode, wall_ms, parsed
+
+
+def measure_slice_case(repo, tool, case_path, repetitions):
+    """One pinned slice-checker case: verdict, polarity, cert bytes, timing."""
+    runs = []
+    for _ in range(repetitions):
+        exit_code, wall_ms, parsed = run_python_tool(tool, "check", case_path)
+        runs.append({
+            "exit_code": exit_code,
+            "wall_ms": wall_ms,
+            "parsed": parsed,
+        })
+    first = runs[0]["parsed"] or {}
+    verdict = first.get("verdict")
+    expected = first.get("expect")
+    elapsed = [run["parsed"].get("elapsed_ms") for run in runs
+               if run["parsed"] and run["parsed"].get("elapsed_ms") is not None]
+    row = {
+        "path": str(case_path.relative_to(repo)),
+        "polarity": expected,
+        "outcome": verdict,
+        "expected": expected,
+        "runs": [
+            {"exit_code": run["exit_code"], "wall_ms": run["wall_ms"]}
+            for run in runs
+        ],
+        "check_time_ms": {
+            "elapsed": round(statistics.median(elapsed), 3) if elapsed else None,
+            "wall": round(statistics.median(
+                run["wall_ms"] for run in runs), 3),
+        },
+        "certificate_bytes": first.get("certificate_bytes"),
+        "admissions": len(first.get("admissions", [])),
+    }
+    if expected is None or verdict is None:
+        row["match"] = False
+        row["status"] = "unreadable-verdict"
+        return row, False
+    ok = verdict == expected
+    row["match"] = ok
+    return row, ok
+
+
+def measure_encoding_case(repo, tool, case_path):
+    """One sort-encoding case: emitted clause count plus consistency outcome.
+
+    The encoder's corpus is designed-consistent (``reference``) or
+    designed-inconsistent input for a clause-consistency surface rather
+    than proof verdicts, so diagnostics are the measurement, not a
+    polarity match; ``consistent`` records whether the emitted clause
+    inventory discharged every consistency rule.
+    """
+    exit_code, wall_ms, parsed = run_python_tool(tool, "check", case_path)
+    parsed = parsed or {}
+    admissions = parsed.get("admissions") or []
+    diagnostics = parsed.get("diagnostics") or []
+    return {
+        "case": case_path.stem,
+        "exit_code": exit_code,
+        "consistent": not diagnostics,
+        "clauses": len(admissions),
+        "diagnostics": len(diagnostics),
+        "diagnostic_rules": sorted({row["rule"] for row in diagnostics
+                                    if isinstance(row, dict)
+                                    and isinstance(row.get("rule"), str)}),
+        "wall_ms": round(wall_ms, 3),
+    }
+
+
+def measure_encoding_route(repo, repetitions, skip_cases):
+    """The matching-logic encoding column, measured when the slice exists.
+
+    Checker = ``tools/matching-logic-slice`` (the certificate-deciding
+    program); translation = ``tools/matching-logic-sort-encoding`` (the
+    typed-to-one-sorted clause emitter the checking side consumes). The
+    route's remaining trust floor is the Python 3 runtime plus stdlib
+    ``json`` — unmeasured host properties, recorded honestly rather than
+    counted as code.
+    """
+    checker_tool = repo / ENCODING_SLICE_TOOL
+    encoder_tool = repo / ENCODING_ENCODER_TOOL
+    if not checker_tool.is_file() or not encoder_tool.is_file():
+        return {
+            "status": "pending",
+            "note": "the compared encoding needs the bounded slice under "
+                    "tools/matching-logic-slice (MATCHING-LOGIC-BOUNDED-SLICE); "
+                    "every current-route axis is measured so the comparison "
+                    "has its baseline",
+        }
+
+    route = {
+        "status": "measured",
+        "checker": source_inventory(repo / ENCODING_CHECKER_PATH, "*.py"),
+        "translation": source_inventory(repo / ENCODING_TRANSLATION_PATH, "*.py"),
+        "trusted_derivation": {
+            key: 0 for key in AXIS_KEYS
+        },
+        "theory": {
+            "fragment": "one-sorted finitary basic matching logic, "
+                        "no fixpoint symbols",
+            "rule_inventory": {},
+        },
+        "evidence": {
+            "observation_profile": "python3 subprocess wall time plus the "
+                                   "checker's own elapsed_ms per case",
+            "target_capsule": "check-only certificate decision; no artifact "
+                              "emission is exercised",
+            "bridge_graph": "every emitted clause is an axiom admission the "
+                            "checker consumes; the unmeasured floor is the "
+                            "python3 runtime and stdlib json decoding",
+            "admissions": "per-case axiom roster reported by the checker's "
+                          "verdict record",
+        },
+    }
+    route["trusted_derivation"]["note"] = (
+        "no derivation outside the measured checker decides a leg; the "
+        "remaining trust floor is the host python3 runtime")
+
+    record_path = repo / ENCODING_CHECKER_PATH / "record.json"
+    if record_path.is_file():
+        record = json.loads(record_path.read_text())
+        rules = record.get("checker", {}).get("rules")
+        if isinstance(rules, list):
+            route["theory"]["rule_inventory"]["checkerRules"] = len(rules)
+
+    if skip_cases:
+        route["case_status"] = "skipped"
+        return route
+
+    cases = []
+    mismatches = 0
+    certificate_bytes = 0
+    cases_dir = repo / ENCODING_SLICE_CASES
+    for case_path in sorted(cases_dir.glob("*.json")):
+        row, ok = measure_slice_case(
+            repo, checker_tool, case_path, repetitions)
+        cases.append(row)
+        mismatches += 0 if ok else 1
+        if row.get("certificate_bytes") is not None:
+            certificate_bytes += row["certificate_bytes"]
+        status = "ok" if ok else "MISMATCH"
+        sys.stderr.write(f"{status:>8} slice/{case_path.name}\n")
+    route["cases"] = cases
+    route["certificate"] = {
+        "bytes": certificate_bytes,
+        "per_case": "the certificate subtree embedded in each pinned case",
+    }
+
+    encoding_cases = []
+    clause_total = 0
+    encoder_cases_dir = repo / ENCODING_ENCODER_CASES
+    for case_path in sorted(encoder_cases_dir.glob("*.json")):
+        row = measure_encoding_case(repo, encoder_tool, case_path)
+        encoding_cases.append(row)
+        clause_total += row["clauses"]
+    route["theory"]["rule_inventory"]["encodingClauses"] = clause_total
+    route["theory"]["encoding_cases"] = encoding_cases
+    route["case_status"] = "measured"
+    route["case_mismatches"] = mismatches
+    return route
+
+
 def case_source_bytes(case_dir):
     root = case_dir / "main.omg"
     try:
@@ -409,13 +600,8 @@ def measure(args):
                 "trusted_derivation": trusted,
                 "theory": measure_theory(repo),
             },
-            "matching_logic_encoding": {
-                "status": "pending",
-                "note": "the compared encoding needs the bounded slice under "
-                        "tools/matching-logic-slice (MATCHING-LOGIC-BOUNDED-SLICE); "
-                        "every current-route axis is measured so the comparison "
-                        "has its baseline",
-            },
+            "matching_logic_encoding": measure_encoding_route(
+                repo, args.repetitions, args.skip_cases),
         },
         "cases": [],
         "evidence": {
@@ -466,7 +652,10 @@ def measure(args):
         sys.stderr.write(f"recorded {out}\n")
     else:
         sys.stdout.write(text)
-    return 0 if record.get("case_mismatches", 0) == 0 else 1
+    mismatches = record.get("case_mismatches", 0)
+    mismatches += record.get("route", {}).get(
+        "matching_logic_encoding", {}).get("case_mismatches", 0)
+    return 0 if mismatches == 0 else 1
 
 
 def platform_host():
@@ -512,6 +701,29 @@ def validate_record(path, errors):
         key = name[0].lower() + name[1:]
         if not isinstance(rules.get(key), int) or rules[key] <= 0:
             errors.append(f"{path}: theory.rule_inventory.{key} must be positive")
+    encoding = record.get("route", {}).get("matching_logic_encoding")
+    if encoding is not None:
+        if not isinstance(encoding, dict):
+            errors.append(f"{path}: route.matching_logic_encoding malformed")
+        elif encoding.get("status") == "measured":
+            for axis in ("checker", "translation"):
+                validate_inventory(
+                    encoding.get(axis), f"encoding.{axis}", errors)
+            for case in encoding.get("cases", []):
+                for key in ("path", "polarity", "outcome", "expected",
+                            "match"):
+                    if key not in case:
+                        errors.append(
+                            f"{path}: encoding case "
+                            f"{case.get('path', '?')} missing {key}")
+                if case.get("polarity") not in ("accept", "reject"):
+                    errors.append(
+                        f"{path}: encoding case {case.get('path', '?')} "
+                        "polarity invalid")
+        elif encoding.get("status") != "pending":
+            errors.append(
+                f"{path}: route.matching_logic_encoding.status must be "
+                "'pending' or 'measured'")
     for case in record.get("cases", []):
         for key in CASE_KEYS:
             if key not in case:

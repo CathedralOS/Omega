@@ -50,6 +50,7 @@ pub(in crate::legalization) fn admit(
     | AbstractOperation::PrimitiveLocalStore { psi_operation, .. }
     | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
     | AbstractOperation::CallUnit { psi_operation, .. }
+    | AbstractOperation::CallDynamicParameterUnit { psi_operation, .. }
     | AbstractOperation::ByteSequenceWrite { psi_operation, .. }
     | AbstractOperation::StructuralByteSequenceFieldByteStore { psi_operation, .. }
     | AbstractOperation::StructuralByteSequenceFieldStore { psi_operation, .. }
@@ -120,6 +121,14 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             // Requirements are proof-only: source projection retains their
             // ordered roster, and legalization/selection replay checks it.
             // They need no carrier, unlike claim transfers or crash routes.
+            Ok((*psi_operation, result.value))
+        }
+        AbstractOperation::CallDynamicParameterScalar {
+            psi_operation,
+            result,
+            crash_continuations,
+            ..
+        } if scalar_shape(result.scalar_type).is_some() && crash_continuations.is_empty() => {
             Ok((*psi_operation, result.value))
         }
         AbstractOperation::ByteSequenceRead {
@@ -410,6 +419,17 @@ pub(super) fn validate(
         }
     }
     for (position, node) in body.iter().enumerate() {
+        // Signature-only descriptor declarations retain no operation identity
+        // and project no instruction row; any payload on one is fabricated.
+        if matches!(
+            node.operation,
+            AbstractOperation::DynamicDescriptorParameter { .. }
+        ) {
+            if !super::indirect_calls::is_descriptor_declaration(node) {
+                return Err(invalid);
+            }
+            continue;
+        }
         let (operation, result) = admit(node).map_err(|rejection| match rejection {
             NodeRejection::Malformed => invalid.clone(),
             NodeRejection::UnsupportedFamily => LegalizationError::UnsupportedScalarOperation {
@@ -572,6 +592,16 @@ pub(super) fn validate(
             }
             continue;
         }
+        if let AbstractOperation::CallDynamicParameterUnit {
+            crash_continuations,
+            ..
+        } = &node.operation
+        {
+            if result.is_some() || !node.definitions.is_empty() || !crash_continuations.is_empty() {
+                return Err(invalid);
+            }
+            continue;
+        }
         if let AbstractOperation::BoundaryCall {
             arguments,
             result: boundary_result,
@@ -623,6 +653,7 @@ pub(super) fn validate(
             AbstractOperation::BooleanConstant { .. }
             | AbstractOperation::BooleanStructuralField { .. } => ScalarType::Boolean,
             AbstractOperation::CallStructuralScalar { result, .. }
+            | AbstractOperation::CallDynamicParameterScalar { result, .. }
             | AbstractOperation::BoundaryCall {
                 result: abstract_operations::AbstractBoundaryResult::Scalar(result),
                 ..

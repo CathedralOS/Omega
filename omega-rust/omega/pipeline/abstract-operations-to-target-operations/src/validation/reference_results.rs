@@ -118,7 +118,8 @@ fn contains_reference(declarations: &[StructuralTypeDeclaration], root: Structur
                     push_fields(&case.fields);
                 }
             }
-            StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
+            StructuralTypeShape::FixedArray { element, .. }
+            | StructuralTypeShape::ElementView { element } => pending.push(*element),
             StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
         }
     }

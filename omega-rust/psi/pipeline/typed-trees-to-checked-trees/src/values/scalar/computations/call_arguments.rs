@@ -8,6 +8,7 @@ impl Builder<'_, '_> {
     pub(super) fn record_call_arguments(
         &mut self,
         pure: &CheckedScalarExpressionPlans,
+        values: &mut checked_trees::CheckedStructuralValuePlans,
         statement: u32,
         call_ordinal: u32,
         target: SymbolHandle,
@@ -43,6 +44,40 @@ impl Builder<'_, '_> {
                 .program
                 .primitive_type_reference(parameter.type_reference)
             else {
+                // An inline case construction at a non-primitive position is
+                // still a structural value: retain it rooted at the authored
+                // argument expression so the Unit statement sequence can
+                // establish it as a state-local operand before the call.
+                // Payload fields are primitive by `scalar_case_constructor`,
+                // so the construction introduces no place custody.
+                if !parameter.is_self
+                    && !parameter.is_const
+                    && validation::scalar_case_constructor(self.program, *argument).is_some_and(
+                        |constructor| {
+                            self.program
+                                .normalized_type_identity(constructor.type_reference)
+                                == self
+                                    .program
+                                    .normalized_type_identity(parameter.type_reference)
+                        },
+                    )
+                    && values
+                        .root_for_expression(self.state, statement, *argument)
+                        .is_none()
+                    && let Some(root) =
+                        self.structural_value(*argument, parameter.type_reference, values, pure)
+                {
+                    values
+                        .roots
+                        .append(checked_trees::CheckedStructuralValueRoot {
+                            machine: self.machine,
+                            state: self.state,
+                            statement_ordinal: statement,
+                            expression: *argument,
+                            type_reference: parameter.type_reference,
+                            root,
+                        });
+                }
                 continue;
             };
             if parameter.is_self

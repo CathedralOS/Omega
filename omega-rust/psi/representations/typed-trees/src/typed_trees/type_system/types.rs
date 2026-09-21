@@ -237,6 +237,30 @@ impl TypeReferenceTable {
             .collect()
     }
 
+    /// Every generic type application's node, base symbol, and argument span.
+    /// Callers enumerating const-generic argument positions use the argument
+    /// span to distinguish a `ConstExpression` bound to a declared const
+    /// parameter from one a domain constraint retains.
+    pub fn generic_type_reference_sites(
+        &self,
+    ) -> Vec<(
+        TypeReferenceHandle,
+        SymbolHandle,
+        HandleSpan<TypeReferenceHandle>,
+    )> {
+        self.type_references
+            .iter()
+            .filter_map(|(handle, node)| match node {
+                TypeReferenceNode::Generic {
+                    base_symbol,
+                    arguments,
+                    ..
+                } => Some((handle, *base_symbol, *arguments)),
+                _ => None,
+            })
+            .collect()
+    }
+
     /// Every proof-static open index expression retained in type position.
     /// Callers use the node handle to scope specialization rewrites to newly
     /// cloned type-reference regions without scanning diagnostic renderings.

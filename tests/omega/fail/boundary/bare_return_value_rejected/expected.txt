@@ -1,0 +1,1 @@
+return type of `Main::main.make` names bare boundary trait `Console` in value position
