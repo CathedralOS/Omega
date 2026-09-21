@@ -8218,6 +8218,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   under a live BOOTSTRAP-SEED-EXECUTION-HOSTS claim this wave. No
   independent slice. Sibling re-mine: ALPHA-WINDOWS-SEED-EXECUTION.
 
+||||||| parent of d8b4ff75812 (board: ALPHA-WINDOWS-CONFORMANCE duplicate stub adjudicated to covered)
+- **ALPHA-WINDOWS-CONFORMANCE** — mined candidate; verify scope then implement.
+- **ALPHA-WINDOWS-CONFORMANCE** — duplicate stub; covered — same-name
+  re-mine adjudicated immediately above (~:7958) and owned by the
+  resolved-with-remainder row at ~:7590, re-verified green at `2dbccb9bd68`:
+  nothing under `tests/alpha`, `tests/bootstrap`, or `tools/bootstrap`
+  changed since the `82741ec439` audit except the already-recorded
+  Linux-x86_64 seed-host admission (`1977fbcf643`). Both residuals stay
+  owned — the div/mod guard divergence on the audited-seed lane and the
+  literal Windows x64 run on ALPHA-WINDOWS-CONFORMANCE-HOST.
 - **ARTIFACT-AUTHORITY-CHECKS** — mined candidate; verify scope then implement.
 - **ASM-CATALOG-FAMILY-EXPANSION** — mined candidate; verify scope then
   implement. Landed slice: the pipeline-directive family — `serialize`
