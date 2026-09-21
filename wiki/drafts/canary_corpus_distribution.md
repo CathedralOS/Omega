@@ -7,7 +7,7 @@ so the counts carry the revision they were measured at. Refresh by re-running
 the enumeration below on a later HEAD and replacing the tables wholesale —
 do not append dated copies of the same table.
 
-Revision: `fbf36233c9d7` (origin/main at measurement time, 2026-09-21).
+Revision: `b53c7ea26032` (origin/main at measurement time, 2026-09-21).
 Host: linux x86-64. Method: directory enumeration of
 `tests/omega/pass/<group>/<fixture>/` and `tests/omega/fail/<group>/<fixture>/`
 (each fixture is a directory holding `main.omg`; suites may also carry
@@ -41,7 +41,7 @@ owning suite declares.
 
 | Corpus | `*_exit` | `*_compile` | `*_warns` | `*_traps` | unsuffixed | total |
 |--------|----------|-------------|-----------|-----------|------------|-------|
-| pass   | 995      | 210         | 0         | 22        | 805        | 2032  |
+| pass   | 996      | 211         | 0         | 22        | 806        | 2035  |
 | fail   | 1        | 6           | 0         | 0         | 1215       | 1222  |
 
 ## Per-group distribution
@@ -69,7 +69,7 @@ owning suite declares.
 | data | 26 | 45 |
 | dependent | 87 | 78 |
 | domains | 91 | 71 |
-| drops | 11 | 4 |
+| drops | 12 | 4 |
 | dungeon | 19 | 0 |
 | effects | 5 | 3 |
 | entry | 1 | 1 |
@@ -110,21 +110,21 @@ owning suite declares.
 | targets | 48 | 2 |
 | tasks | 1 | 3 |
 | terminal_psi | 10 | 0 |
-| termination | 113 | 117 |
+| termination | 114 | 117 |
 | text | 82 | 3 |
 | time | 17 | 1 |
-| traits | 45 | 36 |
+| traits | 46 | 36 |
 | types | 8 | 4 |
 | versioning | 9 | 1 |
 | wire | 48 | 33 |
-| **total** | **2032** | **1222** |
+| **total** | **2035** | **1222** |
 
-64 pass groups, 51 fail groups, 3254 fixtures total at this revision.
+63 pass groups, 56 fail groups, 3257 fixtures total at this revision.
 
 ## Reading the distribution
 
 - The heaviest pass groups (`calls` 190, `arithmetic` 162, `termination`
-  113, `slices` 111, `collections` 99, `domains` 91) are where runtime and
+  114, `slices` 111, `collections` 99, `domains` 91) are where runtime and
   structural semantics concentrate; the heaviest fail groups
   (`termination` 117, `proofs` 115, `arithmetic` 84, `dependent` 78,
   `generics` 77) mirror the checker/admission surfaces that reject programs.
