@@ -9231,10 +9231,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SELECTED-REWRITE-CATALOG-{DISPOSITION,EXECUTION,OR-DELETE,ROUTE,WIRING},
   SELECTED-REWRITES-CATALOG-OR-DELETE (delete leg landed),
   PIPELINE-REWRITE-CATALOG-WIRING, REWRITE-CATALOG-ADMISSION.
-||||||| parent of 5ab5bceff2e (omega: delete orphan literal_compare and literal_arithmetic rewrites)
-- **POC-SELECTED-REWRITE-CATALOG** — mined candidate; verify scope then implement.
-- **POC-SPILL-FAMILY-DISPOSITION** — mined candidate; verify scope then implement.
-- **POC-SPILL-FAMILY-SEQUENCING** — mined candidate; verify scope then implement.
 - **POC-WRAPPER-OBJECT-PLACEMENT.** Mined candidate; scope verified, covered
   and fenced — "placement" is the move leg of the
   `optimized_semantic_wrapper_{encoding,object}` orphan-owner question,
