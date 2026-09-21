@@ -857,10 +857,11 @@ mod machine_bounds {
     }
 
     /// A callee that can only crash still bounds every crash-terminal walk:
-    /// the completing interior charges header 2 at the rank ceiling, and
-    /// member 3's crashing visit commits once — its call operation plus the
-    /// callee's crash edge — rather than at the rank multiplier the
-    /// crash-inclusive ceiling billed.
+    /// member 3's dead traversal removes the only cycle header 2 could be
+    /// re-entered through, so the completing interior charges header 2
+    /// once, and member 3's crashing visit commits once — its call
+    /// operation plus the callee's crash edge — rather than at the rank
+    /// multiplier the crash-inclusive ceiling billed.
     #[test]
     fn natural_cycle_crash_only_callee_still_bounds_crash() {
         // callee 5 always crashes (returned: None, crashed: Some(1)).
@@ -878,11 +879,11 @@ mod machine_bounds {
         callee.contract.crash_routes = Vec::new();
         let walk = cyclic_machine(32, vec![call_unit(10, 5)]);
         let module = module(1, vec![walk, callee]);
-        // interior = member2 visit (1) at the 2^32 rank ceiling;
-        // crash visit = member3's call op (1) + callee crash edge (1) = 2;
-        // bound = 1 entry edge + 2^32 + 2.
-        let expected = 1 + (u64::from(u32::MAX) + 1) + 2;
-        assert_eq!(derive_maximum_entry_bound(&module, id(1)), Ok(expected));
+        // interior = member2 visit (1) crossed once — its strict back-edge
+        // rides member 3's dead traversal, so no surviving cycle can
+        // re-enter it; crash visit = member3's call op (1) + callee crash
+        // edge (1) = 2; bound = 1 entry edge + 1 + 2.
+        assert_eq!(derive_maximum_entry_bound(&module, id(1)), Ok(1 + 1 + 2));
     }
 
     /// An invocation-bound dynamic-parameter call inside a cyclic member still
@@ -2141,21 +2142,22 @@ mod machine_bounds {
         let bounds = machine_outcomes(&module, 1);
         assert_eq!(
             bounds.returned,
-            Some(1 + 2 * 256 + 1),
-            "entry edge, re-enterable member 2 at the u8 rank scale, exit \
-             block — member 3's visit can never return so it charges nothing"
+            Some(1 + 2 + 1),
+            "entry edge, member 2 crossed once — member 3's dead traversal \
+             removes the only cycle that could re-enter it — exit block"
         );
         assert_eq!(
             bounds.crashed,
-            Some(1 + 2 * 256 + 3),
-            "the crash read keeps the completing interior — header 2 at \
-             the rank scale — then ends inside the component on member \
-             3's one crashing visit: its two operations plus callee 5's \
-             crash edge, never the exit block the walk cannot reach"
+            Some(1 + 2 + 3),
+            "the crash read keeps the once-only completing interior — \
+             member 3's back-edge never commits — then ends inside the \
+             component on member 3's one crashing visit: its two \
+             operations plus callee 5's crash edge, never the exit block \
+             the walk cannot reach"
         );
         assert_eq!(
             derive_maximum_entry_bound(&module, id(1)),
-            Ok(1 + 2 * 256 + 3),
+            Ok(1 + 2 + 3),
             "the certificate bound drops to the worse of the two honest \
              outcome lanes"
         );
@@ -2163,13 +2165,122 @@ mod machine_bounds {
         let caller_bounds = machine_outcomes(&module, 7);
         assert_eq!(
             caller_bounds.returned,
-            Some(1 + (1 + 2 * 256 + 1) + 1),
+            Some(1 + (1 + 2 + 1) + 1),
             "a returning caller composes only the callee's returned bound"
         );
         assert_eq!(
             caller_bounds.crashed,
-            Some(1 + (1 + 2 * 256 + 3)),
+            Some(1 + (1 + 2 + 3)),
             "the crash walk commits the call then the callee's crash"
+        );
+    }
+
+    /// A member that can complete but cannot reach an exit or return
+    /// through other completing members is never on a commit-reachable
+    /// walk: chain members 3 and 5 feed only member 6's always-crashing
+    /// call, so the returned interior covers header 2 alone while the
+    /// crash lane still bills the chain once each before member 6's
+    /// crashing visit ends the walk. Uses the internal surface because the
+    /// verifier requires discharged rank obligations that a hand-built
+    /// module cannot carry.
+    #[test]
+    fn natural_cycle_members_unreachable_to_the_return_frontier_stay_on_the_crash_lane() {
+        // callee 9 always crashes (returned: None, crashed: Some(1)); the
+        // contract publishes the Trap route coverage semantic identity
+        // validation requires.
+        let mut callee = machine(9, 9, vec![], None);
+        callee.blocks = vec![block(
+            9,
+            Vec::new(),
+            Terminator::Crash {
+                edge: id(50),
+                cause: terminal_psi::CrashCause::Trap,
+                site_guard: Vec::new(),
+                frontier_lower_bound: Vec::new(),
+            },
+        )];
+        callee.contract.crash_routes = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        let mut crash_call = call_unit(31, 9);
+        let OperationKind::CallUnit {
+            crash_continuations,
+            ..
+        } = &mut crash_call.kind
+        else {
+            unreachable!("call_unit builds a CallUnit operation")
+        };
+        *crash_continuations = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        // {2,3,5,6}: 2 -> 3 -> 5 -> 6 -> 2 is the cycle's shape, with 2
+        // also exiting to return block 4. Member 6's call always crashes,
+        // so its strict edge back to 2 can never commit: a completing walk
+        // enters the chain only to die inside member 6, and can never
+        // reach 2's exit through it — while a crash-terminal walk still
+        // crosses the chain once before member 6's visit ends it.
+        let mut semantic = machine(
+            1,
+            1,
+            vec![
+                block(1, Vec::new(), jump(1, 2)),
+                block(
+                    2,
+                    vec![boolean_constant(20, 9_000, true)],
+                    conditional(2, 3, 3, 4),
+                ),
+                block(3, Vec::new(), jump(5, 5)),
+                block(5, Vec::new(), jump(6, 6)),
+                block(
+                    6,
+                    vec![integer_constant(30, 300, 0), crash_call],
+                    jump(7, 2),
+                ),
+                block(4, Vec::new(), return_unit(8)),
+            ],
+            Some(TerminalRankedScc::Natural(vec![TerminalNaturalCycle {
+                rank_type: IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"),
+                ranks: [2, 3, 5, 6]
+                    .into_iter()
+                    .map(|block| TerminalBlockNaturalRank {
+                        block: id(block),
+                        value: id::<ValueId>(7_000),
+                    })
+                    .collect(),
+                edges: vec![
+                    rank_edge(2, 2, 3, TerminalNaturalRankComparison::Preserving),
+                    rank_edge(5, 3, 5, TerminalNaturalRankComparison::Preserving),
+                    rank_edge(6, 5, 6, TerminalNaturalRankComparison::Preserving),
+                    rank_edge(7, 6, 2, TerminalNaturalRankComparison::Strict),
+                ],
+            }])),
+        );
+        semantic.contract.crash_routes = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        let module = module(1, vec![semantic, callee]);
+
+        let bounds = machine_outcomes(&module, 1);
+        assert_eq!(
+            bounds.returned,
+            Some(1 + 2 + 1),
+            "entry edge plus member 2 crossed once — chain members 3 and \
+             5 can only reach member 6's dead traversal, never the exit — \
+             plus the exit block"
+        );
+        assert_eq!(
+            bounds.crashed,
+            Some(1 + (2 + 1 + 1) + 3),
+            "the crash lane still crosses chain members 2, 3, and 5 once \
+             each before member 6's crashing visit — two operations plus \
+             callee 9's crash edge — ends the walk"
+        );
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Ok(1 + (2 + 1 + 1) + 3)
         );
     }
 
@@ -2237,14 +2348,15 @@ mod machine_bounds {
         );
         assert_eq!(
             bounds.crashed,
-            Some(1 + 2 * 256 + 4),
-            "the crash read still certifies every walk: header 2's \
-             completing visits at the rank scale plus member 3's one \
-             crashing visit — three operations and callee 5's crash edge"
+            Some(1 + 2 + 4),
+            "the crash read still certifies every walk: header 2's one \
+             completing visit — member 3's dead traversal removes every \
+             cycle that could re-enter it — plus member 3's one crashing \
+             visit: three operations and callee 5's crash edge"
         );
         assert_eq!(
             derive_maximum_entry_bound(&module, id(1)),
-            Ok(1 + 2 * 256 + 4),
+            Ok(1 + 2 + 4),
             "the entry certificate follows the crash lane when no walk \
              returns"
         );
@@ -2254,7 +2366,7 @@ mod machine_bounds {
             caller_bounds.returned, None,
             "the caller inherits the callee's honest no-return verdict"
         );
-        assert_eq!(caller_bounds.crashed, Some(2 + (1 + 2 * 256 + 4)));
+        assert_eq!(caller_bounds.crashed, Some(2 + (1 + 2 + 4)));
 
         // The unreachable return edge names the call that ends every walk
         // rather than fabricating an interior bound through member 3's exit.
