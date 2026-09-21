@@ -13,8 +13,20 @@ use target::{NativeTarget, ObjectFormat};
 pub(crate) fn validate_object_shape(
     object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
 ) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectError> {
-    if object.recomputed_identity()? != object.identity
-        || object.target != NativeTarget::uefi_x64()
+    if object.recomputed_identity()? != object.identity {
+        return Err(OptimizedProgramStorageSemanticWrapperObjectError::InvalidObject);
+    }
+    validate_object_shape_content(object)
+}
+
+/// Every `validate_object_shape` conjunct below the identity seal. Callers
+/// that assigned `object.identity` from `recomputed_identity()` on the same
+/// in-memory value know the digest conjunct cannot differ, so they validate
+/// through this instead of re-deriving the seal.
+fn validate_object_shape_content(
+    object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
+) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectError> {
+    if object.target != NativeTarget::uefi_x64()
         || object.target.object_format != ObjectFormat::Coff
         || object.text_section_name != section_name(object.target, SectionKind::Text)
         || object.text_section_alignment != 1
@@ -119,6 +131,24 @@ pub(crate) fn validate_object(
     wrapper: &ValidatedX86_64SemanticUnitWrapperTemplate,
 ) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectError> {
     validate_object_shape(object)?;
+    validate_object_against_template(object, wrapper)
+}
+
+/// The join check for an object the caller just sealed: `object.identity` was
+/// assigned from `recomputed_identity()` at construction, so the digest
+/// conjunct cannot differ; every other shape and template check still runs.
+pub(crate) fn validate_object_preserving_seal(
+    object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
+    wrapper: &ValidatedX86_64SemanticUnitWrapperTemplate,
+) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectError> {
+    validate_object_shape_content(object)?;
+    validate_object_against_template(object, wrapper)
+}
+
+fn validate_object_against_template(
+    object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
+    wrapper: &ValidatedX86_64SemanticUnitWrapperTemplate,
+) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectError> {
     let wrapper_byte_count = u64::try_from(wrapper.bytes().len())
         .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectError::LengthOverflow)?;
     let relocation = wrapper.relocation();
