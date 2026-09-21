@@ -22,76 +22,82 @@ pub(super) fn instantiate(
             "calling signature type exceeds the projection depth limit",
         ));
     }
-    let node = compilation
-        .type_reference_table
-        .type_reference(reference)
-        .clone();
-    let lifetime = |name: Identifier| {
+    let lifetime = |name: &Identifier| {
         lifetimes
             .iter()
-            .find(|(source, _)| *source == name)
+            .find(|(source, _)| source == name)
             .map(|(_, target)| target.clone())
             .ok_or_else(|| rejected("calling signature has an unbound lifetime"))
     };
-    let node = match node {
-        TypeReferenceNode::Named { symbol, name } => {
+    let node = match compilation.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Named { symbol, name: _ } => {
+            let symbol = *symbol;
             if let Some((_, actual)) = substitutions
                 .iter()
                 .find(|(parameter, _)| *parameter == symbol)
             {
                 return Ok(*actual);
             }
-            if let Some(layout) = compilation
+            let plan = compilation
                 .plan_laid_layouts
                 .iter()
                 .find(|layout| layout.data_symbol == symbol)
-                .cloned()
-            {
+                .map(|layout| (layout.schema_symbol, layout.policy_symbol));
+            if let Some((schema_symbol, policy_symbol)) = plan {
                 let schema = compilation
                     .data_definitions()
                     .iter()
-                    .find(|definition| definition.symbol == layout.schema_symbol)
-                    .cloned()
+                    .find(|definition| definition.symbol == schema_symbol)
+                    .map(|definition| {
+                        (
+                            definition.symbol,
+                            definition.name.clone(),
+                            definition.generic_instance,
+                        )
+                    })
                     .ok_or_else(|| rejected("plan-laid signature type lost its exact schema"))?;
-                let schema_reference = match schema.generic_instance {
+                let schema_reference = match schema.2 {
                     Some(reference) => {
                         instantiate(compilation, reference, substitutions, lifetimes, depth + 1)?
                     }
                     None => compilation
                         .type_reference_table
                         .insert(TypeReferenceNode::Named {
-                            symbol: schema.symbol,
-                            name: schema.name,
+                            symbol: schema.0,
+                            name: schema.1,
                         }),
                 };
-                let base_name =
-                    Identifier::generated(compilation.symbols.name(layout.policy_symbol));
+                let base_name = Identifier::generated(compilation.symbols.name(policy_symbol));
                 let arguments = compilation
                     .type_reference_table
                     .insert_type_reference_handles([schema_reference]);
                 TypeReferenceNode::Generic {
-                    base_symbol: layout.policy_symbol,
+                    base_symbol: policy_symbol,
                     base_name,
                     lifetime_arguments: Vec::new(),
                     arguments,
                 }
             } else {
-                TypeReferenceNode::Named { symbol, name }
+                return Ok(reference);
             }
         }
         TypeReferenceNode::Reference {
             referee,
             access,
             lifetime: region,
-        } => TypeReferenceNode::Reference {
-            referee: instantiate(compilation, referee, substitutions, lifetimes, depth + 1)?,
-            access,
-            lifetime: region.map(lifetime).transpose()?,
-        },
+        } => {
+            let (referee, access, region) = (*referee, *access, region.clone());
+            TypeReferenceNode::Reference {
+                referee: instantiate(compilation, referee, substitutions, lifetimes, depth + 1)?,
+                access,
+                lifetime: region.as_ref().map(&lifetime).transpose()?,
+            }
+        }
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
+            let (base_type, constraints) = (*base_type, *constraints);
             let base_type =
                 instantiate(compilation, base_type, substitutions, lifetimes, depth + 1)?;
             let mut constraints = compilation
@@ -122,31 +128,42 @@ pub(super) fn instantiate(
         TypeReferenceNode::FixedArray {
             element_type,
             length,
-        } => TypeReferenceNode::FixedArray {
-            element_type: instantiate(
-                compilation,
-                element_type,
-                substitutions,
-                lifetimes,
-                depth + 1,
-            )?,
-            length,
-        },
-        TypeReferenceNode::Slice { element_type } => TypeReferenceNode::Slice {
-            element_type: instantiate(
-                compilation,
-                element_type,
-                substitutions,
-                lifetimes,
-                depth + 1,
-            )?,
-        },
+        } => {
+            let (element_type, length) = (*element_type, length.clone());
+            TypeReferenceNode::FixedArray {
+                element_type: instantiate(
+                    compilation,
+                    element_type,
+                    substitutions,
+                    lifetimes,
+                    depth + 1,
+                )?,
+                length,
+            }
+        }
+        TypeReferenceNode::Slice { element_type } => {
+            let element_type = *element_type;
+            TypeReferenceNode::Slice {
+                element_type: instantiate(
+                    compilation,
+                    element_type,
+                    substitutions,
+                    lifetimes,
+                    depth + 1,
+                )?,
+            }
+        }
         TypeReferenceNode::Generic {
             base_symbol,
             base_name,
             lifetime_arguments,
             arguments,
         } => {
+            let (base_symbol, base_name, arguments) = (*base_symbol, base_name.clone(), *arguments);
+            let lifetime_arguments = lifetime_arguments
+                .iter()
+                .map(lifetime)
+                .collect::<Result<Vec<_>, _>>()?;
             let mut arguments = compilation
                 .type_reference_table
                 .type_reference_handles(arguments)
@@ -161,14 +178,11 @@ pub(super) fn instantiate(
             TypeReferenceNode::Generic {
                 base_symbol,
                 base_name,
-                lifetime_arguments: lifetime_arguments
-                    .into_iter()
-                    .map(lifetime)
-                    .collect::<Result<_, _>>()?,
+                lifetime_arguments,
                 arguments,
             }
         }
-        other => other,
+        _ => return Ok(reference),
     };
     Ok(compilation.type_reference_table.insert(node))
 }

@@ -282,6 +282,7 @@ pub(super) fn guarded(
             result,
             value: root.root,
             calls,
+            operand_source: None,
             discard_result_on_return: false,
         });
     }

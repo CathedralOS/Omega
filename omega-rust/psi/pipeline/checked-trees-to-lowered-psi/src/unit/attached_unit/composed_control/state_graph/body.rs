@@ -578,6 +578,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_store(
     let id = operations.allocate();
     operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Unit,
         kind: lowered.into_operation(

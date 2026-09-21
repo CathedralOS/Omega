@@ -5,7 +5,7 @@ This coordinator closes build/target inputs around that phase; it does not add
 target policy to the portable Terminal module. Enter
 [phase_transitions.rs](../../pipeline/assembled-syntax-to-checked-compilation/src/checking/phase_transitions.rs).
 
-[Provider selection](../../build/provider-planning/src/provider_planning.rs) closes the final typed
+[Provider selection](../../build/provider-planning/src/provider_planning/selection.rs) closes the final typed
 target roster before checking: target defaults and via bindings, candidate
 validation, selection, fused erasure authorization, synchronous-cycle validation,
 external bindings, and selected facts/provenance, in that order. Its result owns

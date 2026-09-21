@@ -9,7 +9,7 @@ use crate::Audit;
 /// The optimizer surfaces whose source organization is architecture-governed.
 /// Keep these roots explicit: silently losing a moved or renamed tree must
 /// fail this test rather than shrinking its jurisdiction.
-const GOVERNED_ROOTS: &[&str] = &[
+pub(super) const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/backend/machine-emission/src/text_placement",
     "omega-rust/omega/backend/machine-emission/src/exit_contract",
     "omega-rust/omega/backend/machine-emission/src/fragments",

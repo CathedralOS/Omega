@@ -5,7 +5,8 @@ use crate::values::scalar::expression_facts::is_integer;
 use crate::values::scalar::expression_plans::ScalarLocal;
 use crate::values::scalar::scalar_lowering::lower_return_expression;
 use checked_trees::{
-    CheckedLocatedScalarExpression, CheckedOperatorFacts, CheckedOperatorResolutionStatus,
+    CheckedLocatedProofTerm, CheckedLocatedScalarExpression, CheckedOperatorFacts,
+    CheckedOperatorResolutionStatus, CheckedProofTerm, CheckedProofTermField, CheckedProofTermRole,
     CheckedScalarExpressionBindings, CheckedScalarExpressionRole,
 };
 use typed_trees::TypedTrees;
@@ -13,15 +14,24 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 use typed_trees::types::PrimitiveType;
 
+/// The arguments a call site retains: scalar-lane expressions plus the
+/// proof terms erased proof-only formals contribute to the contract lane.
+pub(crate) struct LoweredCallArguments {
+    pub(crate) scalar_arguments: Vec<(ExpressionHandle, CheckedLocatedScalarExpression)>,
+    pub(crate) proof_terms: Vec<CheckedLocatedProofTerm>,
+}
+
 pub(crate) fn retain_call_arguments(
-    arguments: Vec<(ExpressionHandle, CheckedLocatedScalarExpression)>,
+    arguments: LoweredCallArguments,
     parameters: &[StateParameter],
     locals: &[ScalarLocal],
     expressions: &mut Vec<CheckedLocatedScalarExpression>,
+    proof_terms: &mut Vec<CheckedLocatedProofTerm>,
     source_bindings: &mut arena::Arena<CheckedScalarExpressionBindings>,
     binding_symbols: &mut arena::Arena<symbols::SymbolHandle>,
 ) {
-    for (authored_argument, argument) in arguments {
+    proof_terms.extend(arguments.proof_terms);
+    for (authored_argument, argument) in arguments.scalar_arguments {
         source_bindings.append(CheckedScalarExpressionBindings {
             destination: symbols::SymbolHandle::invalid(),
             state: argument.state,
@@ -74,7 +84,7 @@ pub(crate) fn lower_call_arguments(
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
-) -> Option<Vec<(ExpressionHandle, CheckedLocatedScalarExpression)>> {
+) -> Option<LoweredCallArguments> {
     let target_symbol = match call_site {
         crate::semantic_calls::CallSite::Statement(call) => call.target_symbol,
         crate::semantic_calls::CallSite::Expression { call, .. } => call.target_symbol,
@@ -93,7 +103,10 @@ pub(crate) fn lower_call_arguments(
     let mut explicit_index = 0usize;
     let mut scalar_index = 0usize;
     let mut structural_index = 0usize;
-    let mut erased_index = 0usize;
+    let mut scalar_erased_index = 0usize;
+    let mut proof_erased_index = 0usize;
+    let proof_only = typed_trees::proof_only::classify(program);
+    let mut proof_terms = Vec::new();
     let mut output = Vec::new();
     for target in target_parameters {
         if target.is_self && !explicit_self {
@@ -105,34 +118,60 @@ pub(crate) fn lower_call_arguments(
         // scalar nor a structural ordinal. Its lowered expression stays under
         // an erased role so a Unit call can rebuild the proof-only actuals.
         if crate::execution::terminal_unit::strips_erased_parameter(target)? {
+            // Erased formals split into two dense lanes: scalar carriers keep
+            // the scalar lane while proof-only carriers reach the contract
+            // term lane, each indexed by its own lane's ordinal.
             if !is_boundary {
-                let expected_type = program.primitive_type_reference(target.type_reference)?;
-                if let Some(lowered) = lower_return_expression(
-                    program,
-                    operators,
-                    argument,
-                    parameters,
-                    authored_parameters,
-                    parameter_types,
-                    locals,
-                    expected_type,
-                    exact_integer_casts,
-                ) {
-                    output.push((
+                if let Some(expected_type) = program.primitive_type_reference(target.type_reference)
+                {
+                    if let Some(lowered) = lower_return_expression(
+                        program,
+                        operators,
                         argument,
-                        CheckedLocatedScalarExpression {
+                        parameters,
+                        authored_parameters,
+                        parameter_types,
+                        locals,
+                        expected_type,
+                        exact_integer_casts,
+                    ) {
+                        output.push((
+                            argument,
+                            CheckedLocatedScalarExpression {
+                                state: state.symbol,
+                                statement_ordinal,
+                                role: CheckedScalarExpressionRole::ErasedUnitCallArgument {
+                                    call_ordinal: u32::try_from(call_ordinal).ok()?,
+                                    erased_ordinal: u32::try_from(scalar_erased_index).ok()?,
+                                },
+                                expression: lowered,
+                            },
+                        ));
+                    }
+                    scalar_erased_index = scalar_erased_index.checked_add(1)?;
+                } else if proof_only
+                    .proof_only_mention(program, target.type_reference)
+                    .is_some()
+                {
+                    if let Some(term) =
+                        lower_proof_term(program, argument, authored_parameters, &proof_only)
+                    {
+                        proof_terms.push(CheckedLocatedProofTerm {
                             state: state.symbol,
                             statement_ordinal,
-                            role: CheckedScalarExpressionRole::ErasedUnitCallArgument {
+                            role: CheckedProofTermRole::ErasedUnitCallArgument {
                                 call_ordinal: u32::try_from(call_ordinal).ok()?,
-                                erased_ordinal: u32::try_from(erased_index).ok()?,
+                                erased_ordinal: u32::try_from(proof_erased_index).ok()?,
                             },
-                            expression: lowered,
-                        },
-                    ));
+                            expression: argument,
+                            term,
+                        });
+                    }
+                    proof_erased_index = proof_erased_index.checked_add(1)?;
+                } else {
+                    return None;
                 }
             }
-            erased_index = erased_index.checked_add(1)?;
             continue;
         }
         let Some(expected_type) = program.primitive_type_reference(target.type_reference) else {
@@ -245,7 +284,71 @@ pub(crate) fn lower_call_arguments(
         }
         scalar_index = scalar_index.checked_add(1)?;
     }
-    (explicit_index == explicit_arguments.len()).then_some(output)
+    (explicit_index == explicit_arguments.len()).then_some(LoweredCallArguments {
+        scalar_arguments: output,
+        proof_terms,
+    })
+}
+
+/// Lower one erased proof actual: a proof-only construction (or a bare
+/// reference to the caller's own erased proof formal) becomes the checked
+/// proof term the callee's contract lane carries.
+pub(crate) fn lower_proof_term(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    authored_parameters: &[StateParameter],
+    proof_only: &typed_trees::proof_only::ProofOnlyClassification,
+) -> Option<CheckedProofTerm> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::StructLiteral(literal) => {
+            if !literal.type_symbol.is_valid() {
+                return None;
+            }
+            let mut fields = Vec::new();
+            for field in program
+                .expression_table
+                .struct_fields(literal.fields)
+                .iter()
+            {
+                fields.push(CheckedProofTermField {
+                    field_symbol: field.field_symbol,
+                    term: lower_proof_term(program, field.value, authored_parameters, proof_only)?,
+                });
+            }
+            let type_identity = program
+                .type_reference_table
+                .find_named_type_reference(literal.type_symbol)
+                .map(|reference| {
+                    program
+                        .type_identity(typed_trees::type_identity::TypeIdentityRequest::ordinary(
+                            reference,
+                        ))
+                        .into_string()
+                })?;
+            Some(CheckedProofTerm::Construction {
+                data_symbol: literal.type_symbol,
+                type_identity,
+                case_symbol: literal.case_symbol,
+                fields,
+            })
+        }
+        ExpressionNode::Name(path) => {
+            let position = crate::values::scalar::expression_facts::parameter_position(
+                program,
+                path,
+                authored_parameters,
+            )?;
+            let parameter = authored_parameters.get(position)?;
+            (parameter.relevance.is_erased()
+                && proof_only
+                    .proof_only_mention(program, parameter.type_reference)
+                    .is_some())
+            .then_some(CheckedProofTerm::Formal {
+                parameter_symbol: parameter.symbol,
+            })
+        }
+        _ => None,
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -261,19 +364,14 @@ pub(crate) fn lower_direct_call_binding_arguments(
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
-) -> Option<Vec<(ExpressionHandle, CheckedLocatedScalarExpression)>> {
+) -> Option<LoweredCallArguments> {
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return None;
     };
     if call.receiver.is_valid() || !call.machine_arguments.is_empty() {
         return None;
     }
-    program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .first()
-            .is_some_and(|entry| entry.symbol == call.target_symbol)
-    })?;
+    crate::semantic_calls::find_machine_by_entry_state(program, call.target_symbol)?;
     let target_parameters =
         crate::semantic_calls::call_target_parameters(program, call.target_symbol)?;
     if target_parameters.iter().any(|parameter| {
@@ -297,48 +395,76 @@ pub(crate) fn lower_direct_call_binding_arguments(
     }
     let mut argument_ordinal = 0u32;
     let mut erased_ordinal = 0u32;
-    arguments
-        .iter()
-        .zip(target_parameters)
-        .map(|(argument, target_parameter)| {
-            let expected_type =
-                program.primitive_type_reference(target_parameter.type_reference)?;
-            let role = if target_parameter.relevance.is_erased() {
-                let ordinal = erased_ordinal;
-                erased_ordinal = erased_ordinal.checked_add(1)?;
-                CheckedScalarExpressionRole::ErasedCallArgument {
+    let mut proof_erased_ordinal = 0u32;
+    let proof_only = typed_trees::proof_only::classify(program);
+    let mut scalar_arguments = Vec::new();
+    let mut proof_terms = Vec::new();
+    for (argument, target_parameter) in arguments.iter().zip(target_parameters) {
+        let Some(expected_type) = program.primitive_type_reference(target_parameter.type_reference)
+        else {
+            // A proof-only erased carrier feeds the contract term lane with
+            // its own dense ordinal; every other non-scalar callee shape
+            // stays outside this direct-binding plan.
+            if !target_parameter.relevance.is_erased()
+                || proof_only
+                    .proof_only_mention(program, target_parameter.type_reference)
+                    .is_none()
+            {
+                return None;
+            }
+            let ordinal = proof_erased_ordinal;
+            proof_erased_ordinal = proof_erased_ordinal.checked_add(1)?;
+            proof_terms.push(CheckedLocatedProofTerm {
+                state,
+                statement_ordinal,
+                role: CheckedProofTermRole::ErasedCallArgument {
                     binding_ordinal,
                     erased_ordinal: ordinal,
-                }
-            } else {
-                let ordinal = argument_ordinal;
-                argument_ordinal = argument_ordinal.checked_add(1)?;
-                CheckedScalarExpressionRole::CallArgument {
-                    binding_ordinal,
-                    argument_ordinal: ordinal,
-                }
-            };
-            Some((
-                *argument,
-                CheckedLocatedScalarExpression {
-                    state,
-                    statement_ordinal,
-                    role,
-                    expression: lower_return_expression(
-                        program,
-                        operators,
-                        *argument,
-                        parameters,
-                        authored_parameters,
-                        parameter_types,
-                        locals,
-                        expected_type,
-                        exact_integer_casts,
-                    )?,
                 },
-            ))
-        })
-        .collect()
+                expression: *argument,
+                term: lower_proof_term(program, *argument, authored_parameters, &proof_only)?,
+            });
+            continue;
+        };
+        let role = if target_parameter.relevance.is_erased() {
+            let ordinal = erased_ordinal;
+            erased_ordinal = erased_ordinal.checked_add(1)?;
+            CheckedScalarExpressionRole::ErasedCallArgument {
+                binding_ordinal,
+                erased_ordinal: ordinal,
+            }
+        } else {
+            let ordinal = argument_ordinal;
+            argument_ordinal = argument_ordinal.checked_add(1)?;
+            CheckedScalarExpressionRole::CallArgument {
+                binding_ordinal,
+                argument_ordinal: ordinal,
+            }
+        };
+        scalar_arguments.push((
+            *argument,
+            CheckedLocatedScalarExpression {
+                state,
+                statement_ordinal,
+                role,
+                expression: lower_return_expression(
+                    program,
+                    operators,
+                    *argument,
+                    parameters,
+                    authored_parameters,
+                    parameter_types,
+                    locals,
+                    expected_type,
+                    exact_integer_casts,
+                )?,
+            },
+        ));
+    }
+    Some(LoweredCallArguments {
+        scalar_arguments,
+        proof_terms,
+    })
 }
 
 /// Locate a call beneath only same-carrier integer qualifications. The actual

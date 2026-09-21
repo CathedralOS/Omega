@@ -16,7 +16,8 @@ use package_evidence::record::{
     PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner,
 };
 use package_manager::admission::{
-    AcceptedNativeInput, AcceptedNativeRealizationRequest, accept_ordinary_closure_evidence,
+    ACCEPTED_ORDINARY_EVIDENCE_SCHEMA_VERSION, AcceptedNativeInput,
+    AcceptedNativeRealizationRequest, accept_ordinary_closure_evidence,
     accepted_terminal_authority_permission_policy, realize_accepted_native_report,
 };
 use package_manager::declarations::{PackageKey, PackageName};
@@ -610,7 +611,10 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
         Some(&root_policy),
     )
     .expect("fresh policy admits consumer-bound Console evidence");
-    assert_eq!(evidence.schema().version(), 6);
+    assert_eq!(
+        evidence.schema().version(),
+        ACCEPTED_ORDINARY_EVIDENCE_SCHEMA_VERSION
+    );
     let root_evidence = evidence
         .packages()
         .iter()

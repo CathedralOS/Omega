@@ -58,7 +58,7 @@ pub domain Command::Inert
 requires
     self in Command::None;
 
-pub machine Command::empty() -> command: Command in Command::Inert {
+pub machine Command::empty() -> Command in Command::Inert {
     Command::None
 }
 ```
@@ -151,8 +151,8 @@ native leaf declares the actual [foreign shape](../spec/build/boundary_shapes.md
 ## Calling Conventions
 
 Omega's internal calling convention is compiler-owned. A boundary pins an
-observable promise through `Calling<C, Policy>`, with an exact named
-`Policy: C satisfies CallingPolicy` conformance.
+observable promise through `Calling<C>`, where `C` carries an exact named
+`CallingPolicy` conformance.
 
 | Plan | Question |
 | --- | --- |
@@ -212,13 +212,13 @@ A nominal placement policy combines layout, access and required reach. This
 schematic policy assumes the named layout and access machines are in scope:
 
 ```omega
-data UartMmio;
+boundary data UartMmio;
 
-machine UartMmio::plan(schema: Schema) -> plan: PlacementPlan
+machine UartMmio::plan(schema: Schema) -> PlacementPlan
     satisfies Placement::plan
 {
-    let layout = UartLayout::plan(schema);
-    let access = UartAccess::plan(schema, layout);
+    let layout: UartLayout = UartLayout::plan(schema);
+    let access: UartAccess = UartAccess::plan(schema, layout);
     PlacementPlan {
         layout: layout,
         access: access,
@@ -236,7 +236,7 @@ data UartRegisters {
 allocated record. Projection is pure and returns an accessor:
 
 ```omega
-let status = uart.status.read();
+let status: u32 = uart.status.read();
 uart.transmit.write(byte);
 ```
 
@@ -272,7 +272,7 @@ Helpers can accept just the operation they need:
 
 ```omega
 machine send_byte<T, Write: T satisfies Writable<u8>>(
-    transmit: T,
+    transmit: &mut T,
     byte: u8
 )
 {

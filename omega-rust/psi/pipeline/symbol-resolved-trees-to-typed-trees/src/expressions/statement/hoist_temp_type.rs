@@ -429,15 +429,41 @@ fn static_conformance_requirement_return(
         .traits
         .iter()
         .find(|definition| definition.symbol == bound.carrier)?;
-    let mut requirements = lowerer
-        .source_trees
-        .trait_machine_signatures(trait_definition.machines)
-        .iter()
-        .filter(|requirement| requirement.name.as_str() == call.target.as_str());
-    let requirement = requirements.next()?;
-    if requirements.next().is_some() {
-        return None;
+    // Requirements declared on a `requires` parent remain call requirements of
+    // the bound trait, so the name lookup covers the transitive parent closure.
+    let mut requirements = Vec::new();
+    let mut pending = vec![trait_definition];
+    let mut visited = Vec::new();
+    while let Some(definition) = pending.pop() {
+        if visited.contains(&definition.symbol) {
+            continue;
+        }
+        visited.push(definition.symbol);
+        requirements.extend(
+            lowerer
+                .source_trees
+                .trait_machine_signatures(definition.machines)
+                .iter()
+                .filter(|requirement| requirement.name.as_str() == call.target.as_str()),
+        );
+        pending.extend(
+            lowerer
+                .source_trees
+                .trait_requirements(definition.requires)
+                .iter()
+                .filter_map(|required| {
+                    lowerer
+                        .source_trees
+                        .roots
+                        .traits
+                        .iter()
+                        .find(|candidate| candidate.symbol == required.symbol)
+                }),
+        );
     }
+    let [requirement] = requirements.as_slice() else {
+        return None;
+    };
     requirement.storage.return_type.clone()
 }
 

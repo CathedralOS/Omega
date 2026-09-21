@@ -264,20 +264,14 @@ fn signature_selects_domain(
         return false;
     };
     let binding_name = program.expression_table.display_name(expression);
-    let machine = program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .any(|state| state.symbol == state_symbol)
-    });
-    let state = crate::semantic_calls::find_state(program, state_symbol);
-    machine
+    let resolved = crate::semantic_calls::find_state_with_machine(program, state_symbol);
+    resolved
         .into_iter()
-        .flat_map(|machine| program.machine_contracts(machine))
+        .flat_map(|(machine, _)| program.machine_contracts(machine))
         .chain(
-            state
+            resolved
                 .into_iter()
-                .flat_map(|state| program.state_contracts(state)),
+                .flat_map(|(_, state)| program.state_contracts(state)),
         )
         .filter(|contract| contract.kind == SignatureContractKind::Requires)
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))

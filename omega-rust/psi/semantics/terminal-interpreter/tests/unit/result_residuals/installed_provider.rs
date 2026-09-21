@@ -264,6 +264,7 @@ fn installed_structural_provider_preserves_identity_into_a_projected_boundary_ef
     });
     module.machines[1].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(3),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
@@ -419,4 +420,268 @@ fn installed_structural_provider_rejects_missing_foreign_or_drifted_custody() {
         malformed.machines[2].result = TerminalMachineResult::Structural(result);
         assert!(verify_module(&malformed, &ProofBundle::default(), &profile).is_err());
     }
+}
+
+#[derive(Default)]
+struct MintLiveUnregister {
+    unregistrations: usize,
+}
+
+impl TerminalEffectHandler for MintLiveUnregister {
+    fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+        panic!("structural mint result required")
+    }
+    fn handle_effect_result(
+        &mut self,
+        effect: &TerminalEffect,
+    ) -> Result<super::super::TerminalEffectResult, TerminalEffectRejection> {
+        let TerminalEffect::BoundaryCall {
+            boundary,
+            structural_arguments,
+            completion_receipts,
+            result,
+            ..
+        } = effect
+        else {
+            panic!("exact boundary effect")
+        };
+        let live = super::super::structural_domain_id(9);
+        if *boundary == super::boundary_id(2) {
+            assert_eq!(structural_arguments.len(), 1);
+            assert!(structural_arguments[0].qualifications.is_empty());
+            return Ok(super::super::TerminalEffectResult::Structural(
+                TerminalStructuralValue {
+                    opaque_identity: 51,
+                    structural_type: structural_type_id(2),
+                    qualifications: vec![live],
+                    path: Vec::new(),
+                },
+            ));
+        }
+        if *boundary == super::boundary_id(3) {
+            self.unregistrations += 1;
+            assert!(matches!(result, BoundaryMachineResult::Unit));
+            assert_eq!(structural_arguments.len(), 1);
+            assert_eq!(structural_arguments[0].qualifications, vec![live]);
+            assert_eq!(
+                completion_receipts,
+                &[terminal_psi::CompletionReceipt {
+                    claim: super::super::claim_id(7),
+                    argument_index: 0,
+                },]
+            );
+            return Ok(super::super::TerminalEffectResult::Unit);
+        }
+        panic!("installed boundary must not reach the host")
+    }
+}
+
+#[test]
+fn installed_boundary_result_mints_the_callers_claims() {
+    // register(registration) -> Registration in Live installs on the caller the
+    // claim the boundary route minted by establishment authority; unregister
+    // retires it through its completion receipt.
+    let mut module = module(false);
+    let live = super::super::structural_domain_id(9);
+    let registration_claim = super::super::claim_id(7);
+    let minted_claim = super::super::claim_id(9);
+    module
+        .structural_domains
+        .push(terminal_psi::StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
+            id: live,
+            semantic_domain: semantic_vocabulary::DomainSemanticId::new(9)
+                .expect("semantic domain identity"),
+            identity: "test::Live".into(),
+            carrier: structural_type_id(2),
+            content_projection: None,
+        });
+    let register_result = BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
+        structural_type: structural_type_id(2),
+        multiplicity: StructuralMultiplicity::Linear,
+        qualifications: vec![live],
+    });
+    module.boundary_machines[0].result = register_result;
+    let mut mint_parameter = module.boundary_machines[0].structural_parameters[0].clone();
+    mint_parameter.place = super::place_id(20);
+    module.boundary_machines.push(BoundaryMachineDeclaration {
+        fixed_service_reach: Vec::new(),
+        id: boundary_id(2),
+        identity: "test::mint".into(),
+        attachment: None,
+        parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
+        scalar_parameters: Vec::new(),
+        structural_parameters: vec![mint_parameter],
+        result: BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
+            structural_type: structural_type_id(2),
+            multiplicity: StructuralMultiplicity::Linear,
+            qualifications: vec![live],
+        }),
+        requires: Vec::new(),
+        program_local_root_introductions: Vec::new(),
+        content_guarantees: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        crash_routes: Vec::new(),
+    });
+    let mut unregister_parameter = module.boundary_machines[0].structural_parameters[0].clone();
+    unregister_parameter.place = super::place_id(21);
+    unregister_parameter.multiplicity = StructuralMultiplicity::Linear;
+    unregister_parameter.qualifications = vec![live];
+    module.boundary_machines.push(BoundaryMachineDeclaration {
+        fixed_service_reach: Vec::new(),
+        id: boundary_id(3),
+        identity: "test::unregister".into(),
+        attachment: None,
+        parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
+        scalar_parameters: Vec::new(),
+        structural_parameters: vec![unregister_parameter],
+        result: BoundaryMachineResult::Unit,
+        requires: vec![terminal_psi::StructuralDomainRequirement {
+            argument_index: 0,
+            domain: live,
+        }],
+        program_local_root_introductions: Vec::new(),
+        content_guarantees: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        crash_routes: Vec::new(),
+    });
+    // The provider cannot mint `Live` internally: it passes the unqualified
+    // registration through an inner boundary route and returns that qualified
+    // value, transferring its own minted claim back.
+    let provider = &mut module.machines[2];
+    provider.result =
+        TerminalMachineResult::Structural(terminal_psi::StructuralResultDeclaration {
+            structural_type: structural_type_id(2),
+            multiplicity: StructuralMultiplicity::Linear,
+            qualifications: vec![live],
+            ..provider.result.structural().unwrap().clone()
+        });
+    provider
+        .structural_places
+        .push(terminal_psi::StructuralPlaceDeclaration {
+            id: super::place_id(6),
+            kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                producer: operation_id(9),
+                structural_type: structural_type_id(2),
+            },
+        });
+    provider.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: operation_id(9),
+        result: OperationResult::Structural(super::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
+            place: super::place_id(6),
+            structural_type: structural_type_id(2),
+            multiplicity: StructuralMultiplicity::Linear,
+            qualifications: vec![live],
+            projected_qualifications: Vec::new(),
+            claims: vec![terminal_psi::StructuralResultClaimBinding {
+                claim: minted_claim,
+                path: Vec::new(),
+            }],
+        }),
+        kind: OperationKind::BoundaryCall {
+            boundary: boundary_id(2),
+            arguments: Vec::new(),
+            structural_arguments: vec![StructuralArgument {
+                place: super::place_id(4),
+                path: Vec::new(),
+                access: StructuralAccess::Owned,
+            }],
+            completion_receipts: Vec::new(),
+        },
+    });
+    provider.blocks[0].terminator = Terminator::ReturnStructural {
+        edge: edge_id(3),
+        source: super::place_id(6),
+        returned_claims: vec![minted_claim],
+        trivial_affine_discards: Vec::new(),
+    };
+    let caller = &mut module.machines[0];
+    caller.blocks[0].operations[0].result =
+        OperationResult::Structural(super::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
+            place: super::place_id(1),
+            structural_type: structural_type_id(2),
+            multiplicity: StructuralMultiplicity::Linear,
+            qualifications: vec![live],
+            projected_qualifications: Vec::new(),
+            claims: vec![terminal_psi::StructuralResultClaimBinding {
+                claim: registration_claim,
+                path: Vec::new(),
+            }],
+        });
+    caller.blocks[0].operations[1] = Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: operation_id(1),
+        result: OperationResult::Unit,
+        kind: OperationKind::BoundaryCall {
+            boundary: boundary_id(3),
+            arguments: Vec::new(),
+            structural_arguments: vec![StructuralArgument {
+                place: super::place_id(1),
+                path: Vec::new(),
+                access: StructuralAccess::Owned,
+            }],
+            completion_receipts: vec![terminal_psi::CompletionReceipt {
+                claim: registration_claim,
+                argument_index: 0,
+            }],
+        },
+    };
+    caller.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(1),
+        trivial_affine_discards: Vec::new(),
+    };
+    let mut execution = installed_start(&module);
+    let mut handler = MintLiveUnregister::default();
+    assert!(matches!(
+        execution
+            .resume(&mut TerminalFuelMeter::unbounded(), &mut handler)
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    ));
+    assert_eq!(handler.unregistrations, 1);
+    assert_eq!(execution.live_claim_frontier().count(), 0);
+}
+
+#[test]
+fn installed_boundary_result_claims_require_linear_custody() {
+    // The boundary admissibility rule declines claim bindings at non-Linear
+    // results: only the route's establishment authority mints them.
+    let mut module = module(false);
+    let live = super::super::structural_domain_id(9);
+    module
+        .structural_domains
+        .push(terminal_psi::StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
+            id: live,
+            semantic_domain: semantic_vocabulary::DomainSemanticId::new(9)
+                .expect("semantic domain identity"),
+            identity: "test::Live".into(),
+            carrier: structural_type_id(2),
+            content_projection: None,
+        });
+    let claimed_affine = OperationResult::Structural(super::StructuralOperationResult {
+        qualification_establishments: Vec::new(),
+        place: super::place_id(1),
+        structural_type: structural_type_id(2),
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: vec![live],
+        projected_qualifications: Vec::new(),
+        claims: vec![terminal_psi::StructuralResultClaimBinding {
+            claim: super::super::claim_id(7),
+            path: Vec::new(),
+        }],
+    });
+    module.machines[0].blocks[0].operations[0].result = claimed_affine;
+    module.boundary_machines[0].result =
+        BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
+            structural_type: structural_type_id(2),
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: vec![live],
+        });
+    assert!(encode_module(&module).is_err());
 }

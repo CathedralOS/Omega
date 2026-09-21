@@ -2,25 +2,28 @@
 // ensures of a call at this site. PDI3 performs no ambient theorem search.
 domain<T, const I: u64> T::Indexed<I>;
 
-trait IndexAdd {
-    machine add(a: Self, b: Self) -> Self;
-    machine add_comm(a: Self, b: Self)
+data Nat {
+    tag: u8;
+}
+
+trait IndexAdd<Operand> {
+    operator + add(a: Operand, b: Operand) -> Operand;
+    machine add_comm(a: Operand, b: Operand)
     ensures add(a, b) == add(b, a);
-    machine add_assoc(a: Self, b: Self, c: Self)
+    machine add_assoc(a: Operand, b: Operand, c: Operand)
     ensures add(add(a, b), c) == add(a, add(b, c));
 }
 
-operator + IndexAlgebra::plus(left: u64, right: u64) -> u64;
-
 machine plus_index(a: u64, b: u64) -> u64
-satisfies IndexAlgebra::plus, IndexAdd::add as Canonical
+satisfies IndexAdd<u64>::add as Canonical
 ensures result == 0
 {
     transition { _ -> 0 }
 }
 
 machine plus_index_comm(a: u64, b: u64)
-satisfies IndexAdd::add_comm as Canonical
+satisfies IndexAdd<u64>::add_comm as Canonical
+requires plus_index(a, b) == plus_index(b, a)
 ensures plus_index(a, b) == plus_index(b, a)
 {
     _ = plus_index(a, b);
@@ -28,21 +31,33 @@ ensures plus_index(a, b) == plus_index(b, a)
 }
 
 machine plus_index_assoc(a: u64, b: u64, c: u64)
-satisfies IndexAdd::add_assoc as Canonical
+satisfies IndexAdd<u64>::add_assoc as Canonical
+requires plus_index(plus_index(a, b), c) == plus_index(a, plus_index(b, c))
 ensures plus_index(plus_index(a, b), c) == plus_index(a, plus_index(b, c))
 {
     _ = plus_index(plus_index(a, b), c);
     _ = plus_index(a, plus_index(b, c));
 }
 
-machine establish_zero(a: u64) -> u64
+Canonical:
+    Nat satisfies IndexAdd<u64>
+{
+    IndexAdd::add = plus_index;
+    IndexAdd::add_comm = plus_index_comm;
+    IndexAdd::add_assoc = plus_index_assoc;
+}
+
+machine establish_zero<T, Canonical: T satisfies IndexAdd<u64>>(
+    a: u64
+) -> u64
+requires a + 0 == 0
 ensures a + 0 == 0
 {
     _ = plus_index(a, 0);
     transition { _ -> 0 }
 }
 
-machine retain_uncited_zero<const A: u64>(
+machine retain_uncited_zero<T, const A: u64, Alg: T satisfies IndexAdd<u64>>(
     value: i64 in Indexed<A + 0>
 ) -> i64 in Indexed<0>
 {

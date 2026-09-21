@@ -2,6 +2,7 @@
 
 use crate::declarations::PackageKey;
 use crate::resolution::source::{PackageSourceCustody, PackageSourceSelectionEvidenceError};
+use crate::review::timings;
 use package_source::SourceResolveError;
 use std::collections::BTreeSet;
 use std::fmt;
@@ -246,6 +247,7 @@ pub fn render_package_source_patch(
     candidate: &PackageSourceCustody,
     limits: PackageSourcePatchLimits,
 ) -> Result<PackageSourcePatch, PackageSourcePatchError> {
+    let _stage = timings::stage("source_patch_rendering");
     if baseline.is_some_and(|baseline| baseline.key() != candidate.key()) {
         return Err(PackageSourcePatchError::PackageKeyMismatch);
     }

@@ -126,30 +126,31 @@ for the loaded implementation. API visibility, crossings, and possible behavior
 are different questions: `pub`, `boundary`, and `reaches` do not substitute for
 one another.
 
-## Service Bindings
+## Bindings
 
 A trait is an interface, not a runtime carrier. Local dynamic dispatch uses
-`dyn Trait`; access to an established boundary service uses `Service<R>`:
+`dyn Trait`; access to an established boundary service uses `Binding<R>`:
 
 ```omega
 data Application {
-    logging: Service<LoggingService>;
+    logging: Binding<LoggingService>;
 }
 
 machine Application::start(
-    logging: Service<LoggingService>
+    logging: Binding<LoggingService>
 ) -> Application
 {
-    Application { logging }
+    Application { logging: logging }
 }
 ```
 
-`Service` is an opaque declaration in `omega::core` with compiler-known binding
-semantics. Every usable value has an established binding; no additional domain
-annotation is needed. For an entry receiver, the build selects the provider and
-entry initialization establishes the exact field before calling the machine.
+`Binding` is an opaque declaration in `omega::core` with compiler-known binding
+semantics, not a keyword or a network-service facility. Every usable value has an
+established binding; no additional domain annotation is needed. For an entry
+receiver, the build selects the provider and entry initialization establishes
+the exact field before calling the machine.
 Missing or incompatible supply is a compile error. A bare `Console` names an
-interface, not a field carrier; write `Service<Console>`.
+interface, not a field carrier; write `Binding<Console>`.
 
 Other code receives an existing service or one produced by authorized runtime
 installation/publication. Merely declaring a local service field does not inject
@@ -174,7 +175,7 @@ proxy can bridge the two:
 
 ```omega
 data LoggingProxy {
-    service: Service<LoggingService>;
+    service: Binding<LoggingService>;
 }
 
 ComponentLogger:
@@ -193,6 +194,11 @@ The local descriptor points to the proxy; the proxy calls through the service's
 selected entry and provider lease. See [traits](chapter_14_traits.md) for local
 dynamic values and [component publication](../spec/build/component_publication.md)
 for service carriers, duplication, era pins, and replacement.
+
+The same carrier is used by [embedded scripts](chapter_24_embedding.md): the host
+supplies selected implementations without giving the script ambient access to
+everything the host can do. Native and interpreted providers retain the same
+requirement and lifecycle contracts.
 
 ## Service Reach And Operational Clauses
 
@@ -228,7 +234,7 @@ including when exported. For example, with a Console binding in entry state:
 
 ```omega
 data App {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine App::greet(&mut self)
@@ -735,7 +741,7 @@ named `MicrosoftX64Policy` conformance is in scope:
 
 ```omega
 boundary trait WindowProcedure:
-    Calling<MicrosoftX64, MicrosoftX64Policy>
+    Calling<MicrosoftX64>
 {
     machine call(
         window: HWnd,

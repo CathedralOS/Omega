@@ -46,7 +46,7 @@ input to the boundary, not output from it; mutating it is how the refusal
 cases are built. This is the request edge's own observation — no raw-source
 stdin convention, and no host compiler meaning is supplied.
 
-From the repository root on macOS arm64, or Windows x64 with Git Bash:
+From the repository root on macOS arm64, Linux x86-64, or Windows x64 with Git Bash:
 
 ```sh
 sh tests/bootstrap/omega-request/run.sh

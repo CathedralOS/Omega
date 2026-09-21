@@ -16,6 +16,7 @@ fn membership_module(access: StructuralAccess) -> TerminalModule {
     machine.blocks.truncate(1);
     machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             id: ValueId::new(1).unwrap(),
@@ -50,8 +51,10 @@ fn constructed_case_call_module(
     };
     caller.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: parameter.place,
             structural_type: parameter.structural_type,
             multiplicity,
@@ -104,6 +107,7 @@ fn constructed_case_call_module(
         });
         callee.blocks[0].operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(901).unwrap(),
             result: OperationResult::Scalar(value),
             kind: OperationKind::BooleanConstant { value: true },
@@ -119,6 +123,7 @@ fn constructed_case_call_module(
         (
             OperationKind::CallStructuralScalar {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: callee.id,
                 arguments: Vec::new(),
                 structural_arguments: arguments,
@@ -140,6 +145,7 @@ fn constructed_case_call_module(
         (
             OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: callee.id,
                 arguments: Vec::new(),
                 structural_arguments: arguments,
@@ -152,6 +158,7 @@ fn constructed_case_call_module(
     };
     caller.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(2).unwrap(),
         result,
         kind,
@@ -333,6 +340,7 @@ fn constructed_case_sibling_establishment_cannot_authorize_owned_call() {
             target: BlockId::new(10).unwrap(),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -341,6 +349,7 @@ fn constructed_case_sibling_establishment_cannot_authorize_owned_call() {
             target: BlockId::new(11).unwrap(),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -348,6 +357,7 @@ fn constructed_case_sibling_establishment_cannot_authorize_owned_call() {
     for (identity, operation) in [(10, construction), (11, call)] {
         machine.blocks.push(Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: BlockId::new(identity).unwrap(),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -536,6 +546,7 @@ pub(super) fn dispatch_module(access: StructuralAccess) -> TerminalModule {
     for position in 0..2 {
         machine.blocks.push(Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: BlockId::new(10 + position).expect("case block"),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -594,8 +605,10 @@ fn owned_operation_result_keeps_structural_case_dispatch() {
     };
     machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation,
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: source.place,
             structural_type: source.structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,

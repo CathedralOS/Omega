@@ -110,10 +110,13 @@ fn spec_data_rows(marker: &str) -> Vec<Vec<String>> {
         .collect()
 }
 
-/// The body of `fn name(` through its matching close brace.
+/// The body of `fn name(` through its matching close brace. Generic decoders
+/// declare `fn name<T>(`, so the bare-name search falls back to the generic
+/// signature form.
 fn function_body<'a>(source: &'a str, name: &str) -> &'a str {
     let start = source
         .find(&format!("fn {name}("))
+        .or_else(|| source.find(&format!("fn {name}<")))
         .unwrap_or_else(|| panic!("{name} not found"));
     let rest = &source[start..];
     let open = rest.find('{').expect("function has a body");
@@ -583,6 +586,30 @@ fn operation_tag_table_matches_codec() {
 }
 
 #[test]
+fn operation_result_table_matches_codec() {
+    assert_table_matches(
+        "<!-- operation-result-tags -->",
+        code_tags(
+            "omega-rust/psi/semantics/terminal-codec/src/sections/semantic_module/block_wire.rs",
+            "encode_operation",
+            "OperationResult",
+        ),
+    );
+}
+
+#[test]
+fn record_field_value_table_matches_codec() {
+    assert_table_matches(
+        "<!-- record-field-value-tags -->",
+        code_tags(
+            "omega-rust/psi/semantics/terminal-codec/src/sections/semantic_module/block_wire/value_operations.rs",
+            "encode_establish_record",
+            "RecordFieldValue",
+        ),
+    );
+}
+
+#[test]
 fn terminator_tag_table_matches_codec() {
     assert_table_matches(
         "<!-- terminator-tags -->",
@@ -590,6 +617,18 @@ fn terminator_tag_table_matches_codec() {
             "omega-rust/psi/semantics/terminal-codec/src/sections/semantic_module/block_wire/terminator_wire.rs",
             "encode_terminator",
             "Terminator",
+        ),
+    );
+}
+
+#[test]
+fn affine_cleanup_action_table_matches_codec() {
+    assert_table_matches(
+        "<!-- affine-cleanup-action-tags -->",
+        code_tags(
+            "omega-rust/psi/semantics/terminal-codec/src/sections/semantic_module/structural_place_wire.rs",
+            "encode_affine_cleanup_action",
+            "TerminalAffineCleanupAction",
         ),
     );
 }
@@ -630,6 +669,121 @@ fn integer_math_term_table_matches_both_codecs() {
         "semantic-module and proof-bundle integer math term grammars diverge"
     );
     assert_table_matches("<!-- integer-math-term-tags -->", module);
+}
+
+#[test]
+fn scalar_type_table_matches_both_codecs() {
+    let module = code_tags(
+        "omega-rust/psi/semantics/terminal-codec/src/sections/semantic_module/scalar_wire.rs",
+        "encode_scalar_type",
+        "ScalarType",
+    );
+    let proof = code_tags(
+        "omega-rust/psi/semantics/terminal-codec/src/sections/proof_bundle/scalar_term_codec.rs",
+        "encode_scalar_type",
+        "ScalarType",
+    );
+    assert_eq!(
+        module, proof,
+        "semantic-module and proof-bundle scalar type grammars diverge"
+    );
+    assert_table_matches("<!-- scalar-type-tags -->", module);
+}
+
+#[test]
+fn integer_type_encoders_agree_between_codecs() {
+    // `encode_integer_type` selects the kind byte on a `(carrier, sign)`
+    // pair, so no single-variant prefix names its arms. Both codec grammars
+    // must still write the same byte per pair; DECODE_TAG_PINS pins the
+    // accepted tag set at both decode sites.
+    let module = code_tags(
+        "omega-rust/psi/semantics/terminal-codec/src/sections/semantic_module/scalar_wire.rs",
+        "encode_integer_type",
+        "IntegerSign",
+    );
+    let proof = code_tags(
+        "omega-rust/psi/semantics/terminal-codec/src/sections/proof_bundle/scalar_term_codec.rs",
+        "encode_integer_type",
+        "IntegerSign",
+    );
+    assert_eq!(
+        module, proof,
+        "semantic-module and proof-bundle integer type grammars diverge"
+    );
+}
+
+#[test]
+fn integer_value_table_matches_both_codecs() {
+    let module = code_tags(
+        "omega-rust/psi/semantics/terminal-codec/src/sections/semantic_module/scalar_wire.rs",
+        "encode_integer_value",
+        "IntegerValue",
+    );
+    let proof = code_tags(
+        "omega-rust/psi/semantics/terminal-codec/src/sections/proof_bundle/scalar_term_codec.rs",
+        "encode_integer_value",
+        "IntegerValue",
+    );
+    assert_eq!(
+        module, proof,
+        "semantic-module and proof-bundle integer value grammars diverge"
+    );
+    assert_table_matches("<!-- integer-value-tags -->", module);
+}
+
+#[test]
+fn ieee_float_value_table_matches_codec() {
+    assert_table_matches(
+        "<!-- ieee-float-value-tags -->",
+        code_tags(
+            "omega-rust/psi/semantics/terminal-codec/src/sections/semantic_module/scalar_wire.rs",
+            "encode_ieee_float_value",
+            "IeeeFloatValue",
+        ),
+    );
+}
+
+#[test]
+fn ieee_float_relation_table_matches_codec() {
+    assert_table_matches(
+        "<!-- ieee-float-relation-tags -->",
+        code_tags(
+            "omega-rust/psi/semantics/terminal-codec/src/sections/semantic_module/block_wire/scalar_operations.rs",
+            "encode_ieee_float_compare",
+            "IeeeFloatComparisonOperation",
+        ),
+    );
+}
+
+#[test]
+fn ieee_comparison_kind_table_matches_both_codecs() {
+    let module = code_tags(
+        "omega-rust/psi/semantics/terminal-codec/src/sections/semantic_module/structural_field_wire.rs",
+        "encode_ieee_float_comparison_kind",
+        "IeeeFloatComparisonKind",
+    );
+    let proof = code_tags(
+        "omega-rust/psi/semantics/terminal-codec/src/sections/proof_bundle/scalar_term_codec.rs",
+        "encode_ieee_float_comparison_kind",
+        "IeeeFloatComparisonKind",
+    );
+    assert_eq!(
+        module, proof,
+        "semantic-module and proof-bundle IEEE comparison kind grammars diverge"
+    );
+    assert_table_matches("<!-- ieee-comparison-kind-tags -->", module);
+}
+
+#[test]
+fn scalar_field_carrier_path_table_matches_codec() {
+    assert_table_matches(
+        "<!-- scalar-field-carrier-path-tags -->",
+        code_tags(
+            "omega-rust/psi/semantics/terminal-codec/src/sections/semantic_module/block_wire.rs",
+            "encode_scalar_field_path",
+            "CanonicalStructuralPathSegment",
+        ),
+    );
 }
 
 #[test]
@@ -725,6 +879,43 @@ fn place_kind_table_matches_codec() {
     );
 }
 
+/// A structural place kind byte inside a content row narrows the place-kind
+/// space: tag 8 (`BlockParameter`) is machine-local and rejects at content
+/// positions on encode and decode. The restriction is a post-decode check on
+/// the shared grammar rather than a decode-match space, so the pin ties the
+/// narrowed spec table to the codec's four rejection sites directly.
+#[test]
+fn content_structural_place_kind_table_excludes_block_parameter() {
+    let mut expected = spec_table("<!-- place-kind-tags -->");
+    assert_eq!(
+        expected.insert(8, "—".to_string()),
+        Some("BlockParameter".to_string()),
+        "place-kind table no longer assigns tag 8 to BlockParameter"
+    );
+    assert_eq!(
+        spec_table("<!-- content-structural-place-kind-tags -->"),
+        expected,
+        "content structural place kind table must be the place-kind space \
+         with tag 8 retired"
+    );
+    let source = strip_line_comments(&read_workspace_file(
+        "omega-rust/psi/semantics/terminal-codec/src/sections/semantic_module/content_wire.rs",
+    ));
+    for function in [
+        "encode_content_partition_composition",
+        "encode_content_conservation_guarantee",
+        "decode_content_partition_composition",
+        "decode_content_conservation_guarantee",
+    ] {
+        let body = function_body(&source, function);
+        assert!(
+            body.contains("StructuralPlaceKind::BlockParameter")
+                && body.contains("InvalidTag(\"ContentStructuralPlaceKind\", 8)"),
+            "{function} no longer rejects BlockParameter at a content structural place"
+        );
+    }
+}
+
 #[test]
 fn closed_reach_tag_tables_match_codec() {
     const REACH_WIRE: &str = "omega-rust/psi/semantics/terminal-codec/src/sections/semantic_module/reach_application_wire.rs";
@@ -804,6 +995,42 @@ fn admission_kind_table_matches_both_codecs() {
         "ledger and proof-bundle admission kind grammars diverge"
     );
     assert_table_matches("<!-- admission-kind-tags -->", ledger);
+}
+
+#[test]
+fn evidence_route_table_matches_codec() {
+    assert_table_matches(
+        "<!-- evidence-route-tags -->",
+        code_tags(
+            "omega-rust/psi/semantics/terminal-codec/src/sections/proof_bundle/evidence_codec.rs",
+            "encode_evidence_route",
+            "EvidenceRoute",
+        ),
+    );
+}
+
+#[test]
+fn primitive_judgment_table_matches_codec() {
+    assert_table_matches(
+        "<!-- primitive-judgment-tags -->",
+        code_tags(
+            "omega-rust/psi/semantics/terminal-codec/src/sections/proof_bundle/scalar_term_codec.rs",
+            "encode_primitive",
+            "PrimitiveJudgment",
+        ),
+    );
+}
+
+#[test]
+fn evidence_producer_row_source_table_matches_codec() {
+    assert_table_matches(
+        "<!-- evidence-producer-row-source-tags -->",
+        code_tags(
+            "omega-rust/psi/semantics/terminal-codec/src/sections/proof_bundle/evidence_codec.rs",
+            "encode_evidence_producer",
+            "EvidenceProducerRowSource",
+        ),
+    );
 }
 
 /// The decode-side child counts pin the spec's Children column: `let remaining
@@ -976,6 +1203,18 @@ fn structural_path_segment_table_matches_codec() {
             &module_wire("structural_place_wire.rs"),
             "encode_structural_path",
             "StructuralPathSegment",
+        ),
+    );
+}
+
+#[test]
+fn structural_establishment_route_table_matches_codec() {
+    assert_table_matches(
+        "<!-- structural-establishment-route-tags -->",
+        code_tags(
+            &module_wire("module_wire/declaration_wire.rs"),
+            "encode_establishment_routes",
+            "StructuralEstablishmentRoute",
         ),
     );
 }
@@ -2185,6 +2424,21 @@ fn certificate_level_table_matches_codec() {
 // also refuse every tag the spec leaves unassigned, so each table marker is
 // paired with the decode function and the `InvalidTag` label its fallthrough
 // arm reports. `(marker, wire file under `sections/`, decode fn, label)`.
+//
+// Every `InvalidTag`-producing decode site of a spec-tabled tag space is
+// listed, not just the primary decoder: the same space is re-decoded inline at
+// each wire position that carries it (a boundary machine's multiplicity field,
+// a terminator's crash cause, a suspension plan's path segments). One marker
+// therefore legitimately repeats across files and functions. The exceptions
+// are the deliberate table forks — `decode_retained_borrow_place` decodes
+// `ContentPlaceSegment` under `retained-borrow-segment-tags`, whose Case-first
+// order the spec states must not share the content-place segment table — and
+// the `ContentStructuralPlaceKind` narrowing, which rejects the place-kind
+// tag 8 after decoding through the shared grammar and is pinned by
+// `content_structural_place_kind_table_excludes_block_parameter` instead.
+// The recursion-depth guards (`ContentProjectionScalarDepth`,
+// `ContentProjectionExpressionDepth`) report a literal byte, not a tag space,
+// so they carry no table.
 const CODEC_SECTIONS: &str = "omega-rust/psi/semantics/terminal-codec/src/sections";
 
 const DECODE_TAG_PINS: &[(&str, &str, &str, &str)] = &[
@@ -2225,6 +2479,12 @@ const DECODE_TAG_PINS: &[(&str, &str, &str, &str)] = &[
         "IntegerMathTerm",
     ),
     (
+        "proof-term-tags",
+        "semantic_module/proof_term_wire.rs",
+        "decode_proof_term",
+        "proof term",
+    ),
+    (
         "content-term-tags",
         "semantic_module/content_wire.rs",
         "decode_content_term",
@@ -2246,6 +2506,18 @@ const DECODE_TAG_PINS: &[(&str, &str, &str, &str)] = &[
         "content-algebra-kind-tags",
         "proof_bundle/proposition_codec.rs",
         "decode_content_algebra",
+        "ContentAlgebraKind",
+    ),
+    (
+        "content-algebra-kind-tags",
+        "semantic_module/structural_signature_wire.rs",
+        "decode_retained_borrow_projection",
+        "ContentAlgebraKind",
+    ),
+    (
+        "content-algebra-kind-tags",
+        "semantic_module/structural_signature_wire.rs",
+        "decode_boundary_machine",
         "ContentAlgebraKind",
     ),
     (
@@ -2258,6 +2530,12 @@ const DECODE_TAG_PINS: &[(&str, &str, &str, &str)] = &[
         "content-place-version-tags",
         "proof_bundle/proposition_codec.rs",
         "decode_content_term",
+        "ContentPlaceVersion",
+    ),
+    (
+        "content-place-version-tags",
+        "semantic_module/structural_signature_wire.rs",
+        "decode_retained_borrow_place",
         "ContentPlaceVersion",
     ),
     (
@@ -2291,6 +2569,12 @@ const DECODE_TAG_PINS: &[(&str, &str, &str, &str)] = &[
         "ProofRule",
     ),
     (
+        "proof-rule-tags",
+        "proof_bundle/proof_node_codec.rs",
+        "decode_proof_rule",
+        "ProofRule",
+    ),
+    (
         "machine-result-tags",
         "semantic_module/machine_wire.rs",
         "decode_machine",
@@ -2318,6 +2602,12 @@ const DECODE_TAG_PINS: &[(&str, &str, &str, &str)] = &[
         "structural-path-segment-tags",
         "semantic_module/structural_place_wire.rs",
         "decode_structural_path",
+        "StructuralPathSegment",
+    ),
+    (
+        "structural-path-segment-tags",
+        "semantic_module/module_wire/carry_and_suspension_wire.rs",
+        "decode_suspension_call_plan",
         "StructuralPathSegment",
     ),
     (
@@ -2363,15 +2653,69 @@ const DECODE_TAG_PINS: &[(&str, &str, &str, &str)] = &[
         "CanonicalStructuralPathSegment",
     ),
     (
+        "canonical-path-segment-tags",
+        "semantic_module/scalar_term_wire.rs",
+        "decode_scalar_term",
+        "CanonicalStructuralPathSegment",
+    ),
+    (
+        "canonical-path-segment-tags",
+        "proof_bundle/scalar_term_codec.rs",
+        "decode_scalar_term",
+        "CanonicalStructuralPathSegment",
+    ),
+    (
         "structural-access-tags",
         "semantic_module/structural_signature_wire.rs",
         "decode_structural_access",
         "StructuralAccess",
     ),
     (
+        "structural-access-tags",
+        "semantic_module/structural_signature_wire.rs",
+        "decode_retained_borrow_custody",
+        "StructuralAccess",
+    ),
+    (
+        "structural-access-tags",
+        "semantic_module/module_wire/borrow_wire.rs",
+        "decode_borrow_access",
+        "StructuralAccess",
+    ),
+    (
+        "structural-access-tags",
+        "semantic_module/module_wire/placed_view_wire.rs",
+        "decode_placed_view_input",
+        "StructuralAccess",
+    ),
+    (
         "structural-multiplicity-tags",
         "semantic_module/structural_signature_wire.rs",
         "decode_structural_parameters",
+        "StructuralMultiplicity",
+    ),
+    (
+        "structural-multiplicity-tags",
+        "semantic_module/structural_signature_wire.rs",
+        "decode_retained_borrow_custody",
+        "StructuralMultiplicity",
+    ),
+    (
+        "structural-multiplicity-tags",
+        "semantic_module/structural_signature_wire.rs",
+        "decode_boundary_machine",
+        "StructuralMultiplicity",
+    ),
+    (
+        "structural-multiplicity-tags",
+        "semantic_module/provider_candidate_wire.rs",
+        "decode_provider_candidate",
+        "StructuralMultiplicity",
+    ),
+    (
+        "structural-multiplicity-tags",
+        "semantic_module/structural_result_wire.rs",
+        "decode_multiplicity",
         "StructuralMultiplicity",
     ),
     (
@@ -2414,6 +2758,12 @@ const DECODE_TAG_PINS: &[(&str, &str, &str, &str)] = &[
         "crash-cause-tags",
         "semantic_module/contract_wire.rs",
         "decode_crash_route_bucket",
+        "CrashCause",
+    ),
+    (
+        "crash-cause-tags",
+        "semantic_module/block_wire/terminator_wire.rs",
+        "decode_terminator",
         "CrashCause",
     ),
     (
@@ -2585,6 +2935,18 @@ const DECODE_TAG_PINS: &[(&str, &str, &str, &str)] = &[
         "IeeeFloatFormat",
     ),
     (
+        "ieee-format-tags",
+        "semantic_module/scalar_wire.rs",
+        "decode_ieee_float_format",
+        "IeeeFloatFormat",
+    ),
+    (
+        "ieee-format-tags",
+        "proof_bundle/scalar_term_codec.rs",
+        "decode_ieee_float_format",
+        "IeeeFloatFormat",
+    ),
+    (
         "float-operand-tags",
         "semantic_module/module_wire/float_meaning_wire.rs",
         "decode_float_meaning_projection",
@@ -2709,6 +3071,180 @@ const DECODE_TAG_PINS: &[(&str, &str, &str, &str)] = &[
         "proof_sidecar.rs",
         "decode",
         "pcc product kind",
+    ),
+    (
+        "certificate-term-tags",
+        "semantic_module/mathematical_certificate_wire.rs",
+        "decode_term",
+        "MathematicalTerm",
+    ),
+    (
+        "certificate-sort-tags",
+        "semantic_module/mathematical_certificate_wire.rs",
+        "decode_sort",
+        "MathematicalSort",
+    ),
+    (
+        "certificate-level-tags",
+        "semantic_module/mathematical_certificate_wire.rs",
+        "decode_level",
+        "MathematicalLevel",
+    ),
+    (
+        "scalar-type-tags",
+        "semantic_module/scalar_wire.rs",
+        "decode_scalar_type",
+        "ScalarType",
+    ),
+    (
+        "scalar-type-tags",
+        "proof_bundle/scalar_term_codec.rs",
+        "decode_scalar_type",
+        "ScalarType",
+    ),
+    (
+        "integer-type-tags",
+        "semantic_module/scalar_wire.rs",
+        "decode_integer_type",
+        "IntegerSign",
+    ),
+    (
+        "integer-type-tags",
+        "proof_bundle/scalar_term_codec.rs",
+        "decode_integer_type",
+        "IntegerSign",
+    ),
+    (
+        "integer-value-tags",
+        "semantic_module/scalar_wire.rs",
+        "decode_integer_value",
+        "IntegerValue",
+    ),
+    (
+        "integer-value-tags",
+        "proof_bundle/scalar_term_codec.rs",
+        "decode_integer_value",
+        "IntegerValue",
+    ),
+    (
+        "ieee-float-value-tags",
+        "semantic_module/scalar_wire.rs",
+        "decode_ieee_float_value",
+        "IeeeFloatValue",
+    ),
+    (
+        "ieee-float-relation-tags",
+        "semantic_module/block_wire/scalar_operations.rs",
+        "decode_ieee_float_compare",
+        "IeeeFloatComparisonOperation",
+    ),
+    (
+        "ieee-comparison-kind-tags",
+        "semantic_module/structural_field_wire.rs",
+        "decode_ieee_float_comparison_kind",
+        "IeeeFloatComparisonKind",
+    ),
+    (
+        "ieee-comparison-kind-tags",
+        "proof_bundle/scalar_term_codec.rs",
+        "decode_ieee_float_comparison_kind",
+        "IeeeFloatComparisonKind",
+    ),
+    (
+        "boolean-tags",
+        "semantic_module/integer_math_term_wire.rs",
+        "decode_integer_math_term",
+        "Boolean",
+    ),
+    (
+        "boolean-tags",
+        "proof_bundle/scalar_term_codec.rs",
+        "decode_integer_math_term",
+        "Boolean",
+    ),
+    (
+        "optional-identity-tags",
+        "semantic_module/wire.rs",
+        "decode_optional_id",
+        "OptionalSemanticId",
+    ),
+    (
+        "scalar-field-carrier-path-tags",
+        "semantic_module/block_wire.rs",
+        "decode_scalar_field_path",
+        "scalar field carrier path",
+    ),
+    (
+        "operation-result-tags",
+        "semantic_module/block_wire.rs",
+        "decode_operation",
+        "OperationResult",
+    ),
+    (
+        "record-field-value-tags",
+        "semantic_module/block_wire/value_operations.rs",
+        "decode_establish_record",
+        "RecordFieldValue",
+    ),
+    (
+        "outcome-result-substitution-tags",
+        "semantic_module/block_wire/call_operations.rs",
+        "decode_call_structural",
+        "OutcomeSpecificCallResultSubstitution",
+    ),
+    (
+        "affine-cleanup-action-tags",
+        "semantic_module/structural_place_wire.rs",
+        "decode_affine_cleanup_action",
+        "TerminalAffineCleanupAction",
+    ),
+    (
+        "structural-establishment-route-tags",
+        "semantic_module/module_wire/declaration_wire.rs",
+        "decode_establishment_routes",
+        "StructuralEstablishmentRoute",
+    ),
+    (
+        "scalar-domain-establishment-route-tags",
+        "semantic_module/scalar_qualification_wire.rs",
+        "decode",
+        "ScalarDomainEstablishmentRoute",
+    ),
+    (
+        "proposition-binder-argument-tags",
+        "semantic_module/proof_declaration_wire.rs",
+        "decode_proposition_application",
+        "PropositionBinderArgument",
+    ),
+    (
+        "proposition-evidence-interface-tags",
+        "semantic_module/proof_declaration_wire.rs",
+        "decode_proposition_application",
+        "PropositionEvidenceInterface",
+    ),
+    (
+        "content-projection-scalar-tags",
+        "semantic_module/structural_signature_wire.rs",
+        "decode_capacity_scalar",
+        "ContentProjectionScalar",
+    ),
+    (
+        "primitive-judgment-tags",
+        "proof_bundle/scalar_term_codec.rs",
+        "decode_primitive",
+        "PrimitiveJudgment",
+    ),
+    (
+        "evidence-route-tags",
+        "proof_bundle/evidence_codec.rs",
+        "decode_evidence_route",
+        "EvidenceRoute",
+    ),
+    (
+        "evidence-producer-row-source-tags",
+        "proof_bundle/evidence_codec.rs",
+        "decode_evidence_producer",
+        "EvidenceProducerRowSource",
     ),
 ];
 

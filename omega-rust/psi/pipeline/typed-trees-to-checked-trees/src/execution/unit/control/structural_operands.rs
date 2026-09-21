@@ -21,6 +21,51 @@ use crate::execution::terminal_unit::state_flow;
 pub(in crate::execution::terminal_unit) enum Operand<'facts> {
     Call(&'facts checked_trees::FlowCallFact),
     Array(crate::values::CallArrayConstruction),
+    /// An inline case construction retained by the checker as a structural
+    /// value rooted at the authored argument expression. The statement
+    /// sequence establishes it as a state-local operand before the
+    /// consuming call, giving the argument the same binding-ordinal source
+    /// an anonymous call result carries.
+    Value {
+        root: &'facts checked_trees::CheckedStructuralValueRoot,
+        parameter_position: u32,
+    },
+}
+
+/// An argument position carries an established case operand only when the
+/// checker retained a `Case` value rooted exactly at that expression for this
+/// statement and machine, typed to the matched formal.
+fn case_value_root<'a>(
+    program: &TypedTrees,
+    facts: &'a CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement_index: usize,
+    argument: typed_trees::expression::ExpressionHandle,
+    parameter: &typed_trees::signature::StateParameter,
+) -> Option<&'a checked_trees::CheckedStructuralValueRoot> {
+    if program
+        .primitive_type_reference(parameter.type_reference)
+        .is_some()
+    {
+        return None;
+    }
+    let root = facts.values.structural_values.root_for_expression(
+        state,
+        u32::try_from(statement_index).ok()?,
+        argument,
+    )?;
+    if root.machine != machine
+        || program.normalized_type_identity(root.type_reference)
+            != program.normalized_type_identity(parameter.type_reference)
+        || !matches!(
+            facts.values.structural_values.nodes.get(root.root).kind,
+            checked_trees::CheckedStructuralValueKind::Case(_)
+        )
+    {
+        return None;
+    }
+    Some(root)
 }
 
 /// Retain ordinary call plans at their expression nodes. Their order here is
@@ -119,6 +164,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                 pending.push(*source);
             }
             checked_trees::CheckedStructuralValueKind::Reference { .. }
+            | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
             | checked_trees::CheckedStructuralValueKind::Case(_)
             | checked_trees::CheckedStructuralValueKind::Place(_) => {}
         }
@@ -138,7 +184,7 @@ pub(in crate::execution::terminal_unit) fn for_call<'a>(
             .into_iter()
             .filter_map(|operand| match operand {
                 Operand::Call(call) => Some(call),
-                Operand::Array(_) => None,
+                Operand::Array(_) | Operand::Value { .. } => None,
             })
             .collect(),
     )
@@ -160,7 +206,49 @@ pub(in crate::execution::terminal_unit) fn operations_for_call<'a>(
         state,
         call.statement_index,
     );
+    let has_case_operands = crate::semantic_calls::find_call_site(
+        program,
+        machine.symbol,
+        state.symbol,
+        call.statement_index,
+        call.call_ordinal,
+    )
+    .map(|site| {
+        let arguments = crate::semantic_calls::call_site_argument_expressions(program, &site);
+        let Some(parameters) =
+            crate::semantic_calls::call_target_parameters(program, call.target_symbol)
+        else {
+            return false;
+        };
+        let explicit_self = arguments.len()
+            > parameters
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .count();
+        let parameters = parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self || explicit_self)
+            .collect::<Vec<_>>();
+        parameters.len() == arguments.len()
+            && arguments
+                .iter()
+                .zip(parameters.iter())
+                .any(|(argument, parameter)| {
+                    case_value_root(
+                        program,
+                        facts,
+                        machine.symbol,
+                        state.symbol,
+                        call.statement_index,
+                        *argument,
+                        parameter,
+                    )
+                    .is_some()
+                })
+    })
+    .unwrap_or(false);
     if arrays.is_empty()
+        && !has_case_operands
         && !calls.iter().any(|nested| {
             nested.statement_index == call.statement_index
                 && nested.call_ordinal != 0
@@ -246,6 +334,26 @@ fn collect<'a>(
                 return None;
             }
             output.push(Operand::Array(*array));
+            continue;
+        }
+        if let Some(root) = case_value_root(
+            program,
+            facts,
+            machine.symbol,
+            state.symbol,
+            call.statement_index,
+            *argument,
+            parameter,
+        ) {
+            if output.iter().any(|operand| {
+                matches!(operand, Operand::Value { root: prior, .. } if prior.expression == *argument)
+            }) {
+                return None;
+            }
+            output.push(Operand::Value {
+                root,
+                parameter_position: u32::try_from(*position).ok()?,
+            });
             continue;
         }
         let place = crate::flow::canonical_place_from_expression_in_state(

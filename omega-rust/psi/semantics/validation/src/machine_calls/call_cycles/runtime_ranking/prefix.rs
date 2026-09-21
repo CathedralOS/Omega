@@ -118,6 +118,40 @@ pub(super) fn preserves_rank(
                         && disjoint(frames.statement_value_write_frame(machine, statement))
                 })
         }
+        StatementNode::LocalData(local) => {
+            // A `let` binds a fresh local no premise carrier can name, so
+            // only its initializer's calls can disturb protected state. The
+            // statement-call bar covers the whole initializer tree: every
+            // value-position call still names a checked-body callee --
+            // boundary, requirement, and admitted declarations resolve a
+            // signature state whose empty body summary would claim an
+            // exclusive argument write never happened -- while every
+            // non-call subterm stays inert, so nested call arguments and
+            // composed initializers are admitted alike and a call-free
+            // initializer vacuously clears the bar. The aggregate write
+            // frame is conservative over every nested call and must be
+            // complete and disjoint from every protected carrier.
+            let checked_body_callee = |call: &typed_trees::expression::TableCallExpression| {
+                if !call.target_symbol.is_valid() {
+                    return false;
+                }
+                let callee_machine = program.symbols.get(call.target_symbol).parent;
+                program.machines().iter().any(|candidate| {
+                    (candidate.symbol == call.target_symbol || candidate.symbol == callee_machine)
+                        && candidate.supply_mode
+                            == language_semantics::MachineSupplyMode::CheckedBody
+                })
+            };
+            super::expression_is_inert_or_calls(
+                program,
+                machine,
+                state,
+                local.initial_value,
+                &checked_body_callee,
+            ) && frames.is_some_and(|frames| {
+                disjoint(frames.expression_write_frame(machine, local.initial_value))
+            })
+        }
         _ => false,
     }
 }

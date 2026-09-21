@@ -10,11 +10,14 @@
 // establishes `StartupEnvelope` in `Pending`, the arriving processor
 // resolves its acknowledgement requirement by calling
 // `StartupEnvelope::confirm`, and reaching `confirm` is the only
-// arrival witness the supervisor's ledger accepts. Sending the request
-// or constructing an envelope is not arrival; a settlement answer must
-// attest both that the outstanding carrier can no longer dispatch and
-// that nothing executes on the account's dedicated stack or private
-// state before custody returns.
+// arrival witness the supervisor's ledger accepts. The supervisor's
+// authored cancellation route is `StartupEnvelope::request_cancel` — a
+// borrowed request that keeps `Pending` established while asking, not
+// proof the processor stopped. Sending the request or constructing an
+// envelope is not arrival; a settlement answer must attest both that
+// the outstanding carrier can no longer dispatch and that nothing
+// executes on the account's dedicated stack or private state before
+// custody returns.
 //
 // The carrier is a physical value representation authored by this
 // package: the secondary processor hands its acknowledgement back
@@ -69,6 +72,18 @@ pub boundary requirement StartupEnvelope::confirm(self)
 reaches MachineControl
 requires
     self in StartupEnvelope::Pending;
+
+// The supervisor's cancellation route for an outstanding attempt:
+// asking is a request only. It borrows the envelope, so `Pending` stays
+// established and the request proves nothing about the processor having
+// stopped — the settlement answer the ledger requires remains the only
+// custody-returning discharge, attesting both that the outstanding
+// carrier can no longer dispatch and that nothing executes on the
+// account's dedicated stack or private state. Mirrors the library's
+// `request_cancel` convention: the route is open exactly while the
+// attempt is outstanding, and a racing `confirm` or settlement still
+// discharges the claim exactly once.
+pub boundary requirement StartupEnvelope::request_cancel(&self);
 
 // ---------------------------------------------------------------------------
 // The physical carrier

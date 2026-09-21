@@ -109,6 +109,7 @@ fn fixture(literal: &str, byte_index: u128) -> LoweredPsi {
     block.operations.extend([
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(next_operation),
             result: scalar_result(length, PrimitiveType::U64),
             kind: OperationKind::ByteSequenceLength {
@@ -117,6 +118,7 @@ fn fixture(literal: &str, byte_index: u128) -> LoweredPsi {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(next_operation + 1),
             result: scalar_result(index, PrimitiveType::U64),
             kind: OperationKind::IntegerConstant {
@@ -125,6 +127,7 @@ fn fixture(literal: &str, byte_index: u128) -> LoweredPsi {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(next_operation + 2),
             result: scalar_result(byte, PrimitiveType::U8),
             kind: OperationKind::ByteSequenceRead {

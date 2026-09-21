@@ -666,8 +666,58 @@ pub(crate) fn invariant_scalar_case_admission(
     member_scalar_operand_substitution(function, component, node, relocating)
 }
 
+/// An `EstablishTrivialAffineLocal` is the scalar-case family's operand-free
+/// sibling — the direct spelling of the affine empty-record establishment.
+/// The node declares one machine-owned, whole, claim-free affine place of
+/// empty-record type: it defines no scalar value (its result is the declared
+/// place), reads no operand, carries no successors or ownership events, and
+/// keeps the declaration byte-exact inside the moved operation. The node must
+/// name its own operation as the first provenance row. The only custody the
+/// relocation re-expresses is the affine place's own lifecycle, which
+/// [`invariant_trivial_affine_local_admission`] bounds separately.
+pub(crate) fn admissible_invariant_trivial_affine_local(
+    node: &OptimizationNode,
+) -> Option<terminal_psi::StructuralPlaceDeclaration> {
+    let O::EstablishTrivialAffineLocal {
+        psi_operation,
+        place,
+        ..
+    } = &node.operation
+    else {
+        return None;
+    };
+    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+        && node.definitions.is_empty()
+        && node.uses.is_empty()
+        && node.successors.is_empty()
+        && node.ownership.is_empty())
+    .then_some(*place)
+}
+
+/// The complete trivial-affine-local-establishment admission shared by the
+/// proposal and the relocation freeze replay: `node` must carry the
+/// source-owned establishment shape
+/// ([`admissible_invariant_trivial_affine_local`]) — which yields the
+/// declared place — and that place must stay inside `component` spelled
+/// only through positions the relocation's custody rewrite covers
+/// ([`scalar_case_result_contained`]): the cyclic eligibility fence already
+/// confined the fresh affine place to the member block that establishes it,
+/// with every departing edge disposing it, so hoisting the establishment
+/// keeps the one persistent place live through the whole component —
+/// stripping it from member-internal edges and disposing it on every exit
+/// edge and member return that did not already carry it. The operation is
+/// operand-free, so admission yields the place and no substitution.
+pub(crate) fn invariant_trivial_affine_local_admission(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    node: &OptimizationNode,
+) -> Option<PlaceId> {
+    let place = admissible_invariant_trivial_affine_local(node)?;
+    scalar_case_result_contained(function, component, place.id).then_some(place.id)
+}
+
 /// Whether the affine scalar-case, empty-record, or structural-call result
-/// `picked` stays
+/// — or the affine trivial-local place — `picked` stays
 /// inside `component`'s
 /// member roster spelled only through positions the relocation's custody
 /// rewrite covers: the producing establishment or call itself, a `StructuralCase`
@@ -718,6 +768,13 @@ fn scalar_case_result_contained(
                 {
                     member
                 }
+                // A trivial affine local producer is the same declaration
+                // position: the establishment spells its own declared place,
+                // and only a member node can produce it inside this
+                // component — the cyclic eligibility fence already confined
+                // the fresh affine place to the producing member's disposal
+                // edges.
+                O::EstablishTrivialAffineLocal { place, .. } if place.id == picked => member,
                 // Dispatch, inspection, and structural-return positions keep
                 // the result inside re-expressible custody when they live
                 // inside the roster.
@@ -938,11 +995,11 @@ fn rewrite_case_edge_discards(
 }
 
 /// Insert `place` into an ordered `trivial_affine_discards` roster at the
-/// slot the Terminal cleanup schedule assigns: every relocated case result
-/// is an operation-result place, and the schedule sorts results by
-/// descending producer with declaration order breaking ties, ahead of every
-/// local and parameter. A roster already listing `place` — a dispatch edge
-/// that exits the component — is left byte-exact.
+/// slot the Terminal cleanup schedule assigns: a relocated case result or
+/// trivial affine local sorts ahead of parameters, with operation results
+/// ordered by descending producer and locals by descending declaration
+/// ordinal — see [`case_result_schedule_key`]. A roster already listing
+/// `place` — a dispatch edge that exits the component — is left byte-exact.
 fn insert_case_discard_ordered(
     structural_places: &[terminal_psi::StructuralPlaceDeclaration],
     discards: &mut Vec<PlaceId>,
@@ -1003,23 +1060,28 @@ fn insert_case_cleanup_discard(
     );
 }
 
-/// The schedule key `expected_trivial_affine_discards` assigns an
-/// operation-result place: `Reverse(producer)` — later producers discard
-/// first — with the `structural_places` declaration index preserving the
-/// roster's stable order for equal producers. Locals and parameters have no
-/// key and always sort after the operation-result run.
+/// The schedule slot `expected_trivial_affine_discards` assigns a place:
+/// rank 0 is an operation result — `Reverse(producer)`, later producers
+/// discard first — and rank 1 is a trivial affine local —
+/// `Reverse(declaration_ordinal)`, later declarations first — with the
+/// `structural_places` declaration index preserving the roster's stable
+/// order for equal keys. Parameters have no key and always sort last.
 fn case_result_schedule_key(
     structural_places: &[terminal_psi::StructuralPlaceDeclaration],
     place: PlaceId,
-) -> Option<(std::cmp::Reverse<OperationId>, usize)> {
+) -> Option<(u8, std::cmp::Reverse<u64>, usize)> {
     structural_places
         .iter()
         .enumerate()
         .find_map(|(index, declaration)| {
             (declaration.id == place).then_some(match declaration.kind {
                 StructuralPlaceKind::OperationResult { producer, .. } => {
-                    (std::cmp::Reverse(producer), index)
+                    (0, std::cmp::Reverse(producer.get()), index)
                 }
+                StructuralPlaceKind::TrivialAffineLocal {
+                    declaration_ordinal,
+                    ..
+                } => (1, std::cmp::Reverse(u64::from(declaration_ordinal)), index),
                 _ => return None,
             })
         })

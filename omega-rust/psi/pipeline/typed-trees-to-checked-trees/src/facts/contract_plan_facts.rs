@@ -444,6 +444,11 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
             else {
                 return None;
             };
+            if contract.kind == SignatureContractKind::Ensures
+                && let Some(clause) = lower_float_meaning_equality_clause(program, *expression)
+            {
+                return Some(clause);
+            }
             crate::values::lower_scalar_contract_predicate(
                 program,
                 operators,
@@ -500,4 +505,53 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
     .with_authored_requires_len(authored_requires_len)
     .with_float_entry_ranges(ranges.float_entry_ranges)
     .with_integer_entry_ranges(ranges.integer_entry_ranges)
+}
+
+/// Recognize one authored `FloatMeaning` equality clause: a `==` whose
+/// operands each resolve to a sealed float-semantics catalog declaration
+/// producing the proof-only `FloatMeaning` carrier — a `Float::meaning*`
+/// projection or a `FloatSemantics::*` application whose catalog row's
+/// result is `Meaning`. The clause keeps the authored expression verbatim;
+/// lowering preparation rejoins it to the checked float-meaning equality
+/// roster rather than approximating a scalar predicate.
+fn lower_float_meaning_equality_clause(
+    program: &TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<checked_trees::ClosedScalarContractValue> {
+    use typed_trees::expression::{BinaryOperator, ExpressionNode};
+
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if binary.operator != BinaryOperator::Equal {
+        return None;
+    }
+    let operand_produces_meaning = |operand: typed_trees::expression::ExpressionHandle| {
+        let ExpressionNode::Call(call) = program.expression_table.expression(operand) else {
+            return false;
+        };
+        let Some(operator) = typed_trees::operator::resolve_named_expression_call(program, call)
+        else {
+            return false;
+        };
+        let [namespace, name] = program.operator_path_members(operator.name) else {
+            return false;
+        };
+        numerics::float_projection::FloatProjectionOperation::from_source_identity(
+            namespace.as_str(),
+            name.as_str(),
+        )
+        .is_some()
+            || validation::exact_toolchain_float_semantic_contract(program, operator).is_some_and(
+                |(row, _)| {
+                    row.result == numerics::float_semantics_catalog::FloatSemanticValueKind::Meaning
+                },
+            )
+    };
+    (operand_produces_meaning(binary.left) && operand_produces_meaning(binary.right)).then_some(
+        checked_trees::ClosedScalarContractValue::FloatMeaningEquality {
+            expression,
+            equality: None,
+        },
+    )
 }

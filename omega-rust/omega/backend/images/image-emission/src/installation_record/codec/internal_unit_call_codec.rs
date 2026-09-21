@@ -659,6 +659,7 @@ fn decode_structural_result(
                     .push(terminal_psi::StructuralReferenceResultSource { path, source });
             }
             let operation_result = StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: operation_place,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Affine,
@@ -764,6 +765,7 @@ fn decode_structural_result(
             structural_type,
             multiplicity: StructuralMultiplicity::Linear,
             qualifications,
+            qualification_establishments: Vec::new(),
             projected_qualifications: Vec::new(),
             claims: vec![StructuralResultClaimBinding {
                 claim,
@@ -888,6 +890,7 @@ mod tests {
         };
         InternalStructuralCallResult {
             operation_result: StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: PlaceId::new(2).unwrap(),
                 structural_type,
                 multiplicity: StructuralMultiplicity::Affine,
