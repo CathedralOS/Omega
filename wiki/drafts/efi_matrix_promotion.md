@@ -26,3 +26,5 @@ matrix" (line 21).
 Conclusion: item is an authorization gate, not implementable work. The
 correct state is "open — waits on UEFI legs"; no code or matrix change is
 warranted while they stand.
+
+> Field note (e1dc35c92948..97be15c1b592 review): ledger-only authorization-gate re-verification; fold the "open — waits on UEFI legs" verdict into the EFI row and delete rather than re-stamping.
