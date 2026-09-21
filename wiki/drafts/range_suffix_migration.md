@@ -62,3 +62,9 @@ Rust files naming a range type-constraint. The corpus migration dominates;
 batch it by directory so each batch lands with its own scoped canary witness.
 The Epsilon-written Omega parser and its fixtures migrate on the same recipe;
 Epsilon's own surface is unchanged.
+
+Re-verified at `2dbfecd98e49` (zergling-172): the recipe's anchors still
+resolve — `TypeConstraintNode::Range` at `parse_type.rs:791/801`, and the
+`domain T::D requires self …` + `T in D` spelling this prescribes is the one
+the corpus already uses (`tests/omega/pass/modules/module_operator_home/
+units.omg:6`).
