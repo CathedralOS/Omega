@@ -13943,7 +13943,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   --lib -E 'test(/field_endpoint/)'` — 49/49 pass across
   field_coordinates / field_endpoint_arithmetic / field_endpoint_pins /
   field_arrivals / computed_field_limits. Sibling stub
-  TERMINATION-RANK-RANGE-FIELDS names the same surface.
+  TERMINATION-RANK-RANGE-FIELDS names the same surface. Re-verified at
+  `771d0469a1`: `e8bbe9fcc0` is an ancestor of base and the endpoint
+  machinery now lives under
+  `omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/ranking/ranges/endpoints.rs`
+  — `EndpointInput` resolution, per-self-edge `preserved_by` re-checks and
+  `prefix_preserves_path` all intact.
 - **TARGET-INFERENCE-AND-PLATFORM-CERTIFICATION.** Scope verified; audit plus
   one landed fix. The mined name resolves to the exact-target-request
   contract (`wiki/spec/build/configuration.md`): reject `all`, `*`, empty
