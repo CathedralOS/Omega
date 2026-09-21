@@ -36,3 +36,5 @@ was opened.
 Resolved row stands. The comparator-retirement decision stays gated on the
 four open dependencies; the record face's open residual lives with the
 release-record lanes, all fenced. No independent slice.
+
+> Field note (f5eca6b2b0bd..5d9afb85f822 review): ledger-only re-verification of a resolved row; fold into RUST-RELEASE-RECORD and delete rather than re-stamping.
