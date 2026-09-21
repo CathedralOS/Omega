@@ -308,6 +308,36 @@ it instantiates. A reviewer verifies those citations before the framing.
    of the instruction word, scaled by 4, resolved as a masked merge into the
    retained opcode.
 
+6. **How does target-specific checked inline assembly execute inside an
+   interpreted component?** (named decision: `interpreted-inline-assembly`).
+   The owner ratified [embedding](wiki/spec/build/embedding.md) with interpreted
+   Cathedral startup and guest-owned component replacement as the integration
+   goal. Shared OS algorithms should differ by provider/build composition rather
+   than execution-mode conditionals. Existing [checked assembly](wiki/spec/language/assembly.md)
+   remains legitimate OS source; boot/device code already uses port I/O, idle,
+   register clobbers, and target-state operations. It has not been decided that
+   these must all move behind new boundary interfaces.
+
+   Specify the admitted execution route and its scope: interpretation of selected
+   instruction contracts against an explicit target-state/environment model;
+   checked alternate realizations bound to those same contracts; or an explicitly
+   limited interpreter profile that rejects specified assembly-bearing components.
+   These may cover different operations, but each admitted route must preserve
+   memory/authority, registers/flags, ordering, control/entry, and fault behavior.
+   Establish where live host hardware versus modeled device state is selected,
+   and what correspondence evidence is required. Do not let a provider named
+   `MachineControl` silently redefine an instruction's meaning or treat a paused
+   interpreter as equivalent to a hardware idle/interrupt transition.
+
+   Acceptance for the decision: one Cathedral port-I/O/device sequence and one
+   idle/external-entry sequence run with their actual admitted effects and state;
+   unsupported instructions reject explicitly. No OS policy is moved into the
+   compiler/host to manufacture a pass. The instruction/target-state bridge is
+   undetermined, not a ban on inline assembly and not a promise of a universal
+   emulator. Only the assembly-dependent portion of **INTERPRETED-CATHEDRAL** is
+   owner-blocked; ordinary scripting, provider adapters, and independent Psi
+   component work proceed under their settled contracts.
+
 ## Squalr scalar-scan port: surface-driven shape choices
 
 The SCALAR-SCAN-AND-DISPATCH port hit four language-surface limits that forced

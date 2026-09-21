@@ -72,7 +72,7 @@ trait Tests {
 }
 
 data ScanFixture {
-    filesystem: Service<Filesystem>;
+    filesystem: Binding<Filesystem>;
 }
 
 machine ScanFixture::empty_input(&mut self)
@@ -92,7 +92,7 @@ memory.service<Filesystem, MemoryFilesystem>();
 ```
 
 Each invocation receives a fresh receiver and mock-service state. The runner
-establishes the `Service` field before entering the test; zeroed bytes do not
+establishes the `Binding` field before entering the test; zeroed bytes do not
 make a service valid. Other fields must be zero-valid, and additional fixture
 construction is ordinary code. A test entry takes no other arguments; call
 parameterized helpers from its body.
@@ -136,3 +136,7 @@ build an ordinary separate executable with its own entry binding. Its main can
 call shared helpers or visible test machines without a test-mode flag. It does
 not automatically discover groups or acquire their private visibility, and a
 native trap requires real external containment if execution is to continue.
+
+The interpreter runner shares the ordinary
+[embedding lifecycle](chapter_24_embedding.md), rather than a separate test VM.
+Fresh instances isolate their guest state, not effects on shared genuine providers.

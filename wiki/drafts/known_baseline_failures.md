@@ -232,7 +232,7 @@ older reading:
   arithmetic-policy lane (**ARITHMETIC-POLICY-REALIZATION**).
 - `atomics/atomic_field_declared`: "macOS hosted receiver bridge lost exact
   contract, storage, or entry custody" (**ENTRY-CONTENT-ROOTS**; migrate the bare
-  receiver field to the [intrinsically established service carrier](../spec/build/component_publication.md#service-bindings-and-era-entry)).
+  receiver field to the [intrinsically established service carrier](../spec/build/component_publication.md#bindings-and-era-entry)).
   **Retired from this cluster as host-bound**: verified green on Linux
   x86-64 at 4607987316 and re-confirmed on bbfda8bc2e under
   `OMEGA_PASS_CANARY_FILTER=atomics/atomic_field_declared`; the recorded
