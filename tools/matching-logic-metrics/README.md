@@ -33,7 +33,7 @@ When present, the encoding route's columns are:
 | `translation` | `proof/src/checker/certificate*` + `proof/src/obligations*` — the producer that encodes checked obligations into `ProofNode` certificates |
 | `trusted_derivation` | the rest of `omega-rust/psi/semantics/proof/src` — the derivation still deciding every certificate-uncovered leg |
 | `theory` | variant counts of `ProofRule`, `AcceptedProofRule`, `PrimitiveJudgment`, `EvidenceRoute`, `ObligationClass`, `AcceptedFactRoute`, `ProofRuleFoundation`, plus source size of `integer_rules`, `mathematical_core`, `predicate_denotation`, and the `SemanticAxiom`/`Assumption` index-citation rule forms |
-| `certificate` | `unavailable` on this revision — per-obligation node counts/bytes are not emitted; `OMEGA_PROOF_MEASUREMENTS` stderr lines (PROOF-SEARCH-MEASUREMENT's surface) are captured into `proof_measurements` automatically once they exist |
+| `certificate` | Certificate bytes remain `unavailable`; when `OMEGA_PROOF_MEASUREMENTS` is set, the checker's emitted counts and kernel receipt figures are captured in `proof_measurements`. These measurements do not cover later conjunct lowering. |
 | `check_time_ms` | median `total elapsed` and `compile: sources -> requested product` wall time over `--repetitions` runs of `omega --check --offline --timings` |
 
 Every inventory also reports its test lines separately (`test_files` /
