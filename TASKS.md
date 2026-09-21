@@ -7978,6 +7978,45 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   is live in the registry; resolution unchanged — host-gated on Windows
   x64 for the PE leg.
 - **ALPHA-WINDOWS-CONFORMANCE** — mined candidate; verify scope then implement.
+||||||| parent of 00f36e8cfa2b (board: annotate ALPHA-WINDOWS-CONFORMANCE host-gated re-mine)
+  Its only implementing surface is the `samples/apps/squalr` submodule,
+  held under sibling claims (SQUALR-TARGETS-AND-THROUGHPUT,
+  SQUALR-CLONE-SERIALIZATION, SQUALR-REGION-ALIGNMENT-EXPANSION); the
+  residual set_alignment call-site gate is a compiler entry-mechanics
+  item tracked under GEOMETRY-PARITY, not this row. Sibling re-mine
+  stubs on the same surface: GEOMETRY-ALIGNMENT-PARSING,
+  GEOMETRY-ALIGNMENT-STRING-PARSING, SQUALR-ALIGNMENT-STRING-PARSING.
+- **ALPHA-SEED-WINDOWS-X64-EXECUTION** — mined candidate; verify scope then implement.
+- **ALPHA-WINDOWS-CONFORMANCE** — mined candidate; verify scope then implement.
+  Its only implementing surface is the `samples/apps/squalr` submodule,
+  held under sibling claims (SQUALR-TARGETS-AND-THROUGHPUT,
+  SQUALR-CLONE-SERIALIZATION, SQUALR-REGION-ALIGNMENT-EXPANSION); the
+  residual set_alignment call-site gate is a compiler entry-mechanics
+  item tracked under GEOMETRY-PARITY, not this row. Sibling re-mine
+  stubs on the same surface: GEOMETRY-ALIGNMENT-PARSING,
+  GEOMETRY-ALIGNMENT-STRING-PARSING, SQUALR-ALIGNMENT-STRING-PARSING.
+- **ALPHA-SEED-WINDOWS-X64-EXECUTION** — mined candidate; verify scope then implement.
+- **ALPHA-WINDOWS-CONFORMANCE** — mined candidate; scope verified at
+  `66f9426258`, host-gated re-mine: the name re-covers the Windows x64 leg
+  already owned by **ALPHA-WINDOWS-CONFORMANCE-HOST** (resolved-with-
+  remainder row ~line 6524) — per DEVICE-EXTENT-ACCESS's ledger this item
+  owns the Windows edge legs (`tests/bootstrap/alpha-beta-edge.sh` +
+  `tests/alpha/reference/diamond-py.sh`), whose remaining acceptance is
+  seed execution on a Windows x64 host (Git Bash + Python 3), plus the
+  `tests/alpha/io-registers.hex` run exiting 0 with stdout `ABCDEF` for
+  input `AB`. The committed seed `bootstrap/0_alpha/alpha_x64_windows.exe`
+  (PE32+ x86-64, hole offset 5120) is already bound, selected, and
+  structurally validated host-free: `tools/bootstrap/alpha/seed_env.sh`
+  pins its size/SHA-256/hole and sets `ALPHA_SEED_EXECUTABLE=1` under
+  `MINGW*-x86_64|MSYS*-x86_64`; `tests/alpha/container.sh` re-verified
+  green on linux x86-64 at `66f9426258` (valid pe, pristine + stamped
+  hole contracts, bound identities for all three committed seeds).
+  Nothing executable remains on a Linux host — the only residual is
+  running the seed on Windows x64, which stays with the owning rows; the
+  `tests/alpha` + `tests/bootstrap/alpha-beta-edge.sh` surfaces are also
+  under a live BOOTSTRAP-SEED-EXECUTION-HOSTS claim this wave. No
+  independent slice. Sibling re-mine: ALPHA-WINDOWS-SEED-EXECUTION.
+
 - **ARTIFACT-AUTHORITY-CHECKS** — mined candidate; verify scope then implement.
 - **ASM-CATALOG-FAMILY-EXPANSION** — mined candidate; verify scope then
   implement. Landed slice: the pipeline-directive family — `serialize`
