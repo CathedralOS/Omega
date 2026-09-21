@@ -342,14 +342,6 @@ pub const CROSS_TARGET_PRODUCTION_FAIL_CANARIES: &[(&str, &str)] = &[
         "proofs/mathematical_declaration_lowering_rejected",
         "linux_x86_64",
     ),
-    // Checked semantics admits the conditional claim join as evidence;
-    // `checked-trees-to-lowered-psi` refuses it pending Terminal
-    // exit-alternative correspondence. The fixture binds only
-    // `linux_x86_64::ProgramEntry`.
-    (
-        "ownership/linear_ambiguous_state_result_mapping",
-        "linux_x86_64",
-    ),
     // The `in` port read resolves its `u8` result but no checked unit
     // operation arm carries a port effect, so the machine is omitted at the
     // `call: call operation` planning phase. The fixture binds only
