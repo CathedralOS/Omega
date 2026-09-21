@@ -18,6 +18,7 @@ pub(crate) mod mathematical_certificate_wire;
 pub(crate) mod module_foundation_validation;
 pub(crate) mod module_wire;
 pub(crate) mod proof_declaration_wire;
+pub(crate) mod proof_term_wire;
 pub(crate) mod proposition_wire;
 pub(crate) mod provider_candidate_wire;
 pub(crate) mod quotient_correspondence_wire;
@@ -56,7 +57,7 @@ use wire::decode_counted;
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-pub(crate) const FORMAT_MARKER: u16 = 103;
+pub(crate) const FORMAT_MARKER: u16 = 105;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

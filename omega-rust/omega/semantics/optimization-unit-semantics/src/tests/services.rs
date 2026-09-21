@@ -245,6 +245,7 @@ fn replays_every_call_reach_lane_and_provider_service_refinement() {
         scalar_type: ScalarType::Boolean,
     };
     let dummy_structural_result = terminal_psi::StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place: id(707, PlaceId::new),
         structural_type: id(708, StructuralTypeId::new),
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
@@ -696,6 +697,7 @@ fn root_service_reach_traverses_every_internal_call_lane_and_ignores_detached_ef
         AbstractOperation::CallStructural {
             psi_operation: id(726, OperationId::new),
             result: terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: id(727, PlaceId::new),
                 structural_type: id(728, StructuralTypeId::new),
                 multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,

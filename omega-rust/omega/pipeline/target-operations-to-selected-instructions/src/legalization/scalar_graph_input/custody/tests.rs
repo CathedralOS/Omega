@@ -80,12 +80,14 @@ fn verified(backedge_ordinal: u64) -> VerifiedPsiOptimizationUnit {
             blocks: [(entry, 1), (header, backedge_ordinal)]
                 .map(|(id, edge)| Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id,
                     parameters: Vec::new(),
                     structural_parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         edge: EdgeId::new(edge).unwrap(),
                         target: header,
                         arguments: Vec::new(),
@@ -97,6 +99,7 @@ fn verified(backedge_ordinal: u64) -> VerifiedPsiOptimizationUnit {
                 .to_vec(),
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(1).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -130,6 +133,7 @@ fn scalar(raw: u64, integer: IntegerType) -> ValueDeclaration {
 fn jump(edge: u64, target: BlockId, arguments: Vec<ValueId>) -> Terminator {
     Terminator::Jump {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: id(edge, EdgeId::new),
         target,
         arguments,
@@ -142,6 +146,7 @@ fn jump(edge: u64, target: BlockId, arguments: Vec<ValueId>) -> Terminator {
 fn successor(edge: u64, target: BlockId, arguments: Vec<ValueId>) -> SuccessorEdge {
     SuccessorEdge {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: id(edge, EdgeId::new),
         target,
         arguments,
@@ -153,6 +158,7 @@ fn successor(edge: u64, target: BlockId, arguments: Vec<ValueId>) -> SuccessorEd
 fn operation(number: u64, result: ValueDeclaration, kind: OperationKind) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(number, OperationId::new),
         result: OperationResult::Scalar(result),
         kind,
@@ -196,6 +202,7 @@ fn empty_module(machine: TerminalMachine) -> TerminalModule {
 fn contract() -> MachineContract {
     MachineContract {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: id(1, ContractId::new),
         crash_routes: Vec::new(),
         requires: Vec::new(),
@@ -239,6 +246,7 @@ fn plain_block(
 ) -> Block {
     Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: block,
         parameters,
         structural_parameters: Vec::new(),

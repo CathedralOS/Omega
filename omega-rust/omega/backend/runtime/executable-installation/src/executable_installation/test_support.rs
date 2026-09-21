@@ -13,9 +13,9 @@ use super::{
 use extents::{AddressSpaceId, Extent, ExtentProvenanceId, ExtentRights};
 use extents::{
     ExtentDiagnostic, ExtentLineageId, ExtentRightId, ExtentRootGrant, MappedExtent, MappingEraId,
-    MappingGrant, MappingGrantId, MappingId, MappingSourceMode, TranslationActivationFactId,
-    TranslationActivationReceipt, TranslationInstallObligations, TranslationReleaseObligations,
-    map_owned,
+    MappingGrant, MappingGrantId, MappingId, MappingSourceMode, PeerWriteRevocationObligations,
+    TranslationActivationFactId, TranslationActivationReceipt, TranslationInstallObligations,
+    TranslationReleaseObligations, map_owned,
 };
 use layout_plans::{
     ArtifactInstallationScopeId, PlacementAddressRange, PlacementPhase, PlacementSite,
@@ -214,6 +214,7 @@ pub(super) fn activated_writer_mapping(base: u64, length: u64) -> MappedExtent<'
         extent_id(162, MappingEraId::from_normalized_identity),
         TranslationInstallObligations::from_normalized_facts([activation]),
         TranslationReleaseObligations::default(),
+        PeerWriteRevocationObligations::default(),
     );
     let pending = map_owned(
         source,
@@ -251,7 +252,22 @@ pub(super) fn placement_authority(
     base: u64,
     length: u64,
 ) -> CodePlacementAuthority {
-    placement_authority_with_constraints(placement, base, length, artifact_placement_constraints())
+    placement_authority_for_audience(placement, base, length, InstallationAudience::FutureFetcher)
+}
+
+pub(super) fn placement_authority_for_audience(
+    placement: u64,
+    base: u64,
+    length: u64,
+    audience: InstallationAudience,
+) -> CodePlacementAuthority {
+    placement_authority_with_constraints_for_audience(
+        placement,
+        base,
+        length,
+        artifact_placement_constraints(),
+        audience,
+    )
 }
 
 pub(super) fn placement_authority_with_constraints(
@@ -260,13 +276,29 @@ pub(super) fn placement_authority_with_constraints(
     length: u64,
     constraints: PlacementConstraints,
 ) -> CodePlacementAuthority {
+    placement_authority_with_constraints_for_audience(
+        placement,
+        base,
+        length,
+        constraints,
+        InstallationAudience::FutureFetcher,
+    )
+}
+
+pub(super) fn placement_authority_with_constraints_for_audience(
+    placement: u64,
+    base: u64,
+    length: u64,
+    constraints: PlacementConstraints,
+    audience: InstallationAudience,
+) -> CodePlacementAuthority {
     let scope = ArtifactInstallationScopeId::from_normalized_identity(61)
         .expect("artifact installation scope");
     let extent = placement_extent(placement, base, length);
     CodePlacementAuthority::from_admitted_provider(
         id(placement, CodePlacementId::from_normalized_identity),
         id(61, InstallationScopeId::from_normalized_identity),
-        InstallationAudience::FutureFetcher,
+        audience,
         &extent,
         rights(&[51]),
         constraints,
@@ -311,7 +343,21 @@ pub(super) fn frozen(
     placement_identity: u64,
     base: u64,
 ) -> FrozenPlacement {
-    let placement = placement_authority(placement_identity, base, 4096)
+    frozen_for_audience(
+        admitted,
+        placement_identity,
+        base,
+        InstallationAudience::FutureFetcher,
+    )
+}
+
+pub(super) fn frozen_for_audience(
+    admitted: &AdmittedArtifact,
+    placement_identity: u64,
+    base: u64,
+    audience: InstallationAudience,
+) -> FrozenPlacement {
+    let placement = placement_authority_for_audience(placement_identity, base, 4096, audience)
         .claim(placement_extent(placement_identity, base, 4096))
         .expect("placement");
     let materialized = materialize_admitted_artifact(admitted, &placement, |_| None)
@@ -342,7 +388,21 @@ pub(super) fn installed_code(
     placement: u64,
     base: u64,
 ) -> InstalledCode {
-    let frozen = frozen(admitted, placement, base);
+    installed_code_for_audience(
+        admitted,
+        placement,
+        base,
+        InstallationAudience::FutureFetcher,
+    )
+}
+
+pub(super) fn installed_code_for_audience(
+    admitted: &AdmittedArtifact,
+    placement: u64,
+    base: u64,
+    audience: InstallationAudience,
+) -> InstalledCode {
+    let frozen = frozen_for_audience(admitted, placement, base, audience);
     let certificate = certificate(&frozen, 80 + placement);
     let validated = validate_final_placement(frozen, &certificate).expect("validated placement");
     let authority = InstallAuthority::from_admitted_provider(&validated);

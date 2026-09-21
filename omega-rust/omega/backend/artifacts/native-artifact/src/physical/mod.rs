@@ -9,13 +9,13 @@ pub(crate) use fragment_publication::derive_scope as derive_fragment_publication
 pub use model::{
     BoundaryTraitSettlement, BoundaryTraitSettlementParts, BoundaryTraitSettlementRole,
     CompilerBuiltinResult, CompilerBuiltinScalarArgument, DynamicCallDispatch,
-    DynamicCallDispatchParts, NativeByteSpan, NativeCompilerBuiltinCatalogIdentity,
-    NativeOptimizationProjection, NativePhysicalChild, NativePhysicalChildParts,
-    NativePhysicalEvidence, NativePhysicalEvidenceGap, NativePhysicalEvidenceGapSubject,
-    NativePhysicalEvidenceParts, NativePhysicalOccurrence, NormalizedForeignCallImportField,
-    NormalizedForeignCallRelocation, NormalizedForeignCallbackRelocation,
-    NormalizedForeignCallbackRelocations, OptimizedBoundaryOccurrence, OptimizedOperatorOccurrence,
-    PhysicalChildParent, PhysicalRelocationDisposition,
-    ValidatedOptimizedNativePhysicalEvidenceScope,
+    DynamicCallDispatchParts, DynamicCallRelocationCustody, NativeByteSpan,
+    NativeCompilerBuiltinCatalogIdentity, NativeOptimizationProjection, NativePhysicalChild,
+    NativePhysicalChildParts, NativePhysicalEvidence, NativePhysicalEvidenceGap,
+    NativePhysicalEvidenceGapSubject, NativePhysicalEvidenceParts, NativePhysicalOccurrence,
+    NormalizedForeignCallImportField, NormalizedForeignCallRelocation,
+    NormalizedForeignCallbackRelocation, NormalizedForeignCallbackRelocations,
+    OptimizedBoundaryOccurrence, OptimizedOperatorOccurrence, PhysicalChildParent,
+    PhysicalRelocationDisposition, ValidatedOptimizedNativePhysicalEvidenceScope,
 };
 pub(crate) use projection::derive_validated_optimization_scope;

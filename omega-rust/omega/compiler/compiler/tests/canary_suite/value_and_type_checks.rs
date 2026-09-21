@@ -279,6 +279,31 @@ fn write_only_boundary_provider_requires_admitted_claim() {
     );
 }
 
+// A bare boundary trait is not a service carrier: every value position that
+// could spell one (data field, variant payload, machine parameter and return,
+// trait signature parameter and return) rejects during source checking with
+// the `Service<R>` directive before any bridge planning runs.
+#[test]
+fn bare_boundary_trait_value_positions_reject_at_source_checking() {
+    for &name in fixture_roster::BARE_BOUNDARY_VALUE_FAIL_CANARIES {
+        let canary = fail_canary(name);
+        let expected = fs::read_to_string(canary.join("expected.txt"))
+            .unwrap_or_else(|error| panic!("{name} should carry expected.txt: {error}"));
+        let diagnostics = check_canary(&canary)
+            .err()
+            .unwrap_or_else(|| panic!("{name} should reject a bare boundary-trait value"));
+        let combined = diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            combined.contains(expected.replace('\r', "\n").trim()),
+            "{name} rejected differently: {combined}"
+        );
+    }
+}
+
 fn assert_native_exit_code(report: &CompileReport, expected: i32, fixture: &str) {
     let executable = report
         .checked_native_executable_path()

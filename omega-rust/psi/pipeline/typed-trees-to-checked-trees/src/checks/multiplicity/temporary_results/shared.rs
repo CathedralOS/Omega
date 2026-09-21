@@ -68,12 +68,8 @@ fn events(
     }
     let consumer = calls.iter().find(|call| call.call_ordinal == 0)?;
     let producer = calls.iter().find(|call| call.call_ordinal == 1)?;
-    let consumer_owner = program.machines().iter().find(|owner| {
-        program
-            .machine_states(owner)
-            .iter()
-            .any(|target| target.symbol == consumer.target_symbol)
-    })?;
+    let (consumer_owner, _) =
+        crate::semantic_calls::find_state_with_machine(program, consumer.target_symbol)?;
     if consumer_owner.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
         return None;
     }

@@ -34,6 +34,7 @@ fn helper_call(module: &mut TerminalModule, source: u64) -> Operation {
     helper.ranked_scc = None;
     helper.contract = MachineContract {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: id(2, ContractId::new),
         requires: Vec::new(),
         ensures: Vec::new(),
@@ -50,11 +51,13 @@ fn helper_call(module: &mut TerminalModule, source: u64) -> Operation {
     }];
     helper.blocks = vec![Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: id(100, BlockId::new),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
         operations: vec![Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(100, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -75,10 +78,12 @@ fn helper_call(module: &mut TerminalModule, source: u64) -> Operation {
     module.machines.push(helper);
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(40, OperationId::new),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: id(2, MachineId::new),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
@@ -125,6 +130,7 @@ fn literal_cycle() -> TerminalModule {
     }
     machine.blocks[2].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(30, OperationId::new),
         result: OperationResult::Unit,
         kind: OperationKind::EstablishByteSequenceLiteral {

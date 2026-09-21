@@ -145,13 +145,18 @@ pub use proof_contracts::properties::{
 };
 pub use proof_contracts::proposition_entailment::select_subjectless_evidence_conformance;
 pub use proof_contracts::quotients::{
-    NonExecutableQuotientCorrespondenceBatch, ValidatedQuotientFormation,
-    extract_non_executable_quotient_correspondences, validate_quotient_formations,
+    CheckedTerminationOracle, NonExecutableQuotientCorrespondenceBatch, QuotientRequestAdmission,
+    ValidatedQuotientFormation, admit_checked_quotient_requests,
+    extract_non_executable_quotient_correspondences,
+    extract_non_executable_quotient_correspondences_with_termination, validate_quotient_formations,
 };
 pub use value_custody::expression_types::argument_matches_type_reference_handle as checked_argument_matches_type_reference;
 pub use value_custody::expression_types::bounded_byte_buffer_capacity;
 pub use value_custody::expression_types::match_subject_primitive_type;
 pub use value_custody::expression_types::validate_match_dispatch;
+pub use value_custody::expression_types::{
+    MatchCaseDispatch, MatchCaseDispatchArm, MatchCaseSubject, match_case_dispatch,
+};
 pub use value_custody::expression_types::{
     arithmetic_result_type_reference, expression_result_type_reference,
     join_result_type_references, parameter_expression_result_type_reference,
@@ -257,4 +262,5 @@ pub use program_validation::{
     checked_operator_contract_snapshot, collect_contract_entailment_stand_downs,
     proven_machine_contract_expressions, validate_checked_operator_realization_contract,
     validate_generic_machine_contract_entailment, validate_program, validate_specialized_program,
+    validate_specialized_program_deferring_quotient_requests,
 };

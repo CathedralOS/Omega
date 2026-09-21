@@ -101,5 +101,9 @@ pub(crate) enum ClosedConstraintIdentity {
     Range(syntax_trees::types::IntegerRangeNormalization),
     Arithmetic(numerics::arithmetic::ArithmeticDomain),
     Declaration(syntax_trees::item::ItemHandle),
+    /// An indexed declared-domain application: the selected declaration plus
+    /// each index argument's own closed identity under the family's declared
+    /// index telescope (`u64 in AtMost<256>`).
+    IndexedDeclaration(syntax_trees::item::ItemHandle, Vec<ClosedArgumentIdentity>),
     RetainedDeclaration(symbols::SymbolHandle),
 }

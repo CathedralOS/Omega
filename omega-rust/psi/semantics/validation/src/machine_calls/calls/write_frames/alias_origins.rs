@@ -328,35 +328,51 @@ pub(crate) fn stable_alias_initializer_origins(
             })
             .collect()
         }
-        ExpressionNode::Member(member) => stable_alias_initializer_origins(
-            program,
-            current_machine,
-            machine_symbols,
-            inference,
-            member.receiver,
-            parameters,
-            isolated_local_roots,
-            aliases,
-            divergent_aliases,
-            symbols,
-            allow_isolated_local,
-            stored,
-        )?
-        .into_iter()
-        .map(|receiver| {
-            let source = receiver
-                .source
-                .projected(program, expression, member.receiver);
-            match receiver.precision {
-                FramePathPrecision::Exact => FramePlaceOrigin {
-                    path: format!("{}.{}", receiver.path, member.member.as_str()),
-                    precision: FramePathPrecision::Exact,
-                    source,
-                },
-                FramePathPrecision::CollectionCoarse => FramePlaceOrigin { source, ..receiver },
-            }
-        })
-        .collect(),
+        ExpressionNode::Member(member) => {
+            let Some(receivers) = stable_alias_initializer_origins(
+                program,
+                current_machine,
+                machine_symbols,
+                inference,
+                member.receiver,
+                parameters,
+                isolated_local_roots,
+                aliases,
+                divergent_aliases,
+                symbols,
+                allow_isolated_local,
+                stored,
+            ) else {
+                // A member projection off a transparent aggregate call result
+                // has no carrier storage to alias; a reference leaf selected
+                // there aliases its resolved referents instead.
+                return super::reference_origins::projected_carrier_reference_origins(
+                    program,
+                    current_machine,
+                    expression,
+                    symbols,
+                    inference,
+                );
+            };
+            receivers
+                .into_iter()
+                .map(|receiver| {
+                    let source = receiver
+                        .source
+                        .projected(program, expression, member.receiver);
+                    match receiver.precision {
+                        FramePathPrecision::Exact => FramePlaceOrigin {
+                            path: format!("{}.{}", receiver.path, member.member.as_str()),
+                            precision: FramePathPrecision::Exact,
+                            source,
+                        },
+                        FramePathPrecision::CollectionCoarse => {
+                            FramePlaceOrigin { source, ..receiver }
+                        }
+                    }
+                })
+                .collect()
+        }
         ExpressionNode::Match(dispatch) => {
             // Every producing arm contributes its own candidates; divergent
             // routes keep the exact finite union rather than selecting one

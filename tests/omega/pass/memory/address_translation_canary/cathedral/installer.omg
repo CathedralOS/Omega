@@ -8,29 +8,42 @@
 // empty slot -- are the next edge and need the same split/conservation
 // surface the bump allocator's package uses.
 //
-// `install` performs the real descent: the destination base yields one 9-bit
-// index per level, each level's entry points at the next table's frame, and
-// the leaf entry binds the source frame. The stores cross through
-// `TranslationHardware` -- the provider's admitted hardware edge -- and the
-// route finishes by activating the root table. This surface installs the
-// terminal leaf for the mapping's first page; multi-page iteration over the
-// mapped length is a later edge of the same route.
+// `install` performs the real descent: the pending carrier's recorded
+// destination base yields one 9-bit index per level, each level's entry
+// points at the next table's frame, and the leaf entry binds the source
+// frame. The stores cross through `TranslationHardware` -- the provider's
+// admitted hardware edge -- and the route finishes by activating the root
+// table. This surface installs the terminal leaf for the mapping's first
+// page; multi-page iteration over the mapped length is a later edge of the
+// same route.
 //
-// `remove` is the release half: it recomputes the leaf slot from the same
-// virtual base -- the deterministic `level_index` of the same input -- writes
-// `TableEntry::EMPTY` over it, and invalidates the page's local translation.
-// Only the leaf carries the mapping -- the upper entries describe the
-// hierarchy itself and stay. The mapping contract's `Shootdown` still owes
-// the cross-core completion after this local work returns.
+// The routes take the authority's carrier itself, not caller-supplied
+// geometry: `install` consumes the `Pending` carrier the `map` crossing
+// produced, reads the recorded source/destination ranges off it, and returns
+// the same carrier so the custody chain physically threads the stores.
+// The receipt crossing that follows (`activate`) therefore qualifies exactly
+// the mapping the walk installed -- there is no parallel address argument a
+// driver could have sourced elsewhere. `remove` mirrors this on the release
+// half: it consumes the `Installed` carrier, recomputes the leaf slot from
+// the same recorded destination base -- the deterministic `level_index` of
+// the same input -- writes `TableEntry::EMPTY` over it, and invalidates the
+// page's local translation before handing the carrier to `unmap`. Only the
+// leaf carries the mapping -- the upper entries describe the hierarchy
+// itself and stay. The mapping contract's `Shootdown` still owes the
+// cross-core completion after this local work returns.
 //
-// Both routes take the mapping's geometry as inert `addr` data. Whoever
-// drives them -- in this canary, the contract's driver reading the pending
-// carrier's provider-visible evidence -- supplies the same ranges the
-// authority crossing consumed; the receipt crossings, not these values, are
-// what bind an install to a mapping.
+// The borrowed-source pair is not spellable on this surface: a carrier that
+// holds a `&Extent` loan makes every record containing it a view, and the
+// loan's field qualifications do not yet survive a call boundary -- the
+// carried-loan machinery that would let `install_borrowed` thread the
+// `BorrowedMapping` carrier is upstream work, so the borrowed route keeps
+// its authority-only drivers for now.
 use omega::language::core::assembly;
 use cathedral::tables;
 use cathedral::hardware;
+use translation::Mapping;
+use translation::Mapping::Pending;
+use translation::Mapping::Installed;
 
 // A fully backed four-level page-table hierarchy over qualified table
 // extents, root first. Cathedral owns every table's backing for the
@@ -42,20 +55,38 @@ pub data CathedralPageTables {
     pt: Table;
 }
 
+// The install route's return: the hierarchy that received the stores and
+// the still-pending carrier that flowed through them. The carrier arrives at
+// `activate` only by passing through the stores, so the entry the provider
+// wrote provably belongs to the mapping the receipt qualifies.
+pub data WalkedInstall {
+    tables: CathedralPageTables;
+    pending: Mapping in Pending;
+}
+
+// The release route's return: the hierarchy with the leaf cleared and the
+// still-installed carrier that flowed through it. The carrier arrives at
+// `unmap` only by passing through the leaf clear and local invalidation.
+pub data ClearedLeaf {
+    tables: CathedralPageTables;
+    installed: Mapping in Installed;
+}
+
 // Install one mapping through the complete walk: each level's slot takes a
 // next-level entry naming the child table's frame, the leaf takes the
-// terminal entry for `source_base`, and the root activates.
+// terminal entry for the pending carrier's recorded source frame, and the
+// root activates. The same carrier is returned pending -- the authority's
+// receipt crossing is what requalifies it.
 pub machine CathedralPageTables::install(
     tables: CathedralPageTables,
     hardware: &TranslationHardware,
-    source_base: addr,
-    destination_base: addr
-) -> CathedralPageTables
+    pending: Mapping in Pending
+) -> WalkedInstall
 reaches TranslationHardware + MachineControl
 invokes hardware;
 {
-    let virtual_base: u64 = destination_base as u64;
-    let source_frame: u64 = source_base as u64;
+    let virtual_base: u64 = pending.destination.base as u64;
+    let source_frame: u64 = pending.source.base as u64;
     let pdpt_base: u64 = tables.pdpt.storage.base as u64;
     let pd_base: u64 = tables.pd.storage.base as u64;
     let pt_base: u64 = tables.pt.storage.base as u64;
@@ -75,30 +106,37 @@ invokes hardware;
     let pd_table: Table = hardware.store_entry(tables.pd, pd_slot, pd_entry);
     let pt_table: Table = hardware.store_entry(tables.pt, pt_slot, leaf_entry);
     hardware.activate_root(&pml4_table);
-    CathedralPageTables { pml4: pml4_table, pdpt: pdpt_table, pd: pd_table, pt: pt_table }
+    WalkedInstall {
+        tables: CathedralPageTables { pml4: pml4_table, pdpt: pdpt_table, pd: pd_table, pt: pt_table },
+        pending: pending,
+    }
 }
 
-// Release the leaf serving `virtual_base`: clear its slot and invalidate the
-// page's local translation. The leaf index is the same `level_index` the
-// install computed for this base, so the cleared slot is the entry the
-// install wrote.
+// Release the leaf serving the installed carrier's recorded destination
+// base: clear its slot and invalidate the page's local translation. The
+// leaf index is the same `level_index` the install computed for this base,
+// so the cleared slot is the entry the install wrote. The carrier stays
+// installed until the authority's `unmap` receipt releases it.
 pub machine CathedralPageTables::remove(
     tables: CathedralPageTables,
     hardware: &TranslationHardware,
-    virtual_base: addr
-) -> CathedralPageTables
+    active: Mapping in Installed
+) -> ClearedLeaf
 reaches TranslationHardware + MachineControl
 invokes hardware;
 {
-    let leaf_slot: u64 = level_index(virtual_base as u64, 3);
+    let leaf_slot: u64 = level_index(active.destination.base as u64, 3);
     let cleared: TableEntry = TableEntry::EMPTY;
     let pt_table: Table = hardware.store_entry(tables.pt, leaf_slot, cleared);
-    hardware.invalidate_leaf(virtual_base);
-    CathedralPageTables {
-        pml4: tables.pml4,
-        pdpt: tables.pdpt,
-        pd: tables.pd,
-        pt: pt_table,
+    hardware.invalidate_leaf(active.destination.base);
+    ClearedLeaf {
+        tables: CathedralPageTables {
+            pml4: tables.pml4,
+            pdpt: tables.pdpt,
+            pd: tables.pd,
+            pt: pt_table,
+        },
+        installed: active,
     }
 }
 
@@ -110,14 +148,13 @@ invokes hardware;
 pub machine CathedralPageTables::install_huge(
     tables: CathedralPageTables,
     hardware: &TranslationHardware,
-    source_base: addr,
-    destination_base: addr
-) -> CathedralPageTables
+    pending: Mapping in Pending
+) -> WalkedInstall
 reaches TranslationHardware + MachineControl
 invokes hardware;
 {
-    let virtual_base: u64 = destination_base as u64;
-    let source_frame: u64 = source_base as u64;
+    let virtual_base: u64 = pending.destination.base as u64;
+    let source_frame: u64 = pending.source.base as u64;
     let pdpt_base: u64 = tables.pdpt.storage.base as u64;
     let pd_base: u64 = tables.pd.storage.base as u64;
     let pml4_slot: u64 = level_index(virtual_base, 0);
@@ -130,29 +167,36 @@ invokes hardware;
     let pdpt_table: Table = hardware.store_entry(tables.pdpt, pdpt_slot, pdpt_entry);
     let pd_table: Table = hardware.store_entry(tables.pd, pd_slot, leaf_entry);
     hardware.activate_root(&pml4_table);
-    CathedralPageTables { pml4: pml4_table, pdpt: pdpt_table, pd: pd_table, pt: tables.pt }
+    WalkedInstall {
+        tables: CathedralPageTables { pml4: pml4_table, pdpt: pdpt_table, pd: pd_table, pt: tables.pt },
+        pending: pending,
+    }
 }
 
-// Release the depth-2 leaf serving `virtual_base`: the same deterministic
-// index one level up, the same `EMPTY` overwrite, and the same local
-// invalidation -- a stale huge translation is still one page-mapping entry
-// to the hardware, only spanning more of the address space.
+// Release the depth-2 leaf serving the installed carrier's recorded
+// destination base: the same deterministic index one level up, the same
+// `EMPTY` overwrite, and the same local invalidation -- a stale huge
+// translation is still one page-mapping entry to the hardware, only
+// spanning more of the address space.
 pub machine CathedralPageTables::remove_huge(
     tables: CathedralPageTables,
     hardware: &TranslationHardware,
-    virtual_base: addr
-) -> CathedralPageTables
+    active: Mapping in Installed
+) -> ClearedLeaf
 reaches TranslationHardware + MachineControl
 invokes hardware;
 {
-    let leaf_slot: u64 = level_index(virtual_base as u64, 2);
+    let leaf_slot: u64 = level_index(active.destination.base as u64, 2);
     let cleared: TableEntry = TableEntry::EMPTY;
     let pd_table: Table = hardware.store_entry(tables.pd, leaf_slot, cleared);
-    hardware.invalidate_leaf(virtual_base);
-    CathedralPageTables {
-        pml4: tables.pml4,
-        pdpt: tables.pdpt,
-        pd: pd_table,
-        pt: tables.pt,
+    hardware.invalidate_leaf(active.destination.base);
+    ClearedLeaf {
+        tables: CathedralPageTables {
+            pml4: tables.pml4,
+            pdpt: tables.pdpt,
+            pd: pd_table,
+            pt: tables.pt,
+        },
+        installed: active,
     }
 }

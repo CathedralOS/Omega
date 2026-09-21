@@ -8,9 +8,9 @@ use crate::tests::{
     StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId,
     StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
-    VocabularyMarker, reseal_proof,
+    VocabularyMarker, encode_fixture_sections,
 };
-pub(crate) fn unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
+pub(crate) fn unit_return_parts() -> (TerminalModule, ProofBundle) {
     let machine = MachineId::new(3_501).unwrap();
     let entry = BlockId::new(3_502).unwrap();
     let module = TerminalModule {
@@ -60,6 +60,7 @@ pub(crate) fn unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
             entry,
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: entry,
                 parameters: Vec::new(),
@@ -71,6 +72,7 @@ pub(crate) fn unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(3_504).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -85,15 +87,11 @@ pub(crate) fn unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     };
-    (
-        terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
-    )
+    (module, proof)
 }
 
 pub(crate) fn structurally_parameterized_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
-    let (semantic, proof) = unit_return_artifact();
-    let mut module = terminal_codec::decode_module(&semantic).unwrap();
+    let (mut module, proof) = unit_return_parts();
     let structural_type = StructuralTypeId::new(3_505).unwrap();
     let place = PlaceId::new(3_506).unwrap();
     module.structural_types.push(StructuralTypeDeclaration {
@@ -128,13 +126,15 @@ pub(crate) fn structurally_parameterized_unit_return_artifact() -> (Vec<u8>, Vec
             is_self: false,
         },
     }];
-    (
-        terminal_codec::encode_module(&module).unwrap(),
-        reseal_proof(&module, &proof),
-    )
+    encode_fixture_sections(&module, &proof)
 }
 
 pub(crate) fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
+    let (module, proof) = structural_extent_call_unit_parts();
+    encode_fixture_sections(&module, &proof)
+}
+
+pub(crate) fn structural_extent_call_unit_parts() -> (TerminalModule, ProofBundle) {
     let caller = MachineId::new(3_601).unwrap();
     let callee = MachineId::new(3_602).unwrap();
     let extent = StructuralTypeId::new(3_603).unwrap();
@@ -173,6 +173,7 @@ pub(crate) fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
     };
     let contract = |id| MachineContract {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id,
         crash_routes: Vec::new(),
         requires: Vec::new(),
@@ -210,6 +211,7 @@ pub(crate) fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
             },
         }],
         structural_domains: vec![StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: granted,
             semantic_domain: DomainSemanticId::new(3_609).unwrap(),
             identity: "Extent::Granted".into(),
@@ -256,15 +258,18 @@ pub(crate) fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
                 entry: BlockId::new(3_610).unwrap(),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: BlockId::new(3_610).unwrap(),
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(3_611).unwrap(),
                         result: OperationResult::Unit,
                         kind: OperationKind::CallUnit {
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             arguments: Vec::new(),
                             callee,
                             structural_arguments: caller_places
@@ -305,6 +310,7 @@ pub(crate) fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
                 entry: BlockId::new(3_614).unwrap(),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: BlockId::new(3_614).unwrap(),
                     parameters: Vec::new(),
@@ -318,32 +324,27 @@ pub(crate) fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
             },
         ],
     };
-    let proof = ProofBundle::default();
-    (
-        terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
-    )
+    (module, ProofBundle::default())
 }
 
 pub(crate) fn structural_extent_unit_leaf_artifact() -> (Vec<u8>, Vec<u8>) {
-    let (semantic, _) = structural_extent_call_unit_artifact();
-    let mut module = terminal_codec::decode_module(&semantic).unwrap();
+    let (module, proof) = structural_extent_unit_leaf_parts();
+    encode_fixture_sections(&module, &proof)
+}
+
+pub(crate) fn structural_extent_unit_leaf_parts() -> (TerminalModule, ProofBundle) {
+    let (mut module, proof) = structural_extent_call_unit_parts();
     let leaf = module
         .machines
         .pop()
         .expect("the structural call fixture has one exact Unit leaf");
     module.entry = leaf.id;
     module.machines = vec![leaf];
-    let proof = ProofBundle::default();
-    (
-        terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
-    )
+    (module, proof)
 }
 
 pub(crate) fn statically_attached_unit_return_artifact() -> (Vec<u8>, Vec<u8>, StructuralTypeId) {
-    let (semantic, proof) = unit_return_artifact();
-    let mut module = terminal_codec::decode_module(&semantic).unwrap();
+    let (mut module, proof) = unit_return_parts();
     let attachment = StructuralTypeId::new(3_507).unwrap();
     module.structural_types.push(StructuralTypeDeclaration {
         id: attachment,
@@ -351,9 +352,6 @@ pub(crate) fn statically_attached_unit_return_artifact() -> (Vec<u8>, Vec<u8>, S
         shape: StructuralTypeShape::Record { fields: Vec::new() },
     });
     module.machines.first_mut().unwrap().attachment = Some(attachment);
-    (
-        terminal_codec::encode_module(&module).unwrap(),
-        reseal_proof(&module, &proof),
-        attachment,
-    )
+    let (semantic, proof) = encode_fixture_sections(&module, &proof);
+    (semantic, proof, attachment)
 }

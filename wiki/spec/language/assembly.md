@@ -4,7 +4,15 @@
 escape. Every accepted instruction has a compiler-owned contract; unknown
 instructions and raw emitted bytes reject. A prebuilt blob is a foreign provider
 artifact under admission, not inline assembly. There is no compatibility
-`Binding::Instruction` source form.
+`ForeignBinding::Instruction` source form.
+
+Target-specific assembly under [embedded interpretation](../build/embedding.md)
+is undetermined; `interpreted-inline-assembly` in
+[OWNER_QUESTIONS.md](../../../OWNER_QUESTIONS.md) owns that decision. Assembly
+remains valid source surface. No universal emulator, alternate realization, or
+blanket relocation of OS assembly behind bindings is implied by embedding. An
+interpreter must explicitly reject unsupported instructions, never silently skip
+their register, memory, authority, or control effects.
 
 ## Blocks and assertions
 

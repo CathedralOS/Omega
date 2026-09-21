@@ -129,6 +129,18 @@ pub(crate) fn collect_evidence_requirement_closure<'program>(
     }
     visited.push(trait_definition.symbol);
     output.extend(program.trait_machine_signatures(trait_definition).iter());
+    // A transparent refinement declares no requirements of its own; a binder
+    // over it selects the base conformance's requirement namespace. This
+    // order must mirror the binder placeholder symbols inserted at symbol
+    // resolution (own machines, then the refined base, then parents).
+    if let Some(base) = &trait_definition.refines
+        && let Some(base_trait) = program
+            .traits()
+            .iter()
+            .find(|candidate| candidate.symbol == base.symbol)
+    {
+        collect_evidence_requirement_closure(program, base_trait, visited, output);
+    }
     for parent in program.trait_requirements(trait_definition) {
         let Some(parent_trait) = program
             .traits()

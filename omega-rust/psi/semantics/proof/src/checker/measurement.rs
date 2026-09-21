@@ -258,9 +258,13 @@ fn proof_node_count(node: &ProofNode) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        AcceptedFact, AcceptedFactRoute, CertificateVerdict, MathematicalCoreDecision,
+        ProofObligation, ProofPlanMeasurements,
+    };
     use proof_admission::{
-        CertificateAcceptance, MathematicalJudgmentReceipt, PrimitiveJudgment, ProofSystemMarker,
+        CertificateAcceptance, MathematicalJudgmentReceipt, PrimitiveJudgment, ProofNode,
+        ProofRule, ProofSystemMarker,
     };
     use semantic_vocabulary::{
         EvidenceIdentity, IntegerMathLiteral, IntegerMathTerm, ObligationId, Proposition,

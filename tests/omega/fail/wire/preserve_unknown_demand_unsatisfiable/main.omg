@@ -1,0 +1,24 @@
+// Demand control for the PreserveUnknown axis: every sibling demand
+// (readable, writable, canonical, complete-migration) is satisfied for this
+// identical-schema pair, so the only fact that can report unsatisfied is
+// unknown preservation -- unsatisfiable by construction while no codec
+// publishes preserving decode.
+data RelayChannel {
+}
+
+data MessageLineage {
+}
+
+data LocalMessage {
+    #1 value: u32;
+}
+
+data PeerMessage {
+    #1 value: u32;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

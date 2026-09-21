@@ -1,0 +1,40 @@
+// Unestablished twin of the free-loop accumulation claim
+// `ensures result == acc + remaining` over ranked `climb` on
+// `u64[0..=1000]` formals. The
+// loop and its `Nat::Descending` certificate are unchanged, but the claimed
+// guarantee `result == acc + remaining + 1` is one the loop never
+// establishes: on the early-return arm the result is `acc + remaining`
+// exactly, so the claim is disproved outright. `climb(4, 10)` returns 14 and
+// would have met the true claim.
+use omega_language_std::console;
+use omega::language::core::service;
+
+data Main {
+    console: Service<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let total: u64 = climb(4, 10);
+    transition total == 14 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine climb(remaining: u64[0..=1000], acc: u64[0..=1000]) -> u64
+terminates by remaining -> Nat::Descending;
+ensures result == acc + remaining + 1
+{
+    transition remaining > 0 && acc < 1000 {
+        true -> climb(remaining - 1, acc + 1)
+        false -> (acc + remaining)
+    }
+}

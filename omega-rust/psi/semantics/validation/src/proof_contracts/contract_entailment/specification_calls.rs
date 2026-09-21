@@ -230,10 +230,7 @@ fn requirement_owner<'program>(
         })
 }
 
-fn signature_by_symbol(
-    program: &TypedTrees,
-    symbol: SymbolHandle,
-) -> Option<&StateSignature> {
+fn signature_by_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<&StateSignature> {
     program.traits().iter().find_map(|definition| {
         program
             .trait_machine_signatures(definition)

@@ -113,11 +113,13 @@ fn callable_module() -> TerminalModule {
             entry: BlockId::new(1).unwrap(),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(1).unwrap(),
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1).unwrap(),
                     result: OperationResult::Scalar(declaration(3)),
                     kind: OperationKind::IntegerBitwiseXor {
@@ -133,6 +135,7 @@ fn callable_module() -> TerminalModule {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(1).unwrap(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
