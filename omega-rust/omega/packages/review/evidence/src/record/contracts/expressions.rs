@@ -163,6 +163,14 @@ pub enum PackageReviewContractCallTarget {
     /// One exact compiler-owned collection/text view operation. Package
     /// callables with the same spelling remain ordinary nominals.
     CollectionView(PackageReviewCollectionViewOperation),
+    /// One compiler-owned opaque proof-view atom admitted inside a contract
+    /// fact: a bare receiverless callee whose spelling selects no package
+    /// declaration. The retained name is the atom's whole identity — the
+    /// compiler assigns no machine realization, numeric interpretation, or
+    /// equality semantics.
+    ProofView {
+        name: String,
+    },
 }
 
 /// Stable identity of one named evidence term participating in a public
@@ -268,22 +276,29 @@ impl PackageReviewContractCallTarget {
     pub const fn nominal(&self) -> Option<&PackageReviewNominalIdentity> {
         match self {
             Self::Nominal(identity) => Some(identity),
-            Self::BuiltinFunction(_) => None,
-            Self::ByteSequencePredicate(_) => None,
-            Self::CollectionView(_) => None,
+            Self::BuiltinFunction(_)
+            | Self::ByteSequencePredicate(_)
+            | Self::CollectionView(_)
+            | Self::ProofView { .. } => None,
         }
     }
 
     pub const fn builtin_function(&self) -> Option<BuiltinFunction> {
         match self {
             Self::BuiltinFunction(function) => Some(*function),
-            Self::Nominal(_) | Self::ByteSequencePredicate(_) | Self::CollectionView(_) => None,
+            Self::Nominal(_)
+            | Self::ByteSequencePredicate(_)
+            | Self::CollectionView(_)
+            | Self::ProofView { .. } => None,
         }
     }
 
     pub const fn byte_sequence_predicate(&self) -> Option<PackageReviewByteSequencePredicate> {
         match self {
-            Self::Nominal(_) | Self::BuiltinFunction(_) | Self::CollectionView(_) => None,
+            Self::Nominal(_)
+            | Self::BuiltinFunction(_)
+            | Self::CollectionView(_)
+            | Self::ProofView { .. } => None,
             Self::ByteSequencePredicate(predicate) => Some(*predicate),
         }
     }
@@ -291,7 +306,20 @@ impl PackageReviewContractCallTarget {
     pub const fn collection_view(&self) -> Option<PackageReviewCollectionViewOperation> {
         match self {
             Self::CollectionView(operation) => Some(*operation),
-            Self::Nominal(_) | Self::BuiltinFunction(_) | Self::ByteSequencePredicate(_) => None,
+            Self::Nominal(_)
+            | Self::BuiltinFunction(_)
+            | Self::ByteSequencePredicate(_)
+            | Self::ProofView { .. } => None,
+        }
+    }
+
+    pub fn proof_view_name(&self) -> Option<&str> {
+        match self {
+            Self::ProofView { name } => Some(name),
+            Self::Nominal(_)
+            | Self::BuiltinFunction(_)
+            | Self::ByteSequencePredicate(_)
+            | Self::CollectionView(_) => None,
         }
     }
 }

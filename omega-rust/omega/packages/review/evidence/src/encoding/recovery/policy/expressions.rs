@@ -194,6 +194,9 @@ fn call_target(reader: &mut Reader<'_>) -> Result<PackageReviewContractCallTarge
             3 => PackageReviewCollectionViewOperation::Bytes,
             _ => return Err(Error::InvalidTag),
         }),
+        4 => PackageReviewContractCallTarget::ProofView {
+            name: reader.string()?,
+        },
         _ => return Err(Error::InvalidTag),
     })
 }

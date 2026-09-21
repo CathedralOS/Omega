@@ -35,7 +35,7 @@ pub(crate) fn encode_provider(
     encoder.sequence(&provider.rows, encode_provider_row)?;
     encoder.sequence(&provider.row_declarations, |encoder, row| {
         encode_nominal(encoder, &row.requirement)?;
-        encode_nominal(encoder, &row.realization)?;
+        encoder.option(row.realization.as_ref(), encode_nominal)?;
         encoder.option(
             row.compiler_intrinsic_execution.as_ref(),
             encode_compiler_intrinsic_execution,
