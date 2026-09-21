@@ -6583,6 +6583,23 @@ Owners include
   - A route from Omega source: no `.omg` file names an admitted artifact, a
     placement or installed code, so no canary reaches any of this.
 
+  Re-verified at `8570ba9ae8` (swarm-w9-ffival, linux x86-64): crate 130/130
+  PASS (`cargo nextest run -p executable-installation`), and three of the
+  four bullets above have since landed inside the crate —
+  `owned_image_provider.rs` performs the contracted write-to-execute
+  operation itself (final bytes into the resident image, store ordering,
+  readback, then write-authority suspension minted into the receipt) and its
+  `call` is the physical-invocation leg: it demands the sealed
+  `InstalledEntryReference`, refuses quarantined/retired/write-held states,
+  and returns a `ResidentEntryCall` borrow that structurally blocks
+  retire/patch until release; `provider_driver.rs` composes each provider
+  operation with its lifecycle gate in one call, closing the
+  "no caller outside tests" seam. Sole open bullet: the Omega-source route —
+  no `.omg` still names an admitted artifact, placement, or installed code,
+  so no canary reaches this crate; that leg is grammar + provider-surface
+  work outside `executable-installation` and ahead of the acceptance
+  witness.
+
   Acceptance: an authored program admits a reusable artifact, materializes and
   freezes a placement, validates the exact final bytes and footprint, installs
   through one provider operation and calls into the installed code on a
