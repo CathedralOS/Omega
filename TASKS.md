@@ -7292,6 +7292,34 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Residual (host-gated, same as the other evaluator gates): the
   `run.sh --mutations` verdict leg asserting the checker's actual
   rejections runs only on evaluator-seed hosts (macOS arm64, Windows x64).
+
+  **The verdict leg could not fail, and now can (2026-09-21, macOS arm64).**
+  `mutations.py` ran `main` on a large-stack worker thread and only
+  `join()`ed it. `threading` discards a `SystemExit` raised in a non-main
+  thread, so every refusal this gate makes — producer emission failure,
+  theory-identity mismatch, any vector whose checker verdict disagreed —
+  exited 0 with no output. Observed exactly that here: `run.sh --mutations`
+  printed nothing and returned 0 while failing at the first check. The
+  worker's outcome is now captured and re-raised in the main thread, the
+  shape `full_subject.py` in this same directory already uses. Verified both
+  directions: `--mutations` now exits 1 with "mutations: producer emission
+  failed", and `--mutations-self-test` still exits 0 ("18 vectors constructed
+  over 135485028-byte request"). The sibling gates are unaffected —
+  `gate.py`, `subject_shape.py`, `counter_cost.py` and `worksim.py` call
+  `main()` directly, and `full_subject.py` already re-raises; `mutations.py`
+  was the only one.
+
+  **Seed-host qualification is also a MEMORY requirement, which the row's
+  host list does not say.** This host satisfies the ISA/OS gate —
+  `require_seed_execution_host` accepts macOS arm64, and the trace shows the
+  evaluator materialized and `codesign`ed correctly — yet the plain
+  `run.sh` gate reports `Beta encoding theory emitter failed: -9/b''` on
+  `Darwin arm64`. `-9` is SIGKILL with no stderr, consistent with the host's
+  memory ceiling rather than a logic fault: this machine has 16 GB of RAM
+  against the evaluator's large framing arena. So a macOS arm64 host is
+  necessary but not sufficient for the evaluator legs; record the memory
+  floor beside the ISA/OS list before another lane treats "macOS arm64" as
+  the whole prerequisite.
 - **BETA-ENCODING-NATIVE-CONTAINER-ACCEPTANCE.** — mined candidate; scope verified, folds into the owned cluster. Re-mines the certificate-production surface already verified on sibling row BETA-ENCODING-SELECTED-CHAIN-PRODUCTION (annotated immediately below, listing this stub by name among its re-mine names): "native container acceptance" is the same ACCEPTANCE.md acceptance — running `tests/gamma/beta-encoding-check` on a native evaluator-seed host under the exact profile — not an independent work item. Production stays upstream-blocked per PROFILE.md (the selected checker cannot admit the request; the coupled provisions wait on the Alpha extent-supply leg, admission settled by owner decision `beta-encoding-certificate-admission`), and the host legs require macOS arm64 or Windows x64, unavailable on Linux x86-64 by landed design. Every implementing surface is under live claims this wave (`tests/gamma/beta-encoding-check` + `bootstrap/proofs/beta_encoding/ACCEPTANCE.md` by GAMMA-CERT-FULL-CHECK, exp 00:00Z; the container/manifest trees by CHAIN-MANIFEST and ALPHA-SEED-CONTAINER-NATIVE-VALIDATION). No independent slice exists.
 - **BETA-ENCODING-SELECTED-CHAIN-PRODUCTION.** — mined candidate; verify scope then implement.
   Verified scope: re-mines BETA-ENCODING-CERTIFICATE-PRODUCTION's surface —
