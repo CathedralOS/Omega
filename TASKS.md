@@ -9196,7 +9196,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   13/13 green. Remaining for the lane: `matching-logic-metrics`
   `route.matching_logic_encoding` flips off `pending` and the
   slice-comparison's candidate columns fill once those records
-  regenerate under their own rows.
+  regenerate under their own rows. Re-witnessed at `e7c0099cb2`
+  (linux x86-64): `python3 tools/tests/test_matching_logic_slice.py` →
+  13/13 green; the comparison leg already landed per the sibling row —
+  `records/577d6ac2ba.json` carries `route.matching_logic_encoding`
+  **measured** (44/44 cases, 0 mismatches, 22 checkerRules / 38
+  encodingClauses, 1256 certificate bytes).
 - **MATCHING-LOGIC-COMPARISON-METRICS.** Resolved at `577d6ac2ba` —
   the "records regenerate" leg named on MATCHING-LOGIC-VERTICAL-SLICE:
   `tools/matching-logic-metrics/records/577d6ac2ba.json` is the first
