@@ -643,6 +643,7 @@ fn installed_registered_provider_mints_and_settles_the_live_claim() {
         // `MachineContract` (added by e272856962), so the whole c2l `suite`
         // test target fails to compile on main. Add the field in both.
         blocks: vec![terminal_psi::Block {
+            erased_proof_formals: Vec::new(),
             id: next_block,
             parameters: Vec::new(),
             erased_scalar_formals: Vec::new(),
@@ -656,6 +657,7 @@ fn installed_registered_provider_mints_and_settles_the_live_claim() {
             },
         }],
         contract: terminal_psi::MachineContract {
+            erased_proof_formals: Vec::new(),
             id: contract,
             crash_routes: Vec::new(),
             erased_scalar_formals: Vec::new(),
