@@ -33,7 +33,10 @@ pub enum PackageReviewCompilerIntrinsicExecution {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedPackageProviderRowIdentity {
     pub(crate) requirement: PackageReviewNominalIdentity,
-    pub(crate) realization: PackageReviewNominalIdentity,
+    /// The authored realization machine, when one exists. A toolchain-settled
+    /// plan row has no authored machine to name: its realization is a
+    /// toolchain settlement table entry, so this stays `None`.
+    pub(crate) realization: Option<PackageReviewNominalIdentity>,
     pub(crate) compiler_intrinsic_execution: Option<PackageReviewCompilerIntrinsicExecution>,
     pub(crate) installation_reach: Option<PackageReviewSelectedInstallationReach>,
 }
@@ -43,8 +46,8 @@ impl CheckedPackageProviderRowIdentity {
         &self.requirement
     }
 
-    pub const fn realization(&self) -> &PackageReviewNominalIdentity {
-        &self.realization
+    pub const fn realization(&self) -> Option<&PackageReviewNominalIdentity> {
+        self.realization.as_ref()
     }
 
     /// Closed compiler-owned execution child, retained separately from the

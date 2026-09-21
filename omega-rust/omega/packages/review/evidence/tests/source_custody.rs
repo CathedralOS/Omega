@@ -339,9 +339,10 @@ fn assert_semantic_dependency_rederivation_rejects(checked: &ReviewFixture, muta
 
 #[test]
 fn dangerous_authority_classification_requires_exact_accepted_binding() {
-    let Some(target) = host_target_name() else {
-        return;
-    };
+    // windows_x86_64 has no reviewed canonical `FilesystemHost` realization
+    // table, so the accepted binding stays authority evidence and no
+    // toolchain-settled provider plan joins the selected closure.
+    let target = "windows_x86_64";
 
     let canonical = TempPackage::new();
     canonical.write(

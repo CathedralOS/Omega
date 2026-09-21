@@ -3,9 +3,9 @@ use compiler::CheckedCompileRequest;
 
 #[test]
 fn empty_boundary_body_is_checked_callable_and_remains_directly_invocable() {
-    let Some(target) = host_target_name() else {
-        return;
-    };
+    // windows_x86_64 has no reviewed canonical `FilesystemHost` realization
+    // table, so the toolchain mint stays out of this authority-only fixture.
+    let target = "windows_x86_64";
 
     let package = TempPackage::new();
     package.write(

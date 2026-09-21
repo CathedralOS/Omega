@@ -520,7 +520,7 @@ pub machine LifetimeProvider::observe<'borrow>(value: &'borrow u32)
             review.selected_providers().iter().all(|provider| provider
                 .row_declarations()
                 .iter()
-                .all(|row| row.realization() != supply.callable())),
+                .all(|row| row.realization() != Some(supply.callable()))),
             "generic disclosure must not imply provider selection or installation",
         );
     }

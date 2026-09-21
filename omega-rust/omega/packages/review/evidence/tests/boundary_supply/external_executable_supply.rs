@@ -57,7 +57,7 @@ pub machine LinuxCompletion::complete(acknowledgement: InterruptAcknowledgement)
             provider
                 .row_declarations()
                 .iter()
-                .any(|row| row.realization() == supply.callable())
+                .any(|row| row.realization() == Some(supply.callable()))
         })
         .expect("selected external top-level provider");
     let [selected_row] = selected.row_declarations() else {
@@ -399,7 +399,7 @@ machine FloatProvider::square_root(value: f32) -> f32
         let [selected_row] = selected.row_declarations() else {
             panic!("one selected realization for {requirement}")
         };
-        assert_eq!(selected_row.realization(), supply.callable());
+        assert_eq!(selected_row.realization(), Some(supply.callable()));
         assert_eq!(
             selected_row.requirement().owner(),
             declaration.coordinate().identity().owner()

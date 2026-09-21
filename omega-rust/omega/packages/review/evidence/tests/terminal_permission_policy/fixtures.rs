@@ -106,14 +106,24 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
                 r#"use accepted_service::service;
 machine build(builder: &mut Build) {
     builder.package("review-fixture");
-    builder.select_provider<Console, ConsoleNativeProvider>();
+    builder.select_provider<accepted_service::Console, accepted_service::ConsoleNativeProvider>();
 }
 "#
             } else {
                 "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n"
             },
         );
-        let target = TargetProfile::LinuxX64;
+        // The canonical FilesystemHost mint requires the toolchain's exact
+        // leaf surface on linux_x86_64; these fixtures exercise permission
+        // policy on an accepted service binding, which is target-agnostic, so
+        // they settle on windows_x86_64 where no canonical table applies. The
+        // console provider declaration is linux_x86_64-gated, so the console
+        // fixture keeps the linux target.
+        let target = if console {
+            TargetProfile::LinuxX64
+        } else {
+            TargetProfile::WindowsX64
+        };
         let inputs =
             PackageCompilationInputs::new_package(package_identity(), sources, dependencies)
                 .unwrap();

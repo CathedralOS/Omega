@@ -166,20 +166,26 @@ satisfies Echo::echo { value }
         carrier,
         TargetProfile::WindowsX64,
     );
-    assert!(
-        local
+    // Selected-target compiles retain toolchain-settled entry-boundary
+    // calling plans; the authored `Echo` requirements must still carry no
+    // calling realization.
+    for fixture in [&local, &foreign] {
+        let echo = fixture
             .checked
-            .custody
-            .boundary_calling_plan_realizations()
-            .is_empty()
-    );
-    assert!(
-        foreign
-            .checked
-            .custody
-            .boundary_calling_plan_realizations()
-            .is_empty()
-    );
+            .traits()
+            .iter()
+            .find(|trait_| trait_.name.as_str() == "Echo")
+            .expect("fixture boundary trait")
+            .symbol;
+        assert!(
+            fixture
+                .checked
+                .custody
+                .boundary_calling_plan_realizations()
+                .iter()
+                .all(|realization| realization.boundary_trait != echo)
+        );
+    }
     let local = project(&local);
     let foreign = project(&foreign);
     let local_method = &local

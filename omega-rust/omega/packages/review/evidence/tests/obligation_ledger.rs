@@ -55,7 +55,19 @@ fn dangerous_authority_results_join_service_keys_not_class_order() {
     let package = TempPackage::new();
     package.write(
         "main.omg",
-        r#"pub boundary trait FilesystemHost {}
+        r#"pub boundary trait FilesystemHost {
+    machine close(fd: i32) -> i32 reaches FilesystemHost;
+    machine find_close(handle: i64) -> i32 reaches FilesystemHost;
+    machine close_handle(handle: i64) -> i32 reaches FilesystemHost;
+    machine seek(fd: i32, offset: i64, whence: i32) -> i64 reaches FilesystemHost;
+    machine duplicate(fd: i32) -> i32 reaches FilesystemHost;
+    machine lock_file(fd: i32, operation: i32) -> i32 reaches FilesystemHost;
+    machine sync(fd: i32) -> i32 reaches FilesystemHost;
+    machine sync_data(fd: i32) -> i32 reaches FilesystemHost;
+    machine set_len(fd: i32, length: i64) -> i32 reaches FilesystemHost;
+    machine set_file_permissions(fd: i32, mode: u32) -> i32 reaches FilesystemHost;
+    machine change_file_owner(fd: i32, uid: i32, gid: i32) -> i32 reaches FilesystemHost;
+}
 pub boundary trait Console {
     machine exit_process(return_code: i32) reaches Console;
 }
@@ -73,6 +85,10 @@ pub machine expose() reaches Console + FilesystemHost {}
 }
 "#,
     );
+    // linux_x86_64 joins the toolchain-minted canonical `FilesystemHost`
+    // realization plan: the accepted binding selects a target with a reviewed
+    // settlement table, so review must project a toolchain-settled plan whose
+    // rows carry no authored realization machine.
     let candidate = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("linux_x86_64"))
