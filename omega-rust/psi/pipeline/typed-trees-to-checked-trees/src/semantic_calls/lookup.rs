@@ -103,6 +103,28 @@ pub(crate) fn find_machine_head(
         .then_some((machine, state))
 }
 
+/// The machine `symbol` names, either directly or through its retained
+/// parent: a call target or member reference may spell the machine itself or
+/// one of its member declarations, and the owning machine answers for both.
+/// Unlike `find_state_with_machine` this never descends into
+/// `machine_states` — the symbol table's parent edge already names the
+/// owner — and unlike `find_machine_head` every member resolves, not only
+/// the entry state. In a well-formed program the two arms name one machine:
+/// a symbol cannot be a machine and a machine's member at once.
+pub(crate) fn find_machine(
+    program: &typed_trees::TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<&typed_trees::machine::Machine> {
+    if !symbol.is_valid() {
+        return None;
+    }
+    let parent = program.symbols.get(symbol).parent;
+    program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == symbol || machine.symbol == parent)
+}
+
 /// The parameter list of a call target: a machine entry or selected state's
 /// parameters, or --
 /// for a call through a trait-typed receiver (boundary trait machines) or a
@@ -182,7 +204,9 @@ mod tests {
     use super::SymbolHandle;
     use crate::semantic_calls::call_target_parameters;
     use crate::semantic_calls::call_target_type_parameters;
-    use crate::semantic_calls::{find_machine_head, find_state, find_state_in_machine};
+    use crate::semantic_calls::{
+        find_machine, find_machine_head, find_state, find_state_in_machine,
+    };
     use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
     use typed_trees::{machine::Machine, state::State};
 
@@ -317,6 +341,49 @@ mod tests {
         assert!(find_machine_head(&program, empty_symbol).is_none());
         assert!(find_machine_head(&program, SymbolHandle::invalid()).is_none());
         assert!(find_machine_head(&program, SymbolHandle::from_arena_index(99)).is_none());
+    }
+
+    #[test]
+    fn machine_lookup_resolves_the_machine_or_one_of_its_members() {
+        // find_machine answers the owner alone: the machine symbol names it
+        // directly, and a member state's retained parent names the same
+        // machine without any machine_states descent.
+        let mut symbols = SymbolTableBuilder::new();
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Borrowed("root"));
+        let machines = symbols.insert_children(
+            root,
+            [(SymbolKind::Machine, SymbolNameRef::Borrowed("owner"))],
+        );
+        let machine_symbol = SymbolTableBuilder::child_handles(machines)
+            .next()
+            .expect("machine");
+        let states = symbols.insert_children(
+            machine_symbol,
+            [(SymbolKind::State, SymbolNameRef::Borrowed("run"))],
+        );
+        let state_symbol = SymbolTableBuilder::child_handles(states)
+            .next()
+            .expect("state");
+
+        let mut program = typed_trees::TypedTrees {
+            symbols: symbols.finish(),
+            ..typed_trees::TypedTrees::default()
+        };
+        program.push_machine(Machine {
+            symbol: machine_symbol,
+            ..Machine::default()
+        });
+
+        for target in [machine_symbol, state_symbol] {
+            assert_eq!(
+                find_machine(&program, target).map(|machine| machine.symbol),
+                Some(machine_symbol)
+            );
+        }
+        assert!(find_machine(&program, SymbolHandle::invalid()).is_none());
+        assert!(find_machine(&program, SymbolHandle::from_arena_index(99)).is_none());
+        // A symbol whose retained parent is not a machine resolves nothing.
+        assert!(find_machine(&program, root).is_none());
     }
 
     #[test]
