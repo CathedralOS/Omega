@@ -8365,7 +8365,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   external-roots` clean, `hosted_unit_entry` suite 7/7 green. No
   independent slice exists here. Sibling aliases: STARTUP-ENTRY-MECHANICS,
   STARTUP-ENTRY-PLACEHOLDER-SWEEP, STARTUP-ENTRY-RUNTIME-MECHANICS,
-  BACKEND-STARTUP-ENTRY-MECHANICS.
+  BACKEND-STARTUP-ENTRY-MECHANICS. Re-verified at `7d03d489e3` on linux
+  x86-64: `root_entry/` still carries the five named modules
+  (root_validation, root_admission, provider_execution,
+  progress_profile_installation, opaque_callback_replacement) and
+  `image-emission/src/hosted_unit_entry.rs` is intact; the settled
+  verdict stands (dispatcher re-dispatched the resolved alias).
 - **BACKEND-STARTUP-ENTRY-MECHANICS** — mined candidate; verify scope then implement.
 - **BACKEND-VOCABULARY-REJECTION-AUDIT.** Mined candidate; scope verified at
   cb01abfa42 — audit that every vocabulary operation reaching the backend is
