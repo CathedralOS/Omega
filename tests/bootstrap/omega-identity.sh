@@ -223,7 +223,10 @@ done
 for record in \
   tests/bootstrap/omega-parser/gate.py \
   tests/bootstrap/omega-outcome/gate.py \
-  tests/bootstrap/source-closure.py
+  tests/bootstrap/omega-request/gate.py \
+  tests/bootstrap/source-closure.py \
+  tests/epsilon/d-composition/gate.py \
+  tests/epsilon/refinement/d_closure.py
 do
   for needle in "$OMEGA_COMPILER_PACKED_SIZE" "$OMEGA_COMPILER_PACKED_SHA256"
   do
@@ -231,7 +234,7 @@ do
       fail "$record lacks bound record $needle"
   done
 done
-echo "records: bound identities match bootstrap/5_omega/README.md and the omega-parser, omega-outcome, and source-closure gates"
+echo "records: bound identities match bootstrap/5_omega/README.md and every inline packed-record pin"
 
 # Gate READMEs spell byte counts with digit grouping; gate.py pins are raw.
 grouped() {
@@ -281,7 +284,8 @@ for OMEGA_EXECUTABLE_ENTRY in \
   "$OMEGA_EXECUTABLE_CONTROLS_F_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_F_ENTRY_SHA256" \
   "$OMEGA_EXECUTABLE_CONTROLS_G_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_G_ENTRY_SHA256" \
   "$OMEGA_EXECUTABLE_CONTROLS_H_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_H_ENTRY_SHA256" \
-  "$OMEGA_EXECUTABLE_CONTROLS_I_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_I_ENTRY_SHA256"
+  "$OMEGA_EXECUTABLE_CONTROLS_I_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_I_ENTRY_SHA256" \
+  "$OMEGA_EXECUTABLE_CONTROLS_J_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_J_ENTRY_SHA256"
 do
   set -- $OMEGA_EXECUTABLE_ENTRY
   grep -q "$(grouped "$1")" \
