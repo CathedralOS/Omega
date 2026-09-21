@@ -689,10 +689,22 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "domains/signature_free_requirement_route_compile",
     "domains/string_non_empty_fact",
     "domains/bodyless_internal_state_forwarding",
+    // Refinement chains: a `Parent::Child` domain inherits the parent's
+    // requirements and routed provenance, and member-relative spellings
+    // establish child membership through the parent first.
+    "domains/refinement_chain_predicates",
+    "domains/refinement_chain_routed_provenance",
     "dependent/value_rebinding_cycle_call_frame_preserves_disjoint_fact_compile",
+    // `embed` reads a `self`-rooted field as its exact proof-Int term, so the
+    // ensures view compares the result against the post-write field value.
+    "dependent/embed_self_field_view",
     "generics/const_data_param",
     "generics/closed_sum_case_membership",
     "generics/const_machine_value_params",
+    // A generic-application call occupies each declared const argument
+    // destination; authored calls fold to the closed argument before
+    // parameter checking.
+    "generics/authored_const_application_local_destination",
     "generics/declared_range_endpoint_inference",
     "generics/declared_range_endpoint_boolean_arguments",
     "generics/declared_range_endpoint_domain_qualified_calls",
@@ -835,6 +847,9 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "termination/inherited_acyclic_requirement_guarantee_compile",
     "termination/inherited_requirement_guarantee_compile",
     "termination/joint_lexicographic_machine_call_cycle_compile",
+    // A lexicographic component's strict step amount is the closed integer
+    // its spelling evaluates to.
+    "termination/lexicographic_component_constant_step_compile",
     "termination/joint_machine_call_cycle_forwarding_compile",
     "termination/mutual_recursion_countdown_compile",
     "termination/default_order_nat_countdown_compile",
@@ -907,6 +922,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "termination/rank_range_call_indexed_store_write",
     "termination/rank_range_prefix_call",
     "termination/rank_range_prefix_let_binding",
+    "termination/rank_range_prefix_let_call_argument",
     "termination/rank_range_call_component_prefix_call",
     "termination/identity_measure_call_component",
     "termination/computed_measure_rank_range",
@@ -1438,6 +1454,11 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "domains/type_constraint_unknown_domain",
     "domains/domain_pattern_payload_binding_rejected",
     "domains/signature_free_requirement_route_overloaded",
+    // A refinement chain cannot be spelled through an alias, and a routed
+    // chain cannot fabricate the default-domain provenance a field
+    // requirement demands.
+    "domains/refinement_chain_alias_rejected",
+    "domains/refinement_chain_routed_provenance_forge",
     "generics/closed_indexed_array_element_mismatch",
     "generics/closed_indexed_domain_mismatch",
     "generics/closed_indexed_domain_noncanonical_rat",
@@ -1447,6 +1468,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "generics/closed_indexed_struct_field_mismatch",
     "generics/colon_bound_rejected",
     "generics/authored_const_call_operator_requires_selection",
+    "generics/authored_const_call_operator_unselected_provider",
     "generics/authored_const_operator_requires_selection",
     "generics/const_data_argument_out_of_range",
     "generics/const_data_argument_requires_value",
@@ -1693,6 +1715,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "termination/rank_range_field_state_call_requires_unproven",
     "termination/rank_range_projected_endpoint_requires_unproven",
     "termination/lexicographic_state_call_unproven",
+    "termination/lexicographic_component_zero_step_rejected",
     "termination/retired_block_form",
     "termination/retired_standalone_decreases",
     "termination/retired_standalone_increases",
