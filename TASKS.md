@@ -7690,6 +7690,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   — 34/34 conformance, 78/78 native bounds, Beta reconstruction
   byte-identical, root audit 12,536→52+273→253, 736 word-prefix controls
   (the host-refusal legs for non-executable seeds report as expected).
+  Fourth witness at `a84ebca972` (linux x86-64): chain hygiene OK and
+  source-closure 4/4 OK re-run; the alpha-beta-edge VERIFIED evidence at
+  `0f75a052f0` stands (no bootstrap-surface commit between the two tips).
 - **BOOTSTRAP-OMEGA-D-COMPILER.** Scope verified 2026-09-20: this mined stub
   re-covers **OMEGA-D** in [TASKS_BOOTSTRAP.md](TASKS_BOOTSTRAP.md), the real
   tracked item completing the Epsilon closure
