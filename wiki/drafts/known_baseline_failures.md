@@ -1064,12 +1064,13 @@ diff:
   `review::candidate::compilation::tests::discovery_proposes_the_root_console_output_and_input_permissions_per_declared_leaf`,
   `review::candidate::compilation::tests::discovery_proposes_the_root_filesystem_cohort_permissions_per_declared_leaf`,
   `review::candidate::compilation::tests::review_publishes_the_named_component_description_for_an_independent_selection`.
-- `checked-trees-to-lowered-psi` 2:
+- `checked-trees-to-lowered-psi` 2 — both green at `42759dd5295`
+  (2026-09-21, linux x86-64, direct nextest re-run):
   `tests::structural_control_cases::ranked_countdown_lowers_to_verified_resumable_interpreter_execution`,
   `tests::structural_control_cases::ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64`.
-- `compilation-report` 1:
+- `compilation-report` 1 — green at `42759dd5295`:
   `pcc::native_evidence::tests::section_round_trips_canonically`.
-- `compiler` 1:
+- `compiler` 1 — green at `42759dd5295`:
   `compiler::tests::native_publication_writes_only_declared_products`.
 - `external-roots` 1:
   `stack_and_fuel::fixed_fuel::tests::installed_natural_cycle_safe_point_catalog_binds_to_one_occurrence`.
@@ -1088,3 +1089,14 @@ and `sections::trust_graph::tests::{canonical_bytes_and_decoder_bind_signature_w
 (the two trust_graph members fail on a missing graph root and were confirmed
 pre-existing by re-running at `50559da3ab`). Neither reading alone is the
 baseline; cite the row for the matching host.
+
+Re-verified at `42759dd5295` (2026-09-21, linux x86-64, per-name nextest
+re-runs rather than the full suite): the live linux set is the 9 names not
+marked green above — the `package-manager` 6 plus the `external-roots`,
+`native-realization` and `package-evidence` singletons all reproduce; the
+`checked-trees-to-lowered-psi` pair and the `compilation-report` and
+`compiler` singletons now pass and are marked accordingly. The failure
+signatures on this host are `Service<R>`-spelling stale fixtures
+(`0e1977994b9`'s bare-boundary-trait rejection), the unqualified
+`select_provider` operand spelling (`4406917695b`), a quotient-capture
+refusal, and a fixed-fuel catalog arity mismatch — no unexplained failures.
