@@ -80,3 +80,28 @@ Live claims adjacent to — but not covering — this surface at
 PROVIDER-ATTACHMENT-MACHINE-PLAN (~09:49Z) and
 CANARY-RUNTIME-LITERAL-DISPATCH-EXIT (~14:32Z); `facts/field_domain.rs`
 itself unfenced. Re-check `tools/claims.py status` before any code leg.
+
+## Anchor re-verification (`e63f703bc53f`, linux x86-64)
+
+Every load-bearing claim in this record still holds:
+
+- `writes.rs` — the local-initializer loop computes `predicate_domain`
+  from `domain.predicate_body.is_present()` beside `requires_provenance`
+  (:72-75) and calls `initializer_satisfies_predicate_domain` (:87);
+  the helper stands at :974 with its own `is_present` guard at :1012 and
+  the result-qualification reuse at :1474.
+- `tests/contracts/main.rs` — all eight named pins stand:
+  `predicate_domain_initializer_rejects_wrong_case` (:135),
+  `accepts_satisfying_case` (:159), `union_membership` (:180) plus its
+  outside-case reject (:195), `member_predicates` (:213) plus both
+  reject arms (:228, :240), `live_evidence` (:258),
+  `stale_evidence_rejects` (:282), `wrong_owner_rejects` (:306).
+
+Board drift since the audit: the stub now exists **twice** —
+`:14929` (unattachable spelling, no `**name.**` period) and `:14973`
+(attachable) both still read "mined candidate; verify scope then
+implement", though this record already supplies the scope verdict.
+MODULE-NAMESPACE-RESOLUTION's remaining-work list (:4979) likewise still
+names the initializer leg open; the landed `e8bcd8812989` surface
+predates both. The slice verdict is unchanged: fold or retire both
+stubs; a new dispatch has no work.
