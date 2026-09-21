@@ -9280,7 +9280,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `--mutations-self-test` green on linux x86-64). Row consumed — residual
   is the upstream extent-supply leg plus the host-gated `--mutations`
   verdict run (macOS arm64 / Windows x64 seed hosts).
-- **BETA-ENCODING-CERTIFICATE-PRODUCTION** — mined candidate; verify scope then implement.
+- **BETA-ENCODING-CERTIFICATE-PRODUCTION.** Scope verified at
+  `f501d377d811`: re-mines the certificate surface the sibling annotation
+  on BETA-ENCODING-SELECTED-CHAIN-PRODUCTION already resolved — this
+  stub is named verbatim among its re-mine names (:6966). "Production
+  through the selected chain" is ACCEPTANCE.md's producer route, and it
+  is upstream-blocked, not implementable here: PROFILE.md records the
+  selected checker cannot admit the request — the coupled provisions
+  (136,314,880-byte request extent, 137,363,456-byte evaluator frame,
+  67,108,864-unit work counter, 3,387,293,850-pair arena) select
+  "pending the Alpha extent-supply leg that realizes them", with
+  admission settled by owner decision
+  `beta-encoding-certificate-admission`. The checker's rejection
+  controls already landed under BETA-ENCODING-MUTATION-REJECTION
+  (`tests/gamma/beta-encoding-theory/mutations.py`, 18 mutated
+  requests). At verification the entire surface is live-fenced:
+  `bootstrap/proofs/beta_encoding` + `bootstrap/proofs/checker` +
+  `tests/gamma/beta-encoding-*` + `tools/bootstrap/proofs` wholesale
+  under BETA-ENCODING-NATIVE-CONTAINER-ACCEPTANCE (exp 17:09Z),
+  overlapping GAMMA-CERTIFICATE-CHECK-UNDER-PROFILE (exp 08:53Z) and
+  CHAIN-CERTIFICATE-ADMISSION-BINDING (exp 05:30Z). No independent
+  slice exists — residual is the upstream Alpha extent-supply leg plus
+  host-gated seed execution (macOS arm64 / Windows x64).
 - **BETA-ENCODING-MUTATION-REJECTION.** Landed on main — the full-subject
   mutation controls exist as `tests/gamma/beta-encoding-theory/mutations.py`
   exposed via `run.sh --mutations` / `--mutations-self-test`
