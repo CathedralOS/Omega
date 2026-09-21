@@ -6,6 +6,18 @@ together. These notes describe the smallest sound channel for a proof-actual
 lane on dynamic scalar calls; replace or delete them when the design question
 is settled elsewhere.
 
+Re-audited at `2dbccb9bd6` (NEW-PRM-DYNAMIC-ERASED-LANE-DESIGN): every
+anchor below still holds — static `Call`/`CallUnit`/`CallStructural*` carry
+`erased_arguments: Vec<ScalarTerm>` (`terminal-psi`
+`terminal_module/control_flow/operations.rs`), emission still enforces the
+roster ("erased lane disagrees with its target roster",
+`checked-trees-to-lowered-psi` internal-calls emission),
+`checks/contracts/dynamic_erased_lane.rs` still refuses by name with
+`fail/relevance/dynamic_erased_formal_lane` pinning the refusal, and the
+served board clause (TASKS.md "Remaining work" — the `&dyn` erased-lane
+refusal) is unchanged. The three-leg channel stands as designed; the item
+resolves only when the canary flips, per the evidence clause.
+
 Affected subjects: [relevance and erased parameters](../spec/terminal-psi/structural_access.md),
 [dynamic dispatch custody](../spec/terminal-psi/dynamic_dispatch.md).
 
