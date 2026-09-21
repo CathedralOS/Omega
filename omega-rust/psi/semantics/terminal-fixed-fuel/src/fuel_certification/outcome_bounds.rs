@@ -1,7 +1,9 @@
 //! Outcome-sensitive machine and control-flow composition.
 
 use crate::{FixedFuelError, UnboundedCycleCause};
-use semantic_vocabulary::{BlockId, BoundaryMachineId, IntegerValue, MachineId, OperationId};
+use semantic_vocabulary::{
+    BlockId, BoundaryMachineId, EdgeId, IntegerValue, MachineId, OperationId,
+};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_fuel::TerminalFuelSchedule;
 use terminal_psi::{
@@ -576,6 +578,32 @@ pub(super) fn terminator_targets(terminator: &Terminator) -> Vec<BlockId> {
             ..
         } => vec![when_true.target, when_false.target],
         Terminator::StructuralCase { cases, .. } => cases.iter().map(|case| case.target).collect(),
+        Terminator::Return { .. }
+        | Terminator::ReturnUnit { .. }
+        | Terminator::ReturnUnitPartialAffine { .. }
+        | Terminator::ReturnUnitNominalAffine { .. }
+        | Terminator::ReturnStructural { .. }
+        | Terminator::Crash { .. } => Vec::new(),
+    }
+}
+
+/// Each successor edge paired with its target. Terminal edges carry no
+/// target, so a return or crash contributes nothing — the same successor set
+/// `terminator_targets` sees, with the edge identity kept alongside.
+pub(super) fn terminator_edge_targets(terminator: &Terminator) -> Vec<(EdgeId, BlockId)> {
+    match terminator {
+        Terminator::Jump { edge, target, .. } => vec![(*edge, *target)],
+        Terminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => vec![
+            (when_true.edge, when_true.target),
+            (when_false.edge, when_false.target),
+        ],
+        Terminator::StructuralCase { cases, .. } => {
+            cases.iter().map(|case| (case.edge, case.target)).collect()
+        }
         Terminator::Return { .. }
         | Terminator::ReturnUnit { .. }
         | Terminator::ReturnUnitPartialAffine { .. }
