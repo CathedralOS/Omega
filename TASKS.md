@@ -8980,6 +8980,33 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   differential row; it is not host-specific — the target is named explicitly.
   Closing these five needs the asm-statement lowering arm, not more catalog
   members.
+
+  **Scoped 2026-09-21 — that arm is a multi-crate chain, not a bounded slice.**
+  The checked stage models asm instructions as builtin intrinsic calls, and
+  `typed-trees-to-checked-trees/src/execution/unit/calls/call_operations.rs:92`
+  carries an operation arm for exactly ONE of them: `AsmPortOut` ->
+  `CheckedUnitEffectOperationPlan::PortWrite`. The 30-odd other `Asm*` builtins
+  (`symbols/src/builtin/mod.rs:189-235`) have none, which an existing test
+  already pins deliberately —
+  `t2c/src/tests/contracts/assembly.rs`'s
+  `asm_value_intrinsic_result_types_reach_the_call_operation_frontier`, whose
+  comment says they stop "where no `CheckedUnitEffectOperationPlan` arm exists
+  for it yet".
+
+  Adding one is not one arm. Terminal Psi's `OperationKind`
+  (`terminal-psi/.../control_flow/operations.rs`) likewise carries `PortWrite`
+  and nothing else asm-shaped, so each new family needs: a checked plan variant,
+  a Terminal operation variant, a wire tag plus its
+  `wiki/spec/terminal-psi/encoding.md` table row (machine-checked by
+  `encoding_contract.rs`), verifier and interpreter arms, and the lowering and
+  native-emission legs. That is the same shape as the ElementView descriptor
+  sweep, which ran to 40 consumer legs across 6 crates.
+
+  Not design-blocked: `wiki/spec/language/assembly.md:3-7` settles the rule —
+  "every accepted instruction has a compiler-owned contract", and "assembly
+  remains valid source surface". The one open asm owner question is
+  embedded-interpretation asm, which these five legs do not exercise (they
+  cross-compile to `linux_x86_64`). It is owned engineering of real size.
 - **ASM-MEMORY-AND-TRANSFER-CONTRACTS.** Mined candidate — landed the first
   contracted memory-transfer family: the operand-provenance model is the typed
   Omega place itself. The catalog gains `AsmInstructionShape::MemoryTransfer`
