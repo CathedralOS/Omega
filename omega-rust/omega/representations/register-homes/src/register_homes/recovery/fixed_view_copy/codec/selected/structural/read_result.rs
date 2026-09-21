@@ -61,6 +61,7 @@ pub(super) fn decode_result(
         });
     }
     Ok(StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place,
         structural_type,
         multiplicity,
@@ -131,6 +132,7 @@ mod tests {
     #[test]
     fn result_codec_retains_qualifications_claims_and_submitted_layout() {
         let result = StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: PlaceId::new(1).unwrap(),
             structural_type: StructuralTypeId::new(2).unwrap(),
             multiplicity: terminal_psi::StructuralMultiplicity::Affine,

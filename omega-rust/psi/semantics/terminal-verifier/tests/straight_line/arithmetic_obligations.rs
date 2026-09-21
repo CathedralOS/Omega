@@ -1146,6 +1146,7 @@ fn structural_return_rejects_inexact_custody_and_scalar_content_carriers() {
     wrong_signature
         .structural_domains
         .push(terminal_psi::StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: semantic_vocabulary::StructuralDomainId::new(91).unwrap(),
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(91).unwrap(),
             identity: "Other".into(),
@@ -1249,6 +1250,7 @@ fn structural_call_and_return_copy_one_exact_projected_result_roster() {
         shape: StructuralTypeShape::Record { fields: Vec::new() },
     });
     module.structural_domains.push(StructuralDomainDeclaration {
+        establishment_routes: Vec::new(),
         id: domain,
         semantic_domain: semantic_vocabulary::DomainSemanticId::new(90).unwrap(),
         identity: "ReceiptPayload::Ready".into(),

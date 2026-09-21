@@ -1010,6 +1010,7 @@ fn projected_unit_calls_accept_only_the_exact_unqualified_whole_claim_slice() {
     qualified_caller
         .structural_domains
         .push(StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: domain_id(2),
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(2).unwrap(),
             identity: "ArrayPending".into(),

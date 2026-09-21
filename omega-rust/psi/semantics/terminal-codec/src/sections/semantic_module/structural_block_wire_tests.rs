@@ -142,6 +142,7 @@ fn primitive_local_operations_round_trip_with_exact_result_and_operand_identitie
                 static_reach_binding: None,
                 id: id(31),
                 result: OperationResult::Structural(StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place: id(23),
                     structural_type: id(7),
                     multiplicity: StructuralMultiplicity::Unrestricted,

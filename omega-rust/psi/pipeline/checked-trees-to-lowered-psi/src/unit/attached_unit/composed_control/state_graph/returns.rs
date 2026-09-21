@@ -493,6 +493,7 @@ pub(super) fn emit_case(
         id: operation,
         result: terminal_psi::OperationResult::Structural(
             terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place,
                 structural_type: result.structural_type,
                 multiplicity: result.multiplicity,

@@ -81,6 +81,7 @@ pub(crate) fn structural_result_call_unit() -> PsiOptimizationUnit {
                     AbstractOperation::CallStructural {
                         psi_operation: id(357, OperationId::new),
                         result: terminal_psi::StructuralOperationResult {
+                            qualification_establishments: Vec::new(),
                             place: call_result,
                             structural_type,
                             multiplicity: terminal_psi::StructuralMultiplicity::Linear,

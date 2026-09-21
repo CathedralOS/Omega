@@ -233,6 +233,7 @@ pub(crate) fn emit_scalar_binding(
                     structural_type,
                 } => (
                     OperationResult::Structural(StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
                         place,
                         structural_type,
                         multiplicity: StructuralMultiplicity::Unrestricted,

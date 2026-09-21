@@ -52,6 +52,7 @@ fn constructed_case_call_module(
         static_reach_binding: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: parameter.place,
             structural_type: parameter.structural_type,
             multiplicity,
@@ -602,6 +603,7 @@ fn owned_operation_result_keeps_structural_case_dispatch() {
         static_reach_binding: None,
         id: operation,
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: source.place,
             structural_type: source.structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,

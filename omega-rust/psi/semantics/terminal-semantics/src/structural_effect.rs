@@ -1517,6 +1517,7 @@ mod tests {
             static_reach_binding: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: destination,
                 structural_type: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
                 multiplicity: terminal_psi::StructuralMultiplicity::Affine,
@@ -1595,6 +1596,7 @@ mod tests {
     #[test]
     fn primitive_local_actions_retain_exact_subjects_without_scalar_equations() {
         let local = OperationResult::Structural(terminal_psi::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: PlaceId::new(23).unwrap(),
             structural_type: semantic_vocabulary::StructuralTypeId::new(7).unwrap(),
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,

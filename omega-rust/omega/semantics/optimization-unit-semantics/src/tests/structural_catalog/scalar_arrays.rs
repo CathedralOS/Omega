@@ -97,6 +97,7 @@ fn array_unit(length: u64) -> PsiOptimizationUnit {
     establishment.operation = O::EstablishScalarArray {
         psi_operation: operation,
         result: terminal_psi::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place,
             structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,

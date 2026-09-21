@@ -40,6 +40,11 @@ pub struct StructuralOperationResult {
     /// Strictly ordered exact qualifications rooted beneath `place`. Calls
     /// copy this roster exactly from the callee result declaration.
     pub projected_qualifications: Vec<StructuralPathQualification>,
+    /// Strictly ordered establishment bindings for this result's
+    /// route-authorized memberships. The establishing occurrence is this
+    /// operation; replay resolves the callee identity against the domain's
+    /// authorized route catalog row.
+    pub qualification_establishments: Vec<crate::ResultQualificationEstablishment>,
     /// Strictly ordered caller-local claim occurrences rooted beneath `place`.
     pub claims: Vec<StructuralResultClaimBinding>,
 }

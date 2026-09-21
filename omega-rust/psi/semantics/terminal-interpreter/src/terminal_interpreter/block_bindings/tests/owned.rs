@@ -368,6 +368,7 @@ fn owned_record_result_handoff_preserves_backing_and_rejects_forged_producer() {
                     id: operation,
                     static_reach_binding: None,
                     result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
                         place: parameter.place,
                         structural_type: parameter.structural_type,
                         multiplicity: parameter.multiplicity,

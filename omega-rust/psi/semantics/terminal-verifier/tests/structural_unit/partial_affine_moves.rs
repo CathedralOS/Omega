@@ -846,6 +846,7 @@ fn entry_claims_are_dense_in_each_machine_local_namespace() {
 #[test]
 fn structural_semantic_sets_have_one_canonical_order() {
     let second_domain = StructuralDomainDeclaration {
+        establishment_routes: Vec::new(),
         id: domain_id(2),
         semantic_domain: semantic_vocabulary::DomainSemanticId::new(2).unwrap(),
         identity: "Ready".into(),

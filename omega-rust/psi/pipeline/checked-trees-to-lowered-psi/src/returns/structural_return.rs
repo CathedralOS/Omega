@@ -348,6 +348,7 @@ fn lower_structural_domain_plans(
         .into_iter()
         .map(|plan| {
             Ok(StructuralDomainDeclaration {
+                establishment_routes: Vec::new(),
                 id: lookup_domain_id(&domain_ids, plan.domain)?,
                 semantic_domain: DomainSemanticId::new(u64::from(plan.domain.0))
                     .ok_or(LoweringError::InvalidContentDomainIdentity)?,

@@ -246,6 +246,7 @@ fn boundary_buffer_checks_nested_field_identity_and_relevance() {
 fn boundary_buffer_does_not_infer_view_qualifications() {
     let mut module = buffer_module();
     module.structural_domains.push(StructuralDomainDeclaration {
+        establishment_routes: Vec::new(),
         id: domain_id(1),
         semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
         identity: "View::Ready".into(),

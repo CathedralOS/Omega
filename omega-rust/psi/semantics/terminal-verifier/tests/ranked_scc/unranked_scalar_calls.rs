@@ -263,6 +263,7 @@ fn structural_scalar_call_cycle() -> TerminalModule {
             static_reach_binding: None,
             id: id(20, OperationId::new),
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: id(1, PlaceId::new),
                 structural_type: id(1, StructuralTypeId::new),
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -500,6 +501,7 @@ fn unrestricted_structural_call_cycle() -> TerminalModule {
             static_reach_binding: None,
             id: id(20, OperationId::new),
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: id(11, PlaceId::new),
                 structural_type: sum_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -536,6 +538,7 @@ fn unrestricted_structural_call_cycle() -> TerminalModule {
             static_reach_binding: None,
             id: id(30, OperationId::new),
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: id(1, PlaceId::new),
                 structural_type: sum_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,

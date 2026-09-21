@@ -47,6 +47,7 @@ fn record_reference_module() -> TerminalModule {
             static_reach_binding: None,
             id: operation_id(96),
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: place_id(96),
                 structural_type: structural_type_id(95),
                 multiplicity: StructuralMultiplicity::Affine,
@@ -435,6 +436,7 @@ fn owned_record_repacking_preserves_captured_ingress_after_parameter_moves() {
         static_reach_binding: None,
         id: operation_id(406),
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: place_id(406),
             structural_type: structural_type_id(405),
             multiplicity: StructuralMultiplicity::Affine,

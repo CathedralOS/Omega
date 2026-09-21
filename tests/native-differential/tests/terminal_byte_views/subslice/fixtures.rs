@@ -34,6 +34,7 @@ pub(in super::super) fn suffix_module() -> TerminalModule {
     };
     machine.blocks[1].operations[0].result =
         OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: suffix,
             structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -102,6 +103,7 @@ pub(super) fn nested_suffix_module() -> TerminalModule {
                 static_reach_binding: None,
                 id: OperationId::new(41).unwrap(),
                 result: OperationResult::Structural(StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place: nested,
                     structural_type,
                     multiplicity: StructuralMultiplicity::Unrestricted,

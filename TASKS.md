@@ -5453,6 +5453,40 @@ moved to the termination-catalog fence (see that row's refresh note).
   chain is still indivisible for a bounded slice — codec without
   verifier replay remains a dead field.
 
+  Partial — Terminal establishment binding + replay are now in place
+  (zergling/z73). `StructuralDomainDeclaration.establishment_routes` retains the
+  domain's private issuer catalog as `StructuralEstablishmentRoute::{Requirement,
+  ExactMachine, BoundaryRequirement}`, and `StructuralOperationResult.
+  qualification_establishments` binds each carried membership to one route row.
+  The checked plan carries `CheckedUnitStructuralDomainPlan.establishment_routes`
+  populated from `program.domain_definitions()`, and terminal-codec round-trips
+  both surfaces. The verifier replays every binding fail-closed: the domain must
+  appear on the result (or a projected row), the route index must land inside the
+  canonical sorted catalog, and the route kind must match the call — a
+  `BoundaryRequirement` binding replays against the `BoundaryCall` callee's
+  retained declaration identity, a `Requirement` binding replays against the
+  callee's conformance-application rows (or a dynamic-dispatch requirement
+  identity, including parameter-descriptor slots), and an `ExactMachine` binding
+  replays against a realization callable identity (or a dispatch realization).
+  `terminal-verifier/tests/calls/qualification_establishments.rs` pins one
+  authorized boundary call plus six forged/misaligned rejections; noncanonical
+  catalogs reject under `NonCanonicalStructuralEstablishmentRoutes`.
+
+  The producer emits bindings only where an attached-unit module retains a
+  replayable callee identity — today that is exclusively `BoundaryRequirement`
+  routes on `BoundaryCall` operations (`catalog::
+  call_result_qualification_establishments`). An attached-unit Terminal module
+  publishes no conformance applications or callable registry, so an ordinary
+  `Call*`/`CallUnit`/`CallStructural*` callee has no retained issuer identity:
+  `Requirement` and `ExactMachine` routes remain catalog rows only, and no
+  binding is emitted rather than one the verifier could not check. The emission
+  lane is additionally dormant because no admitted source currently produces a
+  qualified boundary result in a unit closure (qualified results reject at
+  `let`/`->`/discard positions). Closing the item still needs (a) conformance-
+  application/callable-identity surfaces on attached units for the ordinary-call
+  routes, and (b) a source admission path that introduces qualified boundary
+  results so the producer lane carries real bindings end to end.
+
 - **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Finish receiver admission under
   [artifact production versus receiver admission](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission)
   and the settled

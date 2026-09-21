@@ -277,6 +277,7 @@ fn decoded_source_array_constructor_returns_through_an_ordinary_call() {
                 static_reach_binding: None,
                 id: call,
                 result: OperationResult::Structural(StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place: returned,
                     structural_type,
                     multiplicity: result.multiplicity,

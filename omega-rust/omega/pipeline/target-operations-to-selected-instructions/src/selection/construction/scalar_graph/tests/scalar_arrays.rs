@@ -28,6 +28,7 @@ pub(super) fn array_fixture(target: target::NativeTarget, length: u16) -> Legali
     let place = PlaceId::new(1).unwrap();
     let producer = source.blocks[0].instructions[2].operation;
     let result = StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place,
         structural_type: array,
         multiplicity: StructuralMultiplicity::Unrestricted,

@@ -104,6 +104,7 @@ fn extract(operation: u64, result: u64) -> Operation {
         static_reach_binding: None,
         id: id::<OperationId>(operation),
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: id::<PlaceId>(result),
             structural_type: cell(),
             multiplicity: StructuralMultiplicity::Unrestricted,

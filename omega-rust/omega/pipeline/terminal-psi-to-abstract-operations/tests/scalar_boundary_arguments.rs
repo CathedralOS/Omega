@@ -238,6 +238,7 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
         });
     module.machines[0].blocks[0].operations[0].result =
         OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place,
             structural_type,
             multiplicity: StructuralMultiplicity::Affine,
@@ -272,6 +273,7 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
     assert_eq!(
         result,
         &AbstractBoundaryResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place,
             structural_type,
             multiplicity: StructuralMultiplicity::Affine,

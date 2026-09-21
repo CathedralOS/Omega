@@ -53,6 +53,7 @@ fn local_module() -> TerminalModule {
             static_reach_binding: None,
             id: operation_id(2),
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: place_id(91),
                 structural_type: structural_type_id(91),
                 multiplicity: StructuralMultiplicity::Unrestricted,
