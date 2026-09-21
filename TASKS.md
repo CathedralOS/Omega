@@ -14715,7 +14715,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   obligations, gated on WORKLOAD-CORPUS-AND-MULTIVERSIONING per
   :8926. No independent slice exists; sibling stub
   PROOF-SEARCH-COST-MEASUREMENT is the same surface.
-- **PROOF-SUBJECT-CALL-SELECTION** — mined candidate; verify scope then implement.
+- **PROOF-SUBJECT-CALL-SELECTION.** Scope verified, covered — named
+  sibling stub of PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's resolved row,
+  same surface as the resolved PROOFS-SUBJECT-CHECKED-CALL-SELECTION
+  (this file, adjacent row): a checked/specification call cited as a
+  proof subject must
+  attribute the callee's selected precondition to the call's exact
+  subject. Implemented on `origin/main` at `1fc01bb690`
+  (`validation/src/proof_contracts/contract_entailment/specification_calls.rs`
+  checks selected concrete calls before fact intake; caller-terms
+  attribution diagnostic in `typed-trees-to-checked-trees/src/checks/operators/requires.rs`);
+  fail twins reject (`proofs/case_call_wrong_subject`,
+  `case_citation_wrong_result`), pass twin `proofs/case_call_premises`
+  compiles — filtered corpus re-verified green at `4927883cf353`.
+  Remaining owners stay the parent item's own list (abstract signatures,
+  domain predicates, postcondition transport, induction). No
+  independent slice exists here.
 - **PROOF-VALUE-SOURCE-CORRESPONDENCE** — mined candidate; verify scope then implement.
 - **PROOFS-SUBJECT-CHECKED-CALL-SELECTION.** Scope verified, covered — named sibling stub of PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's resolved row (re-verified at `4927883cf353`: filtered corpus still green — `proofs/case_call_*` fail twins reject with expected fragments, `proofs/case_call_premises` compiles), which owns this surface: a checked/specification call cited as a proof subject must attribute the callee's selected precondition to the call's exact subject. Implemented on `origin/main` at `1fc01bb690` (`validation/src/proof_contracts/contract_entailment/specification_calls.rs` checks selected concrete calls before fact intake; caller-terms attribution diagnostic in `typed-trees-to-checked-trees/src/checks/operators/requires.rs`); re-verified green at `f1675418b1` on the singular-variant row (`proofs/case_call_wrong_subject` rejects `empty_only(other)` when only `known in Tree::Empty` is established, `case_citation_wrong_result` pins the result side, pass twin `proofs/case_call_premises` compiles). Remaining owners stay the parent item's own list (abstract signatures, domain predicates, postcondition transport of case membership, induction). No independent slice exists here.
 - **PROVIDER-ATTACHMENT-MACHINE-PLAN** — mined candidate; verify scope then implement.
