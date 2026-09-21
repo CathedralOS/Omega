@@ -1,3 +1,6 @@
+// Field note (review 547b665d4b11..bc6c5788e062): this glob is the one file
+// over the extents ceiling (0) in tests/architecture/glob_self_imports.rs —
+// the gate is red on main since d5b124cd40; import the used names instead.
 use super::*;
 use crate::identities::AddressSpaceId;
 use crate::mapping::MappingId;
