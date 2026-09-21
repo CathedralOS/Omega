@@ -2622,189 +2622,123 @@ syntax and other terminal services are not prerequisites.
   uses the checked-tree interpreter and explicitly does not observe hook
   effects; its compile/interpret successes are not native cleanup acceptance.
 
-- **TR3-TR8.** Finish whole-call-graph worst-case stack derivation, exact
-  `StackPlan`, nonmoving `StackLease`, suspension/cancellation preservation,
-  transactional arguments, park/resume lowering, and the suspension-safe loan
-  subset. Bind an authoritative possibly-suspending crossing roster so coordinated
-  deletion of both a Terminal site and plan cannot erase a required crossing.
-  Follow the [task runtime contract](wiki/spec/build/task_runtime.md) and the
-  [call/outcome contract](wiki/spec/terminal-psi/calls_and_outcomes.md) through
-  `task-plans`, `provider-planning/src/task_plans/`, provider admission, and a
-  real selected runtime.
+- **TR3-TR8.** Connect activation planning and lifecycle accounting to a
+  selected runtime executing ordinary named machines under the
+  [task-runtime contract](wiki/spec/build/task_runtime.md) and
+  [suspension contract](wiki/spec/terminal-psi/calls_and_outcomes.md#suspension).
+  Owners: `provider-planning/src/task_plans/`, `task-plans`, suspension
+  production/checking, and the selected runtime implementation.
 
-  The static carriers exist: `provider-planning`'s `task_call_graph`
-  (`task_plans/stack_graphs.rs`) derives a sealed WCSU `StackPlan` over exact
-  checked-body call edges, rejects a possibly-suspending call with no
-  canonical crossing, and seals every call it cannot resolve — requirement
-  slots, machine parameters, dynamic descriptors and non-checked supply —
-  into the frame's `UnresolvedCallSite` roster, so the composed demand
-  publishes exact only when the roster is empty and `establish_stack_lease`
-  refuses a partial projection (458cac408f, 30d545108f). Admission-time
-  `CallTargetAssignment`s (`task_plans/call_target_bindings.rs`,
-  ac1efde2f7) bind a sealed site to a concrete checked-body subtree: the
-  bound subtree joins the retained composition evidence (db8b11d66a) and its
-  canonical suspension crossings join the plan roster (2e93adfdc8), so a
-  covered projection re-seals exact. The `task-plans` ledger transacts
-  `MovedTaskArguments` marshalled under the plan's `TaskArgumentLayout`
-  against a plan-bound nonmoving `StackLease`, conserving both on every
-  start rejection (35ae31b963, bb66844e56); `TaskRuntimeAdmission` gates
-  starts on bounded stack provisioning (316eaa89e5), parks and resumes
-  claims only at canonical crossings carrying each live place's
-  `LiveCarryDemand` (c1b16cb063, afda8fbe16), and settles `Cancelled` only
-  against a recorded then observed cancellation request (fe9e63735b).
-  Routed source `Task<T>` establishment exists:
-  `lifecycle_ledger/claim_route.rs` (1fedf20882) mints the exact
-  `provider`/`activation` field pair a `Task<T>` value carries onto every
-  accepted claim, resolves the pair to its live claim on the minting
-  instance only, and drives every value-carrying transition —
-  cancellation request, park/resume, safe-point observation, settlement —
-  through `*_by_route` operations sharing the claim-object checks; foreign
-  instances, fabricated pairs, and settled routes all fail closed, and a
-  burned activation identity never rebinds. Per the [task-plans
-  note](omega-rust/omega/representations/task-plans/README.md), a real
-  selected runtime executing the transitions the ledger models remains.
+  Reuse the sealed call-graph plans, argument marshalling, nonmoving leases and
+  provider-instance claim ledger. Call-side suspension markers already require
+  site/plan pairs; `suspension_call_plan_rejects_coordinated_site_and_plan_deletion`
+  pins that control. The [implementation note](omega-rust/omega/representations/task-plans/README.md)
+  distinguishes those static/accounting mechanisms from executable activation.
 
-  Acceptance: stack/control custody is never compiler-owned or lost across a
-  suspension edge, and missing crossing demand rejects. Exercise concurrent
-  start/park/resume/finish, rejection returning every moved argument and lease,
-  cross-instance settlement rejection, and fresh storage eras on reuse. Static
-  plans and lifecycle ledger tests alone do not establish executable activation
-  or argument conservation.
+  - Join final physical frame/spill demand, alignment, entry overhead and complete
+    live call chains to the exact `StackPlan` and actual provider backing.
+    Checked-local/park-frontier layout is not final physical WCSU. Preserve
+    unresolved-call refusal and same-stack versus separately provisioned demand.
+  - Execute one source-selected runtime route: install marshalled arguments,
+    start a distinct activation on its fixed nonmoving stack, reach checked
+    suspension points, park/resume the same invocation and return actual outcomes.
+    Bind provider selection, invocation receipt, runtime instance, storage era and
+    source `Task<T>` route. Ledger transitions alone do not run a machine.
+  - Extend exact suspension-frontier production beyond bounded scalar joins to
+    receiver, persistent and structural places and live claims. Retain their
+    Terminal identities and independently checked storage lifetime, pinning,
+    aliasing, address stability and cancellation-outcome evidence. Keep crossing
+    completeness through serialization/lowering; unsupported frontiers reject.
 
-- **ATOMIC-MEMORY-MODEL.** Complete the formal atomic/fence axioms and checked
-  target refinement under the
-  [concurrency contract](wiki/spec/language/concurrency.md). Owning areas are
-  proof semantics, normalized atomic events, and target realization. Acceptance:
-  reads-from/modification/global-order constraints and fence synchronization
-  are independently checked; swap/fetch retain the instruction-observed prior;
-  single-attempt failure retains its distinct outcome and custody. Add real
-  concurrent-activation controls once TR3-TR8 supplies that execution route.
-  Serial instruction tests and bounded exploration do not discharge these
-  proof obligations or authorize a weaker acquire without its protocol proof.
+  Acceptance: concurrent start/park/resume/finish with observable work and moved
+  arguments; rejection conserves caller-owned arguments/leases; foreign-instance
+  or stale-era settlement rejects and reuse requires fresh eras. Parking produces
+  no result/cleanup, and resumption repeats no committed work. Cancellation needs
+  a recorded request observed at a declared safe point, never arbitrary unwinding.
+  Preserve CPU/thread requirements and reject reclaim while child custody remains.
+  Runtime custody, physical backing ownership and linear settlement authority stay
+  distinct; a compiler/provider-owned continuation is not source-addressable.
 
-  Every `AtomicEvent` operation retains a `reads_from` edge — the
-  pre-activation `InitialResidency` or the observed write's operation
-  identity — and every write event retains a `modification_after` edge
-  naming the order member it immediately follows, both encoded into
-  operation identity like the retained ordering. Unit validation replays
-  both coherence axioms function-wide through
-  `happens_before_atomic_coherence_violation`: a bounded happens-before
-  derivation (intra-block position union block dominance) feeds a
-  reaching-writes must-analysis, so a `Write` claim resolves only when the
-  named write is the modification-order-latest write to the place on every
-  execution path — the observation's witness for readers, the immediate
-  predecessor for writers. Unit tests pin the refusals on both sides:
-  non-dominating, successor, or converging-branch members fail their
-  `NotHappensBefore` case; overwritten claims fail `ObservedWriteOverwritten`
-  or `PredecessorNotLatest`; partially-written paths refuse
-  `InitialResidency`; and a fence joins no modification order yet disturbs
-  none. The admitted-ordering matrix, fence legality, instruction-observed
-  priors, and single-attempt custody were already independently rechecked.
-  `atomic_global_order_operations` now pins the matrix width-generically —
-  the AtomicU64 family under GlobalOrder/ReceivePublish and AtomicBool's
-  non-arithmetic load/store pair — plus the remaining legal Publish/Receive
-  and relaxed compare-exchange pairings; arithmetic fetch/swap/exchange
-  carriers stay unadmitted on a two-resident cell.
+- **ATOMIC-MEMORY-MODEL.** Complete the formal atomic/fence model and checked
+  source-to-target realization under
+  [concurrency](wiki/spec/language/concurrency.md) and the
+  [atomic vocabulary contract](omega-rust/psi/foundation/language-core/atomic_operations.md).
+  Owners: Psi event/evidence production and independent Terminal checking;
+  Omega event validation, optimization preservation and target refinement.
 
-  Remaining work:
+  The abstract-event checker currently validates bounded single-function
+  reads-from/modification-predecessor claims using sequencing, dominance and
+  reaching writes. Its tests construct abstract events directly; the
+  `atomic_global_order_operations` source fixture stops at checked trees.
+  Neither establishes a concurrent memory model or a connected native producer.
 
-  - `synchronizes_with`/`global_sequential_order`/fence-pair synchronization
-    have no checkable content inside one activation — every sw-forming rule
-    pairs events across activations — so they land with TR3-TR8's
-    concurrent-execution route.
-  - Terminal Psi still emits no normalized atomic events; the producer and
-    the real concurrent-activation controls wait on TR3-TR8's route.
-  - Checked target realization does not exist yet; a weaker acquire remains
-    unauthorized without its protocol proof.
+  - Complete independently checkable `sequenced_before`, `reads_from`,
+    `modification_order`, `synchronizes_with`, `happens_before` and
+    `global_sequential_order` obligations, qualifying fence synchronization and
+    outcome-sensitive RMW behavior. Preserve settled source guarantees; raise
+    genuinely unsettled formal choices through the governing specification owner.
+    Model/checker work and relation witnesses do not require a running scheduler.
+  - Produce normalized events through checked source, Terminal Psi and abstract
+    operations, retaining exact operation, place, ordering, outcome and custody.
+    Add encoding, independent verification and source-correspondence controls.
+    A fence remains an event even when no instruction is emitted.
+  - Add target operations, realization and checked refinement for admitted
+    widths/alignment and orderings. Retain exact decode/encode and round-trip
+    obligations. Swap/fetch return the instruction-observed prior, not a separate
+    load. Preserve observing/non-observing and decisive/single-attempt behavior,
+    failure ordering, `Uncommitted` custody and retry-work attribution.
+  - Use **TR3-TR8** for real concurrent publication, qualifying fence pairs,
+    global-order and compare-exchange contention controls. That dependency gates
+    runtime witnesses, not all preceding model, producer or target work.
 
-  Gate re-verified on 62c502f9f6 (first verified on 1fc01bb690): no atomic
-  operation type exists in `target-operations`, `selected-instructions`, or
-  `abstract-operations-to-target-operations` — with no Terminal Psi
-  producer there is no realization input, so checked target realization
-  cannot start ahead of the concurrent-execution route. The serial legs
-  stand as recorded (`atomics/atomic_global_order_operations` still
-  compiles clean under `--check`; all 22 `abstract_operations::atomic` and
-  all 11 `atomic_coherence` unit-validation tests pass), and TR3-TR8
-  itself still lacks a real selected runtime. Nothing implementable
-  remains ahead of that route; re-dispatch only once TR3-TR8 publishes
-  it. Re-verified at `a51cb805cc` (linux x86-64): absence gate still
-  holds (no atomic operation type in target-operations,
-  selected-instructions, or abstract-operations-to-target-operations);
-  `atomics_and_target_canaries::atomic_global_order_operations_canary_checks`
-  1/1 green; `abstract-operations` `~atomic` 22/22 and
-  `optimization-unit-semantics` `~atomic_coherence` 11/11 green.
-  Re-verified at `3dac85e5cc` (linux x86-64): absence gate unchanged —
-  no atomic operation type in `target-operations`,
-  `selected-instructions`, or `abstract-operations-to-target-operations`;
-  all three pinned suites green (`atomic_global_order_operations_canary_checks`
-  1/1, `abstract-operations` `~atomic` 22/22,
-  `optimization-unit-semantics` `~atomic_coherence` 11/11); TR3-TR8 still
-  lacks a real selected runtime, so no leg opens — the surface carries no
-  sibling claims.
+  Acceptance: source-free checking binds every retained relation, place, ordering,
+  outcome and realization; missing/substituted evidence rejects. Retain serial
+  coherence and source-ordering controls, then add matching-host instruction and
+  concurrent execution coverage. Serial tests and bounded exploration are not a
+  formal memory-model proof. Keep the strong `Receive` baseline unless an exact
+  protocol proof admits weakening; device/DMA and interruption ordering retain
+  their separate contracts.
 
-- **BLOCKEXEC.** Implement a package-level blocking executor with bounded
-  queues, moved custody, linear completion claims, suspension, and provider
-  selection. Hung-worker recovery requiring termination must use process
-  isolation.
+- **BLOCKEXEC.** Implement the ordinary package-level blocking executor in
+  `source/library/blocking-executor/` under
+  [task-runtime library contracts](wiki/spec/build/task_runtime.md#library-and-foreign-providers)
+  and [foreign execution](wiki/spec/build/foreign_bindings.md).
+  It owns bounded queues, moved submissions and linear completion claims, not a
+  new compiler task-runtime mode.
 
-  Contract surface landed as bundled package `blocking-executor` at
-  `source/library/blocking-executor/` (`library` lane — the `source/`
-  topology gate admits only library/psi/omega owners, and bundled packages
-  are consumed through ordinary `builder.depend` edges like `std`):
-  `BoundedQueue<T, const N: u64>` with proof-discharged capacity admission;
-  `Submission`/`SubmitOutcome` moving custody by value on the accept and
-  reject edges; linear `Ticket<T>` completion claims consumed by
-  `Ticket::settle`; `suspends; blocks` worker/settle requirements over a
-  `WaitSubstrate` word-wait + wake-one/wake-many boundary; and the
-  `WorkerProvider` boundary trait selected through ordinary build
-  `select_provider` — the package declares its own trait because core's
-  `TaskRuntime` is not public outside the bundled library.
+  The package has contract declarations, not working queue/worker bodies.
+  `compiler/tests/canary_suite/task_runtime.rs` checks package consumption,
+  provider selection, linear-slot take/restore and conditional claim returns.
+  These are checked-tree fixtures, not execution. The slot example uses literal
+  index zero; the admission example passes a pre-existing ticket into `submit`.
+  They refute blanket claims that slot vacancy or multi-case linear returns are
+  unavailable, but do not establish a bounded FIFO or real claim issuance.
 
-  Concrete custody/claim pin landed at
-  `tests/omega/pass/blockexec/blocking_executor_custody_claims_compile`:
-  the contract surface hand-instantiated at `Token` (the
-  `task_lifecycle_operations` convention) — `[linear]` `Submission`,
-  `Ticket`, and `Executor`; refused-admission `Rejected` custody return;
-  `Ticket::settle` declared `suspends; blocks` parking on the wait word via
-  `suspend block`; `WorkerProvider` satisfied by a canary provider and
-  selected through `builder.select_provider`, with the routed
-  `Service<WorkerProvider>` field established into `Executor` on the
-  application root. Registered in `fixture_rosters/task_runtime.rs`; the
-  driving test
-  `task_runtime::blocking_executor_custody_claims_hold_through_the_concrete_pin`
-  compiles it to checked trees and pins linearity, suspension/blocking
-  envelopes, and the selected provider plan.
+  - Implement generic bounded queue and executor bodies, with indexed occupancy,
+    head/length/capacity proofs and surviving ownership of every queued payload.
+    Exercise the actual combined type/const `[T; N]` methods through ordinary
+    **RUNTIME-VALUE-GENERICS**; do not keep the obsolete blanket attached-method
+    blocker or manufacture an executor-only lowering path.
+  - Implement accepted/refused admission, provider-instance ticket issuance and
+    exactly-once settlement using ordinary conserved-claim/outcome evidence.
+    Acceptance must mint a claim against the actual executor, not receive a
+    fabricated/pre-existing ticket as the canary does. Rejection returns the
+    complete moved submission; close requires empty queue and no live claims.
+  - Connect selected worker and wait/wake providers to **TR3-TR8** execution.
+    Preserve thread affinity and the actual loans through suspension, including
+    settlement's executor borrow; passing only a wait word does not verify that
+    borrow or its instance relationship. Cancellation requests retain the claim.
+  - For bounded recovery from hung workers, implement actual process-isolated
+    execution with the exact parent endpoint, child manifest, custody and
+    termination evidence required by provider selection. The empty
+    `IsolatedWorkerProvider` marker and inherited conformance test supply no
+    isolation evidence; never terminate an in-process worker to reclaim custody.
 
-  The package passes `omega --check` at d05ec39a5d + this slice:
-  `Executor.runtime` is now the plain closed-carrier spelling
-  `Service<WorkerProvider>` (the retired `in Bound` qualification was
-  dropped — the closed `Service` carrier rejects authored qualification).
-  The package self-check is pinned by
-  `task_runtime::blocking_executor_package_checks_with_the_closed_service_carrier`,
-  which compiles `source/library/blocking-executor/main.omg` to checked
-  trees and re-fails on the retired spelling. The depend-and-consume
-  consumer shape (`builder.depend` + `use blocking_executor::executor` +
-  unqualified `satisfies WorkerProvider::execute` + `select_provider`)
-  checks clean under `omega --check` on a scratch consumer. The harness leg
-  landed at `340e2b5ca4`: `canary_suite/task_runtime.rs` projects authored
-  `builder.depend*` rows (`Source::Path` only) into package inputs, and the
-  durable consumer pin `blockexec/blocking_executor_consumer_depend_compile`
-  is registered in `fixture_rosters/task_runtime.rs`. The hung-worker
-  contract is declared at `8d6f12217c`: `Ticket::request_cancel` mirrors
-  `Task::request_cancel` (retains the linear claim, proves nothing) and
-  `IsolatedWorkerProvider: WorkerProvider` names the process-isolation
-  requirement — termination of a hung worker uses process isolation, never
-  in-address-space teardown — both pinned in the custody fixture.
-
-  Remaining legs: queue/executor machine bodies (generic-machine frontier,
-  recorded in `source/library/core/fixed_vec.omg`; a concrete ring over
-  `[linear]` slots also has no provable slot-empty fact channel),
-  call-returned sums carrying more than one linear case payload (the
-  multiplicity checker wants "an explicit outcome mapping" — the
-  conserved-claim join machinery), and real provider admission for the
-  type-attached `boundary requirement`s joining TR3-TR8's execution route —
-  including a provider implementation actually satisfying the declared
-  `IsolatedWorkerProvider` composition.
+  Acceptance: consume the package through its normal dependency/build path and
+  execute queued work, full-capacity refusal, FIFO delivery, park/wake and
+  settlement with linear payloads. Reject duplicate/foreign/stale tickets, lost
+  custody and premature close/reclaim. Exercise isolated hung-worker recovery
+  separately; checked declarations and provider-plan selection alone do not pass.
 
 - **QUOTIENT-THEOREM-LIFT.** Admit explicit representative operation,
   congruence theorem, and optional precondition transport for quotient-owned
@@ -4940,34 +4874,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   memory-destination stores and the exclusive/string/descriptor-table families
   need their own operand rosters, and the cache-with-memory-operand members
   (`invlpg`, `clflush`) admit through this shape once a place is spelled.
-- **ATOMICS-ORDERING-EVENT-MODEL.** Mined candidate — scope verified,
-  covered. Mines the atomic-operations half of
-  `wiki/spec/language/concurrency.md` ("Concurrency and atomic
-  observation"): the dedicated `Atomic*` core-requirement table plus the
-  ordering/event rules that follow it — fetch/swap return the prior
-  observed by the atomic instruction (a caller-visible event ordering
-  obligation), placed-access compare-exchange outcomes, and the
-  decode/encode + round-trip laws each realization must prove. Every named
-  obligation is landed on the ATOMIC-MEMORY-MODEL surface (TASKS.md:5246):
-  each `AtomicEvent` operation encodes its `reads_from` /
-  `modification_after` edge into operation identity
-  (`optimization-unit/src/optimization_unit/identity/operation_encoding/
-  atomic.rs`), `happens_before_atomic_coherence_violation` replays both
-  coherence axioms function-wide
-  (`optimization-unit-semantics/src/unit_validation/operation_contracts/
-  atomic_coherence.rs` — 11/11 unit tests green at `f501d377d811`),
-  instruction-observed-prior and single-attempt custody are pinned in
-  `abstract-operations/atomic.rs`
-  (`only_the_latest_write_on_every_path_may_be_observed`,
-  `single_attempt_requires_canonical_three_case_custody`),
-  and `atomic_global_order_operations` pins the admitted-ordering matrix
-  width-generically. Re-verified at `f501d377d811`: the recorded same-item
-  claims (z155 exp 02:59Z, Zergling-186 exp 01:38Z) and the sibling
-  ATOMIC-MEMORY-MODEL claims have all lapsed — the atomic lane carries no
-  live claim. The one open residual on this surface is ATOMIC-MEMORY-
-  MODEL's own concurrent-activation-controls leg, gated on TR3-TR8's
-  execution route; no separable slice exists under this stub's name.
-  Sibling stubs on the same surface: ATOMIC-MEMORY-MODEL.
 - **ASM-HIDDEN-EXIT-AND-MEMORY-CONTRACTS** — mined candidate; verify scope then implement.
 - **ASM-PRIVILEGED-SERVICE-ADMISSION.** Mined candidate; scope verified at
   `17fec446ef2` — the admission leg is landed, and what remains is gated
@@ -6076,47 +5982,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (`typed-trees-to-checked-trees/src/execution/unit/*`, terminal-production
   receiver eligibility) sit in GENERAL-CYCLIC-EXECUTION's unit-plan lane and
   ENTRY-CONTENT-ROOTS' live claim — outside this item's fence.
-- **CATHEDRAL-PORTABLE-PROTOCOL-VERIFICATION.** Mined candidate — scope
-  verified at `bc0ed1f0f5` (linux x86-64): the name re-mines the deferred
-  Cathedral-side clause in
-  [cathedral_alignment.md](wiki/drafts/cathedral_alignment.md) ("Atomics
-  retain actual ordering events in terminal Psi. Portable protocol
-  verification remains blocked until the event model and target refinements
-  are settled; target-specific checked operations may land earlier"). Every
-  named dependency is still gated upstream and no implementable slice exists
-  on this host:
-
-  - The event model exists only inside one activation and only above
-    Terminal Psi — `abstract-operations`' `AtomicEvent` operations retain
-    `reads_from`/`modification_after` edges replayed by
-    `optimization-unit-semantics`' `happens_before_atomic_coherence_violation`
-    — while the cross-activation content (`synchronizes_with`,
-    `global_sequential_order`, fence-pair synchronization) has no checkable
-    form until a concurrent-execution route exists. Re-verified: no atomic
-    operation or ordering-event type exists in `terminal-psi`,
-    `target-operations`, `selected-instructions`, or
-    `abstract-operations-to-target-operations` — there is nothing for a
-    portable protocol check to consume.
-  - That route is TR3-TR8's: its static carriers (sealed `StackPlan`,
-    nonmoving `StackLease`, `TaskRuntimeAdmission`, routed `Task<T>`
-    establishment) are landed, but a real selected runtime executing the
-    ledger's transitions still does not exist (`backend/runtime/` hosts no
-    task executor), and ATOMIC-MEMORY-MODEL records "Nothing implementable
-    remains ahead of that route; re-dispatch only once TR3-TR8 publishes
-    it."
-  - The Cathedral-side consumers named "portable protocol verification"
-    (serialized/revocable capability protocols, partition-tolerant leases)
-    are deferred customer asks in the same doc — they carry no source
-    semantics or acceptance tests yet.
-
-  All three legs reduce to the same published gate: a protocol-verification
-  check needs normalized atomic events in Terminal Psi plus the
-  concurrent-execution route those events verify under; both are owned by
-  ATOMIC-MEMORY-MODEL/TR3-TR8 and explicitly unlanded. The one early-landing
-  lane the clause allows — target-specific checked operations — is already
-  the ATOMIC-MEMORY-MODEL serial surface (matrix pins + coherence replay,
-  still green). No residual slice exists under this name; re-dispatch when
-  TR3-TR8's selected runtime exists.
 - **CHECKED-CALL-SELECTION-OCCURRENCE-MATH-PROOFS.** Resolved — sibling
   stub of PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's resolved row (the
   resolved verdict is recorded at `1fc01bb690`):
@@ -6342,36 +6207,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (psi_does_not_depend_on_omega forbids the dependency route).
 - **COMPILER-PASS-PROFILE-TIMINGS.** — advanced: the omega-side product legs now record into the `CompileTimings` accumulator the checked record carries. `CheckedCompilation::timings_mut` exposes it; `produce_retained_terminal_artifact` records `terminal-production`, `terminal-verification` and `native-realization-proposal` rows via take/put-back; the direct route carries `terminal-production` on `ProgramEntryTerminalArtifact::stage_timings` (merged back in `prepare_native_product`), and `NativeInputReuse` records `native-input-preparation` on cache miss. Enable+report legs landed (this wave): `CompileRequest::with_timings` reaches `PreparedCheckedSource::prepare`, which builds an `enabled` accumulator when asked; `CompileReport::timings()` carries each target's recorded ladder (`compiler -> tooling` dep edge `artifacts` is downward-legal per `workspace_layering_is_respected`), and `--timings` prints the report's stage rows after the command-level rows. Remaining leg: decompose the coarse boundary rows into per-stage rows — finer in-Psi rows need a Psi-owned timing carrier because `terminal-production` cannot depend on `artifacts` under `psi_does_not_depend_on_omega`; the prepared-project route (`PreparedLocalProjectNativeRequest`/`check_prepared_local_project`) also does not yet thread the flag. Witnessed on linux x86-64 at the pre-`c17b63d7592` green base (main is red there on `crossed_window`'s missing `CrossingDirection` arg — unrelated sibling landing): `timings_request_carries_the_recorded_stage_ladder_to_the_report` + `checked_admission_and_compilation_do_not_write_debug_dumps` pass; `compilation-report` + `assembled-syntax-to-checked-compilation` lib 93/93; `omega --lib` 16/16; architecture layering filter 14/14.
 - **COMPOSABLE-PAIR-DESCRIPTORS.** Compose selected-lowering pair-rule descriptors over independent axes instead of enumerated products. Landed: `PairMachineEffects` is now a struct of three axis enums — `PairNonUnitSurface` (isolated vs indexed-pointer-read fold), `PairFaultDischarge` (isolated vs discharged-by-literal vs discharged-by-obligation), `PairUnitDefRelation` (covered vs retired-when-dead vs operand-swapped) — with admission computed as the conjunction of per-axis gates and the eight prior variants expressed as named consts over the product (`literal_fold/pair_rule.rs`); the obligation gate now derives the obligation from the consumer kind's declared field instead of a variant-coupled kind list. `PairOperandShape` is now a struct of `PairLiteralPosition` (right/left/sole `Use` victim) × `PairOperandResult` (surviving operand, swapped operand, constant-of-literal, literal recompute) × `PairTailCustody` (bare, auxiliary `Use`s under zero-provenance custody, scratch `Def`s under occurrence-free custody, or the per-access mixed tail) with the twelve grammars expressed as named consts over the product; `victim_operand`, `fold_immediate`, and the action/validator matchers now read the axes directly — `compute/actions.rs`'s twelve-arm operand-shape match collapsed into one axis-driven admission (head layout from position+result, drop-tail custody from the tail axis) and `compute/constraints.rs`'s `validate_immediate_row` re-derives the row grammar from `(operand_result, result)` so a descriptor mistake still cannot self-certify. `PairUnitEffects` is now a struct of two `PairConsumerBindingAdmission` axes (`consumer_fixed_view`, `consumer_early_clobber`; `tied_to` stays a fixed rejection since no composition can rebuild a shared-home tie) with `ISOLATED`/`BOUND_CONSUMER_OPERANDS`/`BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS` as named consts. Remaining: none — every pair-rule descriptor is axis-composed. Re-witnessed at `ab6ad3e438a` (linux x86-64, pre-rebase): the landed axis decomposition is present and green — `selected-instructions-to-selected-instructions` 342/342 filtered tests pass over rewrites/selected_lowering + pair surfaces; the row now correctly records "Remaining: none".
-- **CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION.** — mined candidate; resolved alias, authorization gate recorded (re-verified at `fbf36233c9`: concurrency.md:138 + chapter_18:399-400 deferral sentences intact, `cross_activation_edges: CompositionCrossActivationEdges::NotRetained` still published at composition_model/mod.rs:226). Sibling re-mine of CONCURRENT-PROTOCOL-EXTRACTION's deferred surface — whole-composition extraction is deferred until a concrete protocol or safety-profile customer needs it; no implementation slice exists to claim. Same resolution as the rostered siblings on that row.
-  covered — alias of CONCURRENT-PROTOCOL-EXTRACTION's deferred surface (concurrency.md:138 authorization gate)
 - **COMPOSABLE-PAIR-DESCRIPTORS.** Compose selected-lowering pair-rule descriptors over independent axes instead of enumerated products. Landed: `PairMachineEffects` is now a struct of three axis enums — `PairNonUnitSurface` (isolated vs indexed-pointer-read fold), `PairFaultDischarge` (isolated vs discharged-by-literal vs discharged-by-obligation), `PairUnitDefRelation` (covered vs retired-when-dead vs operand-swapped) — with admission computed as the conjunction of per-axis gates and the eight prior variants expressed as named consts over the product (`literal_fold/pair_rule.rs`); the obligation gate now derives the obligation from the consumer kind's declared field instead of a variant-coupled kind list. Remaining: `PairOperandShape`'s twelve-variant product (literal position × result kind × auxiliary/scratch tail) and `PairUnitEffects`'s bound-consumer pairs (`BoundConsumerOperands`, `BoundEarlyClobberConsumerOperands`).
-- **CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION.** — mined candidate; resolved alias, authorization gate recorded (re-verified at `fbf36233c9`: concurrency.md:138 + chapter_18:399-400 deferral sentences intact, `cross_activation_edges: CompositionCrossActivationEdges::NotRetained` still published at composition_model/mod.rs:226). Sibling re-mine of CONCURRENT-PROTOCOL-EXTRACTION's deferred surface — whole-composition extraction is deferred until a concrete protocol or safety-profile customer needs it; no implementation slice exists to claim. Same resolution as the rostered siblings on that row.
-  covered — alias of CONCURRENT-PROTOCOL-EXTRACTION's deferred surface (concurrency.md:138 authorization gate)
 - **COMPOSABLE-PAIR-DESCRIPTORS.** Compose selected-lowering pair-rule descriptors over independent axes instead of enumerated products. Landed: `PairMachineEffects` is now a struct of three axis enums — `PairNonUnitSurface` (isolated vs indexed-pointer-read fold), `PairFaultDischarge` (isolated vs discharged-by-literal vs discharged-by-obligation), `PairUnitDefRelation` (covered vs retired-when-dead vs operand-swapped) — with admission computed as the conjunction of per-axis gates and the eight prior variants expressed as named consts over the product (`literal_fold/pair_rule.rs`); the obligation gate now derives the obligation from the consumer kind's declared field instead of a variant-coupled kind list. Remaining: `PairOperandShape`'s twelve-variant product (literal position × result kind × auxiliary/scratch tail) and `PairUnitEffects`'s bound-consumer pairs (`BoundConsumerOperands`, `BoundEarlyClobberConsumerOperands`).
-- **CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION.** — mined candidate; resolved alias, authorization gate recorded (re-verified at `12ea4941ebd`: concurrency.md:138 + chapter_18:399-400 deferral sentences intact, `cross_activation_edges: CompositionCrossActivationEdges::NotRetained` still published at composition_model/mod.rs:226). Sibling re-mine of CONCURRENT-PROTOCOL-EXTRACTION's deferred surface — whole-composition extraction is deferred until a concrete protocol or safety-profile customer needs it; no implementation slice exists to claim. Same resolution as the rostered siblings on that row.
-  covered — alias of CONCURRENT-PROTOCOL-EXTRACTION's deferred surface (concurrency.md:138 authorization gate)
-- **CONCURRENT-PROTOCOL-EXTRACTION.** Mined candidate — resolved, authorization gate recorded (re-verified at `f2e4007aff4`: concurrency.md:138 + chapter_18:399-400 deferral sentences intact, `cross_activation_edges: CompositionCrossActivationEdges::NotRetained` still published at composition_model/mod.rs:226). Its source surface authorizes no implementation: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format" (line 138), and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it" (lines 399-400). Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. Sibling stubs naming the same deferred surface: CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION, CONCURRENT-PROTOCOL-WHOLE-COMPOSITION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, CONCURRENCY-COMPOSITION-EXTRACTION, CONCURRENT-COMPOSITION-EXTRACTION — all resolved same-way.
-  covered — whole-composition extraction deferred by spec until a protocol/safety-profile customer exists; no slice
-- **CONCURRENT-PROTOCOL-WHOLE-COMPOSITION.** mined candidate; scope verified, authorization gate recorded (re-verified at `dccdfd1fd1`: both deferral sentences intact at concurrency.md:138 and chapter_18:399-400, and `compose_composition_model` still publishes `CompositionCrossActivationEdges::NotRetained` at composition_model/mod.rs:226). Same deferred surface as CONCURRENT-PROTOCOL-EXTRACTION: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction — this stub's exact subject — "until a concrete protocol or safety-profile customer needs it." Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. Sibling stubs naming the same deferred surface: CONCURRENT-PROTOCOL-EXTRACTION (gate recorded), CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, CONCURRENCY-COMPOSITION-EXTRACTION, CONCURRENT-COMPOSITION-EXTRACTION.
-  covered — alias of CONCURRENT-PROTOCOL-EXTRACTION's deferred surface
-  **DESIGN-BLOCKED (verified 2026-09-21).** `wiki/spec/language/concurrency.md:135-139`
-  names the dimensions a sealed erased model must retain for whole-composition
-  proof and then explicitly declines to state the extraction rule: "This
-  extraction remains deferred, not implicit authority supplied by a bounded
-  search or a proposed graph format." No graph format is specified anywhere, so
-  no code can be written without an owner deciding one. The code agrees:
-  `task-plans/src/composition_model/mod.rs` carries
-  `CompositionCrossActivationEdges::NotRetained`. Siblings on the same decision:
-  CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, WHOLE-COMPOSITION-INTERACTION-EXTRACTION,
-  WHOLE-COMPOSITION-EXTRACTION.
 
-- **CONCURRENT-PROTOCOL-EXTRACTION.** Mined candidate — resolved, authorization gate recorded (re-verified at `d32183a35c`; re-verified again at `fff3918dc42f3` (z140 leg): all three gate facts unchanged — concurrency.md:138 + chapter_18:399-400 deferral sentences intact, `cross_activation_edges: CompositionCrossActivationEdges::NotRetained` still published at composition_model/mod.rs:226; re-verified at `32a6a7fa330` (z157 leg): all three gate facts unchanged). Its source surface authorizes no implementation: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format" (line 138), and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it" (lines 399-400). Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. Sibling stubs naming the same deferred surface: CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION, CONCURRENT-PROTOCOL-WHOLE-COMPOSITION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, CONCURRENCY-COMPOSITION-EXTRACTION, CONCURRENT-COMPOSITION-EXTRACTION — all resolved same-way.
-  covered — whole-composition extraction deferred by spec until a protocol/safety-profile customer exists; no slice
-- **CONCURRENT-PROTOCOL-WHOLE-COMPOSITION.** mined candidate; scope verified, authorization gate recorded (re-verified at `a84ebca972`: both deferral sentences intact at concurrency.md:138 and chapter_18:399-400, and `compose_composition_model` still publishes `CompositionCrossActivationEdges::NotRetained` at composition_model/mod.rs:226). Same deferred surface as CONCURRENT-PROTOCOL-EXTRACTION: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction — this stub's exact subject — "until a concrete protocol or safety-profile customer needs it." Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. Sibling stubs naming the same deferred surface: CONCURRENT-PROTOCOL-EXTRACTION (gate recorded), CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, CONCURRENCY-COMPOSITION-EXTRACTION, CONCURRENT-COMPOSITION-EXTRACTION. Re-verified at `796814691e4` (linux x86-64) (z153): all three gate facts unchanged — concurrency.md:138 deferral sentence, chapter_18:399-400 whole-composition deferral, `cross_activation_edges: CompositionCrossActivationEdges::NotRetained` still published at `task-plans/src/composition_model/mod.rs:226`; no concrete protocol or safety-profile customer has surfaced, so activation stays gated.
-  covered — alias of CONCURRENT-PROTOCOL-EXTRACTION's deferred surface
-- **CONCURRENT-WHOLE-COMPOSITION-EXTRACTION.** Scope verified — authorization gate recorded. Same deferred surface as CONCURRENT-PROTOCOL-EXTRACTION and CONCURRENT-PROTOCOL-WHOLE-COMPOSITION: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction — this stub's exact subject — "until a concrete protocol or safety-profile customer needs it." Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. No implementation slice exists to claim.
-  Re-verified at `fbf36233c9` (z181): both deferral sentences intact (concurrency.md:138-139, chapter_18:399-400) and `cross_activation_edges` still publishes `CompositionCrossActivationEdges::NotRetained` at composition_model/mod.rs:226 — no same-item claim live; the authorization gate stands.
-  covered — alias of CONCURRENT-PROTOCOL-EXTRACTION's deferred surface
 - **CONST-GENERIC-EXTENT-RANGE-DISCHARGE.** — mined candidate; verify scope then implement.
 - **CONSTANT-LEAF-EXACT-CARRIER.** — mined candidate; resolved,
   verified-covered re-mine of COMPUTED-CONSTANT-LEAF-CARRIER's surface:
@@ -9951,39 +9789,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **STARTUP-ENTRY-RUNTIME-MECHANICS** — mined candidate; verify scope then implement.
 - **STATEMENT-CALL-RECURSIVE-OVERLOAD** — mined candidate; verify scope then implement.
 - **STRUCTURAL-PROOFS-CHECKED-CALL-SELECTION** — mined candidate; scope verified, resolved — mis-mined leg: `benchmarks.md` records that of the two depend-free proof subjects, "one fails earlier at checked-call selection" — that is `math_proofs` (undeclared `Bag(items)` calls in `bag_equality_carries`, occurrence 42). `structural_proofs` has no call-selection gap: `omega --check samples/cli/proofs/structural_proofs/main.omg` compiles 4 sources clean at `5b839c31ab` on linux x86-64. The remaining `Bag` repair lives under the math_proofs stubs (PROOF-SAMPLES-CHECKED-CALL-SELECTION family).
-- **SUPERVISED-STARTUP-RUNTIME-ENFORCEMENT.** Scope verified at
-  `b8d336adcf2` — re-mines the supervised-startup obligation in
-  `wiki/language_guide/chapter_19_capabilities_effects_boundaries.md`
-  §checked-topology (:523-525): "Partial startup failure requires
-  supervised cleanup, not a false success receipt or a claim to roll back
-  external side effects… runtime enforcement remains an acceptance
-  obligation, not an existing feature demonstrated by graph tests." The
-  spec itself names the first implementation customer — three checked
-  processes with private pipes on Windows and macOS — so the producing
-  leg is host-bound there, not on linux x86-64. Adjacent surface fenced
-  at verification time: `representations/task-plans` is wholesale-claimed
-  by TASK-RUNTIME-NATIVE-SUPPORT (dev-88738, exp 03:53Z). No independent
-  slice exists on this host.
-  Re-verified at `43104bde655a` (linux x86-64, z140):
-  `OMEGA_FAIL_CANARY_FILTER=<the five custody fixtures>` +
-  `fail_canaries_reject_with_expected_diagnostic_fragment` PASS (0.6s) —
-  all five custody-named fixtures still reject with their pinned
-  fragments; the verdict stands.
-  Re-verified at `b868b9ee8f27` (linux x86-64, zergling-111): the same
-  filtered run passes in 0.77s — all five custody-named fail fixtures
-  still reject with their pinned fragments. The drift census and the
-  silent acceptances remain CANARY-CORPUS's named lane; no
-  custody-specific stale-expectation slice exists on this row.
-  Re-verified at `5bb9a74842d` (linux x86-64, z197): the same filtered
-  run passes in 0.66s — all five custody-named fail fixtures still
-  reject with their pinned fragments — and the fenced surface
-  re-witnesses green: `cargo nextest run -p task-plans` 82/82 PASS with
-  `TaskLifecycleLedger::accept_invocation` (lifecycle_ledger/mod.rs)
-  still the sole activation-establishing path minting `TaskClaimRoute`.
-  The supervised-startup runtime enforcement stays host-bound to the
-  spec's named first customer (three checked processes with private
-  pipes on Windows and macOS); no linux-runnable slice exists on this
-  row.
 - **SUPPLIED-BYTES-SCAN.** Scope verified — real item, no bounded slice exists inside this repo's board. The stub names the Squalr submodule's ordered execution row (`samples/apps/squalr/TASKS.md`): port the scalar scan, snapshot storage, comparison dispatch, RLE encoder and query path through squalr-engine-api + squalr-engine-scanning — a multi-session port inside a submodule whose own AGENTS.md forbids placeholder bodies and requires the unchanged application command as outer acceptance. The submodule path is additionally wholesale-fenced at verification time (SQUALR-TARGETS-AND-THROUGHPUT, exp 21:39Z) and per the submodule's ordering it precedes CLI-COMMANDS, which gates on this row landing first. Execution belongs to the submodule's own lane under its pin — not a parent-repo slice; SQUALR-SUPPLIED-BYTES-SCAN is a sibling stub naming the same row.
 - **T2C-RANK-RANGE-FIELD-ENDPOINTS.** Mined candidate — resolved:
   rank-range endpoints expressed as field chains are landed and green.
@@ -10040,7 +9845,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `cargo check -p build-evaluation -p provider-planning -p
   package-compilation --all-targets` clean; `nextest -p target` 55/55,
   `-p build-evaluation` 90/90.
-- **TASK-RUNTIME-NATIVE-SUPPORT.** — mined candidate; verify scope then implement.
 - **TERMINATION-FIELD-ENDPOINT-TRIO.** Mined candidate — resolved: the name
   names the three `rank_ranges` field-endpoint failures recorded in
   `wiki/drafts/known_baseline_failures.md` at `660f5af762`
@@ -10431,51 +10235,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ~05:04Z) — the demand/realization companions live inside that fence.
   The replay-side leg alone produces occurrences with no downstream
   consumer; the full slice resumes after the fences drain.
-- **WAIT-WAKE-SUBSTRATE.** Scope verified — authorization gate recorded.
-  The name mines chapter_18's "Waitable Contracts: Retained Substrate
-  Direction" (`wiki/language_guide/chapter_18_concurrency.md` §331: "a
-  useful shared substrate is a small word/value wait plus wake-one/wake-many
-  boundary ... an engineering direction, not permission to describe unlike
-  host mechanisms as equivalent") and the matching paragraph in
-  `wiki/spec/build/task_runtime.md` §library-and-foreign-providers, which
-  defers to this row's inter-activation vocabulary leg: sibling rows
-  WHOLE-COMPOSITION-EXTRACTION / WHOLE-COMPOSITION-INTERACTION-EXTRACTION
-  both record that `CompositionCrossActivationEdges` publishes
-  `NotRetained` because the settled plan vocabulary retains no
-  cross-activation wait/wake edges, and that whole-composition extraction
-  is spec-deferred "until a concrete protocol or safety-profile customer
-  needs it" (`wiki/spec/language/concurrency.md` §protocol-proofs: "This
-  extraction remains deferred, not implicit authority supplied by a
-  bounded search or a proposed graph format"). Verified live at
-  `797e99ead7a`: the task-plans ledger models park/settle/routing only
-  intra-activation (`canonical_suspension_crossings`); the README records
-  real park/resume of a native stack and observation at a checked-source
-  safe point as separate unjoined consumers. Activation of either leg
-  requires a concrete customer plus a target's real wait mechanism, and
-  the vocabulary surface `omega-rust/omega/representations/task-plans/src`
-  is wholesale-claimed this wave (SUPERVISED-STARTUP-RUNTIME-ENFORCEMENT,
-  exp 02:38Z); `provider-planning`/`selected-dispatch` are held by
-  UEFI-OS-HANDOFF (exp 20:00Z) and `native-realization/providers` by
-  PLACED-ACCESS-NATIVE-OPS (exp 00:56Z). No implementation slice exists to
-  claim. Sibling gated rows on the same deferred surface:
-  CONCURRENT-PROTOCOL-EXTRACTION, CONCURRENT-PROTOCOL-WHOLE-COMPOSITION,
-  CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, WHOLE-COMPOSITION-EXTRACTION,
-  WHOLE-COMPOSITION-INTERACTION-EXTRACTION.
-  Re-verified at `8f58b6676b0` (z203 leg): the deferral clauses are
-  unchanged (`task_runtime.md` §library-and-foreign-providers still
-  carries the word/value wait plus wake-one/wake-many direction at
-  ~line 170; `concurrency.md` §protocol-proofs deferral intact), and
-  `CompositionCrossActivationEdges` still publishes `NotRetained` at
-  `composition_model/mod.rs:226` — `canonical_suspension_crossings`
-  remains the only suspension relation. Fence roster rotated: the cited
-  wholesale `task-plans/src` claim (SUPERVISED-STARTUP-RUNTIME-ENFORCEMENT)
-  and `native-realization/providers` (PLACED-ACCESS-NATIVE-OPS) have
-  drained; the surface is now held piecemeal by
-  WHOLE-COMPOSITION-EXTRACTION on `task-plans/src/composition_model`
-  (~15:51Z) while UEFI-OS-HANDOFF keeps provider-planning/selected-
-  dispatch (~10:19Z). Still no implementation slice exists to claim. The named wholesale fence's own surface re-verified at `53817f8759e5` (swarm-w9-ffival, linux x86-64): supervised startup is structurally enforced — `TaskLifecycleLedger::accept_invocation` (lifecycle_ledger/mod.rs) is the only activation-establishing path and mints the `TaskClaimRoute`; fabricated, foreign-instance, and settled pairs fail closed (claim_routing tests), cancelled outcomes require a recorded request, and conserving rejection returns every moved argument plus the lease (start_transaction). `cargo nextest run -p task-plans` 82/82 PASS. No unsupervised-start slice exists to claim; no dedicated row for the name either — this note is the finding.
-  covered — authorization gate recorded; substrate direction is a chapter_18 note, no implementable slice (task-plans 82/82 green)
-- **WHOLE-COMPOSITION-INTERACTION-EXTRACTION.** — mined candidate; scope verified, authorization gate recorded. This stub's subject is the inter-activation leg of the deferred whole-composition extraction: `omega-rust/omega/representations/task-plans/src/composition_model` already extracts the sealed model (`compose_composition_model` + `replay_composition_model`), and its `CompositionCrossActivationEdges` — joins, channel handoffs, and other cross-activation waits-for relations — publishes `NotRetained` because the settled plan vocabulary retains only intra-activation `canonical_suspension_crossings`. Re-mines the gated surface of CONCURRENT-PROTOCOL-EXTRACTION / CONCURRENT-PROTOCOL-WHOLE-COMPOSITION / CONCURRENT-WHOLE-COMPOSITION-EXTRACTION (see the concurrency stubs above): `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it." No join/channel/handoff field exists in `TaskActivationPlanSet` — activation requires such a customer plus upstream inter-activation vocabulary (the WAIT-WAKE-SUBSTRATE surface). No implementation slice exists to claim. Sibling stub on the same gated surface: WHOLE-COMPOSITION-EXTRACTION.
 - **WINDOWS-FILE-TIME-CARRIER-RESPELL.** — mined candidate; scope verified,
   covered — the stub is the same "unsigned carrier" clause of
   WINDOWS-SET-FILE-TIME-RESPELL as resolved sibling
@@ -10499,8 +10258,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   gate: `CompositionCrossActivationEdges::NotRetained` still publishes
   (composition_model/mod.rs:118-226) and the spec deferral text was
   unchanged (concurrency.md:138).
-- **WHOLE-COMPOSITION-EXTRACTION.** Scope verified — authorization gate recorded. Same deferred whole-composition surface as the resolved concurrency stubs (CONCURRENT-PROTOCOL-EXTRACTION, CONCURRENT-PROTOCOL-WHOLE-COMPOSITION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION) and the adjacent WHOLE-COMPOSITION-INTERACTION-EXTRACTION row: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it." Verified live at 2e1db3ba3e: `task-plans/src/composition_model` already extracts the sealed intra-activation model (`compose_composition_model` + `replay_composition_model`), `CompositionCrossActivationEdges`/`CompositionPriorities` publish `NotRetained` because the settled plan vocabulary retains no inter-activation relations. Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines; the upstream inter-activation vocabulary belongs to the WAIT-WAKE-SUBSTRATE surface. No implementation slice exists to claim.
-- **WHOLE-COMPOSITION-INTERACTION-EXTRACTION** — mined candidate; scope verified, authorization gate recorded. This stub's subject is the inter-activation leg of the deferred whole-composition extraction: `omega-rust/omega/representations/task-plans/src/composition_model` already extracts the sealed model (`compose_composition_model` + `replay_composition_model`), and its `CompositionCrossActivationEdges` — joins, channel handoffs, and other cross-activation waits-for relations — publishes `NotRetained` because the settled plan vocabulary retains only intra-activation `canonical_suspension_crossings`. Re-mines the gated surface of CONCURRENT-PROTOCOL-EXTRACTION / CONCURRENT-PROTOCOL-WHOLE-COMPOSITION / CONCURRENT-WHOLE-COMPOSITION-EXTRACTION (see the concurrency stubs above): `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it." No join/channel/handoff field exists in `TaskActivationPlanSet` — activation requires such a customer plus upstream inter-activation vocabulary (the WAIT-WAKE-SUBSTRATE surface). No implementation slice exists to claim. Sibling stub on the same gated surface: WHOLE-COMPOSITION-EXTRACTION.
 - **WINDOWS-FILE-TIME-UNSIGNED-RESPELL** — mined candidate; scope verified,
   covered. The stub is the "unsigned carrier" clause of
   WINDOWS-SET-FILE-TIME-RESPELL verbatim (merged with
