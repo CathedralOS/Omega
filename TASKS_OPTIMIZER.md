@@ -219,23 +219,37 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     `IntegerLessThan`, `IntegerLessOrEqual`), whose instruction-only
     operations take `DirectInstructionBytes` over their
     provenance-attributed byte interval when the realization carries a
-    `PrimitiveIntegerComparison` execution. `CallDynamic*` kinds carry
-    descriptor or parameter ordinals rather than a static callee, and
-    the remaining intrinsic kinds have no span arm. Verified
-    (w9, `fcef01c59a`): those operations do not produce coverage
-    occurrences at all yet — the checked boundary-operator replay
-    (`lowered-psi-to-terminal-psi/boundary_operator_custody/replay_scope.rs`)
-    admits only IEEE FMA, structural returns, and float/integer
-    comparisons — so the first work is a new occurrence replay family
-    with demand/realization companions; only then do span arms join the
-    emitted dynamic-call records (`dynamic_calls`, `stored_dynamic_calls`,
-    `dynamic_parameter_calls`, `forwarded_dynamic_*`), which already carry
-    `psi_operation`/`operation_ordinal`/`code_offset`/`byte_count`.
-    Descriptor-materializing records additionally need relocation custody
-    beyond the single window `derive_span` models (AArch64 table
-    addressing emits two windows) plus a conformance-table symbol join;
-    parameter-routed calls are register-indirect. `physical/` is fenced
-    by DYNAMIC-CALL-OCCURRENCE-SPANS this wave. Regressions:
+    `PrimitiveIntegerComparison` execution. Landed (w9, `95019d341a9`):
+    `CallDynamic*` kinds now carry occurrences and children — physical
+    derivation enumerates every surviving `CallDynamicScalar`,
+    `CallDynamicParameterScalar`, `CallDynamicUnit`, and
+    `CallDynamicParameterUnit` Terminal operation as a `DynamicCall`
+    occurrence, each binding exactly one child under
+    `PhysicalChildParent::DynamicCallDispatch` (the exact dispatch catalog
+    row the operation names), and `derive_dynamic_call_span` joins all
+    five emitted record families — `dynamic_calls`,
+    `stored_dynamic_calls`, and `dynamic_parameter_calls` take
+    `DirectInstructionBytes` over the register-indirect interval
+    (rejecting empty or relocated spans) while
+    `forwarded_dynamic_parameter_calls` and
+    `forwarded_dynamic_descriptor_calls` require exactly one Text
+    relocation plus an exact callee join for `ResolvedInternalCall`.
+    Witness `derivation::tests::dynamic_call_occurrence_binds_its_dispatch_role_and_parent_identity`.
+    Remaining intrinsic kinds still produce no occurrences, so their
+    span arms have no demand side — the occurrence replay for them is
+    TV-OPERATOR-APPLICATIONS-REPLAY's scope. Descriptor-materializing
+    records additionally need relocation custody beyond the single
+    window `derive_span` models (AArch64 table addressing emits two
+    windows) plus a conformance-table symbol join; that surface in
+    `physical/` is fenced by PHYSICAL-ACCESS-PROFILES this wave.
+    Measured (w9, `577d6ac2ba`): no end-to-end `physical_child_replay`
+    leg for the dynamic family is reachable yet — dynamic-call programs
+    are red before the physical stage on this host
+    (`runtime_local_named_dyn_unit_multi_hop_return` rejects
+    `CallUnitWithDynamicArguments` under Selection/Legalization; the
+    rebound and stored shapes hit the `ProgramEntry establishment
+    rejoins 0 Terminal attachment identities` family), so the family's
+    e2e replay leg waits on those upstream gaps. Regressions:
     `physical_child_replay::structural_result_operator_occurrence_replays_one_exact_physical_child`
     (Linux x86-64) drives a structural-result boundary operator through
     emission, exact-child binding, and every mutation-class rejection;
