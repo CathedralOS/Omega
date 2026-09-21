@@ -337,7 +337,12 @@ prerequisite to every lower-rung milestone.
 
   Remaining work:
 
-  - D's OCREQ request entry, still framed per gate rather than bound.
+  - D's OCREQ request entry binds in
+    `tools/bootstrap/omega/compiler_env.sh` (`require_omega_ocreq_entry_identity`,
+    recorded in `tools/bootstrap/README.md`): `program.omg`, the canonical
+    Omega source the executable gate feeds the bound customer as sealed
+    input. Still open: the gate's own README record, its `run.sh` wiring,
+    and `tests/bootstrap/omega-identity.sh` coverage.
   - The gate-local prefixes packed on top of bound member bytes: every
     gate-local driver except the shared Epsilon slice driver. D's gate-local
     customer entries bind in `tools/bootstrap/omega/compiler_env.sh`, recorded
