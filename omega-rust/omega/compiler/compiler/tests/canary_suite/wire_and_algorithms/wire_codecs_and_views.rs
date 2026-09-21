@@ -623,6 +623,27 @@ fn runtime_wire_roundtrip_repeated_exit_canary_runs() {
 }
 
 #[test]
+fn exact_array_wire_encode_checks_and_interprets_exact_bytes() {
+    // Wire repeated fields, fixed-array carrier: `[u32; 4]` contributes
+    // exactly its static extent -- no synthetic `<name>_count` sibling.
+    // The canary byte-checks the length-delimited frame for
+    // { readings: [1, 2, 3, 4] } ([0x00, 0x00, 0x04, 0x01, 0x02, 0x03, 0x04],
+    // hand-computed in its header comment) and written = 7 in-language;
+    // interpreted exit 70 proves the framing. The native `_canary_runs` leg
+    // stays unwritten while every wire `runtime_*` canary fails the shared
+    // ProgramEntry attachment-identity gate at native-artifact production.
+    let canary = pass_canary(fixture_roster::RUNTIME_WIRE_EXACT_ARRAY_WITHOUT_COUNT_EXIT);
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("exact array wire canary should survive the compiler pipeline");
+    let outcome = interpret(&checked, &[]);
+    assert_eq!(outcome.error, None, "exact array wire canary");
+    assert_eq!(outcome.exit_code, 70, "exact array wire canary");
+}
+
+#[test]
 fn runtime_wire_decode_rejects_repeated_overflow_exit_canary_runs() {
     // Wire repeated fields, failure paths: a packed payload carrying MORE
     // elements than the declared maximum must fail the decode (the unrolled
