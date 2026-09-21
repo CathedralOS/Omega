@@ -78,6 +78,11 @@ fn invalid(target: target::NativeTarget) -> Diagnostic {
             "macOS hosted receiver bridge lost exact contract, storage, or entry custody",
         );
     }
+    if target == target::NativeTarget::macos_x64() {
+        return Diagnostic::error(
+            "macOS x86-64 hosted receiver bridge lost exact contract, storage, or entry custody",
+        );
+    }
     if target == target::NativeTarget::linux_x64() {
         return Diagnostic::error(
             "Linux x86-64 hosted receiver bridge lost exact contract, storage, or entry custody",
@@ -269,6 +274,11 @@ fn install_entry_text(
     Ok((object, text, symbol, offset))
 }
 
+/// Fixed macOS x86-64 hosted-receiver bridge byte width. The emitted text is
+/// `mov [rip+scratch], rsp; lea rsp, [rip+stack_top]; lea rdi, [rip+receiver];
+/// call rel32; mov rsp, [rip+scratch]; xor eax, eax; ret`.
+pub(crate) const MACOS_X86_64_RECEIVER_SHIM_BYTES: usize = 36;
+
 /// Fixed Linux x86-64 hosted-receiver bridge byte width. The emitted text is
 /// `mov [rip+scratch], rsp; lea rsp, [rip+stack_top]; lea rdi, [rip+receiver];
 /// call rel32; xor edi, edi; mov eax, 231; syscall; ud2`.
@@ -290,6 +300,9 @@ pub(crate) fn prepare(
     }
     if artifact.target == target::NativeTarget::windows_x64() {
         return prepare_windows_x86_64(artifact, binding, object, storage);
+    }
+    if artifact.target == target::NativeTarget::macos_x64() {
+        return prepare_macos_x86_64(artifact, binding, object, storage);
     }
     let offset = artifact.text_bytes.len();
     let displacement = (artifact.entry_function().text_offset as i128) - (offset as i128 + 9 * 4);
@@ -436,6 +449,66 @@ pub(crate) const LINUX_ARM64_RECEIVER_SHIM_BYTES: usize = 60;
 /// AAPCS64, calls the exact semantic continuation, and completes through
 /// exit_group with the value-free Unit result published as status zero in w0.
 /// `brk #0` fails closed if the nonreturning supervisor call ever returned.
+/// The Darwin loader arrives at the LC_MAIN entry with the incoming stack
+/// supplying the return continuation. The bridge preserves that physical
+/// input in the saved-continuation residence, switches rsp to the exact
+/// private stack top before the application can spill, passes the receiver
+/// through the first System V integer register, calls the exact semantic
+/// continuation, restores the incoming stack, and completes through `ret`
+/// with the value-free Unit result published as a physical i32 zero. The
+/// continuation's own return address lands on the private stack, so the
+/// saved loader stack still carries dyld's continuation when `ret` runs.
+fn prepare_macos_x86_64(
+    artifact: &crate::ObjectArtifact,
+    _binding: &HostedReceiverBinding,
+    object: object_file::ObjectPlan,
+    storage: ReceiverStorage,
+) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
+    use object_file::{RelocationKind, RelocationOrigin, RelocationRecord, SectionKind};
+    let entry = artifact.entry_function();
+    let mut bytes = Vec::with_capacity(MACOS_X86_64_RECEIVER_SHIM_BYTES);
+    bytes.extend([0x48, 0x89, 0x25, 0, 0, 0, 0]); // mov [rip+scratch], rsp
+    bytes.extend([0x48, 0x8d, 0x25, 0, 0, 0, 0]); // lea rsp, [rip+stack_top]
+    bytes.extend([0x48, 0x8d, 0x3d, 0, 0, 0, 0]); // lea rdi, [rip+receiver]
+    bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32 -> semantic continuation
+    bytes.extend([0x48, 0x8b, 0x25, 0, 0, 0, 0]); // mov rsp, [rip+scratch]
+    bytes.extend([0x31, 0xc0]); // xor eax, eax: Unit -> physical i32 zero
+    bytes.extend([0xc3]); // ret to exact saved loader continuation
+    debug_assert_eq!(bytes.len(), MACOS_X86_64_RECEIVER_SHIM_BYTES);
+    let (object, text, symbol, offset) = install_entry_text(
+        object,
+        artifact,
+        &bytes,
+        "omega_macos_x86_64_hosted_receiver_entry",
+    )?;
+    let mut relocations = artifact.relocations.clone();
+    for (field_offset, destination) in [
+        (3, storage.scratch),
+        (10, storage.stack_top),
+        (17, storage.receiver),
+        (22, entry.symbol),
+        (29, storage.scratch),
+    ] {
+        relocations.push_record(RelocationRecord {
+            origin: RelocationOrigin::Materialization {
+                object_symbol_handle: symbol,
+            },
+            section: SectionKind::Text,
+            offset: offset + field_offset,
+            byte_width: 4,
+            symbol_handle: destination,
+            addend: 0,
+            kind: RelocationKind::X86_64Relative32,
+        });
+    }
+    Ok(crate::hosted_unit_entry::PreparedEntry {
+        object,
+        text,
+        relocations,
+        shim: crate::hosted_unit_entry::EntryShim::DarwinReceiver { symbol, offset },
+    })
+}
+
 fn prepare_linux_arm64(
     artifact: &crate::ObjectArtifact,
     _binding: &HostedReceiverBinding,
@@ -1044,8 +1117,16 @@ pub(crate) fn validate_image(
         crate::hosted_unit_entry::EntryShim::DarwinReceiver { symbol, offset }
             if expected_shim_matches(expected.shim, shim) =>
         {
-            if !crate::hosted_unit_entry::unique_region(object, symbol, offset, 64, output)
-                || !crate::hosted_unit_entry::main_points_to(&output.bytes, offset)
+            // The Darwin receiver shim is emitted under two ISAs; the exact
+            // bridge width belongs to the artifact's admitted target.
+            let shim_bytes = if artifact.target == target::NativeTarget::macos_x64() {
+                MACOS_X86_64_RECEIVER_SHIM_BYTES
+            } else {
+                64
+            };
+            if !crate::hosted_unit_entry::unique_region(
+                object, symbol, offset, shim_bytes, output,
+            ) || !crate::hosted_unit_entry::main_points_to(&output.bytes, offset)
             {
                 return Err(invalid());
             }
