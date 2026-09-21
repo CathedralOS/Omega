@@ -1403,8 +1403,7 @@ Owners include
   "rejoins 0 Terminal attachment identities" whenever trait `T` declares any
   value-returning method, even `-> i32`; void-method traits pass. The missing
   `attachment_type_identity` row is produced in t2c
-  `execution/unit/composed_control`, owned by ARCHITECTURE-CONTROL-GRAPH's live
-  claim — the invoked-route fixtures cannot check until that leg lands.
+  `execution/unit/composed_control`.
 
   Preserve exact subject/revision, projection/algebra, geometry, lineage, route
   and installed occurrence through source-free replay. The caller may use the
@@ -7047,7 +7046,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   match the w9 measurements), with `d8825aef56` recording the verified
   legs in benchmarks.md and `7e38fc2763` repairing the host-row matrix
   drift. Remaining: none under this name — any further matrix refresh
-  stays with BENCHMARK-HOST-ROW-MATRIX, and the fenced prose staleness
+  stays with BENCHMARK-CROSS-HOST-ROWS, and the fenced prose staleness
   in benchmarks.md's w9/z113 update paragraphs ("await commit once the
   claim frees") belongs to whichever lane next writes that doc.
 - **BENCHMARK-CROSS-HOST-ROWS.** Mined candidate; verify scope then implement.
@@ -7618,8 +7617,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   resident in the sequencer — placement debt, flagged for relocation when it
   next grows), F3 (`native-realization`'s terminal-authority policy
   subsystem — interim verdict: load-bearing, monitor), and F4 (the orphan
-  optimized-semantic-wrapper codec — owned by WRAPPER-OBJECT-OWNERSHIP /
-  DURABLE-CODEC-RELOCATION) all stand as recorded. Residual relocations are
+  optimized-semantic-wrapper codec — owned by DURABLE-CODEC-RELOCATION)
+  all stand as recorded. Residual relocations are
   sibling items' moves, not audit work; no unclaimed slice remains.
 - **CRATE-ROOT-RESPONSIBILITY-AUDIT** — mined candidate; verify scope then implement.
 - **CROSS-COMPILER-DIFFERENTIAL.** Mined candidate — resolved: sibling
@@ -7819,7 +7818,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
       (`samples/cli/basics/standalone/README.md`; consistent with
       entry_roots.md's "omission from that complete set denies authority"
       and process_exit.md's "selecting a provider grants no authority").
-  The repair is the spec-named PROCESS-EXIT-CONTRACT migration (~TASKS.md:873)
+  The repair is the spec-named migration in the
+  [Process-exit contract](#process-exit-contract) section
   — the provider/capability/cross-stage legs that decide whether a root
   package may contribute a provider plan and bind exit authority — not a
   benchmark-harness change. Until it lands, depend-free subjects stay
@@ -8237,6 +8237,29 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   on *ancestor* components narrower than whole-root re-resolution is
   BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION's lane, and the
   request/options admission slice remains with it.
+- **BUILD-DIR-ANCESTOR-ALIAS-RACE-DETECTION.** (split-of:HOST-ALIAS-BUILD-DIR-DETECTION)
+  Own the race-window residual that HOST-ALIAS-BUILD-DIR-DETECTION,
+  BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE and
+  BUILD-DIRECTORY-HOST-ALIAS-RACE-ISOLATION each route to a retired
+  BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION row, leaving all three saying
+  "no unfenced slice exists": "the mid-window TOCTOU on *ancestor* components
+  narrower than whole-root re-resolution", plus "the request/options admission
+  slice". `ensure_established_write_root`
+  (`omega-rust/omega/build/build-evaluation/src/evidence/filesystem_scope.rs`)
+  re-checks only the write root itself after creation — `symlink_metadata` on
+  that root and an `overlap_key` recomputation over it — so a host alias
+  planted on an ancestor component between admission's `overlap_key` check and
+  the first write still redirects writes outside the fenced root. The contract
+  is [scoped execution](wiki/spec/build/scoped_execution.md): the build
+  directory is the only write root, and a scoped real-host filesystem is not an
+  isolated virtual input.
+
+  Acceptance: a unix-gated test beside
+  `write_root_establishment_rejects_a_host_alias` plants a symlink on an
+  ancestor of an admitted build directory after admission and before the first
+  write, and establishment refuses rather than writing through it; the existing
+  whole-root and resolution-drift rejections stay green
+  (`cargo nextest run -p build-evaluation --lib`).
 - **HOSTED-INLINE-ASSEMBLY-AUTHORITY** — mined candidate; scope verified, authority question already settled. The catalog in `psi/foundation/language-core/src/inline_assembly/` carries `required_authority` per instruction (`MachineOwner`, `PortIoAuthority`, `IdtControlAuthority`, `None`), per the privileged-services contract in `wiki/spec/build/permissions.md` (separate `MachineControl`/`PortIo`/`Mmio` service identities — listing the service does not establish ownership). The hosted-side authority decision is the implemented v0 discharge: `validation/src/machine_calls/effects/asm_discharge.rs::validate_asm_discharge` rejects every non-`None`-authority asm instruction on non-freestanding builds ("only code that owns the machine may emit privileged instructions; a hosted build would fault at ring 3") and passes freestanding — so hosted inline-assembly authority is denied by contract, not unimplemented. A finer hosted grant is a permissions.md spec change, not a compiler slice on this row.
 - **HOSTED-PLATFORM-RUN-MATRIX** — mined candidate; verify scope then implement.
 - **INTEGER-COMPARISON-OCCURRENCE-PRODUCER** — mined candidate; verify scope then implement.
@@ -8409,6 +8432,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (LOWERED-UNIT-FAILURE-ATTRIBUTION ~01:17Z, BASELINE-CANARY-PASS-
   CLUSTER ~23:41Z, CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION ~01:42Z), so
   this update stays on the board line and leaves the doc to them.
+- **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT.** (split-of:LOWERED-PSI-BASELINE-TAIL)
+  Own the one `checked-trees-to-lowered-psi` baseline member that
+  LOWERED-PSI-BASELINE-TAIL, LOOKUP-MAP-MEASUREMENT-AUDIT and
+  CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION all route to a retired
+  PROOF-SEARCH-MEASUREMENT row: `nominal_affine_source::integer_comparison::
+  mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
+  (c2l `tests/nominal_affine_source/integer_comparison.rs`) never returns a
+  verdict — the tail records it SIGTERM'd at ~892s (6ef64f6dd6) and ~900s (c267df86acb), and
+  it is the `+ 1 SIGTERM` in every recorded reading of that crate. The
+  measurement substrate already landed (`proof/src/checker/measurement.rs`,
+  `OMEGA_PROOF_MEASUREMENTS`); what has no owner is the containment decision
+  for this obligation. Measure the leg, name the obligation whose search does
+  not converge, then either bound that search in `proof/src/checker` or refuse
+  it fail-closed with a diagnostic. A longer test timeout is not a repair.
+
+  Acceptance: `cargo nextest run -p checked-trees-to-lowered-psi -E
+  'test(~mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return)'`
+  terminates with a pass or an explicit refusal instead of being killed, and a
+  `--no-fail-fast` run of the crate reports no SIGTERM member.
 - **LOWERED-SCALAR-RESULT-SOURCE-CUSTODY** — mined candidate; verify scope then implement.
 - **LOWERED-UNIT-FAILURE-ATTRIBUTION** — mined candidate; verify scope then implement.
 - **MATCHING-LOGIC-TYPED-TO-ONE-SORTED-ENCODING.** Verified scope
@@ -8482,7 +8524,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   conform to `omega-matching-logic-comparison/1`;
   `test_matching_logic_metrics.py` 16/16 green. Remaining lane legs:
   the slice-comparison harness's candidate columns fill under
-  MATCHING-LOGIC-VERTICAL-SLICE-COMPARISON's live claim.
+  MATCHING-LOGIC-VERTICAL-SLICE's remaining lane legs.
 - **MATH-PROOFS-DECLARATION-SELECTION** — mined candidate; verify scope then implement.
 - **MATHEMATICAL-PREDICATE-PARAMETERS.** Mined candidate — scope verified
   at `bbcff399ed`, re-mine of TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS's
@@ -9305,6 +9347,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   unmanned widening lane exists; unspec'd judgment surgery in a fail-closed
   proof engine is exactly what this board must not carry. Row consumed —
   residual is the canonical items'.
+- **CHECKED-CALL-SUBJECT-ENTAILMENT-WIDENING.** (split-of:PROOF-AUTOMATION-WIDENING)
+  Own the call-attribution leg that PROOF-AUTOMATION-WIDENING,
+  PROOF-QUANTIFIER-AUTOMATION and PROOFS-SUBJECT-CHECKED-CALL-SELECTION all
+  route to a retired PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION row, each of them
+  then concluding "no independent slice exists". The landed half attributes a
+  concretely selected call's precondition to the call's exact subject
+  (validation `proof_contracts/contract_entailment/specification_calls.rs`,
+  beside `refuted_requires.rs` and `call_requirements.rs`). The residual is the rest of that row's own list —
+  abstract signatures, domain predicates, postcondition transport of case
+  membership, and induction — together with the CheckedCall selection
+  regression PROOF-AUTOMATION-WIDENING records as still live in the corpus.
+  Exact-subject substitution across calls is required by
+  [state contracts](wiki/spec/language/state_contracts.md#mutation-and-subject-identity) and
+  [dependent values](wiki/spec/language/dependent_values.md); widen only to
+  what those state — this is a fail-closed judgment.
+
+  Acceptance: a `tests/omega/pass/proofs/` case cites a callee precondition
+  through an abstract signature and compiles, its `tests/omega/fail/proofs/`
+  twin still rejects when the cited subject is not the call's exact subject
+  (as `fail/proofs/case_call_wrong_subject` does for the concrete case), and
+  `cargo nextest run -p validation` stays green.
 - **PROOF-CACHE-DEPENDENCY-INVALIDATION.** Mined candidate — scope
   verified, mechanism landed. The draft's rule "dependency changes
   invalidate affected entries" is implemented by key embedding, not a
@@ -9319,7 +9382,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   persistence scheme, and "what is still unmeasurable is invalidation —
   it needs a store to invalidate — and a workload corpus with repeated
   obligations": corpus gating sits under
-  PROOF-SEARCH-MEASUREMENT/WORKLOAD-CORPUS-AND-MULTIVERSIONING. Sibling
+  WORKLOAD-CORPUS-AND-MULTIVERSIONING. Sibling
   rows on the same cache surface: PROOF-DERIVATION-STORE (resolved),
   DERIVATION-RECHECK-CACHE (resolved), PROOF-SEARCH-DERIVATION-CACHE,
   PROOF-SEARCH-MEASUREMENT.
@@ -9527,7 +9590,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   NATIVE-MATRIX-MATCHING-HOSTS (01:53Z), and RC-RELEASE-RECORD-AND-CLOSURE
   (02:03Z). A linux_x86_64 row producible from this host would still read
   open — the matrix is red on main (fmt + omega-architecture-test per
-  REPAIR-ARCHITECTURE-SUITE-RED) — so no independently landable slice
+  RC-REPOSITORY-CLOSURE) — so no independently landable slice
   exists. Sibling stubs on the same surface: RC-LINUX-ARM64-NATIVE-ROW,
   RC-LINUX-X86-64-GATE-LEDGER, RC-MATRIX-RUNNER, RC-NATIVE-MATRIX and its
   host-suffix family.
@@ -9961,6 +10024,32 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
     here once main is green again: run the suite on windows_x86_64,
     macos_arm64, linux_arm64 hosts — host-gated, none producible on this
     machine.
+- **SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT.** (split-of:SAMPLES-COMPILE-MULTI-HOST)
+  Own the entry-establishment failure class that SAMPLES-COMPILE-MULTI-HOST and
+  BORROWED-STORAGE-RESTORATION both route to a retired
+  EXACT-PROGRAM-ENTRY-MULTIPLICITY row. On `linux_x86_64`, `linux_arm64` and
+  `macos_arm64` the gate reads "selected ProgramEntry establishment rejoins 0
+  Terminal attachment identities; expected one" because the entry machine
+  leaves the unit plan roster at local construction: `has_statement_shape`
+  (typed-trees-to-checked-trees
+  `src/execution/unit/control/statement_sequence.rs`) rejects a call-produced
+  `&[T]` view local such as
+  `let s: &[i32 in Wrapping] = self.adder.bytes.as_slice();`. LocalData
+  admission covers only primitive, structural result and erased
+  exclusive-borrow alias, and `CheckedUnitStructuralTypeShape`
+  (`checked-trees/src/checked_trees/flow/terminal/structural_type_plans.rs`)
+  carries no runtime-length slice shape. Give the view local its own checked
+  shape and let ordinary statement sequencing admit it — do not add a
+  recognizer for this statement arrangement (AGENTS.md, compositional
+  lowering). Callee `&[T]` parameters face the same vocabulary gap; the pattern
+  appears in 12 samples, including `samples/cli/text/fletcher_checksum`,
+  `samples/cli/arithmetic/recursive_sum`, `samples/cli/collections/slice_maximum`
+  and `samples/cli/systems/framed_payload`.
+
+  Acceptance: `fletcher_checksum` and `recursive_sum` reach selected
+  ProgramEntry establishment on `linux_x86_64` without the "rejoins 0 Terminal
+  attachment identities" refusal, and `cargo nextest run -p
+  typed-trees-to-checked-trees --lib` stays green.
 - **SCALAR-SCAN-AND-DISPATCH.** Mined candidate — scope verified, already
   landed; decomposes the same Squalr-Omega `43329a3` commit as resolved
   sibling SCAN-SCALAR-DISPATCH (scalar scan + run-length encoder +
@@ -10322,10 +10411,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   lock advance — an edit inside `samples/apps/squalr`, wholesale-fenced
   (GEOMETRY-ALIGNMENT-REGIONS 01:18Z, SQUALR-TARGETS-AND-THROUGHPUT). The
   only independent residual is the Windows validation leg, which is
-  host-gated per SQUALR-GEOMETRY-WINDOWS-VALIDATION's audit. No
+  host-gated per SQUALR-WINDOWS-GEOMETRY-VALIDATION's audit. No
   linux_x86_64 slice outside a claimed fence exists. Sibling re-mine
   stubs: SQUALR-GEOMETRY-PARITY-GAPS, SQUALR-GEOMETRY-PARITY-RESIDUE.
-- **SQUALR-GEOMETRY-PARITY-RESIDUE.** Resolved — re-mine of the geometry-parity residual list already adjudicated on sibling SQUALR-GEOMETRY-PARITY-GAPS (adjacent row, verified `12ecbe98f8b`): every enumerated gap is an owned sibling row (alignment string parsing → SQUALR-ALIGNMENT-STRING-PARSING, clone/serialization → SQUALR-CLONE-SERIALIZATION-PARITY, region alignment/expansion → SQUALR-REGION-ALIGNMENT-EXPANSION, named trait operators → SQUALR-NAMED-TRAIT-OPERATORS, debug-only assertions → SQUALR-GEOMETRY-PARITY); the z194-recorded regression — tracked `squalr-tests/omega.lock` rejected at HEAD and git-pinned std `87d8b227` failing `omega update` post-`32f5182254` — is an edit inside `samples/apps/squalr`, wholesale-fenced (SQUALR-TARGETS-AND-THROUGHPUT, GEOMETRY-ALIGNMENT-REGIONS); and the independent residual is the Windows validation leg, host-gated under SQUALR-GEOMETRY-WINDOWS-VALIDATION. No linux_x86_64 slice outside a claimed fence exists.
+- **SQUALR-GEOMETRY-PARITY-RESIDUE.** Resolved — re-mine of the geometry-parity residual list already adjudicated on sibling SQUALR-GEOMETRY-PARITY-GAPS (adjacent row, verified `12ecbe98f8b`): every enumerated gap is an owned sibling row (alignment string parsing → SQUALR-ALIGNMENT-STRING-PARSING, clone/serialization → SQUALR-CLONE-SERIALIZATION-PARITY, region alignment/expansion → SQUALR-REGION-ALIGNMENT-EXPANSION, named trait operators → SQUALR-NAMED-TRAIT-OPERATORS, debug-only assertions → SQUALR-GEOMETRY-PARITY); the z194-recorded regression — tracked `squalr-tests/omega.lock` rejected at HEAD and git-pinned std `87d8b227` failing `omega update` post-`32f5182254` — is an edit inside `samples/apps/squalr`, wholesale-fenced (SQUALR-TARGETS-AND-THROUGHPUT, GEOMETRY-ALIGNMENT-REGIONS); and the independent residual is the Windows validation leg, host-gated under SQUALR-WINDOWS-GEOMETRY-VALIDATION. No linux_x86_64 slice outside a claimed fence exists.
 - **SQUALR-PLUGIN-IMPLEMENTATIONS.** Scope verified at a4ffd1aff8 —
   re-mines the "plugins/*: implementation unported" row of
   `samples/apps/squalr/README.md`'s port-boundary table. All eight plugin
@@ -10571,8 +10660,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   lane. All three pass on linux x86-64 at `54984323b2`
   (`cargo nextest run -p typed-trees-to-checked-trees --lib`, filtered to
   the trio). No independent slice exists; refreshing the stale draft row
-  belongs to its live CTTL-FAILURE-ATTRIBUTION claim or the
-  KNOWN-BASELINE-FAILURES-REFRESH items.
+  belongs to the KNOWN-BASELINE-FAILURES-REFRESH items.
 - **TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS** — scope verified 2026-09-20:
   re-mines [chapter 14](wiki/language_guide/chapter_14_traits.md)'s recorded
   gap that a trait requirement expressing an arbitrary nondecidable validity
