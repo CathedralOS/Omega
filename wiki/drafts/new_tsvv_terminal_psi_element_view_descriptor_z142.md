@@ -125,10 +125,19 @@ Same semantics throughout. Two decisions worth recording:
 Newly visible, NOT caused by this sweep: eight `checked-trees-to-lowered-psi`
 tests fail with `Unsupported("attached Unit closure is missing a checked
 transitive machine plan")` — `retention::conformance_applications` ×3 and
-`tests::composed_operand_catalogs` ×5. That is the same wall behind the five red
-`x86_asm_*` canary legs and four `terminal_psi_runnable` native-differential
-legs; it has nothing to do with ElementView, and these tests simply could not
-run while the crate's test target would not build.
+`tests::composed_operand_catalogs` ×5. They have nothing to do with ElementView
+-- they simply could not run while the crate's test target would not build.
+
+**Correction (2026-09-21): I first wrote that these share one wall with the five
+red `x86_asm_*` canary legs and the `terminal_psi_runnable` legs. Measurement
+refutes that.** They share the diagnostic STRING and nothing else. The eight
+here are a consumer-side gap in `caller_erased_proof_roster`
+(`c2l/src/scalar_graph/scalar_contracts.rs`), which knows only the scalar-graph
+and Unit-body rosters and not the dynamic-dispatch one -- every one of the eight
+is a `&dyn` erasure fixture and every non-dynamic sibling passes. The asm legs
+are a genuinely missing producer arm (no `CheckedUnitEffectOperationPlan` arm
+for the asm intrinsics beyond `AsmPortOut`). See
+`known_baseline_failures.md` for the full three-cause split.
 
 Historical — the last four, and the fence that held them:
 
