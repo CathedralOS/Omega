@@ -12,8 +12,8 @@
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionId,
-    SelectedSuccessor, SelectedTerminator,
+    SelectedBlockOrigin, SelectedInstruction, SelectedInstructionId, SelectedSuccessor,
+    SelectedTerminator,
 };
 
 use super::ArmRelocationError;
@@ -27,8 +27,7 @@ use crate::rewrites::window_hazards::{
     RunRelocationRejection, admit_run_relocation, register_writes, schedulable, surface,
 };
 
-pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
+pub(super) struct Admission {
     /// The member's own block: the branch's arm.
     pub block_index: usize,
     /// The member's index inside that block's body.
@@ -83,7 +82,7 @@ pub(super) fn admit<'source>(
     destination: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, ArmRelocationError> {
+) -> Result<Admission, ArmRelocationError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(ArmRelocationError::SourceMismatch);
@@ -336,7 +335,6 @@ pub(super) fn admit<'source>(
         return Err(ArmRelocationError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         member_index,
         target_index,
