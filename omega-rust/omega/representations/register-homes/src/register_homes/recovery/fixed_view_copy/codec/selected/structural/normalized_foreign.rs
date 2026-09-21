@@ -9,15 +9,20 @@
 //! contribution is re-admitted so its recomputed report identity and
 //! commitment must equal the retained bytes.
 use calling_conventions::{
-    EntryStack, MachineRegime, MachineState, MachineStateSet, Preemption, StatePlan,
+    BoundaryEntryPlan, CallbackBinderRequirement, CallbackMaterializationContext,
+    CallbackRequirementId, EntryStack, MachineRegime, MachineState, MachineStateSet,
+    NativeCallbackDemand, NativeParameterApplication, NativeParameterId, Preemption, StatePlan,
+    StaticMachineBinderId,
 };
+use function_identity::{MachineFunctionIdentity, StateKey};
 use legalized_operations::LegalizedNormalizedForeignCall;
 use selected_instructions::{SelectedInstructionId, SelectedNormalizedForeignCall};
 use semantic_vocabulary::{BoundaryMachineId, OperationId, ScalarType, ValueId};
+use symbols::SymbolHandle;
 use target::{ForeignLocatorCandidate, TargetProfile, normalize_foreign_locator};
 use target_operations::{
-    NormalizedForeignCallBinding, TargetScalarBlockValue, TargetUnitScalarArgumentSource,
-    TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
+    NormalizedForeignCallBinding, TargetNativeCallbackArgument, TargetScalarBlockValue,
+    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
 };
 use task_plans::{
     SameStackContributionAdmissionCandidate, SameStackContributionAdmissionReceiptId,
@@ -28,8 +33,8 @@ use crate::FixedViewCopyDecodeError;
 
 use super::{
     calling::{
-        decode_call_plan, decode_placement, decode_shape, encode_call_plan, encode_placement,
-        encode_shape,
+        decode_call_plan, decode_native_place, decode_placement, decode_shape, encode_call_plan,
+        encode_native_place, encode_placement, encode_shape,
     },
     declarations::{decode_string, decode_target_argument, encode_string, encode_target_argument},
     settlements::{
@@ -73,6 +78,13 @@ pub(super) fn encode_normalized_foreign_call(
             encode_scalar_home(bytes, home);
         }
     }
+    match &call.callback {
+        None => bytes.push(0),
+        Some(callback) => {
+            bytes.push(1);
+            encode_native_callback_argument(bytes, callback);
+        }
+    }
     encode_effect(bytes, row.effect);
     encode_ownership(bytes, &row.ownership);
 }
@@ -104,6 +116,11 @@ pub(super) fn decode_normalized_foreign_call(
         1 => Some(decode_scalar_home(cursor)?),
         tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
     };
+    let callback = match cursor.byte()? {
+        0 => None,
+        1 => Some(decode_native_callback_argument(cursor)?),
+        tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
+    };
     Ok(SelectedNormalizedForeignCall {
         instruction,
         operation,
@@ -114,10 +131,126 @@ pub(super) fn decode_normalized_foreign_call(
             scalar_arguments,
             structural_arguments,
             result_home,
+            callback,
         },
         effect: decode_effect(cursor)?,
         ownership: decode_ownership(cursor)?,
     })
+}
+
+/// The retained registrar roster row is indivisible custody: the authored-use
+/// operation, thunk slot, private function identity, exact native
+/// application, registrar entry plan, binder/demand context, and sealed
+/// application commitment decode through the same constructors that issued
+/// them.
+fn encode_native_callback_argument(bytes: &mut Vec<u8>, callback: &TargetNativeCallbackArgument) {
+    bytes.extend_from_slice(&callback.terminal_operation.get().to_le_bytes());
+    bytes.extend_from_slice(&(callback.placement_index as u64).to_le_bytes());
+    encode_machine_function_identity(bytes, &callback.callback_function);
+    bytes.extend_from_slice(&callback.application.parameter.get().to_le_bytes());
+    bytes.extend_from_slice(&callback.application.native_ordinal.to_le_bytes());
+    encode_shape(bytes, callback.application.shape);
+    encode_placement(bytes, &callback.application.placement);
+    encode_call_plan(bytes, &callback.registrar_boundary_entry_plan.call);
+    encode_state_plan(bytes, &callback.registrar_boundary_entry_plan.state);
+    length(bytes, callback.registrar_context.binders.len());
+    for row in &callback.registrar_context.binders {
+        bytes.extend_from_slice(&row.binder.get().to_le_bytes());
+        bytes.extend_from_slice(&row.requirement.get().to_le_bytes());
+    }
+    length(bytes, callback.registrar_context.demands.len());
+    for demand in &callback.registrar_context.demands {
+        encode_native_place(bytes, &demand.destination);
+        bytes.extend_from_slice(&demand.requirement.get().to_le_bytes());
+    }
+    bytes.extend_from_slice(&callback.registrar_application_commitment);
+}
+
+fn decode_native_callback_argument(
+    cursor: &mut Cursor<'_>,
+) -> Result<TargetNativeCallbackArgument, FixedViewCopyDecodeError> {
+    let terminal_operation = decode_id(cursor, OperationId::new)?;
+    let placement_index =
+        usize::try_from(cursor.u64()?).map_err(|_| FixedViewCopyDecodeError::LengthOverflow)?;
+    let callback_function = decode_machine_function_identity(cursor)?;
+    let application = NativeParameterApplication {
+        parameter: decode_id(cursor, NativeParameterId::new)?,
+        native_ordinal: cursor.u32()?,
+        shape: decode_shape(cursor)?,
+        placement: decode_placement(cursor)?,
+    };
+    let registrar_boundary_entry_plan = BoundaryEntryPlan {
+        call: decode_call_plan(cursor)?,
+        state: decode_state_plan(cursor)?,
+    };
+    let binder_count = cursor.length()?;
+    let mut binders = Vec::with_capacity(binder_count.min(cursor.remaining()));
+    for _ in 0..binder_count {
+        binders.push(CallbackBinderRequirement {
+            binder: decode_id(cursor, StaticMachineBinderId::new)?,
+            requirement: decode_id(cursor, CallbackRequirementId::new)?,
+        });
+    }
+    let demand_count = cursor.length()?;
+    let mut demands = Vec::with_capacity(demand_count.min(cursor.remaining()));
+    for _ in 0..demand_count {
+        demands.push(NativeCallbackDemand {
+            destination: decode_native_place(cursor)?,
+            requirement: decode_id(cursor, CallbackRequirementId::new)?,
+        });
+    }
+    let registrar_application_commitment = cursor.array()?;
+    Ok(TargetNativeCallbackArgument {
+        terminal_operation,
+        placement_index,
+        callback_function,
+        application,
+        registrar_boundary_entry_plan,
+        registrar_context: CallbackMaterializationContext { binders, demands },
+        registrar_application_commitment,
+    })
+}
+
+/// The continuation's arena coordinates are exact identity; the kind tag and
+/// thunk placement slot follow them on the wire.
+fn encode_machine_function_identity(bytes: &mut Vec<u8>, identity: &MachineFunctionIdentity) {
+    let continuation = identity.associated_source_continuation();
+    bytes.extend_from_slice(&continuation.machine.arena_index().to_le_bytes());
+    bytes.extend_from_slice(&continuation.machine.generation().to_le_bytes());
+    bytes.extend_from_slice(&continuation.state.arena_index().to_le_bytes());
+    bytes.extend_from_slice(&continuation.state.generation().to_le_bytes());
+    bytes.extend_from_slice(&(continuation.segment_index as u64).to_le_bytes());
+    if let Some(placement_index) = identity.callback_thunk_placement_index() {
+        bytes.push(3);
+        bytes.extend_from_slice(&(placement_index as u64).to_le_bytes());
+    } else if identity.source_key().is_some() {
+        bytes.push(1);
+    } else if identity.program_storage_entry_continuation().is_some() {
+        bytes.push(2);
+    } else {
+        bytes.push(0);
+    }
+}
+
+fn decode_machine_function_identity(
+    cursor: &mut Cursor<'_>,
+) -> Result<MachineFunctionIdentity, FixedViewCopyDecodeError> {
+    let continuation = StateKey {
+        machine: SymbolHandle::from_parts(cursor.u32()?, cursor.u32()?),
+        state: SymbolHandle::from_parts(cursor.u32()?, cursor.u32()?),
+        segment_index: usize::try_from(cursor.u64()?)
+            .map_err(|_| FixedViewCopyDecodeError::LengthOverflow)?,
+    };
+    match cursor.byte()? {
+        1 => Some(MachineFunctionIdentity::source(continuation)),
+        2 => MachineFunctionIdentity::program_storage_entry_wrapper(continuation),
+        3 => MachineFunctionIdentity::callback_thunk(
+            continuation,
+            usize::try_from(cursor.u64()?).map_err(|_| FixedViewCopyDecodeError::LengthOverflow)?,
+        ),
+        tag => return Err(FixedViewCopyDecodeError::UnknownMachineFunctionKind(tag)),
+    }
+    .ok_or(FixedViewCopyDecodeError::InvalidMachineFunctionIdentity)
 }
 
 /// The complete evaluated binding: locator, boundary-entry plan, and the
@@ -592,6 +725,7 @@ mod tests {
                     placement: binding.boundary_entry_plan.call.parameters[0].clone(),
                 }],
                 structural_arguments: Vec::new(),
+                callback: None,
                 result_home: Some(TargetUnitScalarHomeRequirement {
                     defining_operation: OperationId::new(7).unwrap(),
                     source_value: ValueId::new(8).unwrap(),
