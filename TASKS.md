@@ -835,15 +835,21 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   Remaining work:
   - Envelope custody through rebinding/replacement via COMPONENT-SUBSTRATE and
     WIRE-RUNTIME-AND-INSTALLATION, and the image-emission leg.
-  - Foreign-boundary leg: the adjudication seam is pinned — a
+  - Foreign-boundary leg — LANDED: the adjudication seam is pinned — a
     `NormalizedForeign` mechanism leaf exercising an excluded class rejects
     identically to an intrinsic leaf
     (`a_foreign_mechanism_leaf_exercising_an_excluded_class_rejects` in
-    `native_realization/behavior_exclusions/tests.rs`). The end-to-end leg —
-    a real composition whose boundary requirement binds
-    `ProviderBinding::Import` and reaches the mechanism-closure review under
-    an exclusion — needs the source-evaluated import fixtures that live in
-    `compiler/tests` and `package-compilation`, outside this item's owners.
+    `native_realization/behavior_exclusions/tests.rs`). The end-to-end leg is
+    pinned by `a_source_evaluated_import_exercising_an_excluded_class_rejects_at_closure_review`
+    in `compiler/tests/build_behavior_exclusions.rs`: a source-evaluated
+    composition whose boundary requirement binds `ProviderBinding::Import`
+    (`libc.so.6` `exit`) realizes via `realize_retained_native_artifact`
+    under `exclude_physical_authority(PhysicalAuthorityClass::ProcessTermination)`
+    with a receiving policy whose explicit row exercises that class — the
+    review rejects, naming `ForeignMath::exit_with` + `NormalizedForeign` +
+    `ProcessTermination`, with no permission policy attached; the control
+    (excluded `PortIo`) passes adjudication and proceeds to later native
+    custody stages.
   - Runtime and installation legs on Windows/macOS hosts: this session ran on
     Linux x86_64, so those legs were not exercised; the windows_x86_64
     sentinel leg is compile-time selection only.
