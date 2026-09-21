@@ -748,15 +748,19 @@ fn pure_scalar_builtin_call_in_a_local_initializer_selects_between_operands() {
         .terminal_unit_effects
         .for_machine(machine)
         .expect("a pure scalar builtin folds into the local's computation");
-    let [CheckedUnitEffectOperationPlan::EstablishScalarLocal {
-        result:
-            checked_trees::CheckedUnitScalarResultBindingPlan {
-                statement_index: 0,
-                binding_ordinal: 0,
-                primitive_type: PrimitiveType::U64,
-            },
-        value: checked_trees::CheckedCallScalarArgument::Computation(root),
-    }, _, CheckedUnitEffectOperationPlan::Complete { .. }] = plan.operations.as_slice()
+    let [
+        CheckedUnitEffectOperationPlan::EstablishScalarLocal {
+            result:
+                checked_trees::CheckedUnitScalarResultBindingPlan {
+                    statement_index: 0,
+                    binding_ordinal: 0,
+                    primitive_type: PrimitiveType::U64,
+                },
+            value: checked_trees::CheckedCallScalarArgument::Computation(root),
+        },
+        _,
+        CheckedUnitEffectOperationPlan::Complete { .. },
+    ] = plan.operations.as_slice()
     else {
         panic!(
             "expected one computation-backed establishment then completion: {:?}",
@@ -787,7 +791,10 @@ fn pure_scalar_builtin_call_in_a_local_initializer_selects_between_operands() {
         when_false,
     } = &node.kind
     else {
-        panic!("expected the builtin to select between operands: {:?}", node.kind);
+        panic!(
+            "expected the builtin to select between operands: {:?}",
+            node.kind
+        );
     };
     assert_eq!(*source_expression, local.initial_value);
     let condition = plans.nodes.get(*condition);
