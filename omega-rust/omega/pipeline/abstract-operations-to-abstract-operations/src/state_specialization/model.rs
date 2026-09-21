@@ -192,9 +192,13 @@ impl std::error::Error for StateArgumentSpecializationError {}
 /// and `Conditional` predecessor arms — sorted by edge identity. The state
 /// argument an edge supplies is a proven Boolean when the dispatch reads the
 /// parameter directly, or a proven integer when the condition computes
-/// `parameter CMP literal` in-block. Proposal and validation both recompute
-/// this plan; the candidate is accepted only when its claimed rows equal the
-/// replayed plan exactly.
+/// `parameter CMP literal` in-block; its constant may come from the sparse
+/// lattice directly or — the result specialization — resolve through
+/// single-predecessor forwarding-block parameters to the scalar result of
+/// an in-function `Call` whose single-return callee's lattice proves that
+/// result constant. Proposal and validation both recompute this plan; the
+/// candidate is accepted only when its claimed rows equal the replayed plan
+/// exactly.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DispatchSpecializationPlan {
     pub(crate) machine: MachineId,

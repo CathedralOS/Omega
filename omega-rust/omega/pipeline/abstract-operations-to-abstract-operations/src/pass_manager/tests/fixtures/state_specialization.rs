@@ -104,6 +104,15 @@ fn return_unit(edge: u64) -> Terminator {
 /// -> {yes, no}`.
 /// `ientry -[iseed]-> {ipred | idispatch[ivar]} ; ipred -[3]-> idispatch
 /// -> {iyes, ino}`.
+///
+/// A third pair carries the result specialization: `caller`'s `ccall_pred`
+/// block executes `Call{leaf}` and binds `cstate` to the call's scalar
+/// result — `leaf` carries exactly one `Return` over a proven `true`
+/// constant, so the delivered argument is a proven constant even though the
+/// sparse lattice leaves every call result overdefined. `cvar_pred` keeps
+/// the still-variable `cseed` and the dispatch reachable.
+/// `centry -[cseed]-> {ccall_pred | cdispatch[cseed]} ; ccall_pred -[leaf()]->
+/// cdispatch -> {cyes, cno}`.
 pub(in crate::pass_manager::tests) fn verified_dispatch_specialization_unit()
 -> VerifiedPsiOptimizationUnit {
     let (entry, pred_true, pred_cond, pred_false, dispatch, yes, no) = (
@@ -240,7 +249,185 @@ pub(in crate::pass_manager::tests) fn verified_dispatch_specialization_unit()
     };
     let mut module = module(boolean_machine);
     module.machines.push(integer_comparison_machine());
+    let (caller, leaf) = call_result_pair();
+    module.machines.push(caller);
+    module.machines.push(leaf);
     verified_unit(&module, &terminal_verifier::ProofBundle::default())
+}
+
+/// The result-specialization family member: `caller`'s `ccall_pred` block
+/// executes `Call{leaf}` producing the scalar result `cres`, then jumps to
+/// `cdispatch` binding `cstate` to that result. `leaf` contains exactly one
+/// `Return` whose value is a proven `true` constant, so the callee's own
+/// lattice proves the delivered argument constant even though the caller's
+/// lattice leaves `cres` overdefined. `cvar_pred`'s jump binds `cstate` to
+/// the still-variable machine parameter `cseed`, keeping the dispatch
+/// reachable — exactly one incoming edge specializes.
+fn call_result_pair() -> (terminal_psi::TerminalMachine, terminal_psi::TerminalMachine) {
+    let (centry, ccall_pred, cvar_pred, cdispatch, cyes, cno) = (
+        BlockId::new(5_902).unwrap(),
+        BlockId::new(5_903).unwrap(),
+        BlockId::new(5_904).unwrap(),
+        BlockId::new(5_905).unwrap(),
+        BlockId::new(5_906).unwrap(),
+        BlockId::new(5_907).unwrap(),
+    );
+    let (cseed, cres, cstate) = (
+        ValueId::new(5_910).unwrap(),
+        ValueId::new(5_911).unwrap(),
+        ValueId::new(5_912).unwrap(),
+    );
+    let leaf_id = MachineId::new(5_950).unwrap();
+    let successor = |edge: u64, target, arguments| SuccessorEdge {
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        edge: EdgeId::new(edge).unwrap(),
+        target,
+        arguments,
+        structural_arguments: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    let jump = |edge: u64, arguments| Terminator::Jump {
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        edge: EdgeId::new(edge).unwrap(),
+        target: cdispatch,
+        arguments,
+        structural_arguments: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+        residual_affine_discards: Vec::new(),
+    };
+    let caller = terminal_psi::TerminalMachine {
+        closed_reach_application: None,
+        declared_service_reach: Vec::new(),
+        id: MachineId::new(5_900).unwrap(),
+        attachment: None,
+        parameters: vec![boolean(5_910)],
+        structural_parameters: Vec::new(),
+        ranked_scc: None,
+        result: TerminalMachineResult::Unit,
+        structural_places: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: centry,
+        contract: empty_contract(5_998),
+        blocks: vec![
+            Block {
+                erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                structural_parameters: Vec::new(),
+                id: centry,
+                parameters: Vec::new(),
+                operations: Vec::new(),
+                terminator: Terminator::Conditional {
+                    condition: cseed,
+                    when_true: successor(5_913, ccall_pred, Vec::new()),
+                    when_false: successor(5_914, cvar_pred, Vec::new()),
+                },
+            },
+            Block {
+                erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                structural_parameters: Vec::new(),
+                id: ccall_pred,
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    static_reach_binding: None,
+                    id: OperationId::new(5_915).unwrap(),
+                    result: OperationResult::Scalar(boolean(5_911)),
+                    kind: OperationKind::Call {
+                        callee: leaf_id,
+                        arguments: Vec::new(),
+                        erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
+                    },
+                }],
+                terminator: jump(5_916, vec![cres]),
+            },
+            Block {
+                erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                structural_parameters: Vec::new(),
+                id: cvar_pred,
+                parameters: Vec::new(),
+                operations: Vec::new(),
+                terminator: jump(5_917, vec![cseed]),
+            },
+            Block {
+                erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                structural_parameters: Vec::new(),
+                id: cdispatch,
+                parameters: vec![boolean(5_912)],
+                operations: Vec::new(),
+                terminator: Terminator::Conditional {
+                    condition: cstate,
+                    when_true: successor(5_918, cyes, Vec::new()),
+                    when_false: successor(5_919, cno, Vec::new()),
+                },
+            },
+            Block {
+                erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                structural_parameters: Vec::new(),
+                id: cyes,
+                parameters: Vec::new(),
+                operations: Vec::new(),
+                terminator: return_unit(5_920),
+            },
+            Block {
+                erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                structural_parameters: Vec::new(),
+                id: cno,
+                parameters: Vec::new(),
+                operations: Vec::new(),
+                terminator: return_unit(5_921),
+            },
+        ],
+    };
+    let leaf = terminal_psi::TerminalMachine {
+        closed_reach_application: None,
+        declared_service_reach: Vec::new(),
+        id: leaf_id,
+        attachment: None,
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        ranked_scc: None,
+        result: TerminalMachineResult::Scalar(boolean(5_955)),
+        structural_places: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: BlockId::new(5_951).unwrap(),
+        contract: empty_contract(5_999),
+        blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            structural_parameters: Vec::new(),
+            id: BlockId::new(5_951).unwrap(),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                static_reach_binding: None,
+                id: OperationId::new(5_952).unwrap(),
+                result: OperationResult::Scalar(boolean(5_956)),
+                kind: OperationKind::BooleanConstant { value: true },
+            }],
+            terminator: Terminator::Return {
+                edge: EdgeId::new(5_953).unwrap(),
+                value: ValueId::new(5_956).unwrap(),
+                cleanup_actions: Vec::new(),
+            },
+        }],
+    };
+    (caller, leaf)
 }
 
 /// The integer state-argument family member: `idispatch` reads its own `u64`

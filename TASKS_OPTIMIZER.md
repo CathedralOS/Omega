@@ -907,9 +907,16 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   the condition reads through an in-block `parameter CMP literal` comparison
   — equality, less-than, or less-or-equal, evaluated under the operand type's
   own `IntegerType::compare`, with every other node in the block a pure
-  scalar constant. It still declines every machine holding a cyclic
-  component and does not cover result specialization or state arguments
-  beyond those two condition shapes.
+  scalar constant. Two constant-proof sources admit the bound argument: the
+  sparse lattice proves the argument's own value, or — the result
+  specialization — the argument resolves through single-predecessor
+  forwarding-block parameters to the scalar `result` of an in-function
+  direct `Call` whose callee carries exactly one `Return` over a value the
+  callee's own lattice proves constant (the call still executes at the
+  predecessor; only its proven result resolves the dispatch). It still
+  declines every machine holding a cyclic component and does not cover
+  multi-return, non-constant-return, dynamic, structural, or boundary-call
+  results, nor state arguments beyond those two condition shapes.
   Acceptance: a source-produced state machine selects the rule by exact name
   through `optimize_abstract_operations`, publishes, and replays
   independently. Forged or stale edge provenance, a dispatch whose every

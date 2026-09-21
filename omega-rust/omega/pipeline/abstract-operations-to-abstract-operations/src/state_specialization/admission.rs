@@ -291,11 +291,17 @@ pub(super) fn incoming_edges(
 /// of a `Conditional` predecessor — the sibling arm then executes exactly as
 /// before, so the dispatch stays reachable along it or another unfused edge.
 /// No affine or structural custody may ride either side of the fused
-/// traversal, the edge must bind the state argument to a value the sparse
-/// constant analysis proves is one exact constant the dispatch condition can
-/// resolve — a Boolean for a direct parameter read, an integer for an
-/// in-block literal comparison — and the arm that constant resolves must
-/// carry no custody and reach a block without structural parameters.
+/// traversal, the edge must bind the state argument to a value proven to be
+/// one exact constant the dispatch condition can resolve — a Boolean for a
+/// direct parameter read, an integer for an in-block literal comparison —
+/// and the arm that constant resolves must carry no custody and reach a
+/// block without structural parameters. Two constant-proof sources admit the
+/// bound argument: the sparse constant analysis proves the argument's own
+/// value, or — after the bound argument is resolved through
+/// single-predecessor forwarding-block parameters to the delivered value —
+/// the delivered value is the scalar result of an in-function direct `Call`
+/// whose callee's single `Return` carries a value the callee's own lattice
+/// proves constant — the result specialization.
 pub(super) fn admit_incoming_edge(
     evidence: &DispatchEvidence<'_>,
     owner_block: BlockId,
@@ -362,8 +368,20 @@ pub(super) fn admit_incoming_edge(
         fact.valid_in.machine == evidence.machine
             && fact.valid_in.revision == evidence.unit.identity
             && fact.value == binding.argument
-    })?;
-    let constant = evidence.condition.resolve(&fact.constant)?;
+    });
+    // The sparse lattice proves the argument's own value, or — when it
+    // cannot — the argument may still resolve to the proven-constant result
+    // of an in-function direct call, which the lattice leaves overdefined.
+    // An evaluated state-call argument is delivered through forwarding-block
+    // parameters, so the delivered value is resolved before the call proof.
+    let argument_constant = match fact {
+        Some(fact) => fact.constant,
+        None => {
+            let delivered = delivered_argument(evidence, owner_block, binding.argument);
+            call_result_constant(evidence, delivered, constants)?
+        }
+    };
+    let constant = evidence.condition.resolve(&argument_constant)?;
     let (resolved, rejected) = if constant {
         (evidence.when_true, evidence.when_false)
     } else {
@@ -393,4 +411,119 @@ pub(super) fn admit_incoming_edge(
         rejected_edge: rejected.psi_edge,
         resolved_target: resolved.target,
     })
+}
+
+/// The value actually delivered to the dispatch parameter by `argument`.
+/// The abstract-operations lowering evaluates a state-call argument in the
+/// caller's continuation and delivers it through single-predecessor
+/// forwarding blocks, so the bound argument is often a parameter of the
+/// edge's owner block rather than the produced value itself. While the
+/// argument is a parameter of its owner block and that block has exactly
+/// one incoming edge, follow the unique binding to the predecessor's
+/// supplied value — a merge-free trace: a parameter with several incoming
+/// edges is a genuine join and stops the walk unresolved, and a value that
+/// is not a parameter of its owner block is the produced result itself.
+/// The walk is bounded by the block count — the machine is acyclic when it
+/// reaches admission (cyclic components are declined first), so following
+/// single-predecessor edges visits each block at most once.
+fn delivered_argument(
+    evidence: &DispatchEvidence<'_>,
+    owner_block: BlockId,
+    argument: ValueId,
+) -> ValueId {
+    let mut owner_block = owner_block;
+    let mut argument = argument;
+    for _ in 0..evidence.function.blocks.len() {
+        let Some(block) = evidence
+            .function
+            .blocks
+            .iter()
+            .find(|block| block.id == owner_block)
+        else {
+            break;
+        };
+        if !block
+            .parameters
+            .iter()
+            .any(|parameter| parameter.value == argument)
+        {
+            break;
+        }
+        // `argument` is a parameter of `owner_block`: it is exactly the value
+        // the block's single incoming edge binds to it, or — when several
+        // edges reach the block — a genuine join the walk cannot resolve.
+        let mut incoming = evidence.function.blocks.iter().flat_map(|candidate| {
+            candidate.nodes.iter().flat_map(move |node| {
+                node.successors
+                    .iter()
+                    .filter(move |successor| successor.target == owner_block)
+                    .map(move |successor| (candidate.id, successor))
+            })
+        });
+        let (Some((predecessor_block, predecessor_edge)), None) =
+            (incoming.next(), incoming.next())
+        else {
+            break;
+        };
+        let Some(binding) = predecessor_edge
+            .bindings
+            .iter()
+            .find(|binding| binding.parameter == argument)
+        else {
+            break;
+        };
+        argument = binding.argument;
+        owner_block = predecessor_block;
+    }
+    argument
+}
+
+/// The result-specialization proof for one delivered argument: the argument
+/// is the scalar `result` of an in-function direct `Call` whose callee's
+/// function contains exactly one `Return` node, and the sparse constant
+/// lattice proves that returned value constant inside the callee's own
+/// machine. The call itself still executes at the predecessor — only its
+/// proven result resolves the dispatch — so no callee purity is required,
+/// and a cyclic callee is harmless because every produced result is the
+/// constant no matter which path reached the single return. Dynamic,
+/// structural, and boundary calls produce their results through different
+/// operations and never match; a callee with several `Return` nodes or a
+/// non-constant return admits nothing.
+fn call_result_constant(
+    evidence: &DispatchEvidence<'_>,
+    argument: ValueId,
+    constants: &ScalarConstantAnalysis,
+) -> Option<ScalarConstant> {
+    let callee = evidence
+        .function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            O::Call { result, callee, .. } if *result == argument => Some(*callee),
+            _ => None,
+        })?;
+    let callee_function = evidence
+        .unit
+        .functions
+        .iter()
+        .find(|function| function.machine == callee)?;
+    let mut returned = callee_function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .filter_map(|node| match &node.operation {
+            O::Return { value, .. } => Some(*value),
+            _ => None,
+        });
+    let value = returned.next()?;
+    if returned.next().is_some() {
+        return None;
+    }
+    let fact = constants.facts.iter().find(|fact| {
+        fact.valid_in.machine == callee
+            && fact.valid_in.revision == evidence.unit.identity
+            && fact.value == value
+    })?;
+    Some(fact.constant)
 }
