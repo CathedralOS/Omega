@@ -1,4 +1,6 @@
-use super::{ExpressionHandle, ExpressionNode, Machine, State, TypedTrees};
+use super::{
+    EXPRESSION_WALK_DEPTH_BOUND, ExpressionHandle, ExpressionNode, Machine, State, TypedTrees,
+};
 use crate::checks::ranges::facts::RangeCallContext;
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression_in_state;
@@ -21,8 +23,10 @@ pub(super) fn collect_reads(
     depth: usize,
 ) -> bool {
     // Depth bound shared with the captures.rs walks and pinned by
-    // tests/depth.rs; name it once when any of the three next moves.
-    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+    // tests/depth.rs.
+    if depth >= EXPRESSION_WALK_DEPTH_BOUND
+        || !program.expression_table.expression_is_valid(expression)
+    {
         return false;
     }
     match program.expression_table.expression(expression) {
@@ -899,7 +903,9 @@ fn collect_operand_reads(
             depth + 1,
         );
     }
-    if depth >= 128 || !program.expression_table.expression_is_valid(operand) {
+    if depth >= EXPRESSION_WALK_DEPTH_BOUND
+        || !program.expression_table.expression_is_valid(operand)
+    {
         return false;
     }
     // "Unary operations, borrows, casts, membership tests, and member access
@@ -1261,7 +1267,7 @@ fn temporary_member_symbol_at(
     member: &typed_trees::expression::TableMemberExpression,
     depth: usize,
 ) -> SymbolHandle {
-    if depth >= 128 {
+    if depth >= EXPRESSION_WALK_DEPTH_BOUND {
         return SymbolHandle::invalid();
     }
     let direct = crate::flow::effective_member_symbol(program, member.receiver, member);
@@ -1296,7 +1302,9 @@ fn temporary_receiver_leaf(
     receiver: ExpressionHandle,
     depth: usize,
 ) -> Option<SymbolHandle> {
-    if depth >= 128 || !program.expression_table.expression_is_valid(receiver) {
+    if depth >= EXPRESSION_WALK_DEPTH_BOUND
+        || !program.expression_table.expression_is_valid(receiver)
+    {
         return None;
     }
     match program.expression_table.expression(receiver) {
@@ -1451,7 +1459,9 @@ fn collect_selector_reads(
     reads: &mut Vec<CanonicalPlace>,
     depth: usize,
 ) -> bool {
-    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+    if depth >= EXPRESSION_WALK_DEPTH_BOUND
+        || !program.expression_table.expression_is_valid(expression)
+    {
         return false;
     }
     match program.expression_table.expression(expression) {
@@ -1573,7 +1583,9 @@ fn member_receiver_escapes_binder(
     receiver: ExpressionHandle,
     depth: usize,
 ) -> bool {
-    if depth >= 128 || !program.expression_table.expression_is_valid(receiver) {
+    if depth >= EXPRESSION_WALK_DEPTH_BOUND
+        || !program.expression_table.expression_is_valid(receiver)
+    {
         return false;
     }
     match program.expression_table.expression(receiver) {
