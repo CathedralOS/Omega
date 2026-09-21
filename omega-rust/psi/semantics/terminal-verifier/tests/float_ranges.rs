@@ -26,6 +26,7 @@ fn constant_delivery_module(range: ScalarFloatRange, argument_bits: u64) -> Term
         vec![
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(1),
                 result: OperationResult::Scalar(declaration(caller_constant, f64())),
                 kind: OperationKind::IeeeFloatConstant {
@@ -34,6 +35,7 @@ fn constant_delivery_module(range: ScalarFloatRange, argument_bits: u64) -> Term
             },
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(2),
                 result: OperationResult::Scalar(declaration(call_result, f64())),
                 kind: OperationKind::Call {
@@ -68,6 +70,7 @@ fn forwarding_module(
         vec![declaration(caller_parameter, f64())],
         vec![Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(2),
             result: OperationResult::Scalar(declaration(call_result, f64())),
             kind: OperationKind::Call {

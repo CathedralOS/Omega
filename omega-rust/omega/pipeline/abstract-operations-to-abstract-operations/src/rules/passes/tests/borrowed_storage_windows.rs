@@ -102,6 +102,7 @@ fn structural_types() -> Vec<StructuralTypeDeclaration> {
 fn extract(operation: u64, result: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id::<OperationId>(operation),
         result: OperationResult::Structural(StructuralOperationResult {
             qualification_establishments: Vec::new(),
@@ -124,6 +125,7 @@ fn extract(operation: u64, result: u64) -> Operation {
 fn repair(operation: u64, value: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id::<OperationId>(operation),
         result: OperationResult::Unit,
         kind: OperationKind::StoreStructuralField {
@@ -314,6 +316,7 @@ fn cycle_machine() -> TerminalMachine {
                 }],
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: id::<OperationId>(74),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),

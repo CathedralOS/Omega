@@ -293,6 +293,7 @@ fn scalar_block_invariant_checks_every_conditional_arrival() {
     let mut invalid = module.clone();
     invalid.machines[0].blocks[2].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(30, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

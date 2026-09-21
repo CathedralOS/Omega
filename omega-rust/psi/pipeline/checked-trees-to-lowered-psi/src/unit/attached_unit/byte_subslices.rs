@@ -246,6 +246,7 @@ pub(super) fn emit(
     let producer = operations.allocate();
     operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: producer,
         result: OperationResult::Structural(StructuralOperationResult {
             qualification_establishments: Vec::new(),

@@ -93,6 +93,7 @@ fn owned_execution(
     target.operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(integer_read),
             kind: OperationKind::IntegerStructuralField {
@@ -103,6 +104,7 @@ fn owned_execution(
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(2).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -367,6 +369,7 @@ fn owned_record_result_handoff_preserves_backing_and_rejects_forged_producer() {
                 .push(Operation {
                     id: operation,
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
                         qualification_establishments: Vec::new(),
                         place: parameter.place,

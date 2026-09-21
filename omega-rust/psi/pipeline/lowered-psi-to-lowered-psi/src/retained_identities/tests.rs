@@ -59,6 +59,7 @@ fn u32(ordinal: u64) -> ValueDeclaration {
 fn operation(ordinal: u64, result: ValueDeclaration, kind: OperationKind) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(ordinal).unwrap(),
         result: OperationResult::Scalar(result),
         kind,
@@ -559,6 +560,7 @@ fn a_recorded_call_join_retains_its_environment_through_publication() {
                     ),
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(11).unwrap(),
                         result: OperationResult::Unit,
                         kind: OperationKind::CallUnit {

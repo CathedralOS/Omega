@@ -40,6 +40,7 @@ fn produced_partial_module() -> TerminalModule {
         0,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(2),
             result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
                 qualification_establishments: Vec::new(),

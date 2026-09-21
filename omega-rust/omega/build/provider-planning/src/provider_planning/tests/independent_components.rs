@@ -348,6 +348,7 @@ fn bounded_provider_module(
     });
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(1).expect("operation identity"),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {

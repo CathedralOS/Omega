@@ -47,6 +47,7 @@ pub(super) fn conditional_unit_byte_output_module() -> TerminalModule {
         0,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(132).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

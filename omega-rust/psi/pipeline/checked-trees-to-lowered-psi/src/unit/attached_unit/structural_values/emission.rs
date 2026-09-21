@@ -984,6 +984,7 @@ impl Emission<'_, '_, '_> {
                             let id = self.operations.allocate();
                             self.operations.push(Operation {
                                 static_reach_binding: None,
+                                suspension_crossing: None,
                                 id,
                                 result: OperationResult::Scalar(ValueDeclaration {
                                     id: condition,

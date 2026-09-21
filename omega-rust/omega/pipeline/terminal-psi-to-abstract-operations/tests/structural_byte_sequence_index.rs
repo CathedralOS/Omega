@@ -60,6 +60,7 @@ fn verified_indexed_field_store_survives_every_native_entrance() {
     let byte = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
     let scalar = |operation, value, scalar_type, kind| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(operation),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -136,6 +137,7 @@ fn verified_indexed_field_store_survives_every_native_entrance() {
             structural_parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id(105),
                 result: OperationResult::Unit,
                 kind: OperationKind::StructuralByteSequenceFieldByteStore {

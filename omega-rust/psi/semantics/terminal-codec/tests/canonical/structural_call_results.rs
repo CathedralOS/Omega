@@ -17,7 +17,7 @@ fn structural_call_result_round_trips_with_current_format_and_vocabulary() {
     let module = structural_call_fixture();
     let bytes = encode_module(&module).expect("structural call should encode");
 
-    assert_eq!(&bytes[8..10], 104_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 105_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -264,6 +264,7 @@ fn boundary_scalar_parameter_and_argument_order_round_trips_canonically() {
         [
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(2),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -274,6 +275,7 @@ fn boundary_scalar_parameter_and_argument_order_round_trips_canonically() {
             },
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(3),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),

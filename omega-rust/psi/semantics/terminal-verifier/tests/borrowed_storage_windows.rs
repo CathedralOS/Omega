@@ -152,6 +152,7 @@ fn machine() -> TerminalMachine {
 fn extract(operation: OperationId, result: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation,
         result: OperationResult::Structural(StructuralOperationResult {
             qualification_establishments: Vec::new(),
@@ -174,6 +175,7 @@ fn extract(operation: OperationId, result: u64) -> Operation {
 fn repair(value: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(2, OperationId::new),
         result: OperationResult::Unit,
         kind: OperationKind::StoreStructuralField {
@@ -193,6 +195,7 @@ fn repair(value: u64) -> Operation {
 fn fresh_cell(operation: OperationId, place: u64, flag_value: ValueId) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation,
         result: OperationResult::Structural(StructuralOperationResult {
             qualification_establishments: Vec::new(),
@@ -219,6 +222,7 @@ fn fresh_cell(operation: OperationId, place: u64, flag_value: ValueId) -> Operat
 fn boolean_constant(operation: OperationId, result: ValueId, value: bool) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation,
         result: OperationResult::Scalar(terminal_psi::ValueDeclaration {
             qualifications: Default::default(),
@@ -240,6 +244,7 @@ fn boolean_read(
 ) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation,
         result: OperationResult::Scalar(terminal_psi::ValueDeclaration {
             qualifications: Default::default(),
@@ -437,6 +442,7 @@ fn a_scalar_field_cannot_open_a_window() {
         1,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(5, OperationId::new),
             result: OperationResult::Structural(StructuralOperationResult {
                 qualification_establishments: Vec::new(),

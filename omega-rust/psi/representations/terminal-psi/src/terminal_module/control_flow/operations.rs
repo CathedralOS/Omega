@@ -6,7 +6,8 @@ use crate::{
 use semantic_vocabulary::{
     BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, IeeeFloatValue, IntegerValue,
     MachineId, ObligationId, OperationId, PlaceId, ProofTerm, ScalarTerm, ServiceId,
-    StructuralCaseId, StructuralDomainId, StructuralFieldId, StructuralTypeId, ValueId,
+    StructuralCaseId, StructuralDomainId, StructuralFieldId, StructuralTypeId, SuspensionCrossingId,
+    ValueId,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -14,6 +15,13 @@ pub struct Operation {
     /// Full-telescope binder position in this machine's closed reach contract.
     /// This is a semantic call join, not an executable operation or proof.
     pub static_reach_binding: Option<u32>,
+    /// Authoritative call-side demand: this operation is a possibly-suspending
+    /// call bound to the named checked crossing. The module's suspension
+    /// site/plan rows are evidence for this demand, not its source — a rewrite
+    /// that drops a site and plan pair leaves this marker dangling and fails
+    /// verification, so coordinated row deletion cannot erase a required
+    /// crossing. `None` on non-call operations and calls that never suspend.
+    pub suspension_crossing: Option<SuspensionCrossingId>,
     pub id: OperationId,
     pub result: OperationResult,
     pub kind: OperationKind,

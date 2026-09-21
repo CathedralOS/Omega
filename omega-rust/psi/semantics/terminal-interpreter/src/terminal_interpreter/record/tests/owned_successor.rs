@@ -29,6 +29,7 @@ fn owned_successor_module() -> TerminalModule {
     writer.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(21).unwrap(),
             result: OperationResult::Scalar(scalar(21)),
             kind: OperationKind::IntegerConstant {
@@ -37,6 +38,7 @@ fn owned_successor_module() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(22).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::StructuralScalarFieldStore {
@@ -88,6 +90,7 @@ fn owned_successor_module() -> TerminalModule {
         operations: vec![
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(3).unwrap(),
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {

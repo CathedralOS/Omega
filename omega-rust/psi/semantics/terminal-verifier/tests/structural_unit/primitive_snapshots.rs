@@ -18,6 +18,7 @@ fn term(raw: u64) -> ScalarTerm {
 fn store(raw: u64, value: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(raw),
         result: OperationResult::Unit,
         kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -46,6 +47,7 @@ fn snapshot_module() -> TerminalModule {
         store(1, 1),
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(2),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -226,6 +228,7 @@ fn owned_reference_call_forgets_storage_observations_but_keeps_scalar_snapshots(
                 store(70, 1),
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(71),
                     result: OperationResult::Scalar(ValueDeclaration {
                         id: value_id(71),
@@ -394,6 +397,7 @@ fn primitive_snapshot_mutable_call_invalidates_reaching_store_not_captured_value
     };
     callee.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(10),
         result: OperationResult::Unit,
         kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -404,6 +408,7 @@ fn primitive_snapshot_mutable_call_invalidates_reaching_store_not_captured_value
     }];
     let call = Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(4),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -470,6 +475,7 @@ fn primitive_snapshot_requires_cyclic_arrivals_without_losing_iteration_local_st
     };
     machine.blocks[0].operations[0] = Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(1),
         result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
             qualification_establishments: Vec::new(),
@@ -529,6 +535,7 @@ fn primitive_snapshot_fresh_locals_are_disjoint_and_initialization_stays_require
         });
         let establishment = Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(producer),
             result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
                 qualification_establishments: Vec::new(),

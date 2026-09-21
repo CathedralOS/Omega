@@ -36,6 +36,13 @@ pub enum SuspensionCallPlanError {
     TypeMismatch,
     InvalidClaimFrontier,
     InvalidCallArgument,
+    /// A site/plan pair names an operation whose own possibly-suspending
+    /// demand marker is absent or bound to a different crossing.
+    UnmarkedCallSide,
+    /// An operation declares a possibly-suspending crossing demand that no
+    /// retained site/plan pair satisfies: coordinated deletion of the paired
+    /// rows cannot erase a required crossing.
+    MissingCallSidePlan,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

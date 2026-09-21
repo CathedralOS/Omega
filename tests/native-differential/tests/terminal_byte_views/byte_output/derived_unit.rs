@@ -24,6 +24,7 @@ mod publication;
 fn output_call(identity: u64, argument: ValueId) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(identity).unwrap(),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -111,6 +112,7 @@ fn derived_unit_output_module() -> TerminalModule {
         1,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(120).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

@@ -264,6 +264,7 @@ pub(super) fn payloadless_guard_module()
     ];
     machine.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation,
         result: OperationResult::Structural(StructuralOperationResult {
             qualification_establishments: Vec::new(),
@@ -388,6 +389,7 @@ pub(super) fn multi_exit_payloadless_guard_module() -> (
         parameters: Vec::new(),
         operations: vec![Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation,
             result: OperationResult::Structural(StructuralOperationResult {
                 qualification_establishments: Vec::new(),

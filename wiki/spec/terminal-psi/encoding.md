@@ -270,8 +270,9 @@ rows, and one terminator row.
 
 An operation row is an operation id, a `u8` static-reach flag (1 adds a `u32`
 argument binding; 0 records none), a `u8` result tag (0 unit; 1 + value
-declaration; 2 + structural operation result), the `u8` operation tag, and
-that tag's fields.
+declaration; 2 + structural operation result), the `u8` operation tag, that
+tag's fields, and a trailing `u8` possibly-suspending crossing flag (1 adds a
+crossing id binding the call-side suspension demand; 0 records none).
 
 <!-- operation-tags -->
 | Tag | Operation | Fields after the tag |
@@ -398,7 +399,7 @@ next scalar, 1 the next structural parameter. Unknown tags, missing entries, and
 lane-count mismatches reject. Reordering a valid roster changes the semantic
 identity even when the parameters have identical physical shapes.
 
-Module bytes are `PSITERM\0` + `u16` format marker 104 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 105 + `u16` vocabulary
 marker 107 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with the machine roster.
 
@@ -1471,7 +1472,7 @@ table. The installation record `PSIINST\0` is emitted outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 104 | yes |
+| semantic module | `PSITERM\0` | 105 | yes |
 | proof bundle | `PSIPRF\0\0` | 33 | no |
 | sealed proof section | `PSIPSC\0\0` | 1 | yes |
 | obligation ledger | `PSIOBLG\0` | 3 | yes |

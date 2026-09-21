@@ -94,6 +94,7 @@ fn bounded_block_reader(multiplicity: StructuralMultiplicity) -> TerminalModule 
     );
     module.machines[0].blocks[1].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(5),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -416,6 +417,7 @@ fn owned_backedge_rejoins_the_rebound_frontier_and_cannot_reuse_invocation_custo
     };
     machine.blocks[1].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id::<OperationId>(5),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -488,6 +490,7 @@ fn ordinary_calls_consume_the_block_owner_without_invalidating_prior_scalar_snap
     let place = body.structural_parameters[0].place;
     body.operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id::<OperationId>(5),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {

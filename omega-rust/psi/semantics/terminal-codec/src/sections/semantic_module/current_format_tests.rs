@@ -20,7 +20,7 @@ const LEGACY_UNIT: &[u8] = &[
 // at block offset 264 and module offset 309 (end); these are part of the
 // current body, not markers.
 const CURRENT_UNIT: &[u8] = &[
-    80, 83, 73, 84, 69, 82, 77, 0, 104, 0, 107, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    80, 83, 73, 84, 69, 82, 77, 0, 105, 0, 107, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -139,6 +139,7 @@ fn closed_reach_module() -> terminal_psi::TerminalModule {
         owner.blocks[0].operations.push(Operation {
             id: OperationId::new(ordinal).unwrap(),
             static_reach_binding: Some(binder),
+            suspension_crossing: None,
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
@@ -423,6 +424,7 @@ fn fixed_boundary_service_module() -> terminal_psi::TerminalModule {
         .operations
         .push(terminal_psi::Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: semantic_vocabulary::OperationId::new(1).unwrap(),
             result: terminal_psi::OperationResult::Unit,
             kind: terminal_psi::OperationKind::BoundaryCall {
@@ -896,6 +898,7 @@ fn nominal_schema_dependency_follows_helpers_but_not_disconnected_applications()
     owner.blocks[0].operations = vec![Operation {
         id: OperationId::new(3).unwrap(),
         static_reach_binding: None,
+        suspension_crossing: None,
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),

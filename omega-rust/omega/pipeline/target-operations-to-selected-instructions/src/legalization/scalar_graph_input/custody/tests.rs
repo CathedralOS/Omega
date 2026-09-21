@@ -158,6 +158,7 @@ fn successor(edge: u64, target: BlockId, arguments: Vec<ValueId>) -> SuccessorEd
 fn operation(number: u64, result: ValueDeclaration, kind: OperationKind) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(number, OperationId::new),
         result: OperationResult::Scalar(result),
         kind,

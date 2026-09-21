@@ -108,6 +108,7 @@ fn unit_machine(raw: u64, blocks: Vec<Block>) -> TerminalMachine {
 fn unit_operation(raw: u64, kind: OperationKind) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(raw),
         result: OperationResult::Unit,
         kind,

@@ -175,6 +175,7 @@ fn mutable_call_invalidates_length_but_shared_call_preserves_it() {
             6,
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id(8),
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
@@ -259,6 +260,7 @@ fn unknown_live_length_uses_only_the_selected_true_edge_bound() {
     let store = machine.blocks[0].operations.pop().unwrap();
     machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(8),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

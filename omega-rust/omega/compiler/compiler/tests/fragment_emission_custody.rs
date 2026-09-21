@@ -113,6 +113,7 @@ fn branching_calling_module() -> TerminalModule {
     };
     let operation = |id: u64, result: OperationResult, kind: OperationKind| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result,
         kind,

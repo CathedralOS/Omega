@@ -348,6 +348,7 @@ fn emit_direct_call_operation(
         .collect::<Result<Vec<_>, LoweringError>>()?;
     operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation,
         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
             qualifications: call.result_type.qualifications,

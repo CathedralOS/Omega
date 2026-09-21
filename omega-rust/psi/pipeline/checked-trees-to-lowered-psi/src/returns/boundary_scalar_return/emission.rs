@@ -233,6 +233,7 @@ pub(crate) fn emit_boundary_scalar_return(
     )?;
     let operation = Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id,
         result: terminal_psi::OperationResult::Scalar(call_result),
         kind: OperationKind::BoundaryCall {

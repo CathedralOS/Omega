@@ -118,6 +118,7 @@ pub(crate) fn lower_payloadless_guarded_call_return_machine(
             erased_proof_formals: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(1),
                 result: terminal_psi::OperationResult::Structural(
                     terminal_psi::StructuralOperationResult {

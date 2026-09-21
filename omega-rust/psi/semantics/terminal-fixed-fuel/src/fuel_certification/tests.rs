@@ -223,6 +223,7 @@ mod machine_bounds {
     fn call_unit(operation_id: u64, callee: u64) -> Operation {
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(operation_id),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
@@ -241,6 +242,7 @@ mod machine_bounds {
     fn dynamic_unit_call(operation_id: u64, descriptor_ordinal: u32) -> Operation {
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(operation_id),
             result: OperationResult::Unit,
             kind: OperationKind::CallDynamicUnit {
@@ -254,6 +256,7 @@ mod machine_bounds {
     fn dynamic_scalar_call(operation_id: u64, descriptor_ordinal: u32) -> Operation {
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(operation_id),
             result: OperationResult::Scalar(ValueDeclaration {
                 id: id(20_000 + operation_id),
@@ -271,6 +274,7 @@ mod machine_bounds {
     fn parameter_unit_call(operation_id: u64) -> Operation {
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(operation_id),
             result: OperationResult::Unit,
             kind: OperationKind::CallDynamicParameterUnit {
@@ -285,6 +289,7 @@ mod machine_bounds {
     fn boundary_call(operation_id: u64, boundary: u64) -> Operation {
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(operation_id),
             result: OperationResult::Unit,
             kind: OperationKind::BoundaryCall {
@@ -299,6 +304,7 @@ mod machine_bounds {
     fn integer_constant(operation_id: u64, result: u64, value: u64) -> Operation {
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(operation_id),
             result: OperationResult::Scalar(ValueDeclaration {
                 id: id(result),
@@ -316,6 +322,7 @@ mod machine_bounds {
     fn boolean_constant(operation_id: u64, result: u64, value: bool) -> Operation {
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(operation_id),
             result: OperationResult::Scalar(ValueDeclaration {
                 id: id(result),
@@ -1165,6 +1172,7 @@ mod machine_bounds {
         };
         let rank_constant = |operation: u64, result: u64, value: u64| Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(operation),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -1380,6 +1388,7 @@ mod machine_bounds {
         };
         let rank_constant = |operation: u64, result: u64| Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(operation),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -1749,6 +1758,7 @@ mod machine_bounds {
         };
         let rank_constant = |operation: u64, result: u64| Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(operation),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

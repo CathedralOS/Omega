@@ -60,6 +60,7 @@ fn comparison_fixture() -> TerminalModule {
         parameters: Vec::new(),
         operations: vec![Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(901),
             result: OperationResult::Scalar(declaration(930, ScalarType::Boolean)),
             kind: OperationKind::IntegerEqual {
@@ -90,7 +91,7 @@ fn comparison_fixture() -> TerminalModule {
 fn operation_crash_contracts_round_trip_and_enter_semantic_identity() {
     let module = comparison_fixture();
     let bytes = encode_module(&module).expect("operation crash contract encodes");
-    assert_eq!(&bytes[8..12], &[104, 0, 107, 0]);
+    assert_eq!(&bytes[8..12], &[105, 0, 107, 0]);
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 

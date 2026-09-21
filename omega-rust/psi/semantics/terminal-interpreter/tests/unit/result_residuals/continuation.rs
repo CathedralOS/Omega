@@ -53,6 +53,7 @@ fn module(ordinary: bool, nested: bool, complete_transfer: bool) -> TerminalModu
         0,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(10),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -90,6 +91,7 @@ fn module(ordinary: bool, nested: bool, complete_transfer: bool) -> TerminalModu
         }],
         operations: vec![Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(11),
             result: OperationResult::Unit,
             kind: OperationKind::BoundaryCall {

@@ -56,6 +56,7 @@ fn wide_scalar_call_artifact() -> (Vec<u8>, Vec<u8>) {
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(CALLER_BASE + 1).unwrap(),
                     result: OperationResult::Scalar(value(CALLER_BASE + 1)),
                     kind: OperationKind::IntegerConstant {
@@ -64,6 +65,7 @@ fn wide_scalar_call_artifact() -> (Vec<u8>, Vec<u8>) {
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(CALLER_BASE + 2).unwrap(),
                     result: OperationResult::Scalar(value(CALLER_BASE + 2)),
                     kind: OperationKind::Call {

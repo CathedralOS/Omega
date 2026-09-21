@@ -26,6 +26,7 @@ pub(super) fn scalar(ordinal: u64, bits: u16) -> ValueDeclaration {
 pub(super) fn integer(ordinal: u64, bits: u16, value: u128) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(ordinal),
         result: OperationResult::Scalar(scalar(ordinal, bits)),
         kind: OperationKind::IntegerConstant {
@@ -37,6 +38,7 @@ pub(super) fn integer(ordinal: u64, bits: u16, value: u128) -> Operation {
 pub(super) fn emit_byte(ordinal: u64, value: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(ordinal),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
@@ -82,6 +84,7 @@ pub(super) fn guarded_module(bytes: Vec<u8>, byte_index: u64) -> TerminalModule 
         integer(2, 64, u128::from(byte_index)),
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(3),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
@@ -133,6 +136,7 @@ pub(super) fn guarded_module(bytes: Vec<u8>, byte_index: u64) -> TerminalModule 
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(10),
                     result: OperationResult::Scalar(scalar(10, 64)),
                     kind: OperationKind::ByteSequenceLength {
@@ -141,6 +145,7 @@ pub(super) fn guarded_module(bytes: Vec<u8>, byte_index: u64) -> TerminalModule 
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(11),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -168,6 +173,7 @@ pub(super) fn guarded_module(bytes: Vec<u8>, byte_index: u64) -> TerminalModule 
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(12),
                     result: OperationResult::Scalar(scalar(12, 8)),
                     kind: OperationKind::ByteSequenceRead {
@@ -376,6 +382,7 @@ fn byte_read_rejects_fake_wrong_source_later_and_sibling_length() {
         let mut module = base.clone();
         let mut length = Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(14),
             result: OperationResult::Scalar(scalar(14, 64)),
             kind: OperationKind::ByteSequenceLength {
@@ -548,6 +555,7 @@ fn byte_read_requires_exact_selected_guard_and_certificate() {
                     1,
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(14),
                         result: OperationResult::Scalar(scalar(14, 64)),
                         kind: OperationKind::ByteSequenceLength {

@@ -343,6 +343,7 @@ fn boolean_reads_require_entry_inputs_but_integer_reads_defer_until_execution() 
             .operations
             .push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(1).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),

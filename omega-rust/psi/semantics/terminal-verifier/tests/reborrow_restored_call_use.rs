@@ -149,6 +149,7 @@ fn restored_call_use_module() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation,
                         result: OperationResult::Unit,
                         kind: OperationKind::CallUnit {
@@ -268,6 +269,7 @@ fn exact_two_and_three_member_shared_freeze_cohorts_validate_and_fence_roster_dr
         0,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(2, OperationId::new),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {

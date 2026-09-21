@@ -20,6 +20,7 @@ mod mutation_facts;
 fn boolean_read(operation: u64, source: u64, field: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(operation),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -37,6 +38,7 @@ fn boolean_read(operation: u64, source: u64, field: u64) -> Operation {
 fn boolean_constant(operation: u64, value: bool) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(operation),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -50,6 +52,7 @@ fn boolean_constant(operation: u64, value: bool) -> Operation {
 fn store(operation: u64, destination: u64, value: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(operation),
         result: OperationResult::Unit,
         kind: OperationKind::StructuralScalarFieldStore {
@@ -65,6 +68,7 @@ fn store(operation: u64, destination: u64, value: u64) -> Operation {
 fn call() -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(13),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -125,6 +129,7 @@ fn receiver_module(cyclic: bool) -> TerminalModule {
     for (operation, field) in [(15, 3), (16, 4)] {
         caller.blocks[0].operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(operation),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

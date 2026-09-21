@@ -42,6 +42,7 @@ pub(super) fn module() -> TerminalModule {
         constant(210, 0),
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(211),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -80,6 +81,7 @@ pub(super) fn module() -> TerminalModule {
         constant(6, 1),
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(7),
             result: OperationResult::Scalar(scalar(7)),
             kind: OperationKind::ExactIntegerSubtract {
