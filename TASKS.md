@@ -8747,6 +8747,32 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (LOWERED-UNIT-FAILURE-ATTRIBUTION ~01:17Z, BASELINE-CANARY-PASS-
   CLUSTER ~23:41Z, CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION ~01:42Z), so
   this update stays on the board line and leaves the doc to them.
+  Re-verified at `0f75a052f0` (z151, linux x86-64): the tail halved —
+  22 named-member fails plus the known SIGTERM vs 55+SIGTERM at
+  c267df86acb. `--lib` is fully green (791/791): the `Service<R>`
+  stale-fixture family has drained under the service-spelling wave.
+  The family-3 crash-namespace trio (`exact_affine_sibling_source`,
+  `exact_shift_left_certificate_source`, `mixed_shift_source`
+  members), the family-5 `established by` leg
+  (`boundary_result_domain_calls`), and the `composed_operand_catalogs`/
+  `dynamic_composed_unit` modules all pass in the filtered selection.
+  Every remaining fail shares the owned signatures: the
+  provider-attachment/transitive-plan cluster reads 19 —
+  `provider_attachment_source` (×6), `unit_state_graph::provider_attachments`
+  (×9), `unit_plan_omissions` (×3), plus
+  `guarded_scalar_returns_source::stored_returned_cases_support_borrowed_refined_getters`
+  whose signature migrated into the same `InvalidUnitMachinePlan`
+  "missing a checked transitive machine plan" family (producers
+  `src/unit/attached_unit` + t2c `execution/unit/*` — UEFI-OS-HANDOFF
+  live to 10:19Z, c2l `src/unit` fenced by STRUCTURAL-UNIT-LOWERING to
+  09:16Z); scalar-return custody reads 3 in
+  `owned_record_return_source` (4→3) — discarded pure-call elision,
+  "composed Unit scalar call requires structural call custody", and a
+  replay unwrap — the C2L custody lane's residual (file under
+  C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES to 10:35Z, producing
+  surfaces under CRASH-CONTRACT 04:27Z + PROOF-RELEVANCE-MIGRATION
+  11:29Z). The nominal_affine SIGTERM leg is un-rerun — its file sits
+  under RC-GATE-STABILITY-REPAIR (12:15Z). Still no unowned slice.
 - **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT.** Remove the cubic lowering cost that
   makes `nominal_affine_source::integer_comparison::mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
   never return. **The name is wrong and this row's earlier hypothesis is
