@@ -7611,7 +7611,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **CONST-GENERIC-EXTENT-RANGE-DISCHARGE** — mined candidate; verify scope then implement.
 - **CONST-GENERIC-INFERRED-EXTENT-RANGE** — mined candidate; verify scope then implement.
 - **CONSTANT-LEAF-EXACT-CARRIER** — mined candidate; verify scope then implement.
-- **CONSTRUCTIVE-REAL-FOUNDATIONS** — mined candidate; verify scope then implement.
+- **CONSTRUCTIVE-REAL-FOUNDATIONS.** Mined candidate — resolved:
+  scope verified, owned elsewhere. The name re-mines the constructive
+  Real foundation — replacing `source/library/core/real.omg` (N5's
+  temporary opaque axiomatic package; "N6/N8 can replace this package
+  with the constructive Cauchy quotient without changing consumers'
+  contracts"). [mathematics.md](source/library/core/mathematics.md)
+  records the state: `cauchy.omg` carries generator/modulus machines in
+  the currently expressible pointwise proofs (`doubled_nat_max_modulus`,
+  `doubled_nat_max_threshold` compose `M3(e) = nat_max(M1(2e), M2(2e))`
+  statically), but the heterogeneous transitivity theorem still awaits
+  two entailment-tier capabilities — general function/predicate binders
+  and the quotient step — that keep `converges_together_at_triangle_split`
+  from verifying (math roster N3). The migration itself is owned on this
+  board by **PROOF-CONTRACT-MIGRATION** and **QUOTIENT-THEOREM-LIFT**;
+  replacing Real requires the relation, witness, quotient and
+  receiving-axiom contracts to survive. No independent slice exists here.
 - **COORDINATOR-OVEROWNERSHIP-AUDIT** — mined candidate; scope verified, audit
   artifact exists and its actionable finding is landed. The row re-mines
   `wiki/drafts/coordinator_overownership_audit.md`, which swept every named
