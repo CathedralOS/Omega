@@ -9,8 +9,8 @@ Every function is declared as plain data: ``(result, arguments, mode,
 selected, clauses)`` where each clause is ``(constructor, rows, body)`` and
 each row is ``(0, slot)``, ``(1, constructor, *children)``, or
 ``(2, function, *children)``. ``_emit_function`` serializes the
-declarations into GTH1 records; the proof fixtures in encoding_shape.py
-read the same declarations for clause ordinals and template shapes.
+declarations into GTH1 records; the proof fixtures in encoder.py replay
+those records' clause ordinals and template shapes through stepper.py.
 """
 
 import sys
