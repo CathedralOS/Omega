@@ -79,3 +79,13 @@ Execution mechanism per host:
   independently formed or substituted access/shape/placement pairs reject;
   a following callee seeing the staged write is not caller-visible
   writeback.
+
+Recipe verified at `2dbfecd98e` (linux x86-64): the harness layout is
+unchanged — 17 submodules, 79 tests total across the
+`terminal_psi_indexed_receivers` tree; `common/native_function.rs:17`
+`assert_c_text` still emits `omega_entry`/`_omega_entry` over
+`.Lomega_text + <entry_offset>` and `.note.GNU-stack`; the Windows leg
+still runs `VirtualAlloc`/`VirtualProtect`/`FlushInstructionCache` in
+`pipeline_ownership/native_execution.rs`. The recorded-state table stays
+accurate: linux-aarch64 and Windows x86-64 legs remain open and
+host-gated — no in-repo QEMU harness exists.
