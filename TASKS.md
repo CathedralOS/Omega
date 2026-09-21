@@ -12191,6 +12191,88 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   binary_search_viz (4). Per-host verdict: linux_x86_64 leg measured here;
   linux_arm64/macos_arm64/windows_x86_64 legs host-gated, unrun. Gate stays
   open on every measured host axis until the fenced lanes land.
+- **RC-HOST-RUNNER-LANES** — mined candidate; verify scope then implement.
+- **RC-LINUX-ARM64-NATIVE-ROW** — mined candidate; verify scope then implement.
+- **RC-LINUX-X86-64-GATE-LEDGER** — mined candidate; verify scope then implement.
+- **RC-MATRIX-RUNNER** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-CLOSURE** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-GATE** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-HOST-EXECUTION** — recorded at
+  `wiki/drafts/rc_native_matrix_host_execution.md` (revision 4dbdaa9bc3,
+  linux-x86_64): 558 pass / 112 fail / 1 expected skip across 670 legs of
+  omega-native-differential-test in ~1695 s; two binaries (pipeline_ownership,
+  abstract_publication) do not compile at this revision and are excluded
+  under sibling fences. Failures reduce to the Service<R>-carrier spelling,
+  checked-body exact-arithmetic/service-reach obligations, the
+  omega_language_std → platform shim rename, proof-decode fingerprint drift,
+  natural-writer fuel expectations, ProgramEntry receiver provisioning, and
+  one pinned terminal-bytes drift. Re-run when those families close.
+- **RC-NATIVE-MATRIX-HOST-LEGS** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-HOST-RUNS** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-HOSTS** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-LINUX-ARM64** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-LINUX-X64** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-LINUX-X86-64** — recorded at
+  `wiki/drafts/rc_native_matrix_linux_x86_64.md` (revision 8ae40607a3,
+  linux-x86_64): 15 pass / 23 fail across 38 legs; all failures are the
+  Service<R>-carrier spelling and entry-binding/ownership fixture-migration
+  residuals owned by ENTRY-CONTENT-ROOTS. Re-run the row when those families
+  close.
+- **RC-NATIVE-MATRIX-MACOS-ARM64** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-WINDOWS-X64** — mined candidate; verify scope then implement.
+- **RC-PCC-REPLAY** — mined candidate; verify scope then implement.
+- **RC-PCC-REPLAY-CLOSURE** — mined candidate; verify scope then implement.
+- **RC-PCC-REPLAY-GATE** — mined candidate; verify scope then implement.
+- **RC-PCC-REPLAY-HOSTILE-EVIDENCE** — mined candidate; verify scope then implement.
+- **RC-PLATFORM-RUN-RECORDS** — mined candidate; verify scope then implement.
+- **RC-PLATFORM-RUNNER-COVERAGE** — mined candidate; verify scope then implement.
+- **RC-PORTABLE-PSI-CLOSURE** — mined candidate; verify scope then implement.
+- **RC-PORTABLE-PSI-ENVELOPE.** Resolved — re-mines the release-matrix gate
+  `RC-PORTABLE-PSI` (wiki/drafts/rust_compiler_completion.md), already
+  discharged by the landed PORTABLE-TERMINAL-RELOAD work and re-verified
+  green here at `e4afe9659b`: `compiler::canary_suite
+  portable_terminal_reload::portable_terminal_product_reloads_across_process_boundary`
+  spawns producer/consumer legs per `RELOAD_CANARIES` fixture — the
+  producer publishes a source-free Terminal Psi envelope and exits, the
+  consumer reconstructs, verifies, and interprets it — plus truncated,
+  mutated-section, and trailing-byte refusal legs (26.7s, 1/1 PASS on
+  linux x86-64). The envelope surface specifically is the artifact written
+  by the produce stage and refused tampered by the consume stage — the
+  same row, not an independent slice; sibling re-mines: RC-PORTABLE-PSI,
+  RC-PORTABLE-PSI-CLOSURE, RC-PORTABLE-PSI-GATE, RC-PORTABLE-PSI-RELOAD.
+  The release contract still requires all eight matrix gates on one clean
+  commit across the four required hosts (matrix row, not standalone
+  completion).
+- **RC-PORTABLE-PSI-GATE.** Resolved — re-mines the release-matrix gate
+  `RC-PORTABLE-PSI` (wiki/drafts/rust_compiler_completion.md): the gate
+  exists and passes. `compiler::canary_suite
+  portable_terminal_reload::portable_terminal_product_reloads_across_process_boundary`
+  spawns producer/consumer child legs per RELOAD_CANARIES fixture — one
+  process publishes a source-free Terminal Psi envelope and exits, the
+  second reconstructs, verifies, and interprets it — plus truncated,
+  mutated, and trailing-byte refusal legs rejecting tampered envelopes.
+  Witnessed green on Linux x86-64 at `72125c7156` (32.7s, 1/1; test file
+  unchanged through `89157bca74`). Sibling
+  re-mines of the same row: RC-PORTABLE-PSI, RC-PORTABLE-PSI-CLOSURE,
+  RC-PORTABLE-PSI-ENVELOPE, RC-PORTABLE-PSI-RELOAD. The gate is a matrix
+  row, not a standalone completion: the release contract still requires
+  all eight gates on one clean commit across the four required hosts, and
+  the test surface is owned by PORTABLE-TERMINAL-RELOAD work.
+- **RC-PORTABLE-PSI-RELOAD** — mined candidate; verify scope then implement.
+  Verified scope: re-mines the completed **PORTABLE-TERMINAL-RELOAD** item
+  (landed and row-removed at 8ae40607a3, 2026-09-20).
+  `canary_suite/portable_terminal_reload.rs` now proves both halves of the
+  portable-product boundary for every `RELOAD_CANARIES` fixture: a Terminal
+  artifact produced in one process decodes, verifies, and interprets in a
+  second, and the consumer refuses truncated envelopes, mutated section
+  bytes, and trailing bytes. The generic portable-psi surface legs that
+  remain are the sibling re-mines RC-PORTABLE-PSI, RC-PORTABLE-PSI-CLOSURE,
+  RC-PORTABLE-PSI-ENVELOPE and RC-PORTABLE-PSI-GATE — no independent reload
+  slice exists here.
+- **RC-RELEASE-CLOSURE-RUN** — mined candidate; verify scope then implement.
+- **RC-RELEASE-RECORD** — mined candidate; verify scope then implement.
+- **RC-RELEASE-RECORD-AND-CLOSURE** — mined candidate; verify scope then implement.
 - **RC-RELEASE-RECORD-RUN** — mined candidate; verify scope then implement.
 - **RC-RELEASE-RECORD-SUBSTRATE** — mined candidate; verify scope then implement.
 - **RC-REPOSITORY** — measured gate state at a9fa1a4fe6 (Linux x86-64, cargo; `mbx` absent on this host). `cargo fmt --all -- --check` RED: 14 files drifted under 2026-09-20 landings — external-roots `interrupts/interrupt_table/{member_admissions.rs,tests.rs,tests/member_admission_and_publication.rs}` + `stack_and_fuel/stack_demand.rs`, compiler tests `layout_plans/interrupt_descriptor_tables.rs` + `module_machine_indices{,.rs,/comparisons.rs}`, `calling-conventions/src/lib.rs` (repaired beside this row), c2l `tests/integer_policy_realization.rs`, t2c `checks/multiplicity/{borrowed_windows,linear_obligations}.rs` + `checks/termination/progress/origins{,/tests,/tests/references}.rs`, validation `proof_contracts/domain_weakening.rs` + `value_custody/expression_types/match_dispatch.rs`. `cargo clippy --workspace --all-targets -- -D warnings` RED: `package-source` `tree/capture/traversal.rs:513` `permissions_set_readonly_false` (BUILD-PACKAGES-GATE fence), `syntax-trees-to-symbol-resolved-trees` `symbols/type_references/queries.rs:76` collapsible-if, `validation` `machine_calls/structural_call_custody.rs:151` let-else; downstream crates unexamined past the first failure (9 `package-evidence` test unused-import warnings wait behind it). `cargo check --workspace --all-targets` RED: two stale test fixtures under live claims — `tests/native-differential/tests/abstract_publication/decision_custody.rs` (PSI_PASS_CATALOG grew to 7 with `StateSpecialization` in 9a9d1a8b32; GRAPH-FEATURE-PROJECTION-SCHEMA holds the file) and `tests/native-differential/tests/pipeline_ownership/fixtures/ordinary_graph_controls.rs` (`LegalizedScalarTerminator::Crash` added by bf8769cce1; STRUCTURAL-UNIT-CALL-GRAPH-JOINS holds the target). `omega-architecture-test --all-targets` RED 535/547: `glob_self_imports_never_grow_per_crate` — 8 new glob files (acquisition `tree/capture/traversal.rs`, optimization-unit-semantics `control_flow_cleanup/unreachable_private_machines/replay.rs`, c2l `retention/operation_crash_contracts.rs`, proof `checker/measurement.rs`, proof-admission `classicality.rs`, terminal-verifier `trusted_surface.rs` + `tests/structural_unit/self_claim_retirement.rs`, validation `value_custody/expression_types/result_type.rs`) — and an 11-test `boundary_ensures_*`/`symbolic_walk_*`/`provider_receiver` recast-witness family under today's boundary-frame commits (34ae9baa8a, e9769f34e5, 4bebb7da7a). `canary_suite` retired-domain row PASS. `nextest --workspace --lib` RED 15526/15621: selected-dispatch 32 (`boundary_dispatch` finite_family/generic_requirements/source_retention — UEFI-OS-HANDOFF fence), checked-trees-to-lowered-psi 30 (`composed_operand_catalogs`, `dynamic_composed_unit`, `structural_control_cases`), terminal-codec 10 (`block_wire` round-trips after f94e78ec39), package-manager 7 (review/candidate + capability_review; `operations` under TWO-AXIS fence), abstract-operations-to-abstract-operations 7 (`loop_invariant_scalar_motion` — GENERAL-LICM area), source-files-to-assembled-syntax 3 (`build_vocabulary`/`build_prelude` — same 7th-`Optimization` root as decision_custody), calling-conventions 2 ((X86_64,MachO) matrix rows — repaired beside this row), t2c 2, native-realization 1, a2t 1. Next action: sibling items repair their fenced rows; the calling-conventions row and the crate's fmt drift land here.
