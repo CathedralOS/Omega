@@ -211,7 +211,7 @@ fn const_evaluation_rejects_an_undischarged_authored_precondition() {
         "undischarged-precondition",
         r#"
 machine length() -> u64
-requires true;
+requires false;
 {
     4
 }
