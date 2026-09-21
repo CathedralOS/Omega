@@ -317,7 +317,11 @@ pub(crate) fn shared_integer_runtime_parameter_positions_for_test(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CheckFacts, CheckedScalarBinding, CheckedScalarExpression, CheckedScalarExpressionRole,
+        CheckedStructuralScalarReturnCleanupAction, PrimitiveType, SymbolHandle,
+        checked_shared_boolean_convergence,
+    };
     use checked_trees::{
         CheckedBooleanExpression as Boolean, CheckedBooleanExpression,
         CheckedIntegerComparisonKind, CheckedLocatedScalarExpression,
