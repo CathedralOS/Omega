@@ -549,7 +549,7 @@ fn seeded_initializer_rejoins_retained_transitive_custody() {
         sources,
         top_level_bindings: Vec::new(),
     })
-    .map(|seeded| seeded.into_unrebased_trees())
+    .map(|seeded| seeded.trees().clone())
     .expect("seeded initializer retains transitive dependencies and operators");
     assert_eq!(
         &seeded.authored_declaration_selections().as_slice()[..retained_selections.len()],

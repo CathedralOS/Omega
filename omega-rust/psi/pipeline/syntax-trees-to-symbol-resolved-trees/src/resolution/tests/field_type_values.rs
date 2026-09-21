@@ -244,7 +244,7 @@ fn field_type_values_resolve_new_fields_against_retained_declarations() {
         sources: Arc::new(sources),
         top_level_bindings: Vec::new(),
     })
-    .map(|seeded| seeded.into_unrebased_trees())
+    .map(|seeded| seeded.trees().clone())
     .unwrap();
     for owner in ["Base", "Added"] {
         assert_call(&program, fields(&program, owner)[0], target);
