@@ -122,7 +122,7 @@ use omega::language::core::service;
 data Main {{
     value: i32;
     bytes: [u8; 256];
-    console: Service<Console> in Bound;
+    console: Service<Console>;
 }}
 
 machine Main::main(&mut self) reaches Console {{
@@ -152,7 +152,7 @@ machine Main::main(&mut self) reaches Console {{
         r#"machine build(builder: &mut Build) {{
     builder.application("source-evaluated-linux-arm64-hosted-receiver");
     builder.depend(Source::Path {{ location: "{standard_library}" }});
-    builder.select_provider<Console, ConsoleNativeProvider>();
+    builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
 }}
 "#,

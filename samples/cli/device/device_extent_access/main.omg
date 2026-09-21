@@ -1,0 +1,43 @@
+// Device extent access vocabulary exercise. A DMA transfer is an external
+// borrow of a `Granted` extent range by a device: the admitted provider lends
+// the range as the linear `DeviceLoan` proxy, direction-qualified by domain,
+// and completion restores `Extent::Granted` custody. Checked-only sample —
+// `DeviceLoan` is provider-issued opaque data, so no source-level adapter
+// exists and no build.omg selects a provider.
+
+use omega::language::core::device;
+use omega::language::core::extent;
+use omega::language::core::service;
+
+machine consume_read_loan(loan: DeviceLoan in DeviceReads) -> DeviceLoan {
+    loan as DeviceLoan
+}
+
+machine consume_write_loan(loan: DeviceLoan in DeviceWrites) -> DeviceLoan {
+    loan as DeviceLoan
+}
+
+data DmaHarness {
+    roots: Service<ExtentRootProvider>;
+    device: Service<DeviceLoanProvider>;
+}
+
+machine DmaHarness::stage_dma_read(&self, root: Extent) -> Extent
+reaches ExtentRootProvider, DeviceLoanProvider
+{
+    let granted: Extent = self.roots.grant(root);
+    let loan: DeviceLoan = self.device.lend_for_read(granted);
+    transition { _ -> (self.device.complete(consume_read_loan(loan)) as Extent) }
+}
+
+machine DmaHarness::stage_dma_write(&self, root: Extent) -> Extent
+reaches ExtentRootProvider, DeviceLoanProvider
+{
+    let granted: Extent = self.roots.grant(root);
+    let loan: DeviceLoan = self.device.lend_for_write(granted);
+    transition { _ -> (self.device.complete(consume_write_loan(loan)) as Extent) }
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

@@ -5,9 +5,10 @@
 //! namespace: a reader following a call from an entrance into a leaf cannot
 //! see where a name comes from without a repository-wide search, which is the
 //! navigation failure the source-organization audits exist to prevent. The
-//! repository already holds more than two thousand such files, so this gate
-//! does not demand they vanish at once. It records, per crate, how many files
-//! carry a glob self-import today and fails when that number grows.
+//! repository once held more than two thousand such files; the residual is
+//! small enough to repair file by file, and this ratchet keeps it shrinking.
+//! It records, per crate, how many files carry a glob self-import today and
+//! fails when that number grows.
 //!
 //! An entry records the exact count its crate has right now. Growing past it
 //! fails as a regression; shrinking fails as a stale entry, and the entry is
@@ -59,7 +60,13 @@ fn file_carries_glob_self_import(path: &Path) -> bool {
     source.lines().any(is_glob_self_import)
 }
 
-fn count_glob_self_import_files(directory: &Path) -> usize {
+/// Files under one crate directory carrying a glob self-import. `crate_root`
+/// marks the crate directory itself: only there does a `target/` child mean
+/// Cargo build output. A deeper directory literally named `target` is a source
+/// module (for example `scalar_graph_input/target/`), and the crate named
+/// `target` is a real crate — name alone must not exempt either from the
+/// ratchet.
+fn count_glob_self_import_files(directory: &Path, crate_root: bool) -> usize {
     let entries = fs::read_dir(directory)
         .unwrap_or_else(|error| panic!("read {}: {error}", directory.display()));
     let mut count = 0;
@@ -69,10 +76,11 @@ fn count_glob_self_import_files(directory: &Path) -> usize {
             .path();
         if path.is_dir() {
             let nested_crate = path.join("Cargo.toml").is_file();
-            if nested_crate || path.file_name().is_some_and(|name| name == "target") {
+            let build_output = crate_root && path.file_name().is_some_and(|name| name == "target");
+            if nested_crate || build_output {
                 continue;
             }
-            count += count_glob_self_import_files(&path);
+            count += count_glob_self_import_files(&path, false);
         } else if path.extension().is_some_and(|extension| extension == "rs")
             && file_carries_glob_self_import(&path)
         {
@@ -100,10 +108,18 @@ fn collect_crate_directories(root: &Path, directory: &Path, crates: &mut Vec<Str
         let path = entry
             .unwrap_or_else(|error| panic!("read entry under {}: {error}", directory.display()))
             .path();
-        if !path.is_dir() || path.file_name().is_some_and(|name| name == "target") {
+        if !path.is_dir() {
             continue;
         }
-        if path.join("Cargo.toml").is_file() && path.join("src").is_dir() {
+        let is_crate = path.join("Cargo.toml").is_file() && path.join("src").is_dir();
+        // A directory named `target` that is not itself a crate is Cargo
+        // build output: prune it instead of scanning generated sources. A
+        // crate named `target` (omega-rust/omega/representations/target) is
+        // still a crate and must stay under the ratchet.
+        if path.file_name().is_some_and(|name| name == "target") && !is_crate {
+            continue;
+        }
+        if is_crate {
             crates.push(
                 path.strip_prefix(root)
                     .expect("crate lives beneath the workspace root")
@@ -120,7 +136,7 @@ fn glob_self_imports_never_grow_per_crate() {
     let root = workspace_root();
     let mut regressions = Vec::new();
     for crate_directory in crate_directories(&root) {
-        let count = count_glob_self_import_files(&root.join(&crate_directory));
+        let count = count_glob_self_import_files(&root.join(&crate_directory), true);
         let ceiling = GLOB_SELF_IMPORT_CEILINGS
             .iter()
             .find_map(|(directory, ceiling)| (*directory == crate_directory).then_some(*ceiling))
@@ -151,7 +167,7 @@ fn glob_self_import_ceilings_are_still_exact() {
             ));
             continue;
         }
-        let count = count_glob_self_import_files(&root.join(crate_directory));
+        let count = count_glob_self_import_files(&root.join(crate_directory), true);
         if count < *ceiling {
             stale.push(format!(
                 "{crate_directory}: {count} files, entry says {ceiling}; lower it (or delete it at zero)"

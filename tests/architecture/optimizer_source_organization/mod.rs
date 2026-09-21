@@ -8,6 +8,7 @@ use std::path::PathBuf;
 mod catalogs;
 mod entrances;
 mod inventory;
+mod pipeline_crates;
 mod retired_paths;
 
 struct Audit {
@@ -21,6 +22,7 @@ fn optimizer_source_organization_preserves_semantic_owners() {
     let mut audit = inventory::collect();
     entrances::check(&mut audit);
     catalogs::check(&mut audit);
+    pipeline_crates::check(&mut audit);
     retired_paths::check(&mut audit);
 
     assert!(

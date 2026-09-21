@@ -70,7 +70,7 @@ pub(super) fn run(test: &str, operation: impl FnOnce(&Fixture)) {
     fixture.write("transport-calls", "");
     fixture.write("ssh-transport.sh", &script);
     let output = Command::new(std::env::current_exe().unwrap())
-        .args(["--exact", &format!("cases::{test}"), "--nocapture"])
+        .args(["--exact", &child_filter(test), "--nocapture"])
         .env(CHILD, &fixture.directory)
         .env(
             "GIT_SSH_COMMAND",
@@ -90,9 +90,22 @@ pub(super) fn run(test: &str, operation: impl FnOnce(&Fixture)) {
     );
     assert!(
         String::from_utf8_lossy(&output.stdout).contains("1 passed; 0 failed"),
-        "child must execute exactly cases::{test}: {}",
+        "child must execute exactly {}: {}",
+        child_filter(test),
         String::from_utf8_lossy(&output.stdout)
     );
+}
+
+// Every topic file includes this fixture under its own `fixture` module, so
+// the child's test name is `<topic>::cases::<test>` -- not `cases::<test>`.
+// Deriving the topic from `module_path!()` keeps the filter correct for each
+// including topic instead of hard-coding one binary layout.
+fn child_filter(test: &str) -> String {
+    let topic = module_path!()
+        .strip_suffix("::fixture")
+        .and_then(|module| module.rsplit("::").next())
+        .expect("fixture module path ends in ::fixture");
+    format!("{topic}::cases::{test}")
 }
 
 fn quote(text: &str) -> String {

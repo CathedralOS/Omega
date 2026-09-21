@@ -1,7 +1,7 @@
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::{EffectLink, ValueDefinitionSite};
 use register_environment::baseline_target_register_environment;
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
+use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
     SelectedBoundarySettlementPayload, SelectedCallContract, SelectedFunction, SelectedInstruction,
@@ -27,41 +27,7 @@ use super::{
     InflowRelocationError, InflowRelocationReceipt, ValidatedInflowRelocation,
     relocate_selected_instruction_onto_inflow, validate_inflow_relocation,
 };
-
-fn budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
-}
-
-fn instruction(
-    id: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    row: &RegisterInstructionConstraint,
-    registers: &[VirtualRegisterId],
-) -> SelectedInstruction {
-    SelectedInstruction {
-        id,
-        kind,
-        constraint: row.key,
-        operands: row
-            .operands
-            .iter()
-            .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
-    }
-}
+use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 
 const LEAD: SelectedInstructionId = SelectedInstructionId(2);
 const TRAIL: SelectedInstructionId = SelectedInstructionId(3);
@@ -2356,7 +2322,8 @@ fn replay_rejects_anything_but_the_move() {
 }
 
 /// The bounded audit is measured: the inflow window prices every scan,
-/// crossed-surface pair, roster row, and the dead-path fixpoint bound
+/// the path walk's edge bound, every crossed position and crossed edge's
+/// surface pairs, every roster row, and the dead-path fixpoint bound
 /// against the work budget, and a budget one step short refuses rather
 /// than skimping. Landing deeper into the join's prefix crosses more join
 /// positions.
@@ -2368,18 +2335,20 @@ fn measured_validation_step_boundary() {
     // The member-locate scan prices every block's body plus terminator
     // once across the plan (3+3+3+5 = 14), again for this function's
     // blocks (14), and each block's successor edge count (2+1+1+0 = 4).
-    // The crossed surfaces pair the member (1) against `T_TAIL` (1),
-    // `HEAD` (1), and the `Jump` terminator (2 uses + defs on x86-64):
-    // 2+2+3 = 7 steps. The dead-path bound prices each block's body,
-    // terminator, and edge surfaces once per member location plus the
-    // initial scan: on x86-64 the materializations cost 1 each, the jumps
-    // 2, the branch 3, and the return 9 — (2+3)+(2+2)+(2+2)+(4+9) = 26 —
-    // times one written member register plus one: 26*2 = 52.
-    let steps: u64 = 14 + 14 + 4 + 7 + 52;
-    let exact = OptimizationWorkBudget::new(1, 1, steps, 1, 1).unwrap();
+    // The path walk is bounded by the function's four edges. The crossed
+    // positions pair the member (1) against `T_TAIL` (1) and `HEAD` (1):
+    // 2+2 = 4; the one crossed edge pairs the member (1), the `Jump`
+    // terminator (2 uses + defs on x86-64), and the successor's own
+    // transport surface (0): 3. The dead-path bound prices each block's
+    // body, terminator, and edge surfaces once per member location plus
+    // the initial scan: on x86-64 the materializations cost 1 each, the
+    // jumps 2, the branch 3, and the return 9 — (2+3)+(2+2)+(2+2)+(4+9) =
+    // 26 — times one written member register plus one: 26*2 = 52.
+    let steps: u64 = 14 + 14 + 4 + 4 + 4 + 3 + 52;
+    let exact = measured_step_budget(steps);
     relocate_selected_instruction_onto_inflow(&source, 0, MOVING, T_TAIL, &environment, exact)
         .unwrap();
-    let starved = OptimizationWorkBudget::new(1, 1, steps - 1, 1, 1).unwrap();
+    let starved = measured_step_budget(steps - 1);
     assert_eq!(
         relocate_selected_instruction_onto_inflow(
             &source,
@@ -2392,13 +2361,14 @@ fn measured_validation_step_boundary() {
         .unwrap_err(),
         InflowRelocationError::WorkBudgetExceeded
     );
-    // Landing at the body end crosses the whole inflow body: the member
-    // pairs against `T_HEAD`, `T_TAIL`, `HEAD`, and the terminator.
-    let steps_head: u64 = 14 + 14 + 4 + (2 + 2 + 2 + 3) + 52;
-    let exact = OptimizationWorkBudget::new(1, 1, steps_head, 1, 1).unwrap();
+    // Landing at the body start crosses the whole inflow body: the
+    // crossed positions pair the member against `T_HEAD`, `T_TAIL`, and
+    // `HEAD` — 2+2+2 = 6 — and the same one edge pairs 3.
+    let steps_head: u64 = 14 + 14 + 4 + 4 + 6 + 3 + 52;
+    let exact = measured_step_budget(steps_head);
     relocate_selected_instruction_onto_inflow(&source, 0, MOVING, T_HEAD, &environment, exact)
         .unwrap();
-    let starved = OptimizationWorkBudget::new(1, 1, steps_head - 1, 1, 1).unwrap();
+    let starved = measured_step_budget(steps_head - 1);
     assert_eq!(
         relocate_selected_instruction_onto_inflow(
             &source,
@@ -2497,4 +2467,109 @@ fn inflow_relocation_is_deterministic_and_re_admitted() {
             .collect::<Vec<_>>(),
         vec![MID, MOVING, TAIL]
     );
+}
+
+/// Independence of the validator's own audit from the producer's
+/// admission: every proposal below is built by editing the selected plan
+/// directly — no producer admission runs — so a rejection can only come
+/// from the validator's own reconstruction of the legality or the
+/// restore-by-content comparison.
+mod independence_tests {
+    use super::{
+        BLOCK_J, InflowRelocationError, MID, MOVING, NativeTarget, PlaceId,
+        SelectedInstructionPlan, SelectedMemoryAccessRole, T_TAIL, ValidatedInflowRelocation,
+        access, baseline_target_register_environment, budget, fixture, mutated, settlement,
+        validate_inflow_relocation,
+    };
+
+    /// The edit a producer emitting `MOVING`'s inflow relocation would
+    /// publish: the member leaves the join block's body and lands on
+    /// `T_TAIL`'s index in the inflow block. Built by editing the source
+    /// plan directly — no admission runs.
+    fn forged(source: &ValidatedInflowRelocation) -> SelectedInstructionPlan {
+        let mut proposed = source.transformed().clone();
+        let function = &mut proposed.functions[0];
+        let moved = function.blocks[3].instructions.remove(1);
+        function.blocks[1].instructions.insert(1, moved);
+        proposed
+    }
+
+    /// A forged landing of the legal pair validates on the validator's
+    /// own audit: the reconstruction derives the join block, the inflow
+    /// predecessor, and the landing index from the source, and the
+    /// content restore reproduces the source bit-for-bit.
+    #[test]
+    fn forged_landing_of_a_legal_pair_validates() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        validate_inflow_relocation(
+            &source,
+            0,
+            MOVING,
+            T_TAIL,
+            &environment,
+            budget(),
+            forged(&source),
+        )
+        .unwrap();
+    }
+
+    /// A producer that admitted the pair with a settlement observing the
+    /// member inside the join's executed prefix would still publish this
+    /// edit. The validator's own audit refuses with `UnsupportedPair`,
+    /// not a replay mismatch, because it reconstructs the settlement
+    /// window instead of trusting the producer's admission record.
+    #[test]
+    fn forged_move_past_an_inflow_settlement_rejects_on_the_audit() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, _| {
+            function
+                .boundary_settlements
+                .push(settlement(BLOCK_J, 2, 41));
+        });
+        assert_eq!(
+            validate_inflow_relocation(
+                &source,
+                0,
+                MOVING,
+                T_TAIL,
+                &environment,
+                budget(),
+                forged(&source),
+            )
+            .unwrap_err(),
+            InflowRelocationError::UnsupportedPair
+        );
+    }
+
+    /// A forged proposal carrying an unrelated mutation — here a third
+    /// roster row — fails the restore-by-content comparison even though
+    /// the member's move itself is shaped correctly.
+    #[test]
+    fn forged_unrelated_roster_edit_rejects_as_replay() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        let mut proposed = forged(&source);
+        proposed.functions[0].memory_accesses.push(access(
+            MID,
+            PlaceId::new(7).unwrap(),
+            SelectedMemoryAccessRole::ReadPlace,
+        ));
+        assert_eq!(
+            validate_inflow_relocation(
+                &source,
+                0,
+                MOVING,
+                T_TAIL,
+                &environment,
+                budget(),
+                proposed,
+            )
+            .unwrap_err(),
+            InflowRelocationError::ReplayMismatch
+        );
+    }
 }

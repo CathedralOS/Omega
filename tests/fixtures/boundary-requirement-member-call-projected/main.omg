@@ -1,0 +1,29 @@
+// TOP-LEVEL-BOUNDARY-REQUIREMENTS deeper-projection witness: a public
+// nongeneric receiver-free `boundary requirement` is invoked in member-call
+// spelling on a receiver projected through MORE than one hop
+// (`self.inner.token.consume()`), in both value and statement position. The
+// boundary settle registers the `self`-rooted receiver place, rewrites the
+// requirement call to the concrete provider's adapter machine, and the
+// checked interpreter executes the consume leg. Native Unit-plan admission
+// for the projected owned argument remains a terminal_unit_effects frontier.
+use omega::language::core::service;
+use omega_language_std::console;
+pub data Token [copy] { payload: i32; }
+pub boundary requirement Token::consume(self) -> Token;
+data TokenProvider {}
+machine TokenProvider::consume_impl(token: Token) -> Token
+satisfies Token::consume
+{ token }
+data Inner { token: Token; }
+data Main {
+    console: Service<Console>;
+    inner: Inner;
+}
+machine Main::main(&mut self)
+reaches Console
+{
+    self.inner.token.payload = 41;
+    let out: Token = self.inner.token.consume();
+    _ = self.inner.token.consume();
+    self.console.exit_process(out.payload);
+}

@@ -92,6 +92,7 @@ fn claim_pinned_retain_cycle() -> TerminalModule {
             shape: StructuralTypeShape::Record { fields: Vec::new() },
         }],
         structural_domains: vec![StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: semantic_vocabulary::StructuralDomainId::new(1).expect("structural domain"),
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1)
                 .expect("semantic domain"),
@@ -158,6 +159,7 @@ fn claim_pinned_retain_cycle() -> TerminalModule {
             blocks: vec![
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
@@ -167,6 +169,7 @@ fn claim_pinned_retain_cycle() -> TerminalModule {
                         target: retain,
                         arguments: Vec::new(),
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                         residual_affine_discards: Vec::new(),
@@ -174,6 +177,7 @@ fn claim_pinned_retain_cycle() -> TerminalModule {
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: retain,
                     parameters: Vec::new(),
@@ -183,6 +187,7 @@ fn claim_pinned_retain_cycle() -> TerminalModule {
                         target: retain,
                         arguments: Vec::new(),
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                         residual_affine_discards: Vec::new(),
@@ -191,6 +196,7 @@ fn claim_pinned_retain_cycle() -> TerminalModule {
             ],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: id(1, ContractId::new),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -243,6 +249,7 @@ fn claim_pinned_cycle_with_guard_arms_stays_pinned() {
             target: id(2, BlockId::new),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -251,6 +258,7 @@ fn claim_pinned_cycle_with_guard_arms_stays_pinned() {
             target: id(2, BlockId::new),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -269,6 +277,7 @@ fn claim_cycle_rejects_operations_naming_a_pinned_root() {
     // `claims_pinned_at_entry` rechecks the same invariant at the fence.
     retain.operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(1, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -394,10 +403,12 @@ fn claim_cycle_rejects_transfer_of_a_pinned_claim() {
     // custody unpinned.
     module.machines[0].blocks[1].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(1, OperationId::new),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: id(1, MachineId::new),
             arguments: Vec::new(),
             structural_arguments: vec![
@@ -451,6 +462,7 @@ fn claim_cycle_rejects_return_of_a_pinned_claim() {
             target: id(2, BlockId::new),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -459,12 +471,14 @@ fn claim_cycle_rejects_return_of_a_pinned_claim() {
             target: id(3, BlockId::new),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
     };
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(3, BlockId::new),
         parameters: Vec::new(),

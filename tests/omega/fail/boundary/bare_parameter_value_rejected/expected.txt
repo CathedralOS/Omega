@@ -1,0 +1,1 @@
+parameter `console` on `Main::main.helper` names bare boundary trait `Console` in value position

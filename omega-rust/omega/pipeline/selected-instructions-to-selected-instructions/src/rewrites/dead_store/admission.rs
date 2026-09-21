@@ -79,10 +79,9 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedBlockId, SelectedCasePayloadTransport,
-    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedMemoryAccess, SelectedMemoryAccessRole, SelectedStructuralTransport, SelectedSuccessor,
-    SelectedValueTransport, VirtualRegisterId, VirtualRegisterOrigin,
+    FrameStorageSlotId, LocalStorageSlotId, SelectedBlockId, SelectedFunction, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedMemoryAccess, SelectedMemoryAccessRole,
+    SelectedStructuralTransport, SelectedSuccessor, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::PlaceId;
 use terminal_psi::StructuralPlaceDeclaration;
@@ -91,7 +90,11 @@ use super::DeadStoreEliminationError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
 use crate::rewrites::condition_state::materialized_bits;
-use crate::rewrites::place_storage::{local_slot_is_place_storage, structural_place_declarations};
+use crate::rewrites::place_storage::{
+    SubjectStorage, constant_index, extent_intersects, extent_reached_by,
+    local_slot_is_place_storage, slot_is_subject_storage, staging_slot,
+    structural_place_declarations, transport_defines,
+};
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
@@ -122,20 +125,7 @@ struct Dead {
     byte_offset: u32,
     byte_count: u32,
     extent: DeadExtent,
-    storage: DeadStorage,
-}
-
-/// Which storage holds the dead bytes. `Place` is the place's own storage —
-/// the referent bytes every place-named roster route decides. `Staging` is
-/// one staging slot's own bytes: a `Structural` slot the place's declaration
-/// does not charge to the slot's operation stages bytes that name the place
-/// under slot coordinates no place-named row can reach, so only the rows
-/// naming that very slot — a `WriteLocal` rewriting them or an
-/// `AddressLocal` exposing them — decide the walk.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum DeadStorage {
-    Place,
-    Staging(LocalStorageSlotId),
+    storage: SubjectStorage,
 }
 
 /// How a dynamic dead extent's reach is decided at runtime: the
@@ -160,51 +150,30 @@ impl DeadExtent {
 }
 
 impl Dead {
-    /// Exact rows intersect when their half-open byte intervals share a byte;
-    /// widened to u64 so edge offsets cannot wrap. A dynamic dead extent is
-    /// unbounded upward from `byte_offset`, so the exact row still reaches
-    /// the written bytes once its own extent ends past that offset — ending
-    /// at or below it is the only provable disjointness.
+    /// Exact rows intersect when their half-open byte intervals share a byte.
+    /// A dynamic dead extent is unbounded upward from `byte_offset`, so the
+    /// exact row still reaches the written bytes once its own extent ends
+    /// past that offset — ending at or below it is the only provable
+    /// disjointness.
     fn intersects(&self, access: &SelectedMemoryAccess) -> bool {
-        if self.extent.dynamic() {
-            return u64::from(self.byte_offset)
-                < u64::from(access.byte_offset) + u64::from(access.byte_count);
-        }
-        u64::from(access.byte_offset) < u64::from(self.byte_offset) + u64::from(self.byte_count)
-            && u64::from(self.byte_offset)
-                < u64::from(access.byte_offset) + u64::from(access.byte_count)
+        extent_intersects(
+            self.byte_offset,
+            self.byte_count,
+            self.extent.dynamic(),
+            access,
+        )
     }
 
-    /// A dynamic-extent row's reach is unbounded only upward: a span row
-    /// covers `length` bytes starting at `byte_offset` and a sequence row
-    /// touches the single byte `byte_offset + index`, so every byte the row
-    /// can touch lies at or after `byte_offset`. It still reaches this range
-    /// exactly while its fixed offset starts below the range's end; an
-    /// offset at or past the end is provably disjoint however far the reach
-    /// extends. A sequence row whose `index` resolves to a clean
-    /// `MaterializeI64` — the same carrier audit the covering routes run —
-    /// touches exactly that one byte wherever its payload base sits, so it
-    /// reaches this range only by landing inside it. When the dead extent
-    /// is itself dynamic — its own extent decider unresolved — an
-    /// unresolved row always meets it, and a resolved landing byte meets it
-    /// only at or past the fixed offset the dead extent starts at.
+    /// Whether `access` can reach the dead extent — the shared dynamic-reach
+    /// and resolved-landing decision in `place_storage`.
     fn reached_by(&self, access: &SelectedMemoryAccess, function: &SelectedFunction) -> bool {
-        if let SelectedMemoryAccessRole::ReadByteSequence { index, .. }
-        | SelectedMemoryAccessRole::WriteByteSequence { index, .. } = access.role
-            && let Ok(landed) = constant_index(function, index)
-            && let Some(position) = u64::from(access.byte_offset).checked_add(landed)
-        {
-            let start = u64::from(self.byte_offset);
-            return if self.extent.dynamic() {
-                position >= start
-            } else {
-                position >= start && position < start + u64::from(self.byte_count)
-            };
-        }
-        if self.extent.dynamic() {
-            return true;
-        }
-        u64::from(access.byte_offset) < u64::from(self.byte_offset) + u64::from(self.byte_count)
+        extent_reached_by(
+            self.byte_offset,
+            self.byte_count,
+            self.extent.dynamic(),
+            access,
+            function,
+        )
     }
 }
 
@@ -375,7 +344,7 @@ pub(super) fn admit<'source>(
         byte_offset: write.byte_offset,
         byte_count: write.byte_count,
         extent,
-        storage: staging.map_or(DeadStorage::Place, DeadStorage::Staging),
+        storage: staging.map_or(SubjectStorage::Place, SubjectStorage::Staging),
     };
     // A dynamic dead extent whose own decider resolves through the
     // same carrier audit the covering routes run — sole `InstructionResult`
@@ -389,7 +358,7 @@ pub(super) fn admit<'source>(
     // leaves the reach unbounded upward from `byte_offset`.
     match dead.extent {
         DeadExtent::SequenceByte(index) => {
-            if let Ok(landed) = constant_index(function, index)
+            if let Some(landed) = constant_index(function, index)
                 && let Some(position) = u64::from(dead.byte_offset).checked_add(landed)
                 && let Ok(position) = u32::try_from(position)
             {
@@ -399,7 +368,7 @@ pub(super) fn admit<'source>(
             }
         }
         DeadExtent::ByteSpan(length) => {
-            if let Ok(written) = constant_index(function, length)
+            if let Some(written) = constant_index(function, length)
                 && let Ok(count) = u32::try_from(written)
             {
                 dead.byte_count = count;
@@ -758,38 +727,6 @@ fn origin_carries(origin: VirtualRegisterOrigin, value: semantic_vocabulary::Val
     }
 }
 
-/// The staging slot a `WriteLocal` row names when the slot is not the row
-/// place's own storage: a `Structural` slot staging bytes that name `place`.
-/// The row's place must be the place the slot stages — a `WriteLocal`
-/// claiming a different place than the slot's staged name is no coherent
-/// staging row — and the caller's `local_slot_is_place_storage` check has
-/// already ruled out the producer-home reading, so the slot's bytes are
-/// staging coordinates only.
-fn staging_slot(slot: LocalStorageSlotId, place: PlaceId) -> Option<LocalStorageSlotId> {
-    if matches!(slot, LocalStorageSlotId::Structural { .. })
-        && slot.structural_place() == Some(place)
-    {
-        Some(slot)
-    } else {
-        None
-    }
-}
-
-/// Whether a roster row's `WriteLocal` slot is the dead bytes' storage: the
-/// dead place's own storage for a place subject, or the staging slot itself
-/// for a staging subject — a write into any other slot moves bytes the dead
-/// store never wrote.
-fn slot_is_dead_storage(
-    slot: LocalStorageSlotId,
-    dead: &Dead,
-    structural_places: &[StructuralPlaceDeclaration],
-) -> bool {
-    match dead.storage {
-        DeadStorage::Place => local_slot_is_place_storage(slot, dead.place, structural_places),
-        DeadStorage::Staging(dead_slot) => slot == dead_slot,
-    }
-}
-
 /// Whether `register`'s only occurrence in `function` is one `Def` operand —
 /// the custody the packed store's dropped scratch requires. The operand
 /// itself is that one occurrence: any other operand position, terminator
@@ -887,7 +824,7 @@ fn interferes(
 ) -> bool {
     match access.role {
         SelectedMemoryAccessRole::ReadPlace | SelectedMemoryAccessRole::WritePlace => {
-            matches!(dead.storage, DeadStorage::Place)
+            matches!(dead.storage, SubjectStorage::Place)
                 && access.place == dead.place
                 && dead.intersects(access)
         }
@@ -895,15 +832,16 @@ fn interferes(
         | SelectedMemoryAccessRole::ReadByteSequence { .. }
         | SelectedMemoryAccessRole::WriteByteSpan { .. }
         | SelectedMemoryAccessRole::WriteByteSequence { .. } => {
-            matches!(dead.storage, DeadStorage::Place)
+            matches!(dead.storage, SubjectStorage::Place)
                 && access.place == dead.place
                 && dead.reached_by(access, function)
         }
         SelectedMemoryAccessRole::WriteLocal { slot } => {
-            slot_is_dead_storage(slot, dead, structural_places) && dead.intersects(access)
+            slot_is_subject_storage(slot, dead.storage, dead.place, structural_places)
+                && dead.intersects(access)
         }
         SelectedMemoryAccessRole::AddressLocal { slot } => {
-            slot_is_dead_storage(slot, dead, structural_places)
+            slot_is_subject_storage(slot, dead.storage, dead.place, structural_places)
         }
         SelectedMemoryAccessRole::WriteOutgoing { .. }
         | SelectedMemoryAccessRole::AddressOutgoing { .. } => false,
@@ -1032,10 +970,10 @@ fn covering_source(
             };
         }
         let dead_byte = u64::from(dead.byte_offset)
-            .checked_add(constant_index(function, index)?)
+            .checked_add(constant_index(function, index).ok_or_else(reject)?)
             .ok_or_else(reject)?;
         let written = u64::from(row.byte_offset)
-            .checked_add(constant_index(function, covering)?)
+            .checked_add(constant_index(function, covering).ok_or_else(reject)?)
             .ok_or_else(reject)?;
         return if written == dead_byte {
             Ok(())
@@ -1065,9 +1003,14 @@ fn covering_source(
             place_store_shape(instruction, environment)?;
             match row.role {
                 SelectedMemoryAccessRole::WritePlace
-                    if matches!(dead.storage, DeadStorage::Place) => {}
+                    if matches!(dead.storage, SubjectStorage::Place) => {}
                 SelectedMemoryAccessRole::WriteLocal { slot }
-                    if slot_is_dead_storage(slot, dead, structural_places) => {}
+                    if slot_is_subject_storage(
+                        slot,
+                        dead.storage,
+                        dead.place,
+                        structural_places,
+                    ) => {}
                 _ => return Err(reject()),
             }
             (byte_offset, u32::from(byte_size))
@@ -1078,9 +1021,14 @@ fn covering_source(
             }
             match row.role {
                 SelectedMemoryAccessRole::WritePlace
-                    if matches!(dead.storage, DeadStorage::Place) => {}
+                    if matches!(dead.storage, SubjectStorage::Place) => {}
                 SelectedMemoryAccessRole::WriteLocal { slot }
-                    if slot_is_dead_storage(slot, dead, structural_places) => {}
+                    if slot_is_subject_storage(
+                        slot,
+                        dead.storage,
+                        dead.place,
+                        structural_places,
+                    ) => {}
                 _ => return Err(reject()),
             }
             (byte_offset, u32::from(width.byte_size()))
@@ -1095,7 +1043,7 @@ fn covering_source(
             // The direct slot store covers only when the roster names the
             // same slot and that slot is the dead bytes' own storage.
             if row.role != (SelectedMemoryAccessRole::WriteLocal { slot })
-                || !slot_is_dead_storage(slot, dead, structural_places)
+                || !slot_is_subject_storage(slot, dead.storage, dead.place, structural_places)
             {
                 return Err(reject());
             }
@@ -1264,7 +1212,7 @@ fn byte_sequence_covering(
         return Err(reject());
     }
     place_store_shape(instruction, environment)?;
-    let landed = constant_index(function, index)?;
+    let landed = constant_index(function, index).ok_or_else(reject)?;
     // The write lands on one byte; the dead range is covered exactly when
     // it is that byte.
     if dead.byte_count != 1
@@ -1276,69 +1224,6 @@ fn byte_sequence_covering(
         return Err(reject());
     }
     Ok(())
-}
-
-/// The compile-time constant a byte-sequence row's `index` resolves to, when
-/// it does. The register carrying the `index` value is its sole
-/// `InstructionResult` carrier — the way the copy's count operand names the
-/// span's extent — so an `index` no instruction result carries (an entry or
-/// block parameter) has no producer to resolve, and two instruction results
-/// claiming one value make the constant ambiguous; both stay unproven. The
-/// carrier must then hold the function's one clean `MaterializeI64`
-/// definition and never be redefined by an edge transport or case payload
-/// the instruction audit cannot see — only then does `byte_offset + index`
-/// name a fixed position rather than a runtime-placed byte.
-fn constant_index(
-    function: &SelectedFunction,
-    index: semantic_vocabulary::ValueId,
-) -> Result<u64, DeadStoreEliminationError> {
-    let reject = || DeadStoreEliminationError::InterveningAccess;
-    let mut carriers = function.virtual_registers.iter().filter(|register| {
-        matches!(
-            register.origin,
-            VirtualRegisterOrigin::InstructionResult { source_value, .. } if source_value == index
-        )
-    });
-    let carrier = carriers.next().ok_or_else(reject)?;
-    if carriers.next().is_some() {
-        return Err(reject());
-    }
-    let landed = materialized_bits(function, carrier.id).map_err(|_| reject())?;
-    if transport_defines(function, carrier.id) {
-        return Err(reject());
-    }
-    Ok(landed)
-}
-
-/// Whether an edge transport or case payload defines `register` — a
-/// definition the instruction-operand audit in `materialized_bits` cannot
-/// see, which would falsify the constant it reports for the count.
-fn transport_defines(function: &SelectedFunction, register: VirtualRegisterId) -> bool {
-    for block in &function.blocks {
-        for successor in terminator_successors(&block.terminator) {
-            if successor.bindings.iter().any(|binding| {
-                matches!(
-                    binding.transport,
-                    SelectedValueTransport::Registers { parameter, .. } if parameter == register
-                )
-            }) {
-                return true;
-            }
-            if let Some(case) = &successor.structural_case
-                && case.payloads.iter().any(|payload| {
-                    matches!(
-                        payload.transport,
-                        SelectedCasePayloadTransport::Unmaterialized { parameter }
-                            | SelectedCasePayloadTransport::Registers { parameter, .. }
-                            if parameter == register
-                    )
-                })
-            {
-                return true;
-            }
-        }
-    }
-    false
 }
 
 /// Calls, hosted effects, and terminator kinds are always barriers: they can
@@ -1405,6 +1290,8 @@ fn reject_unaccounted(instruction: &SelectedInstruction) -> Result<(), DeadStore
         | ExactRemainderU64 { .. }
         | WrappingRemainderI64 { .. }
         | WrappingDivideI64 { .. }
+        | ExactDivideI64 { .. }
+        | ExactRemainderI64 { .. }
         | SaturatingAdd { .. }
         | SaturatingSubtract { .. }
         | SaturatingDivide { .. }
@@ -1453,8 +1340,8 @@ fn edge_unobserved(
             | SelectedStructuralTransport::Descriptor { destination, .. } => destination,
         };
         let touches = match dead.storage {
-            DeadStorage::Place => destination.structural_place() == Some(dead.place),
-            DeadStorage::Staging(slot) => destination == slot,
+            SubjectStorage::Place => destination.structural_place() == Some(dead.place),
+            SubjectStorage::Staging(slot) => destination == slot,
         };
         if touches {
             return Err(DeadStoreEliminationError::InterveningAccess);
@@ -1462,10 +1349,10 @@ fn edge_unobserved(
     }
     if let Some(case) = &successor.structural_case {
         let slot_touches = match dead.storage {
-            DeadStorage::Place => case.slot.structural_place() == Some(dead.place),
-            DeadStorage::Staging(slot) => case.slot == slot,
+            SubjectStorage::Place => case.slot.structural_place() == Some(dead.place),
+            SubjectStorage::Staging(slot) => case.slot == slot,
         };
-        let discard_touches = matches!(dead.storage, DeadStorage::Place)
+        let discard_touches = matches!(dead.storage, SubjectStorage::Place)
             && case.trivial_affine_discards.contains(&dead.place);
         if slot_touches || discard_touches {
             return Err(DeadStoreEliminationError::InterveningAccess);
@@ -1477,8 +1364,9 @@ fn edge_unobserved(
 /// The block's boundary settlements after removing the instruction at
 /// `removed`: positions at or before it name instructions that stay put, and
 /// every later position — including the after-body position — shifts one
-/// ordinal earlier. Shared by proposal and replay so both compute the same
-/// roster from the source, never from each other.
+/// ordinal earlier. The proposal applies this remap; validation rebuilds the
+/// same shifted roster inside its own expected function rather than calling
+/// back here.
 pub(super) fn shifted_boundary_settlements(
     function: &SelectedFunction,
     block: SelectedBlockId,

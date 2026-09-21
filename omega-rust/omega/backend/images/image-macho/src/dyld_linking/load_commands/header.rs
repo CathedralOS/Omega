@@ -3,11 +3,13 @@ use crate::file_layout::constants::{
     MACHO_HEADER_FLAGS_DYLDLINK, MACHO_HEADER_FLAGS_NOUNDEFS, MACHO_HEADER_FLAGS_PIE,
     MACHO_HEADER_FLAGS_TWOLEVEL,
 };
+use crate::isa::MachoIsa;
 
 pub(crate) fn write_macho_executable_header(
     bytes: &mut Vec<u8>,
     command_count: usize,
     sizeofcmds: usize,
+    isa: MachoIsa,
 ) {
     write_macho_header_for(
         bytes,
@@ -18,6 +20,7 @@ pub(crate) fn write_macho_executable_header(
             | MACHO_HEADER_FLAGS_DYLDLINK
             | MACHO_HEADER_FLAGS_TWOLEVEL
             | MACHO_HEADER_FLAGS_PIE,
+        isa,
     );
 }
 
@@ -39,10 +42,11 @@ fn write_macho_header_for(
     command_count: usize,
     sizeofcmds: usize,
     flags: u32,
+    isa: MachoIsa,
 ) {
     write_u32(bytes, 0xfeedfacf);
-    write_u32(bytes, 0x0100000c);
-    write_u32(bytes, 0);
+    write_u32(bytes, isa.cpu_type());
+    write_u32(bytes, isa.cpu_subtype());
     write_u32(bytes, file_type);
     write_u32(
         bytes,
