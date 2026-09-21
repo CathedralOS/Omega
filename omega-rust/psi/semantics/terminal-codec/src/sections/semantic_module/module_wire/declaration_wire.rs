@@ -72,6 +72,11 @@ pub(super) fn encode_structural_domain(
         encode_content_algebra(writer, &projection.algebra)?;
         encode_content_projection_expression(writer, &projection.expression)?;
     }
+    // Field note (review 547b665d4b11..bc6c5788e062): be0312aef4 appended this
+    // row to the structural-domain layout without moving semantic_module
+    // FORMAT_MARKER off 104 (d5c2d0d37c's value); a 104 artifact written before
+    // that commit decodes misaligned here instead of hitting the marker-drift
+    // rejection pinned in tests/publication.rs. Bump on the next layout change.
     encode_establishment_routes(writer, &declaration.establishment_routes)?;
     Ok(())
 }
