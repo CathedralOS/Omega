@@ -14491,7 +14491,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   UNSEQUENCED-SPILL-STAGE-TRIAGE / UNSEQUENCED-SPILL-DISPOSITION item claims
   (~02:46Z / ~04:06Z), `assignment/` under DURABLE-CODEC-EXTRACTION
   (~07:34Z), and the terminal-to-abstract control-flow lowering under
-  STRUCTURAL-UNIT-CALL-GRAPH-JOINS (~04:33Z).
+  STRUCTURAL-UNIT-CALL-GRAPH-JOINS (~04:33Z). Re-verified at `90df29812c`: the 17-family stage group is still at
+  `pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/`
+  with the same mod.rs contract, and `assignment/mod.rs` still sequences
+  `runtime_spill` + `stack_slot_coloring`.
 - **SQUALR-CLONE-SERIALIZATION.** Resolved — implemented under `samples/apps/squalr`
 - **SQUALR-CLI-ENTRY-AND-MODEL** — mined candidate; verify scope then implement.
 - **SQUALR-CLONE-SERIALIZATION.** Implemented under `samples/apps/squalr`
