@@ -282,7 +282,7 @@ fn seeded_extension_keeps_mathematical_declarations_and_their_symbols() {
         sources: Arc::new(sources),
         top_level_bindings: Vec::new(),
     })
-    .map(|seeded| seeded.into_unrebased_trees())
+    .map(|seeded| seeded.trees().clone())
     .expect("extend existing mathematical symbols");
 
     let definitions = program.mathematical_definitions.iter().collect::<Vec<_>>();

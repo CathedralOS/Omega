@@ -100,9 +100,10 @@ fn seeded_extension_carrier_rebases_selection_suffix_after_later_base_rows() {
         Some(unrebased_extension.occurrence_id())
     );
 
-    let rebased = carrier
-        .rebase_authored_selections(&destination)
-        .expect("rebase exact extension suffix");
+    let (rebased, _) = carrier
+        .rebase_authored_selections_for_typed_continuation(&destination)
+        .expect("rebase exact extension suffix")
+        .into_typing_continuation_parts();
     assert_eq!(
         &rebased.authored_declaration_selections().as_slice()[..destination.len()],
         destination.as_slice()
@@ -209,7 +210,7 @@ fn seeded_extension_preserves_base_identity_and_resolves_base_peers_and_shadowin
         sources: Arc::new(sources),
         top_level_bindings: Vec::new(),
     })
-    .map(|seeded| seeded.into_unrebased_trees())
+    .map(|seeded| seeded.trees().clone())
     .expect("continue resolution from retained base");
 
     assert_eq!(
@@ -334,7 +335,6 @@ fn seeded_extension_rejects_duplicates_within_its_own_stratum() {
         sources: Arc::new(sources),
         top_level_bindings: Vec::new(),
     })
-    .map(|seeded| seeded.into_unrebased_trees())
     .expect_err("same-stratum duplicate const must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -409,7 +409,7 @@ fn seeded_extension_retains_base_service_ids_and_authored_reach_provenance() {
         sources: Arc::new(sources),
         top_level_bindings: Vec::new(),
     })
-    .map(|seeded| seeded.into_unrebased_trees())
+    .map(|seeded| seeded.trees().clone())
     .expect("seeded service resolution");
     assert_eq!(
         program.service_reaches.id_for_symbol(filesystem),

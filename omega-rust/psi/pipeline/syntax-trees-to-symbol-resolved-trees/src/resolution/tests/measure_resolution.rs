@@ -186,7 +186,7 @@ fn seeded_measure_extension_preserves_existing_declarations_and_binders() {
         sources: Arc::new(sources),
         top_level_bindings: Vec::new(),
     })
-    .map(|seeded| seeded.into_unrebased_trees())
+    .map(|seeded| seeded.trees().clone())
     .expect("extend existing measure symbols");
     let measures = program.measures.iter().collect::<Vec<_>>();
     assert_eq!(measures.len(), 2);
