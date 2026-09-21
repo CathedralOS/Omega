@@ -288,8 +288,9 @@ independently reconstructed the owner-fixed proposition over the complete
 selected subject and produced the full untrusted derivation — 3,182,484
 rows and 135,451,492 request bytes, 16.1 times the 8,388,608-byte provision it
 was measured against — so
-the certificate is produced and measured and the provisions to admit it are
-now selected, pending the Alpha extent-supply leg. [PROFILE.md](PROFILE.md) records the complete
+the certificate is produced and measured, the provisions to admit it are
+selected, and the 136,314,880-byte request extent is landed in the Alpha
+checker. [PROFILE.md](PROFILE.md) records the complete
 measurements; the residual routes are the owner-level decisions named in the
 cost review. Do not let producer-supplied definitions choose the
 meaning of the artifact being accepted.
