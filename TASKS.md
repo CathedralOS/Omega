@@ -9623,6 +9623,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   anchors unchanged; no same-item claim live.
 
 - **EXECUTABLE-PUBLICATION-OPERATION.** — mined candidate; scope verified, resolved — same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on `origin/main`): `omega/src/compilation/publication.rs` (`publish_compilation`/`publish_native_artifact`) is the product-owned route calling `CompileReport::publish_retained_native_artifact`, which validates the retained artifact and manifest, refuses non-local output filenames, requires compiler-text/function validation evidence, self-checks a requested PCC pair pre-install, and commits one staged tree + atomic rename through `executable_publication.rs` — a failed publish leaves no half-written executable or stale sidecar. `output_kind` gating matches the spec's report/entry-bridge rule. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION, EXECUTABLE-PUBLICATION-JOIN, EXECUTABLE-PUBLICATION-STAGE, EXECUTABLE-PUBLICATION-STEP.
+- **EXECUTABLE-PUBLICATION-STAGE.** Mined candidate — resolved at
+  `0a0662ad27` (linux x86-64): settled-name marker for the sibling stub
+  the EXECUTABLE-PUBLICATION-OPERATION row names on the same resolved
+  surface. Anchors re-verified live:
+  `omega/src/compilation/publication.rs` still owns `publish_native_artifact` and the
+  `publish_compilation` → `CompileReport::publish_retained_native_artifact`
+  route; retained-artifact validation, PCC self-check, and the staged
+  tree + atomic rename through `executable_publication.rs` are
+  unchanged, with the prior green witness at `ea025447fe`
+  (compilation-report `executable_publication` 15/15, compiler
+  `activation_identifiers_and_publication` 15/15) standing. No leg
+  remains under this name.
 - **FAULT-INJECTED-TARGET-READER.** Mined candidate — resolved as
   covered: the surface this claim name has fenced is the image-emission
   installation-record pairing dispatch for x86_64 Mach-O images with
