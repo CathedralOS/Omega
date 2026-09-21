@@ -55,8 +55,10 @@ when this block drifts.
 | linux_x86_64 | linux x86_64 | wrapping_square_sum | sel-885944b13b84 | measured 3748.43 ms | measured 84189184 B compile | measured 8192 B | measured 4.02435 ms |
 | linux_x86_64 | linux x86_64 | wrapping_square_sum | sel-9c09e32a82fb | measured 29846.9 ms | measured 148590592 B compile | measured 8192 B | measured 4.17697 ms |
 | macos_arm64 | linux x86_64 | wrapping_square_sum | default | measured 24453.9 ms | measured 151724032 B compile | measured 16640 B | skipped (--no-run was passed) |
+| macos_x86_64 | darwin arm64 | wrapping_square_sum | default | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) |
 | macos_x86_64 | macOS x86-64 host | — | — | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) |
 | windows_x86_64 | linux x86_64 | wrapping_square_sum | default | measured 24117.5 ms | measured 147505152 B compile | measured 1024 B | skipped (--no-run was passed) |
+| uefi_x86_64 | darwin arm64 | wrapping_square_sum | default | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) |
 | uefi_x86_64 | QEMU or UEFI hardware | — | — | measurable | pending (run leg needs a UEFI runtime) | measurable | unavailable (needs QEMU or UEFI hardware) |
 | cross_platform_cli | build host | — | — | measurable | measurable | measurable | pending build host |
 | local_unchecked | build host | — | — | measurable | measurable | measurable | pending build host |
@@ -125,7 +127,14 @@ matrix block above is current against the committed record set.
 both fail review settlement with "no bound required root slot
 `<target>::ProgramEntry`" (MACOS-X64-HOST-PROFILE owns the x86-64
 macOS host-profile gap) — record them as non-applicable, not failed
-compiles.
+compiles. **Both are now recorded that way** (BENCHMARK-REJECTED-ROW-RECORDING):
+the schema carries an optional row-level `applicability`
+(`{"status": "non_applicable", "reason": ...}`), `measure` turns that exact
+settlement rejection into such a record instead of exiting, and the matrix
+renders the pairing as its own row. A non-applicable pairing speaks only for
+its `(subject, target)` pair, so it does NOT retire its host leg's projected
+row — `uefi_x86_64` still shows "needs QEMU or UEFI hardware" beside the
+`wrapping_square_sum` row.
 
 Update (z113, `1a772e4ae1`, linux x86_64 host): the remaining
 measurable cross-target compile legs for `wrapping_square_sum`

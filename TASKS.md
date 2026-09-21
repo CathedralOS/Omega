@@ -7219,6 +7219,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   carrying an explicit non-applicable status with its settlement reason,
   rendered as its own matrix row, with `python3 tools/tests/test_benchmark.py`
   green on the extended schema.
+
+  **Landed 2026-09-21.** The record schema gained an optional row-level
+  `applicability` block (`{"status": "non_applicable", "reason": ...}`);
+  absent means the pairing applies, so every record written before this
+  validates unchanged. `settle_package_review` now raises
+  `SubjectNotApplicable` for the exact `no bound required root slot
+  \`<target>::ProgramEntry\`` rejection instead of `SystemExit` — any other
+  settlement failure still exits — and `measure` turns it into a committed
+  record whose four metrics are `unavailable` carrying that reason, which is
+  the shape the validator and matrix already understood. Committed both rows
+  the doc named: `wrapping_square_sum__uefi_x86_64__default.json` and
+  `...__macos_x86_64__default.json`. One design point worth keeping: a
+  non-applicable record speaks for one `(subject, target)` pairing, not for
+  the leg, so it does NOT retire its host leg's projected row — the existing
+  `test_unmeasured_host_legs_stay_explicit` caught that when the first cut
+  let a committed record swallow `uefi_x86_64`'s "needs QEMU or UEFI
+  hardware" row, and `matrix_rows` now only counts measurable records as
+  coverage. `python3 tools/tests/test_benchmark.py` 29/29 (from 21), with the
+  eight new cases sentinelled: disabling the applicability validation fails
+  three by name, and letting a non-applicable record retire the leg fails two
+  more.
 - **BENCHMARK-SELECTION-CONTRAST-ROWS.** Mined candidate — covered.
   Sibling re-mine of the selection-row coverage recorded on the
   BENCHMARK-SELECTION-ROW-COVERAGE cluster (this section): contrast
