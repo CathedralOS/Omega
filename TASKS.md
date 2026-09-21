@@ -7243,6 +7243,76 @@ Baseline-failure repairs (source: `wiki/drafts/known_baseline_failures.md`):
   TASKS_OPTIMIZER.md). Sections already fully leafed (t2c, pass canaries,
   pipeline_ownership, checked-interpreter, package-evidence, host notes) were left
   unchanged. Every section now names a leaf or is explicitly environmental.
+||||||| parent of 24b4061ae1d7a (board: DYNAMIC-RECEIVER-LOAN-ORIGIN resolved — loan-origin cluster closed at e76d715c8e, re-verified 21/21 green)
+- **BASELINE-NATIVE-DIFF-TERMINAL-PSI-SOURCE.** Three unrepaired failures in the `terminal_psi_source` native-differential lane.
+- **BASELINE-EXTERNAL-ROOTS-FIXED-FUEL-CEILINGS.** (new-scope) Unrepaired
+  failure in `external-roots`:
+  `stack_and_fuel::fixed_fuel::tests::installed_natural_cycle_safe_point_catalog_binds_to_one_occurrence`
+  expects the ranked fixture's five segment ceilings to bind as
+  `[1, 3, 3, 3, 1]` and observes `[1, 25769803776, 25769803776, 25769803776, 1]`
+  (macOS AArch64, `cargo nextest run -p external-roots` 248 run / 247 passed
+  at origin/main d4a908ec95 plus the 0e7dbf60de build repair). 25769803776
+  is 6·2^32: `7591b2607c` ("terminal-fixed-fuel: bound segments through
+  ranked cyclic components", whose body records its local tests as still
+  pending) now charges a `TerminalRankedScc::Natural` component as
+  rank-max-plus-one member visits, and the fixture's rank carrier is `u32`,
+  so the component bound is taken over the carrier range rather than the
+  countdown the external-roots binding expects. The failure was
+  unobservable while `external-roots` did not build (20bd592af1 removed the
+  journal types 2d8c5136cc consumed); the fuel crate's own suite is green
+  (`cargo nextest run -p terminal-fixed-fuel` 60/60). Owner: the
+  terminal-fixed-fuel ranked-segment lane (**PSIIR** resource-analysis leg)
+  decides whether a ranked component's segment ceiling is the carrier-wide
+  bound or the verified countdown; the external-roots expectation follows
+  that decision. Repair is one of the two files
+  (`terminal-fixed-fuel/src/fuel_certification/{outcome_bounds,segment_partition}.rs`
+  or `external-roots/src/stack_and_fuel/fixed_fuel/tests.rs`), not both.
+- **BASELINE-NATIVE-DIFF-PIPELINE-OWNERSHIP.** Unrepaired failure in the `pipeline_ownership` native-differential lane. Current red state is a
+  compile-broken test target at `62c502f9f6` (linux x86-64,
+  `cargo nextest run -p omega-native-differential-test --test
+  pipeline_ownership` exits 101 before running): four callers pass
+  `selected.optimized_target()`/`x86.optimized_target()` —
+  `&ValidatedOptimizedTargetOperations` — where
+  `validate_optimized_selection_custody` takes
+  `&Arc<ValidatedOptimizedTargetOperations>` (the
+  `optimized_target_owner()` accessor already yields that Arc; call sites
+  at `stages/realization/structural_units/structural_return.rs:33`,
+  `stages/selection/custody.rs:62`, `validation.rs:400,409` carry the
+  pre-change spelling), and `fixtures/ordinary_graph_controls.rs:32`
+  matches `LegalizedScalarTerminator` without the `Crash { .. }` arm the
+  variant added. Both repairs are confined to
+  `tests/native-differential/tests/pipeline_ownership{,.rs}`, which is
+  live-fenced to STRUCTURAL-UNIT-CALL-GRAPH-JOINS (exp 20:13Z) — no
+  unclaimed slice exists this wave; the repair ownership stays with that
+  claim's holder and the lane's underlying red legs are enumerated below.
+
+Language/semantic gaps:
+
+- **FUZZ-CLUSTER-ZERO-BYTE-ARRAY.** Resolved — the empty fixed byte array is a first-class value: `[u8; 0]` admits at check in locals, constants, parameters, returns, record fields, and nested arrays, constructed exactly by `[]` or `""` (`pass/collections/zero_length_byte_array_admission`, `zero_length_byte_array_is_admitted_at_check`). The use-site fences are pinned: no provable index (`x[0]` → "cannot prove index `0` is within length 0"), and fixed-array literals must supply exactly 0 elements/bytes (`fail/data/zero_length_byte_array_{index_rejected,literal_arity_rejected}` and `zero_length_byte_literal_length_rejected`, driven by `zero_length_byte_array_use_fences_reject_at_check`). Non-scalar-leaf `[T; 0]` stays fenced by `InvalidStructuralArrayLength` in the terminal verifier (settled by BASELINE-VERIFIER-ZERO-BYTE-ARRAY-FENCE); a native-route corpus pin for it belongs to the ACTIVE_FAIL roster. Verified: `cargo nextest run -p compiler --test canary_suite` scoped to the two new tests — 2/2 green on linux x86-64 at
+`ff596a06e6`; re-verified 3/3 zero_length canaries (admission, use-fence
+rejection, native-route `InvalidStructuralArrayLength` pin) green at
+`50cd9a2769`.
+- **CROSS-PACKAGE-DYNAMIC-EVIDENCE-LOAN-ORIGIN.** Resolved — the umbrella
+  row for the cross-package dynamic-evidence loan-origin cluster closed
+  by SHARED-RECEIVER-LOAN-ORIGIN (resolved at `e76d715c8e`). The
+  recorded failure
+  `cross_package_visibility::public_dynamic_return_may_carry_private_
+  producer_selected_evidence` ("state `code` requires an exact retained
+  loan origin for its shared receiver") passes after the
+  retained-lineage/borrow-evidence family landed; re-verified on this
+  host: all 21 `cross_package_visibility` tests pass at `dcfb595098`
+  (linux x86-64) with zero loan-origin diagnostics. No independent
+  slice remains. Sibling stubs on the same surface:
+  PACKAGE-CROSS-VISIBILITY-LOAN-ORIGIN (resolved),
+  PACKAGE-DYNAMIC-RETURN-LOAN-ORIGIN, DYNAMIC-RECEIVER-LOAN-ORIGIN
+  (resolved — receiver loan-origin checks live in
+  `checks/borrows/calls/receiver.rs` and cover shared and dynamic
+  receivers alike; the dynamic-return witness passes with zero
+  loan-origin diagnostics, re-verified green on the same 21/21
+  `cross_package_visibility` run at `2a07fef5a853` (z148). Its earlier
+  `checks/borrows/` fence expired unlanded; the directory is now held
+  by BORROW-PROOF-CONVERGENCE, exp 06:46Z).
+
 
 - **BASELINE-NATIVE-DIFF-TERMINAL-PSI-SOURCE.** Resolved — the lane is fully
   green: `cargo nextest run -p omega-native-differential-test --test
