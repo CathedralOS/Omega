@@ -23,3 +23,19 @@ Provisions live in `bootstrap/5_omega/outcome.epsilon` and `wiki/spec/build/comp
 ## Residuals
 
 None on the bound surface — the row states "no unbound residual" and re-verification found every pin, refusal hook, and spec provision still in place. Executable-chain legs remain host-gated per the frontier (macOS arm64 / Windows x64), as recorded for sibling CHAIN-MANIFEST rows; this host cannot run them.
+
+## Re-verification — `6f91898606` (Zergling-126, claim `4aaa9aad`)
+
+`sh tests/bootstrap/omega-request/run.sh --identity` PASS on this host:
+"identity legs green; execution legs need a seed host" — 622,933-byte
+receipt request, 565,909-byte customer, 45-byte expected observation.
+
+Fresh drift vs the ledger above: `OMEGA_EXECUTABLE_OCREQ_ENTRY_*` rotated
+again — now `SIZE=19249` / `SHA256=5d5d0b8ed0146b055ffdbb6d680bb902a0e350c80b13577bf148879c6c753943`
+(compiler_env.sh:46-47), previously 19253/`9573d734…` at the row's last
+verification (`e7c0099cb2` via the `28bb320201` OCOUT-table rebase). The
+`OMEGA_REQUEST_ENTRY_*` (4115/`0d612813…`) and `OMEGA_REQUEST_FIXTURE_*`
+(132/`ab2e980a…`) pins are unchanged, and the identity gate confirms the
+rotated executable pin binds the actual bytes. Board text at :9253 and
+:11224 still records the superseded 19253/`9573d734…` pair — stale
+annotation, not unbound surface.
