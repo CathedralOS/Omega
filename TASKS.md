@@ -8021,6 +8021,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   after_disposal`, the `affine_local_frontier` reorder/double/missing
   rejections, `unranked_frontiers`, and
   `ranked_preservation_compares_every_frontier_axis_in_diagnostic_order`.
+  Re-witnessed at `97be15c1b5` (zergling-132, linux x86-64): the same 11
+  ordering pins pass — `cargo nextest run -p terminal-verifier -E
+  'test(~owned_successors) | test(~affine_local_frontier) |
+  test(~unranked_frontiers) | test(~ranked_preservation)'` → 11/11 PASS.
   Sibling aliases: EDGE-CLEANUP-DIAGNOSTIC-ORDER, EDGE-CLEANUP-ERROR-
   PRECEDENCE, OWNED-SUCCESSOR-DISCARD-ORDER (resolved separately).
 - **BENCHMARK-COMPARISON-OCCURRENCE-GATE** — Resolved at `749794ddeb`.
