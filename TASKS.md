@@ -14782,7 +14782,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   whole `samples/apps/squalr` submodule is additionally wholesale-claimed
   this wave (SQUALR-TARGETS-AND-THROUGHPUT 21:39Z,
   SQUALR-CLONE-SERIALIZATION 22:50Z), so every implementable path is
-  fenced at verification time.
+  fenced at verification time. Re-verified at `8f58b6676b`: all eight
+  `plugins/*` packages still carry only `build.omg` declarations at the
+  pinned submodule commit `5b0307c` (zero implementation `*.omg` sources),
+  the ordering gate stands (SUPPLIED-BYTES-SCAN / SQUALR-CLI-COMMANDS
+  unsettled), and the whole submodule is again wholesale-fenced —
+  SQUALR-DEBUG-ASSERTIONS (z35, exp ~16:25Z). The settled verdict stands.
 - **SQUALR-SEED-ALIGNMENT-PARSING.** — mined candidate; scope verified,
   covered. Compound re-mine: "seed" is the port-seed wording on the app
   board's GEOMETRY-PARITY residual list ("the mapped Rust behavior still
