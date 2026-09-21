@@ -4,7 +4,7 @@ use super::outcome_bounds::{
     NaturalGeometry, NaturalGraphNode, OutcomeBounds, boundary_call_candidates,
     compose_cleanup_outcomes, dynamic_call_targets, maximum_machine_outcomes, maximum_optional,
     natural_component_geometry, operation_callees, terminator_cleanup_machines,
-    unbounded_cycle_report,
+    terminator_edge_targets, unbounded_cycle_report,
 };
 use crate::{FixedFuelError, FixedSegmentFuelCertificate};
 use semantic_vocabulary::{BlockId, BoundaryMachineId, EdgeId, MachineId, OperationId};
@@ -419,9 +419,11 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
     /// evidence, not a license to bill the enclosing cycle. Otherwise the
     /// bound is computed on the condensed graph the ranking makes acyclic: an
     /// ordinary block composes exactly as the acyclic walk charges it, while
-    /// a component interior contributes its charged component bound — the
-    /// rank carrier's type maximum plus one member visits — whether the
-    /// endpoint commits inside it or after an exit.
+    /// a component interior bounds committing walks by the longest member
+    /// path that can still reach the endpoint when the component's other
+    /// internal edges cannot cycle, and by the rank-multiplied component
+    /// bound — the rank carrier's type maximum plus one member visits —
+    /// when they can or when the endpoint commits after an exit.
     fn natural_segment_bound(
         &self,
         start_block: BlockId,
@@ -636,14 +638,18 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
             .transpose()
     }
 
-    /// A component's charge to the endpoint: every interior walk is bounded
-    /// by the component's charged bound — the rank carrier's type maximum
-    /// plus one member visits — so walks committing `end_edge` on a member
-    /// terminator bound at that charge plus the committing edge's ordered
-    /// cleanup work. When no member terminator carries the endpoint, the
-    /// bound is the component charge plus the worst exit's own continuation:
-    /// a component cannot be re-entered once left, and a walk that leaves
-    /// through another terminal edge is covered by that edge's own segment.
+    /// A component's charge to the endpoint. Walks committing `end_edge` on
+    /// a member terminator cannot re-enter the component once they leave it,
+    /// so when the members that can still reach a committing traversal form
+    /// an acyclic interior, every such walk is one pass bounded by its
+    /// longest member-visit sum; otherwise interior revisits stay possible
+    /// and the component's charged bound — the rank carrier's type maximum
+    /// plus one member visits — plus the committing edge's ordered cleanup
+    /// work remains the honest bound. When no member terminator carries the
+    /// endpoint, the bound is the component charge plus the worst exit's own
+    /// continuation: a component cannot be re-entered once left, and a walk
+    /// that leaves through another terminal edge is covered by that edge's
+    /// own segment.
     fn component_node_to_edge_bound(
         &self,
         index: usize,
@@ -693,6 +699,9 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
             }
         }
         if let Some(cleanup) = committing_cleanup {
+            if let Some(bound) = self.interior_committing_bound(component, index, geometry, walk)? {
+                return Ok(Some(bound));
+            }
             return units
                 .checked_add(u128::from(cleanup))
                 .map(Some)
@@ -728,6 +737,147 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
         continuation
             .map(|tail| units.checked_add(tail).ok_or(FixedFuelError::BoundOverflow))
             .transpose()
+    }
+
+    /// Tighter interior bound when the endpoint commits on a member
+    /// terminator. A walk that commits `end_edge` stays inside the
+    /// component's other internal edges until the committing traversal —
+    /// the component cannot be re-entered once left, and leaving through
+    /// another terminal edge belongs to that edge's own segment — so when
+    /// the member subgraph that can still reach a committing member is
+    /// acyclic, every committing walk is one simple path through it and the
+    /// bound is its longest member-visit sum, charged exactly like the
+    /// acyclic walk, rather than the rank-multiplied whole-component
+    /// charge. `None` when that subgraph retains a cycle (rank-bounded
+    /// revisits remain possible) or no member path reaches a committing
+    /// traversal, leaving the conservative component charge in place.
+    fn interior_committing_bound(
+        &self,
+        component: &TerminalNaturalCycle,
+        index: usize,
+        geometry: &NaturalGeometry,
+        walk: &mut NaturalSegmentWalk<'_>,
+    ) -> Result<Option<u128>, FixedFuelError> {
+        let mut committing = BTreeSet::new();
+        let mut adjacency: BTreeMap<BlockId, Vec<BlockId>> = BTreeMap::new();
+        for rank in &component.ranks {
+            let block = self
+                .blocks
+                .get(&rank.block)
+                .copied()
+                .ok_or(FixedFuelError::UnknownBlock(rank.block))?;
+            if block.terminator.edges().any(|edge| edge == walk.end_edge) {
+                committing.insert(rank.block);
+            }
+            adjacency.insert(
+                rank.block,
+                terminator_edge_targets(&block.terminator)
+                    .into_iter()
+                    .filter(|(edge, target)| {
+                        *edge != walk.end_edge && geometry.member_of.get(target) == Some(&index)
+                    })
+                    .map(|(_, target)| target)
+                    .collect(),
+            );
+        }
+        // Members that can reach a committing member without traversing the
+        // endpoint — the only members a committing walk can still visit.
+        // Once a walk leaves this set it can never return, so it can never
+        // commit the endpoint.
+        let mut reaching: BTreeSet<BlockId> = committing.iter().copied().collect();
+        let mut pending: Vec<BlockId> = committing.iter().copied().collect();
+        while let Some(member) = pending.pop() {
+            for (predecessor, targets) in &adjacency {
+                if targets.contains(&member) && reaching.insert(*predecessor) {
+                    pending.push(*predecessor);
+                }
+            }
+        }
+        // Topological order over the reaching subgraph. A leftover member
+        // means a cycle survives there, so rank-bounded revisits remain
+        // possible and the whole-component charge stays the honest bound.
+        let mut indegree: BTreeMap<BlockId, usize> = BTreeMap::new();
+        for &member in &reaching {
+            indegree.entry(member).or_insert(0);
+            for target in adjacency.get(&member).into_iter().flatten() {
+                if reaching.contains(target) {
+                    *indegree.entry(*target).or_insert(0) += 1;
+                }
+            }
+        }
+        let mut frontier: Vec<BlockId> = indegree
+            .iter()
+            .filter(|(_, degree)| **degree == 0)
+            .map(|(&member, _)| member)
+            .collect();
+        let mut order = Vec::with_capacity(reaching.len());
+        while let Some(member) = frontier.pop() {
+            order.push(member);
+            for target in adjacency.get(&member).into_iter().flatten() {
+                if let Some(degree) = indegree.get_mut(target) {
+                    *degree -= 1;
+                    if *degree == 0 {
+                        frontier.push(*target);
+                    }
+                }
+            }
+        }
+        if order.len() != reaching.len() {
+            return Ok(None);
+        }
+        // Longest committing path over the DAG, sinks first. A member whose
+        // own charge fails (an all-crash call, say) admits no committing
+        // walk through it, exactly as the acyclic walk reads the same
+        // block. The bound is the maximum over every member's charge to the
+        // endpoint; a segment start or entry edge selects among them, so
+        // the whole set covers both callers conservatively.
+        let mut dist: BTreeMap<BlockId, u128> = BTreeMap::new();
+        for &member in order.iter().rev() {
+            let block = self
+                .blocks
+                .get(&member)
+                .copied()
+                .ok_or(FixedFuelError::UnknownBlock(member))?;
+            let Some(units) = self.block_charge_units(
+                block,
+                member,
+                walk.memoized_machines,
+                walk.active_machines,
+                &mut walk.first_dead_end,
+            )?
+            else {
+                continue;
+            };
+            let mut best = None;
+            if committing.contains(&member) {
+                best = Some(u128::from(
+                    compose_cleanup_outcomes(
+                        terminator_cleanup_machines(&block.terminator),
+                        OutcomeBounds {
+                            returned: Some(units),
+                            crashed: None,
+                        },
+                        &self.subject.machines,
+                        &self.subject.dynamic_call_targets,
+                        &self.subject.provider_candidates,
+                        TerminalFuelSchedule::CURRENT,
+                        walk.memoized_machines,
+                        walk.active_machines,
+                    )?
+                    .maximum()
+                    .ok_or(FixedFuelError::NoTerminalPath(self.machine.id))?,
+                ));
+            }
+            for target in adjacency.get(&member).into_iter().flatten() {
+                if let Some(tail) = dist.get(target) {
+                    best = maximum_u128(best, Some(u128::from(units) + tail));
+                }
+            }
+            if let Some(bound) = best {
+                dist.insert(member, bound);
+            }
+        }
+        Ok(dist.values().copied().max())
     }
 }
 

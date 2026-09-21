@@ -1272,4 +1272,80 @@ mod machine_bounds {
             vec![1, 2, 2, 2, 1]
         );
     }
+
+    /// A mid-component segment whose endpoint commits on a member terminator
+    /// still bounds every walk that commits it — but when the component's
+    /// non-end-edge internal graph reaching that member is acyclic, every
+    /// such walk is a single interior pass and the bound is its member-visit
+    /// sum, not the rank-multiplied whole-component charge. In the countdown
+    /// component {2,3}: segment (2, edge 4) is exactly 2 then 3; segment
+    /// (3, edge 2) is exactly 3 then 2.
+    #[test]
+    fn natural_cycle_mid_component_segment_bounds_the_interior_pass() {
+        let module = module(1, vec![ranked_countdown_machine(8)]);
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+        assert_eq!(
+            prepared
+                .segment_certificate(id(2), id(4), &mut BTreeMap::new())
+                .expect("header-to-backedge segment derives")
+                .ceiling_units,
+            4,
+            "visit(2) + visit(3), not 256 * member_units"
+        );
+        assert_eq!(
+            prepared
+                .segment_certificate(id(3), id(2), &mut BTreeMap::new())
+                .expect("work-to-header-edge segment derives")
+                .ceiling_units,
+            4,
+            "visit(3) + visit(2), not 256 * member_units"
+        );
+    }
+
+    /// The same interior-pass bound applies when the walk reaches the
+    /// component from an ordinary predecessor: entry 1 jumps into header 2,
+    /// so segment (1, edge 4) charges visit(1) + visit(2) + visit(3).
+    #[test]
+    fn natural_cycle_entry_to_component_segment_bounds_the_interior_pass() {
+        let module = module(1, vec![ranked_countdown_machine(8)]);
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+        assert_eq!(
+            prepared
+                .segment_certificate(id(1), id(4), &mut BTreeMap::new())
+                .expect("entry-to-backedge segment derives")
+                .ceiling_units,
+            5,
+            "visit(1) + visit(2) + visit(3), not 1 + 256 * member_units"
+        );
+    }
+
+    /// The interior bound stays conservative when the endpoint's committing
+    /// member can still be reached through a cycle that avoids the endpoint:
+    /// a walk committing exit edge 3 may iterate 2 -> 3 -> 2 up to the rank
+    /// carrier before leaving, so the segment keeps the rank-multiplied
+    /// component charge rather than a single interior pass.
+    #[test]
+    fn natural_cycle_cyclic_interior_keeps_component_scale_bound() {
+        let module = module(1, vec![ranked_countdown_machine(8)]);
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+        assert_eq!(
+            prepared
+                .segment_certificate(id(3), id(3), &mut BTreeMap::new())
+                .expect("work-to-exit segment derives")
+                .ceiling_units,
+            4 * 256,
+            "the surviving 2 -> 3 -> 2 cycle admits rank-bounded revisits"
+        );
+        assert_eq!(
+            prepared
+                .segment_certificate(id(1), id(3), &mut BTreeMap::new())
+                .expect("entry-to-exit segment derives")
+                .ceiling_units,
+            1 + 4 * 256,
+            "entry edge plus the rank-bounded interior"
+        );
+    }
 }
