@@ -10346,6 +10346,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   child-execution fixture selectors (27), service/provider realization
   drift (~20), checked-side evidence-row rejections (~45). The row stays
   open; repair legs belong to the feature owners.
+  Re-witnessed at `b5e4c7c5f8a` (2026-09-21 ~04:30Z): the gate record
+  stands and the failures reproduce — spot-verified
+  `build_log_facet::package_authored_build_log_lookalike_cannot_receive_the_compiler_facet`
+  still fails with the recorded signature (type-mismatch diagnostic
+  instead of the nominal-handoff rejection). Every named family is
+  claim-fenced: all six compiler test targets + `build-declarations` +
+  `sources/execution` sit under BUILD-PACKAGES-GATE (exp ~13:03Z), the
+  x86_feature_admission FMA family under X86-FMA-PROVIDER-TRANSPORT, and
+  the record doc itself under RC-BUILD-AND-PACKAGES-GATE. No unfenced
+  slice exists.
 - **RC-BUILD-AND-PACKAGES-GATE.** — the gate-measurement leg of
   RC-BUILD-AND-PACKAGES. Scope verified at `ea698be648`: re-measure the
   three command blocks on linux x86-64 and refresh
