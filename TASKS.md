@@ -12974,6 +12974,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   D-DIAGNOSTIC-ENTRY-ADAPTER-REPLACEMENT per the sibling row. No
   separable slice exists — the sibling OMEGA-D-SCALAR-{ALPHA-EMISSION,
   EMISSION-EXTENSION,SEQUENCING} rows name the same file.
+||||||| parent of 225725fa8250 (board: OMEGA-D-SCALAR-EMISSION-EXTENSION scope-verified)
+- **OMEGA-D-SCALAR-EMISSION-EXTENSION** — mined candidate; verify scope then implement.
+- **OMEGA-D-SCALAR-OPERATION-FRONTIER** — mined candidate; verify scope then implement.
+- **OMEGA-D-SCALAR-EMISSION-EXTENSION.** Scope verified at `62a52db5ffd` —
+  re-mines the OMEGA-D clause leg (TASKS_BOOTSTRAP.md:312): "extend parsed
+  scalar operations and checked call/state sequencing through the existing
+  Alpha emitter" in `bootstrap/5_omega/scalar_compilation.epsilon` (1479
+  lines). Landed-vs-absent frontier: the emission chain covers call
+  statements plus immediate/call/jump terminals and constant-folds
+  arithmetic/bitwise/shift operators to u8; comparison and logical
+  operators stay `mark_unsupported` (Boolean results unimplemented),
+  and checked call/state sequencing beyond the current terminal kinds is
+  absent. Fence map at verification: `scalar_compilation.epsilon` itself
+  is unclaimed (D-SCALAR-OPERATION-CLOSURE's hold expired), but the
+  witness surface `tests/epsilon` is dir-claimed by DELTA-COMPILER
+  (Jarod, exp 09:51Z) and sibling 5_omega files sit under
+  OMEGA-D-REQUEST-ADMISSION/semantics-4-5 (z128). An extension slice
+  (e.g. comparison/logical folding) needs its witness in the fenced
+  test tree, so no landable slice exists under this stub this wave;
+  the row remains workable once the epsilon test fence drains.
+- **OMEGA-D-SCALAR-OPERATION-FRONTIER** — mined candidate; verify scope then implement.
 - **OMEGA-D-SCALAR-SEQUENCING** — mined candidate; verify scope then implement.
 - **OMEGA-ENTRY-MANIFEST-BINDINGS** — mined candidate; verify scope then implement.
 - **OMEGA-PARSER-GATE-WINDOWS.** Scope verified — sibling alias of
