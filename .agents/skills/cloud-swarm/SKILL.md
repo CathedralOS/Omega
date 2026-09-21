@@ -151,7 +151,15 @@ lists them; `get` returning 403 means foreign-parented.
 ### Coordinator pre-partitioning (the fix for churn)
 
 The coordinator owns the task graph — workers never choose work, so they never
-conflict. When unfenced items run out, do NOT park the pool:
+conflict. **Assignment dedup is the coordinator's job too**: claims.py only
+covers items a worker has *already claimed* — there is a 60-90s window between
+your assign and the worker's `claim` where the item looks free, so a bare
+cursor re-hands the same item to siblings. Observed: ~2/3 of pruned lanes were
+sibling-duplicated diffs before this fix. Keep a persistent **in-flight
+ledger** (`item → session_id, assigned_utc`): on every assign, skip items that
+are fenced AND items already in-flight; release the entry when the holder's
+verdict drains or it goes `exit`. Never assign an item that's already in
+flight. When unfenced items run out, do NOT park the pool:
 
 - **Split multi-path items.** Claims are per-path, not per-item. Take a claimed
   item's path list from `claims.py status`, slice it into disjoint subsets, and
