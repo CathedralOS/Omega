@@ -851,6 +851,9 @@ impl Builder<'_, '_> {
         }
         match self.program.expression_table.expression(expression).clone() {
             ExpressionNode::Call(call) => {
+                if let Some(selection) = self.integer_min_max(expression, &call, expected_type) {
+                    return Some(selection);
+                }
                 if !call.machine_arguments.is_empty()
                     || !call.evidence_arguments.is_empty()
                     || call.static_requirement_dispatch.is_some()
