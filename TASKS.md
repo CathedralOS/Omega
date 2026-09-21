@@ -9305,7 +9305,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   terminator + codec + verifier + interpreter + realization leg — no
   file-local slice exists; coordinate with the parent owner lane.
 - **PRIME-COUNTER-BENCHMARK-ROW** — mined candidate; verify scope then implement.
-- **PRIME-COUNTER-REMAINDER-LEGALIZATION** — mined candidate; verify scope then implement.
+- **PRIME-COUNTER-REMAINDER-LEGALIZATION.** Mined candidate — resolved:
+  the stub re-mines the remainder-legalization half of the resolved
+  PRIME-COUNTER-I32-REMAINDER row (swept at `50559da3ab9b5`). Landed at
+  `3c1ead6df4`: non-u64 exact divide/remainder now select the signed i64
+  entries (`ExactDivideI64`/`ExactRemainderI64` — bare `cqo;idiv` on
+  x86-64, `sdiv`/`msub` on AArch64), so `samples/cli/arithmetic/prime_counter`'s
+  `i32` remainder legalizes to a native artifact. Re-verified on linux
+  x86-64 at `6d00135b89` (i32 `-17 % 5` canary runs to exit 70; the
+  sample suite drives prime_counter to exit 8) and `ExactRemainderI64`
+  still selected at `f44a1177ed`. The measured-row residual belongs to
+  BENCHMARK-PRIME-COUNTER-ROW (fenced: `tools/benchmark` under
+  BENCHMARK-ROW-RESUMPTION and that row's own claim). No independent
+  slice remains under this name.
 - **PRIVATE-PIPE-RUNTIME-ENFORCEMENT** — mined candidate; scope verified, platform-gated residual — re-mines the runtime-enforcement leg of TOPOLOGY-PRIVATE-PIPE-INSTALLATION. The platform-neutral enforcement is landed on the unix leg: private channels are bound by kernel-attested pipe tokens (inode + direction, probed via `fcntl`/`fstat`), each binding registers an operation/payload schema (`topology_installation/operation_schema.rs`), an ungranted endpoint or substituted mapping refuses, schema violations close the binding, and peer failure EOFs the channel (`a_three_process_installation_mediated_over_real_private_channels` + `tests/process_confinement.rs`, `cargo nextest run -p topology-plan`). The remaining legs are the Windows and macOS providers — unrun, host-gated (Windows needs inheritable handle passing behind `StdPipeEnd`; macOS needs a signed/adhoc member image) — no linux-runnable work remains.
 - **PRIVATE-PRODUCER-EVIDENCE-LOAN-ORIGIN** — mined candidate; verify scope then implement.
 - **PRIVILEGED-PORT-EFFECT-SETTLEMENTS.** Partially resolved — the settlement
