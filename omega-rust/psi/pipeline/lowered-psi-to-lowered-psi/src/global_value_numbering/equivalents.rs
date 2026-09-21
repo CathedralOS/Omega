@@ -336,6 +336,7 @@ mod tests {
             blocks,
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(1).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -348,6 +349,7 @@ mod tests {
     fn block(ordinal: u64, operations: Vec<Operation>, terminator: Terminator) -> Block {
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(ordinal).unwrap(),
             parameters: Vec::new(),
@@ -388,6 +390,7 @@ mod tests {
                 .map(|ordinal| ValueId::new(ordinal).unwrap())
                 .collect(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),
@@ -444,6 +447,7 @@ mod tests {
                 target: BlockId::new(2).unwrap(),
                 arguments: Vec::new(),
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },
@@ -452,6 +456,7 @@ mod tests {
                 target: BlockId::new(3).unwrap(),
                 arguments: Vec::new(),
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },
@@ -491,6 +496,7 @@ mod tests {
                         target: BlockId::new(2).unwrap(),
                         arguments: Vec::new(),
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
@@ -499,6 +505,7 @@ mod tests {
                         target: BlockId::new(3).unwrap(),
                         arguments: Vec::new(),
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
@@ -596,6 +603,7 @@ mod tests {
             ),
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(2).unwrap(),
                 parameters: vec![ValueDeclaration {
@@ -774,6 +782,7 @@ mod tests {
                 result: OperationResult::Scalar(i32(20)),
                 kind: OperationKind::Call {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     callee: MachineId::new(9).unwrap(),
                     arguments: Vec::new(),
                     requirement_obligations: Vec::new(),

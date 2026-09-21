@@ -439,6 +439,7 @@ fn install_structural_unit_conditional_fixture(checked: &mut CheckedTrees) {
                                     },
                                 ],
                                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                                 trivial_affine_discard_parameter_positions: vec![1],
                             },
                             when_false: checked_trees::CheckedStructuralControlSuccessorPlan {
@@ -459,6 +460,7 @@ fn install_structural_unit_conditional_fixture(checked: &mut CheckedTrees) {
                                     },
                                 ],
                                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                                 trivial_affine_discard_parameter_positions: vec![0],
                             },
                         },
@@ -606,6 +608,7 @@ fn install_structural_unit_two_conditional_fixture(checked: &mut CheckedTrees) {
                 primitive_type: PrimitiveType::I32,
             }],
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             trivial_affine_discard_parameter_positions: Vec::new(),
         };
     plan.states[1].terminator = CheckedStructuralUnitControlTerminatorPlan::Conditional {
@@ -760,6 +763,7 @@ fn install_structural_unit_wide_dag_fixture(checked: &mut CheckedTrees) {
     let branch_successor =
         |statement_ordinal: u32, target_state: SymbolHandle, target_is_leaf: bool| {
             checked_trees::CheckedStructuralControlSuccessorPlan {
+                erased_proof_arguments: Vec::new(),
                 statement_ordinal,
                 target_state,
                 transfers: whole_frontier_transfer.clone(),

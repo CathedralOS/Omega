@@ -610,6 +610,9 @@ fn contexts_prove_boolean_expression(
             operand_labels,
             expression,
         ) || instantiated_leaf_is_closed_true(program, operators, parameters, operands, expression)
+            || contexts_prove_case_membership(
+                program, semantic, contexts, parameters, operands, expression,
+            )
     };
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner) => contexts_prove_boolean_expression(
@@ -1190,4 +1193,60 @@ fn operator_use_is_builtin_meaning(
             }),
         _ => false,
     }
+}
+
+/// A `subject in T::C` leaf -- lowered to `subject == T::C` -- is proven by
+/// the installed case at the operand place the subject names. The assigned
+/// tag, not a value comparison, is the evidence.
+fn contexts_prove_case_membership(
+    program: &TypedTrees,
+    semantic: &FactPlan,
+    contexts: &InvocationContexts<'_>,
+    parameters: &[StateParameter],
+    operands: &[ExpressionHandle],
+    expression: ExpressionHandle,
+) -> bool {
+    let Some((subject, case)) = crate::proof::exact_outcome_case_test(program, expression) else {
+        return false;
+    };
+    let Some(formal) = crate::flow::canonical_place_from_expression(program, subject) else {
+        return false;
+    };
+    let facts::PlaceRoot::Symbol(symbol) = formal.root else {
+        return false;
+    };
+    let Some(position) = parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .position(|parameter| parameter.symbol == symbol)
+    else {
+        return false;
+    };
+    let Some(mut place) = operands
+        .get(position)
+        .and_then(|operand| crate::flow::canonical_place_from_expression(program, *operand))
+    else {
+        return false;
+    };
+    place.segments.extend(formal.segments);
+    let contexts = contexts.for_expressions(program, parameters, [expression]);
+    contexts.iter().any(|context| {
+        semantic
+            .context_view(semantic.contexts.get(*context))
+            .facts()
+            .any(|fact| {
+                matches!(fact.payload, FactPayload::AssignedCase { variant } if variant == case)
+                    && matches!(fact.place, FactPlace::Place(candidate) if
+                    crate::flow::canonical_place_from_semantic_place(
+                        program,
+                        semantic,
+                        semantic.places.get(candidate),
+                    )
+                    .is_some_and(|candidate| {
+                        crate::flow::normalized_event_place_root(program, candidate.root)
+                            == crate::flow::normalized_event_place_root(program, place.root)
+                            && candidate.segments == place.segments
+                    }))
+            })
+    })
 }

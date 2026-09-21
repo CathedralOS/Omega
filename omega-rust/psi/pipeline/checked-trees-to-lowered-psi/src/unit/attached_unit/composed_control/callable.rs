@@ -112,6 +112,10 @@ pub(in crate::unit::attached_unit) fn emit(
                 structural_parameters: target.structural_parameters.to_vec(),
                 id: lookup_machine_id(shared.machine_ids, target.machine)?,
                 erased_scalar_formals: signature.erased_scalar_parameters.clone(),
+                erased_proof_formals:
+                    crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
+                        &signature.erased_proof_parameters,
+                    ),
                 requires: signature.requires.clone(),
                 scalar_parameters: signature
                     .scalar_parameters

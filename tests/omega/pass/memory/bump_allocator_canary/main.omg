@@ -143,6 +143,10 @@
 //   from `Occupied.storage` drops `Resident<SlotPlacement, Slot>`, which the
 //   weakening check rejects, so `reset`/`close` cannot fold an occupied
 //   allocation back (`tests/omega/fail/memory/bump_allocator_reset_with_live_resident`).
+// - Reclaim refuses a live resident tail-ward as well: `release`'s
+//   `returned` parameter demands `Vacant`, so passing an occupied
+//   allocation drops `Resident<...>` at the call
+//   (`tests/omega/fail/memory/bump_allocator_release_with_live_resident`).
 // - A resident cannot be dropped: `Occupied.storage` is linear qualified
 //   custody, so only `retire` disposes of it
 //   (`tests/omega/fail/memory/bump_allocator_resident_dropped`).

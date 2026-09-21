@@ -179,10 +179,21 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     // names an outer or nested call to sequence.
     let retired =
         |call: &checked_trees::FlowCallFact| facts.flow.control.is_retired(state.symbol, call);
+    // A pure scalar builtin (min/max/sqrt, float rounding and
+    // classification) is an operand of its enclosing scalar expression: the
+    // computation graph folds it rather than recording a Call node, so it is
+    // never an outer or nested call to sequence. Machine-control, port, and
+    // custody builtins keep their rows.
+    let scalar_intrinsic = |call: &checked_trees::FlowCallFact| {
+        program
+            .symbols
+            .builtin_function_for_symbol(call.target_symbol)
+            .is_some_and(|function| function.has_empty_write_frame())
+    };
     if statement_end > statements.len()
-        || calls
-            .iter()
-            .any(|call| !retired(call) && call.statement_index >= statement_end)
+        || calls.iter().any(|call| {
+            !scalar_intrinsic(call) && !retired(call) && call.statement_index >= statement_end
+        })
     {
         return None;
     }
@@ -253,6 +264,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                         pending.push(source);
                     }
                     checked_trees::CheckedStructuralValueKind::Reference { .. }
+                    | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
                     | checked_trees::CheckedStructuralValueKind::Case(_)
                     | checked_trees::CheckedStructuralValueKind::Place(_) => {}
                 }
@@ -503,7 +515,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     }
     for call in calls
         .iter()
-        .filter(|call| call.call_ordinal == 0 && !retired(call))
+        .filter(|call| call.call_ordinal == 0 && !scalar_intrinsic(call) && !retired(call))
     {
         if consumed
             .iter()
@@ -657,7 +669,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     trace.statement(None);
     if let Some(unconsumed) = calls
         .iter()
-        .filter(|call| call.call_ordinal != 0 && !retired(call))
+        .filter(|call| call.call_ordinal != 0 && !scalar_intrinsic(call) && !retired(call))
         .find(|call| {
             !consumed
                 .iter()

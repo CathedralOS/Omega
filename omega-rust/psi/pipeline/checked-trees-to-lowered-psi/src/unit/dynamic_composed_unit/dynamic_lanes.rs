@@ -353,6 +353,7 @@ pub(crate) fn lower_dynamic_composed_unit_machine(
                         id: caller_block,
                         parameters: Vec::new(),
                         erased_scalar_formals: Vec::new(),
+                        erased_proof_formals: Vec::new(),
                         operations: caller_operations,
                         terminator: Terminator::ReturnUnit {
                             edge: edge_id(1),

@@ -1,4 +1,4 @@
-//! Optimizer module role: stage group. Versioned logical-spill transport leaves.
+//! Versioned logical-spill transport leaves.
 
 mod cursor;
 mod decoding;

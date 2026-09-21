@@ -60,8 +60,7 @@ pub use assignment::post_allocation_manifest::{
     validate_post_allocation_optimization_manifest_after_selected_lowering,
 };
 pub use assignment::recovery::{
-    stage_active_resident_register_allocation, stage_fixed_view_register_allocation,
-    stage_leaf_local_fixed_view_register_allocation,
+    stage_active_resident_register_allocation, stage_leaf_local_fixed_view_register_allocation,
     stage_leaf_local_fixed_view_register_allocation_composing,
     stage_shared_entry_fixed_view_register_allocation,
 };

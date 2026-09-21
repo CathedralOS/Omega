@@ -36,9 +36,22 @@ use lowered_psi::LoweredPsi;
 /// Shared finite budget for equation transport and candidate discovery.
 const BUDGET: usize = 4096;
 
-pub(super) fn strengthen(lowered: &mut LoweredPsi) -> Result<(), LoweringError> {
-    let original = terminal_verifier::reconstruct_terminal_obligations(&lowered.semantic_module)
-        .map_err(LoweringError::InvalidTerminalModule)?;
+pub(super) fn strengthen(
+    lowered: &mut LoweredPsi,
+    retained: Option<&ReconstructedTerminalObligationSet>,
+) -> Result<(), LoweringError> {
+    // The roster owner hands over its own reconstruction when it left the
+    // module exactly as it reconstructed it; otherwise this pass takes one.
+    let reconstructed;
+    let original = match retained {
+        Some(original) => original,
+        None => {
+            reconstructed =
+                terminal_verifier::reconstruct_terminal_obligations(&lowered.semantic_module)
+                    .map_err(LoweringError::InvalidTerminalModule)?;
+            &reconstructed
+        }
+    };
     let (demanding, candidates) = {
         let module = &lowered.semantic_module;
         // The roster owner validated the module before this pass; a shape the
@@ -46,7 +59,7 @@ pub(super) fn strengthen(lowered: &mut LoweredPsi) -> Result<(), LoweringError> 
         let Ok(validated) = terminal_verifier::validate_module(module) else {
             return Ok(());
         };
-        let demanding = unproved_cyclic_guarantees(module, validated, &original);
+        let demanding = unproved_cyclic_guarantees(module, validated, original);
         let mut remaining = BUDGET;
         let mut candidates = Vec::new();
         for machine in module
@@ -60,7 +73,7 @@ pub(super) fn strengthen(lowered: &mut LoweredPsi) -> Result<(), LoweringError> 
             candidates.extend(header_candidates(
                 machine,
                 &context,
-                &original,
+                original,
                 &mut remaining,
             ));
         }
@@ -70,7 +83,7 @@ pub(super) fn strengthen(lowered: &mut LoweredPsi) -> Result<(), LoweringError> 
         return Ok(());
     }
     let baseline = lowered.semantic_module.scalar_block_invariants.clone();
-    if merge(&mut lowered.semantic_module, candidates)? && proves(lowered, &original, &demanding)? {
+    if merge(&mut lowered.semantic_module, candidates)? && proves(lowered, original, &demanding)? {
         return Ok(());
     }
     lowered.semantic_module.scalar_block_invariants = baseline;

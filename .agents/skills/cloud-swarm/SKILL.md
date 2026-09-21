@@ -128,11 +128,38 @@ lists them; `get` returning 403 means foreign-parented.
   remote ref count stays bounded by in-flight work, never grows per task.
   Workers on separate VMs cannot land any other way (their commits aren't
   reachable until pushed); direct `HEAD:main` pushes race non-FF at width.
-- **Prune stale lanes every cycle.** Before merging, check each zergling ref
-  for novelty: `git diff origin/main...<ref> -- . ':(exclude)TASKS.md' | wc
-  -l` — `0` means a sibling already landed the same content; delete the ref
-  without merging. In practice ~2/3 of aged branches are zero-diff stale.
-  Without this, conflicted duplicates accumulate on remote.
+- **Prune stale lanes by ancestry, not text diff.** A lane is stale iff its
+  tip is already an ancestor of main: `git merge-base --is-ancestor <tip>
+  origin/main`. A two-dot `git diff main ref` ALWAYS differs on old-base
+  lanes (main moved under them) even when their commits were merged — the
+  text-diff check prunes nothing and conflicted duplicates accumulate.
+  Three-dot (`main...ref`) is closer but ancestry is exact.
+- **Never `pull --rebase` the merge checkout — merge instead, and detect the
+  wedge.** A rebased batch replays every lane-merge as a pick (100+ stale
+  picks on conflict) and a non-checked returncode leaves the coordinator
+  merging on a half-rebased tree forever (observed: 228 merged commits
+  stranded local-only while "the loop ran fine"). Per cycle, pre-flight:
+  `rebase-merge/ || rebase-apply/ || MERGE_HEAD` present → `rebase --abort`
+  + `merge --abort` + `reset --hard origin/main` (lane content lives on
+  origin — reset loses nothing). Then `pull --no-rebase --no-edit` (one
+  merge commit, trivially resolvable) — and if that fails, abort and skip
+  the batch, never carry a wedged tree forward. Check push returncode:
+  only delete lane refs when push succeeds.
+- **`waiting_for_user` is a settled state — drain and refire it.** A worker
+  that finished its turn sits `running (waiting_for_user)`, NOT `suspended`.
+  Treating only `suspended` as settle-able leaves ~85% of the pool parked and
+  undrained (observed: 176/203 idle while "working"). Classify
+  `suspended | blocked | waiting_for_user` as settled; `running (working)`
+  is the only true working state.
+- **`get_messages` pages OLDEST-first — verdicts live on the LAST page.**
+  `first: 80` returns the first 80 messages ever, so verdicts posted later
+  are invisible. Page with `after=` until no cursor (cap ~10 pages), then
+  scan the last page's devin messages newest-first. Verdicts may also carry
+  `candidate`/`landing_ticket` (landing-queue style) instead of `commits` —
+  extract both.
+- **Dead sessions hold claims for the whole lease (8h).** `claims.py
+  release --ticket <t>` every claim whose owner maps to an `exit`ed session —
+  zombie fences block real assignments until expiry.
 - **Never replay a long rebase chain — abort and re-merge.** If a mid-merge
   `pull --rebase` wedges on conflicts with dozens of steps left (100+ stale
   picks), `git rebase --abort`, `git reset --hard origin/main`, and re-merge
@@ -151,7 +178,15 @@ lists them; `get` returning 403 means foreign-parented.
 ### Coordinator pre-partitioning (the fix for churn)
 
 The coordinator owns the task graph — workers never choose work, so they never
-conflict. When unfenced items run out, do NOT park the pool:
+conflict. **Assignment dedup is the coordinator's job too**: claims.py only
+covers items a worker has *already claimed* — there is a 60-90s window between
+your assign and the worker's `claim` where the item looks free, so a bare
+cursor re-hands the same item to siblings. Observed: ~2/3 of pruned lanes were
+sibling-duplicated diffs before this fix. Keep a persistent **in-flight
+ledger** (`item → session_id, assigned_utc`): on every assign, skip items that
+are fenced AND items already in-flight; release the entry when the holder's
+verdict drains or it goes `exit`. Never assign an item that's already in
+flight. When unfenced items run out, do NOT park the pool:
 
 - **Split multi-path items.** Claims are per-path, not per-item. Take a claimed
   item's path list from `claims.py status`, slice it into disjoint subsets, and

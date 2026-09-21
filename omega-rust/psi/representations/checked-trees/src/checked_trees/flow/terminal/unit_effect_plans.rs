@@ -15,6 +15,7 @@ use crate::checked_trees::flow::terminal::{
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
     CheckedUnitStructuralTypePlan,
 };
+use crate::checked_trees::values::{CheckedErasedProofParameterPlan, CheckedProofTerm};
 use crate::{
     CheckedScalarExpression, CheckedStructuralScalarFieldStorePlan, NominalMachineUseSite,
 };
@@ -135,6 +136,10 @@ pub enum CheckedUnitEffectOperationPlan {
         result: CheckedUnitStructuralResultBindingPlan,
         value: crate::CheckedStructuralValueHandle,
         calls: Vec<CheckedStructuralValueCall>,
+        /// `Some` when the value is an inline operand of a call statement,
+        /// naming the consuming call coordinate and authored formal position;
+        /// absent for statement-level constructions such as local bindings.
+        operand_source: Option<crate::CheckedArrayConstructionSource>,
         discard_result_on_return: bool,
     },
     /// Construct an unrestricted primitive fixed array in authored row-major
@@ -182,6 +187,9 @@ pub enum CheckedUnitEffectOperationPlan {
         scalar_arguments: Vec<CheckedCallScalarArgument>,
         /// Proof-only erased actuals in the target's erased-formal order.
         erased_scalar_arguments: Vec<CheckedCallScalarArgument>,
+        /// Erased proof-only actuals in the target's erased-proof roster
+        /// order. They carry semantic identity, never a runtime operand.
+        erased_proof_arguments: Vec<CheckedProofTerm>,
         structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
         claim_transfers: Vec<CheckedUnitClaimTransferPlan>,
     },
@@ -200,6 +208,9 @@ pub enum CheckedUnitEffectOperationPlan {
         scalar_arguments: Vec<CheckedCallScalarArgument>,
         /// Proof-only erased actuals in the target's erased-formal order.
         erased_scalar_arguments: Vec<CheckedCallScalarArgument>,
+        /// Erased proof-only actuals in the target's erased-proof roster
+        /// order. They carry semantic identity, never a runtime operand.
+        erased_proof_arguments: Vec<CheckedProofTerm>,
         structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
         claim_transfers: Vec<CheckedUnitClaimTransferPlan>,
     },
@@ -219,6 +230,9 @@ pub enum CheckedUnitEffectOperationPlan {
         scalar_arguments: Vec<CheckedCallScalarArgument>,
         /// Proof-only erased actuals in the target's erased-formal order.
         erased_scalar_arguments: Vec<CheckedCallScalarArgument>,
+        /// Erased proof-only actuals in the target's erased-proof roster
+        /// order. They carry semantic identity, never a runtime operand.
+        erased_proof_arguments: Vec<CheckedProofTerm>,
         structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
         discard_result_on_return: bool,
     },
@@ -478,6 +492,9 @@ pub struct CheckedUnitEffectMachinePlan {
     /// Proof-only erased scalar formals in authored order, retaining their
     /// authored parameter positions. They own no runtime argument lane.
     pub erased_scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
+    /// Erased formals whose carriers are proof-only and admit no scalar
+    /// lane. The contract term lane carries their semantic type identities.
+    pub erased_proof_parameters: Vec<CheckedErasedProofParameterPlan>,
     /// Exact boundary requirements replacing one authored provider-backed
     /// attachment field. Empty means no attachment specialization occurred.
     pub provider_attachment_requirements: Vec<CheckedProviderAttachmentRequirementPlan>,

@@ -17,9 +17,9 @@ every source-to-native consumer realizes it.
 | x86 `rdmsr` / `wrmsr` | Exact `u32` ECX selector and `u64` EDX:EAX value; explicit read destination; MachineOwner. |
 | x86 control-register access | Exact `u64` places/values; CR0/2/3/4 reads, CR0/3/4 writes; MachineOwner. |
 | x86 `serialize` / AArch64 `isb` | Zero operands; instruction-stream serialization — every prior instruction completes and instruction fetch re-synchronizes — not memory ordering; UserChecked, no authority, no clobbers. |
-| x86 `pause` / AArch64 `yield` / `nop` | Zero operands; scheduler/pipeline hint the core may elide — no semantic or machine-state obligation; UserChecked, no authority, no clobbers. `nop` is target-neutral. |
+| x86 `pause` / AArch64 `yield` / `wfe` / `wfi` / `sev` / `sevl` / `nop` | Zero operands; scheduler/pipeline hint the core may elide — no semantic or machine-state obligation; UserChecked, no authority, no clobbers. `nop` is target-neutral; the AArch64 `wfe`/`wfi`/`sev`/`sevl` encodings complete the architectural hint set, each legally completable as a no-op. |
 | `lidt`, `iretq` / `sysret` / `sysretq`, `eret` | Deriver-only; `lidt` has the consumer-authorized descriptor contract, not an arbitrary address operand. |
-| x86 `serialize` / `pause`; aarch64 `isb` / `yield`; `nop` | Zero-operand pipeline directives: instruction-stream serialization and scheduling hints carry no operand, no service reach and no clobber. |
+| x86 `serialize` / `pause`; aarch64 `isb` / `yield` / `wfe` / `wfi` / `sev` / `sevl`; `nop` | Zero-operand pipeline directives: instruction-stream serialization and scheduling hints carry no operand, no service reach and no clobber. |
 | x86 `wbinvd` / `invd` / `wbnoinvd` | Zero-operand cache maintenance: serializing, MachineOwner, no modeled operand place. `invd` drops modified lines without writeback; `wbnoinvd` writes back without invalidating. Cache operations needing a memory operand (`invlpg`, `clflush`) stay refused until a modeled memory contract exists. |
 
 The catalog's operand and clobber constants are authoritative for the current

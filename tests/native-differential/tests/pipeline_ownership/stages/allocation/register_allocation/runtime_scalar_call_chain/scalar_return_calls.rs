@@ -48,6 +48,7 @@ pub(super) fn artifact_parts(value: u64) -> (TerminalModule, ProofBundle) {
         }),
         kind: OperationKind::Call {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee,
             arguments: vec![argument],
             requirement_obligations: Vec::new(),
