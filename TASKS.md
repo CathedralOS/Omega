@@ -7745,7 +7745,7 @@ Optimizer lane (source: `TASKS_OPTIMIZER.md` + `learned_optimization_policy.md`)
   names the same gate). The doc's remaining questions (which specialization
   coordinates a variant kind binds; private symbol naming for variants;
   variant-aware replacement compatibility) are design inputs for that future
-  pass, not a bounded leg.
+  pass, not a bounded leg.  Corroborating evidence re-verified on this branch: checking gives each instance a normalized template identity (`{package-key|unmanaged}::{path}|{machine_identity}`) plus its own concrete normalized identity and a full commitment digest over the canonical template contract bytes/commitment, type/const argument identities, per-machine-argument owner+contract commitments, conformance commitments, operator realizations and static call bindings; `validation/src/machine_calls/machine_specialization_identity.rs` independently recomputes that digest and rejects template-identity drift, unclosed conformances, empty commitments and substituted contract owners. Task activation plans hash the commitment into each `TaskActivationPlanFact` (`provider-planning/src/task_plans/`), artifact application coverage embeds the commitment bytes per variant, and boundary-selection tests pin that two variants of one template yield two distinct commitments (`specialization_commitments.len() == 2`) while `compact_equal_specialization_substitution_changes_authoritative_commitment` pins that substituting a specialization changes the authoritative commitment; `tools/benchmark` record keys carry the selection label.
 
 Build/packages:
 
