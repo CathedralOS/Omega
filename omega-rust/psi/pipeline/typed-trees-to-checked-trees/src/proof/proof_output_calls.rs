@@ -27,10 +27,7 @@ pub(crate) fn bind_proof_output_call_facts(
         };
         let machine_target =
             crate::semantic_calls::find_state_with_machine(program, call.target_symbol);
-        let open_requirement = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == package.machine_symbol)
+        let open_requirement = crate::lookup::machine_by_symbol(program, package.machine_symbol)
             .map(|machine| {
                 validation::named_conformance_target_requirement(
                     program,
@@ -81,10 +78,7 @@ pub(crate) fn bind_proof_output_call_facts(
         // Generic templates use the same checked contract lanes as their
         // closed instances. An evidence call names its public signature;
         // only a closed call carries a concrete realization dispatch row.
-        let caller_is_generic = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == package.machine_symbol)
+        let caller_is_generic = crate::lookup::machine_by_symbol(program, package.machine_symbol)
             .is_some_and(|machine| {
                 !machine.lifetime_parameters.is_empty()
                     || !machine.type_parameters.is_empty()
@@ -562,10 +556,7 @@ fn check_open_proof_output_requirement(
             .expression_table
             .expression_handles(call.arguments)
             .is_empty()
-        && program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == caller)
+        && crate::lookup::machine_by_symbol(program, caller)
             .is_some_and(|machine| machine.attached_data.is_none());
     if !unit && !scalar {
         return Err(rejected(
@@ -731,10 +722,7 @@ fn checked_static_requirement_dispatch<'program>(
             .expression_handles(call.arguments)
             .is_empty()
         && !call.receiver.is_valid()
-        && program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == caller_machine)
+        && crate::lookup::machine_by_symbol(program, caller_machine)
             .is_some_and(|machine| machine.attached_data.is_none());
     if program.machine_states(realization_machine).len() != 1
         || realization_machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
@@ -986,10 +974,7 @@ pub(crate) fn intake_call_ensures_propositions(
     call: &typed_trees::statement::TableCall,
     known: &mut std::collections::BTreeSet<String>,
 ) {
-    let Some((callee, state)) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == call.target_symbol)
+    let Some((callee, state)) = crate::lookup::machine_by_symbol(program, call.target_symbol)
         .and_then(|machine| {
             program
                 .machine_states(machine)
