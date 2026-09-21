@@ -808,6 +808,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "proofs/proposition_relation_hierarchy_compile",
     "proofs/quotient_equivalence_compile",
     "proofs/quotient_define_managed_compile",
+    "proofs/quotient_lift_managed_compile",
     "proofs/quotient_generic_relation_compile",
     "proofs/quotient_machine_family_compile",
     "proofs/higher_order_machine_schema_compile",
