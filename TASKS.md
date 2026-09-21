@@ -2817,51 +2817,38 @@ syntax and other terminal services are not prerequisites.
   assumption closure through helper types/statements; do not confuse that
   integration dependency with the initial executable route.
 
-- **EVALUATED-FOREIGN-BINDINGS.** Carry the typed compile-time locator values
-  for PE, versioned ELF, and Darwin/Mach-O through the remaining port-bearing
-  native paths, preserving the normalized locator, evaluated
-  plan, target applicability and admitted provider custody under
-  [normalized-import evidence](wiki/spec/terminal-psi/boundary_calls.md#consumer-owned-settlement).
+- **PRIVILEGED-PORT-EFFECT-SETTLEMENTS.** Connect checked adapter port I/O
+  to native production under [consumer-owned settlement](wiki/spec/terminal-psi/boundary_calls.md#consumer-owned-settlement).
+  PE/ELF/Mach-O evaluated locator custody is a separate, implemented route;
+  privileged instructions belong to checked `asm`, not a foreign-binding
+  instruction language.
 
-  Port-bearing artifacts need a `port_effects` production writer connected
-  to native physical evidence and independent replay.
+  `TargetUnitOperation::PortWrite`, x86 encodings and independent
+  port-effect custody readers exist. Ordinary selection, register-home/
+  post-allocation transport and machine-fragment emission still do not
+  produce the port effects: image-emission's
+  `function_fragments/production.rs` publishes an empty roster.
+  Carry an installed selected adapter's exact `PortIo` requirement,
+  service/port/value, operation ordinal and byte span through that route.
+  Preserve the effect-before-settlement join through object rebasing, final
+  image and installation evidence; reuse the existing readers in
+  native-artifact's `physical/derivation/provider_custody.rs`.
 
-  Acceptance: port-bearing artifacts retain their exact effects.
-  Independent native replay rejects missing, duplicate, substituted or
-  role-swapped children. Raw foreign bytes remain locator data, never Omega
-  symbol names or ambient lookup authority.
+  Use a positive fixture whose checked adapter owns the selected requirement.
+  Direct-root privileged operations must continue to reject without provider
+  custody; do not turn their negative fixtures into a bypass. The
+  `asm_runtime_port_msr_final_validation` customer also needs its actual
+  selected bindings; unrelated machine-control/root-binding gaps do not
+  belong to this port transport repair. Port read (`in`) additionally needs
+  its Terminal operation and producer route; `DirectPortReadU8` settlement
+  metadata alone does not supply them.
 
-  Scope verified at `201d58c5915` — the consuming machinery is landed; the
-  producing chain is missing and every producing surface is under a live
-  sibling claim:
-  (a) **consumed half landed** — `machine-code` functions carry
-      `port_effects: Vec<PortEffectRecord>` (service/port/value +
-      operation/byte-span custody); `object_artifact` construction rebases
-      them to absolute `.text` and validates provenance, uniqueness and the
-      exact `x86_encoding::encode_immediate_port_write` bytes
-      (`function_validation.rs`); the installation record constructs, codecs
-      and replays them (`port_effect_codec.rs`, `record_shape.rs`
-      `validate_port_effects`, record-vs-image equality in
-      `record_validation.rs`); native physical custody replays each effect
-      against machine/object/final-image bytes and rejects missing
-      (unconsumed), duplicate/substituted ("does not rejoin one privileged
-      port effect") and role-swapped (settlement ordinal must be
-      effect+1) children in `native-artifact/physical/derivation`
-      (`provider_custody.rs`, `evidence.rs`, `children.rs`).
-  (b) **locator custody landed** — PE, versioned ELF and Mach-O import
-      tables each produce `(symbol, NormalizedForeignLocator)` pairs and the
-      shared image builder carries them into
-      `FinalImageImportPlan::Normalized`; raw foreign bytes stay locator
-      data, never Omega symbol names.
-  (c) **producer missing** — `TargetUnitOperation::PortWrite` and the
-      `MetadataOnlyPort`/`DirectPortReadU8` realizations exist (with the
-      settlement-must-follow-port-write custody check in
-      `lowering/unit/boundary_call.rs`), and the fixed-width x86 encodings
-      exist, but no selected instruction or machine-emission fragment ever
-      emits the bytes, and nothing anywhere constructs a `PortEffectRecord`:
-      the function-fragment production writer
-      (`function_fragments/production.rs`) and the private callback thunk
-      lane (`callback_thunks.rs`) both hardcode `port_effects: Vec::new()`.
+  Acceptance: an authored selected adapter produces and independently
+  validates its exact native effects. Missing, duplicate, substituted,
+  role-swapped or unconsumed records, changed service/port/value/target,
+  detached spans and altered bytes reject. Keep unsupported-target refusal.
+  Separate emitted-byte verification from execution, which requires an
+  appropriately admitted privileged environment, not raw I/O in a hosted test.
 
 - **FLOAT-PROVIDERS.** Complete runtime Boolean/machine operations for exact
   `FloatMeaning`, kernel discharge, and remaining artifact-aware proof sources
@@ -8342,42 +8329,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   BENCHMARK-PRIME-COUNTER-ROW (fenced: `tools/benchmark` under
   BENCHMARK-ROW-RESUMPTION and that row's own claim). No independent
   slice remains under this name.
-- **PRIVILEGED-PORT-EFFECT-SETTLEMENTS.** Partially resolved — the settlement
-  model landed at `c67ab1d0f2`: a privileged port effect settles only beneath
-  an installed selected checked adapter, and direct-root `PortWrite` rejects
-  at the terminal-authority closure review with "root-reachable checked
-  physical operation has no selected provider requirement custody" (pinned by
-  `root_checked_physical_operation_has_no_provider_permission_context`, the
-  `physical-port` leg of `artifact_identities_and_entries`, and
-  `checked_adapter_port_write_*`). The custody join is landed end to end:
-  `PortEffectRecord` (machine-code boundary/ports.rs) → `consumed_port_effects`
-  (native-artifact physical/derivation/evidence.rs, `UnownedPortEffect` gap
-  subject) → `hash_port_effect_record` (settlement_identity.rs) → format-36
-  `port_effect_codec` rows (`installation_port_effect_rejects_every_one_
-  field_substitution`). Slice landed this wave: the two stale pre-custody
-  canary pins were retargeted to the deliberate frontier —
-  `immediate_port_io_is_bound_in_final_image_validation` became
-  `immediate_port_io_rejects_without_provider_custody` and
-  `checked_physical_terminal_role_remains_explicit` became
-  `checked_physical_root_use_rejects_without_provider_custody`, both pinning
-  the custody reject on `asm_port_out_final_validation` (linux x86-64).
-  Verified on this revision: the two retargeted pins pass (11.8s/12.1s),
-  `native-artifact` 38/38, `image-emission` port-filter 17/17,
-  `native-realization` 150/151 (the one failure is the unrelated
-  Service-carrier fixture cluster on base), `OMEGA_FAIL_CANARY_FILTER=asm_port,
-  asm_service_import_required` fail-canary leg passes. Remaining legs:
-  privileged port-effect transport for the adapter route — a `PortIo`-declaring
-  boundary requirement bound to a checked adapter whose machine emits `out`,
-  then `TargetUnitOperation::PortWrite` selection in
-  target-operations-to-selected-instructions, register-home/post-allocation
-  transport, machine-emission `out` encoding with port-effect records, and a
-  re-authored positive fixture (current fixtures are direct-root); the
-  `asm_runtime_port_msr_final_validation` member of
-  `MACHINE_CONTROL_PASS_CANARIES`/`structured_machine_control_envelopes` stays
-  fenced behind that transport (its sibling members also lack root bindings —
-  separate staleness); `PortRead` (`in`) has no terminal-Psi operation yet;
-  the macos x86-64 `native_hosted_target()` cfg arm remains fenced here;
-  sibling translation-validation row `TV-PRIVILEGED-PORT-EFFECTS` is distinct.
 - **PRODUCER-CHECKER-BOUNDARY-AUDIT.** mined candidate — resolved: re-mine of the producer/checker seam family already bounded in `wiki/drafts/producer_checker_decision_sharing_audit.md` (verified `12dea522b2`; the ledger names this cluster explicitly — BOUNDARY-AUDIT, DECISION-SEPARATION, DECISION-SHARING-AUDIT, SHARING-AUDIT are the same seam). Every reachable surface is Re-derived or Bound: lock decisions are informational history bound to `changes.fingerprint()`, PCC claim fields are recomputed by `verify_pcc_claim_fields` under the receiver's policy, component descriptions are "trusted for nothing" (re-decode + consumer-supplied admission profile), placed-image evidence extents/digests/seals are re-derived from committed bytes. Re-witnessed at `54e321bdf0`: `derivation_cache.rs:154` still re-runs `candidate.verify()` through the admission kernel on every hit (rejected hits fall through to fresh derivation, counted in `rejected_candidates`), and `independent_components.rs:54` `verify_independent_component_descriptions` still re-verifies under the build's own admission profile. Open residual (exhaustive whole-tree verifier-callsite audit) is recorded on sibling PRODUCER-CHECKER-DECISION-SHARING-AUDIT, not here.
   unworkable — the originally recorded `source/library/std/process_exit.omg`
   package-wiring fence has expired, but the cross-stage route it would feed
@@ -10139,28 +10090,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   stays on the live **TRANSLATION-VALIDATION.** item in
   TASKS_OPTIMIZER.md.
   covered — span arms complete for every occurrence-producing intrinsic family; residual is TV-OPERATOR-APPLICATIONS-REPLAY
-- **TV-PRIVILEGED-PORT-EFFECTS.** Mined candidate; scope verified at
-  `5bb9a74842d` — the translation-validation lane named on the
-  ASM-ADMISSION-ROUTE row (:8852). The validating half is partially
-  landed: terminal-Psi carries `Operation::PortWrite`
-  (operations.rs:464), the terminal verifier handles it
-  (root_service_reach:111, unranked_cycles:376, arithmetic_operands:338,
-  custody_operations:192), the interpreter executes it to
-  `TerminalEffect::PortWrite` (call_operations.rs:529-540), abstract
-  lowering + effect classification are wired (catalog_admission tests,
-  effect_summaries.rs:236), and native-artifact already runs an
-  artifact-level TV check: `physical/derivation/provider_custody.rs:118+`
-  requires every metadata port effect to rejoin exactly one Terminal
-  `PortWrite` with unchanged service/port/value, stay in function
-  provenance, and keep the x86 immediate port-write width. What is
-  missing is the producing route: `PortWrite` reaches selected
-  instructions only in a test fixture (scalar_call_unit.rs:385) — no
-  `TargetUnitOperation::PortWrite` selection, register-home transport, or
-  machine-emission `out` encoding exists in production code, and
-  `PortRead` (`in`) has no terminal-Psi operation at all. Those legs are
-  the ASM-ADMISSION-ROUTE row's recorded remaining work; validating
-  emitted port effects before they are emitted produces nothing — no
-  independent TV slice exists until the selection leg lands.
 - **TV-OPERATOR-APPLICATIONS-REPLAY.** Mined candidate; scope verified at
   `a51cb805cc1` — real frontier, fenced this wave. Names the occurrence
   replay residual recorded on resolved sibling TV-INTRINSIC-SPAN-ARMS:
