@@ -94,6 +94,42 @@ rc=0
   fail "truncated tape: destination was written"
 echo "truncate: a truncated tape is refused before stamping"
 
+mkdir "$TMP/alpha-shadow"
+cp "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$TMP/alpha-shadow/$ALPHA_SEED"
+if [ "$(od -An -tx1 -j 100 -N1 "$TMP/alpha-shadow/$ALPHA_SEED" | tr -d ' ')" = "ff" ]; then
+  printf '\000' | dd of="$TMP/alpha-shadow/$ALPHA_SEED" bs=1 seek=100 conv=notrunc status=none
+else
+  printf '\377' | dd of="$TMP/alpha-shadow/$ALPHA_SEED" bs=1 seek=100 conv=notrunc status=none
+fi
+rc=0
+(
+  export OMEGA_PATH_ALPHA=$TMP/alpha-shadow
+  . "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/evaluator_env.sh"
+  materialize_gamma_evaluator "$TMP/refused-seed"
+) 2>"$TMP/corrupt-seed.err" || rc=$?
+[ "$rc" = 3 ] ||
+  fail "corrupted seed: expected exit 3, got $rc"
+grep -q 'bootstrap/0_alpha/README.md' "$TMP/corrupt-seed.err" ||
+  fail "corrupted seed: refusal did not cite the retention inventory"
+[ ! -e "$TMP/refused-seed" ] ||
+  fail "corrupted seed: destination was written"
+echo "corrupt: a one-byte seed change is refused before stamping"
+
+mkdir "$TMP/alpha-shadow-truncated"
+head -c $((ALPHA_SEED_SIZE - 1)) \
+  "$OMEGA_PATH_ALPHA/$ALPHA_SEED" > "$TMP/alpha-shadow-truncated/$ALPHA_SEED"
+rc=0
+(
+  export OMEGA_PATH_ALPHA=$TMP/alpha-shadow-truncated
+  . "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/evaluator_env.sh"
+  materialize_gamma_evaluator "$TMP/refused-seed-truncated"
+) 2>/dev/null || rc=$?
+[ "$rc" = 3 ] ||
+  fail "truncated seed: expected exit 3, got $rc"
+[ ! -e "$TMP/refused-seed-truncated" ] ||
+  fail "truncated seed: destination was written"
+echo "truncate: a truncated seed is refused before stamping"
+
 for needle in \
   "$GAMMA_EVALUATOR_SOURCE_SHA256" "$GAMMA_EVALUATOR_TAPE_SHA256" "47,756" "8,575"
 do
@@ -143,4 +179,4 @@ do
 done
 echo "records: bound identities match EVALUATOR_PROFILE.md, evaluator.tsv, delta_compiler.composed, the evaluator-development gate and README, the proofs subject records, and the Epsilon edge profile"
 
-echo "Gamma identity: selected evaluator stamped exactly; corrupted and truncated sources and tapes refused"
+echo "Gamma identity: selected evaluator stamped exactly; corrupted and truncated sources, tapes, and seeds refused"
