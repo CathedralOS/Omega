@@ -13075,7 +13075,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   linux_arm64/macos_arm64/windows_x86_64 legs host-gated, unrun. Gate stays
   open on every measured host axis until the fenced lanes land.
 - **RC-HOST-RUNNER-LANES** — mined candidate; verify scope then implement.
-- **RC-LINUX-ARM64-NATIVE-ROW** — mined candidate; verify scope then implement.
+- **RC-LINUX-ARM64-NATIVE-ROW.** Mined candidate — scope verified,
+  covered. Re-mines the linux_arm64 host row of the RC-NATIVE-MATRIX
+  release surface, which is already recorded at
+  `wiki/drafts/rc_native_matrix_linux_arm64.md` (witnessed at
+  `96b4afed92`, x86-64 host — 13/73 across 86 legs, all cross-compile/plan
+  evidence; real execution needs a linux/arm64 runner, encoded as the
+  qemu-aarch64 emulator lane in `tools/release/release_record.py:150`).
+  The live owner row is RC-NATIVE-MATRIX-LINUX-ARM64 (claimed through
+  ~15:33Z at this writing); per-host record lanes and the closure rule
+  belong to RC-NATIVE-MATRIX-HOST-RUNS / RC-NATIVE-MATRIX-CLOSURE. No
+  independent slice exists under this name. Re-verified at `832c55e69b`:
+  the witness doc, the emulator lane, and the sibling claim set are
+  unchanged.
 - **RC-LINUX-X86-64-GATE-LEDGER** — mined candidate; verify scope then implement.
 - **RC-MATRIX-RUNNER** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX** — mined candidate; verify scope then implement.
