@@ -278,10 +278,19 @@ prerequisite to every lower-rung milestone.
     `wiki/spec/build/compiler_request.md`, rebinding the D closure records.
   - ~~The gate-local prefixes packed on top of bound member bytes: every
     gate-local driver except the shared Epsilon slice driver.~~ All
-    gate-local drivers are bound: D's gate-local customer entries bind in
+    gate-local drivers are bound. Delta and Epsilon edges bind in
+    `tools/bootstrap/{delta/compiler,epsilon/evaluator}_env.sh`: the
+    lowering-plan and normalization Delta-edge driver entries plus the
+    internal-boundary and emission gate-owned controls closures (each binds
+    its manifest and the packed bytes it repacks to), and the checking and
+    array-storage Epsilon-edge drivers plus the checking-invariants,
+    runtime-invariants, runtime-references, and source-views controls
+    closures; `tests/bootstrap/{delta,epsilon}-identity.sh` pass the bound
+    identities and refuse corrupted or truncated drivers, manifests, and
+    controls members on Linux. D's gate-local customer entries bind in
     `tools/bootstrap/omega/compiler_env.sh`, recorded in each omega-* gate
     README; `tests/bootstrap/omega-identity.sh` checks them and the packed
-    compiler-plus-entry customer bytes on Linux; the shared Epsilon slice
+    compiler-plus-entry customer bytes on Linux. The shared Epsilon slice
     driver bound at e1fba5f523 as `EPSILON_EXECUTION_DRIVER_*` pins in
     `tools/bootstrap/epsilon/evaluator_env.sh` with
     `require_epsilon_execution_driver_identity` gating every cross-rung
