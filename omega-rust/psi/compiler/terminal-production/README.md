@@ -300,8 +300,9 @@ publication and execution are checked separately by
 `tests/native-differential/tests/local_record_receivers.rs`.
 
 The admitted record is affine or unrestricted, unqualified, and claim-free.
-Erased fields and declaration-restricted integer construction still require
-additional construction/evidence support. Whole plain records can pass through
+Erased fields still require additional construction/evidence support; a
+declaration-restricted integer field constructs through its retained
+declaration-derived range obligation. Whole plain records can pass through
 typed block parameters and return from their arriving home, including across an
 unrelated owned selection. Direct structural returns use existing result homes
 with their exact declared ownership; there is no record-specific function
@@ -353,10 +354,18 @@ byte-input realization rejects restrictions excluding either 0 or 255.
 Source range normalization uses the existing closed-expression evaluator's i64
 window. Unsupported or unevaluated bounds reject instead of becoming unrestricted
 scalars; floating/address restrictions and non-Exact arithmetic/range combinations
-are not admitted by this producer. Restricted field stores and restricted
-scalar-record construction remain fenced until written-value obligations are retained.
-Opaque interpreter inputs/results cannot establish these restrictions from type
-identity alone. The authored `terminal_byte_views/read_line.omg` native fixture
+are not admitted by this producer. Written-value obligations are now retained
+for restricted field stores and restricted scalar-record construction: a bounded
+field store, record initializer, or case payload carries the declaration-derived
+range obligation, which Terminal verification independently reconstructs against
+the value written rather than trusting an earlier read or the root's initial
+validity. Unproven writes reject (`bounded_assignment_unproven`);
+`runtime_u64_guarded_cap_store_exit` runs a guarded bounded store natively, and
+the `local_record_reads`/`byte_write_loop` source regressions pin obligation
+identity on `EstablishRecord`/`EstablishScalarCase`. The dynamic realization
+store route still declines bounded fields for want of a range-proof emission
+context. Opaque interpreter inputs/results cannot establish these restrictions
+from type identity alone. The authored `terminal_byte_views/read_line.omg` native fixture
 composes the byte leaf, guarded writes, and payload-bearing line outcomes through
 installation replay. It does not establish the bundled library's provider/API
 migration or the complete `cli_mvp` entry path.
