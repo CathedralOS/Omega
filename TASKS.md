@@ -15998,6 +15998,29 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   EXACT-MACHINE-SIMPLIFICATIONS sub-leg, not an independent surface.
 - **ROOT-FILE-DISCIPLINE.** — mined candidate; verify scope then implement.
 - **RULE-PROMOTION-EVIDENCE.** — mined candidate; verify scope then implement.
+||||||| parent of f0929cb73803 (board: REWRITE-VALIDATOR-INDEPENDENCE restamp — fence map rolled over)
+  `runtime_spill`. Currently unfenced claim available only item-wide: the
+  whole `selected-instructions-to-selected-instructions/` crate is fenced
+  under POC-REWRITE-ORPHANS (Zergling-91, exp 22:33Z) and the
+  `rewrites/{mod.rs,module_catalog.rs}` pair under
+  SELECTED-STAGE-RULE-CATALOG (Devin/z88, exp 02:32Z), so the per-module
+  conversion is claim-blocked this wave — the work item stays a named
+  EXACT-MACHINE-SIMPLIFICATIONS sub-leg, not an independent surface.
+- **RO-CODEC-PLACEMENT** — mined candidate; verify scope then implement.
+- **ROOT-FILE-DISCIPLINE** — mined candidate; verify scope then implement.
+- **RULE-PROMOTION-EVIDENCE** — mined candidate; verify scope then implement.
+  `runtime_spill`. Fence map re-verified at `4c4420286585` (rolled over):
+  the crate's wholesale fence (POC-REWRITE-ORPHANS) expired, but the
+  `rewrites/{mod.rs,module_catalog.rs}` pair plus
+  `selected_optimization.rs` sit under PIPELINE-REWRITE-CATALOG-WIRING
+  (zergling-111, exp 11:05Z), `rewrites/{relocation,diamond_relocation}`
+  under SCHEDULING-RELOCATION-UNIFICATION (exp 11:10Z), and
+  `tests/ancestry_contract.rs` under SELECTED-OPTIMIZATION-DIRECT-READS —
+  the per-module conversion stays a named EXACT-MACHINE-SIMPLIFICATIONS
+  sub-leg, workable per-module as lanes drain.
+- **RO-CODEC-PLACEMENT** — mined candidate; verify scope then implement.
+- **ROOT-FILE-DISCIPLINE** — mined candidate; verify scope then implement.
+- **RULE-PROMOTION-EVIDENCE** — mined candidate; verify scope then implement.
   Verified scope: the name re-mines WORKSPACE-ROLLOUT's exact-rule promotion
   territory in TASKS_OPTIMIZER.md — six staged records in
   `omega-rust/omega/representations/optimization-core/promotions/` must each
