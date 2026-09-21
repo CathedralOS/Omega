@@ -686,3 +686,56 @@ fn capacity_refusal_is_explicit_and_keeps_the_verdict_path() {
     assert!(cache.is_empty());
     assert_eq!(cache.report().capacity_refusals, 1);
 }
+
+#[test]
+fn dependency_invalidation_drops_affected_entries_and_is_tallied() {
+    let mut program = consultation_program();
+    let base = program.int_reference();
+    let plan = ProofPlan::new(&program.typed_trees);
+    let mut cache = ProofDerivationCache::new();
+
+    let count_obligation = key_obligation(program.machine, "Main", program.data[0], "count", base);
+    let total_obligation = key_obligation(program.machine, "Main", program.data[1], "total", base);
+    DerivationConsultation::new(&plan, &count_obligation, &mut cache).retain(
+        closed_bounds_certificate(literal_term(5), math_literal(0), math_literal(10), 66)
+            .expect("certificate"),
+    );
+    DerivationConsultation::new(&plan, &count_obligation, &mut cache).retain(
+        closed_bounds_certificate(literal_term(6), math_literal(0), math_literal(10), 67)
+            .expect("certificate"),
+    );
+    DerivationConsultation::new(&plan, &total_obligation, &mut cache).retain(
+        closed_bounds_certificate(literal_term(7), math_literal(0), math_literal(10), 68)
+            .expect("certificate"),
+    );
+    assert_eq!(cache.len(), 3);
+
+    // A dependency change invalidates every retained row still naming the
+    // changed dependency — the caller sweeps rather than reproducing keys.
+    assert_eq!(
+        cache.invalidate_where(|key| key.as_str().contains("::count")),
+        2
+    );
+    assert_eq!(cache.len(), 1);
+    assert_eq!(cache.report().invalidated, 2);
+
+    // A dependency-identical obligation hits a miss: the affected evidence
+    // is gone, so the producer decides the leg fresh.
+    let renamed = key_obligation(program.machine, "Renamed", program.data[0], "renamed", base);
+    assert!(
+        DerivationConsultation::new(&plan, &renamed, &mut cache)
+            .recheck()
+            .is_none()
+    );
+
+    // The unaffected row still discharges its obligation.
+    let total_again = key_obligation(program.machine, "Main", program.data[1], "total", base);
+    assert!(
+        DerivationConsultation::new(&plan, &total_again, &mut cache)
+            .recheck()
+            .is_some()
+    );
+    let report = cache.report();
+    assert_eq!(report.consultations, 2);
+    assert_eq!(report.reused, 1);
+}
