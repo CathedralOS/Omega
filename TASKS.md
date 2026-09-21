@@ -7611,6 +7611,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   umbrella is also under live claim (SQUALR-HEADLESS, Codex). Real start
   condition: SUPPLIED-BYTES-SCAN lands its engine-api/scanning port, then
   this row ports the command model on top.
+  Re-verified at `832c55e69b7` (ffival): dependency state partially moved —
+  the submodule pin `5b0307c` now carries the SUPPLIED-BYTES-SCAN surfaces
+  (27 .omg across squalr-engine-api + squalr-engine-scanning: scalar
+  scanners, element_scan_dispatcher, snapshot filters, RLE encoder), but
+  that row stays listed-open in the submodule's ordered list and this
+  item's route-through crates are still stubs: squalr-engine and
+  squalr-cli carry `build.omg` only, squalr-engine-session has only
+  `engine_os_provider.omg` — no request/response command model exists to
+  port. Submodule dir was UNFENCED this pass (claimed 8ac5e796 for the
+  witness, released); AGENTS.md still forbids success stubs. Real start
+  condition unchanged.
+
 - **SQUALR-ALIGNMENT-STRING-PARSING.** Scope verified at `949c153acd73` — the gap is
   real and narrow, and it is an alias of a named parity gap on the sample's own board.
   `samples/apps/squalr/TASKS.md` lists it among four remaining porting gaps ("Rust
