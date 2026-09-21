@@ -25,7 +25,7 @@ or when the board retires the `PreserveUnknown` leg.
   `Schema::decode(&mut value, &buffer, &mut read, &mut verdict)` out-param
   surface is transitional and remains strict-only.
 - Admission detection
-  (`build-evaluation/src/admission/wire_protocol.rs:426`
+  (`build-evaluation/src/admission/wire_protocol.rs:428`
   `published_preserving_decode`): a `PreserveUnknown` demand is satisfied by
   any authored machine conformance `PreservingDecode<_, Value>::decode_preserving`
   whose `Value` argument is the local schema's value type; otherwise the
