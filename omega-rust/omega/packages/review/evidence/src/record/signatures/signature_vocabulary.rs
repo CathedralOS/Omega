@@ -43,11 +43,26 @@ impl PackageReviewPropositionParameterSignature {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewPropositionParameterValue {
     pub(crate) type_identity: PackageReviewTypeIdentity,
+    pub(crate) is_const: bool,
+    pub(crate) is_mutable: bool,
+    pub(crate) is_self: bool,
 }
 
 impl PackageReviewPropositionParameterValue {
     pub const fn type_identity(&self) -> &PackageReviewTypeIdentity {
         &self.type_identity
+    }
+
+    pub const fn is_const(&self) -> bool {
+        self.is_const
+    }
+
+    pub const fn is_mutable(&self) -> bool {
+        self.is_mutable
+    }
+
+    pub const fn is_self(&self) -> bool {
+        self.is_self
     }
 }
 
