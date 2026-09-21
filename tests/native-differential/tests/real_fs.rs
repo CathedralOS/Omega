@@ -791,6 +791,11 @@ fn zero_build() -> BuildTimeValue {
     }
 }
 
+// Every operand must finish preparation before the operation touches real
+// authority: the formerly ignored create mode (div-by-zero under Trapping)
+// halts evaluation without a filesystem attempt effect, the undersized and
+// canonicalize output buffers reject during preparation, and the
+// cross-domain set_file_time call never reaches its target.
 #[test]
 fn filesystem_operands_prepare_before_real_authority() {
     let base = std::env::temp_dir().join(format!(
@@ -817,6 +822,10 @@ use omega::language::std::filesystem_host;
 
 data Build {{ target_index: i64; staged: i64; }}
 
+// Ignored-operand intent: the create mode argument must be evaluated
+// (and trap) during operand preparation, before the operation can touch
+// real disk — dividend/divisor divides by zero under Trapping, so the
+// create call never reaches the filesystem.
 data IgnoredOperandProbe {{
     fs: Service<FilesystemHost>;
     dividend: i32 in Trapping;
