@@ -126,9 +126,12 @@ pub fn x86_64_microsoft_aggregate_return_keys() -> Vec<RegisterConstraintKey> {
 
 /// Normalized foreign scalar calls: integer-only Unit inputs, then mixed Unit
 /// inputs, each with Unit, integer, and IEEE result choices. Stack arguments
-/// remain outgoing custody rather than register-row operands.
+/// remain outgoing custody rather than register-row operands. The 4000-series
+/// variants are the private-callback-position rows: each integer-bank operand
+/// position of each input bank, again with all three result choices.
 pub fn x86_64_system_v_normalized_foreign_call_keys() -> Vec<RegisterConstraintKey> {
     (3000..3189)
+        .chain(4000..4567)
         .map(|variant| RegisterConstraintKey {
             family: RegisterConstraintFamily::Call,
             variant,
@@ -140,6 +143,7 @@ pub fn x86_64_system_v_normalized_foreign_call_keys() -> Vec<RegisterConstraintK
 /// Its range is disjoint from the other convention and existing call families.
 pub fn x86_64_microsoft_normalized_foreign_call_keys() -> Vec<RegisterConstraintKey> {
     (3300..3393)
+        .chain(4600..4747)
         .map(|variant| RegisterConstraintKey {
             family: RegisterConstraintFamily::Call,
             variant,

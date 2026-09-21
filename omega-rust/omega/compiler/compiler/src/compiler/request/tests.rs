@@ -126,6 +126,46 @@ fn empty_duplicate_and_colliding_targets_reject_before_acquisition() {
 }
 
 #[test]
+fn aliased_build_directory_spellings_reject_before_acquisition() {
+    // `./out`, `sub/../out` and the absolute cwd spelling all stage into the
+    // same directory as `out`: the byte spellings differ, but two targets
+    // would race writes into one staging root, so the physical identity
+    // collides.
+    for spelling in [
+        "./shared".into(),
+        "subdir/../shared".into(),
+        std::env::current_dir().unwrap().join("shared"),
+    ] {
+        let diagnostics = request(RequestedCompileProduct::Check)
+            .with_target_configurations(vec![
+                TargetCompileConfiguration::new(TargetProfile::LinuxX64)
+                    .with_build_dir("shared".into()),
+                TargetCompileConfiguration::new(TargetProfile::WindowsX64).with_build_dir(spelling),
+            ])
+            .validate_for_execution()
+            .unwrap_err();
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("same build directory")),
+            "{diagnostics:?}"
+        );
+    }
+    // Genuinely separate staging directories still admit.
+    assert!(
+        request(RequestedCompileProduct::Check)
+            .with_target_configurations(vec![
+                TargetCompileConfiguration::new(TargetProfile::LinuxX64)
+                    .with_build_dir("shared".into()),
+                TargetCompileConfiguration::new(TargetProfile::WindowsX64)
+                    .with_build_dir("subdir/../other".into()),
+            ])
+            .validate_for_execution()
+            .is_ok()
+    );
+}
+
+#[test]
 fn targets_are_canonical_and_share_one_input_owner() {
     let admitted = request(RequestedCompileProduct::Check)
         .with_target_configurations(vec![

@@ -55,7 +55,6 @@ fn build_projected_edge_plan(
     let states = program.machine_states(machine);
     if machine.supply_mode != MachineSupplyMode::CheckedBody
         || machine.attached_data.is_none()
-        || states.len() != 2
         || !program.machine_contracts(machine).is_empty()
         || !program.state_contracts(state).is_empty()
         || !super::terminal_unit::cleanup_type_is_unit(program, state.return_type)
@@ -68,17 +67,85 @@ fn build_projected_edge_plan(
     if source_parameter.is_self {
         return None;
     }
-    let [StatementNode::Transition(transition)] =
-        program.statement_table.statements(state.statement_nodes)
-    else {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let (last, prefix) = statements.split_last()?;
+    let StatementNode::Transition(transition) = last else {
         return None;
     };
+    let transition_ordinal = prefix.len();
     if transition.exit != TransitionExit::Ordinary
         || transition.guard != TransitionGuardNode::Always
         || transition.continuation.is_valid()
     {
         return None;
     }
+    // Leading statements may establish construction-local temporaries and move
+    // their exact projections through calls. Each affine local that drops at the
+    // edge is a residual-bearing dying root; entry-parameter cleanup alone cannot
+    // dispose its remainder. Anything outside LocalData and call expressions —
+    // other statements, whole-local transfers, case/dynamic/referent paths —
+    // keeps the edge fail-closed.
+    let mut locals = Vec::new();
+    for (index, statement) in prefix.iter().enumerate() {
+        match statement {
+            StatementNode::LocalData(local) => {
+                if program.type_multiplicity(local.type_reference) != Multiplicity::Affine {
+                    continue;
+                }
+                if !local.symbol.is_valid()
+                    || local.is_mutable
+                    || !program
+                        .expression_table
+                        .expression_is_valid(local.initial_value)
+                    || !validation::has_plain_owned_contents_with_numeric_constraints(
+                        program,
+                        local.type_reference,
+                    )
+                    || super::terminal_unit::types::type_graph_requires_nominal_drop(
+                        program,
+                        local.type_reference,
+                    )
+                {
+                    return None;
+                }
+                match program
+                    .type_reference_table
+                    .type_reference(local.type_reference)
+                {
+                    typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+                    | typed_trees::types::TypeReferenceNode::Generic {
+                        base_symbol: symbol,
+                        ..
+                    } => {
+                        let root = program
+                            .data_definitions()
+                            .iter()
+                            .find(|data| data.symbol == *symbol)?;
+                        if root.properties.carry.is_some()
+                            || !root.lifetime_parameters.is_empty()
+                            || !program.data_type_parameters(root).is_empty()
+                        {
+                            return None;
+                        }
+                    }
+                    typed_trees::types::TypeReferenceNode::FixedArray { .. } => {}
+                    _ => return None,
+                }
+                locals.push((local.symbol, local.type_reference, index));
+            }
+            StatementNode::Call(_) => {}
+            StatementNode::Expression(expression)
+                if matches!(
+                    program.expression_table.expression(*expression),
+                    typed_trees::expression::ExpressionNode::Call(_)
+                ) => {}
+            _ => return None,
+        }
+    }
+    let local_roots = locals
+        .iter()
+        .map(|(symbol, ..)| *symbol)
+        .collect::<Vec<_>>();
     let TransitionTargetNode::Named {
         path, arguments, ..
     } = program.statement_table.transition_target(transition.target)
@@ -101,8 +168,12 @@ fn build_projected_edge_plan(
     let [argument] = program.statement_table.expression_handles(*arguments) else {
         return None;
     };
-    let argument_place =
-        crate::flow::canonical_place_from_expression_in_state(program, state.symbol, 0, *argument)?;
+    let argument_place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        transition_ordinal,
+        *argument,
+    )?;
     let facts::PlaceRoot::Symbol(argument_root) = argument_place.root else {
         return None;
     };
@@ -121,8 +192,13 @@ fn build_projected_edge_plan(
     if moved_path.is_empty() {
         return None;
     }
-    let discard_parameters =
-        checked_whole_affine_discard_parameters(program, facts, machine.symbol, state)?;
+    let discard_parameters = checked_whole_affine_discard_parameters_excluding_results(
+        program,
+        facts,
+        machine.symbol,
+        state,
+        &local_roots,
+    )?;
     if discard_parameters != [(source_parameter.symbol, 0)]
         || facts.flow.ownership.permissions.iter().any(|(_, event)| {
             event.machine_symbol == machine.symbol
@@ -141,21 +217,49 @@ fn build_projected_edge_plan(
         state,
         &mut segments,
     );
-    let edge_moves = moves
-        .iter()
-        .filter(|event| {
-            matches!(
-                event.source,
-                FlowOwnershipEventSource::Statement { statement_index: 0 }
-            ) || matches!(
+    // The moved parameter's only ownership move is the transition argument;
+    // construction-local roots move only through calls earlier in the body.
+    // Any other rooted move is custody this lane cannot account for.
+    let on_edge = |event: &crate::flow::DiscoveredMoveEvent| {
+        matches!(
+            event.source,
+            FlowOwnershipEventSource::Statement {
+                statement_index
+            } if statement_index == transition_ordinal
+        ) || matches!(
+            event.source,
+            FlowOwnershipEventSource::Call {
+                statement_index,
+                target_symbol,
+                ..
+            } if statement_index == transition_ordinal && target_symbol == path.symbol
+        )
+    };
+    for event in &moves {
+        let facts::PlaceRoot::Symbol(root) = event.root else {
+            return None;
+        };
+        if root == source_parameter.symbol {
+            if !on_edge(event) {
+                return None;
+            }
+        } else if local_roots.contains(&root) {
+            if !matches!(
                 event.source,
                 FlowOwnershipEventSource::Call {
-                    statement_index: 0,
-                    target_symbol,
+                    statement_index,
                     ..
-                } if target_symbol == path.symbol
-            )
-        })
+                } if statement_index < transition_ordinal
+            ) {
+                return None;
+            }
+        } else {
+            return None;
+        }
+    }
+    let edge_moves = moves
+        .iter()
+        .filter(|event| on_edge(event))
         .collect::<Vec<_>>();
     let [edge_move] = edge_moves.as_slice() else {
         return None;
@@ -164,6 +268,121 @@ fn build_projected_edge_plan(
         || segments.span_or_empty(edge_move.segments) != argument_place.segments
     {
         return None;
+    }
+
+    // Each construction-local dying root contributes its own projected
+    // residual on the same edge. The ledger must carry exactly one
+    // establishment, one projected call consumption, and one exit drop per
+    // temporary; more or less custody keeps the edge fail-closed.
+    let mut local_residuals = Vec::new();
+    for (symbol, type_reference, index) in locals.iter().rev() {
+        let expected_provenance = PermissionProvenance::Established {
+            machine_symbol: machine.symbol,
+            state_symbol: state.symbol,
+            source: PermissionEventSource::Statement {
+                statement_index: *index,
+            },
+        };
+        let mut transfers = Vec::new();
+        let mut established = false;
+        let mut dropped = false;
+        for (_, event) in facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .filter(|(_, event)| {
+                event.machine_symbol == machine.symbol
+                    && event.state_symbol == state.symbol
+                    && event.root == facts::PlaceRoot::Symbol(*symbol)
+            })
+        {
+            let exact = event.access == PermissionAccess::Owned
+                && event.multiplicity == Multiplicity::Affine
+                && event.claim_identity == PermissionClaimIdentity::Unknown
+                && event.provenance == expected_provenance
+                && !event.obligation_live;
+            match event.kind {
+                PermissionEventKind::Establish => {
+                    if !exact
+                        || established
+                        || event.source
+                            != (PermissionEventSource::Statement {
+                                statement_index: *index,
+                            })
+                        || !facts
+                            .flow
+                            .ownership
+                            .segments
+                            .span_or_empty(event.segments)
+                            .is_empty()
+                    {
+                        return None;
+                    }
+                    established = true;
+                }
+                PermissionEventKind::Transfer => {
+                    let PermissionEventSource::Call {
+                        statement_index, ..
+                    } = event.source
+                    else {
+                        return None;
+                    };
+                    let moved_segments =
+                        facts.flow.ownership.segments.span_or_empty(event.segments);
+                    if !exact || statement_index >= transition_ordinal || moved_segments.is_empty()
+                    {
+                        return None;
+                    }
+                    transfers.push((statement_index, moved_segments.to_vec()));
+                }
+                PermissionEventKind::AffineDrop => {
+                    if !exact
+                        || dropped
+                        || event.source != PermissionEventSource::StateExit
+                        || !facts
+                            .flow
+                            .ownership
+                            .segments
+                            .span_or_empty(event.segments)
+                            .is_empty()
+                    {
+                        return None;
+                    }
+                    dropped = true;
+                }
+                _ => return None,
+            }
+        }
+        if !established || !dropped {
+            return None;
+        }
+        let [(transfer_ordinal, moved_segments)] = transfers.as_slice() else {
+            return None;
+        };
+        let place = crate::flow::CanonicalPlace {
+            root: facts::PlaceRoot::Symbol(*symbol),
+            segments: moved_segments.clone(),
+        };
+        let (moved_type, moved_path) = super::terminal_unit::calls::projected_argument_path(
+            program,
+            state.symbol,
+            *transfer_ordinal,
+            &place,
+        )?;
+        // The callee's parameter already typed this argument, so the moved
+        // leaf's own identity stands in as the transfer target shape.
+        let (_, mut residuals) = super::terminal_unit::types::projected_move_residuals(
+            program,
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                symbol: *symbol,
+            },
+            *type_reference,
+            &moved_path,
+            moved_type,
+            moved_type,
+        )?;
+        local_residuals.append(&mut residuals);
     }
 
     // The original direct-field cohort keeps its dedicated validator: one
@@ -182,7 +401,7 @@ fn build_projected_edge_plan(
         ),
         _ => None,
     };
-    let (moved_type_identity, residual_affine_discards) = match narrow {
+    let (moved_type_identity, parameter_residuals) = match narrow {
         Some((_, moved_type_identity, residual_field_identity, residual_type_identity)) => (
             moved_type_identity,
             vec![CheckedUnitPartialAffineDiscardPlan {
@@ -240,10 +459,14 @@ fn build_projected_edge_plan(
             )?
         }
     };
+    // Residual custody dies in reverse establishment order: body temporaries
+    // before the entry parameter.
+    let mut residual_affine_discards = local_residuals;
+    residual_affine_discards.extend(parameter_residuals);
     Some(CheckedStructuralControlProjectedEdgeCleanupPlan {
         machine: machine.symbol,
         state: state.symbol,
-        statement_ordinal: 0,
+        statement_ordinal: u32::try_from(transition_ordinal).ok()?,
         target_state: target.symbol,
         transfer: CheckedStructuralControlProjectedTransferPlan {
             source_parameter_position: 0,

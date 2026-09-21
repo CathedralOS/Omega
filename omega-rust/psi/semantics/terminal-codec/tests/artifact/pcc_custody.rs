@@ -254,6 +254,7 @@ fn artifact_and_receiver() -> (CanonicalTerminalArtifact, PccReceiverPolicy) {
     module.machines[0].blocks[0].operations.push(Operation {
         id: operation_id(2),
         static_reach_binding: None,
+        suspension_crossing: None,
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
             boundary,

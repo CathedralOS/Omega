@@ -17,6 +17,8 @@ command -v python3 >/dev/null 2>&1 || {
     exit 0
 }
 
+require_seed_execution_host "Delta generated function census"
+
 CENSUS_TMP=$(mktemp -d)
 trap 'rm -rf -- "$CENSUS_TMP"' EXIT HUP INT TERM
 materialize_delta_compiler "$CENSUS_TMP/compiler.gamma"

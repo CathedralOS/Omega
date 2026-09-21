@@ -991,3 +991,52 @@ fn accepts_requires_boolean_expression_from_domain_fact_across_disjoint_mutating
     lower_typed_trees(parse_typed_trees(source))
         .expect("requires boolean expression should be preserved across disjoint mutating call");
 }
+
+/// A snapshot parameter lets `ensures` name the entry value: the write
+/// `self.count = self.count + 1` stores a source expression whose `self.count`
+/// read transports the live `self.count == before` fact, so the post-write
+/// equality is provable through the write.
+#[test]
+fn snapshot_parameter_equality_transports_through_the_write() {
+    let source = r#"
+        data Counter { count: u32; cap: u32; }
+        machine Counter::bump(&mut self, before: u32)
+        requires
+            self.count == before
+            self.count < self.cap
+        ensures
+            self.count == before + 1
+        {
+            self.count = self.count + 1;
+        }
+    "#;
+    lower_typed_trees(parse_typed_trees(source))
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+}
+
+/// The same write must not carry a stale reading: an `ensures` naming the
+/// place itself still means the *exit* value, not the transported snapshot.
+#[test]
+fn snapshot_parameter_equality_does_not_alias_the_written_place() {
+    let source = r#"
+        data Counter { count: u32; cap: u32; }
+        machine Counter::bump(&mut self, before: u32)
+        requires
+            self.count == before
+            self.count < self.cap
+        ensures
+            self.count == before
+        {
+            self.count = self.count + 1;
+        }
+    "#;
+    let Err(diagnostics) = lower_typed_trees(parse_typed_trees(source)) else {
+        panic!("the exit `self.count` is `before + 1`, not `before`");
+    };
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.message.contains("cannot prove ensures") }),
+        "{diagnostics:#?}"
+    );
+}

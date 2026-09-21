@@ -1,0 +1,1 @@
+field `console` on data `Main` names bare boundary trait `Console` in value position

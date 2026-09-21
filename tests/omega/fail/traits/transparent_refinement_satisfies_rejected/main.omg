@@ -1,0 +1,16 @@
+// A transparent refinement bounds an existing base conformance; a machine
+// cannot `satisfies` the refinement itself.
+
+trait Logger {
+    machine write(&mut self) suspends;
+}
+
+trait LocalLogger = Logger {
+    machine * suspends false;
+}
+
+data Sink {
+}
+
+machine Sink::write(&mut self) satisfies LocalLogger::write {
+}

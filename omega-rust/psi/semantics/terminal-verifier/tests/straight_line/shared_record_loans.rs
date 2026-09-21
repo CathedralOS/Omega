@@ -129,6 +129,7 @@ fn shared_parameter(
 fn read_flag(operation: u64, source: u64, value: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(operation),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -190,11 +191,13 @@ fn pair_module(multiplicity: StructuralMultiplicity) -> TerminalModule {
         target: id(JOIN_BLOCK),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         residual_affine_discards: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: vec![shared_parameter(VIEW, 0, PAYLOAD_TYPE)],
         id: id(JOIN_BLOCK),
         parameters: Vec::new(),
@@ -351,6 +354,7 @@ fn shared_loan_rejects_non_dominating_sibling_roots() {
             target: id(JOIN_BLOCK),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
         when_false: SuccessorEdge {
@@ -359,11 +363,13 @@ fn shared_loan_rejects_non_dominating_sibling_roots() {
             target: id(SIBLING_BLOCK),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
     };
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: vec![shared_parameter(SECOND_VIEW, 0, PAYLOAD_TYPE)],
         id: id(SIBLING_BLOCK),
         parameters: Vec::new(),
@@ -425,6 +431,7 @@ fn shared_loan_keeps_the_root_whole_for_the_binding_block() {
     });
     module.machines[0].blocks[1].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(903),
         result: OperationResult::Unit,
         kind: OperationKind::StructuralScalarFieldStore {
@@ -459,10 +466,12 @@ fn shared_loan_keeps_the_root_whole_for_the_binding_block() {
         module.machines.push(consumer_machine(access));
         module.machines[0].blocks[1].operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(904),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: id(CALLEE),
                 arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {
@@ -528,6 +537,7 @@ fn consumer_machine(access: StructuralAccess) -> TerminalMachine {
         entry: id(CALLEE_BLOCK),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id(CALLEE_BLOCK),
             parameters: Vec::new(),
@@ -536,6 +546,7 @@ fn consumer_machine(access: StructuralAccess) -> TerminalMachine {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id(910),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -557,6 +568,7 @@ fn joined_shared_view_stays_read_only() {
     });
     module.machines[0].blocks[1].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(903),
         result: OperationResult::Unit,
         kind: OperationKind::StructuralScalarFieldStore {
@@ -650,6 +662,7 @@ fn shared_loan_joins_from_a_completed_result_root() {
     machine.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(910),
             result: structural_result(PAYLOAD_RESULT, PAYLOAD_TYPE),
             kind: OperationKind::EstablishRecord {
@@ -673,6 +686,7 @@ fn shared_loan_joins_from_a_completed_result_root() {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(911),
             result: structural_result(SECOND_PAYLOAD_RESULT, PAYLOAD_TYPE),
             kind: OperationKind::EstablishRecord {
@@ -696,6 +710,7 @@ fn shared_loan_joins_from_a_completed_result_root() {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(912),
             result: structural_result(PAIR_RESULT, PAIR_TYPE),
             kind: OperationKind::EstablishRecord {
@@ -754,6 +769,7 @@ fn shared_loan_joins_from_a_completed_result_root() {
 
 fn structural_result(place: u64, structural_type: u64) -> OperationResult {
     OperationResult::Structural(StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place: id(place),
         structural_type: id(structural_type),
         multiplicity: StructuralMultiplicity::Unrestricted,

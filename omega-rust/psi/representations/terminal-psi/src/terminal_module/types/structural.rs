@@ -25,6 +25,11 @@ pub enum StructuralTypeShape {
     /// One immutable borrowed view over an exact sequence of bytes. The bytes
     /// are semantic payload, not UTF-8 text and not a native pointer/layout.
     ByteSequence(ByteSequenceCarrier),
+    /// One immutable borrowed view over a runtime-length sequence of
+    /// structural elements. The extent is the view's own stored runtime
+    /// length, not part of the type identity; the viewed storage remains
+    /// owned by its referent root.
+    ElementView { element: StructuralTypeId },
     Record {
         /// Declaration order is semantic. Field IDs must nevertheless be
         /// strictly increasing so the same record has one canonical spelling.

@@ -39,6 +39,7 @@ pub use snapshots::{SelectionSnapshot, replay_selection_snapshot};
 
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::types::TypeReferenceHandle;
 
 use super::schema_graph::exact_symbol_identity;
 
@@ -77,17 +78,51 @@ pub enum SelectionCoverage {
     Partial,
 }
 
+/// The exact trait application a selection requirement demands: canonical
+/// type-argument identities plus the lifetime ordinals under
+/// first-occurrence normalization. A requirement may demand only the trait
+/// declaration (`None`), or pin the application itself — the distinction
+/// between "any encoder for this member" and "the `Encode<Json>` encoder".
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DemandedTraitApplication {
+    pub type_argument_identities: Vec<String>,
+    pub lifetime_arguments: Vec<u32>,
+}
+
 /// The required contract every recorded selection must refine.
 ///
 /// `trait_identity` names the exact contract family — the canonical identity
 /// of the trait declaration. `requirement_identity` optionally pins one
 /// requirement signature inside that trait; `None` accepts a realization of
-/// any requirement row. Replay resolves both against the bound program and
-/// re-checks each choice's refinement, not merely that a name was chosen.
+/// any requirement row. `trait_application` optionally pins the exact trait
+/// application — `Encode<Json>` rather than `Encode<Cbor>` — and replay
+/// re-checks that the selected conformance or satisfies edge carries it.
+/// Replay resolves all three against the bound program and re-checks each
+/// choice's refinement, not merely that a name was chosen.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectionRequirement {
     pub trait_identity: String,
     pub requirement_identity: Option<String>,
+    pub trait_application: Option<DemandedTraitApplication>,
+}
+
+/// Renumber a lifetime ordinal list by first occurrence so two telescopes
+/// compare under binder renaming — the convention `TraitConformance` and
+/// `Conformance` edge identity already applies.
+pub(crate) fn first_occurrence_normalized(ordinals: &[u32]) -> Vec<u32> {
+    let mut seen: Vec<u32> = Vec::with_capacity(ordinals.len());
+    ordinals
+        .iter()
+        .map(
+            |ordinal| match seen.iter().position(|known| known == ordinal) {
+                Some(position) => position as u32,
+                None => {
+                    seen.push(*ordinal);
+                    (seen.len() - 1) as u32
+                }
+            },
+        )
+        .collect()
 }
 
 impl SelectionRequirement {
@@ -123,7 +158,54 @@ impl SelectionRequirement {
         Ok(Self {
             trait_identity: exact_symbol_identity(typed, trait_symbol)?.0,
             requirement_identity,
+            trait_application: None,
         })
+    }
+
+    /// Pin one exact trait application inside the requirement: the type
+    /// arguments canonicalize through the package-qualified identity and the
+    /// lifetime arguments normalize by first occurrence, so the demanded
+    /// application survives binder renaming on both sides of a package
+    /// boundary. Arity is checked against the trait's declared parameter
+    /// lists — a mismatched application is a construction error here, not a
+    /// later selection rejection.
+    pub fn for_trait_application(
+        typed: &TypedTrees,
+        trait_symbol: SymbolHandle,
+        requirement: Option<SymbolHandle>,
+        type_arguments: &[TypeReferenceHandle],
+        lifetime_arguments: &[u32],
+    ) -> Result<Self, String> {
+        let mut requirement = Self::for_trait(typed, trait_symbol, requirement)?;
+        let definition = typed
+            .traits()
+            .iter()
+            .find(|definition| definition.symbol == trait_symbol)
+            .expect("for_trait resolved this declaration");
+        if type_arguments.len() != typed.trait_type_parameters(definition).len() {
+            return Err(
+                "a demanded trait application must supply every declared type parameter".to_owned(),
+            );
+        }
+        if lifetime_arguments.len() != definition.lifetime_parameters.len() {
+            return Err(
+                "a demanded trait application must supply every declared lifetime parameter"
+                    .to_owned(),
+            );
+        }
+        let type_argument_identities = type_arguments
+            .iter()
+            .map(|argument| {
+                typed
+                    .package_qualified_type_identity(*argument)
+                    .into_string()
+            })
+            .collect();
+        requirement.trait_application = Some(DemandedTraitApplication {
+            type_argument_identities,
+            lifetime_arguments: first_occurrence_normalized(lifetime_arguments),
+        });
+        Ok(requirement)
     }
 }
 

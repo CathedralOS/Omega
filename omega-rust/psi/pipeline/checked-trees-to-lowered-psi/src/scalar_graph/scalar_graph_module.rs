@@ -7,12 +7,13 @@ use super::{
     BTreeMap, Block, ContentPartitionComposition, ContractClause, EvidenceRoute, KnownDirectScalar,
     LoweredContentIdentityReshuffles, LoweredContentPartitionCompositions, LoweredPsi,
     LoweringError, MachineContract, MachineId, ObligationEvidence, OperationKind, OperationResult,
-    PrimitiveJudgment, ProofBundle, Proposition, QualifiedScalarType, ScalarFloatRange, ScalarTerm,
-    ScalarType, StructuralArgument, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralPlaceKind, TERMINAL_MACHINE_IDENTITY_STRIDE, TerminalMachine, TerminalMachineResult,
-    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker, block_id, contract_id, edge_id,
-    lower_checked_crash_route_buckets, merge_content_place_declaration, obligation_id,
-    scalar_source_block, terminal_scalar_type, unsupported, value_id,
+    PrimitiveJudgment, ProofBundle, Proposition, QualifiedScalarType, ScalarFloatRange,
+    ScalarIntegerRange, ScalarTerm, ScalarType, StructuralArgument, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralPlaceKind, TERMINAL_MACHINE_IDENTITY_STRIDE,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker, block_id, contract_id, edge_id, lower_checked_crash_route_buckets,
+    merge_content_place_declaration, obligation_id, scalar_source_block, terminal_scalar_type,
+    unsupported, value_id,
 };
 use crate::emission::boolean_control::PendingNestedBlockGroup;
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -40,6 +41,10 @@ pub(super) struct GraphEmission<'a> {
     pub(super) state_parameters: Vec<Vec<ValueDeclaration>>,
     /// Per-state proof-only erased formal rosters in authored order.
     pub(super) state_erased_formals: Vec<Vec<ValueDeclaration>>,
+    /// Per-state erased-proof declarations, mirroring
+    /// `state_erased_formals`: each state's blocks redeclare them so
+    /// `ProofTerm::Formal` positions stay in scope.
+    pub(super) state_erased_proof_formals: Vec<Vec<terminal_psi::ErasedProofFormal>>,
     pub(super) loop_plan:
         Option<&'a crate::scalar_graph::scalar_graph_lowering::cycles::ScalarLoopPlan>,
     pub(super) terminal_machine: MachineId,
@@ -211,6 +216,10 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         .expect("generated identities follow parameter identities");
     let mut state_parameters = Vec::with_capacity(states.len());
     let mut state_erased_formals = Vec::with_capacity(states.len());
+    let state_erased_proof_formals = states
+        .iter()
+        .map(|state| state.erased_proof_formals.clone())
+        .collect::<Vec<_>>();
     for (position, state) in states.iter().enumerate() {
         if position == 0 && loop_plan.is_none() {
             state_parameters.push(parameters.clone());
@@ -280,6 +289,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         states,
         state_parameters,
         state_erased_formals,
+        state_erased_proof_formals,
         loop_plan,
         terminal_machine,
         identity_base,
@@ -457,6 +467,42 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                 }
                 scalar_qualifications.float_entry_ranges.push(row);
             }
+            // Retained authored integer ranges keep the normalized inclusive
+            // endpoints their requires-tail predicates already publish as
+            // propositions. The roster row preserves that exact carrier and
+            // endpoint evidence so a delivery check replays bounds without
+            // re-reading predicate structure.
+            for range in plan.integer_entry_ranges().unwrap_or_default() {
+                let parameter =
+                    parameters
+                        .get(range.position)
+                        .ok_or(LoweringError::Unsupported(
+                            "scalar integer entry range lost its dense entry parameter",
+                        ))?;
+                let declared = terminal_scalar_type(range.primitive_type)?;
+                let ScalarType::Integer(integer_type) = declared else {
+                    return unsupported("scalar integer entry range has a non-integer carrier");
+                };
+                let row = ScalarIntegerRange {
+                    machine: terminal_machine,
+                    parameter: parameter.id,
+                    integer_type,
+                    minimum: crate::emission::scalar_types::integer_value(
+                        &range.minimum,
+                        declared,
+                    )?,
+                    maximum: crate::emission::scalar_types::integer_value(
+                        &range.maximum,
+                        declared,
+                    )?,
+                };
+                if parameter.scalar_type != declared || !row.ordered() {
+                    return unsupported(
+                        "scalar integer entry range disagrees with its declared carrier",
+                    );
+                }
+                scalar_qualifications.integer_entry_ranges.push(row);
+            }
             let mut namespace = parameters.clone();
             namespace.push(result);
             let ensures =
@@ -540,6 +586,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             id: entry,
             parameters: Vec::new(),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Jump {
@@ -547,6 +594,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                 target: graph_entry,
                 arguments: parameters.iter().map(|parameter| parameter.id).collect(),
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: structural_parameters
                     .iter()
                     .map(|parameter| StructuralArgument {
@@ -588,6 +636,9 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         .sort_by_key(|coercion| (coercion.machine, coercion.edge, coercion.argument_ordinal));
     scalar_qualifications
         .float_entry_ranges
+        .sort_by_key(|range| (range.machine, range.parameter));
+    scalar_qualifications
+        .integer_entry_ranges
         .sort_by_key(|range| (range.machine, range.parameter));
     let mut lowered = LoweredPsi {
         semantic_module: TerminalModule {
@@ -643,6 +694,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                     id: contract_id(terminal_machine.get()),
                     crash_routes,
                     erased_scalar_formals,
+                    erased_proof_formals: states[0].erased_proof_formals.clone(),
                     requires,
                     ensures,
                     outcome_specific_ensures: Vec::new(),

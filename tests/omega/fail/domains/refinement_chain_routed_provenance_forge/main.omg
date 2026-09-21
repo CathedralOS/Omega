@@ -1,0 +1,29 @@
+// The parent's routed provenance is inherited: a return constraint alone
+// cannot mint `Token in Issued::Fresh` for a constructed value that carries
+// no `Issued` evidence.
+
+data Token {
+    value: u64;
+}
+
+domain Token::Issued
+established by TokenIssuer::issue;
+
+trait TokenIssuer {
+    machine issue(value: u64) -> Token
+    ensures
+        result in Token::Issued;
+}
+
+domain Token::Issued::Fresh;
+
+machine Token::forge(value: u64) -> Token in Issued::Fresh {
+    Token { value: value }
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let token: Token in Issued::Fresh = Token::forge(7);
+}

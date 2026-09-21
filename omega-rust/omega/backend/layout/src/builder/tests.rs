@@ -491,3 +491,138 @@ fn literal_array_extent_that_wraps_the_record_end_is_rejected() {
         error.message
     );
 }
+
+#[test]
+fn quotient_over_runtime_carrier_lays_out_as_its_representative() {
+    let checked = checked(
+        r#"
+        data Carrier {
+            value: u64;
+            tag: u8;
+        }
+        proposition equivalent(left: Carrier, right: Carrier);
+        data Quotient = Carrier % equivalent;
+        "#,
+    );
+
+    let plan = build_layout_plan(&checked, NativeTarget::host(), &[]).expect("layout");
+    let carrier = plan
+        .data_layouts
+        .iter()
+        .map(|(_, layout)| layout)
+        .find(|layout| layout.name.as_str() == "Carrier")
+        .expect("Carrier layout");
+    let quotient = plan
+        .data_layouts
+        .iter()
+        .map(|(_, layout)| layout)
+        .find(|layout| layout.name.as_str() == "Quotient")
+        .expect("a quotient over runtime data is laid out as its representative");
+    assert_eq!(quotient.layout, carrier.layout);
+    assert_eq!(quotient.shape, carrier.shape);
+}
+
+#[test]
+fn record_holding_a_realized_quotient_stays_runtime_data() {
+    let checked = checked(
+        r#"
+        data Carrier {
+            value: u64;
+        }
+        proposition equivalent(left: Carrier, right: Carrier);
+        data Quotient = Carrier % equivalent;
+        data Wrapper {
+            head: u8;
+            instance: Quotient;
+        }
+        "#,
+    );
+
+    let plan = build_layout_plan(&checked, NativeTarget::host(), &[]).expect("layout");
+    let wrapper = plan
+        .data_layouts
+        .iter()
+        .map(|(_, layout)| layout)
+        .find(|layout| layout.name.as_str() == "Wrapper")
+        .expect("Wrapper layout");
+    assert_eq!(wrapper.layout.size, 16);
+    assert_eq!(wrapper.layout.alignment, 8);
+    let DataShape::Record { fields } = wrapper.shape else {
+        panic!("Wrapper should have record layout");
+    };
+    assert_eq!(
+        plan.fields
+            .span_or_empty(fields)
+            .iter()
+            .map(|field| (field.name.as_str(), field.offset))
+            .collect::<Vec<_>>(),
+        [("head", 0), ("instance", 8)]
+    );
+}
+
+#[test]
+fn quotient_over_proof_only_carrier_stays_proof_only() {
+    let checked = checked(
+        r#"
+        data Infinite {
+            next: Infinite;
+        }
+        proposition equivalent(left: Infinite, right: Infinite);
+        data Quotient = Infinite % equivalent;
+        "#,
+    );
+
+    let plan = build_layout_plan(&checked, NativeTarget::host(), &[]).expect("layout");
+    assert!(
+        plan.data_layouts
+            .iter()
+            .map(|(_, layout)| layout)
+            .all(|layout| layout.name.as_str() != "Quotient"),
+        "a quotient whose carrier has no layout stays proof-only"
+    );
+
+    let quotient_symbol = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Quotient")
+        .expect("Quotient definition")
+        .symbol;
+    let classification = checked_trees::proof_only::classify(&checked.typed);
+    assert!(matches!(
+        classification.reason(quotient_symbol),
+        Some(checked_trees::proof_only::ProofOnlyReason::Quotient { .. })
+    ));
+}
+
+#[test]
+fn quotient_of_quotient_realizes_through_the_root_carrier() {
+    let checked = checked(
+        r#"
+        data Carrier {
+            value: u64;
+        }
+        proposition equivalent(left: Carrier, right: Carrier);
+        proposition coarser(left: Quotient, right: Quotient);
+        data Quotient = Carrier % equivalent;
+        data CoarserQuotient = Quotient % coarser;
+        "#,
+    );
+
+    let plan = build_layout_plan(&checked, NativeTarget::host(), &[]).expect("layout");
+    let carrier = plan
+        .data_layouts
+        .iter()
+        .map(|(_, layout)| layout)
+        .find(|layout| layout.name.as_str() == "Carrier")
+        .expect("Carrier layout");
+    for name in ["Quotient", "CoarserQuotient"] {
+        let layout = plan
+            .data_layouts
+            .iter()
+            .map(|(_, layout)| layout)
+            .find(|layout| layout.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} should be laid out"));
+        assert_eq!(layout.layout, carrier.layout, "{name}");
+    }
+}

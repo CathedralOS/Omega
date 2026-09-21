@@ -14,11 +14,7 @@ pub(super) fn proves_exit(
     let facts::FactPayload::ContractBooleanExpression { expression, .. } = fact.payload else {
         return false;
     };
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == state_flow.machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
         return false;
     };
     let Some(mutation) = facts.mutation.for_machine(machine.symbol) else {

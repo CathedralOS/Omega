@@ -126,6 +126,7 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
         .collect();
     let mut structural_transfers = arena::Arena::default();
     let mut scalar_arguments = arena::Arena::default();
+    let mut erased_proof_arguments = arena::Arena::default();
     machines.retain_mut(|graph| {
         let Some(ranked_scc) = ranking::plan(program, graph, call_frames) else {
             return false;
@@ -136,6 +137,7 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
             graph,
             &mut structural_transfers,
             &mut scalar_arguments,
+            &mut erased_proof_arguments,
         )
         .is_some()
     });
@@ -144,6 +146,7 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
         parameter_storage,
         structural_transfers,
         scalar_arguments,
+        erased_proof_arguments,
         structural_types: structural_types.into_values().collect(),
         guarded_exits,
         guarded_tails,
@@ -183,16 +186,13 @@ pub(crate) fn finalize_checked_scalar_graph_plans_with_call_frames(
             graph,
             &plans.structural_transfers,
             &plans.scalar_arguments,
+            &plans.erased_proof_arguments,
         )
         .is_none()
         {
             return false;
         }
-        let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == graph.machine)
-        else {
+        let Some(machine) = crate::lookup::machine_by_symbol(program, graph.machine) else {
             return false;
         };
         graph.states.iter().all(|retained| {
@@ -249,9 +249,18 @@ fn build_machine_graph(
                 return None;
             }
             let parameters = program.state_parameters(state);
+            // A borrowed `self` stays ambient on the attachment carrier: the
+            // scalar graph keeps no structural or scalar slot for it, the same
+            // convention the completed Unit signature uses when it does not
+            // retain the receiver. An owned `self` still has no graph
+            // representation, so it refuses the plan.
             if parameters.iter().any(|parameter| {
                 super::terminal_unit::strips_erased_parameter(parameter).is_none()
-                    || parameter.is_self
+                    || (parameter.is_self
+                        && !crate::borrow::view_link::is_reference_type(
+                            program,
+                            parameter.type_reference,
+                        ))
                     || parameter.is_const
                     || (parameter.is_mutable
                         && !matches!(
@@ -265,12 +274,26 @@ fn build_machine_graph(
             }) {
                 return None;
             }
+            // The ambient receiver owns no graph operand, so no scalar plan
+            // in this state may observe through its authored position. A body
+            // that still reads `self` keeps its ordinary body rather than
+            // publishing a graph whose receiver references would strand.
+            if let Some(position) = parameters.iter().position(|parameter| parameter.is_self) {
+                let Ok(position) = u32::try_from(position) else {
+                    return None;
+                };
+                if state_reads_ambient_position(expressions, computations, state.symbol, position) {
+                    return None;
+                }
+            }
             // An erased parameter (a plain immutable binding after the
             // rejections above) owns no scalar entry and does not make the
             // signature mixed, whatever its type: a proof-only type such as
-            // `Nat` is exactly what erasure exists for.
+            // `Nat` is exactly what erasure exists for. Neither does the
+            // ambient borrowed receiver, which is not a value argument.
             let mixed = parameters.iter().any(|parameter| {
                 !parameter.relevance.is_erased()
+                    && !parameter.is_self
                     && program
                         .primitive_type_reference(parameter.type_reference)
                         .is_none()
@@ -288,7 +311,9 @@ fn build_machine_graph(
                     parameters
                         .iter()
                         .enumerate()
-                        .filter(|(_, parameter)| !parameter.relevance.is_erased())
+                        .filter(|(_, parameter)| {
+                            !parameter.relevance.is_erased() && !parameter.is_self
+                        })
                         .map(|(position, parameter)| {
                             Some(checked_trees::CheckedStructuralScalarParameterPlan {
                                 source_position: u32::try_from(position).ok()?,
@@ -300,18 +325,17 @@ fn build_machine_graph(
                     Vec::new(),
                 )
             };
-            let erased_scalar_parameters = parameters
-                .iter()
-                .enumerate()
-                .filter(|(_, parameter)| parameter.relevance.is_erased())
-                .map(|(position, parameter)| {
-                    Some(checked_trees::CheckedStructuralScalarParameterPlan {
-                        source_position: u32::try_from(position).ok()?,
-                        primitive_type: program
-                            .primitive_type_reference(parameter.type_reference)?,
-                    })
-                })
-                .collect::<Option<Vec<_>>>()?;
+            // Proof-only erased formals leave the scalar roster and index the
+            // contract term lane instead; scalar erased ordinals stay dense
+            // over scalar carriers only.
+            let erased_scalar_parameters =
+                crate::execution::terminal_unit::types::erased_scalar_parameter_plans(
+                    program, state,
+                )?;
+            let erased_proof_parameters =
+                crate::execution::terminal_unit::types::erased_proof_parameter_plans(
+                    program, state,
+                )?;
             let parameter_types = scalar_parameters
                 .iter()
                 .map(|parameter| parameter.primitive_type)
@@ -436,6 +460,7 @@ fn build_machine_graph(
                     structural_parameters,
                     scalar_parameters,
                     erased_scalar_parameters,
+                    erased_proof_parameters,
                     parameter_types,
                     parameter_storage: arena::HandleSpan::empty(),
                     primitive_locals,
@@ -626,13 +651,8 @@ fn checked_binding_value(
     if call.receiver.is_valid() || !call.machine_arguments.is_empty() {
         return None;
     }
-    let target_machine = program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .first()
-            .is_some_and(|entry| entry.symbol == call.target_symbol)
-    })?;
-    let target_state = program.machine_states(target_machine).first()?;
+    let (target_machine, target_state) =
+        crate::semantic_calls::find_machine_by_entry_state(program, call.target_symbol)?;
     let parameters = program.state_parameters(target_state);
     let authored_arguments = program
         .expression_table
@@ -700,6 +720,7 @@ fn checked_successor(
         structural_transfers: arena::HandleSpan::empty(),
         scalar_arguments: arena::HandleSpan::empty(),
         erased_arguments: arena::HandleSpan::empty(),
+        erased_proof_arguments: arena::HandleSpan::empty(),
     })
 }
 
@@ -874,5 +895,250 @@ fn checked_branch_destination(
         )
         .map(CheckedScalarBranchDestination::Jump),
         _ => None,
+    }
+}
+
+/// Whether any scalar plan rooted in `state` observes through the authored
+/// parameter `position` — the ambient borrowed receiver's coordinate. An
+/// unrecognized or malformed node counts as a read so the gate stays closed.
+fn state_reads_ambient_position(
+    expressions: &checked_trees::CheckedScalarExpressionPlans,
+    computations: &checked_trees::CheckedScalarComputationPlans,
+    state: symbols::SymbolHandle,
+    position: u32,
+) -> bool {
+    expressions.expressions.iter().any(|expression| {
+        expression.state == state
+            && scalar_expression_reads_position(&expression.expression, position)
+    }) || computations.roots.iter().any(|(_, root)| {
+        root.state == state && computation_reads_position(computations, root.root, position)
+    })
+}
+
+fn computation_reads_position(
+    computations: &checked_trees::CheckedScalarComputationPlans,
+    root: checked_trees::CheckedScalarComputationHandle,
+    position: u32,
+) -> bool {
+    let mut pending = vec![root];
+    let mut visited = Vec::new();
+    while let Some(handle) = pending.pop() {
+        if visited.contains(&handle) {
+            continue;
+        }
+        visited.push(handle);
+        if !computations.nodes.is_valid(handle) {
+            return true;
+        }
+        match &computations.nodes.get(handle).kind {
+            checked_trees::CheckedScalarComputationKind::StructuralField { subject, .. } => {
+                if structural_place_reads_position(subject, position) {
+                    return true;
+                }
+            }
+            checked_trees::CheckedScalarComputationKind::CaseMembership { subject, .. } => {
+                if structural_argument_reads_position(computations, subject, position, &mut pending)
+                {
+                    return true;
+                }
+            }
+            checked_trees::CheckedScalarComputationKind::SelectedComparison {
+                left, right, ..
+            } => pending.extend([*left, *right]),
+            checked_trees::CheckedScalarComputationKind::Qualification { operand, .. }
+            | checked_trees::CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
+                pending.push(*operand)
+            }
+            checked_trees::CheckedScalarComputationKind::Value(expression) => {
+                if scalar_expression_reads_position(expression, position) {
+                    return true;
+                }
+            }
+            checked_trees::CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
+                pending.push(*subject);
+                let Some(arms) = computations.dispatch_arms.span(*arms) else {
+                    return true;
+                };
+                for arm in arms {
+                    if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern
+                    {
+                        pending.push(pattern);
+                    }
+                    pending.push(arm.value);
+                }
+            }
+            checked_trees::CheckedScalarComputationKind::Call {
+                arguments,
+                structural_arguments,
+                ..
+            } => {
+                let Some(operands) = computations.operands.span(*arguments) else {
+                    return true;
+                };
+                pending.extend_from_slice(operands);
+                let Some(arguments) = computations
+                    .structural_arguments
+                    .span(*structural_arguments)
+                else {
+                    return true;
+                };
+                for argument in arguments {
+                    if structural_argument_reads_position(
+                        computations,
+                        argument,
+                        position,
+                        &mut pending,
+                    ) {
+                        return true;
+                    }
+                }
+            }
+            checked_trees::CheckedScalarComputationKind::Select {
+                condition,
+                when_true,
+                when_false,
+                ..
+            } => pending.extend([*condition, *when_true, *when_false]),
+            checked_trees::CheckedScalarComputationKind::Apply {
+                expression,
+                operands,
+                ..
+            } => {
+                if scalar_expression_reads_position(expression, position) {
+                    return true;
+                }
+                let Some(operands) = computations.operands.span(*operands) else {
+                    return true;
+                };
+                pending.extend_from_slice(operands);
+            }
+        }
+    }
+    false
+}
+
+fn structural_argument_reads_position(
+    computations: &checked_trees::CheckedScalarComputationPlans,
+    argument: &checked_trees::CheckedScalarComputationStructuralArgument,
+    position: u32,
+    pending: &mut Vec<checked_trees::CheckedScalarComputationHandle>,
+) -> bool {
+    match argument {
+        checked_trees::CheckedScalarComputationStructuralArgument::Place(place) => {
+            structural_place_reads_position(place, position)
+        }
+        checked_trees::CheckedScalarComputationStructuralArgument::Case(construction) => {
+            let Some(fields) = computations.case_fields.span(construction.fields) else {
+                return true;
+            };
+            pending.extend(fields.iter().map(|field| field.value));
+            false
+        }
+        checked_trees::CheckedScalarComputationStructuralArgument::Array { elements, .. } => {
+            let Some(elements) = computations.operands.span(*elements) else {
+                return true;
+            };
+            pending.extend_from_slice(elements);
+            false
+        }
+    }
+}
+
+fn structural_place_reads_position(
+    plan: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    position: u32,
+) -> bool {
+    if plan.source_parameter_index() == Some(position) {
+        return true;
+    }
+    if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+        parameter_index,
+        start,
+        end,
+        ..
+    } = &plan.source
+    {
+        return *parameter_index == position
+            || start
+                .as_ref()
+                .is_some_and(|start| scalar_expression_reads_position(start, position))
+            || end
+                .as_ref()
+                .is_some_and(|end| scalar_expression_reads_position(end, position));
+    }
+    false
+}
+
+fn scalar_expression_reads_position(
+    expression: &checked_trees::CheckedScalarExpression,
+    position: u32,
+) -> bool {
+    use checked_trees::CheckedScalarExpression as Scalar;
+    match expression {
+        Scalar::StructuralParameterByteLength {
+            parameter_position, ..
+        }
+        | Scalar::StructuralParameterField {
+            parameter_position, ..
+        } => *parameter_position == position,
+        Scalar::StructuralParameterIndexedRead {
+            parameter_position,
+            index,
+            ..
+        } => *parameter_position == position || scalar_expression_reads_position(index, position),
+        Scalar::IntegerBinary { left, right, .. } => {
+            scalar_expression_reads_position(left, position)
+                || scalar_expression_reads_position(right, position)
+        }
+        Scalar::IntegerBitwiseNot { operand, .. }
+        | Scalar::IntegerWiden { operand, .. }
+        | Scalar::IntegerExactCast { operand, .. }
+        | Scalar::IntegerWrappingCast { operand, .. }
+        | Scalar::IntegerSaturatingCast { operand, .. }
+        | Scalar::IntegerTrappingCast { operand, .. } => {
+            scalar_expression_reads_position(operand, position)
+        }
+        Scalar::Boolean(expression) => boolean_expression_reads_position(expression, position),
+        Scalar::StorageRead { .. }
+        | Scalar::Parameter { .. }
+        | Scalar::ErasedParameter { .. }
+        | Scalar::Local { .. }
+        | Scalar::IntegerLiteral { .. }
+        | Scalar::IeeeFloatLiteral { .. } => false,
+    }
+}
+
+fn boolean_expression_reads_position(
+    expression: &checked_trees::CheckedBooleanExpression,
+    position: u32,
+) -> bool {
+    use checked_trees::CheckedBooleanExpression as Boolean;
+    match expression {
+        Boolean::StructuralParameterField {
+            parameter_position, ..
+        } => *parameter_position == position,
+        Boolean::IeeeFloatComparison { left, right, .. }
+        | Boolean::ByteSequenceEqual { left, right }
+        | Boolean::PayloadlessSumEqual { left, right, .. } => {
+            left.parameter_position == position || right.parameter_position == position
+        }
+        Boolean::StructuralCaseMembership { subject, .. } => subject.parameter_position == position,
+        Boolean::Not(operand) => boolean_expression_reads_position(operand, position),
+        Boolean::Equal { left, right }
+        | Boolean::And { left, right }
+        | Boolean::Or { left, right } => {
+            boolean_expression_reads_position(left, position)
+                || boolean_expression_reads_position(right, position)
+        }
+        Boolean::IntegerComparison { left, right, .. }
+        | Boolean::ScalarIeeeFloatComparison { left, right, .. } => {
+            scalar_expression_reads_position(left, position)
+                || scalar_expression_reads_position(right, position)
+        }
+        Boolean::StorageRead { .. }
+        | Boolean::Constant(_)
+        | Boolean::Parameter { .. }
+        | Boolean::ErasedParameter { .. }
+        | Boolean::Local { .. } => false,
     }
 }

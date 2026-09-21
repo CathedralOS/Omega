@@ -363,10 +363,10 @@ mod tests {
     };
     use terminal_psi::{
         BindingRelevance, Block, MachineContract, Operation, OperationKind, OperationResult,
-        StructuralAccess, StructuralFieldDeclaration, StructuralFieldType,
-        StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-        StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
-        Terminator, TerminalMachine, TerminalMachineResult, ValueDeclaration,
+        StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+        StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+        StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
+        Terminator, ValueDeclaration,
     };
 
     fn i32_type() -> ScalarType {
@@ -422,6 +422,7 @@ mod tests {
             entry: BlockId::new(2).unwrap(),
             blocks: Vec::new(),
             contract: MachineContract {
+                erased_proof_formals: Vec::new(),
                 erased_scalar_formals: Vec::new(),
                 id: ContractId::new(9).unwrap(),
                 crash_routes: Vec::new(),
@@ -434,6 +435,7 @@ mod tests {
 
     fn test_block(operations: Vec<Operation>) -> Block {
         Block {
+            erased_proof_formals: Vec::new(),
             erased_scalar_formals: Vec::new(),
             id: BlockId::new(2).unwrap(),
             parameters: Vec::new(),
@@ -451,6 +453,7 @@ mod tests {
     fn marker(id: u64) -> Operation {
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(id).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::BooleanConstant { value: false },
@@ -460,6 +463,7 @@ mod tests {
     fn producer(id: u64, value: u64) -> Operation {
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(id).unwrap(),
             result: OperationResult::Scalar(scalar_parameter(value)),
             kind: OperationKind::BooleanConstant { value: true },
@@ -474,7 +478,11 @@ mod tests {
         }
     }
 
-    fn field(id: u64, identity: &str, field_type: StructuralFieldType) -> StructuralFieldDeclaration {
+    fn field(
+        id: u64,
+        identity: &str,
+        field_type: StructuralFieldType,
+    ) -> StructuralFieldDeclaration {
         StructuralFieldDeclaration {
             id: StructuralFieldId::new(id).unwrap(),
             identity: identity.to_owned(),
@@ -572,9 +580,11 @@ mod tests {
         let types = vec![
             record_type(
                 1,
-                vec![field(10, "inner", StructuralFieldType::Structural(
-                    StructuralTypeId::new(2).unwrap(),
-                ))],
+                vec![field(
+                    10,
+                    "inner",
+                    StructuralFieldType::Structural(StructuralTypeId::new(2).unwrap()),
+                )],
             ),
             StructuralTypeDeclaration {
                 id: StructuralTypeId::new(2).unwrap(),

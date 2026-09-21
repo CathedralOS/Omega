@@ -8,6 +8,7 @@ use crate::checked_trees::flow::terminal::{
     CheckedUnitNominalAffineCleanupPlan, CheckedUnitStructuralDomainPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypePlan,
 };
+use crate::checked_trees::values::CheckedErasedProofParameterPlan;
 use language_semantics::{ServiceReachPlan, ServiceReachSummary};
 use symbols::SymbolHandle;
 use typed_trees::types::PrimitiveType;
@@ -122,6 +123,9 @@ pub struct CheckedStructuralScalarReturnMachinePlan {
     /// Proof-only erased scalar formals in authored order, retaining their
     /// authored parameter positions. They own no runtime argument lane.
     pub erased_scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
+    /// Erased formals whose carriers are proof-only and admit no scalar
+    /// lane. The contract term lane carries their semantic type identities.
+    pub erased_proof_parameters: Vec<CheckedErasedProofParameterPlan>,
     /// Immutable primitive bindings evaluated in source order. Initializer
     /// expressions remain in `CheckedScalarExpressionPlans` at the binding's
     /// exact statement coordinate.
@@ -244,6 +248,9 @@ pub struct CheckedBoundaryScalarReturnMachinePlan {
     /// Proof-only erased scalar formals in authored order, retaining their
     /// authored parameter positions. They own no runtime argument lane.
     pub erased_scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
+    /// Erased formals whose carriers are proof-only and admit no scalar
+    /// lane. The contract term lane carries their semantic type identities.
+    pub erased_proof_parameters: Vec<CheckedErasedProofParameterPlan>,
     pub entry_claims: Vec<CheckedUnitEntryClaimPlan>,
     pub boundary_call: CheckedUnitEffectOperationPlan,
     pub result_type: PrimitiveType,

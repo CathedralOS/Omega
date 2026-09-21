@@ -219,6 +219,7 @@ fn subslice_source_contract_retains_shared_access_and_exact_result_identity() {
     caller.blocks[0].nodes[0].operation = O::ByteSequenceSubslice {
         psi_operation: OperationId::new(900).unwrap(),
         result: terminal_psi::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place,
             structural_type,
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,

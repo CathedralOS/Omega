@@ -946,3 +946,184 @@ machine build(builder: &mut Build) {
         "unexpected diagnostics:\n{rendered}"
     );
 }
+
+const MIXED_RECORD_SOURCE: &str = r#"use omega::language::core::service;
+use omega::language::core::external_binding;
+
+pub data Pair {
+    first: u64;
+    second: u64;
+}
+
+pub boundary trait Aggregate {
+    machine combine(tag: u64, pair: Pair) -> u64;
+    machine peek(tag: u64, pair: &Pair) -> u64;
+}
+
+linux_x86_64 machine combine_binding() -> Binding<15, 11, 7> {
+    Binding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libagg-probe.so",
+            symbol: "agg_combine",
+            version: "OMEGA_1",
+        },
+    }
+}
+
+linux_x86_64 machine peek_binding() -> Binding<15, 8, 7> {
+    Binding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libagg-probe.so",
+            symbol: "agg_peek",
+            version: "OMEGA_1",
+        },
+    }
+}
+
+machine combine_leaf(tag: u64, pair: Pair) -> u64
+    satisfies Aggregate::combine via combine_binding();
+machine peek_leaf(tag: u64, pair: &Pair) -> u64
+    satisfies Aggregate::peek via peek_binding();
+
+data Main { boundary: Service<Aggregate>; }
+machine Main::main(&mut self) reaches Aggregate {
+    let pair: Pair = Pair { first: 2u64, second: 22u64 };
+    let answer: u64 = self.boundary.combine(20u64, pair);
+}
+"#;
+
+const MIXED_RECORD_BUILD: &str = r#"
+machine build(builder: &mut Build) {
+    builder.application("mixed-record");
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+}
+"#;
+
+fn mixed_record_binding_plan<'a>(
+    checked: &'a compiler::CheckedCompilation,
+    method: &str,
+) -> &'a calling_conventions::BoundaryEntryPlan {
+    let matching = checked
+        .external_binding_rows()
+        .iter()
+        .filter(|row| row.method == method)
+        .collect::<Vec<_>>();
+    let [row] = matching.as_slice() else {
+        panic!("one foreign import binding row for `{method}`, found {matching:?}")
+    };
+    row.boundary_entry_plan
+        .as_ref()
+        .expect("the compatibility row must retain its validated entry plan")
+}
+
+#[test]
+fn mixed_scalar_record_boundary_splits_the_by_value_record_across_registers() {
+    // `combine(tag: u64, pair: Pair)` mixes a scalar and a by-value record on
+    // one foreign signature: the scalar takes the first integer register while
+    // the record classifies INTEGER/INTEGER and splits across the next two,
+    // each half carrying its own `value_byte_offset`. The result stays a
+    // single register word.
+    let main_path = write_project(
+        "mixed-record-value",
+        MIXED_RECORD_SOURCE,
+        MIXED_RECORD_BUILD,
+    );
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, Some("linux_x86_64")))
+        .expect("checked compile");
+    let plan = mixed_record_binding_plan(&checked, "combine");
+    assert_eq!(
+        plan.call.policy,
+        calling_conventions::CallingPolicy::SystemVAMD64
+    );
+    let [scalar, record] = plan.call.parameters.as_slice() else {
+        panic!("tag plus the by-value record: two semantic parameters")
+    };
+    assert_eq!(scalar.shape.class, calling_conventions::ValueClass::Integer);
+    assert_eq!(scalar.shape.byte_size, 8);
+    assert_eq!(scalar.shape.alignment, 8);
+    assert_eq!(
+        scalar.locations.as_slice(),
+        &[calling_conventions::ValueLocation::Register {
+            register: calling_conventions::MachineRegister::X86Rdi,
+            value_byte_offset: 0,
+            byte_size: 8,
+        }]
+    );
+    assert_eq!(record.shape.class, calling_conventions::ValueClass::Integer);
+    assert_eq!(record.shape.byte_size, 16);
+    assert_eq!(record.shape.alignment, 8);
+    assert_eq!(
+        record.locations.as_slice(),
+        &[
+            calling_conventions::ValueLocation::Register {
+                register: calling_conventions::MachineRegister::X86Rsi,
+                value_byte_offset: 0,
+                byte_size: 8,
+            },
+            calling_conventions::ValueLocation::Register {
+                register: calling_conventions::MachineRegister::X86Rdx,
+                value_byte_offset: 8,
+                byte_size: 8,
+            },
+        ]
+    );
+    let result = plan.call.result.as_ref().expect("u64 result");
+    assert_eq!(result.shape.class, calling_conventions::ValueClass::Integer);
+    assert_eq!(result.shape.byte_size, 8);
+    assert_eq!(
+        result.locations.as_slice(),
+        &[calling_conventions::ValueLocation::Register {
+            register: calling_conventions::MachineRegister::X86Rax,
+            value_byte_offset: 0,
+            byte_size: 8,
+        }]
+    );
+    let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
+}
+
+#[test]
+fn mixed_scalar_record_boundary_crosses_the_borrowed_record_as_one_pointer_word() {
+    // `peek(tag: u64, pair: &Pair)` takes the same record borrowed: the
+    // reference crosses as a single pointer word in the second integer
+    // register — it must not fan out into the record's two eightbytes.
+    let main_path = write_project(
+        "mixed-record-borrow",
+        MIXED_RECORD_SOURCE,
+        MIXED_RECORD_BUILD,
+    );
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, Some("linux_x86_64")))
+        .expect("checked compile");
+    let plan = mixed_record_binding_plan(&checked, "peek");
+    assert_eq!(
+        plan.call.policy,
+        calling_conventions::CallingPolicy::SystemVAMD64
+    );
+    let [scalar, borrow] = plan.call.parameters.as_slice() else {
+        panic!("tag plus the borrowed record: two semantic parameters")
+    };
+    assert_eq!(scalar.shape.class, calling_conventions::ValueClass::Integer);
+    assert_eq!(scalar.shape.byte_size, 8);
+    assert_eq!(
+        scalar.locations.as_slice(),
+        &[calling_conventions::ValueLocation::Register {
+            register: calling_conventions::MachineRegister::X86Rdi,
+            value_byte_offset: 0,
+            byte_size: 8,
+        }]
+    );
+    assert_eq!(borrow.shape.class, calling_conventions::ValueClass::Integer);
+    assert_eq!(
+        borrow.shape.byte_size, 8,
+        "the borrowed record crosses as one pointer word, not the record bytes"
+    );
+    assert_eq!(borrow.shape.alignment, 8);
+    assert_eq!(
+        borrow.locations.as_slice(),
+        &[calling_conventions::ValueLocation::Register {
+            register: calling_conventions::MachineRegister::X86Rsi,
+            value_byte_offset: 0,
+            byte_size: 8,
+        }]
+    );
+    let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
+}
