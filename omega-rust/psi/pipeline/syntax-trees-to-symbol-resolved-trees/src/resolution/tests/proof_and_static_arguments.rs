@@ -1337,3 +1337,43 @@ fn abs_desugar_subtraction_retains_authored_operator_custody() {
     assert_eq!(selection.source_span().span.start, abs_offset);
     assert_eq!(selection.source_span().span.end, abs_offset + 3);
 }
+
+#[test]
+fn contract_clause_calls_naming_no_declaration_skip_call_selection() {
+    let source = r#"
+        machine cited() -> bool { true }
+        machine carries(before: &[u64], items: &[u64])
+        requires cited() && Bag(items) == Bag(before)
+        ensures Bag(items) == Bag(before)
+        {
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize uninterpreted contract calls");
+    let syntax = parse_syntax_trees(&tokens).expect("parse uninterpreted contract calls");
+    let program =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve uninterpreted contract calls");
+    let call_spans = program
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| {
+            selection.kind() == symbol_resolved_trees::AuthoredDeclarationSelectionKind::Call
+        })
+        .map(|selection| selection.source_span())
+        .collect::<Vec<_>>();
+    assert!(
+        call_spans
+            .iter()
+            .all(|span| { &source[span.span.start..span.span.end] != "Bag" }),
+        "uninterpreted contract atoms name no declaration and carry no Call occurrence"
+    );
+    let cited_spans = call_spans
+        .iter()
+        .filter(|span| &source[span.span.start..span.span.end] == "cited")
+        .collect::<Vec<_>>();
+    assert!(
+        !cited_spans.is_empty(),
+        "a declared contract callee still records its Call occurrence"
+    );
+}

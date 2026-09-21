@@ -52,6 +52,17 @@ pub enum ClosedScalarContractValue {
     /// roster and its terminal catalog rows, not through `Predicate`
     /// propositions, so it may only appear in the requires tail.
     FloatRange(ClosedFloatRangeRequirement),
+    /// One authored `FloatMeaning` equality clause over float-semantics
+    /// catalog results. `expression` keeps the authored `==` contract node
+    /// verbatim; `equality` starts empty and the lowering preparation rejoins
+    /// it to the checked float-meaning equality roster — recording the dense
+    /// row coordinate the clause discharges through — before the contract
+    /// lowers to a terminal proposition. It may only appear in the ensures
+    /// tail.
+    FloatMeaningEquality {
+        expression: typed_trees::expression::ExpressionHandle,
+        equality: Option<crate::CheckedProofPropositionId>,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -151,6 +162,31 @@ impl ClosedScalarValueContractPlan {
 
     pub fn ensures(&self) -> &[Option<ClosedScalarContractValue>] {
         &self.ensures
+    }
+
+    /// Rejoin each retained float-meaning equality clause to its checked
+    /// equality row. `resolve` maps the authored `==` contract expression to
+    /// that row's dense coordinate; an unresolved clause reports the authored
+    /// expression so the caller can reject it without silent erasure.
+    pub fn resolve_float_meaning_equalities(
+        &mut self,
+        mut resolve: impl FnMut(
+            typed_trees::expression::ExpressionHandle,
+        ) -> Option<crate::CheckedProofPropositionId>,
+    ) -> Result<(), typed_trees::expression::ExpressionHandle> {
+        for clause in self.ensures.iter_mut().flatten() {
+            let ClosedScalarContractValue::FloatMeaningEquality {
+                expression,
+                equality,
+            } = clause
+            else {
+                continue;
+            };
+            if equality.is_none() {
+                *equality = Some(resolve(*expression).ok_or(*expression)?);
+            }
+        }
+        Ok(())
     }
 
     pub const fn has_crash_clauses(&self) -> bool {

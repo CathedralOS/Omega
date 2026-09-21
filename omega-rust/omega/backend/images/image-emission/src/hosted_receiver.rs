@@ -261,28 +261,11 @@ fn install_entry_text(
     ),
     Diagnostic,
 > {
-    use object_file::{SectionKind, SymbolKind, SymbolPlan, SymbolSection};
-    let invalid = || invalid(artifact.target);
-    let offset = artifact.text_bytes.len();
     let mut text = artifact.text_bytes.clone();
-    text.extend_from_slice(bytes);
-    let text_section = object
-        .layout
-        .sections
-        .iter()
-        .find(|(_, section)| section.kind == SectionKind::Text)
-        .map(|(handle, _)| handle)
-        .ok_or_else(invalid)?;
-    object.layout.sections.get_mut(text_section).size = text.len();
-    let symbol = object.layout.symbols.insert(SymbolPlan {
-        name: name.into(),
-        section: SymbolSection::Section(SectionKind::Text),
-        offset,
-        size: bytes.len(),
-        kind: SymbolKind::Function,
-        import_library: String::new(),
-    });
-    object.layout.entry_symbol = symbol;
+    let (symbol, offset) =
+        crate::hosted_unit_entry::install_entry_shim(&mut object, &mut text, bytes, name, &|| {
+            invalid(artifact.target)
+        })?;
     Ok((object, text, symbol, offset))
 }
 

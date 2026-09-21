@@ -66,10 +66,13 @@
 //! only the dead-path audit's boundary reading where loops carry the
 //! foreign set back around.
 //!
-//! The hazard audit is the in-block relocation's applied across the
-//! boundary downstream: a register or condition-state unit the member
-//! writes and a crossed instruction reads or writes, or the member reads
-//! and a crossed instruction writes, refuses in either direction — which
+//! The hazard audit is the shared run relocation's applied across the
+//! boundary downstream — `block_edges::crossed_window` derives the lone
+//! `Jump` edge's positions and `window_hazards::admit_run_relocation`
+//! proves the window independent once: a register or condition-state
+//! unit the member writes and a crossed instruction reads or writes, or
+//! the member reads and a crossed instruction writes, refuses in either
+//! direction — which
 //! also pins the member's inputs, so the execution at the landing index
 //! on this inflow's path computes the values the old position computed.
 //! The edge's register transports join the audit directly rather than

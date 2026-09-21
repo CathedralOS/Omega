@@ -36,6 +36,8 @@ SOURCE_READERS = {
 DOCUMENTATION_FILES = {
     "AGENTS.md", "CLAUDE.md", "README.md", "OWNER_QUESTIONS.md",
     "TASKS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md",
+    "tools/claims.md", "tools/landing.md", "tools/release_matrix.md",
+    "tools/rust_producer_omission.md", "tools/testing.md",
     "omega-rust/omega/representations/optimization-core/rules.md",
 }
 DOCUMENTATION_TEST = (
@@ -48,8 +50,8 @@ DOCUMENTATION_TEST = (
 # tail it is about to pay.
 SLOW_TEST_OWNERS = {
     "native-realization": [
-        ("stack_probe_commit", 324),
-        ("runtime_spill_pressure", 356),
+        ("stack_probe_commit", 38),
+        ("runtime_spill_pressure", 249),
     ],
 }
 
@@ -57,7 +59,7 @@ SLOW_TEST_OWNERS = {
 def is_documentation(filename):
     path = PurePosixPath(filename)
     return filename in DOCUMENTATION_FILES or (
-        path.parts[0] == "wiki" and path.suffix == ".md"
+        path.parts[0] in {"wiki", "tools"} and path.suffix == ".md"
     ) or (
         path.is_relative_to("omega-rust/omega/representations/optimization-core/promotions")
         and path.suffix == ".md"

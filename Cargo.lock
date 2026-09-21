@@ -351,6 +351,7 @@ name = "checked-compilation-to-terminal-artifact"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "artifacts",
  "assembled-syntax-to-checked-compilation",
  "backend-plan",
  "boundary-applications",
@@ -471,6 +472,7 @@ name = "compilation-report"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "artifacts",
  "backend-plan",
  "boundary-applications",
  "build-evaluation",
@@ -1060,6 +1062,7 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "calling-conventions",
+ "function-identity",
  "optimization-core",
  "optimization-unit",
  "semantic-vocabulary",
@@ -1184,6 +1187,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
+name = "mutation-matrix"
+version = "0.1.0"
+
+[[package]]
 name = "native-artifact"
 version = "0.1.0"
 dependencies = [
@@ -1219,6 +1226,7 @@ dependencies = [
  "abstract-operations",
  "abstract-operations-to-abstract-operations",
  "abstract-operations-to-target-operations",
+ "artifacts",
  "assembled-syntax-to-checked-compilation",
  "backend-plan",
  "boundary-applications",
@@ -1377,6 +1385,7 @@ dependencies = [
  "arena",
  "artifacts",
  "boundary-applications",
+ "build-declarations",
  "calling-conventions",
  "checked-compilation-to-terminal-artifact",
  "checked-interpreter",
@@ -1464,6 +1473,7 @@ dependencies = [
 name = "optimization-core"
 version = "0.1.0"
 dependencies = [
+ "mutation-matrix",
  "optimization",
  "sha2",
 ]
@@ -1771,6 +1781,9 @@ dependencies = [
 name = "register-homes"
 version = "0.1.0"
 dependencies = [
+ "abstract-operations",
+ "calling-conventions",
+ "function-identity",
  "legalized-operations",
  "optimization-core",
  "optimization-unit",
@@ -1778,7 +1791,12 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "sha2",
+ "symbols",
  "target",
+ "target-operations",
+ "task-plans",
+ "terminal-codec",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -1949,6 +1967,7 @@ dependencies = [
  "sha2",
  "target",
  "target-operations",
+ "terminal-codec",
  "terminal-psi",
 ]
 
@@ -2272,6 +2291,7 @@ name = "terminal-codec"
 version = "0.1.0"
 dependencies = [
  "language-semantics",
+ "mutation-matrix",
  "numerics",
  "optimization",
  "proof-admission",
@@ -2323,6 +2343,7 @@ version = "0.1.0"
 dependencies = [
  "checked-trees",
  "checked-trees-to-lowered-psi",
+ "language-semantics",
  "lowered-psi",
  "lowered-psi-to-lowered-psi",
  "lowered-psi-to-terminal-psi",
@@ -2425,10 +2446,16 @@ name = "topology-plan"
 version = "0.1.0"
 dependencies = [
  "bounded-process",
+ "compiler",
  "component-description",
  "libc",
+ "native-realization",
+ "package-manager",
+ "package-source",
+ "proof-admission",
  "semantic-vocabulary",
  "sha2",
+ "target",
  "terminal-psi",
 ]
 

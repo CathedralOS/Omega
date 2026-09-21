@@ -251,61 +251,90 @@ pub(super) fn validate_structural_argument(
                             || (result_projection && argument.access == StructuralAccess::Owned
                                 && partial_affine_root_type(caller, argument.place) == Some(structural_type)
                                 && is_partial_affine_path(module, structural_type, &argument.path)))
-                        && caller
+                        && {
+                            let producer_result = caller
+                                .blocks
+                                .iter()
+                                .flat_map(|block| &block.operations)
+                                .find(|operation| operation.id == producer)
+                                .and_then(|operation| {
+                                    // A call result carries the callee's
+                                    // established qualifications: the
+                                    // callee's authored `ensures result in
+                                    // <domain>` already lowered onto the
+                                    // operation result, and the required-set
+                                    // check below decides whether those
+                                    // carried domains satisfy this formal.
+                                    // EstablishRecord keeps the empty-
+                                    // qualification admission it always had.
+                                    let qualifications_allowed = matches!(
+                                        operation.kind,
+                                        OperationKind::CallStructuralWithScalarArguments { .. }
+                                            | OperationKind::BoundaryCall { .. }
+                                    );
+                                    let admitted_producer = match operation.kind {
+                                        OperationKind::CallStructuralWithScalarArguments { .. }
+                                        | OperationKind::BoundaryCall { .. } => {
+                                            matches!(argument.access,
+                                                StructuralAccess::Owned | StructuralAccess::SharedBorrow)
+                                                && expected.access == argument.access
+                                                && expected.multiplicity == if argument.access == StructuralAccess::SharedBorrow {
+                                                    StructuralMultiplicity::Unrestricted
+                                                } else {
+                                                    StructuralMultiplicity::Affine
+                                                }
+                                                && !expected.is_self
+                                        }
+                                        // A constructed record reaches a
+                                        // reference-result call through one
+                                        // projected owned subtree: the call's
+                                        // result source map rejoins the exact
+                                        // leaf loans under that edge.
+                                        OperationKind::EstablishRecord { .. } => {
+                                            reference_result_call
+                                                && argument.access == StructuralAccess::Owned
+                                                && expected.access == argument.access
+                                                && expected.multiplicity
+                                                    == StructuralMultiplicity::Affine
+                                                && !expected.is_self
+                                                && expected.qualifications.is_empty()
+                                                && expected.projected_qualifications.is_empty()
+                                        }
+                                        _ => false,
+                                    };
+                                    operation
+                                        .result
+                                        .structural()
+                                        .filter(|result| {
+                                            admitted_producer
+                                                && result.place == argument.place
+                                                && result.structural_type == structural_type
+                                                && result.multiplicity
+                                                    == StructuralMultiplicity::Affine
+                                                && (qualifications_allowed
+                                                    || (result.qualifications.is_empty()
+                                                        && result
+                                                            .projected_qualifications
+                                                            .is_empty()))
+                                                && result.claims.is_empty()
+                                        })
+                                });
+                            producer_result.is_some()
+                        } =>
+                    {
+                        let result = caller
                             .blocks
                             .iter()
                             .flat_map(|block| &block.operations)
-                            .any(|operation| {
-                                let admitted_producer = match operation.kind {
-                                    OperationKind::CallStructuralWithScalarArguments { .. }
-                                    | OperationKind::BoundaryCall { .. } => {
-                                        matches!(argument.access,
-                                            StructuralAccess::Owned | StructuralAccess::SharedBorrow)
-                                            && expected.access == argument.access
-                                            && expected.multiplicity == if argument.access == StructuralAccess::SharedBorrow {
-                                                StructuralMultiplicity::Unrestricted
-                                            } else {
-                                                StructuralMultiplicity::Affine
-                                            }
-                                            && !expected.is_self
-                                            && expected.qualifications.is_empty()
-                                            && expected.projected_qualifications.is_empty()
-                                    }
-                                    // A constructed record reaches a
-                                    // reference-result call through one
-                                    // projected owned subtree: the call's
-                                    // result source map rejoins the exact
-                                    // leaf loans under that edge.
-                                    OperationKind::EstablishRecord { .. } => {
-                                        reference_result_call
-                                            && argument.access == StructuralAccess::Owned
-                                            && expected.access == argument.access
-                                            && expected.multiplicity
-                                                == StructuralMultiplicity::Affine
-                                            && !expected.is_self
-                                            && expected.qualifications.is_empty()
-                                            && expected.projected_qualifications.is_empty()
-                                    }
-                                    _ => false,
-                                };
-                                operation.id == producer && admitted_producer
-                                    && operation.result.structural().is_some_and(|result| {
-                                        result.place == argument.place
-                                            && result.structural_type == structural_type
-                                            && result.multiplicity
-                                                == StructuralMultiplicity::Affine
-                                            && result.qualifications.is_empty()
-                                            && result.projected_qualifications.is_empty()
-                                            && result.claims.is_empty()
-                                    })
-                            }) =>
-                    {
+                            .find(|operation| operation.id == producer)
+                            .and_then(|operation| operation.result.structural())
+                            .expect("producer structural result resolved above");
                         Some((
                             structural_type,
                             StructuralMultiplicity::Affine,
                             StructuralAccess::Owned,
-                            &[][..],
-                            &[][..],
+                            result.qualifications.as_slice(),
+                            result.projected_qualifications.as_slice(),
                         ))
                     }
                     _ => None,

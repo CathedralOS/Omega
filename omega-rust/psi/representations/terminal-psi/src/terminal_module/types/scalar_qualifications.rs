@@ -1,12 +1,13 @@
 //! Source-free scalar membership vocabulary and exact edge coercions.
 //!
-//! This closed catalog carries predicate-free, route-free scalar tags and the
-//! retained authored floating and integer entry ranges. An explicit edge
-//! coercion adds or removes strict same-carrier membership. Removal visibly
-//! erases non-owning meaning; neither direction changes payload bits, executes
-//! an operation, or proves a predicate. An entry range is not a tag: it is a
-//! closed membership requirement on the values a call may deliver to one
-//! direct scalar parameter.
+//! This closed catalog carries predicate-free scalar tags, the issuer routes
+//! their authored declarations retain, and the retained authored floating and
+//! integer entry ranges. An explicit edge coercion adds or removes strict
+//! same-carrier membership. Removal visibly erases non-owning meaning; neither
+//! direction changes payload bits, executes an operation, or proves a
+//! predicate. An entry range is not a tag: it is a closed membership
+//! requirement on the values a call may deliver to one direct scalar
+//! parameter.
 
 use semantic_vocabulary::{
     DomainSemanticId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType, IntegerValue,
@@ -36,6 +37,41 @@ pub struct ScalarDomainDeclaration {
     pub semantic_domain: DomainSemanticId,
     pub identity: String,
     pub carrier: ScalarType,
+    /// The authored declaration's establishment routes, canonically ordered
+    /// and deduplicated. Each row names one authorized issuer by the
+    /// requirement or machine identity the module itself must carry; the
+    /// verifier replays those referents rather than trusting the rows.
+    /// Routes grant no consumer call authority on their own.
+    pub establishment_routes: Vec<ScalarDomainEstablishmentRoute>,
+}
+
+/// One authorized issuer route a scalar domain declaration retains.
+/// Identities use the canonical requirement/machine overload vocabulary the
+/// artifact's boundary, provider, conformance, dispatch, and proof rows
+/// already carry; a route that resolves to no retained issuer row rejects.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ScalarDomainEstablishmentRoute {
+    /// Issuer is the exact checked trait requirement this identity names.
+    CheckedRequirement { requirement_identity: String },
+    /// Issuer is the exact Unit boundary requirement this identity names.
+    BoundaryRequirement { requirement_identity: String },
+    /// Issuer is the exact machine this canonical callable identity names.
+    ExactMachine { machine_identity: String },
+}
+
+impl ScalarDomainEstablishmentRoute {
+    /// The issuer identity string this route names.
+    pub fn identity(&self) -> &str {
+        match self {
+            Self::CheckedRequirement {
+                requirement_identity,
+            }
+            | Self::BoundaryRequirement {
+                requirement_identity,
+            } => requirement_identity,
+            Self::ExactMachine { machine_identity } => machine_identity,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

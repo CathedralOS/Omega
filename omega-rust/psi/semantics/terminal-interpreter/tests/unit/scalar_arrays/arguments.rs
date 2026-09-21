@@ -137,6 +137,7 @@ fn module(
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: machine_id(2),
             arguments: vec![],
             structural_arguments: arguments.clone(),
@@ -155,6 +156,7 @@ fn module(
         }),
         kind: OperationKind::CallStructuralScalar {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: machine_id(3),
             arguments: vec![],
             structural_arguments: arguments.clone(),
@@ -170,6 +172,7 @@ fn module(
         result: OperationResult::Structural(result),
         kind: OperationKind::CallStructuralWithScalarArguments {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: machine_id(4),
             arguments: vec![],
             structural_arguments: arguments,

@@ -855,6 +855,7 @@ fn jump_performs_affine_discard_only_after_edge_charge() {
     machine.blocks = vec![
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
@@ -865,12 +866,14 @@ fn jump_performs_affine_discard_only_after_edge_charge() {
                 target: block_id(3),
                 arguments: vec![value_id(10)],
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 residual_affine_discards: Vec::new(),
                 trivial_affine_discards: vec![place_id(2)],
             },
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: vec![ValueDeclaration {
@@ -948,6 +951,7 @@ fn conditional_commits_only_the_selected_affine_cleanup_after_edge_charge() {
     machine.blocks = vec![
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
@@ -960,6 +964,7 @@ fn conditional_commits_only_the_selected_affine_cleanup_after_edge_charge() {
                     target: block_id(3),
                     arguments: vec![value_id(10)],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     trivial_affine_discards: vec![place_id(2)],
                 },
                 when_false: SuccessorEdge {
@@ -968,12 +973,14 @@ fn conditional_commits_only_the_selected_affine_cleanup_after_edge_charge() {
                     target: block_id(4),
                     arguments: vec![value_id(10)],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
             },
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: vec![ValueDeclaration {
@@ -990,6 +997,7 @@ fn conditional_commits_only_the_selected_affine_cleanup_after_edge_charge() {
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(4),
             parameters: vec![ValueDeclaration {

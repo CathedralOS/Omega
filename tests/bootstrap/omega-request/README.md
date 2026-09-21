@@ -52,6 +52,11 @@ From the repository root on macOS arm64, or Windows x64 with Git Bash:
 sh tests/bootstrap/omega-request/run.sh
 ```
 
+`run.sh --identity` is a host-free leg: it validates every bound identity and
+the expected observation, and assembles the customer and receipt-request byte
+streams on any Python-3 host (including Linux, or a Windows host before the
+multi-hour run). Only the evaluator executions need a seed host.
+
 The gate requires Python 3, the selected checked-in Alpha seed, and the
 existing shell tools; macOS also requires `codesign` for the materialized
 evaluator. Outputs live in ignored `build/omega-request/`.
@@ -65,8 +70,8 @@ semantics.
 
 The [entry](main.epsilon) is bound at 4,115 bytes, SHA-256
 `0d612813e17cfbe2e755b7398d90bb3572f5ed32da249c8863b37f545d3822c0`, and packs
-on top of the bound member closure to 563,268 bytes, SHA-256
-`c8ac3d0aa195066de063b9a5378c9cd7b5fbe5ffdbe4aeb2d6e6fed0255bb567`. The
+on top of the bound member closure to 565,909 bytes, SHA-256
+`804093474370a707a29982b05a2eb38bfb899f74beca2053803843054dcb8df6`. The
 canonical request fixture is bound at 132 bytes, SHA-256
 `ab2e980a89d20651b69782446cd8a8333313dce109636fd3e26cc7f52bc98062`.
 `tools/bootstrap/omega/compiler_env.sh` checks both identities before every

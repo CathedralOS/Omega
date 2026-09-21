@@ -154,6 +154,58 @@ fn every_declared_route_owner_resolves_inside_its_named_crate() {
     }
 }
 
+/// A `#fragment` target names a heading in the linked markdown: the file
+/// check above strips the fragment, so a renamed or deleted heading drifts
+/// silently. GitHub's anchor form lowercases, drops punctuation other than
+/// `-` and `_`, and turns spaces into hyphens.
+fn markdown_anchors(path: &Path) -> Vec<String> {
+    std::fs::read_to_string(path)
+        .unwrap_or_else(|error| panic!("read {}: {error}", path.display()))
+        .lines()
+        .filter_map(|line| {
+            let heading = line.trim_start_matches('#');
+            (heading != line && heading.starts_with(' ')).then(|| {
+                heading
+                    .trim()
+                    .to_lowercase()
+                    .chars()
+                    .filter_map(|c| match c {
+                        c if c.is_alphanumeric() || c == '-' || c == '_' => Some(c),
+                        ' ' => Some('-'),
+                        _ => None,
+                    })
+                    .collect()
+            })
+        })
+        .collect()
+}
+
+#[test]
+fn every_doc_link_fragment_resolves_to_a_heading() {
+    let document = pipeline_map();
+    for (label, target) in links(&document) {
+        let Some((_, fragment)) = target.split_once('#') else {
+            continue;
+        };
+        let resolved = resolve(&target);
+        assert!(
+            resolved.is_file(),
+            "pipeline.md link [{label}]({target}) does not resolve to a file"
+        );
+        assert_eq!(
+            resolved.extension().and_then(|ext| ext.to_str()),
+            Some("md"),
+            "pipeline.md link [{label}]({target}) names a fragment on a non-markdown target"
+        );
+        assert!(
+            markdown_anchors(&resolved)
+                .iter()
+                .any(|anchor| anchor == fragment),
+            "pipeline.md link [{label}]({target}) names no heading in {resolved:?}"
+        );
+    }
+}
+
 #[test]
 fn every_pipeline_crate_is_a_documented_route_owner() {
     let document = pipeline_map();

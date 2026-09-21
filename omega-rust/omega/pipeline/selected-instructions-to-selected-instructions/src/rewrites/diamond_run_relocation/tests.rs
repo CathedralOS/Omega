@@ -1822,9 +1822,10 @@ fn memory_roster_binds_the_window() {
 /// a member inside the source block's executed prefix, and one
 /// positioned past the landing index observes the run inside the join's —
 /// both refuse, while positions at or before either boundary keep the
-/// executed set they always had. A settlement inside an arm never
-/// observed the run: the run never enters an arm's body, so every arm
-/// prefix is unchanged.
+/// executed set they always had. A settlement inside a crossed arm
+/// refuses too: the run never enters an arm's body, but every member
+/// executes after the arm's point after the move where it executed
+/// before it before.
 #[test]
 fn boundary_settlements_bound_the_window() {
     let target = NativeTarget::linux_x64();
@@ -1844,15 +1845,20 @@ fn boundary_settlements_bound_the_window() {
             "source-block settlement at {position}"
         );
     }
-    // The run never enters an arm's body: no arm prefix ever contained or
-    // loses it, so a settlement anywhere in an arm admits.
+    // Every arm position is crossed: the run lands behind the arm's whole
+    // body, so a settlement anywhere in an arm loses the run from the
+    // executed prefix it always observed there before the move.
     for position in [0u32, 1, 2] {
         let settled = mutated(target, |function, _| {
             function
                 .boundary_settlements
                 .push(settlement(BLOCK_T, position, 51));
         });
-        relocate(&settled, &environment, RUN_A, RUN_B, HEAD).unwrap();
+        assert_eq!(
+            relocate(&settled, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
+            DiamondRunRelocationError::UnsupportedPair,
+            "arm settlement at {position}"
+        );
     }
     // In the join block the bound is the landing index: at or before it
     // the executed prefix is unchanged; past it the run joins the prefix.
@@ -1869,6 +1875,20 @@ fn boundary_settlements_bound_the_window() {
             "join-block settlement at {position}"
         );
     }
+    // An empty-bodied arm still carries the run across its single
+    // position: a settlement at index 0 observed the run ahead of the arm
+    // before the move and behind it after.
+    let empty_arm = mutated(target, |function, _| {
+        function.blocks[1].instructions.clear();
+        function
+            .boundary_settlements
+            .push(settlement(BLOCK_T, 0, 55));
+    });
+    assert_eq!(
+        relocate(&empty_arm, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
+        DiamondRunRelocationError::UnsupportedPair,
+        "empty-arm settlement"
+    );
     // Landing at the body end keeps every join settlement: none sits past
     // the run's new index.
     let settled = mutated(target, |function, _| {
@@ -2142,11 +2162,12 @@ fn target_mismatch_rejects() {
 }
 
 /// The bounded audit is measured: the full-diamond window prices every
-/// scan, crossed-surface pair, and roster row against the work budget,
-/// and a budget one step short refuses rather than skimping. The head
-/// landing crosses the run's own tail, the branch with its two edges,
-/// and both arms with their terminators and edges — twenty
-/// crossed-surface pairs per member — and naming `MID` lands the run one
+/// scan, the path walk's edge bound, every crossed position and crossed
+/// edge surface pair per member, and each roster row against the work
+/// budget, and a budget one step short refuses rather than skimping. The
+/// `HEAD` landing crosses the run's own tail, both arms' bodies, the two
+/// branch edges, and the two arm `Jump` edges — ten position pairs and
+/// twenty-eight edge-surface steps — and naming `MID` lands the run one
 /// position deeper, adding the join head's pair per member.
 #[test]
 fn measured_validation_step_boundary() {
@@ -2155,12 +2176,17 @@ fn measured_validation_step_boundary() {
     let source = fixture(target);
     // Each block contributes its body plus its terminator once to the
     // whole-function scan and once to this function's blocks: 15 + 15.
-    // The crossed surfaces pair each member (1) against TRAIL (1), both
-    // arm bodies (1 each), both arm `Jump` terminators (1 use + 1
-    // definition each on x86-64), and the branch terminator (2 uses + 1
-    // definition): per member 2+2+2+3+2+2+3+4 = 20 steps, so two members
-    // price 40.
-    let steps: u64 = 15 /* whole plan */ + 15 /* this function's blocks */ + 40;
+    // The successor scan counts each terminator's edges: 2 + 1 + 1 + 0.
+    // The path walk is bounded by two pushes per branch edge: 4. The
+    // crossed positions pair each member (1) against TRAIL (1) and both
+    // arm bodies (1 each) — landing on HEAD crosses no join position:
+    // 2 members against 2+2+2+2+2 = 20 steps. The crossed edges pair
+    // each member against each edge's terminator instruction plus its
+    // own surface — the branch (2 uses + 1 definition) twice and each
+    // arm `Jump` (1 use + 1 definition): per member 4+3+4+3 = 14 steps,
+    // so two members price 28.
+    let steps: u64 = 15 /* whole plan */ + 15 /* this function's blocks */ + 4 /* edges */
+        + 4 /* path walk edge bound */ + 20 /* crossed positions */ + 28 /* crossed edges */;
     let exact = OptimizationWorkBudget::new(1, 1, steps, 1, 1).unwrap();
     relocate_selected_run_through_diamond(&source, 0, RUN_A, RUN_B, HEAD, &environment, exact)
         .unwrap();

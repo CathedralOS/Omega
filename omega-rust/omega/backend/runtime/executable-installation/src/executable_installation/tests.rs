@@ -711,12 +711,22 @@ fn replacement_successor_spec() -> RealizationSpec {
     spec.placement = 108;
     spec.extent_base = 0x9000;
     spec.installed = 282;
+    spec.audience = InstallationAudience::PossibleCurrentExecutor;
+    spec
+}
+
+/// The live patch-then-drain join is the alteration the
+/// possible-current-executor audience exists to require, so every replacement
+/// test installs both realizations under it.
+fn replacement_spec() -> RealizationSpec {
+    let mut spec = authentic_spec();
+    spec.audience = InstallationAudience::PossibleCurrentExecutor;
     spec
 }
 
 #[test]
 fn replacement_join_patches_declared_sites_then_retires() {
-    let spec = authentic_spec();
+    let spec = replacement_spec();
     let successor_spec = replacement_successor_spec();
     let successor = realize(&successor_spec);
     let fragment = admit(&artifact(9));
@@ -755,7 +765,7 @@ fn replacement_join_patches_declared_sites_then_retires() {
 
 #[test]
 fn replacement_join_quarantines_an_incomplete_drain_after_an_established_patch() {
-    let spec = authentic_spec();
+    let spec = replacement_spec();
     let successor_spec = replacement_successor_spec();
     let successor = realize(&successor_spec);
     let installed = realize(&spec);
@@ -809,7 +819,7 @@ fn replacement_join_quarantines_an_incomplete_drain_after_an_established_patch()
 
 #[test]
 fn replacement_join_rejects_each_patch_substitution() {
-    let spec = authentic_spec();
+    let spec = replacement_spec();
     let successor_spec = replacement_successor_spec();
     let successor = realize(&successor_spec);
     let site = entry_id(spec.entry);
@@ -1100,7 +1110,7 @@ fn replacement_join_rejects_each_patch_substitution() {
 
 #[test]
 fn replacement_join_returns_every_input_when_the_drain_cannot_complete() {
-    let spec = authentic_spec();
+    let spec = replacement_spec();
     let successor_spec = replacement_successor_spec();
     let successor = realize(&successor_spec);
     let fragment = admit(&artifact(9));
@@ -1150,7 +1160,7 @@ fn replacement_join_returns_every_input_when_the_drain_cannot_complete() {
 
 #[test]
 fn replacement_join_reports_both_legs_of_a_failed_drain() {
-    let spec = authentic_spec();
+    let spec = replacement_spec();
     let successor_spec = replacement_successor_spec();
     let successor = realize(&successor_spec);
     let fragment = admit(&artifact(9));
@@ -1210,6 +1220,97 @@ fn replacement_join_reports_both_legs_of_a_failed_drain() {
         RetirementReceipt::from_provider(&installed, true, true, true, std::iter::empty());
     retire_installed(installed, retirement_authority, retirement)
         .expect("returned custody still retires");
+}
+
+#[test]
+fn replacement_join_requires_the_executor_audience_on_both_sides() {
+    let site = entry_id(authentic_spec().entry);
+
+    // A realization installed for a dormant or future-fetcher audience is
+    // altered by retiring and reinstalling, not by live-site patching.
+    for audience in [
+        InstallationAudience::DormantLocal,
+        InstallationAudience::FutureFetcher,
+    ] {
+        let mut spec = authentic_spec();
+        spec.audience = audience;
+        let successor_spec = replacement_successor_spec();
+        let successor = realize(&successor_spec);
+        let fragment = admit(&artifact(9));
+        let error = replace_installed(
+            realize(&spec),
+            &successor,
+            ReplacementAuthority::from_admitted_provider(
+                &realize(&spec),
+                &successor,
+                [(site, fragment.clone())],
+                std::iter::empty(),
+            ),
+            ReplacementReceipt::from_provider(
+                &realize(&spec),
+                &successor,
+                [(site, fragment.artifact().content())],
+                true,
+                true,
+                std::iter::empty(),
+            ),
+            RetirementAuthority::from_admitted_provider(&realize(&spec), std::iter::empty()),
+            RetirementReceipt::from_provider(&realize(&spec), true, true, true, std::iter::empty()),
+            None,
+        )
+        .expect_err(
+            "a realization without a current executor cannot take the live-replacement path",
+        );
+        assert!(
+            error
+                .patch_diagnostic()
+                .expect("the audience refusal names the patch leg")
+                .0
+                .contains("possible current executor"),
+            "{audience:?}: unexpected rejection"
+        );
+        let (_installed, _authority, _receipt, _retirement_authority, _retirement, _quarantine) =
+            (*error).into_parts();
+    }
+
+    // The successor must share the audience: routing live calls to a
+    // realization not installed for a current executor is the same refusal.
+    let spec = replacement_spec();
+    let mut successor_spec = replacement_successor_spec();
+    successor_spec.audience = InstallationAudience::FutureFetcher;
+    let successor = realize(&successor_spec);
+    let fragment = admit(&artifact(9));
+    let error = replace_installed(
+        realize(&spec),
+        &successor,
+        ReplacementAuthority::from_admitted_provider(
+            &realize(&spec),
+            &successor,
+            [(site, fragment.clone())],
+            std::iter::empty(),
+        ),
+        ReplacementReceipt::from_provider(
+            &realize(&spec),
+            &successor,
+            [(site, fragment.artifact().content())],
+            true,
+            true,
+            std::iter::empty(),
+        ),
+        RetirementAuthority::from_admitted_provider(&realize(&spec), std::iter::empty()),
+        RetirementReceipt::from_provider(&realize(&spec), true, true, true, std::iter::empty()),
+        None,
+    )
+    .expect_err("a non-executor successor cannot receive routed live calls");
+    assert!(
+        error
+            .patch_diagnostic()
+            .expect("the audience refusal names the patch leg")
+            .0
+            .contains("possible current executor")
+    );
+    let (_installed, _authority, _receipt, _retirement_authority, _retirement, _quarantine) =
+        (*error).into_parts();
 }
 
 #[test]
