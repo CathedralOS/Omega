@@ -306,6 +306,26 @@ pub(crate) fn validate_computation_calls(
                     )?;
                     continue;
                 }
+                if let Some(arguments) =
+                    operand_scopes::pure_scalar_builtin_arguments(checked, *source_expression)
+                {
+                    // A pure scalar builtin selects between both evaluated
+                    // operands: `min(a, b)` lowers as `(a <= b) ? a : b`, so
+                    // the operand scopes are the call's authored arguments and
+                    // the synthesized comparison keeps the call's own scope.
+                    let arguments = checked.expression_table.expression_handles(arguments);
+                    let [true_scope, false_scope] = *arguments else {
+                        return unsupported(
+                            "computed selection lost its authored operand positions",
+                        );
+                    };
+                    pending.extend([
+                        (*when_false, false, false_scope),
+                        (*when_true, false, true_scope),
+                        (*condition, false, *source_expression),
+                    ]);
+                    continue;
+                }
                 let (condition_scope, selected_scope, evaluate_when) =
                     operand_scopes::selection(checked, *source_expression)?;
                 let (selected, skipped) = if evaluate_when {
@@ -439,6 +459,10 @@ pub(crate) fn validate_computation_calls(
         source.statement_index == statement as usize
             && executable.contains(&source.authored_expression)
             && !calls.contains(&source.authored_expression)
+            && !checked
+                .symbols
+                .builtin_function_for_symbol(source.target_symbol)
+                .is_some_and(symbols::BuiltinFunction::has_empty_write_frame)
     }) {
         return unsupported("computed invocation omitted an authored source call");
     }

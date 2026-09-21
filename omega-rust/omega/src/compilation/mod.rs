@@ -241,7 +241,8 @@ pub fn compile_project(
                     let request = CompileRequest::new(options)
                         .with_requested_product(product)
                         .with_optimization_rollback(optimization_rollback)
-                        .with_accepted_trust_admissions(admissions);
+                        .with_accepted_trust_admissions(admissions)
+                        .with_timings(collect_timings);
                     let request = match build_snapshot {
                         Some(snapshot) => request.with_build_snapshot(snapshot),
                         None => request,

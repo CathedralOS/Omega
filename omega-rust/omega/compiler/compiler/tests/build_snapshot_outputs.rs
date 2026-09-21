@@ -2468,3 +2468,18 @@ fn ordinary_compilation_keeps_snapshot_requirements_target_local() {
         }
     }
 }
+
+/// The capture legs above that depend on unix-only host semantics —
+/// `snapshot_symlink_members_stay_inert_and_deny_escape`,
+/// `captured_input_commits_inert_link_spelling_between_captures`, and the
+/// mode-based source sealing in `set_canonical_source_tree_permissions` —
+/// do not exist on this host. Record the absent coverage explicitly so a
+/// non-unix run does not silently pass with fewer capture-assurance legs.
+#[cfg(not(unix))]
+#[test]
+fn unix_capture_assurance_legs_recorded_as_unavailable_on_this_host() {
+    eprintln!(
+        "SKIP: inert-link spelling, symlink-escape denial, and sealed-source \
+         mutation coverage require a unix host"
+    );
+}

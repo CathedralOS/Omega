@@ -1,7 +1,7 @@
 # Checked template substitution gate
 
 Run `sh tests/gamma/derivation-substitution/run.sh` from the repository root on
-macOS arm64 or Windows x64 in Git Bash. Python 3 and the selected checked-in Alpha
+macOS arm64 or Linux x86-64, or Windows x64 in Git Bash. Python 3 and the selected checked-in Alpha
 seed are required; macOS additionally needs `codesign`. Windows runtime validation
 is not implied by this portable entrypoint.
 

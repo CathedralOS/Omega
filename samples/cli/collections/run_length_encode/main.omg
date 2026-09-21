@@ -1,0 +1,103 @@
+// Run-length encode -- scans the fixed 20-byte record "AAAABBBCCDDDDDEEEEEE"
+// and prints one "run: <value> x<count>" line per run boundary, then exits
+// with the number of runs (4 A, 3 B, 2 C, 5 D, 6 E = 5). Output streams
+// through Console::write_byte since a raw byte write into a Utf8 carrier
+// cannot be proven valid UTF-8. Exercises adjacent-element comparison,
+// emit-on-boundary control, and a computed exit code -- an encoding workload
+// the collections corpus did not hold.
+// Expected exit: 5.
+// Expected output contains: run: C x2
+
+domain [u8]::Utf8
+requires
+    valid_utf8(self);
+domain [u8; 20]::Utf8
+requires
+    valid_utf8(self);
+use omega_language_std::console;
+use omega::language::core::numeric_conversion;
+use omega::language::core::service;
+
+data Main {
+    console: Service<Console>;
+    data: [u8; 20] in Utf8;
+    // Counters are `in Wrapping`: increments are defined arithmetic; index uses
+    // stay bounded by the `i < 20` guard.
+    i: i32 in Wrapping;
+    runs: i32 in Wrapping;
+    b: u8;
+    prev: u8;
+    count: u32 in Wrapping;
+    chi: i32;
+    pause: [u8; 256];
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.console.write_line("run_length_encode: 20 bytes -> one line per run, exit = number of runs");
+    self.data = "AAAABBBCCDDDDDEEEEEE";
+    self.prev = self.data[0];
+    self.count = 1;
+    self.i = 1;
+    self.runs = 0;
+    transition {
+        _ -> step()
+    }
+
+    state step(&mut self) {
+        transition self.i < 20 {
+            true -> read()
+            _ -> done()
+        }
+    }
+
+    state read(&mut self) {
+        self.b = self.data[self.i];
+        transition self.b == self.prev {
+            true -> bump()
+            _ -> emit_mid()
+        }
+    }
+
+    state bump(&mut self) {
+        self.count = self.count + 1;
+        self.i = self.i + 1;
+        transition {
+            _ -> step()
+        }
+    }
+
+    state emit_mid(&mut self) {
+        self.console.write("run: ");
+        self.console.write_byte(self.prev as i32);
+        self.console.write(" x");
+        self.chi = narrow_u32_to_i32_trapping((self.count + 48) as u32);
+        self.console.write_byte(self.chi);
+        self.console.write_line("");
+        self.runs = self.runs + 1;
+        self.prev = self.b;
+        self.count = 1;
+        self.i = self.i + 1;
+        transition {
+            _ -> step()
+        }
+    }
+
+    state done(&mut self) {
+        self.console.write("run: ");
+        self.console.write_byte(self.prev as i32);
+        self.console.write(" x");
+        self.chi = narrow_u32_to_i32_trapping((self.count + 48) as u32);
+        self.console.write_byte(self.chi);
+        self.console.write_line("");
+        self.runs = self.runs + 1;
+        transition {
+            _ -> finish()
+        }
+    }
+
+    state finish(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        _ = block self.console.read_line(&mut self.pause);
+        self.console.exit_process(self.runs as i32);
+    }
+}

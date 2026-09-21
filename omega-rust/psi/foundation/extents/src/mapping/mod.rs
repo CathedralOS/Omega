@@ -152,6 +152,7 @@ pub struct MappingGrant {
     mapped_era: MappingEraId,
     map_obligations: TranslationInstallObligations,
     unmap_obligations: TranslationReleaseObligations,
+    peer_revocation_obligations: PeerWriteRevocationObligations,
 }
 
 impl MappingGrant {
@@ -168,6 +169,7 @@ impl MappingGrant {
         mapped_era: MappingEraId,
         map_obligations: TranslationInstallObligations,
         unmap_obligations: TranslationReleaseObligations,
+        peer_revocation_obligations: PeerWriteRevocationObligations,
     ) -> Self {
         Self {
             identity,
@@ -181,6 +183,7 @@ impl MappingGrant {
             mapped_era,
             map_obligations,
             unmap_obligations,
+            peer_revocation_obligations,
         }
     }
 
@@ -200,6 +203,15 @@ impl MappingGrant {
     /// reusable.
     pub const fn release_obligations(&self) -> &TranslationReleaseObligations {
         &self.unmap_obligations
+    }
+
+    /// The revocation facts this admitted grant obliges a peer-write
+    /// revocation receipt to establish before a shared-custody mapping may
+    /// expose a stable view. Only `BorrowedShared` source custody has a
+    /// hostile peer to revoke; the admitted set is the policy the transition
+    /// enforces, not a caller-chosen demand.
+    pub const fn peer_revocation_obligations(&self) -> &PeerWriteRevocationObligations {
+        &self.peer_revocation_obligations
     }
 }
 
@@ -331,6 +343,12 @@ impl MappingReceiptContext {
     /// for this mapping.
     pub const fn release_obligations(&self) -> &TranslationReleaseObligations {
         &self.0.grant.unmap_obligations
+    }
+
+    /// The revocation obligations the bound grant demands of a peer-write
+    /// revocation receipt before this mapping exposes a stable view.
+    pub const fn peer_revocation_obligations(&self) -> &PeerWriteRevocationObligations {
+        &self.0.grant.peer_revocation_obligations
     }
 }
 
@@ -690,12 +708,12 @@ impl<'source> MappedExtent<'source> {
         &self.unmap_obligations
     }
 
-    /// Consume this mapping into a pending peer-write revocation. Only shared
-    /// source custody has a hostile writable peer to revoke; owned and
-    /// exclusive sources have no second writer and refuse the transition.
+    /// Consume this mapping into a pending peer-write revocation carrying
+    /// the admitted grant's revocation obligations. Only shared source
+    /// custody has a hostile writable peer to revoke; owned and exclusive
+    /// sources have no second writer and refuse the transition.
     pub fn begin_peer_write_revocation(
         self,
-        obligations: PeerWriteRevocationObligations,
     ) -> Result<PendingPeerWriteRevocation<'source>, Box<PeerWriteRevocationStartError<'source>>>
     {
         if !matches!(self.source.mode(), MappingSourceMode::BorrowedShared) {
@@ -706,6 +724,7 @@ impl<'source> MappedExtent<'source> {
                 ),
             }));
         }
+        let obligations = self.evidence.grant.peer_revocation_obligations.clone();
         Ok(PendingPeerWriteRevocation {
             mapping: self,
             obligations,

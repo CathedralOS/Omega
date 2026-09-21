@@ -52,6 +52,7 @@ fn moved_record_replay_preserves_value_origin_and_requires_exact_transfer() {
             },
             value: root.root,
             calls: Vec::new(),
+            operand_source: None,
             discard_result_on_return: false,
         };
         validate(&original, root.machine, root.state, &operation)
@@ -206,6 +207,7 @@ fn operation(
             },
             value: root.root,
             calls: Vec::new(),
+            operand_source: None,
             discard_result_on_return: false,
         },
     )

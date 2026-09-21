@@ -26,6 +26,7 @@ pub(super) fn module() -> TerminalModule {
     entry.operations = vec![constant(200, 3)];
     let jump = |edge, target, arguments| Terminator::Jump {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: edge_id(edge),
         target: block_id(target),
         arguments,
@@ -58,6 +59,7 @@ pub(super) fn module() -> TerminalModule {
         target: block_id(target),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };
@@ -130,6 +132,7 @@ fn ranked_primitive_local_borrow_supports_unit_mutators() {
         callee,
         arguments,
         erased_arguments: _,
+        erased_proof_arguments: _,
         structural_arguments,
         claim_transfers,
         requirement_obligations,
@@ -141,6 +144,7 @@ fn ranked_primitive_local_borrow_supports_unit_mutators() {
     operation.result = OperationResult::Unit;
     operation.kind = OperationKind::CallUnit {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         callee,
         arguments,
         structural_arguments,

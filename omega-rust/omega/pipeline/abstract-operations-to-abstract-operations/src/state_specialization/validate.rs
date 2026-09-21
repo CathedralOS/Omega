@@ -14,13 +14,15 @@
 //! unit is re-validated.
 
 use super::{
-    AnalysisProduct, DispatchSpecializationPlan, ProvenanceDisposition, ProvenanceRewrite,
-    PsiOptimizationUnit, PsiRealizationSite, StateArgumentSpecializationCandidate,
-    StateArgumentSpecializationError, ValidatedStateArgumentSpecialization,
-    VerifiedPsiOptimizationSession, admission, apply, candidate_identity, compute_analysis,
+    AnalysisProduct, DispatchSpecializationPlan, NodeLocation, ProvenanceDisposition,
+    ProvenanceRewrite, PsiOptimizationUnit, PsiRealizationSite, SpecializedStateEdge,
+    StateArgumentSpecializationCandidate, StateArgumentSpecializationError,
+    ValidatedStateArgumentSpecialization, VerifiedPsiOptimizationSession, admission, apply,
+    candidate_identity, compute_analysis,
 };
 use optimization_core::AnalysisKind;
 use semantic_vocabulary::MachineId;
+use std::collections::BTreeMap;
 
 pub(super) fn candidate(
     session: &VerifiedPsiOptimizationSession,
@@ -160,22 +162,30 @@ fn reconstruct_provenance(
         .find(|function| function.machine == machine)
         .ok_or(StateArgumentSpecializationError::UnknownDispatch)?;
     let mut expected_function = input_function.clone();
+    // Rows sharing one predecessor site — both constant arms of one
+    // conditional — fold into a single node reconstruction, matching
+    // application: applied independently, the later row would overwrite the
+    // earlier arm's fusion while this walk still claims both.
+    let mut sites = BTreeMap::<NodeLocation, Vec<&SpecializedStateEdge>>::new();
     for row in &plan.edges {
-        let index = usize::try_from(row.predecessor.node)
+        sites.entry(row.predecessor).or_default().push(row);
+    }
+    for (location, rows) in sites {
+        let index = usize::try_from(location.node)
             .map_err(|_| StateArgumentSpecializationError::CoordinateOverflow)?;
         let Some(slot) = expected_function
             .blocks
             .iter_mut()
-            .find(|block| block.id == row.predecessor.block)
+            .find(|block| block.id == location.block)
             .and_then(|block| block.nodes.get_mut(index))
         else {
             return Err(StateArgumentSpecializationError::MissingSite {
                 machine,
-                block: row.predecessor.block,
-                node: row.predecessor.node,
+                block: location.block,
+                node: location.node,
             });
         };
-        *slot = apply::fused_node(row, plan.dispatch, input_function)?;
+        *slot = apply::fused_node(&rows, plan.dispatch, input_function)?;
     }
     if *output_function != expected_function {
         return Err(StateArgumentSpecializationError::CandidateMismatch);
@@ -184,16 +194,19 @@ fn reconstruct_provenance(
 }
 
 /// The accepted custody ledger for one specialization plan: each fused edge
-/// records the incoming edge's retained occurrence, the resolved arm edge's
-/// fan-out onto the fused edge, and the resolved edge's surviving dispatch
-/// occurrence. Shared between bespoke validation and the pass rule's candidate
-/// construction so both publish identical provenance.
+/// records the incoming edge's retained occurrence and the resolved arm
+/// edge's fan-out onto the fused edge, and each resolved arm edge records its
+/// surviving dispatch occurrence once — two incoming edges may legitimately
+/// resolve to the same dispatch arm, so that occurrence is a per-edge row,
+/// not a per-specialization row. Shared between bespoke validation and the
+/// pass rule's candidate construction so both publish identical provenance.
 pub(crate) fn provenance_rows(
     input_function: &optimization_unit::PsiOptimizationFunction,
     machine: MachineId,
     plan: &DispatchSpecializationPlan,
 ) -> Result<Vec<ProvenanceRewrite>, StateArgumentSpecializationError> {
     let mut rows = Vec::new();
+    let mut resolved_edges = std::collections::BTreeSet::new();
     for row in &plan.edges {
         let incoming = find_edge(input_function, row.incoming_edge)?;
         let resolved = find_edge(input_function, row.taken_edge)?;
@@ -217,6 +230,14 @@ pub(crate) fn provenance_rows(
             sources: resolved.provenance.clone(),
             fuel: resolved.fuel.clone(),
         });
+        resolved_edges.insert(row.taken_edge);
+    }
+    for taken_edge in resolved_edges {
+        let resolved = find_edge(input_function, taken_edge)?;
+        let resolved_site = PsiRealizationSite::Edge {
+            machine,
+            edge: taken_edge,
+        };
         rows.push(ProvenanceRewrite {
             input: resolved_site,
             disposition: ProvenanceDisposition::RealizedAt(resolved_site),

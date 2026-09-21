@@ -221,11 +221,19 @@ fn asm_control_registers_enforce_authority_and_value_contracts() {
     }
 }
 
-// Native-artifact production currently refuses asm-only program entries before
-// emission, so pipeline directives are pinned at the checked surface -- the
-// same contract the byte-assertion canaries relied on. When artifact
-// production reaches this family, promote these fixtures to byte assertions
-// (x86: `0f 01 e8` serialize / `f3 90` pause) and an aarch64 refusal test.
+// Pipeline directives are pinned at the checked surface -- the same contract
+// the byte-assertion canaries relied on. The fixtures now bind hosted program
+// entries, so entry selection admits asm-only bodies; the remaining wall is
+// `asm#*` call lowering: `build_call_operation` in
+// typed-trees-to-checked-trees lowers only `asm#port_out`, so statement
+// position stops at "call operation" and value position stops at "call source
+// result type", before any terminal op exists. When a dedicated asm operation
+// reaches emitted bytes, promote these fixtures to byte assertions (x86:
+// `0f 01 e8` serialize / `f3 90` pause / `90` nop; aarch64: `df 3f 03 d5` isb /
+// `3f 20 03 d5` yield / `1f 20 03 d5` nop / `5f 20 03 d5` wfe / `7f 20 03 d5`
+// wfi / `9f 20 03 d5` sev / `bf 20 03 d5` sevl) and an aarch64 refusal test. Target applicability is
+// catalog metadata only -- the "x86_64-only" refusal those assertions expect
+// is itself unbuilt.
 #[test]
 fn pipeline_directives_reach_checked_semantics() {
     for &name in &[
@@ -243,6 +251,26 @@ fn pipeline_directives_reach_checked_semantics() {
 #[test]
 fn pipeline_directives_enforce_zero_operand_and_clobber_contracts() {
     for &(name, expected) in fixture_roster::PIPELINE_DIRECTIVE_FAIL_CANARIES {
+        assert_contract_rejects(name, expected);
+    }
+}
+
+// Cache maintenance is pinned at the checked surface for the same reason as
+// the pipeline directives above: asm-only program entries are refused before
+// emission. When artifact production reaches this family, promote the pass
+// fixture to byte assertions (x86: `0f 09` wbinvd / `0f 01` invd /
+// `f3 0f 01 f0` wbnoinvd) and aarch64 refusals.
+#[test]
+fn cache_maintenance_reaches_checked_semantics() {
+    compile_canary_without_output(&pass_canary(fixture_roster::ASM_CACHE_MAINTENANCE_COMPILE))
+        .unwrap_or_else(|diagnostics| {
+            panic!("cache-maintenance canary should reach checked semantics:\n{diagnostics:#?}")
+        });
+}
+
+#[test]
+fn hosted_cache_operations_cannot_claim_machine_owner_authority() {
+    for &(name, expected) in fixture_roster::CACHE_OPERATION_FAIL_CANARIES {
         assert_contract_rejects(name, expected);
     }
 }

@@ -275,6 +275,7 @@ fn nested_payload_sum_equality_retains_exact_record_case_payload_paths_end_to_en
             | Proposition::IntegerMathLessThan(_, _)
             | Proposition::IntegerMathLessOrEqual(_, _)
             | Proposition::IeeeFloatComparison { .. }
+            | Proposition::ScalarIeeeFloatComparison { .. }
             | Proposition::ByteSequenceEqual { .. }
             | Proposition::ContentConservation(_) => {}
         }
@@ -496,7 +497,8 @@ fn mixed_aggregate_equality_retains_common_fields_cases_and_call_rebasing_end_to
             }
             Proposition::Equal(left, right)
             | Proposition::LessThan(left, right)
-            | Proposition::LessOrEqual(left, right) => {
+            | Proposition::LessOrEqual(left, right)
+            | Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
                 collect_scalar_paths(left, boolean, integer);
                 collect_scalar_paths(right, boolean, integer);
             }
@@ -812,7 +814,8 @@ fn nested_mixed_aggregate_equality_prefixes_every_path_and_rebases_whole_root_ca
             }
             Proposition::Equal(left, right)
             | Proposition::LessThan(left, right)
-            | Proposition::LessOrEqual(left, right) => {
+            | Proposition::LessOrEqual(left, right)
+            | Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
                 collect_scalar_paths(left, boolean, integer);
                 collect_scalar_paths(right, boolean, integer);
             }

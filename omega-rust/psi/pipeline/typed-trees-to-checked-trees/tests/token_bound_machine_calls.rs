@@ -141,9 +141,10 @@ fn index_token_use_binds_the_declaration_body() {
     assert!(!call.receiver.is_valid());
 }
 
-/// The positions whose body supply is still unimplemented keep rejecting
-/// rather than falling back to builtin indexing: an open range use has no
-/// `end` bound to forward to the declaration.
+/// The position whose body supply is still unimplemented keeps rejecting
+/// rather than falling back to builtin indexing: an open range use omits its
+/// end, and the omitted endpoint would be the collection's length, which a
+/// declared `[..]` telescope cannot form.
 #[test]
 fn open_range_token_use_rejects_instead_of_falling_back() {
     let diagnostics = check(

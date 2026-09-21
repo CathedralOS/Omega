@@ -136,6 +136,7 @@ mod tests {
             blocks,
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(1).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -148,6 +149,7 @@ mod tests {
     fn block(ordinal: u64, operations: Vec<Operation>, terminator: Terminator) -> Block {
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(ordinal).unwrap(),
             parameters: Vec::new(),
@@ -251,6 +253,7 @@ mod tests {
                     target: BlockId::new(2).unwrap(),
                     arguments: vec![ValueId::new(10).unwrap()],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                     residual_affine_discards: Vec::new(),
