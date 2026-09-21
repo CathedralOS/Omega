@@ -123,6 +123,7 @@ fn subslice_module(bytes: Vec<u8>, start: u64) -> TerminalModule {
             static_reach_binding: None,
             id: operation_id(62),
             result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: place_id(8),
                 structural_type: structural_type_id(1),
                 multiplicity: StructuralMultiplicity::Unrestricted,

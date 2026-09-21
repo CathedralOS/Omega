@@ -38,6 +38,7 @@ fn immutable_subslice_source_retains_both_bounds_and_store_capacity() {
             static_reach_binding: None,
             id: id(5),
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: id(3),
                 structural_type: id(2),
                 multiplicity: StructuralMultiplicity::Unrestricted,

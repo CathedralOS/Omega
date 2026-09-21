@@ -112,6 +112,7 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
                     static_reach_binding: None,
                     id: operation,
                     result: OperationResult::Structural(StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
                         place: operation_place,
                         structural_type,
                         multiplicity: StructuralMultiplicity::Unrestricted,
@@ -208,6 +209,7 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
                 static_reach_binding: None,
                 id: call,
                 result: OperationResult::Structural(StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place: place_id(93),
                     structural_type,
                     multiplicity: StructuralMultiplicity::Unrestricted,

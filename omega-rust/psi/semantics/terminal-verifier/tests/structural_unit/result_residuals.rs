@@ -42,6 +42,7 @@ fn produced_partial_module() -> TerminalModule {
             static_reach_binding: None,
             id: operation_id(2),
             result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: place_id(1),
                 structural_type: root_type,
                 multiplicity: StructuralMultiplicity::Affine,

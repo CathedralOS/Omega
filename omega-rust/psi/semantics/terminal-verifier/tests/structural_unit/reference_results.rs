@@ -31,6 +31,7 @@ fn reference_result(place: u64) -> OperationResult {
         multiplicity: StructuralMultiplicity::Affine,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
+        qualification_establishments: Vec::new(),
         claims: Vec::new(),
     })
 }
@@ -337,6 +338,7 @@ fn reference_result_rejects_wrong_formal_and_local_escape() {
         static_reach_binding: None,
         id: operation_id(19),
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: place_id(13),
             structural_type: structural_type_id(1),
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -708,6 +710,7 @@ fn record_reference_module() -> TerminalModule {
             static_reach_binding: None,
             id: operation_id(5),
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: place_id(3),
                 structural_type: structural_type_id(3),
                 multiplicity: StructuralMultiplicity::Affine,
@@ -1562,6 +1565,7 @@ fn reference_record_result_preserves_scalar_sibling_and_rejects_local_escape() {
                 multiplicity: StructuralMultiplicity::Unrestricted,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
                 claims: Vec::new(),
             }),
             kind: OperationKind::EstablishPrimitiveLocal {

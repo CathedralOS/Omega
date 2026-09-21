@@ -140,6 +140,7 @@ pub(super) fn view_cycle() -> TerminalModule {
             static_reach_binding: None,
             id: id(12, OperationId::new),
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: id(3, PlaceId::new),
                 structural_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,

@@ -154,6 +154,7 @@ fn extract(operation: OperationId, result: u64) -> Operation {
         static_reach_binding: None,
         id: operation,
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: id(result, PlaceId::new),
             structural_type: cell(),
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -194,6 +195,7 @@ fn fresh_cell(operation: OperationId, place: u64, flag_value: ValueId) -> Operat
         static_reach_binding: None,
         id: operation,
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: id(place, PlaceId::new),
             structural_type: cell(),
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -437,6 +439,7 @@ fn a_scalar_field_cannot_open_a_window() {
             static_reach_binding: None,
             id: id(5, OperationId::new),
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: id(3, PlaceId::new),
                 structural_type: cell(),
                 multiplicity: StructuralMultiplicity::Unrestricted,

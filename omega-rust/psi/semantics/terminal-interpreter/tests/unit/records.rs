@@ -26,6 +26,7 @@ fn scalar(value: u64) -> TerminalScalarValue {
 }
 fn result(place: u64, structural_type: u64) -> OperationResult {
     OperationResult::Structural(StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place: place_id(place),
         structural_type: structural_type_id(structural_type),
         multiplicity: StructuralMultiplicity::Affine,

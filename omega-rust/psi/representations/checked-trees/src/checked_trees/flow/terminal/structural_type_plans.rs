@@ -172,6 +172,9 @@ pub struct CheckedUnitStructuralDomainPlan {
     pub domain: SemanticDomainId,
     pub identity: String,
     pub carrier_type_identity: String,
+    /// Authored `established by` routes copied from the domain declaration in
+    /// authored order. Lowering normalizes each to its source-free identity.
+    pub establishment_routes: Vec<language_semantics::DomainEstablishmentRoute>,
 }
 
 /// One exact structural-domain precondition on a boundary argument. The

@@ -1366,6 +1366,7 @@ fn owned_aggregate_argument_from_call_result_admits_affine_home() {
     }];
     let result_shape = ValueShape::integer(8, 4);
     let record_result = terminal_psi::StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place: result_place,
         structural_type: point,
         multiplicity: terminal_psi::StructuralMultiplicity::Affine,

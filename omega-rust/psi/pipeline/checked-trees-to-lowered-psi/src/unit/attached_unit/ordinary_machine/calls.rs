@@ -820,6 +820,7 @@ impl MachineEmission<'_> {
             static_reach_binding: None,
             id: operation_id,
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: result_place,
                 structural_type: result_type,
                 multiplicity: StructuralMultiplicity::Affine,

@@ -122,6 +122,7 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
         static_reach_binding: None,
         id: operation_id(910),
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: operation_place,
             structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -208,6 +209,7 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
                     static_reach_binding: None,
                     id: caller_operation,
                     result: OperationResult::Structural(StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
                         place: caller_operation_place,
                         structural_type,
                         multiplicity: StructuralMultiplicity::Unrestricted,

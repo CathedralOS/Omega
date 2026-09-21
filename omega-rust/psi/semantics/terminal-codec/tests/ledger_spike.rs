@@ -294,6 +294,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
             shape: StructuralTypeShape::Record { fields: Vec::new() },
         }],
         structural_domains: vec![StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: pending,
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
             identity: "Spike::Resource::Pending".into(),

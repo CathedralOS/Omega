@@ -206,6 +206,7 @@ pub(super) fn atomic_establishment_artifact(
             static_reach_binding: None,
             id: establish_op,
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: case_place,
                 structural_type: sum_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -239,6 +240,7 @@ pub(super) fn atomic_establishment_artifact(
             static_reach_binding: None,
             id: array_op,
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: array_place,
                 structural_type: array_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -1217,6 +1219,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                     static_reach_binding: None,
                     id: producer,
                     result: OperationResult::Structural(StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
                         place,
                         structural_type: record_type,
                         multiplicity: StructuralMultiplicity::Affine,
@@ -1332,6 +1335,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                             static_reach_binding: None,
                             id: establish_local,
                             result: OperationResult::Structural(StructuralOperationResult {
+                                qualification_establishments: Vec::new(),
                                 place: local_place,
                                 structural_type: local_type,
                                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -1387,6 +1391,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                             static_reach_binding: None,
                             id: establish_record,
                             result: OperationResult::Structural(StructuralOperationResult {
+                                qualification_establishments: Vec::new(),
                                 place: record_place,
                                 structural_type: record_type,
                                 multiplicity: StructuralMultiplicity::Unrestricted,

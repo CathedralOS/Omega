@@ -42,6 +42,7 @@ fn store_module(block_home: bool) -> TerminalModule {
         static_reach_binding: None,
         id: id(1),
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: id(1),
             structural_type: id(1),
             multiplicity: StructuralMultiplicity::Unrestricted,

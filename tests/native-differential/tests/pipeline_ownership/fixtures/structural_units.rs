@@ -211,6 +211,7 @@ pub(crate) fn structural_extent_call_unit_parts() -> (TerminalModule, ProofBundl
             },
         }],
         structural_domains: vec![StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: granted,
             semantic_domain: DomainSemanticId::new(3_609).unwrap(),
             identity: "Extent::Granted".into(),

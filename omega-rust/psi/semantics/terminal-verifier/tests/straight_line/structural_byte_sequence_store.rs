@@ -346,6 +346,7 @@ fn owned_source_and_qualified_destination_are_not_silently_accepted() {
     assert!(validate_module(&module).is_err());
     module.machines[0].structural_parameters[1].access = StructuralAccess::SharedBorrow;
     module.structural_domains.push(StructuralDomainDeclaration {
+        establishment_routes: Vec::new(),
         id: id(1),
         semantic_domain: id(1),
         identity: "test::QualifiedBuffer".into(),

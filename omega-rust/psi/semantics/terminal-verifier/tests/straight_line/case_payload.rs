@@ -201,6 +201,7 @@ fn selected_bounded_boundary_result_supplies_both_checked_call_requirements() {
         static_reach_binding: None,
         id: producer,
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: source.place,
             structural_type: source.structural_type,
             multiplicity: StructuralMultiplicity::Affine,
@@ -381,6 +382,7 @@ fn bounded_integer_record_constructor_remains_fail_closed() {
         static_reach_binding: None,
         id: operation,
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place,
             structural_type,
             multiplicity: StructuralMultiplicity::Affine,
@@ -930,6 +932,7 @@ fn selected_case_payload_observation_expires_at_mixed_structural_result_call() {
     });
     let call = &mut machine.blocks[2].operations[0];
     call.result = OperationResult::Structural(StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place: PlaceId::new(5).unwrap(),
         structural_type,
         multiplicity: StructuralMultiplicity::Affine,

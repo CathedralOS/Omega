@@ -97,6 +97,7 @@ pub(crate) fn lower_payloadless_case_return_machine(
                 id: operation,
                 result: terminal_psi::OperationResult::Structural(
                     terminal_psi::StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
                         place: operation_result_place,
                         structural_type: result_type,
                         multiplicity: StructuralMultiplicity::Unrestricted,

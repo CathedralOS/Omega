@@ -43,6 +43,7 @@ fn store_module(multiplicity: StructuralMultiplicity, home: u8) -> TerminalModul
                     static_reach_binding: None,
                     id: id(20),
                     result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
                         place: parameter.place,
                         structural_type: parameter.structural_type,
                         multiplicity,

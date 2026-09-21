@@ -46,6 +46,7 @@ fn execution() -> (TerminalExecution, Operation) {
         static_reach_binding: None,
         id: OperationId::new(2).unwrap(),
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: place(2),
             structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,
