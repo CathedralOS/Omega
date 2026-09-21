@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use crate::error::{SourceResolveError, git_tree_invalid};
+use crate::error::{GitSubmoduleEdge, SourceResolveError, git_tree_invalid};
 use crate::limits::{LocalSourceLimits, SOURCE_DEPTH_ABSOLUTE_LIMIT, SOURCE_ENTRY_ABSOLUTE_LIMIT};
 
 use super::identity::is_object_id;
@@ -58,6 +58,7 @@ fn parse_git_tree_entries_with_policy(
     let mut entries = Vec::new();
     let mut paths = BTreeMap::new();
     let mut blob_bytes = 0_u64;
+    let mut submodule_edges: Vec<GitSubmoduleEdge> = Vec::new();
 
     for record in listing.split(|byte| *byte == 0) {
         if record.is_empty() {
@@ -85,8 +86,9 @@ fn parse_git_tree_entries_with_policy(
         if inspection_scope == GitTreeInspectionScope::WholeTree
             && (mode == b"160000" || object_type == b"commit")
         {
-            return Err(SourceResolveError::GitSubmodulesUnsupported {
+            submodule_edges.push(GitSubmoduleEdge {
                 path: git_path_from_bytes(path).unwrap_or_else(|_| repository.to_path_buf()),
+                commit: Some(oid.to_owned()),
             });
         }
         let relative_path = validate_git_path(path, limits)?;
@@ -95,8 +97,9 @@ fn parse_git_tree_entries_with_policy(
                 .split(|byte| *byte == b'/')
                 .any(|component| component.eq_ignore_ascii_case(b".gitmodules"))
         {
-            return Err(SourceResolveError::GitSubmodulesUnsupported {
-                path: relative_path,
+            submodule_edges.push(GitSubmoduleEdge {
+                path: relative_path.clone(),
+                commit: None,
             });
         }
         let (size, kind) = match (mode, object_type, fields[3]) {
@@ -165,6 +168,11 @@ fn parse_git_tree_entries_with_policy(
         });
     }
 
+    if !submodule_edges.is_empty() {
+        return Err(SourceResolveError::GitSubmodulesUnsupported {
+            edges: submodule_edges,
+        });
+    }
     entries.sort_by(|left, right| left.relative_bytes.cmp(&right.relative_bytes));
     for entry in &entries {
         for separator in entry
