@@ -285,7 +285,7 @@ fn natural_ranking_round_trips_exact_semantic_rows_and_rejects_malformed_coverag
     };
     module.machines[0].ranked_scc = Some(TerminalRankedScc::Natural(vec![cycle.clone()]));
     let bytes = encode_module(&module).expect("natural ranking representation encodes");
-    assert_eq!(&bytes[8..12], &[103, 0, 107, 0]);
+    assert_eq!(&bytes[8..12], &[104, 0, 107, 0]);
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_ne!(semantic_fingerprint(&module).unwrap(), unranked_identity);
     let mut stale = bytes;
