@@ -16,7 +16,9 @@ const LEGACY_UNIT: &[u8] = &[
 
 // The same Unit semantics with the current declaration rosters and markers.
 // Empty erased-scalar-formal rosters occupy four bytes at block offset 252
-// and contract offset 289; these are part of the current body, not markers.
+// and contract offset 289, and empty erased-proof rosters occupy four bytes
+// at block offset 264 and module offset 309 (end); these are part of the
+// current body, not markers.
 const CURRENT_UNIT: &[u8] = &[
     80, 83, 73, 84, 69, 82, 77, 0, 104, 0, 107, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -26,8 +28,8 @@ const CURRENT_UNIT: &[u8] = &[
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
 
 #[test]
@@ -140,6 +142,7 @@ fn closed_reach_module() -> terminal_psi::TerminalModule {
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: MachineId::new(callee).unwrap(),
                 arguments: Vec::new(),
                 structural_arguments: Vec::new(),
@@ -896,6 +899,7 @@ fn nominal_schema_dependency_follows_helpers_but_not_disconnected_applications()
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: helper.id,
             arguments: Vec::new(),
             structural_arguments: Vec::new(),

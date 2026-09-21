@@ -540,7 +540,8 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
             let mut arrival = |edge,
                                target,
                                arguments: &[ValueId],
-                               erased_arguments: &[semantic_vocabulary::ScalarTerm]|
+                               erased_arguments: &[semantic_vocabulary::ScalarTerm],
+                               erased_proof_arguments: &[semantic_vocabulary::ProofTerm]|
              -> Result<(), ModuleError> {
                 let target = machine
                     .blocks
@@ -549,8 +550,45 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
                     .ok_or_else(|| invalid("unknown scalar qualification successor"))?;
                 if arguments.len() != target.parameters.len()
                     || erased_arguments.len() != target.erased_scalar_formals.len()
+                    || erased_proof_arguments.len() != target.erased_proof_formals.len()
                 {
                     return Err(invalid("scalar qualification successor arity"));
+                }
+                // The entry block's roster lives on the machine contract;
+                // every other block redeclares it.
+                let source_formals = if block.erased_proof_formals.is_empty() {
+                    machine.contract.erased_proof_formals.as_slice()
+                } else {
+                    block.erased_proof_formals.as_slice()
+                };
+                for (formal, term) in target
+                    .erased_proof_formals
+                    .iter()
+                    .zip(erased_proof_arguments.iter())
+                {
+                    term.validate().map_err(ModuleError::MalformedProposition)?;
+                    let mut in_scope = true;
+                    term.visit_formal_positions(|position| {
+                        in_scope &= source_formals
+                            .get(usize::try_from(position).unwrap_or(usize::MAX))
+                            .is_some();
+                    });
+                    if !in_scope {
+                        return Err(invalid("erased proof argument out of scope"));
+                    }
+                    match term {
+                        semantic_vocabulary::ProofTerm::Construction { type_identity, .. }
+                            if *type_identity == formal.type_identity => {}
+                        semantic_vocabulary::ProofTerm::Formal { position }
+                            if source_formals
+                                .get(usize::try_from(*position).unwrap_or(usize::MAX))
+                                .is_some_and(|source| {
+                                    source.type_identity == formal.type_identity
+                                }) => {}
+                        _ => {
+                            return Err(invalid("erased proof successor argument mismatch"));
+                        }
+                    }
                 }
                 for (ordinal, (argument, destination)) in
                     arguments.iter().zip(&target.parameters).enumerate()
@@ -577,8 +615,17 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
                     target,
                     arguments,
                     erased_arguments,
+                    erased_proof_arguments,
                     ..
-                } => arrival(*edge, *target, arguments, erased_arguments)?,
+                } => {
+                    arrival(
+                        *edge,
+                        *target,
+                        arguments,
+                        erased_arguments,
+                        erased_proof_arguments,
+                    )?;
+                }
                 Terminator::Conditional {
                     when_true,
                     when_false,
@@ -593,6 +640,7 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
                             successor.target,
                             &successor.arguments,
                             &successor.erased_arguments,
+                            &successor.erased_proof_arguments,
                         )?;
                     }
                 }

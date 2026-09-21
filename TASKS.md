@@ -6128,7 +6128,12 @@ Owners include
   - Expose the same consumer to independent admission/replacement and to
     **TOPOLOGY-PLAN-VERIFICATION**. First inventory actual producer/replay
     coverage; implement missing complete facts in their Psi, component, or
-    provider owners, not a second topology census.
+    provider owners, not a second topology census. The inventory is landed at
+    [component_substrate_coverage](wiki/drafts/component_substrate_coverage.md):
+    producers, consumers, and replay are mapped, the topology binding already
+    consumes `VerifiedComponent`, and no admission/replacement consumer of
+    `verify_component` exists — `component-deployment` binds candidate custody
+    directly and never verifies a description.
     **BOUNDED-INSTALLATION-REACH-ROWS** waits on this carrier for its
     component-contract fence.
     z21 leg: inventory found the installer's `AdmittedArtifact` carrying a
@@ -6481,6 +6486,7 @@ Baseline-failure repairs (source: `wiki/drafts/known_baseline_failures.md`):
   holders above.
 - **STRUCTURAL-UNIT-CALL-GRAPH-JOINS.** Call-graph joins for structural units.
 - **TERMINAL-SOURCE-CUSTODY-ORDER.** Terminal source-custody gate ordering.
+- **SUCCESSOR-DISCARD-ORDER.** Successor discard ordering in edge cleanup. Landed: `terminal-verifier` test `structural_unit::jumps_and_crash_routes::jump_edge_residual_discards_close_the_projected_argument_root_in_order` pins the Jump-edge sequence — projected successor arguments open partial custody, the residual roster must close it as the exact complement in canonical order (reorder or re-listing a moved child → `InvalidPartialAffineCleanup`), and residual-retired roots are never eligible for the trivial roster (naming one → `EdgeAffineDiscardsInvalid`).
 - **CANARY-EXACT-ENTRY-SELECTION.** Exact entry selection for division/value canaries and entry binding.
 
 Omega-side / native:
@@ -6619,7 +6625,7 @@ Proof/evidence:
   siblings (GAMMA-CERT-FULL-CHECK, GAMMA-CERTIFICATE-CHECK-UNDER-PROFILE,
   GAMMA-CERTIFICATE-NATIVE-CHECK, GAMMA-CERTIFICATE-NATIVE-EXECUTION).
 - **MATCHING-LOGIC-BOUNDED-SLICE.** Bounded matching-logic slice.
-- **MATCHING-LOGIC-EXTERNAL-PROOF-IMPORT.** External proof import for matching logic. Source docs `wiki/drafts/matching_logic.md` and `wiki/drafts/matching_logic_sort_encoding.md` are exploratory research notes that authorize no implementation: a checked source proof with a trusted translation still carries a translation admission, an imported statement alone is a foreign-theorem admission, and no independently checked translation exists. Any route first needs the doc's bounded comparison (MATCHING-LOGIC-BOUNDED-SLICE), then a concrete design — a kernel replacement additionally requires its own proposal and an end-to-end proved bridge — and imported rules must respect the constructive/classical boundary `AcceptedProofRule::foundation` enforces (`proof-admission/src/classicality.rs`). The merged interchange territory belongs to PROOF-INTERCHANGE-IMPORT (sort encoding, induction certificate, arithmetic import).
+- **MATCHING-LOGIC-EXTERNAL-PROOF-IMPORT.** External proof import for matching logic. Source docs `wiki/drafts/matching_logic.md` and `wiki/drafts/matching_logic_sort_encoding.md` are exploratory research notes that authorize no implementation: a checked source proof with a trusted translation still carries a translation admission, an imported statement alone is a foreign-theorem admission, and no independently checked translation exists. Any route first needs the doc's bounded comparison (MATCHING-LOGIC-BOUNDED-SLICE), then a concrete design — a kernel replacement additionally requires its own proposal and an end-to-end proved bridge — and imported rules must respect the constructive/classical boundary `AcceptedProofRule::foundation` enforces (`proof-admission/src/classicality.rs`). The merged interchange territory belongs to PROOF-INTERCHANGE-IMPORT (sort encoding, induction certificate, arithmetic import). Landed (measurement pin): `terminal-codec` test `arithmetic_import::the_imported_arithmetic_derivation_has_a_measured_size_and_step_cost` pins the doc's size/checking-cost evidence row — the imported arithmetic certificate encodes to exactly 716 bytes and re-verification consumes exactly 6 conversion steps (a budget of 5 rejects with `StepCeiling`, 6 suffices). The axiom-closure and inductive-carrier rows were already pinned in the same file / `theorem_certificate.rs`.
 
 Optimizer lane (source: `TASKS_OPTIMIZER.md` + `learned_optimization_policy.md`):
 
@@ -6889,7 +6895,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   01:18Z, SNAPSHOT-STORAGE ×3 to ~05:2xZ); the lock/std-pin re-entry
   repair remains an edit inside that fence and Windows validation still
   has no host.
-- **SQUALR-NAMED-TRAIT-OPERATORS.** Named trait operators.
+- **SQUALR-NAMED-TRAIT-OPERATORS.** Named trait operators. Landed (`samples/apps/squalr`): `NormalizedRegion` ports upstream's `Ord`/`PartialOrd` — `NormalizedRegion::TotalOrder` is a `satisfies Order::before` conformance (the named-trait surface a trait-selected sort binds), all four fixed-token operators (`machine <`/`<=`/`>`/`>=`) are declared comparing `base_address` alone, and `base_address_order(&self, other)` is the callable spelling exercised natively in squalr-tests' `ordering` state (strict order both directions, base-tie order-equal while `equals` still distinguishes sizes). Compiler edge recorded: token operators need owned operands and by-value data arguments do not cross the selected ProgramEntry boundary ("rejoins 0 Terminal attachment identities"), so the `<`/`<=`/`>`/`>=` bindings are declared but unreachable from application code today. `Hash` deferred until a hash-keyed region collection is ported.
 - **SQUALR-REGION-ALIGNMENT-EXPANSION.** Region alignment expansion.
 - **SQUALR-SEED-PARITY.** Resolved — merged alias of SQUALR-GEOMETRY-PARITY's "finish the mapped Rust behavior still absent from the seed" clause, adjudicated at `a3ab15b7611`. The submodule's TASKS.md carries no seed-parity item; the phrase mines the GEOMETRY-PARITY residual list, whose enumerated gaps are each already a sibling row: alignment string parsing (SQUALR-ALIGNMENT-STRING-PARSING), clone/serialization (SQUALR-CLONE-SERIALIZATION-PARITY), region alignment/expansion (SQUALR-REGION-ALIGNMENT-EXPANSION), named trait operators (SQUALR-NAMED-TRAIT-OPERATORS), Rust debug-only assertions (SQUALR-GEOMETRY-PARITY), and the Windows validation leg plus the std-pin `32f5182254` upgrade (both recorded open inside SQUALR-GEOMETRY-PARITY's verified-scope audit). The implementing surface `samples/apps/squalr` stays with the port's own lane; no independent slice exists under this name. Re-verified at `59610bf809`: the submodule board still carries no seed-parity row, and the surface stays fenced — `samples/apps/squalr` under SQUALR-TARGETS-AND-THROUGHPUT (21:39Z) plus a same-item sibling claim `Jarod / swarm-w9-squalr-seed-parity` (02:08Z).
 - **SQUALR-TARGETS-AND-THROUGHPUT.** Targets and throughput. Scope
@@ -7642,7 +7648,47 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   pass_canaries_compile still fails identically ("selected ProgramEntry
   establishment rejoins 0 Terminal attachment identities; expected one",
   47s compile) — the moved-failure persists; no in-fence slice exists.
-- **CATHEDRAL-PORTABLE-PROTOCOL-VERIFICATION.** — mined candidate; verify scope then implement.
+- **CATHEDRAL-PORTABLE-PROTOCOL-VERIFICATION.** Mined candidate — scope
+  verified at `bc0ed1f0f5` (linux x86-64): the name re-mines the deferred
+  Cathedral-side clause in
+  [cathedral_alignment.md](wiki/drafts/cathedral_alignment.md) ("Atomics
+  retain actual ordering events in terminal Psi. Portable protocol
+  verification remains blocked until the event model and target refinements
+  are settled; target-specific checked operations may land earlier"). Every
+  named dependency is still gated upstream and no implementable slice exists
+  on this host:
+
+  - The event model exists only inside one activation and only above
+    Terminal Psi — `abstract-operations`' `AtomicEvent` operations retain
+    `reads_from`/`modification_after` edges replayed by
+    `optimization-unit-semantics`' `happens_before_atomic_coherence_violation`
+    — while the cross-activation content (`synchronizes_with`,
+    `global_sequential_order`, fence-pair synchronization) has no checkable
+    form until a concurrent-execution route exists. Re-verified: no atomic
+    operation or ordering-event type exists in `terminal-psi`,
+    `target-operations`, `selected-instructions`, or
+    `abstract-operations-to-target-operations` — there is nothing for a
+    portable protocol check to consume.
+  - That route is TR3-TR8's: its static carriers (sealed `StackPlan`,
+    nonmoving `StackLease`, `TaskRuntimeAdmission`, routed `Task<T>`
+    establishment) are landed, but a real selected runtime executing the
+    ledger's transitions still does not exist (`backend/runtime/` hosts no
+    task executor), and ATOMIC-MEMORY-MODEL records "Nothing implementable
+    remains ahead of that route; re-dispatch only once TR3-TR8 publishes
+    it."
+  - The Cathedral-side consumers named "portable protocol verification"
+    (serialized/revocable capability protocols, partition-tolerant leases)
+    are deferred customer asks in the same doc — they carry no source
+    semantics or acceptance tests yet.
+
+  All three legs reduce to the same published gate: a protocol-verification
+  check needs normalized atomic events in Terminal Psi plus the
+  concurrent-execution route those events verify under; both are owned by
+  ATOMIC-MEMORY-MODEL/TR3-TR8 and explicitly unlanded. The one early-landing
+  lane the clause allows — target-specific checked operations — is already
+  the ATOMIC-MEMORY-MODEL serial surface (matrix pins + coherence replay,
+  still green). No residual slice exists under this name; re-dispatch when
+  TR3-TR8's selected runtime exists.
 - **CHAIN-MANIFEST-OCREQ-ENTRY-BINDING.** Mined candidate — resolved as a
   re-mine of the CHAIN-MANIFEST OCREQ-entry surface already bound on
   main (sibling CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING resolution):

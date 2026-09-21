@@ -100,6 +100,7 @@ mod machine_bounds {
     fn block(block_id: u64, operations: Vec<Operation>, terminator: Terminator) -> Block {
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id(block_id),
             parameters: Vec::new(),
@@ -133,6 +134,7 @@ mod machine_bounds {
             blocks,
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: id::<ContractId>(machine_id),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -182,6 +184,7 @@ mod machine_bounds {
             target: id(target),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),
@@ -199,6 +202,7 @@ mod machine_bounds {
             target: id::<BlockId>(target),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         };
@@ -223,6 +227,7 @@ mod machine_bounds {
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: id(callee),
                 arguments: Vec::new(),
                 structural_arguments: Vec::new(),
@@ -1174,6 +1179,7 @@ mod machine_bounds {
             target: id(target),
             arguments,
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),
@@ -1185,6 +1191,7 @@ mod machine_bounds {
                 block(1, Vec::new(), jump_with(1, 2, vec![id(100)])),
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: id(2),
                     parameters: vec![value(200)],
@@ -1387,6 +1394,7 @@ mod machine_bounds {
             target: id(target),
             arguments,
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),
@@ -1397,6 +1405,7 @@ mod machine_bounds {
                 target: id::<BlockId>(target),
                 arguments,
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             };
@@ -1407,6 +1416,7 @@ mod machine_bounds {
                 block(1, Vec::new(), jump_with(1, 2, vec![id(100)])),
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: id(2),
                     parameters: vec![value(200)],
@@ -1537,6 +1547,7 @@ mod machine_bounds {
             target: id(target),
             arguments,
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),
@@ -1563,6 +1574,7 @@ mod machine_bounds {
                 block(1, Vec::new(), jump_with(1, 2, vec![id(100)])),
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: id(2),
                     parameters: vec![value(200)],
@@ -1644,6 +1656,7 @@ mod machine_bounds {
             target: id(target),
             arguments,
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),
@@ -1672,6 +1685,7 @@ mod machine_bounds {
                     target: id::<BlockId>(target),
                     arguments,
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 };
@@ -1688,6 +1702,7 @@ mod machine_bounds {
                 block(1, Vec::new(), jump_with(1, 2, vec![id(100)])),
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: id(2),
                     parameters: vec![value(200)],

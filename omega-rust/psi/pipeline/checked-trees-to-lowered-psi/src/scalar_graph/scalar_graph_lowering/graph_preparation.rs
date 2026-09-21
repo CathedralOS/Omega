@@ -191,6 +191,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             .with_fields(&fields);
 
     for state in states {
+        computations.refresh_proof_scope(&state.erased_proof_parameters);
         let (parameter_types, state_result_type) =
             qualifications.scalar_state_types(checked, state.state)?;
         if state_result_type != result_type
@@ -214,6 +215,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             state,
             parameter_types,
             erased_formal_types,
+            &state.erased_proof_parameters,
             structural_parameters,
             primitive_locals,
             structural_types,
@@ -257,6 +259,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                         target,
                         arguments: computations::parameters(value_types),
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                     }
                 } else {
@@ -277,6 +280,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                             target,
                             arguments: vec![expression],
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         }
@@ -304,40 +308,48 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                     when_true,
                     when_false,
                 )?;
-                let (when_true_target, when_true_arguments, when_true_erased_arguments) =
-                    branch_destinations::lower_destination(
-                        checked,
-                        qualifications,
-                        machine,
-                        &identity_reshuffles.source_claims,
-                        states,
-                        state.state,
-                        value_types,
-                        when_true,
-                        scalar_bindings,
-                        result_type,
-                        return_sink,
-                        &mut computations,
-                        structural_types,
-                        next_place,
-                    )?;
-                let (when_false_target, when_false_arguments, when_false_erased_arguments) =
-                    branch_destinations::lower_destination(
-                        checked,
-                        qualifications,
-                        machine,
-                        &identity_reshuffles.source_claims,
-                        states,
-                        state.state,
-                        value_types,
-                        when_false,
-                        scalar_bindings,
-                        result_type,
-                        return_sink,
-                        &mut computations,
-                        structural_types,
-                        next_place,
-                    )?;
+                let (
+                    when_true_target,
+                    when_true_arguments,
+                    when_true_erased_arguments,
+                    when_true_erased_proof_arguments,
+                ) = branch_destinations::lower_destination(
+                    checked,
+                    qualifications,
+                    machine,
+                    &identity_reshuffles.source_claims,
+                    states,
+                    state.state,
+                    value_types,
+                    when_true,
+                    scalar_bindings,
+                    result_type,
+                    return_sink,
+                    &mut computations,
+                    structural_types,
+                    next_place,
+                )?;
+                let (
+                    when_false_target,
+                    when_false_arguments,
+                    when_false_erased_arguments,
+                    when_false_erased_proof_arguments,
+                ) = branch_destinations::lower_destination(
+                    checked,
+                    qualifications,
+                    machine,
+                    &identity_reshuffles.source_claims,
+                    states,
+                    state.state,
+                    value_types,
+                    when_false,
+                    scalar_bindings,
+                    result_type,
+                    return_sink,
+                    &mut computations,
+                    structural_types,
+                    next_place,
+                )?;
                 guards::lower(
                     checked,
                     state.state,
@@ -348,11 +360,13 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                         when_true_target,
                         when_true_arguments,
                         when_true_erased_arguments,
+                        when_true_erased_proof_arguments,
                     ),
                     (
                         when_false_target,
                         when_false_arguments,
                         when_false_erased_arguments,
+                        when_false_erased_proof_arguments,
                     ),
                     when_false,
                     &mut computations,
@@ -367,23 +381,25 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                         "an unconditional scalar jump cannot select continuation arguments",
                     );
                 }
-                let (target, arguments, erased_arguments) = lower_scalar_graph_successor(
-                    checked,
-                    qualifications,
-                    states,
-                    state.state,
-                    value_types,
-                    successor,
-                    scalar_bindings,
-                    &mut computations,
-                    structural_types,
-                    next_place,
-                )?;
+                let (target, arguments, erased_arguments, erased_proof_arguments) =
+                    lower_scalar_graph_successor(
+                        checked,
+                        qualifications,
+                        states,
+                        state.state,
+                        value_types,
+                        successor,
+                        scalar_bindings,
+                        &mut computations,
+                        structural_types,
+                        next_place,
+                    )?;
                 LoweredScalarBranchTerminator::Jump {
                     trivial_affine_discards: Vec::new(),
                     target,
                     arguments,
                     erased_arguments,
+                    erased_proof_arguments,
                     structural_arguments: Vec::new(),
                 }
             }
@@ -400,6 +416,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             structural_effects: Vec::new(),
             parameter_types: vec![result_type],
             erased_formal_types: Vec::new(),
+            erased_proof_formals: Vec::new(),
             bindings: Vec::new(),
             terminator: LoweredScalarBranchTerminator::Return {
                 expression: LoweredDirectExpression::Parameter {

@@ -734,6 +734,7 @@ pub(super) fn emit(
         id: block,
         parameters: evaluation.parameters,
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: evaluation.block_structural_parameters,
         operations: operations[evaluation.operation_start..].to_vec(),
         terminator: if let Some((source, _)) = &scalar_return {
@@ -886,6 +887,10 @@ pub(super) fn emit(
             id: contract_id(terminal_machine.get()),
             crash_routes,
             erased_scalar_formals: signature.erased_scalar_parameters.clone(),
+            erased_proof_formals:
+                crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
+                    &signature.erased_proof_parameters,
+                ),
             requires: signature.requires.clone(),
             ensures: normal_guarantees,
             outcome_specific_ensures: Vec::new(),

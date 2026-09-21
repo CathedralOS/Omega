@@ -51,8 +51,11 @@ fn terminal_vocabulary_version() -> String {
     )
 }
 
-fn canonical_terminal_bytes_identity() -> &'static str {
-    "root:canonical-terminal-bytes-format-103-vocabulary-107"
+fn canonical_terminal_bytes_identity() -> String {
+    format!(
+        "root:canonical-terminal-bytes-format-{FORMAT_MARKER}-vocabulary-{}",
+        terminal_psi::VocabularyMarker::CURRENT.get()
+    )
 }
 
 fn canonical_terminal_bytes_version() -> String {
@@ -319,7 +322,7 @@ fn decoder_node() -> TrustDependencyNode {
         "The final low generator begins at bytes; the current Rust decoder must remain visible until then.",
         TrustAcceptingPolicy::ExplicitMigrationTrust,
         dependencies(&[
-            canonical_terminal_bytes_identity(),
+            &canonical_terminal_bytes_identity(),
             "root:explicit-rust-migration-policy",
         ]),
         &[

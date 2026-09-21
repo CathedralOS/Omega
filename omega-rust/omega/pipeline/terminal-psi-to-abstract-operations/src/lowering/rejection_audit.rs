@@ -47,6 +47,7 @@ fn machine(id: u64, result: TerminalMachineResult, blocks: Vec<Block>) -> Termin
         entry: BlockId::new(1).unwrap(),
         blocks,
         contract: MachineContract {
+            erased_proof_formals: Vec::new(),
             erased_scalar_formals: Vec::new(),
             id: ContractId::new(1).unwrap(),
             crash_routes: Vec::new(),
@@ -59,6 +60,7 @@ fn machine(id: u64, result: TerminalMachineResult, blocks: Vec<Block>) -> Termin
 
 fn block(id: u64, operations: Vec<Operation>, terminator: Terminator) -> Block {
     Block {
+        erased_proof_formals: Vec::new(),
         id: BlockId::new(id).unwrap(),
         parameters: Vec::new(),
         erased_scalar_formals: Vec::new(),
@@ -189,6 +191,7 @@ fn projected_structural_successor_argument_rejects() {
         1,
         Vec::new(),
         Terminator::Jump {
+            erased_proof_arguments: Vec::new(),
             edge: EdgeId::new(1).unwrap(),
             target: BlockId::new(2).unwrap(),
             arguments: Vec::new(),
@@ -222,6 +225,7 @@ fn jump_to_missing_block_rejects_as_block_missing() {
         1,
         Vec::new(),
         Terminator::Jump {
+            erased_proof_arguments: Vec::new(),
             edge: EdgeId::new(1).unwrap(),
             target: BlockId::new(9).unwrap(),
             arguments: Vec::new(),
@@ -251,6 +255,7 @@ fn jump_arity_mismatch_rejects() {
         1,
         Vec::new(),
         Terminator::Jump {
+            erased_proof_arguments: Vec::new(),
             edge: EdgeId::new(1).unwrap(),
             target: BlockId::new(2).unwrap(),
             arguments: Vec::new(),

@@ -1139,6 +1139,8 @@ fn build_checked_machine_with_trace(
     trace.phase("service reach");
     let erased_scalar_parameters =
         crate::execution::terminal_unit::types::erased_scalar_parameter_plans(program, state)?;
+    let erased_proof_parameters =
+        crate::execution::terminal_unit::types::erased_proof_parameter_plans(program, state)?;
     Some(CheckedUnitEffectMachinePlan {
         scalar_result,
         scalar_control,
@@ -1149,6 +1151,7 @@ fn build_checked_machine_with_trace(
         structural_parameters,
         scalar_parameters,
         erased_scalar_parameters,
+        erased_proof_parameters,
         provider_attachment_requirements,
         trivial_affine_locals,
         entry_claims,

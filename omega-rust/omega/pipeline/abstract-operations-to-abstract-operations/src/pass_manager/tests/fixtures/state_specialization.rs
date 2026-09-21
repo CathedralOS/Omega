@@ -14,6 +14,7 @@ fn empty_contract(id: u64) -> terminal_psi::MachineContract {
     use semantic_vocabulary::ContractId;
     terminal_psi::MachineContract {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: ContractId::new(id).unwrap(),
         crash_routes: Vec::new(),
         requires: Vec::new(),
@@ -100,6 +101,7 @@ pub(in crate::pass_manager::tests) fn verified_dispatch_specialization_unit()
     let gate = ValueId::new(5_611).unwrap();
     let successor = |edge: u64, target, arguments| SuccessorEdge {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target,
         arguments,
@@ -108,6 +110,7 @@ pub(in crate::pass_manager::tests) fn verified_dispatch_specialization_unit()
     };
     let jump = |edge: u64, arguments| Terminator::Jump {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target: dispatch,
         arguments,
@@ -136,6 +139,7 @@ pub(in crate::pass_manager::tests) fn verified_dispatch_specialization_unit()
             blocks: vec![
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
@@ -153,6 +157,7 @@ pub(in crate::pass_manager::tests) fn verified_dispatch_specialization_unit()
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: pred_true,
                     parameters: Vec::new(),
@@ -161,6 +166,7 @@ pub(in crate::pass_manager::tests) fn verified_dispatch_specialization_unit()
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: pred_cond,
                     parameters: vec![boolean(5_611)],
@@ -173,6 +179,7 @@ pub(in crate::pass_manager::tests) fn verified_dispatch_specialization_unit()
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: pred_false,
                     parameters: Vec::new(),
@@ -181,6 +188,7 @@ pub(in crate::pass_manager::tests) fn verified_dispatch_specialization_unit()
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: dispatch,
                     parameters: vec![boolean(5_612)],
@@ -193,6 +201,7 @@ pub(in crate::pass_manager::tests) fn verified_dispatch_specialization_unit()
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: yes,
                     parameters: Vec::new(),
@@ -201,6 +210,7 @@ pub(in crate::pass_manager::tests) fn verified_dispatch_specialization_unit()
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: no,
                     parameters: Vec::new(),
@@ -228,6 +238,7 @@ pub(in crate::pass_manager::tests) fn verified_dispatch_all_constant_unit()
     let state = ValueId::new(5_707).unwrap();
     let successor = |edge: u64, target| SuccessorEdge {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target,
         arguments: Vec::new(),
@@ -255,6 +266,7 @@ pub(in crate::pass_manager::tests) fn verified_dispatch_all_constant_unit()
             blocks: vec![
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
@@ -266,6 +278,7 @@ pub(in crate::pass_manager::tests) fn verified_dispatch_all_constant_unit()
                     }],
                     terminator: Terminator::Jump {
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         edge: EdgeId::new(5_709).unwrap(),
                         target: dispatch,
                         arguments: vec![flag],
@@ -276,6 +289,7 @@ pub(in crate::pass_manager::tests) fn verified_dispatch_all_constant_unit()
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: dispatch,
                     parameters: vec![boolean(5_707)],
@@ -288,6 +302,7 @@ pub(in crate::pass_manager::tests) fn verified_dispatch_all_constant_unit()
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: yes,
                     parameters: Vec::new(),
@@ -296,6 +311,7 @@ pub(in crate::pass_manager::tests) fn verified_dispatch_all_constant_unit()
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: no,
                     parameters: Vec::new(),

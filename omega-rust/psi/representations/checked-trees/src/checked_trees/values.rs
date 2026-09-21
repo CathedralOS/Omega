@@ -5,6 +5,8 @@ use typed_trees::types::TypeReferenceHandle;
 
 mod computations;
 pub use computations::*;
+mod proof_terms;
+pub use proof_terms::*;
 mod structural_values;
 pub use structural_values::*;
 mod array_construction_source;
@@ -97,6 +99,9 @@ pub struct CheckedValueFacts {
     pub scalar_expressions: CheckedScalarExpressionPlans,
     pub scalar_computations: CheckedScalarComputationPlans,
     pub structural_values: CheckedStructuralValuePlans,
+    /// Proof-only erased actuals recorded under `CheckedProofTermRole`
+    /// coordinates. They own no runtime operand rows.
+    pub proof_terms: CheckedProofTerms,
 }
 
 impl CheckedValueFacts {
@@ -106,6 +111,7 @@ impl CheckedValueFacts {
             scalar_expressions: CheckedScalarExpressionPlans::default(),
             scalar_computations: CheckedScalarComputationPlans::default(),
             structural_values: CheckedStructuralValuePlans::default(),
+            proof_terms: CheckedProofTerms::default(),
         }
     }
 

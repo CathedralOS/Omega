@@ -299,6 +299,8 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
 
     let erased_scalar_parameters =
         crate::execution::terminal_unit::types::erased_scalar_parameter_plans(program, state)?;
+    let erased_proof_parameters =
+        crate::execution::terminal_unit::types::erased_proof_parameter_plans(program, state)?;
     Some(CheckedNominalAffineUnitCleanupMachinePlan {
         machine: CheckedUnitEffectMachinePlan {
             scalar_result: None,
@@ -310,6 +312,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             structural_parameters,
             scalar_parameters: Vec::new(),
             erased_scalar_parameters,
+            erased_proof_parameters,
             provider_attachment_requirements: Vec::new(),
             trivial_affine_locals: Vec::new(),
             entry_claims: Vec::new(),
