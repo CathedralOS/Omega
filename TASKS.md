@@ -10767,14 +10767,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Re-verified at `3dac85e5cc`: all pins still hold — `lower_callback_thunks` still runs in the common route (object_emission.rs:49, now via `native_realization::callback_thunks`), the callback-occupancy refusal moved to `native_realization.rs:345` with the same message, and the registrar machinery is unchanged but the crate now sits at `omega/pipeline/checked-compilation-to-terminal-artifact` (path relabel). CALLBACK-PRIVATE-MATERIALIZATION's claim has drained; UEFI-PHYSICAL-SEMANTIC-ENTRY still fences the producing files (~08:44Z lease window).
 - **COMPOSABLE-PAIR-DESCRIPTORS.** Compose selected-lowering pair-rule descriptors over independent axes instead of enumerated products. Landed: `PairMachineEffects` is now a struct of three axis enums — `PairNonUnitSurface` (isolated vs indexed-pointer-read fold), `PairFaultDischarge` (isolated vs discharged-by-literal vs discharged-by-obligation), `PairUnitDefRelation` (covered vs retired-when-dead vs operand-swapped) — with admission computed as the conjunction of per-axis gates and the eight prior variants expressed as named consts over the product (`literal_fold/pair_rule.rs`); the obligation gate now derives the obligation from the consumer kind's declared field instead of a variant-coupled kind list. `PairOperandShape` is now a struct of `PairLiteralPosition` (right/left/sole `Use` victim) × `PairOperandResult` (surviving operand, swapped operand, constant-of-literal, literal recompute) × `PairTailCustody` (bare, auxiliary `Use`s under zero-provenance custody, scratch `Def`s under occurrence-free custody, or the per-access mixed tail) with the twelve grammars expressed as named consts over the product; `victim_operand`, `fold_immediate`, and the action/validator matchers now read the axes directly — `compute/actions.rs`'s twelve-arm operand-shape match collapsed into one axis-driven admission (head layout from position+result, drop-tail custody from the tail axis) and `compute/constraints.rs`'s `validate_immediate_row` re-derives the row grammar from `(operand_result, result)` so a descriptor mistake still cannot self-certify. `PairUnitEffects` is now a struct of two `PairConsumerBindingAdmission` axes (`consumer_fixed_view`, `consumer_early_clobber`; `tied_to` stays a fixed rejection since no composition can rebuild a shared-home tie) with `ISOLATED`/`BOUND_CONSUMER_OPERANDS`/`BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS` as named consts. Remaining: none — every pair-rule descriptor is axis-composed. Re-witnessed at `ab6ad3e438a` (linux x86-64, pre-rebase): the landed axis decomposition is present and green — `selected-instructions-to-selected-instructions` 342/342 filtered tests pass over rewrites/selected_lowering + pair surfaces; the row now correctly records "Remaining: none".
 - **CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION.** — mined candidate; resolved alias, authorization gate recorded (re-verified at `fbf36233c9`: concurrency.md:138 + chapter_18:399-400 deferral sentences intact, `cross_activation_edges: CompositionCrossActivationEdges::NotRetained` still published at composition_model/mod.rs:226). Sibling re-mine of CONCURRENT-PROTOCOL-EXTRACTION's deferred surface — whole-composition extraction is deferred until a concrete protocol or safety-profile customer needs it; no implementation slice exists to claim. Same resolution as the rostered siblings on that row.
-||||||| parent of 697531663be (board: re-verify CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION resolved alias)
-- **COMPOSABLE-PAIR-DESCRIPTORS.** Compose selected-lowering pair-rule descriptors over independent axes instead of enumerated products. Landed: `PairMachineEffects` is now a struct of three axis enums — `PairNonUnitSurface` (isolated vs indexed-pointer-read fold), `PairFaultDischarge` (isolated vs discharged-by-literal vs discharged-by-obligation), `PairUnitDefRelation` (covered vs retired-when-dead vs operand-swapped) — with admission computed as the conjunction of per-axis gates and the eight prior variants expressed as named consts over the product (`literal_fold/pair_rule.rs`); the obligation gate now derives the obligation from the consumer kind's declared field instead of a variant-coupled kind list. Remaining: `PairOperandShape`'s twelve-variant product (literal position × result kind × auxiliary/scratch tail) and `PairUnitEffects`'s bound-consumer pairs (`BoundConsumerOperands`, `BoundEarlyClobberConsumerOperands`).
-- **CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION.** — mined candidate; resolved alias, authorization gate recorded (re-verified at `fbf36233c9`: concurrency.md:138 + chapter_18:399-400 deferral sentences intact, `cross_activation_edges: CompositionCrossActivationEdges::NotRetained` still published at composition_model/mod.rs:226). Sibling re-mine of CONCURRENT-PROTOCOL-EXTRACTION's deferred surface — whole-composition extraction is deferred until a concrete protocol or safety-profile customer needs it; no implementation slice exists to claim. Same resolution as the rostered siblings on that row.
-- **COMPOSABLE-PAIR-DESCRIPTORS.** Compose selected-lowering pair-rule descriptors over independent axes instead of enumerated products. Landed: `PairMachineEffects` is now a struct of three axis enums — `PairNonUnitSurface` (isolated vs indexed-pointer-read fold), `PairFaultDischarge` (isolated vs discharged-by-literal vs discharged-by-obligation), `PairUnitDefRelation` (covered vs retired-when-dead vs operand-swapped) — with admission computed as the conjunction of per-axis gates and the eight prior variants expressed as named consts over the product (`literal_fold/pair_rule.rs`); the obligation gate now derives the obligation from the consumer kind's declared field instead of a variant-coupled kind list. Remaining: `PairOperandShape`'s twelve-variant product (literal position × result kind × auxiliary/scratch tail) and `PairUnitEffects`'s bound-consumer pairs (`BoundConsumerOperands`, `BoundEarlyClobberConsumerOperands`).
-- **CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION.** — mined candidate; resolved alias, authorization gate recorded (re-verified at `12ea4941ebd`: concurrency.md:138 + chapter_18:399-400 deferral sentences intact, `cross_activation_edges: CompositionCrossActivationEdges::NotRetained` still published at composition_model/mod.rs:226). Sibling re-mine of CONCURRENT-PROTOCOL-EXTRACTION's deferred surface — whole-composition extraction is deferred until a concrete protocol or safety-profile customer needs it; no implementation slice exists to claim. Same resolution as the rostered siblings on that row.
-- **CONCURRENT-PROTOCOL-EXTRACTION.** Mined candidate — resolved, authorization gate recorded (re-verified at `f2e4007aff4`: concurrency.md:138 + chapter_18:399-400 deferral sentences intact, `cross_activation_edges: CompositionCrossActivationEdges::NotRetained` still published at composition_model/mod.rs:226). Its source surface authorizes no implementation: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format" (line 138), and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it" (lines 399-400). Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. Sibling stubs naming the same deferred surface: CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION, CONCURRENT-PROTOCOL-WHOLE-COMPOSITION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, CONCURRENCY-COMPOSITION-EXTRACTION, CONCURRENT-COMPOSITION-EXTRACTION — all resolved same-way.
 - **CONCURRENT-PROTOCOL-WHOLE-COMPOSITION.** mined candidate; scope verified, authorization gate recorded (re-verified at `dccdfd1fd1`: both deferral sentences intact at concurrency.md:138 and chapter_18:399-400, and `compose_composition_model` still publishes `CompositionCrossActivationEdges::NotRetained` at composition_model/mod.rs:226). Same deferred surface as CONCURRENT-PROTOCOL-EXTRACTION: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction — this stub's exact subject — "until a concrete protocol or safety-profile customer needs it." Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. Sibling stubs naming the same deferred surface: CONCURRENT-PROTOCOL-EXTRACTION (gate recorded), CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, CONCURRENCY-COMPOSITION-EXTRACTION, CONCURRENT-COMPOSITION-EXTRACTION.
-- **CONCURRENT-PROTOCOL-EXTRACTION.** Mined candidate — resolved, authorization gate recorded (re-verified at `d32183a35c`). Its source surface authorizes no implementation: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format" (line 138), and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it" (lines 399-400). Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. Sibling stubs naming the same deferred surface: CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION, CONCURRENT-PROTOCOL-WHOLE-COMPOSITION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, CONCURRENCY-COMPOSITION-EXTRACTION, CONCURRENT-COMPOSITION-EXTRACTION — all resolved same-way.
+- **CONCURRENT-PROTOCOL-EXTRACTION.** Mined candidate — resolved, authorization gate recorded (re-verified at `d32183a35c`; re-verified again at `fff3918dc42f3` (z140 leg): all three gate facts unchanged — concurrency.md:138 + chapter_18:399-400 deferral sentences intact, `cross_activation_edges: CompositionCrossActivationEdges::NotRetained` still published at composition_model/mod.rs:226). Its source surface authorizes no implementation: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format" (line 138), and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it" (lines 399-400). Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. Sibling stubs naming the same deferred surface: CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION, CONCURRENT-PROTOCOL-WHOLE-COMPOSITION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, CONCURRENCY-COMPOSITION-EXTRACTION, CONCURRENT-COMPOSITION-EXTRACTION — all resolved same-way.
 - **CONCURRENT-PROTOCOL-WHOLE-COMPOSITION.** mined candidate; scope verified, authorization gate recorded (re-verified at `a84ebca972`: both deferral sentences intact at concurrency.md:138 and chapter_18:399-400, and `compose_composition_model` still publishes `CompositionCrossActivationEdges::NotRetained` at composition_model/mod.rs:226). Same deferred surface as CONCURRENT-PROTOCOL-EXTRACTION: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction — this stub's exact subject — "until a concrete protocol or safety-profile customer needs it." Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. Sibling stubs naming the same deferred surface: CONCURRENT-PROTOCOL-EXTRACTION (gate recorded), CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, CONCURRENCY-COMPOSITION-EXTRACTION, CONCURRENT-COMPOSITION-EXTRACTION.
 - **CONCURRENT-WHOLE-COMPOSITION-EXTRACTION.** Scope verified — authorization gate recorded. Same deferred surface as CONCURRENT-PROTOCOL-EXTRACTION and CONCURRENT-PROTOCOL-WHOLE-COMPOSITION: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction — this stub's exact subject — "until a concrete protocol or safety-profile customer needs it." Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. No implementation slice exists to claim.
   Re-verified at `fbf36233c9` (z181): both deferral sentences intact (concurrency.md:138-139, chapter_18:399-400) and `cross_activation_edges` still publishes `CompositionCrossActivationEdges::NotRetained` at composition_model/mod.rs:226 — no same-item claim live; the authorization gate stands.
@@ -10790,7 +10784,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   explicitly. Landed under PKG-INPUTS-FLOAT-IDENTITY-LANDING `742a2f1d84`;
   witnesses green at `cdee121ee9`/`d32183a35c`, surface re-verified
   intact at `6f91898606`. No independent slice remains.
-- **COORDINATOR-OVEROWNERSHIP-AUDIT.** — mined candidate; scope verified, audit
 - **CONST-GENERIC-EXTENT-RANGE-DISCHARGE** — mined candidate; verify scope then implement.
 - **CONST-GENERIC-INFERRED-EXTENT-RANGE** — mined candidate; verify scope then implement.
 - **CONSTANT-LEAF-EXACT-CARRIER** — mined candidate; verify scope then implement.
@@ -10840,6 +10833,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   DURABLE-CODEC-EXTRACTION is no longer live (row exists, no claim) while the
   `optimized_semantic_wrapper_{object,encoding}` dirs stay fenced to
   UEFI-PHYSICAL-SEMANTIC-ENTRY (z88, exp ~08:44Z). No unclaimed slice remains.
+  Re-witnessed at `3a82039327` (z150, linux x86-64): all four findings hold —
+  F1's `native/prepared.rs` still absent with no dangling references, F2's
+  `receiver_eligibility.rs` still resident at 1,181 lines, F3's
+  terminal-authority subsystem still resident and now unfenced
+  (FILESYSTEM-RELEASE-CONTRACT lapsed; BUILD-EXCLUSION-REALIZATION holds only
+  unrelated native-realization paths, ~15:52Z), F4's codec still unrelocated —
+  and the wrapper dirs are no longer fenced to UEFI-PHYSICAL-SEMANTIC-ENTRY
+  (claim lapsed) while DURABLE-CODEC-RELOCATION is live again (z120,
+  ~16:35Z, holding rewrite/selection surfaces). The relocation itself remains
+  the owning sibling's slice; the audit carries no unclaimed work.
+  The truncated duplicate stub line for this name is removed.
 - **CROSS-COMPILER-DIFFERENTIAL.** Mined candidate — resolved: sibling
   alias of CROSS-COMPILER-DIFFERENTIAL-LANE (scope verified at
   `36ffc8af87`), which names this row verbatim. Re-verified on linux
@@ -11705,7 +11709,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   frontier; see that row for landed legs and the remaining transport work).
 - **FRONTIER-EDGE-ERROR-ORDER** — mined candidate; verify scope then implement.
 - **GAMMA-CERT-CHAIN-PRODUCTION** — mined candidate; verify scope then implement.
-- **GAMMA-CERT-FULL-CHECK** — mined candidate; verify scope then implement.
+- **GAMMA-CERT-FULL-CHECK.** Mined candidate — scope verified at
+  `fff3918dc42` (linux x86-64), folds into the gamma certificate-check
+  cluster (sibling roster on GAMMA-CERTIFICATE-PRODUCTION /
+  GAMMA-PROVISION-NATIVE-ACCEPTANCE): the name is the full-certificate
+  check leg — run `tests/gamma/beta-encoding-check/run.sh` end-to-end on
+  a seed host and record the Checked observation. Re-witnessed on this
+  host: host-side production still reproduces the pinned request
+  byte-exactly (135,485,028 bytes, sha256 `7c0e3bf2…2908`,
+  3,182,974 proof rows, 30.3s) and the materialized evaluator ran ~450s
+  past admission without refusal — the recorded state (bounded
+  observation of the long Checked run; projected 45-52M work units
+  against the 67,108,864 provision, 6h cap). Completion stays
+  duration-blocked on a dedicated seed host; the implementing surfaces
+  sit under sibling fences (BETA-ENCODING-NATIVE-CONTAINER-ACCEPTANCE
+  on `tests/gamma/*` + `bootstrap/proofs`, GAMMA-CERTIFICATE-
+  CHECK-UNDER-PROFILE on the check gate + checker,
+  CHAIN-CERTIFICATE-ADMISSION-BINDING on `tools/bootstrap/proofs`). No
+  unbound slice under this name.
 - **GAMMA-CERTIFICATE-CHECK** — mined candidate; verify scope then implement.
 - **GAMMA-CERTIFICATE-CHECKING** — mined candidate; verify scope then implement.
 - **GAMMA-CERTIFICATE-NATIVE-CHECK** — mined candidate; verify scope then implement.
@@ -11760,6 +11781,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (projected 45-52M work units against the 2^26 provision, 6h timeout)
   remains the open measured leg; no shorter independent slice exists
   under this name. Duplicate plain stub above folded into this row.
+- **GAMMA-CERT-FULL-CHECK.** Resolved — same fold as the sibling row
+  above (TASKS.md, same cluster): scope verified at `fff3918dc42`,
+  `tests/gamma/beta-encoding-check/run.sh` re-witnessed on linux x86-64
+  (identical 135,485,028-byte request, evaluator bounded-observed past
+  admission ~450s). No independent slice.
+- **GAMMA-CERTIFICATE-CHECK-UNDER-PROFILE.** — mined candidate; verify scope then implement.
 - **GAMMA-CERTIFICATE-NATIVE-CHECK.** Mined candidate — scope verified
   at `e7c0099cb2b7`, folds into the gamma certificate-check cluster
   (sibling roster on GAMMA-CERTIFICATE-PRODUCTION /
@@ -16722,6 +16749,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `tests/ancestry_contract.rs` under SELECTED-OPTIMIZATION-DIRECT-READS —
   the per-module conversion stays a named EXACT-MACHINE-SIMPLIFICATIONS
   sub-leg, workable per-module as lanes drain.
+- **SELECTED-STAGE-RULE-CATALOG.** — mined candidate; resolved as
+  fenced/owned (verified `5bb9a74842d`): names the selected-stage rewrite
+  catalog admission surface —
+  `selected-instructions-to-selected-instructions/src/rewrites/{mod.rs,
+  module_catalog.rs}` — where six relocation-family modules already
+  convert through `admission::admit(` and 34 modules remain open. The
+  surface is live-fenced this wave: `module_catalog.rs` under
+  REWRITE-CATALOG-ADMISSION and the `rewrites/{mod.rs,module_catalog.rs}`
+  pair plus `selected_optimization.rs` under
+  PIPELINE-REWRITE-CATALOG-WIRING. The per-module conversion stays the
+  named EXACT-MACHINE-SIMPLIFICATIONS sub-leg recorded above — workable
+  per-module as lanes drain, no independent slice under this stub.
 - **RO-CODEC-PLACEMENT** — mined candidate; verify scope then implement.
 - **ROOT-FILE-DISCIPLINE** — mined candidate; verify scope then implement.
 - **RULE-PROMOTION-EVIDENCE** — mined candidate; verify scope then implement.
@@ -16818,10 +16857,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   No independent slice exists.
 - **RUST-RELEASE-RECORD** — mined candidate; verify scope then implement.
 - **RUNTIME-SIZED-ACTIVATION-STORAGE.** — mined candidate; verify scope then implement.
-- **RUNTIME-SIZED-ACTIVATION-STORAGE-CONTRACT.** — mined candidate; scope verified, residual owned — re-mines the activation-storage leg of the state-local value frontier (STATE-LOCAL-VALUE-FRONTIER lane, owner of indexed primitive storage/replacements). Re-verified at `e8c29138ff` (row's `dependent_values.md` path corrected: `wiki/spec/language/`, not resources). On `main`: runtime-extent `Buffer<count>` binders retain a runtime extent but the spec explicitly does NOT authorize runtime-sized inline stack storage (`dependent_values.md`), and scalar-array establishment has no abstract storage realization — `LoweringError::UnsupportedScalarArray` rejects `EstablishScalarArray` in `terminal-psi-to-abstract-operations/src/lowering` (audit-pinned by `scalar_array_without_structural_result_rejects`). No independent slice to carve: the contract's remaining work is the owned frontier's indexed-storage realization, not a separate admission. Sibling stubs: RUNTIME-SIZED-ACTIVATION-CONTRACT, RUNTIME-SIZED-ACTIVATION-STORAGE.
+- **RUNTIME-SIZED-ACTIVATION-STORAGE-CONTRACT.** — mined candidate; scope verified, residual owned — re-mines the activation-storage leg of the state-local value frontier (STATE-LOCAL-VALUE-FRONTIER lane, owner of indexed primitive storage/replacements). Re-verified at `e8c29138ff` (row's `dependent_values.md` path corrected: `wiki/spec/language/`, not resources). On `main`: runtime-extent `Buffer<count>` binders retain a runtime extent but the spec explicitly does NOT authorize runtime-sized inline stack storage (`dependent_values.md`), and scalar-array establishment has no abstract storage realization — `LoweringError::UnsupportedScalarArray` rejects `EstablishScalarArray` in `terminal-psi-to-abstract-operations/src/lowering` (audit-pinned by `scalar_array_without_structural_result_rejects`). No independent slice to carve: the contract's remaining work is the owned frontier's indexed-storage realization, not a separate admission. Sibling stubs: RUNTIME-SIZED-ACTIVATION-CONTRACT, RUNTIME-SIZED-ACTIVATION-STORAGE. Re-verified at `5bb9a74842` (linux x86-64): `UnsupportedScalarArray` still declared at `lowering/error.rs:26` and emitted at `structural_establishment.rs:24`, audit pin `scalar_array_without_structural_result_rejects` at `rejection_audit.rs:363`; `dependent_values.md:39-52` still withholds runtime-sized inline stack storage and defers to `resources/activation_storage.md`; STATE-LOCAL-VALUE-FRONTIER remains live-fenced (draft `wiki/drafts/state_local_value_frontier.md` claimed to ~23:45Z). A bare duplicate stub of this name also sits at :17090.
 - **RUST-COMPILER-RELEASE-RECORD.** — mined candidate; verify scope then implement.
 - **RUST-PRODUCER-OMISSION.** — mined candidate; scope verified at `8734480a01`, resolved — covered on both faces. The omission gate landed at `a3e094aea4`: `tools/rust_producer_omission.sh` pins the canonical bootstrap input set with `tools/rust_producer_omission.py --require omitted` over every `*.sources` closure manifest under `bootstrap/` and every `*.sh` step under `tools/bootstrap/` (both discovered, so new rungs are audited without edits; an empty set refuses rather than passing). Witnessed green on this host: "omitted (249 members, 932 steps, 0 findings)". The policy face is RUST-PRODUCER-RETENTION-POLICY's resolved row: Rust is a comparator, not bootstrap authority, and OFFLINE-REBUILD requires "no retired rung or undisclosed authority substitute". Sibling stubs on the same clauses: RUST-PRODUCER-RETIREMENT-GATE, RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL, RUST-RELEASE-RECORD.
-- **RUST-PRODUCER-RETENTION-POLICY.** Mined candidate; scope verified, covered — the policy is already stated on the bootstrap board: "Rust remains a comparator, not bootstrap authority," Rust Alpha emission "is not a dependency" of the selected execution chain (bootstrap/CONTRACT.md#selected-execution-chain), and OFFLINE-REBUILD requires the audited manifest to contain "no retired rung or undisclosed authority substitute" with Rust "never semantic stages." The only residual decision is when the comparator itself retires, which TASKS_BOOTSTRAP.md gates on "settled exercised Omega behavior, the Rust product completion plan, complete D, and OMEGA-PRODUCT-COMPILER-SOURCE" — all still open, so no independent slice exists here. Re-verified at `e7c0099cb2`: the TASKS_BOOTSTRAP.md gate stands verbatim ("Full self-hosting remains dependent on settled exercised Omega behavior, the Rust product completion plan, complete D, and `OMEGA-PRODUCT-COMPILER-SOURCE`") — OMEGA-PRODUCT-COMPILER-SOURCE (TASKS.md:6472) and OMEGA-C are still open rows, so the comparator-retirement decision named by sibling stub RUST-PRODUCER-RETIREMENT-GATE stays gated; the three earlier same-item claims (01:30Z/00:20Z/05:12Z) have drained. Sibling stubs on the same clauses: RUST-PRODUCER-OMISSION, RUST-PRODUCER-RETIREMENT-GATE, RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL, RUST-RELEASE-RECORD.
+- **RUST-PRODUCER-RETENTION-POLICY.** Mined candidate; scope verified, covered — the policy is already stated on the bootstrap board: "Rust remains a comparator, not bootstrap authority," Rust Alpha emission "is not a dependency" of the selected execution chain (bootstrap/CONTRACT.md#selected-execution-chain), and OFFLINE-REBUILD requires the audited manifest to contain "no retired rung or undisclosed authority substitute" with Rust "never semantic stages." The only residual decision is when the comparator itself retires, which TASKS_BOOTSTRAP.md gates on "settled exercised Omega behavior, the Rust product completion plan, complete D, and OMEGA-PRODUCT-COMPILER-SOURCE" — all still open, so no independent slice exists here. Re-verified at `e7c0099cb2`: the TASKS_BOOTSTRAP.md gate stands verbatim ("Full self-hosting remains dependent on settled exercised Omega behavior, the Rust product completion plan, complete D, and `OMEGA-PRODUCT-COMPILER-SOURCE`") — OMEGA-PRODUCT-COMPILER-SOURCE (TASKS.md:6472) and OMEGA-C are still open rows, so the comparator-retirement decision named by sibling stub RUST-PRODUCER-RETIREMENT-GATE stays gated; the three earlier same-item claims (01:30Z/00:20Z/05:12Z) have drained. Sibling stubs on the same clauses: RUST-PRODUCER-OMISSION, RUST-PRODUCER-RETIREMENT-GATE, RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL, RUST-RELEASE-RECORD. Re-verified at `268e8b6fece` (linux x86-64): the comparator clauses all hold — `bootstrap/4_epsilon/README.md:89` ("remains a comparator, not a producer in the canonical"), `bootstrap/5_omega/README.md:32` ("differential comparator, never bootstrap authority"), `bootstrap/README.md:46` ("development comparator and grants no bootstrap authority"), CONTRACT.md:95 ("agreement with Rust are diagnostic evidence, not compiler-correctness proofs") — the TASKS_BOOTSTRAP.md retirement gate stands verbatim (:76-78) and OMEGA-PRODUCT-COMPILER-SOURCE (:7411) is still open, so the comparator-retirement decision stays gated. The earlier claims have all drained; the row's settled verdict stands.
 - **RUST-RELEASE-RECORD.** — mined candidate; scope verified at
   `479ceb0e68` on linux x86-64 (z181), resolved — covered on both
   faces. Record face: re-mines the release-record clause owned by
@@ -17322,6 +17361,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SELECTED-OPTIMIZATION-ANCESTRY-ELIMINATION/-READS/-REMOVAL,
   SELECTED-REWRITE-ANCESTRY-REMOVAL, STAGE-ANCESTRY-DIRECT-READS,
   STAGED-ANCESTRY-ELIMINATION.
+  Re-verified at `5bb9a74842dd` (z133, linux x86-64):
+  `cargo nextest run -p selected-instructions-to-selected-instructions
+  --test ancestry_contract` → 2/2 green. Fence rotation: the sibling
+  stamp's PIPELINE-REWRITE-CATALOG-WIRING claim persists under z182
+  (~14:48Z), `selected_optimization.rs` moved under REWRITE-CATALOG-
+  ADMISSION (z134, ~14:31Z) beside `module_catalog.rs` +
+  `catalog_route_tests.rs`, `rewrites/arm_relocation` stays under
+  REWRITE-VALIDATOR-INDEPENDENCE (z50, ~10:33Z), `rewrites/fixed_view`
+  moved under DURABLE-CODEC-RELOCATION (z120, ~16:35Z),
+  SCHEDULING-RELOCATION-UNIFICATION and this item's own
+  `tests/ancestry_contract.rs` claim have expired, and
+  SELECTED-REWRITE-CATALOG-DISPOSITION (devin-b0b51432, ~17:52Z) holds a
+  TASKS.md claim. Per-module conversion legs stay a named
+  EXACT-MACHINE-SIMPLIFICATIONS sub-leg.
 - **SELECTED-OPTIMIZATION-ANCESTRY-ELIMINATION** — resolved as already
   landed: this stub mines the stage-ancestry flag (TASKS_OPTIMIZER stage
   walks), whose remaining bullet named `selected_optimization.rs` still
@@ -17422,6 +17475,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   re-mines: SELECTED-REWRITE-CATALOG-{EXECUTION,OR-DELETE,ROUTE,
   WIRING}, SELECTED-REWRITES-CATALOG-OR-DELETE, POC-SELECTED-
   REWRITE-CATALOG, PIPELINE-REWRITE-CATALOG-WIRING.
+
+  Re-witnessed at `5bb9a74842d` (swarm, devin-b0b51432): the resolved
+  disposition is unchanged — `module_catalog.rs` holds 44 `Orphaned`
+  rows across 54 declarations, `module_catalog_reconciles_with_
+  mod_declarations` + `module_catalog_dispositions_resolve` +
+  `orphaned_modules_have_no_production_callers` pinned green (16/16
+  in-filter `cargo nextest run -p selected-instructions-to-selected-
+  instructions -E 'test(~module_catalog_reconciles) | test(~catalog)'`),
+  and `optimize_selected_instructions` still executes only the
+  `SelectedStageRuleRows::SelectedLowering` arm. Fence rotation: the
+  catalog surface (`module_catalog.rs`, `selected_optimization.rs` +
+  `optimization_output.rs`, `catalog_route_tests.rs`) moved under
+  REWRITE-CATALOG-ADMISSION (~14:31Z); PIPELINE-REWRITE-CATALOG-WIRING
+  item claim live (~14:48Z). Still no independent slice under this name.
 
   row).
 - **SELECTED-REWRITE-CATALOG-OR-DELETE.** Mined candidate; scope verified
@@ -17879,6 +17946,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `memory_alignment.omg` — building directly on the tracked pin `4b1f7a6`,
   which carries none of it; integration of that branch into the pinned
   app remains the open leg, not any missing machinery.
+  Resolved at `5bb9a74842` (z102, linux x86-64): the open leg closed —
+  `origin/main`'s `samples/apps/squalr` gitlink now pins `ef6682f`, and
+  `5ea4a17` is an ancestor of it (merged at submodule `db64d58`, adopted
+  via `251699c` "adopt wire-schema NormalizedRegion; qualify module
+  paths", with `5b0307c` advancing the std pins and `ef6682f`
+  SQUALR-DEBUG-ASSERTIONS on top). The pinned app carries the wire-schema
+  `encode`/`decode`, `Clone` halves, and the in-package `wire_roundtrip` /
+  `clone_consistent` exercises the branch recorded. The bare duplicate
+  stub ~:17856 names the same resolved row; left standing. No remaining
+  slice under this name.
 - **SQUALR-DEBUG-ASSERTION-PARITY.** Mined candidate; scope verified at
   `e8bbe9fcc0` against upstream `568aa7589b68`: a re-mine of the
   "Rust debug-only assertions" gap in the app repo's GEOMETRY-PARITY row
@@ -18644,7 +18721,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `cargo nextest run -p typed-trees-to-checked-trees --lib -E
   'test(/field_endpoint/)'` — 49/49 pass across field_coordinates,
   field_endpoint_arithmetic, field_endpoint_pins, field_arrivals and
-  computed_field_limits. No independent slice remains.
+  computed_field_limits. Re-verified green at `bbffdafe0498` (z116,
+  linux x86-64): same command, same 49/49. No independent slice remains.
 - **TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS.** Scope verified 2026-09-20;
   re-verified at `3533f7d0e86`:
   belongs to the KNOWN-BASELINE-FAILURES-REFRESH items.
