@@ -69,6 +69,20 @@ pub(in crate::capture::behavior) fn project_boolean_expression(
             left: project_structural_field(left),
             right: project_structural_field(right),
         },
+        CheckedBooleanExpression::ScalarIeeeFloatComparison { kind, left, right } => {
+            PackageReviewBooleanExpression::ScalarIeeeFloatComparison {
+                kind: match kind {
+                    checked_trees::CheckedIeeeFloatComparisonKind::Equal => {
+                        PackageReviewIeeeFloatComparisonKind::Equal
+                    }
+                    checked_trees::CheckedIeeeFloatComparisonKind::NotEqual => {
+                        PackageReviewIeeeFloatComparisonKind::NotEqual
+                    }
+                },
+                left: Box::new(project_scalar_expression(left)?),
+                right: Box::new(project_scalar_expression(right)?),
+            }
+        }
         CheckedBooleanExpression::ByteSequenceEqual { left, right } => {
             PackageReviewBooleanExpression::ByteSequenceEqual {
                 left: project_structural_field(left),
@@ -108,6 +122,7 @@ fn project_scalar_expression(
         CheckedScalarExpression::ErasedParameter { .. } => return None,
         CheckedScalarExpression::IntegerTrappingCast { .. }
         | CheckedScalarExpression::IntegerWrappingCast { .. }
+        | CheckedScalarExpression::IntegerSaturatingCast { .. }
         | CheckedScalarExpression::StructuralParameterByteLength { .. }
         | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
         CheckedScalarExpression::StorageRead { .. } => {

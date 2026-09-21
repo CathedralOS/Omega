@@ -3,6 +3,7 @@
 
 mod clear_cycles;
 mod cross_block_eliminations;
+mod independence_tests;
 mod same_block_eliminations;
 
 use crate::rewrites::dead_store::{

@@ -49,11 +49,11 @@ use abstract_operations::AbstractOperation as O;
 
 use crate::VerifiedPsiOptimizationSession;
 
-mod admission;
+pub(crate) mod admission;
 mod apply;
 mod model;
-mod propose;
-mod validate;
+pub(crate) mod propose;
+pub(crate) mod validate;
 
 pub use model::{
     AppliedCaseMembershipSpecialization, CaseMembershipSpecializationCandidate,

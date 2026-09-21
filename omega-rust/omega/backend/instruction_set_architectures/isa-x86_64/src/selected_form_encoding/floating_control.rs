@@ -101,7 +101,7 @@ fn request(
         } => MachineSemanticKind::RestoreFloatingControl,
         _ => return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch),
     };
-    if physical.model() != &crate::x86_64_physical_register_model()
+    if physical.identity() != crate::canonical_x86_64_physical_register_model_identity()
         || !operands.is_empty()
         || alternative
             != (MachineAlternativeKey {

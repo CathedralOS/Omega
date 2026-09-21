@@ -71,6 +71,22 @@ fn selected_roots(
                 }
             }
         }
+        if let CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, .. } =
+            &state.terminator
+        {
+            for arm in arms {
+                if let Some(root) = checked.facts.values.scalar_computations.root_at(
+                    state.state,
+                    arm.successor.statement_ordinal,
+                    CheckedScalarExpressionRole::Guard,
+                ) {
+                    if root.machine != machine {
+                        return unsupported("ordered jump guard changed its computation owner");
+                    }
+                    pending.push(root.root);
+                }
+            }
+        }
         for operation in state
             .operation_dependencies()
             .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
@@ -127,7 +143,10 @@ fn selected_roots(
                 }
                 continue;
             }
-            if let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { value, .. } = operation
+            if let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { value, .. }
+            | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore {
+                value, ..
+            } = operation
             {
                 if let CheckedCallScalarArgument::Computation(handle) = value {
                     pending.push(*handle);

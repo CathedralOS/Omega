@@ -55,6 +55,7 @@ fn array_call(dimensions: &[u64]) -> TerminalModule {
     let caller = &mut module.machines[0];
     caller.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(1),
         result: OperationResult::Scalar(boolean_declaration(value_id(1))),
         kind: OperationKind::BooleanConstant { value: true },
@@ -70,6 +71,7 @@ fn array_call(dimensions: &[u64]) -> TerminalModule {
     }
     let result = |place| {
         OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: place_id(place),
             structural_type: structural_type_id(1),
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -80,6 +82,7 @@ fn array_call(dimensions: &[u64]) -> TerminalModule {
     };
     caller.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(2),
         result: result(1),
         kind: OperationKind::EstablishScalarArray {
@@ -88,6 +91,7 @@ fn array_call(dimensions: &[u64]) -> TerminalModule {
     });
     caller.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(3),
         result: result(2),
         kind: OperationKind::CallStructural {

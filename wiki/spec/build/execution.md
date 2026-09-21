@@ -14,7 +14,8 @@ The order is:
 3. Check the host build entry and helpers; freeze the authored product-selection frontier.
 4. Surface restricted build requests for project acceptance, join actual executor grants, and admit the complete build contract before executing its prepared projection.
 5. Incorporate generated source, resolve final selections, and finish all requested product checks, including behavior exclusions.
-6. Check required-output completion and commit one immutable result set.
+6. Discover registered test roots, admit their execution authority, and run all enabled [test groups](testing.md).
+7. Check required-output completion and commit one immutable result set only after required tests pass.
 
 [Scoped execution](scoped_execution.md) defines the execution-profile/product-target
 distinction, deterministic snapshot and staging protocol, and linear output
@@ -85,6 +86,13 @@ needs no approval ceremony; unchanged accepted requests need no recurring approv
 This governs existing helper delegation and dependency build scheduling; it adds
 no recursive build API or permission to import another activation's build entry.
 The executor, not the offered program, enforces actual host confinement.
+
+The same admission and attenuation rules govern build-time tests, including
+fixtures and selected providers. Completing the build entry does not grant its
+test roots ambient host authority. Restricted test requests join ordinary
+install/update review before test execution. Tests may use delegated virtual
+services without restricted approval, but cannot replace them with live-host
+backing. Runtime permissions and a child package's lock are not build-test grants.
 
 ## Generated-source boundary
 

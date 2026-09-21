@@ -1,15 +1,21 @@
 // Fixed-token declaration heads retain named identities and operand-directed
-// selection. Boundary requirements remain provider-agnostic.
+// selection. Boundary requirements remain provider-agnostic. The `[]`/`[..]`
+// heads sit on a fixture-owned collection so the declarations stay outside the
+// builtin slice-indexing operand space that build-time policy evaluation needs.
 
 operator + i32::add(left: i32, right: i32) -> i32;
 
-boundary machine [] Slice::index<T>(items: &[T], index: u64) -> T
-requires
-    index < items.len;
+data Table<T> {
+    cells: [T; 8];
+}
 
-boundary machine [..] Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
+boundary machine [] Table::at<T>(items: &Table<T>, index: u64) -> T
 requires
-    start <= end && end <= items.len;
+    index < 8;
+
+boundary machine [..] Table::window<T>(items: &Table<T>, start: u64, end: u64) -> &Table<T>
+requires
+    start <= end && end <= 8;
 
 data Main {
 }

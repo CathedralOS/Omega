@@ -36,15 +36,32 @@ pub(crate) fn retain_suspension_call_plans(
         if occurrences.next().is_some() || occurrence.source_target != crossing.target {
             return unsupported("suspension crossing call join is duplicate or redirected");
         }
-        let operation = module
+        let (machine_index, block_index, operation_index) = module
             .machines
             .iter()
-            .flat_map(|machine| machine.blocks.iter())
-            .flat_map(|block| block.operations.iter())
-            .find(|operation| operation.id == occurrence.terminal_operation)
+            .enumerate()
+            .flat_map(|(machine_index, machine)| {
+                machine
+                    .blocks
+                    .iter()
+                    .enumerate()
+                    .flat_map(move |(block_index, block)| {
+                        block.operations.iter().enumerate().map(
+                            move |(operation_index, operation)| {
+                                (machine_index, block_index, operation_index, operation)
+                            },
+                        )
+                    })
+            })
+            .find(|(.., operation)| operation.id == occurrence.terminal_operation)
+            .map(|(machine_index, block_index, operation_index, _)| {
+                (machine_index, block_index, operation_index)
+            })
             .ok_or(LoweringError::Unsupported(
                 "suspension crossing Terminal operation is absent",
             ))?;
+        let operation =
+            &module.machines[machine_index].blocks[block_index].operations[operation_index];
         let call_arguments = match &operation.kind {
             OperationKind::Call { arguments, .. } => arguments.as_slice(),
             _ => {
@@ -155,12 +172,19 @@ pub(crate) fn retain_suspension_call_plans(
                 right.effective,
             ))
         });
+        let crossing_id = checked_trees::canonical_suspension_crossing_id(&checked.typed, crossing)
+            .ok_or(LoweringError::Unsupported(
+                "suspension crossing identity cannot resolve its source symbols",
+            ))?;
+        // Bind the authoritative possibly-suspending demand onto the call
+        // itself: the site and plan rows below are evidence for this marker,
+        // not its source, so deleting the paired rows cannot erase the
+        // required crossing.
+        module.machines[machine_index].blocks[block_index].operations[operation_index]
+            .suspension_crossing = Some(crossing_id);
         plans.push(terminal_psi::TerminalSuspensionCallPlan {
             operation: occurrence.terminal_operation,
-            crossing: checked_trees::canonical_suspension_crossing_id(&checked.typed, crossing)
-                .ok_or(LoweringError::Unsupported(
-                    "suspension crossing identity cannot resolve its source symbols",
-                ))?,
+            crossing: crossing_id,
             target,
             effective: crossing.effective,
             live_value_count: u32::try_from(live_values.len()).map_err(|_| {

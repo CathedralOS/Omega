@@ -141,12 +141,14 @@ fn fixture() -> TerminalModule {
                 entry: id(1),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: id(1),
                     parameters: Vec::new(),
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: id(1),
                             result: OperationResult::Scalar(local),
                             kind: OperationKind::BooleanNot {
@@ -155,10 +157,12 @@ fn fixture() -> TerminalModule {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: Some(id(41)),
                             id: id(2),
                             result: OperationResult::Scalar(call_result),
                             kind: OperationKind::Call {
                                 erased_arguments: Vec::new(),
+                                erased_proof_arguments: Vec::new(),
                                 callee: id(2),
                                 arguments: vec![caller_parameter.id],
                                 requirement_obligations: Vec::new(),
@@ -167,10 +171,12 @@ fn fixture() -> TerminalModule {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: id(3),
                             result: OperationResult::Scalar(second_call_result),
                             kind: OperationKind::Call {
                                 erased_arguments: Vec::new(),
+                                erased_proof_arguments: Vec::new(),
                                 callee: id(2),
                                 arguments: vec![caller_parameter.id],
                                 requirement_obligations: Vec::new(),
@@ -186,6 +192,7 @@ fn fixture() -> TerminalModule {
                 }],
                 contract: MachineContract {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: id(1),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
@@ -211,6 +218,7 @@ fn fixture() -> TerminalModule {
                 entry: id(2),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: id(2),
                     parameters: Vec::new(),
@@ -223,6 +231,7 @@ fn fixture() -> TerminalModule {
                 }],
                 contract: MachineContract {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: id(2),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
@@ -363,6 +372,33 @@ fn suspension_call_plan_rejoins_operation_target_after_site_validation() {
     module.suspension_call_plans[0].target =
         terminal_psi::TerminalSuspensionCallTarget::Machine(id(1));
     refresh_site(&mut module);
+    assert_reason(&module, SuspensionCallPlanError::RedirectedToNonCall);
+}
+
+#[test]
+fn suspension_call_plan_rejects_coordinated_site_and_plan_deletion() {
+    let mut module = fixture();
+    module.suspension_call_sites.clear();
+    module.suspension_call_plans.clear();
+    module.suspension_call_plan_count = 0;
+    assert_reason(&module, SuspensionCallPlanError::MissingCallSidePlan);
+}
+
+#[test]
+fn suspension_call_plan_rejects_unmarked_call_side() {
+    let mut module = fixture();
+    module.machines[0].blocks[0].operations[1].suspension_crossing = None;
+    assert_reason(&module, SuspensionCallPlanError::UnmarkedCallSide);
+
+    let mut module = fixture();
+    module.machines[0].blocks[0].operations[1].suspension_crossing = Some(id(42));
+    assert_reason(&module, SuspensionCallPlanError::UnmarkedCallSide);
+}
+
+#[test]
+fn suspension_call_plan_rejects_marker_on_non_call() {
+    let mut module = fixture();
+    module.machines[0].blocks[0].operations[0].suspension_crossing = Some(id(43));
     assert_reason(&module, SuspensionCallPlanError::RedirectedToNonCall);
 }
 

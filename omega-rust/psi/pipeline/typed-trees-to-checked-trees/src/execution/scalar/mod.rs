@@ -126,6 +126,7 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
         .collect();
     let mut structural_transfers = arena::Arena::default();
     let mut scalar_arguments = arena::Arena::default();
+    let mut erased_proof_arguments = arena::Arena::default();
     machines.retain_mut(|graph| {
         let Some(ranked_scc) = ranking::plan(program, graph, call_frames) else {
             return false;
@@ -136,6 +137,7 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
             graph,
             &mut structural_transfers,
             &mut scalar_arguments,
+            &mut erased_proof_arguments,
         )
         .is_some()
     });
@@ -144,6 +146,7 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
         parameter_storage,
         structural_transfers,
         scalar_arguments,
+        erased_proof_arguments,
         structural_types: structural_types.into_values().collect(),
         guarded_exits,
         guarded_tails,
@@ -183,16 +186,13 @@ pub(crate) fn finalize_checked_scalar_graph_plans_with_call_frames(
             graph,
             &plans.structural_transfers,
             &plans.scalar_arguments,
+            &plans.erased_proof_arguments,
         )
         .is_none()
         {
             return false;
         }
-        let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == graph.machine)
-        else {
+        let Some(machine) = crate::lookup::machine_by_symbol(program, graph.machine) else {
             return false;
         };
         graph.states.iter().all(|retained| {
@@ -325,18 +325,17 @@ fn build_machine_graph(
                     Vec::new(),
                 )
             };
-            let erased_scalar_parameters = parameters
-                .iter()
-                .enumerate()
-                .filter(|(_, parameter)| parameter.relevance.is_erased())
-                .map(|(position, parameter)| {
-                    Some(checked_trees::CheckedStructuralScalarParameterPlan {
-                        source_position: u32::try_from(position).ok()?,
-                        primitive_type: program
-                            .primitive_type_reference(parameter.type_reference)?,
-                    })
-                })
-                .collect::<Option<Vec<_>>>()?;
+            // Proof-only erased formals leave the scalar roster and index the
+            // contract term lane instead; scalar erased ordinals stay dense
+            // over scalar carriers only.
+            let erased_scalar_parameters =
+                crate::execution::terminal_unit::types::erased_scalar_parameter_plans(
+                    program, state,
+                )?;
+            let erased_proof_parameters =
+                crate::execution::terminal_unit::types::erased_proof_parameter_plans(
+                    program, state,
+                )?;
             let parameter_types = scalar_parameters
                 .iter()
                 .map(|parameter| parameter.primitive_type)
@@ -461,6 +460,7 @@ fn build_machine_graph(
                     structural_parameters,
                     scalar_parameters,
                     erased_scalar_parameters,
+                    erased_proof_parameters,
                     parameter_types,
                     parameter_storage: arena::HandleSpan::empty(),
                     primitive_locals,
@@ -651,13 +651,8 @@ fn checked_binding_value(
     if call.receiver.is_valid() || !call.machine_arguments.is_empty() {
         return None;
     }
-    let target_machine = program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .first()
-            .is_some_and(|entry| entry.symbol == call.target_symbol)
-    })?;
-    let target_state = program.machine_states(target_machine).first()?;
+    let (target_machine, target_state) =
+        crate::semantic_calls::find_machine_by_entry_state(program, call.target_symbol)?;
     let parameters = program.state_parameters(target_state);
     let authored_arguments = program
         .expression_table
@@ -725,6 +720,7 @@ fn checked_successor(
         structural_transfers: arena::HandleSpan::empty(),
         scalar_arguments: arena::HandleSpan::empty(),
         erased_arguments: arena::HandleSpan::empty(),
+        erased_proof_arguments: arena::HandleSpan::empty(),
     })
 }
 
@@ -1098,6 +1094,7 @@ fn scalar_expression_reads_position(
         | Scalar::IntegerWiden { operand, .. }
         | Scalar::IntegerExactCast { operand, .. }
         | Scalar::IntegerWrappingCast { operand, .. }
+        | Scalar::IntegerSaturatingCast { operand, .. }
         | Scalar::IntegerTrappingCast { operand, .. } => {
             scalar_expression_reads_position(operand, position)
         }
@@ -1133,7 +1130,8 @@ fn boolean_expression_reads_position(
             boolean_expression_reads_position(left, position)
                 || boolean_expression_reads_position(right, position)
         }
-        Boolean::IntegerComparison { left, right, .. } => {
+        Boolean::IntegerComparison { left, right, .. }
+        | Boolean::ScalarIeeeFloatComparison { left, right, .. } => {
             scalar_expression_reads_position(left, position)
                 || scalar_expression_reads_position(right, position)
         }

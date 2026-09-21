@@ -50,6 +50,29 @@ Useful coverage, not a row substitute:
   pipeline cross-target on any host; its host-agnostic legs run on Linux
   today but its PE execution legs remain unobserved by definition here.
 
+Re-checked at `c93cceb9ca` (Linux x86-64): the row remains **open** — no
+Windows x86-64 runner exists, and the host-free legs above cannot be
+re-executed at this revision because the workspace is red before the test
+crate builds: `external-roots` fails `cargo check --lib` with
+`E0432 unresolved import effects::ComponentEraJournalRoster` in
+`program_local/program_local_roots/epoch_cohorts.rs:9` (in-flight
+ENTRY-CONTENT-ROOTS lane; not this row's repair).
+
+Re-checked at `12579822068` (Linux x86-64): the row remains **open** — no
+Windows x86-64 runner exists. The `external-roots` blocker above is
+repaired (`cargo check -p external-roots --lib` is green), but the
+cross-compile witness has moved: `tools/benchmark/benchmark.py measure
+--root samples/cli/arithmetic/wrapping_square_sum/main.omg --target
+windows_x86_64 --no-run` now fails after `omega.lock` settlement, ~24s
+into the compile leg, with `native artifact semantic entry contract
+failed: settlement did not bind its retained semantic contract:
+SemanticContract`. The same subject+flow on `linux_x86_64` compiles and
+publishes green (median 33.8s, 8,192-byte code section), so the moved
+failure is specific to the windows_x86_64 realization path — a
+native-emission-side regression relative to the `f2f39039da` witness, for
+the semantic-entry-contract owner lane (not this row's repair; the row's
+open condition is unchanged).
+
 ## Substrate integrity note for the row's owner
 
 `tools/release/release_record.py` `command_run` does not currently check

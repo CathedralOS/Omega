@@ -45,7 +45,7 @@ fn operands(
     alternative: MachineAlternativeKey,
     values: &[RegisterViewId],
 ) -> Result<(u8, u8, bool, bool), Error> {
-    if physical.model() != &crate::aarch64_physical_register_model() {
+    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
         return Err(Error::NonCanonicalPhysicalModel);
     }
     let (family, to_bits, wide) = properties(kind).ok_or(Error::AlternativeMismatch)?;

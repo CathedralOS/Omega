@@ -96,6 +96,7 @@ pub(super) fn build(
         structural_parameters: structural_parameters.to_vec(),
         scalar_parameters: Vec::new(),
         erased_scalar_parameters: Vec::new(),
+        erased_proof_parameters: Vec::new(),
         requires: Vec::new(),
         entry_claims: entry_claims.to_vec(),
         bindings: Vec::new(),

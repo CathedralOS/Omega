@@ -46,7 +46,7 @@ input to the boundary, not output from it; mutating it is how the refusal
 cases are built. This is the request edge's own observation — no raw-source
 stdin convention, and no host compiler meaning is supplied.
 
-From the repository root on macOS arm64, or Windows x64 with Git Bash:
+From the repository root on macOS arm64, Linux x86-64, or Windows x64 with Git Bash:
 
 ```sh
 sh tests/bootstrap/omega-request/run.sh
@@ -70,8 +70,8 @@ semantics.
 
 The [entry](main.epsilon) is bound at 4,112 bytes, SHA-256
 `9368297baef947465d5f1ee11df8f1a0fdf60a01e369836ce0555df02890d9ca`, and packs
-on top of the bound member closure to 563,265 bytes, SHA-256
-`002e7f257216d6766880fd99eaf84f217a503d397aa76a5a319fcbc184c3c5da`. The
+on top of the bound member closure to 565,906 bytes, SHA-256
+`0a6e19a1260bec3b56e1d08b01c66be4b3e2dda7f8d45ef22edde09b4f62edfb`. The
 canonical request fixture is bound at 132 bytes, SHA-256
 `ab2e980a89d20651b69782446cd8a8333313dce109636fd3e26cc7f52bc98062`.
 `tools/bootstrap/omega/compiler_env.sh` checks both identities before every

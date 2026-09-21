@@ -47,6 +47,7 @@ fn term(index: u64, scalar_type: ScalarType) -> ScalarTerm {
 fn operation(kind: OperationKind) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

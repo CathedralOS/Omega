@@ -115,6 +115,7 @@ pub(super) fn provider_module() -> TerminalModule {
                 contract_id(1),
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(1),
                     result: OperationResult::Unit,
                     kind: OperationKind::BoundaryCall {
@@ -198,6 +199,7 @@ fn machine(
         entry: block,
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
@@ -209,6 +211,7 @@ fn machine(
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: contract,
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -221,6 +224,7 @@ fn machine(
 fn port_write(id: OperationId, service: ServiceId, value: u8) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Unit,
         kind: OperationKind::PortWrite {

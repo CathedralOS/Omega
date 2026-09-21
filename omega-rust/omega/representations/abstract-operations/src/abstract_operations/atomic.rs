@@ -672,6 +672,7 @@ mod tests {
 
     fn structural_outcome(raw: u64) -> StructuralOperationResult {
         StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: place(raw),
             structural_type: StructuralTypeId::new(raw)
                 .expect("test structural type identities are nonzero"),

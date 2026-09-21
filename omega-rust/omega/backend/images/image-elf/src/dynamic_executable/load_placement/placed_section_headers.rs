@@ -1,8 +1,8 @@
 //! Applied ELF64-LSB section-header placement fields.
 //!
 //! This layer consumes the independently validated absolute dynamic-load
-//! geometry and copies its retained thirteen-row `Elf64_Shdr` template. It
-//! applies only the twenty-three already-resolved `sh_addr` and `sh_offset`
+//! geometry and copies its retained fourteen-row `Elf64_Shdr` template. It
+//! applies only the twenty-five already-resolved `sh_addr` and `sh_offset`
 //! fields, then decodes the complete table and replays every field against the
 //! retained numeric roster and placement ledger.
 //!
@@ -24,11 +24,11 @@ const ELF64_SECTION_HEADER_SIZE: usize = 64;
 const ELF64_SECTION_ADDRESS_OFFSET: usize = 16;
 const ELF64_SECTION_FILE_OFFSET: usize = 24;
 const ELF64_PLACEMENT_FIELD_SIZE: u8 = 8;
-const SECTION_COUNT: usize = 13;
-const FILE_OFFSET_PLACEMENT_COUNT: usize = 12;
-const VIRTUAL_ADDRESS_PLACEMENT_COUNT: usize = 11;
-const PLACEMENT_COUNT: usize = 23;
-const SECTION_NAME_TABLE_INDEX: usize = 12;
+const SECTION_COUNT: usize = 14;
+const FILE_OFFSET_PLACEMENT_COUNT: usize = 13;
+const VIRTUAL_ADDRESS_PLACEMENT_COUNT: usize = 12;
+const PLACEMENT_COUNT: usize = 25;
+const SECTION_NAME_TABLE_INDEX: usize = 13;
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
@@ -73,7 +73,7 @@ impl ElfAppliedSectionHeaderPlacement {
 /// custody.
 ///
 /// This non-clone carrier proves only that the retained 832-byte template has
-/// received its exact twenty-three load-layout placements. It carries no final
+/// received its exact twenty-five load-layout placements. It carries no final
 /// file placement, mutation, publication, or runnable-image authority.
 #[derive(Debug)]
 #[must_use = "applied ELF section headers retain the absolute load layout"]
@@ -212,7 +212,7 @@ fn derive_contents(
     require(
         template.placement_fixups.len() == PLACEMENT_COUNT
             && load_layout.section_header_resolutions().len() == PLACEMENT_COUNT,
-        "placed ELF section-header input does not have exactly twenty-three fixups and resolutions",
+        "placed ELF section-header input does not have exactly twenty-five fixups and resolutions",
     )?;
 
     let mut bytes = template.bytes.clone();
@@ -315,13 +315,13 @@ fn validate_contents(
         roster.len() == SECTION_COUNT
             && template.bytes.len() == SECTION_COUNT * ELF64_SECTION_HEADER_SIZE
             && contents.bytes.len() == SECTION_COUNT * ELF64_SECTION_HEADER_SIZE,
-        "placed ELF section-header table does not retain exactly thirteen complete rows",
+        "placed ELF section-header table does not retain exactly fourteen complete rows",
     )?;
     require(
         template.placement_fixups.len() == PLACEMENT_COUNT
             && resolutions.len() == PLACEMENT_COUNT
             && contents.applications.len() == PLACEMENT_COUNT,
-        "placed ELF section-header ledger does not cover exactly twenty-three fields",
+        "placed ELF section-header ledger does not cover exactly twenty-five fields",
     )?;
 
     for ((fixup, resolution), application) in template
@@ -553,6 +553,9 @@ const fn public_section_kind(kind: ElfDynamicRosterSectionKind) -> ElfPlacedDyna
         ElfDynamicRosterSectionKind::ProcedureGot => ElfPlacedDynamicSectionKind::ProcedureGot,
         ElfDynamicRosterSectionKind::ProcedureRelocation => {
             ElfPlacedDynamicSectionKind::ProcedureRelocation
+        }
+        ElfDynamicRosterSectionKind::GeneralRelocation => {
+            ElfPlacedDynamicSectionKind::GeneralRelocation
         }
         ElfDynamicRosterSectionKind::DynamicTable => ElfPlacedDynamicSectionKind::DynamicTable,
         ElfDynamicRosterSectionKind::SectionNameTable => {
