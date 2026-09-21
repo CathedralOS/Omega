@@ -73,6 +73,7 @@ mod numeric_landing;
 mod scalar_operations;
 mod statements_and_calls;
 mod wire_codec;
+pub mod wire_verification;
 
 // Build-machine facets.
 mod behavior_exclusions;

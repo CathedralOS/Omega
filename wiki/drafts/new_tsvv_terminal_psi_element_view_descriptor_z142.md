@@ -99,7 +99,40 @@ validation admits a borrowed view with nothing to check, and
 `operation_contracts/structural_access.rs` refuses it as an owned argument
 beside `ByteSequence` and `Reference`. That crate's lib compiles clean.
 
-**Remaining (4), behind one live claim** — untouched deliberately:
+**Update 12:45Z — COMPLETE. `cargo check --workspace` is green.**
+
+The REGISTERED-CALLBACK-LIFETIME fence drained early, and closing its four
+interpreter legs revealed eight more consumers that had been hidden behind the
+build break, in `abstract-operations-to-target-operations`,
+`target-operations-to-selected-instructions`, `image-emission`, the `omega` CLI
+and one `checked-trees-to-lowered-psi` test. The final tally is **40 legs**, not
+the 32 this draft first estimated.
+
+Same semantics throughout. Two decisions worth recording:
+
+- **`structural_layout.rs` refuses rather than inventing a carrier.** A native
+  layout for a runtime-length borrowed view is a (pointer, length) pair shape
+  the spec has not settled, and no producer emits `ElementView` yet — the three
+  `borrowed slice view has no Terminal descriptor` sites in
+  checked-trees-to-lowered-psi still reject. So it returns a new
+  `LoweringError::UnsupportedStructuralElementView`, failing loudly if one ever
+  arrives, instead of guessing.
+- **Five encoders, all tag 8.** terminal-codec's wire codec, optimization-unit
+  and legalized-operations identity, register-homes fixed-view-copy, and now
+  image-emission's installation-record codec — 1-7 were occupied in every one,
+  exactly as this draft predicted.
+
+Newly visible, NOT caused by this sweep: eight `checked-trees-to-lowered-psi`
+tests fail with `Unsupported("attached Unit closure is missing a checked
+transitive machine plan")` — `retention::conformance_applications` ×3 and
+`tests::composed_operand_catalogs` ×5. That is the same wall behind the five red
+`x86_asm_*` canary legs and four `terminal_psi_runnable` native-differential
+legs; it has nothing to do with ElementView, and these tests simply could not
+run while the crate's test target would not build.
+
+Historical — the last four, and the fence that held them:
+
+
 
 - `terminal-interpreter/src/terminal_interpreter/` ×4 (`custody.rs:380`,
   `effect_results.rs:127`, `structural_scalar_fields/entry.rs:54,129`) —

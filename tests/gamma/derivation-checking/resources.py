@@ -16,13 +16,13 @@ def cases():
                  definitions=definitions, repetitions=1, timeout=600)
     count = 163839
     rows = (first,) + (reflexivity,) * (count - 1)
-    # The former 655,360-unit boundary sat inside the final comparisons; under
-    # the selected bound this table checks: 4P+8 = 655364 total.
+    # Before final comparisons, P+1 +6 +3(P-1) =4P+4 =655360; the final root
+    # comparison adds four, inside the 67,108,864-unit provision.
     yield vector("adjacent_final_root_comparison", checked(count, 655364),
                  rows, owners, definitions=definitions, repetitions=1, timeout=600)
     count = 262143
-    # Setup consumes P+1 and each Ref row 3, so the table checks at 4P+5 =
-    # 1048577 units; proof-index and row reservations still share the counter.
+    # Setup consumes 262144 and each Ref row three more; all rows now complete
+    # inside the 67,108,864-unit provision.
     yield vector("proof_index_and_rows_share_work",
                  checked(count, 1048577), (reflexivity,) * count,
                  repetitions=1, timeout=600)

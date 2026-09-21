@@ -52,6 +52,7 @@ when this block drifts.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | linux_arm64 | linux x86_64 | wrapping_square_sum | default | measured 28129.6 ms | measured 150441984 B compile | measured 8192 B | skipped (--no-run was passed) |
 | linux_x86_64 | linux x86_64 | cli_mvp | default | measured 1.68124e+06 ms | measured 246046720 B compile | measured 8192 B | measured 1.93834 ms |
+| linux_x86_64 | linux x86_64 | cli_mvp | sel-885944b13b84 | measured 1.22939e+06 ms | measured 248938496 B compile | measured 8192 B | measured 1.36314 ms |
 | linux_x86_64 | linux x86_64 | structural_proofs | default | measured 32407.2 ms | measured 148152320 B compile | measured 8192 B | skipped (--no-run was passed) |
 | linux_x86_64 | linux x86_64 | wrapping_square_sum | default | measured 33396.8 ms | measured 155660288 B compile | measured 8192 B | measured 4.37554 ms |
 | linux_x86_64 | linux x86_64 | wrapping_square_sum | sel-885944b13b84 | measured 3748.43 ms | measured 84189184 B compile | measured 8192 B | measured 4.02435 ms |

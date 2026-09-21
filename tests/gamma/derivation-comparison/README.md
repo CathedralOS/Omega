@@ -16,10 +16,10 @@ in `tools/bootstrap/proofs/sources_env.sh` and checked by
 | file | bytes | SHA-256 |
 | --- | --- | --- |
 | `diagnostic.gamma` | 2,999 | `84e7a38014645379516949ce58fb9fb6f93ef87abb6b2bd2539b1f5795ccccd3` |
-| `entries/budget.gamma` | 657 | `00913ea59c31d383463e0ecd59f878fdc2eacc3f3029563a91edca55f7430c76` |
+| `entries/budget.gamma` | 569 | `335eb658f739240d4b5f6101562872c158b8cf04ceeeb16c7ac7ef63eb04aca4` |
 | `entries/invalid.gamma` | 750 | `9eee13b41741dafed34df7c3eed902c4fa1d26a4dc3cf2fdf6083250249a2a8d` |
-| `entries/pending.gamma` | 521 | `a2d2d2cf890cb84ddec32d7233ec133311ab48a2e595a0a4bc0ea774074f4e4b` |
-| `entries/resume.gamma` | 756 | `7b0a7143e4ad267ef0852124e701644cb314b92a6f6af9f6949e9c9bbcbf820d` |
+| `entries/pending.gamma` | 420 | `ff3cb286d0946d8930013783020ab39d99174f4c522878f88da79fcfbf6e170a` |
+| `entries/resume.gamma` | 655 | `e496e6a604c1a461952a8ca38c317bf90cb28a44d74a24a449280c67cf5d92f3` |
 | `entries/retention.gamma` | 1,017 | `7a84754c984ca008e8408210cbc2be2710bdb459fa851a66a676bbe854f2a94a` |
 | `entries/root.gamma` | 390 | `8f4783644bc40aa45a1f58a1bdc4a11d7a1022e5f6e2d0f61a40fb0dc33ef1ad` |
 | `entries/session.gamma` | 368 | `8f1ea6dd838b0c770cdfc56d745a1bfa7f493fef677118378d376bc103a47a4b` |
@@ -45,9 +45,9 @@ The source-owned entries are:
 | `witness` | Left owner root versus last global identity, repeated and reversed. |
 | `retention` | Fixed `(6,7)`, `(3,4)`, `(6,7)`, `(4,3)`; cumulative 6/8/12/16 steps prove child memo retention and no false-parent memo. |
 | `invalid` | Checked root values 1/2/3 select test operands 0/N+1/1; one failing call at literal caller coordinates 701/709. |
-| `budget` | One bulk reservation reaches the work limit; right root1 selects invalid IDs, root2 the next valid call. Publishes exact-bound result, then failure. |
-| `resume` | A bulk reservation to limit minus 2 and one head mismatch reach the limit minus 1; the next visit fits but terminal resume refuses. |
-| `pending` | A bulk reservation to limit minus 2, then two distinct unary parents with one shared child; parent and child visits fit, pending-parent resume refuses. |
+| `budget` | A seeded reservation reaches 67,108,858, then three same-ID calls land on 67,108,864; right root1 selects invalid IDs, root2 the next valid call. Publishes exact-bound result, then failure. |
+| `resume` | A seeded reservation and one same-ID call reach 67,108,862, one head mismatch reaches 67,108,863; the next visit fits but terminal resume refuses. |
+| `pending` | A seeded reservation and one same-ID call reach 67,108,862, then two distinct unary parents with one shared child; parent and child visits fit, pending-parent resume refuses. |
 
 Every returned session is threaded forward. No call continues after failure or
 restarts a session within a request. Invalid identities are checked before

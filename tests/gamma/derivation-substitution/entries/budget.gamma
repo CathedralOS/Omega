@@ -2,9 +2,8 @@
 (def substitution_test_execute ((grounded Int)) Int
   (let selector Int (substitution_test_right grounded)
     (let amount Int
-      (if (eq selector 1) (- (comparison_limit) 7)
-        (if (eq selector 2) (- (comparison_limit) 6)
-          (if (eq selector 3) (- (comparison_limit) 1) (comparison_limit))))
+      (if (eq selector 1) 67108857
+        (if (eq selector 2) 67108858 (if (eq selector 3) 67108863 67108864)))
       (let prior Int (comparison_reserve (comparison_start grounded) amount 905)
         (if (eq (first prior) 6)
           (let result Int (substitution_test_unfold (comparison_session (second prior))

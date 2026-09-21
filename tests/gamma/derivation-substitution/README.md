@@ -17,8 +17,8 @@ The gate-local prefix files are bound in
 | file | bytes | SHA-256 |
 | --- | --- | --- |
 | `diagnostic.gamma` | 1,638 | `3b312fed1fc8a87293c04102e55e247c342109594b89483b19a5e717251e2d9d` |
-| `entries/budget.gamma` | 940 | `198e20ae4b50c2be246128cd85d15caa27fc8bbffec05de94a884ba60f400ae3` |
-| `entries/bulk.gamma` | 1,072 | `29a077cb09184909bc4f5eab5b5720f796b985f5ffa9ce52f857fefc7d40d442` |
+| `entries/budget.gamma` | 864 | `08fa1b7b60291529108122ff06d652cd45e92f08867bad8c132dcb643c4baede` |
+| `entries/bulk.gamma` | 1,030 | `376603ce42d18ed36d637b08b142ae7eb355c7a8faa9eb456ce5bcf78ac8fad1` |
 | `entries/case.gamma` | 213 | `ca69d2d53087b8fd1ddf74ff8cdc7c362cc590a9a3637cad9b018d0d12b9b349` |
 | `entries/clause.gamma` | 333 | `6b2b2e30a2f5c2e473b32c64069ddd8269f1d97bf76b13d8c99417860af3b596` |
 | `entries/invalid.gamma` | 622 | `b2263856681d7bb35e47d9603cb0302ddd0499ede5a8ab0620501e62ce6fbfbf` |
@@ -48,12 +48,11 @@ The explicit entries and caller coordinates are:
 | `witness` | Unfold global N against N−1, selecting the final witness function and preceding witness target. |
 | `session` | Unfold 2→1; structurally compare 2/1; unfold 4→1 then 4→3. Expected cumulative outcomes true 7 / false 8 / false 13 / true 20. |
 | `retention` | Unfold 6→7, compare ground 3/4, unfold 6→7 again. Expected false 14 / true 16 / false 28. |
-| `bulk` | Right-root selector 1 starts empty, 2 reserves the whole work limit, 3 reserves 1; left-root selector chooses the next amount at coordinate 907. |
+| `bulk` | Right-root selector 1 starts empty, 2 reserves 67108864, 3 reserves 1; left-root selector chooses the next amount at coordinate 907. |
 | `budget` | Reserve a fixed amount, then unfold identity 2→1; selectors 5/6 replace the left/right operand with 0. Successful exact unfolding is followed by a one-unit reserve at 907. |
 
 Bulk left-root selectors 1..8 choose respectively `0`, `-1`, `2147483648`,
-`2147483647`, the work limit, one unit over the work limit, `1`, and
-`INT64_MIN`. Invalid amounts reject
+`2147483647`, `67108864`, `67108865`, `1`, and `INT64_MIN`. Invalid amounts reject
 with code 11 even after exhaustion. A maximum valid amount after one consumed
 unit requests 2,147,483,648 without truncation. These selectors are explicit test
 coordination over already checked root identities, not a new request format.
@@ -67,10 +66,9 @@ Step derivations are independent of the implementation:
 - A false template retains completed ground-child memo entries, but each new
   unfolding has fresh clause/binding-local memo state. Definitional equality
   must never populate the structural `(left,right)` memo.
-- Pre-reservation at the limit minus 7 permits identity unfolding to finish
-  exactly at the limit. At limit minus 6, the variable's ground comparison
-  finishes at the limit but template terminal resume refuses. At limit minus 1,
-  the index bulk request is exactly the limit plus 2; at the limit itself,
+- Pre-reservation 67108857 permits identity unfolding to finish at 67108864. At 67108858,
+  the variable's ground comparison finishes at the limit but template terminal
+  resume refuses. At 67108863, the index bulk request is exactly 67108866; at 67108864,
   clause scanning refuses at clause coordinate 903. Invalid IDs still reject first.
 - A 46,484-row unary template with variable base costs `3T+4 = 139456`; the request
   is 1,859,508 bytes. A 1,024-row shared binary DAG costs `5T+2 = 5122`; its request

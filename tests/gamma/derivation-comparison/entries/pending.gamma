@@ -1,9 +1,12 @@
 ; Exhaustion after a child visit cannot complete or memoize its pending parent.
-; A single bulk reservation positions the session two units under the bound.
+; The initial reservation seeds the shared counter so the same probe lands on
+; the bound without iterating to it.
 (def comparison_test_execute ((grounded Int)) Int
-  (let repeated Int (comparison_reserve (comparison_start grounded)
-                    (- (comparison_limit) 2) 20481)
-    (if (eq (first repeated) 6)
-      (comparison_test_observe (compare_ground_terms
-        (comparison_session (second repeated)) 2 3 20481 24583))
-      (comparison_test_observe repeated))))
+  (let prior Int (comparison_reserve (comparison_start grounded) 67108860 20481)
+    (if (eq (first prior) 6)
+      (let repeated Int (comparison_test_repeat (comparison_session (second prior)) 1 1 20481 24583 1)
+        (if (eq (first repeated) 6)
+          (comparison_test_observe (compare_ground_terms
+            (comparison_session (second repeated)) 2 3 20481 24583))
+          (comparison_test_observe repeated)))
+      (comparison_test_observe prior))))
