@@ -18,19 +18,25 @@ Verification surface: `tests/package_compilation_inputs.rs` module
 producer-selected evidence, cross-package borrow/lifetime joins, and
 package-boundary receiver custody).
 
-## Re-verification attempt
+## Re-verification
 
 Prior recorded green: 21/21 `cross_package_visibility` at `dcfb595098`
 (linux x86-64), zero loan-origin diagnostics — per the umbrella row and
 PACKAGE-CROSS-VISIBILITY-LOAN-ORIGIN sibling annotation.
 
-This host attempted re-verification at `d21620fa27` via
-`cargo nextest run -p compiler --test package_compilation_inputs -E
-'test(cross_package_visibility)'`; the build is blocked by unrelated
-in-flight breakage at main tip: `external-roots` commit `2d8c5136cc`
-imports `effects::ComponentEraJournalRoster`, which `effects` does not
-export at this revision (producer half of the epoch-cohort journal work
-has not landed). Not attributable to the loan-origin surface.
+An earlier attempt at `d21620fa27` was blocked by unrelated in-flight
+breakage (`external-roots` commit `2d8c5136cc` imported
+`effects::ComponentEraJournalRoster`, which `effects` did not export at
+that revision). That breakage is gone: neither side of the import
+remains on current main.
+
+Re-verified green at `8de5f83c09` (macOS arm64, mbx/nextest):
+`mbx nextest run -p compiler --test package_compilation_inputs -E
+'test(cross_package_visibility)'` — 21/21 pass in 1.9 s, including
+`public_dynamic_return_may_carry_private_producer_selected_evidence`
+(the public bare-dynamic return carrying private producer-selected
+evidence accepts, while naming the producer's private conformance still
+rejects), with zero loan-origin diagnostics.
 
 ## Slice status
 
