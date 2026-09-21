@@ -199,6 +199,7 @@ fn structural_boundary_settlement_identity_binds_the_complete_result_declaration
     let original = machine_code::BoundaryStructuralResultRecord {
         defining_operation: OperationId::new(3).unwrap(),
         result: StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: PlaceId::new(1).unwrap(),
             structural_type,
             multiplicity: StructuralMultiplicity::Affine,

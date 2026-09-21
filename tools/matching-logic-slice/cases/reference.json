@@ -1,0 +1,78 @@
+{
+  "schema": "omega-matching-logic-slice-case/1",
+  "subject": "one Terminal transition: counter increments, stays a Nat member",
+  "symbols": {"zero": 0, "succ": 1, "s0": 0, "s1": 0, "counter": 1},
+  "refinements": {"Nat": ["pred", "is_nat", [["var", "x"]]]},
+  "axioms": {
+    "step_s0_s1": ["pred", "step", [["sym", "s0", []], ["sym", "s1", []]]],
+    "counter_step": ["forall", "s", ["forall", "t",
+      ["implies",
+        ["pred", "step", [["var", "s"], ["var", "t"]]],
+        ["equals",
+          ["sym", "counter", [["var", "t"]]],
+          ["sym", "succ", [["sym", "counter", [["var", "s"]]]]]]]]],
+    "counter_s0_nat": ["in", ["sym", "counter", [["sym", "s0", []]]], "Nat"],
+    "nat_succ": ["forall", "x",
+      ["implies",
+        ["in", ["var", "x"], "Nat"],
+        ["in", ["sym", "succ", [["var", "x"]]], "Nat"]]]
+  },
+  "obligation": {
+    "kind": "refinement_after_transition",
+    "pre_state": "s0",
+    "transition": "step",
+    "post_variable": "s'",
+    "refinement": ["in", ["sym", "counter", [["var", "s'"]]], "Nat"]
+  },
+  "expect": "accept",
+  "certificate": {
+    "schema": "omega-matching-logic-certificate/1",
+    "derivation": {
+      "rule": "exists_intro",
+      "var": "s'",
+      "body": ["and",
+        ["pred", "step", [["sym", "s0", []], ["var", "s'"]]],
+        ["in", ["sym", "counter", [["var", "s'"]]], "Nat"]],
+      "witness": ["sym", "s1", []],
+      "defined": {"rule": "defined_closed", "term": ["sym", "s1", []]},
+      "premise": {
+        "rule": "and_intro",
+        "left": {"rule": "axiom", "name": "step_s0_s1"},
+        "right": {
+          "rule": "eq_subst",
+          "var": "m",
+          "pattern": ["in", ["var", "m"], "Nat"],
+          "direction": "right",
+          "equality": {
+            "rule": "modus_ponens",
+            "implication": {
+              "rule": "forall_elim",
+              "witness": ["sym", "s1", []],
+              "defined": {"rule": "defined_closed", "term": ["sym", "s1", []]},
+              "premise": {
+                "rule": "forall_elim",
+                "witness": ["sym", "s0", []],
+                "defined": {"rule": "defined_closed", "term": ["sym", "s0", []]},
+                "premise": {"rule": "axiom", "name": "counter_step"}
+              }
+            },
+            "argument": {"rule": "axiom", "name": "step_s0_s1"}
+          },
+          "premise": {
+            "rule": "modus_ponens",
+            "implication": {
+              "rule": "forall_elim",
+              "witness": ["sym", "counter", [["sym", "s0", []]]],
+              "defined": {
+                "rule": "defined_membership",
+                "premise": {"rule": "axiom", "name": "counter_s0_nat"}
+              },
+              "premise": {"rule": "axiom", "name": "nat_succ"}
+            },
+            "argument": {"rule": "axiom", "name": "counter_s0_nat"}
+          }
+        }
+      }
+    }
+  }
+}

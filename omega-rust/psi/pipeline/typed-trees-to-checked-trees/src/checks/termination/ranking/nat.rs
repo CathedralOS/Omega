@@ -293,12 +293,8 @@ fn has_builtin_meaning(
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> bool {
-    let Some(machine) = program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .any(|candidate| candidate.symbol == state.symbol)
-    }) else {
+    let Some((machine, _)) = crate::semantic_calls::find_state_with_machine(program, state.symbol)
+    else {
         return false;
     };
     validation::has_builtin_bound_expression_meaning(program, machine, Some(state), expression)

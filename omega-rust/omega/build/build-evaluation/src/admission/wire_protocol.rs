@@ -158,13 +158,31 @@ fn build_wire_protocol_report(
         schema.realization_origin = Some(WireRealizationOrigin::Generated {
             generator: "Omega compiler compact_binary generator".to_owned(),
         });
-        schema.trust_class = Some(WireTrustClass::Admitted {
-            authority: "Omega compiler".to_owned(),
-        });
+        // Trust class follows the codec spec's realization table: the
+        // generated body reports Derived only when its recorded plan carries
+        // `policy_verified` — the authored `CompactBinary::plan` grammar
+        // policy agreeing with the codec walk IS the independent check of
+        // the public requirement. Absent the policy the realization stays
+        // admitted under the compiler's authority.
+        let policy_verified = typed.wire_schema_plan_policy_verified(source_schema.symbol);
+        schema.trust_class = if policy_verified {
+            Some(WireTrustClass::Derived)
+        } else {
+            Some(WireTrustClass::Admitted {
+                authority: "Omega compiler".to_owned(),
+            })
+        };
         schema.realization_evidence = vec![
             "normalized compact_binary plan validated against the schema walk".to_owned(),
-            "generated body is not yet independently checked against the public codec requirement"
-                .to_owned(),
+            if policy_verified {
+                "generated codec plan independently checked against the authored \
+                 `CompactBinary::plan` grammar policy; disagreement is a compile error"
+                    .to_owned()
+            } else {
+                "generated body is not yet independently checked against the public codec \
+                 requirement"
+                    .to_owned()
+            },
             "differential canaries are validation evidence, not derived-contract proof".to_owned(),
         ];
     }
@@ -1192,9 +1210,9 @@ fn report_relevance_name(relevance: WireFieldRelevance) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::{
-        ScopeTable, codec_requirement_report_identity, compatibility_verdicts,
-        encode_requirement_report_identity, fields_equal, normalized_wire_plan_report_identity,
-        schema_accepts, search_route,
+        ScopeTable, build_wire_protocol_report, codec_requirement_report_identity,
+        compatibility_verdicts, encode_requirement_report_identity, fields_equal,
+        normalized_wire_plan_report_identity, schema_accepts, search_route,
     };
     use artifacts::{WireFieldRelevance, WireFieldReportEntry, WireSchemaReportEntry};
     use typed_trees::wire::WirePlacement;
@@ -1435,5 +1453,104 @@ mod tests {
         )
         .expect("the route continues past the cycle to the local era");
         assert_eq!(route.machines, ["V1::to_v2", "V2::to_v3"]);
+    }
+
+    fn typed_fixture(source_text: &str) -> typed_trees::TypedTrees {
+        let tokens = source_files_to_tokens::Lexer::new(source_text)
+            .tokenize()
+            .expect("tokenize wire fixture");
+        let syntax =
+            tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse wire fixture");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("resolve wire fixture");
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type wire fixture")
+    }
+
+    fn wire_report(source_text: &str) -> artifacts::WireProtocolReport {
+        let mut typed = typed_fixture(source_text);
+        build_time_evaluation::compute_wire_plans(&mut typed, None, 0)
+            .expect("wire plan pass accepts the fixture");
+        build_wire_protocol_report(&typed, &[])
+    }
+
+    #[test]
+    fn synthesized_codec_stays_admitted_without_an_authored_grammar_policy() {
+        let report = wire_report(
+            "data Packet { #1 seed: u64; #2 label: &[u8]; }\ndata Main { }\nmachine Main::main(&mut self) { }\n",
+        );
+
+        let packet = report
+            .schemas
+            .iter()
+            .find(|schema| schema.name == "Packet")
+            .expect("Packet schema row");
+        assert!(packet.synthesized_codec);
+        assert_eq!(
+            packet.trust_class,
+            Some(artifacts::WireTrustClass::Admitted {
+                authority: "Omega compiler".to_owned()
+            }),
+            "a generated codec with no independent check remains compiler-admitted"
+        );
+        assert!(
+            packet
+                .realization_evidence
+                .iter()
+                .any(|line| line.contains("not yet independently checked"))
+        );
+    }
+
+    #[test]
+    fn policy_verified_generated_codec_reports_derived_trust() {
+        // The authored `CompactBinary::plan` grammar policy agreeing with the
+        // codec walk is the independent check of the public requirement; the
+        // generated body then reports Derived (codec spec realization table).
+        let report = wire_report(
+            r#"
+data Packet { #1 seed: u64; #2 label: &[u8]; }
+
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField { size: u64 [0..=4096]; align: u64 [1..=16]; number: i64; kind: FieldKind; }
+data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
+data FieldPlan [copy] { case Varint(tag: u64); case LengthPrefixed(tag: u64); }
+data Plan { fields: [FieldPlan; 32]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
+
+data CompactBinary { fields: [FieldPlan; 32]; }
+machine CompactBinary::plan(&mut self, schema: Schema) -> Plan {
+    self.fields[0] = FieldPlan::Varint { tag: 1 };
+    self.fields[1] = FieldPlan::LengthPrefixed { tag: 2 };
+    Plan {
+        fields: self.fields,
+        entry_count: schema.field_count,
+        size_fixed: 0,
+        size_is_dynamic: true,
+        align: 1,
+    }
+}
+
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+        );
+
+        let packet = report
+            .schemas
+            .iter()
+            .find(|schema| schema.name == "Packet")
+            .expect("Packet schema row");
+        assert_eq!(
+            packet.trust_class,
+            Some(artifacts::WireTrustClass::Derived),
+            "the policy-verified generated codec is independently checked, not admitted"
+        );
+        assert!(
+            packet
+                .realization_evidence
+                .iter()
+                .any(|line| line.contains("independently checked against the authored"))
+        );
     }
 }

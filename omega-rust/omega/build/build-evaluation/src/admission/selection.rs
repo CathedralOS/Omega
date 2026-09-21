@@ -865,6 +865,9 @@ pub fn program_entry_semantic_binding_role(
         target::ProgramEntryPhysicalContractPackage::MacosArm64 => {
             package_compilation::AcceptedSemanticBindingRole::MacosArm64ProgramEntry
         }
+        target::ProgramEntryPhysicalContractPackage::MacosX64 => {
+            package_compilation::AcceptedSemanticBindingRole::MacosX64ProgramEntry
+        }
         target::ProgramEntryPhysicalContractPackage::LinuxX86_64 => {
             package_compilation::AcceptedSemanticBindingRole::LinuxX86_64ProgramEntry
         }
@@ -887,6 +890,9 @@ fn exact_bundled_physical_contract_package_source_digest(
         }
         target::ProgramEntryPhysicalContractPackage::MacosArm64 => {
             program_entry_plan::exact_macos_arm64_physical_contract_package_source_digest()
+        }
+        target::ProgramEntryPhysicalContractPackage::MacosX64 => {
+            program_entry_plan::exact_macos_x86_64_physical_contract_package_source_digest()
         }
         target::ProgramEntryPhysicalContractPackage::LinuxX86_64 => {
             program_entry_plan::exact_linux_x86_64_physical_contract_package_source_digest()

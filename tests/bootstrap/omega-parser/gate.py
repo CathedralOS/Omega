@@ -74,13 +74,13 @@ def main():
     if identity_only:
         # Host-free leg: every bound identity above is checked and the request
         # and customer byte streams are fully assembled; only the evaluator
-        # executions need a seed host (macOS arm64 or Windows x64).
+        # executions need a seed host (macOS arm64, Windows x64, or Linux x86-64).
         (directory / "evaluator.exe").stat()
         print(f"Interpreted D parser: identity legs green; "
               f"execution legs need a seed host ({len(request)}-byte receipt "
               f"request, {len(customer)}-byte customer)", flush=True)
         return
-    receipt_timeout = int(os.environ.get("OMEGA_PARSER_RECEIPT_SECONDS", "300"))
+    receipt_timeout = int(os.environ.get("OMEGA_PARSER_RECEIPT_SECONDS", "1800"))
     if receipt_timeout <= 0:
         raise SystemExit("OMEGA_PARSER_RECEIPT_SECONDS must be positive")
     receipt = evaluate(directory, delta_compiler,

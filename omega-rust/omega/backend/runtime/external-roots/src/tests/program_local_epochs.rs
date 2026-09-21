@@ -1,18 +1,16 @@
 use super::{
     entry_id, install_program_local_required_root, install_program_local_two_parameter_roots,
-    installed_code, installed_code_with_fill_and_installation_identity,
-    journaled_program_local_lifecycle, program_local_activation, program_local_claim,
-    program_local_claim_at, program_local_epoch_lease, program_local_extent_module,
-    program_local_extent_subject, program_local_lifecycle, program_local_root_catalog,
-    program_local_root_module, program_local_subject, program_local_subject_at,
-    program_local_terminal_object, program_local_two_schema_module,
-    publish_journaled_program_local_era, publish_program_local_era,
+    installed_code, installed_code_with_fill_and_installation_identity, program_local_activation,
+    program_local_claim, program_local_claim_at, program_local_epoch_lease,
+    program_local_extent_module, program_local_extent_subject, program_local_lifecycle,
+    program_local_root_catalog, program_local_root_module, program_local_subject,
+    program_local_subject_at, program_local_terminal_object, program_local_two_schema_module,
+    publish_program_local_era,
 };
 use crate::{
     EstablishedProgramLocalRoot, EstablishedProgramLocalRootCapacity,
     InstalledProgramLocalRootOccurrence, ProgramLocalRootCohortMember,
     compose_program_local_root_coexistence_report,
-    compose_program_local_root_coexistence_report_from_journal_roster,
 };
 
 #[test]
@@ -314,166 +312,6 @@ fn coexistence_report_requires_every_exact_live_epoch_without_reducing_rows() {
     )
     .expect_err("an old snapshot cannot stand in for the current live epoch");
     assert!(stale.0.contains("non-live lifecycle epoch"));
-
-    let [first_occurrence]: [InstalledProgramLocalRootOccurrence<'_, '_>; 1] = first_cohort
-        .into_runtime()
-        .cancel()
-        .try_into()
-        .expect("one first occurrence");
-    first_installation
-        .retire(first_occurrence, &mut lifecycle)
-        .expect("first coexistence occurrence remains retireable");
-    let [second_occurrence]: [InstalledProgramLocalRootOccurrence<'_, '_>; 1] = second_cohort
-        .into_runtime()
-        .cancel()
-        .try_into()
-        .expect("one second occurrence");
-    second_installation
-        .retire(second_occurrence, &mut lifecycle)
-        .expect("second coexistence occurrence remains retireable");
-}
-
-#[test]
-fn coexistence_report_composes_against_the_authoritative_replayed_journal_roster() {
-    let entry = entry_id(1);
-    let module = program_local_root_module();
-    let catalog = program_local_root_catalog(&module);
-    let terminal = program_local_terminal_object(&module);
-
-    let mut first_code = installed_code_with_fill_and_installation_identity(1, entry, 0, 300);
-    let first_code_identity = first_code.identity().normalized_identity();
-    let (mut first_root_ledger, first_root, _first_open_root) =
-        install_program_local_required_root(&mut first_code, entry, vec![program_local_claim()]);
-    let mut first_installation = first_root_ledger
-        .claim_program_local_root_installation_ledger()
-        .expect("first program-local cohort verifier");
-    let [first_prebinding] = first_installation
-        .derive_eligible_prebindings(&catalog, &terminal, [&first_root])
-        .expect("first required root prebinding")
-        .try_into()
-        .expect("one first producer schema");
-
-    let (mut lifecycle, mut journal) = journaled_program_local_lifecycle(
-        770,
-        10,
-        first_root.installed_artifact_occurrence_digest(),
-        first_code_identity,
-        "TestRoot::entry",
-    );
-    let first_lease = program_local_epoch_lease(&mut lifecycle, 870, 10, "TestRoot::entry");
-    let first_cohort = first_installation
-        .seal_epoch_cohort(
-            &lifecycle,
-            [ProgramLocalRootCohortMember::new(
-                first_prebinding.identity(),
-                &first_root,
-                first_lease,
-            )],
-        )
-        .expect("first exact epoch cohort");
-    let first_snapshot = first_cohort.aggregate_snapshot();
-
-    let mut second_code = installed_code_with_fill_and_installation_identity(2, entry, 0, 301);
-    let second_code_identity = second_code.identity().normalized_identity();
-    publish_journaled_program_local_era(
-        &mut lifecycle,
-        &mut journal,
-        20,
-        second_code.occurrence_digest(),
-        second_code_identity,
-        "TestRoot::entry",
-        220,
-        true,
-    );
-    let (mut second_root_ledger, second_root, _second_open_root) =
-        install_program_local_required_root(&mut second_code, entry, vec![program_local_claim()]);
-    let mut second_installation = second_root_ledger
-        .claim_program_local_root_installation_ledger()
-        .expect("second program-local cohort verifier");
-    let [second_prebinding] = second_installation
-        .derive_eligible_prebindings(&catalog, &terminal, [&second_root])
-        .expect("second required root prebinding")
-        .try_into()
-        .expect("one second producer schema");
-    let second_lease = program_local_epoch_lease(&mut lifecycle, 871, 20, "TestRoot::entry");
-    let second_cohort = second_installation
-        .seal_epoch_cohort(
-            &lifecycle,
-            [ProgramLocalRootCohortMember::new(
-                second_prebinding.identity(),
-                &second_root,
-                second_lease,
-            )],
-        )
-        .expect("second exact epoch cohort");
-    let second_snapshot = second_cohort.aggregate_snapshot();
-
-    // The replayed journal roster is the authoritative live-era set: composing
-    // against it yields the identical epoch-attributed report the resident
-    // ledger produces.
-    let roster = journal.replay().expect("the recorded journal replays");
-    assert_eq!(
-        roster
-            .live_eras()
-            .map(|(epoch, _, _)| epoch)
-            .collect::<Vec<_>>(),
-        lifecycle
-            .live_eras()
-            .map(|(epoch, _, _)| epoch)
-            .collect::<Vec<_>>()
-    );
-
-    let report = compose_program_local_root_coexistence_report_from_journal_roster(
-        lifecycle.identity(),
-        &roster,
-        [&second_snapshot, &first_snapshot],
-    )
-    .expect("the replayed roster composes both exact epochs");
-    assert_eq!(
-        report,
-        compose_program_local_root_coexistence_report(
-            &lifecycle,
-            [&second_snapshot, &first_snapshot],
-        )
-        .expect("the live ledger composes both exact epochs")
-    );
-
-    let foreign_ledger = effects::ComponentEraLedgerId::from_normalized_identity(771)
-        .expect("foreign ledger identity");
-    let substituted = compose_program_local_root_coexistence_report_from_journal_roster(
-        foreign_ledger,
-        &roster,
-        [&second_snapshot, &first_snapshot],
-    )
-    .expect_err("a roster bound to another lifecycle ledger rejects");
-    assert!(substituted.0.contains("another lifecycle ledger"));
-
-    // A journal missing the second publish replays to a stale roster: the era-20
-    // snapshot names an epoch that is not live, and supplying the era-10 row
-    // alone understates coexistence demand.
-    let stale_journal = effects::ComponentEraJournal::from_facts(
-        "TestRootBinding/v1".into(),
-        "TestRoot::entry".into(),
-        vec![journal.facts()[0].clone()],
-    )
-    .expect("the era-10-only journal");
-    let stale_roster = stale_journal
-        .replay()
-        .expect("the era-10-only journal replays");
-    let non_live = compose_program_local_root_coexistence_report_from_journal_roster(
-        lifecycle.identity(),
-        &stale_roster,
-        [&second_snapshot, &first_snapshot],
-    )
-    .expect_err("a snapshot for an era the roster does not retain rejects");
-    assert!(non_live.0.contains("non-live lifecycle epoch"));
-    let omitted = compose_program_local_root_coexistence_report_from_journal_roster(
-        lifecycle.identity(),
-        &roster,
-        std::iter::once(&first_snapshot),
-    )
-    .expect_err("omitting a live epoch rejects against the replayed roster");
-    assert!(omitted.0.contains("omits or adds"));
 
     let [first_occurrence]: [InstalledProgramLocalRootOccurrence<'_, '_>; 1] = first_cohort
         .into_runtime()

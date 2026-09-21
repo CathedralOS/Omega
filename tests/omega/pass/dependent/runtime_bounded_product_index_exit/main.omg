@@ -5,7 +5,7 @@
 // is total without changing the mathematical coupling.
 // The strict dependent params carry `y < rows` / `x < cols`; the rule
 // bounds `y * self.cols` by K (multiply half) and `y*cols + x` by K-1
-// (add half) -- so the ranged temp `idx: u32 [0..=11]` STORE-PROVES (the
+// (add half) -- so the ranged temp `idx: u32 (requires 0 <= it <= 11)` STORE-PROVES (the
 // containment keystone) and the index rides its declared range. The
 // coupling machine never writes the dims (machine-wide preservation is
 // the entry-fact bridge); the caller proves the coupling by guard.
@@ -36,11 +36,15 @@ machine Main::main(&mut self) reaches Console {
 machine Main::walk(&mut self)
 requires (self.rows as u64) * (self.cols as u64) <= 12 {
     transition self.j < self.rows && self.k < self.cols { true -> read(self.j, self.k) _ -> miss() }
-    state read(&mut self, y: u32 [0..self.rows], x: u32 [0..self.cols]) {
-        let idx: u32 [0..=11] = y * self.cols + x;
+    state read(&mut self, y: u32, x: u32)
+        requires y < self.rows, x < self.cols
+    {
+        let idx: u32 = y * self.cols + x;
         transition self.pixels[idx] == 7 { true -> direct(y, x) _ -> miss() }
     }
-    state direct(&mut self, y: u32 [0..self.rows], x: u32 [0..self.cols]) {
+    state direct(&mut self, y: u32, x: u32)
+        requires y < self.rows, x < self.cols
+    {
         // R3b: the DIRECT spelling -- the hoist synthesis mirrors the
         // product rule, so the temp's range carries the coupling bound.
         self.out = self.pixels[y * self.cols + x] as i32;

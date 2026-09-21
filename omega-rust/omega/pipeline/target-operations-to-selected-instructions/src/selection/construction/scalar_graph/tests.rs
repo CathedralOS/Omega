@@ -1,10 +1,11 @@
 //! Projection controls over raw graph data; no source-admission receipt is invented.
 use super::{
-    FuelSettlement, IntegerSign, LegalizedScalarFunction, LegalizedScalarInstructionKind,
-    PsiProvenance, RegisterOperandAccess, ScalarType, SelectedFixedInputConstraint,
-    SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints, SelectedTerminator,
-    ValueDefinitionSite, ValueId, ValueLocation, VirtualRegisterId, build,
+    IntegerSign, LegalizedScalarFunction, LegalizedScalarInstructionKind, RegisterOperandAccess,
+    ScalarType, SelectedFixedInputConstraint, SelectedFunction, SelectedInstructionKind,
+    SelectedSelectionConstraints, SelectedTerminator, ValueDefinitionSite, ValueId, ValueLocation,
+    VirtualRegisterId, build,
 };
+use optimization_unit::{FuelSettlement, PsiProvenance};
 mod aggregate_returns;
 mod boolean_equality;
 mod boolean_values;

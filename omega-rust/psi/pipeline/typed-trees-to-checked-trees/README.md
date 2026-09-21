@@ -492,10 +492,11 @@ the indexed form rather than becoming an element-sized loan.
 [Source lifetimes](../../../../wiki/spec/language/lifetimes.md) owns the contract.
 [view_link.rs](src/borrow/view_link.rs) supplies one shared result-source query
 to declaration checks and loan attribution. It maps explicit result lifetimes
-to one input parameter and its complete matching structural leaves, retaining
-each result/source path and access. Reusing one lifetime on multiple input
-parameters currently rejects; it is not implementation of a general
-multiple-source return relation. Unannotated multiple carried sources also
+to the input parameters carrying the same lifetime and their complete matching
+structural leaves, retaining each result/source path and access. One lifetime
+shared by multiple input parameters names the union: every parameter carrying
+the lifetime contributes its matching leaves as candidate sources, each of
+which must supply the result's access. Unannotated multiple carried sources
 reject rather than selecting one by name.
 
 [Elision checking](src/checks/borrows/elision.rs) distinguishes incomplete

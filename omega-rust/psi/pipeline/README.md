@@ -209,15 +209,18 @@ and the current language specification must agree.
 
 The settled [value-binder contract](../../../wiki/spec/language/generics.md#value-binders-and-const-requirements)
 distinguishes runtime-capable `Count: u32` from static `const Count: u32`.
-The current static-index evaluator and instance cache do not implement the new
-runtime-value path. Preserve rejection of runtime subjects in const applications;
-do not turn a failed constant evaluation into a guessed value or runtime fallback.
+Distinct binder kinds, exact runtime-subject substitution, and ordinary operand
+lowering with checked representation/custody are landed for machine signatures
+(`monomorphization::runtime_value_bindings`). Preserve rejection of runtime
+subjects in const applications; do not turn a failed constant evaluation into a
+guessed value or runtime fallback.
 
-Implement distinct binder kinds, exact runtime-subject substitution, and ordinary
-operand lowering with checked representation/custody under `RUNTIME-VALUE-GENERICS`
-on the [execution board](../../../TASKS.md). Runtime witnesses are not canonical
-static index bytes. Scope/name resolution, parameter modes, contract dependencies,
-and result identity must survive through Terminal and artifact replay.
+Runtime witnesses are not canonical static index bytes. Scope/name resolution,
+parameter modes, contract dependencies, and result identity survive through
+Terminal and artifact replay, and stay that way. The residual legs — the
+contract/domain-qualification work and layout-determining uses, which still
+reject — remain under `RUNTIME-VALUE-GENERICS` on the
+[execution board](../../../TASKS.md).
 
 The [structural type-equation rules](../../../wiki/spec/language/generics.md#structural-type-equations-and-inference)
 require inference from exact type/domain applications and their explicit argument
@@ -349,10 +352,11 @@ in bodies have namespace coverage. Scalar constants include qualified Terminal
 selection and independently executable artifacts; nominal aggregate body uses
 have checked-source coverage. Constant substitution
 uses exact module/package selection after lexical name assignment and retains
-the selected declaration at the original use. This is not completion of the
-[module/name contract](../../../wiki/spec/language/modules.md):
-remaining indexed domain constraints, operator homes and qualified case membership
-in declared-domain proof facts still need end-to-end selection coverage.
+the selected declaration at the original use. The rest of the
+[module/name contract](../../../wiki/spec/language/modules.md) rides the same
+law: indexed domain constraints, operator homes and qualified case membership
+in declared-domain proof facts all select through it (`module_machine_indices`
+probes and the `module_normalization` tests pin the boundaries).
 
 Closed integer- and Boolean-indexed constraints on scalar constants replay nested declared
 domain memberships in each fact author's import context. Forwarded indices keep

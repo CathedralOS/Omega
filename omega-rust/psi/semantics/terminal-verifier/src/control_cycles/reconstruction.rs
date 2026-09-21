@@ -177,13 +177,48 @@ pub fn control_cycle_identity(
     machine: &TerminalMachine,
     component: &TerminalNaturalCycle,
 ) -> CycleComponentId {
+    let edges = component
+        .edges
+        .iter()
+        .map(|edge| (edge.edge, edge.source, edge.target));
+    topology_identity(machine, edges)
+}
+
+/// Topology-derived component identity for a cyclic component that carries no
+/// producer ranking row — the name an absence-of-bound report uses when an
+/// unranked component is the directed cause. Validation pins a producer's
+/// component edges to ascending edge-id order covering exactly the members'
+/// internal edges, so for any member set a producer later ranks this identity
+/// equals `control_cycle_identity` on that row.
+pub fn cyclic_component_identity(
+    machine: &TerminalMachine,
+    members: &[BlockId],
+) -> CycleComponentId {
+    let member_set: std::collections::BTreeSet<BlockId> = members.iter().copied().collect();
+    let outgoing = crate::control_graph::successors(machine);
+    let mut internal: Vec<(EdgeId, BlockId, BlockId)> = Vec::new();
+    for member in members {
+        for (edge, target) in outgoing.get(member).into_iter().flatten() {
+            if member_set.contains(target) {
+                internal.push((*edge, *member, *target));
+            }
+        }
+    }
+    internal.sort();
+    topology_identity(machine, internal)
+}
+
+fn topology_identity(
+    machine: &TerminalMachine,
+    edges: impl IntoIterator<Item = (EdgeId, BlockId, BlockId)>,
+) -> CycleComponentId {
     let mut digest = Sha256::new();
     digest.update(b"psi.control-cycle.topology.v1\0");
     digest.update(machine.id.get().to_le_bytes());
-    for edge in &component.edges {
-        digest.update(edge.edge.get().to_le_bytes());
-        digest.update(edge.source.get().to_le_bytes());
-        digest.update(edge.target.get().to_le_bytes());
+    for (edge, source, target) in edges {
+        digest.update(edge.get().to_le_bytes());
+        digest.update(source.get().to_le_bytes());
+        digest.update(target.get().to_le_bytes());
     }
     semantic_id(&digest.finalize().into())
 }

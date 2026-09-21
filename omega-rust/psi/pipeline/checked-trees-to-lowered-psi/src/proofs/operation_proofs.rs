@@ -111,6 +111,17 @@ fn finalize_operation_proofs_inner(
                     machine_parameter_values,
                 )
             })
+            // Contract `Atom` cites — a retained float-meaning equality row,
+            // for example — are vocabulary-level goals the integer producers
+            // cannot shape; they still discharge through the site's retained
+            // facts and semantic axioms, the same route non-owner sites take.
+            .or_else(|| {
+                proof_from_available_facts(
+                    &site.obligation.proposition,
+                    assumptions,
+                    &site.semantic_axioms,
+                )
+            })
         } else {
             proof_from_available_facts(
                 &site.obligation.proposition,

@@ -1,0 +1,14 @@
+machine build(builder: &mut Build) {
+    builder.application("preserve-unknown-demand-unsatisfiable");
+    builder.require_wire_compatibility<
+        RelayChannel,
+        MessageLineage,
+        LocalMessage,
+        PeerMessage,
+        Readable,
+        Writable,
+        PreserveUnknown,
+        Canonical,
+        CompleteMigration
+    >();
+}

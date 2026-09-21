@@ -49,8 +49,10 @@ fn module_with_array(
     });
     machine.blocks[block_position].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation,
         result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place,
             structural_type: array_type,
             multiplicity,

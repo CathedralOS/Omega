@@ -2,6 +2,7 @@
 //! places, accesses and the block fixtures.
 
 mod cross_block_forwarding;
+mod independence_tests;
 mod same_block_forwarding;
 
 use crate::{

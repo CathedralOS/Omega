@@ -26,6 +26,9 @@ pub enum RequestedCompileProduct {
 pub(super) struct SharedCompileInputs {
     pub(super) root_path: PathBuf,
     pub(super) requested_product: RequestedCompileProduct,
+    /// Collect per-stage measurements into every checked record's timing
+    /// accumulator; the report carries the recorded ladder.
+    pub(super) timings: bool,
 
     pub(super) package_sources: Option<Arc<PackageCompilationSourceInputs>>,
 }
@@ -145,6 +148,7 @@ impl CompileRequest {
             shared: SharedCompileInputs {
                 root_path: options.root_path,
                 requested_product: RequestedCompileProduct::Check,
+                timings: false,
 
                 package_sources: None,
             },
@@ -247,6 +251,12 @@ impl CompileRequest {
         self
     }
 
+    /// Record per-stage timings on every produced report.
+    pub fn with_timings(mut self, timings: bool) -> Self {
+        self.shared.timings = timings;
+        self
+    }
+
     pub(super) fn validate_for_execution(self) -> Result<ValidatedCompileRequest, Vec<Diagnostic>> {
         if self.configurations.is_empty() {
             return Err(vec![Diagnostic::error(
@@ -273,13 +283,17 @@ impl CompileRequest {
                         configuration.target_name = Some(host.target_name().to_owned());
                     }
                     None => {
-                        diagnostics.push(Diagnostic::error(
+                        let catalogued = TargetProfile::ALL
+                            .into_iter()
+                            .filter(|profile| profile.native_realization().is_some())
+                            .map(|profile| profile.target_name())
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        diagnostics.push(Diagnostic::error(format!(
                             "native production needs an exact target profile: none was \
                              named and this host has no catalogued Omega deployment \
-                             profile (name one of linux_arm64, linux_x86_64, \
-                             macos_arm64, windows_x86_64, uefi_x86_64, \
-                             cross_platform_cli, or local_unchecked)",
-                        ));
+                             profile (name one of {catalogued})"
+                        )));
                         continue;
                     }
                 }
@@ -331,9 +345,10 @@ impl CompileRequest {
                     profile
                 )));
             }
+            let staging = options.build_dir_identity();
             if targets
                 .iter()
-                .any(|target| target.options.build_dir() == options.build_dir())
+                .any(|target| target.options.build_dir_identity() == staging)
             {
                 diagnostics.push(Diagnostic::error(format!("target configurations name the same build directory `{}`; each target requires separate staging", options.build_dir().display())));
             }

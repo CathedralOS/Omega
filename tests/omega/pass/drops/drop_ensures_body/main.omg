@@ -1,0 +1,25 @@
+// A `drop` body is an ordinary Unit machine: an `ensures` clause on the
+// hook is a real postcondition — the body runs at the cleanup edge, so the
+// claimed domain fact is one the body established.
+
+data Lock {
+    held: i32;
+}
+
+domain Lock::Released
+requires
+    self.held == 0;
+
+machine Lock::drop(&mut self)
+ensures
+    self in Lock::Released
+{
+    self.held = 0;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let l: Lock = Lock { held: 0 };
+}

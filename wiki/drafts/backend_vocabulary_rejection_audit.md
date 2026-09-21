@@ -2,7 +2,11 @@
 
 Sweep of every wire-decode point under `omega-rust/omega/backend/` at
 `22e6066e9f` where a byte-level marker, kind, tag, or schema field maps onto a
-closed vocabulary. For each surface the audit asks two questions: does every
+closed vocabulary. Re-recorded at `2dbfecd98e4`: every audited path is
+byte-identical to `bc6c5788e0` (empty `git diff` per directory — decoders,
+the `admit` seam and all cited tests unchanged; the only in-range edits were
+clerical `suspension_crossing: None` fixture fields). `nodes.rs` still maps
+the fall-through to `UnsupportedFamily` (`nodes.rs:39,378,435`). For each surface the audit asks two questions: does every
 non-admitted value reject with a named diagnostic (no `unreachable!`, no
 silent acceptance), and does a test exercise that rejection?
 
@@ -104,6 +108,68 @@ Coverage: `compiler/tests/realization_custody.rs` maps every
   `external-roots`, and `component_verification.rs` sit under sibling claims
   at audit time; each already routes unknown values through named diagnostics.
 
+## Operation vocabulary — `target-operations-to-selected-instructions`
+
+The other half of this item's territory, audited at `3a505ad6ff`: every
+`AbstractOperation` family that reaches the backend is either legalized and
+selected or cleanly refused — never silently miscompiled, never panicked on.
+The classification seam is `legalization/scalar_graph_input/nodes.rs::admit`.
+
+### Admission (`nodes.rs` + `control.rs`)
+
+`admit` classifies every `OptimizationNode.operation`:
+
+- seventeen non-scalar families (`EstablishRecord`, `PrimitiveLocalStore`, …)
+  return `Ok` immediately with no scalar row;
+- `BoundaryCall` admits conditionally;
+- each listed scalar family admits only under its payload guards
+  (`scalar_shape`, `valid_literal`, `saturating_carrier`,
+  `supports_wrapping_divide_i64`, `supports_signed_wrapping_remainder`,
+  `exact_cast_has_native_carriers`), with malformed payloads re-classified;
+- the catch-all returns `NodeRejection::UnsupportedFamily`.
+
+`nodes::validate` maps `Malformed` to `SourceCustodyMismatch` and
+`UnsupportedFamily` to `LegalizationError::UnsupportedScalarOperation`,
+carrying the machine and the operation itself. Terminators are classified by
+`control.rs`: `Crash`, `StructuralCase`, `ReturnStructural`, `ReturnUnit`,
+`Return`, `Jump` (only with `residual_affine_discards.is_empty()`), and
+`Conditional` admit; every other operation in terminator position refuses as
+custody-invalid.
+
+Fourteen well-formed families currently refuse at this seam:
+`StoreDynamicDescriptor`, `WriteOnlyIndexedPrimitiveStore`,
+`MoveStructuralField`, `StoreStructuralField`, `AtomicEvent`,
+`EstablishTrivialAffineLocal`, `CallUnitWithDynamicArguments`,
+`CallStructuralScalarWithDynamicArguments`, `CallDynamicScalar`,
+`CallStoredDynamicScalar`, `CallDynamicUnit`, `PortWrite`,
+`NearestIeeeFloatFusedMultiplyAdd`, `SaturatingIntegerMultiply`. Each is a
+deliberate "not yet realized" admission boundary (e.g. FMA is tracked by
+FLOAT-FMA-NATIVE-TRANSPORT), not a hole.
+
+### Selection coverage
+
+Every `LegalizedScalarInstructionKind` variant (51 today) has a construction
+arm in `selection/construction/scalar_graph.rs`: the outer `match
+&operation.kind` is exhaustive with no wildcard, so an uncovered kind fails at
+compile time, not at runtime. Per-target encodability is data-driven through
+`SelectedConstraintKeys` `Option` fields — a key absent on a target (e.g.
+`hosted_read_byte` is `Some` only on `linux_x64`) refuses via
+`.ok_or_else(invalid)` as `SelectedInstructionError`. Admitted-but-unencodable
+is therefore a named refusal, never a silent miscompile; its
+`SourceCustodyMismatch` variant label does misname a capability gap
+(observation only, not a defect). The single `unreachable!` in selection
+(shift dispatch) is reachable only from the four shift-kind arm patterns and
+is guarded by them.
+
+### Pre-validation matchers
+
+Every `match` on `node.operation` outside `nodes.rs`/`control.rs` is either a
+selective probe before admission (`primitive_locals`, `byte_views`, `header`,
+`aggregate_results` — each can only produce `Err`/`None` on the shapes it
+examines and otherwise defers to `admit`) or a post-`validate` replay
+(`source/scalar_graph::instruction`, `validate_target`), whose catch-alls
+return `SourceCustodyMismatch`. None panic on vocabulary.
+
 ## Findings
 
 1. **component-description tag coverage gap (fixed here):** six vocabulary
@@ -117,9 +183,40 @@ Coverage: `compiler/tests/realization_custody.rs` maps every
    trusted for `Vec::with_capacity` before bounds validation). The Psi-side
    codec is outside this audit's claimed paths; worth a follow-up board item
    for allocation-before-validation in terminal-codec readers.
+3. **Operation-vocabulary seam verified, pin added:** the
+   `UnsupportedScalarOperation` route produces a named
+   `LegalizationError` carrying machine and operation, which propagates
+   through `OptimizedSelectionPipelineError::Legalization` and
+   `OptimizedVerifiedPhysicalPipelineError::Selection` to
+   `selected_physical_pipeline_failed` — an ordinary `Vec<Diagnostic>`, no
+   abort. `admission_vocabulary_tests.rs` pins the `UnsupportedFamily`
+   classification for refused families and the named-diagnostic mapping.
+   (The pre-existing `PortWrite` leg in `tests/legalization/scalar_call_unit.rs`
+   asserts only `.is_err()` on an abstract-side plan mutation that refuses at
+   custody derivation — it does not exercise the named route.)
 
 ## Evidence
 
-- `cargo nextest run -p component-description --lib` — 23/23 pass.
-- `cargo clippy -p component-description --all-targets` — clean.
-- `cargo fmt --check` — clean.
+Recorded at `22e6066e9f`; re-witnessed at `bc6c5788e0`; re-recorded against
+`2dbfecd98e4` (linux x86-64). HEAD does not compile — `terminal-verifier`'s
+`StructuralTypeShape` matches went non-exhaustive when `04f2fdbb853ea` added
+`ElementView` — so the suites were run at `40a3556906dc1` (the breaking
+commit's parent), where every audited path is byte-identical to
+`2dbfecd98e4`:
+
+- `git diff bc6c5788e0..2dbfecd98e4 -- <every audited directory>` — empty of
+  semantic edits; only `suspension_crossing: None` fixture fields and an
+  import-list style change, all from `09b96a4a1f05a`.
+- `cargo nextest run -p component-description --lib` — 22/24 pass at
+  `40a3556906dc1`. All vocabulary-rejection pins stand
+  (`every_closed_wire_vocabulary_rejects_a_non_admitted_tag`,
+  `non_utf8_identities_reject`, `zero_service_identity_in_a_bound_rejects`,
+  `oversized_descriptions_reject_before_decoding`, `wire::*` battery). Two
+  `component_verification::tests` fixtures fail with
+  `InvalidSuspensionCallPlan { reason: UnmarkedCallSide }` — an unrelated
+  pre-existing regression introduced when `09b96a4a1f05a`'s
+  suspension-crossing demand began validating the fixtures' unmarked
+  `BoundaryCall` operations; the audit surface itself is untouched.
+- `cargo nextest run -p target-operations-to-selected-instructions -E
+  'test(~admission_vocabulary)'` — 2/2 pass at `40a3556906dc1`.
+- Earlier runs: 24/24 + clippy/fmt clean at `bc6c5788e0`.

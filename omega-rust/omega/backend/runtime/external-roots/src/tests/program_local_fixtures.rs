@@ -10,9 +10,9 @@ use crate::{
     ProgramLocalRootPrebindingId, ProgramLocalRootScalarBinding, ProgramLocalRootSubjectPlaceId,
 };
 use effects::{
-    ComponentEraCandidate, ComponentEraEntryLedger, ComponentEraEntryReceipt, ComponentEraJournal,
-    ComponentEraLedgerId, ComponentEraPublicationReceipt, ExecutableTcbManifest,
-    ExecutableTcbProfile, ExecutableTcbProfileAcceptance, ExecutionScope, IncompleteScopePolicy,
+    ComponentEraCandidate, ComponentEraEntryLedger, ComponentEraEntryReceipt, ComponentEraLedgerId,
+    ComponentEraPublicationReceipt, ExecutableTcbManifest, ExecutableTcbProfile,
+    ExecutableTcbProfileAcceptance, ExecutionScope, IncompleteScopePolicy,
     ProgramLocalRootEpochLeaseId, ScopeCompleteness, evaluate_executable_tcb_profile,
 };
 use extents::{
@@ -96,6 +96,7 @@ pub(super) fn program_local_root_module() -> TerminalModule {
             },
         }],
         structural_domains: vec![StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: qualification,
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1)
                 .expect("semantic domain identity"),
@@ -172,6 +173,7 @@ pub(super) fn program_local_root_module() -> TerminalModule {
             entry: semantic_vocabulary::BlockId::new(1).expect("block identity"),
             blocks: vec![terminal_psi::Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: semantic_vocabulary::BlockId::new(1).expect("block identity"),
                 parameters: Vec::new(),
@@ -183,6 +185,7 @@ pub(super) fn program_local_root_module() -> TerminalModule {
             }],
             contract: terminal_psi::MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: semantic_vocabulary::ContractId::new(1).expect("contract identity"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -398,26 +401,6 @@ pub(super) fn program_local_lifecycle(
     artifact_instance_compatibility_report_identity: u64,
     entry_contract_identity: &str,
 ) -> ComponentEraEntryLedger {
-    journaled_program_local_lifecycle(
-        ledger_identity,
-        era_identity,
-        artifact_occurrence_digest,
-        artifact_instance_compatibility_report_identity,
-        entry_contract_identity,
-    )
-    .0
-}
-
-/// A program-local lifecycle whose accepted ledger transitions are also
-/// recorded into a fresh journal bound to the same fixture contracts. Replay
-/// of the returned journal reconstructs the ledger's live-era roster.
-pub(super) fn journaled_program_local_lifecycle(
-    ledger_identity: u64,
-    era_identity: u64,
-    artifact_occurrence_digest: installation_evidence::InstalledArtifactOccurrenceDigest,
-    artifact_instance_compatibility_report_identity: u64,
-    entry_contract_identity: &str,
-) -> (ComponentEraEntryLedger, ComponentEraJournal) {
     let mut ledger = ComponentEraEntryLedger::new(
         ComponentEraLedgerId::from_normalized_identity(ledger_identity)
             .expect("component-era ledger identity"),
@@ -427,10 +410,7 @@ pub(super) fn journaled_program_local_lifecycle(
         program_local_tcb_acceptance(ledger_identity),
     )
     .expect("component-era ledger");
-    let mut journal =
-        ComponentEraJournal::new("TestRootBinding/v1".into(), entry_contract_identity.into())
-            .expect("component-era journal");
-    journal.record_publication(&publish_program_local_era_receipt(
+    publish_program_local_era(
         &mut ledger,
         era_identity,
         artifact_occurrence_digest,
@@ -438,31 +418,8 @@ pub(super) fn journaled_program_local_lifecycle(
         entry_contract_identity,
         era_identity + 100,
         false,
-    ));
-    (ledger, journal)
-}
-
-/// Publish one era on the journaled lifecycle and record the same accepted
-/// receipt into its journal.
-pub(super) fn publish_journaled_program_local_era(
-    ledger: &mut ComponentEraEntryLedger,
-    journal: &mut ComponentEraJournal,
-    era_identity: u64,
-    artifact_occurrence_digest: installation_evidence::InstalledArtifactOccurrenceDigest,
-    artifact_instance_compatibility_report_identity: u64,
-    entry_contract_identity: &str,
-    publication_identity: u64,
-    previous_era_closed: bool,
-) {
-    journal.record_publication(&publish_program_local_era_receipt(
-        ledger,
-        era_identity,
-        artifact_occurrence_digest,
-        artifact_instance_compatibility_report_identity,
-        entry_contract_identity,
-        publication_identity,
-        previous_era_closed,
-    ));
+    );
+    ledger
 }
 
 pub(super) fn publish_program_local_era(
@@ -474,26 +431,6 @@ pub(super) fn publish_program_local_era(
     publication_identity: u64,
     previous_era_closed: bool,
 ) {
-    let _receipt = publish_program_local_era_receipt(
-        ledger,
-        era_identity,
-        artifact_occurrence_digest,
-        artifact_instance_compatibility_report_identity,
-        entry_contract_identity,
-        publication_identity,
-        previous_era_closed,
-    );
-}
-
-fn publish_program_local_era_receipt(
-    ledger: &mut ComponentEraEntryLedger,
-    era_identity: u64,
-    artifact_occurrence_digest: installation_evidence::InstalledArtifactOccurrenceDigest,
-    artifact_instance_compatibility_report_identity: u64,
-    entry_contract_identity: &str,
-    publication_identity: u64,
-    previous_era_closed: bool,
-) -> ComponentEraPublicationReceipt {
     let candidate = ComponentEraCandidate {
         era_identity,
         artifact_occurrence_digest,
@@ -512,9 +449,8 @@ fn publish_program_local_era_receipt(
         previous_era_closed,
     );
     ledger
-        .publish(candidate, receipt.clone())
+        .publish(candidate, receipt)
         .expect("publish component era");
-    receipt
 }
 
 pub(super) fn program_local_epoch_lease(

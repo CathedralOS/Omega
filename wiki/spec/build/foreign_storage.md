@@ -113,3 +113,52 @@ a value absent at entry. Write-only access transfers no durable custody.
 Identity-only retention is a stable keepalive claim lending no view. Typed
 construction into storage with no live `T` is a separate feature, not another
 interpretation of `&write`.
+
+## Status
+
+This records current implementation evidence against the sections above; it is
+a status annotation, not a contract amendment. Surveyed at `500878c473`
+(linux x86-64).
+
+Enforced today:
+
+- Outbound custody dispositions are explicit in
+  `omega-rust/omega/backend/runtime/external-roots/src/program_local/
+  program_local_extents/retained_foreign_arguments.rs`: call-scoped arguments
+  stay borrows minted through `loan_under_activation`/
+  `loan_mut_under_activation` under the establishing activation, and
+  longer-lived dispositions are recorded as `LifetimeBorrowed`, `Moved`, or
+  `Snapshot` custody entries — matching this chapter's three retained routes.
+  Unknown ambient backing and substituted mapping revisions reject there, the
+  provenance refusal this chapter requires.
+- Foreign calls carry a normalized shape end to end: `normalized_foreign`/
+  `normalized_foreign_call` surfaces run through
+  `native-realization` (`providers/settlements`, `terminal_authority_policy` —
+  `validate_boundary_entry_plan` validates the boundary entry plan against the
+  call signature), `post-allocation-machine-to-selected-form-encoding` row
+  encoding and validation, `target-operations-to-selected-instructions`
+  legalization, both ISA encoders (`isa-x86_64`, `isa-aarch64`
+  `selected_form_encoding`), and `image-emission` `object_artifact`
+  `normalized_foreign_calls`.
+- Provider-backed field classification and foreign-receipt rejection sit in the
+  checked-content suite (`typed-trees-to-checked-trees` `checks::content`;
+  recorded 14/14 green on the board at `a0591618c7ba`/later re-verifications).
+- Authored rejections are pinned by corpus fixtures:
+  `tests/omega/fail/entry/service_foreign_domain_rejected`,
+  `tests/omega/fail/expressions/token_bound_machine_foreign_family_rejected`,
+  `tests/omega/fail/core/content_projection_foreign_owner`, and the
+  termination `*_foreign*` rejection rows.
+- Write-only foreign access leans on the ordinary write-only enforcement
+  surfaces (`checks/multiplicity/borrowed_windows.rs`,
+  `checks/multiplicity/linear_validation/recorded_events.rs`,
+  `checks/contracts/exits/scalars/write_transport.rs`,
+  `checks/ranges/facts/call_writes.rs`).
+
+Open frontier, unchanged:
+
+- The provider-planning to native-settlement join for the installed occurrence
+  is not landed; the surviving lane records live on the board under
+  `PROVIDER-ATTACHMENT-MACHINE-PLAN`.
+- The boundary-ABI lane for opaque-by-value carriers is open under
+  `OPAQUE-BY-VALUE-BOUNDARY-ABI`.
+- The `external-roots` subtrees continue under their own spec-alignment leg.
