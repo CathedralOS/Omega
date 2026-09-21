@@ -1,7 +1,7 @@
 # Finite Beta encoding theory diagnostics
 
 Run `sh tests/gamma/beta-encoding-theory/run.sh` from the repository root on
-macOS arm64 or Windows x64 Git Bash, with Python 3 available as `python3`.
+macOS arm64 or Linux x86-64, or Windows x64 Git Bash, with Python 3 available as `python3`.
 The same command applies on both hosts; PowerShell is not required.
 Missing Python explicitly skips; unsupported hosts fail with status 2.
 The gate prints the executing host. A result on one host does not establish
