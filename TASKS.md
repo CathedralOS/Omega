@@ -3029,10 +3029,11 @@ Owners include
   private channel exists but no native product for a callback does:
   callback thunks now lower to machine code inside realization and reach the
   emitted object as private functions, and the direct-parameter witness
-  `direct_callback_relocation_resolves_to_its_private_function` still stops
-  where `construction::build_plan` rejects the materialized registrar row
-  with `Selection(SourceCustodyMismatch)` — the common instruction pipeline
-  still carries no callback ABI transport.
+  `direct_callback_relocation_resolves_to_its_private_function` now crosses
+  selection, allocation and emission and stops at the native-artifact
+  fragment import custody join, which rejects an import row whose retained
+  relocation carries no selected callback custody (`fragment import lacks
+  selected call custody`).
 
   Remaining work:
 
@@ -3062,12 +3063,23 @@ Owners include
     evidence. `callback_custody` covers a two-slot registrar materializing
     both thunks into one object, plus foreign-identity, duplicate-symbol and
     substituted-roster rejections.
-  - Give the common instruction pipeline callback ABI transport. Selection's
-    `construction::build_plan`
-    (`target-operations-to-selected-instructions/src/selection/construction/`)
-    has no callback awareness and rejects the materialized registrar's extra
-    private parameter slot with `SourceCustodyMismatch`; the retained roster
-    the transport needs already lands on `TargetOperationPlan`.
+  - Landed: the common instruction pipeline carries callback ABI transport.
+    The retained roster's `TargetNativeCallbackArgument` lands on
+    `LegalizedNormalizedForeignCall.callback`, legalization source custody
+    admits it (`native_callback_at`), replay rejects a substituted roster,
+    and the selected codec round-trips it. A register-resident private slot
+    is transport pinned at the call, not a value operand — the private-
+    callback contract gives it no semantic runtime formal — so each
+    register-unit-call catalog emits callback-position row variants whose
+    operands omit the pinned position and whose `implicit_uses` join the
+    callback view's units to the stack baseline (x86-64 System V 4000-series,
+    Microsoft 4600-series; aarch64 3600-/4600-series). `call_key` and
+    `validate` in `selection/scalar_call_abi/normalized_foreign.rs` bind the
+    expected implicit-use set to the retained placement and reject scalar
+    arguments at the callback ordinal, while `plan_operand_views` and
+    `structural_parameter_positions` project around the interleaved slot;
+    the witness's materialized registrar row now crosses
+    `construction::build_plan`.
   - Add a layout-field address destination. `CallbackAddressDestination`
     (`machine-code/src/machine_code/calls/callbacks.rs`) has only `Register`
     and `OutgoingStack`; `validate_callback_address_bytes` and relocation
@@ -3113,9 +3125,14 @@ Owners include
   while the fixtures still carried their own copy of `calling.omg`, so each
   compile died on duplicate declarations before reaching any callback
   behavior. Composing them like the Windows hosted-receiver fixture, with the
-  standard library as an ordinary dependency, takes the suite to 5 of 6; the
-  remaining failure is the documented wall, callback ABI transport absent
-  from the common instruction pipeline. Other fixtures that bind
+  standard library as an ordinary dependency, took the suite off that wall;
+  it now runs 4 of 6 with two documented stops: the direct-parameter witness
+  reaches the native-artifact fragment import custody join (the receiving-
+  stage bullet's surface), and
+  `a_package_local_calling_copy_rejects_beside_the_standard_library_entry`
+  fails on a pre-existing boundary-schema regression (`retains 0 evaluated
+  calling plans for semantic requirement ProgramStorageEntry::enter`)
+  reproduced on aebd2c1a8d without the transport slice. Other fixtures that bind
   `windows_x86_64::ProgramEntry` beside a package-local library copy may have
   broken the same way at that commit, and one had: `calling_policy_plans` was
   45 of 59. `hosted_entry_contract_seed` seeds the authored target contract
