@@ -2498,3 +2498,108 @@ fn inflow_relocation_is_deterministic_and_re_admitted() {
         vec![MID, MOVING, TAIL]
     );
 }
+
+/// Independence of the validator's own audit from the producer's
+/// admission: every proposal below is built by editing the selected plan
+/// directly — no producer admission runs — so a rejection can only come
+/// from the validator's own reconstruction of the legality or the
+/// restore-by-content comparison.
+mod independence_tests {
+    use super::{
+        BLOCK_J, InflowRelocationError, MID, MOVING, NativeTarget, PlaceId,
+        SelectedInstructionPlan, SelectedMemoryAccessRole, T_TAIL, ValidatedInflowRelocation,
+        access, baseline_target_register_environment, budget, fixture, mutated, settlement,
+        validate_inflow_relocation,
+    };
+
+    /// The edit a producer emitting `MOVING`'s inflow relocation would
+    /// publish: the member leaves the join block's body and lands on
+    /// `T_TAIL`'s index in the inflow block. Built by editing the source
+    /// plan directly — no admission runs.
+    fn forged(source: &ValidatedInflowRelocation) -> SelectedInstructionPlan {
+        let mut proposed = source.transformed().clone();
+        let function = &mut proposed.functions[0];
+        let moved = function.blocks[3].instructions.remove(1);
+        function.blocks[1].instructions.insert(1, moved);
+        proposed
+    }
+
+    /// A forged landing of the legal pair validates on the validator's
+    /// own audit: the reconstruction derives the join block, the inflow
+    /// predecessor, and the landing index from the source, and the
+    /// content restore reproduces the source bit-for-bit.
+    #[test]
+    fn forged_landing_of_a_legal_pair_validates() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        validate_inflow_relocation(
+            &source,
+            0,
+            MOVING,
+            T_TAIL,
+            &environment,
+            budget(),
+            forged(&source),
+        )
+        .unwrap();
+    }
+
+    /// A producer that admitted the pair with a settlement observing the
+    /// member inside the join's executed prefix would still publish this
+    /// edit. The validator's own audit refuses with `UnsupportedPair`,
+    /// not a replay mismatch, because it reconstructs the settlement
+    /// window instead of trusting the producer's admission record.
+    #[test]
+    fn forged_move_past_an_inflow_settlement_rejects_on_the_audit() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, _| {
+            function
+                .boundary_settlements
+                .push(settlement(BLOCK_J, 2, 41));
+        });
+        assert_eq!(
+            validate_inflow_relocation(
+                &source,
+                0,
+                MOVING,
+                T_TAIL,
+                &environment,
+                budget(),
+                forged(&source),
+            )
+            .unwrap_err(),
+            InflowRelocationError::UnsupportedPair
+        );
+    }
+
+    /// A forged proposal carrying an unrelated mutation — here a third
+    /// roster row — fails the restore-by-content comparison even though
+    /// the member's move itself is shaped correctly.
+    #[test]
+    fn forged_unrelated_roster_edit_rejects_as_replay() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        let mut proposed = forged(&source);
+        proposed.functions[0].memory_accesses.push(access(
+            MID,
+            PlaceId::new(7).unwrap(),
+            SelectedMemoryAccessRole::ReadPlace,
+        ));
+        assert_eq!(
+            validate_inflow_relocation(
+                &source,
+                0,
+                MOVING,
+                T_TAIL,
+                &environment,
+                budget(),
+                proposed,
+            )
+            .unwrap_err(),
+            InflowRelocationError::ReplayMismatch
+        );
+    }
+}
