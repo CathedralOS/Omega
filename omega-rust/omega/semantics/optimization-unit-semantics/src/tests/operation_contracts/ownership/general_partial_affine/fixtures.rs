@@ -345,7 +345,7 @@ fn build_unit(
                 requirement_identity: unit.boundary_machines[0].identity.clone(),
                 upper_bound: vec![service],
             }];
-        crate::refresh_root_service_reach(&mut unit)
+        crate::unit_validation::services::refresh_root_service_reach(&mut unit)
             .expect("factory requirement retains its installation-bound service reach");
         crate::tests::refresh_identity(&mut unit);
     }

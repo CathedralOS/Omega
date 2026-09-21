@@ -82,11 +82,13 @@ fn scalar_case_initializer_is_a_live_typed_scalar_use() {
         .iter()
         .map(|declaration| (declaration.id, declaration))
         .collect();
-    assert!(crate::unit_validation::scalar_case_establishment_matches(
-        function,
-        &node.operation,
-        &types
-    ));
+    assert!(
+        crate::unit_validation::operation_contracts::scalar_case_establishment_matches(
+            function,
+            &node.operation,
+            &types
+        )
+    );
     let original = candidate.identity;
     for mutation in 0..5 {
         let mut changed = candidate.clone();
@@ -109,10 +111,12 @@ fn scalar_case_initializer_is_a_live_typed_scalar_use() {
         }
         refresh_identity(&mut changed);
         assert_ne!(original, changed.identity);
-        assert!(!crate::unit_validation::scalar_case_establishment_matches(
-            &changed.functions[0],
-            &changed.functions[0].blocks[0].nodes[1].operation,
-            &types
-        ));
+        assert!(
+            !crate::unit_validation::operation_contracts::scalar_case_establishment_matches(
+                &changed.functions[0],
+                &changed.functions[0].blocks[0].nodes[1].operation,
+                &types
+            )
+        );
     }
 }

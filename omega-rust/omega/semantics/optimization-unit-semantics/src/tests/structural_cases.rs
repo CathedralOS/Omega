@@ -8,7 +8,7 @@ use crate::PsiOptimizationUnit;
 use crate::StructuralPlaceKind;
 use crate::tests::refresh_identity;
 use crate::tests::refresh_node_derivatives;
-use crate::valid_edge_affine_transition;
+use crate::unit_validation::affine_authority::valid_edge_affine_transition;
 use crate::validate_psi_optimization_unit;
 use abstract_operations::AbstractOperation;
 use optimization_unit::OwnershipFrontierFact;

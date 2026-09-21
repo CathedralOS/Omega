@@ -20,9 +20,9 @@ use crate::ValidatedPsiRewrite;
 use crate::ValueUse;
 use crate::literal_boolean_fact;
 use crate::recompute_psi_optimization_unit_identity;
-use crate::reconstruct_declared_places;
-use crate::reconstruct_fact_index;
-use crate::refresh_root_service_reach;
+use crate::unit_validation::derived_metadata::reconstruct_declared_places;
+use crate::unit_validation::function_structure::reconstruct_fact_index;
+use crate::unit_validation::services::refresh_root_service_reach;
 use crate::validate_psi_optimization_unit;
 
 pub(super) fn validate(

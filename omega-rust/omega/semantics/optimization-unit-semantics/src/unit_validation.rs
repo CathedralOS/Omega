@@ -1,20 +1,36 @@
-//! Optimizer module role: executable entrance. Reconstructible optimization-unit validation coordination.
+//! Optimizer module role: executable entrance. Independent validation of one
+//! complete Psi optimization unit and its retained context.
 //!
-//! Acceptance proceeds through canonical identity/fact indexes, unit catalogs,
-//! retained affine authority, and final frontier/entry/service checks.
+//! `validate_psi_optimization_unit` is the entry; acceptance proceeds in the
+//! order `validate_psi_optimization_unit_with_control_cycles` shows: the
+//! canonical identity and accepted fact indexes (`identity_indexes`), the
+//! machine rosters and structural/service catalogs with every function
+//! validated in place (`catalogs`, which drives `function_structure`), the
+//! retained edge-cleanup and hidden-establishment affine authority
+//! (`affine_authority`), then the final frontier, entry and service
+//! authorities (`catalogs` again). The remaining modules are the invariant
+//! families those steps descend into: `structural_catalog` indexes types,
+//! domains and provider specializations; `services` the service catalog and
+//! root reach; `references` the reference-carrier paths; `derived_metadata`
+//! the places, claims, dominance, edges and provenance a function must
+//! reproduce; `operation_contracts` the per-node value and binding
+//! contracts. Callers retain Terminal admission and supply any independently
+//! admitted cycle roster; structural success alone grants no execution or
+//! publication authority.
+
 use crate::MachineId;
 use crate::OptimizationUnitValidationError;
 use crate::PsiOptimizationUnit;
-use crate::unit_validation::function_structure;
 
-mod affine_authority;
+pub(crate) mod affine_authority;
 mod catalogs;
+pub(crate) mod derived_metadata;
+pub(crate) mod function_structure;
 mod identity_indexes;
-
-#[cfg(test)]
-pub(crate) use affine_authority::{
-    valid_edge_affine_transition, valid_hidden_affine_establishment,
-};
+pub(crate) mod operation_contracts;
+pub(crate) mod references;
+pub(crate) mod services;
+pub(crate) mod structural_catalog;
 
 pub fn validate_psi_optimization_unit(
     unit: &PsiOptimizationUnit,

@@ -191,14 +191,16 @@ fn indexed_write_only_paths_cannot_fall_back_to_linear_multiplicity() {
             .iter()
             .map(|declaration| (declaration.id, declaration))
             .collect();
-        assert!(!crate::structural_arguments_match(
-            &unit.functions[0],
-            &arguments,
-            &unit.functions[1].structural_parameters,
-            &types,
-            crate::StructuralProjectionPolicy::Unit,
-            false,
-        ));
+        assert!(
+            !crate::unit_validation::operation_contracts::structural_arguments_match(
+                &unit.functions[0],
+                &arguments,
+                &unit.functions[1].structural_parameters,
+                &types,
+                crate::unit_validation::operation_contracts::StructuralProjectionPolicy::Unit,
+                false,
+            )
+        );
         refresh_node_derivatives(&mut unit, 0, 0, 0);
         assert!(validate_psi_optimization_unit(&unit).is_err());
     };

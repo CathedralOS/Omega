@@ -7,14 +7,14 @@ use crate::PsiOptimizationUnit;
 use crate::PsiRewriteCandidate;
 use crate::TotalScalarIdentityRewrite;
 use crate::ValidatedPsiRewrite;
-use crate::expected_definitions;
-use crate::expected_ownership;
-use crate::expected_uses;
 use crate::preserve_edge_custody;
 use crate::recompute_psi_optimization_unit_identity;
-use crate::reconstruct_declared_places;
-use crate::reconstruct_fact_index;
 use crate::rewrite_scalar_value_uses;
+use crate::unit_validation::derived_metadata::expected_definitions;
+use crate::unit_validation::derived_metadata::expected_ownership;
+use crate::unit_validation::derived_metadata::expected_uses;
+use crate::unit_validation::derived_metadata::reconstruct_declared_places;
+use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::validate_psi_optimization_unit;
 
 pub(super) fn independently_apply_total_scalar_identity(

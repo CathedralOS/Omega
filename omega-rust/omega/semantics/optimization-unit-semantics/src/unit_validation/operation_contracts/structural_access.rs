@@ -6,8 +6,8 @@ use crate::PsiOptimizationFunction;
 use crate::ScalarType;
 use crate::StructuralDomainId;
 use crate::StructuralTypeId;
-use crate::record_loan;
-use crate::resolve_structural_path;
+use crate::unit_validation::operation_contracts::record_loan;
+use crate::unit_validation::structural_catalog::resolve_structural_path;
 
 #[cfg(test)]
 mod tests;
@@ -71,7 +71,7 @@ pub(crate) fn structural_arguments_match(
             let admitted = !matches!(
                 projection,
                 StructuralProjectionPolicy::Boundary | StructuralProjectionPolicy::EmptyOnly
-            ) && crate::unit_validation::reference_source_type(
+            ) && crate::unit_validation::references::reference_source_type(
                 caller, types, argument,
             ) == Some(parameter.structural_type)
                 && argument.access == parameter.access

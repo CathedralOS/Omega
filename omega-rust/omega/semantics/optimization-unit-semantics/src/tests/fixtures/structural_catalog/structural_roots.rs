@@ -1,10 +1,11 @@
 use super::super::super::{id, refresh_identity};
 use super::super::{scalar_boundary_call_unit, unit};
 use super::provider_specialization::provider_attachment_specialization_unit;
-use crate::{
+use crate::unit_validation::derived_metadata::{
     expected_definitions, expected_edges, expected_ownership, expected_provenance, expected_uses,
-    reconstruct_fact_index, refresh_root_service_reach,
 };
+use crate::unit_validation::function_structure::reconstruct_fact_index;
+use crate::unit_validation::services::refresh_root_service_reach;
 use abstract_operations::AbstractOperation;
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{OperationId, ServiceId};

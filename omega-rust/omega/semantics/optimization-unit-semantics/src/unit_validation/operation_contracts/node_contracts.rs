@@ -9,9 +9,9 @@ use crate::StructuralDomainId;
 use crate::StructuralTypeId;
 use crate::ValueDefinition;
 use crate::ValueId;
-use crate::operation_scalar_types_match;
-use crate::operation_service_contract_matches;
-use crate::operation_structural_call_contract_matches;
+use crate::unit_validation::operation_contracts::operation_scalar_types_match;
+use crate::unit_validation::operation_contracts::operation_service_contract_matches;
+use crate::unit_validation::operation_contracts::operation_structural_call_contract_matches;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_node_operation_contracts(

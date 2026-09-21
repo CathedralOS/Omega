@@ -5,12 +5,12 @@ use crate::BlockId;
 use crate::MachineId;
 use crate::OptimizationUnitValidationError;
 use crate::PsiOptimizationFunction;
-use crate::expected_definitions;
-use crate::expected_ownership;
-use crate::expected_uses;
-use crate::is_terminator;
-use crate::provenance_matches_operation;
-use crate::successors_match_operation;
+use crate::unit_validation::derived_metadata::expected_definitions;
+use crate::unit_validation::derived_metadata::expected_ownership;
+use crate::unit_validation::derived_metadata::expected_uses;
+use crate::unit_validation::derived_metadata::is_terminator;
+use crate::unit_validation::derived_metadata::provenance_matches_operation;
+use crate::unit_validation::derived_metadata::successors_match_operation;
 
 pub(super) struct FunctionControlFlow<'a> {
     pub(super) blocks: BTreeMap<BlockId, &'a optimization_unit::OptimizationBlock>,

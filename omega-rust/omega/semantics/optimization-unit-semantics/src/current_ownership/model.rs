@@ -1,5 +1,5 @@
 use crate::OptimizationUnitValidationError;
-use crate::unit_validation::LiveReference;
+use crate::unit_validation::references::LiveReference;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::ClaimId;
 use semantic_vocabulary::PlaceId;

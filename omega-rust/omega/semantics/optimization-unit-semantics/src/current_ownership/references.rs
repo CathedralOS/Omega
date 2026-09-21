@@ -7,10 +7,11 @@
 
 use crate::O;
 use crate::OptimizationUnitValidationError;
-use crate::unit_validation::{
+use crate::unit_validation::operation_contracts::structural_source_contract;
+use crate::unit_validation::references::{
     LiveReference, ReferenceIdentity, ReferenceOrigin, ReferenceParent, argument_owns_references,
     contains_reference, formal_origin, is_reference_projection, leaf_paths, leaf_referent,
-    reference_source_type, structural_source_contract,
+    reference_source_type,
 };
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::BlockId;
@@ -130,7 +131,8 @@ fn window_hole(
     path: &[terminal_psi::StructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
 ) -> Option<Vec<terminal_psi::StructuralPathSegment>> {
-    let parent = crate::unit_validation::resolve_structural_path(types, root, path)?;
+    let parent =
+        crate::unit_validation::structural_catalog::resolve_structural_path(types, root, path)?;
     let declaration = types.get(&parent)?;
     let fields = match &declaration.shape {
         terminal_psi::StructuralTypeShape::Record { fields }

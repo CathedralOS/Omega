@@ -6,10 +6,11 @@ use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralPathQuali
 
 use super::fixtures::*;
 use crate::tests::{id, refresh_function_derivatives};
-use crate::{
-    StructuralProjectionPolicy, structural_arguments_match, validate_internal_claim_transfers,
-    validate_psi_optimization_unit,
+use crate::unit_validation::operation_contracts::validate_internal_claim_transfers;
+use crate::unit_validation::operation_contracts::{
+    StructuralProjectionPolicy, structural_arguments_match,
 };
+use crate::validate_psi_optimization_unit;
 
 #[test]
 fn general_partial_affine_retains_exact_access_and_qualification_joins() {

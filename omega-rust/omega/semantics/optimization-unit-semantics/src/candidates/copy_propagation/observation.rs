@@ -7,11 +7,11 @@ use crate::PsiOptimizationUnit;
 use crate::RedundantBlockParameterRewrite;
 use crate::ValueDefinitionSite;
 use crate::ValueId;
-use crate::expected_definitions;
-use crate::expected_edges;
-use crate::expected_ownership;
-use crate::expected_uses;
 use crate::recompute_psi_optimization_unit_identity;
+use crate::unit_validation::derived_metadata::expected_definitions;
+use crate::unit_validation::derived_metadata::expected_edges;
+use crate::unit_validation::derived_metadata::expected_ownership;
+use crate::unit_validation::derived_metadata::expected_uses;
 
 /// Construct the validator's normalized pre-rewrite question independently of
 /// the output constructor below. Only the exact scalar substitution and the

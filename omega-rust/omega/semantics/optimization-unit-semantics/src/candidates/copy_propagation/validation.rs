@@ -11,13 +11,13 @@ use crate::PsiRewriteCandidate;
 use crate::PsiRewritePatch;
 use crate::ValidatedPsiRewrite;
 use crate::ValueDefinitionSite;
-use crate::expected_definitions;
-use crate::expected_edges;
-use crate::expected_ownership;
-use crate::expected_uses;
 use crate::recompute_psi_optimization_unit_identity;
-use crate::reconstruct_fact_index;
 use crate::reconstruct_psi_closed_region_observation;
+use crate::unit_validation::derived_metadata::expected_definitions;
+use crate::unit_validation::derived_metadata::expected_edges;
+use crate::unit_validation::derived_metadata::expected_ownership;
+use crate::unit_validation::derived_metadata::expected_uses;
+use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::validate_psi_optimization_unit;
 
 use super::observation::*;

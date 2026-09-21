@@ -354,7 +354,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "fn rederive_exact_certificates",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/unit_validation/core/mod.rs",
+        path: "omega-rust/omega/semantics/optimization-unit-semantics/src/unit_validation.rs",
         coordination_marker: "pub fn validate_psi_optimization_unit",
     },
     RequiredCoordinationEntrance {

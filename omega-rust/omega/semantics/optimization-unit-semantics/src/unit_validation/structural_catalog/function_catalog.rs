@@ -10,10 +10,10 @@ use crate::PsiOptimizationFunction;
 use crate::StructuralDomainId;
 use crate::StructuralPlaceKind;
 use crate::StructuralTypeId;
-use crate::resolve_structural_path;
-use crate::structural_projected_qualifications_match;
-use crate::structural_qualifications_match;
-use crate::structural_signature_matches;
+use crate::unit_validation::services::structural_signature_matches;
+use crate::unit_validation::structural_catalog::resolve_structural_path;
+use crate::unit_validation::structural_catalog::structural_projected_qualifications_match;
+use crate::unit_validation::structural_catalog::structural_qualifications_match;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum ValidatorStructuralRootKey {

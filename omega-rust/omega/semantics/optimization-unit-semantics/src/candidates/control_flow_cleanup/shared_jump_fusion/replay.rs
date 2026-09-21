@@ -12,16 +12,16 @@ use crate::PsiRewriteCandidate;
 use crate::PsiRewritePatch;
 use crate::ScalarSubstitution;
 use crate::ValidatedPsiRewrite;
-use crate::expected_definitions;
-use crate::expected_edges;
-use crate::expected_ownership;
-use crate::expected_uses;
 use crate::recompute_psi_optimization_unit_identity;
 use crate::reconstruct_adjacent_merge_ownership_is_identity;
-use crate::reconstruct_declared_places;
-use crate::reconstruct_fact_index;
 use crate::reconstruct_shared_terminal_fusion_accounting;
 use crate::rewrite_scalar_substitutions;
+use crate::unit_validation::derived_metadata::expected_definitions;
+use crate::unit_validation::derived_metadata::expected_edges;
+use crate::unit_validation::derived_metadata::expected_ownership;
+use crate::unit_validation::derived_metadata::expected_uses;
+use crate::unit_validation::derived_metadata::reconstruct_declared_places;
+use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::validate_psi_optimization_unit;
 
 pub(super) fn validate(

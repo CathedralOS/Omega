@@ -31,9 +31,9 @@ use crate::literal_scalar_constant_fact_identity;
 use crate::observation_at;
 use crate::recompute_psi_optimization_unit_identity;
 use crate::reconstruct_closed_scalar_node_boundary;
-use crate::reconstruct_fact_index;
 use crate::same_closed_scalar_observation;
 use crate::scalar_value_definition;
+use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::validate_psi_optimization_unit;
 
 use super::identity_classification::*;

@@ -19,8 +19,8 @@ use crate::candidates::sparse_conditional_constant_propagation::boolean_evaluati
 use crate::observation_at;
 use crate::recompute_psi_optimization_unit_identity;
 use crate::reconstruct_closed_scalar_node_boundary;
-use crate::reconstruct_fact_index;
 use crate::same_closed_scalar_observation;
+use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::validate_psi_optimization_unit;
 
 pub fn validate_boolean_evaluation_candidate(

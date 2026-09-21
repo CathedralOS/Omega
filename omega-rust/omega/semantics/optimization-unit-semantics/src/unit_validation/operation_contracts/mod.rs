@@ -13,7 +13,7 @@ use crate::PsiOptimizationFunction;
 use crate::ServiceId;
 use crate::StructuralDomainId;
 use crate::StructuralTypeId;
-use crate::dominators;
+use crate::unit_validation::derived_metadata::dominators;
 
 mod affine_calls;
 mod atomic_coherence;
