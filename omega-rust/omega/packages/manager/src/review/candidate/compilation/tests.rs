@@ -156,6 +156,7 @@ fn check_retains_requested_package_entry_after_disposal_without_production() {
         &build,
         &entry,
         None,
+        false,
     )
     .expect("check accepts a package and does not read its unselected main");
     assert_eq!(checked.selected_target_profile(), Some(target));

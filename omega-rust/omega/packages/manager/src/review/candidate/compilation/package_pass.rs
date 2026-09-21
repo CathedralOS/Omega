@@ -370,6 +370,7 @@ pub(super) fn compile_dependency_closure(
                         closure.dependency_path(&key),
                     )) as Box<dyn compiler::RestrictedBuildGrants>
                 }),
+                collect_timings: preparation.collect_timings,
                 ..CheckedCompileRequest::new(entry, Some(target))
             };
             // A populated slot supplies only this package's binding-independent
@@ -449,6 +450,7 @@ pub(super) fn compile_dependency_closure(
                             ))
                                 as Box<dyn compiler::RestrictedBuildGrants>
                         }),
+                        collect_timings: preparation.collect_timings,
                         ..CheckedCompileRequest::new(entry, Some(target))
                     };
                     request.prepared_source_output = Some(&mut retained);

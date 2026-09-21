@@ -22,6 +22,7 @@ pub struct PreparedLocalProjectCheckRequest {
 
     accepted_trust_admissions: Vec<TrustAdmission>,
     build_snapshot: Option<build_evaluation::BuildSnapshotRequest>,
+    timings: bool,
 }
 
 impl PreparedLocalProjectCheckRequest {
@@ -37,7 +38,15 @@ impl PreparedLocalProjectCheckRequest {
 
             accepted_trust_admissions: Vec::new(),
             build_snapshot: None,
+            timings: false,
         }
+    }
+
+    /// Record per-stage timings on the produced report. Off by default: the
+    /// ladder measures nothing until a caller asks for it.
+    pub fn with_timings(mut self, timings: bool) -> Self {
+        self.timings = timings;
+        self
     }
 
     pub fn with_accepted_trust_admissions(mut self, admissions: Vec<TrustAdmission>) -> Self {
@@ -102,6 +111,7 @@ pub fn check_prepared_local_project_for_inspection(
         build_dir,
         &entry_path,
         None,
+        false,
     )
     .map(|(checked, _reviews)| checked)
 }
@@ -119,6 +129,7 @@ pub fn check_prepared_local_project(
 
         accepted_trust_admissions,
         build_snapshot,
+        timings,
     } = request;
     let (entry_path, source_closure, accepted_target) = prepared.into_review_parts();
     // Checked reporting consumes the compile's generated sources, so it is
@@ -133,12 +144,14 @@ pub fn check_prepared_local_project(
             &entry_path,
             build_snapshot.as_ref(),
             &RestrictedBuildCheckpoint::derive(accepted),
+            timings,
         ),
         None => compile_resolved_package_candidate_for_check(
             &source_closure.for_exact_target(target_profile),
             &build_dir,
             &entry_path,
             build_snapshot.as_ref(),
+            timings,
         ),
     }
     .map_err(CheckPreparedLocalProjectError::Review)?;
@@ -166,6 +179,10 @@ pub fn check_prepared_local_project(
         CompileOutputKind::CheckOnly,
         None,
     )
-    .map(|report| report.with_trust_admission_settlement(settlement))
+    .map(|report| {
+        report
+            .with_trust_admission_settlement(settlement)
+            .with_timings(checked.timings().phases().to_vec())
+    })
     .map_err(CheckPreparedLocalProjectError::Report)
 }

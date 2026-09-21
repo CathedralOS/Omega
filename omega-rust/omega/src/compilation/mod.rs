@@ -198,7 +198,8 @@ pub fn compile_project(
                         prepared, &build_dir, target,
                     )
                     .with_accepted_trust_admissions(admissions)
-                    .with_optimization_rollback(optimization_rollback);
+                    .with_optimization_rollback(optimization_rollback)
+                    .with_timings(collect_timings);
                     let request = match build_snapshot {
                         Some(snapshot) => request.with_build_snapshot(snapshot),
                         None => request,
@@ -225,7 +226,8 @@ pub fn compile_project(
                     let request = packages::PreparedLocalProjectCheckRequest::new(
                         prepared, &build_dir, target,
                     )
-                    .with_accepted_trust_admissions(admissions);
+                    .with_accepted_trust_admissions(admissions)
+                    .with_timings(collect_timings);
                     let request = match build_snapshot {
                         Some(snapshot) => request.with_build_snapshot(snapshot),
                         None => request,

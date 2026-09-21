@@ -45,6 +45,11 @@ pub struct CandidateSourcePreparation {
     /// Fresh preparations performed through this store; witnesses that a
     /// repeated or cross-target candidate prepared each package once.
     fresh_preparations: usize,
+    /// Collect the internal stage ladder on every fresh preparation this
+    /// store performs. Off by default: the ladder measures nothing until a
+    /// caller asks for it, and the rows stay on the checked record until a
+    /// report-facing leg prints them.
+    collect_timings: bool,
 }
 
 /// One package's retained parse frontier and the entry root it belongs to.
@@ -66,7 +71,14 @@ impl CandidateSourcePreparation {
         Self {
             slots: empty_slots(closure.graph().packages().len()),
             fresh_preparations: 0,
+            collect_timings: false,
         }
+    }
+
+    /// Prepare fresh sources with the stage ladder enabled.
+    pub fn collecting_timings(mut self, collect_timings: bool) -> Self {
+        self.collect_timings = collect_timings;
+        self
     }
 
     /// Size slots to this closure's package positions. A differently shaped
@@ -180,6 +192,7 @@ pub fn compile_resolved_package_candidate_for_production(
         bindings,
         root_build_snapshot,
         None,
+        false,
     )
 }
 
@@ -200,6 +213,28 @@ pub fn compile_resolved_package_candidate_for_production_with_checkpoint(
         bindings,
         root_build_snapshot,
         Some(restricted_build_checkpoint),
+        false,
+    )
+}
+
+/// The production route with the stage ladder under the caller's control.
+/// The consuming operation owns the `--timings` decision, so it reaches the
+/// shared derivation directly rather than through the two default wrappers.
+pub(crate) fn compile_resolved_package_candidate_for_production_collecting_timings(
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
+    build_root: &Path,
+    bindings: SemanticBindingReview<'_>,
+    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
+    restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
+    collect_timings: bool,
+) -> Result<ReviewedPackageProductionCandidate, CompileResolvedPackageReviewsError> {
+    production_candidate(
+        target_closure,
+        build_root,
+        bindings,
+        root_build_snapshot,
+        restricted_build_checkpoint,
+        collect_timings,
     )
 }
 
@@ -209,6 +244,7 @@ fn production_candidate(
     bindings: SemanticBindingReview<'_>,
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
+    collect_timings: bool,
 ) -> Result<ReviewedPackageProductionCandidate, CompileResolvedPackageReviewsError> {
     let closure = target_closure.source_closure();
     let root = closure.graph().root().clone();
@@ -231,7 +267,7 @@ fn production_candidate(
         Some(&root_path),
         root_build_snapshot,
         restricted_build_checkpoint,
-        &mut CandidateSourcePreparation::for_closure(closure),
+        &mut CandidateSourcePreparation::for_closure(closure).collecting_timings(collect_timings),
     )?;
     let checked_root = compiled.checked_root.ok_or_else(|| {
         CompileResolvedPackageReviewsError::IdentityMismatch {
@@ -258,6 +294,7 @@ pub(crate) fn compile_resolved_package_candidate_for_check(
     build_root: &Path,
     entry_path: &Path,
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
+    collect_timings: bool,
 ) -> Result<
     (compiler::CheckedCompilation, CompilerIssuedPackageReviewSet),
     CompileResolvedPackageReviewsError,
@@ -268,6 +305,7 @@ pub(crate) fn compile_resolved_package_candidate_for_check(
         entry_path,
         root_build_snapshot,
         None,
+        collect_timings,
     )
 }
 
@@ -281,6 +319,7 @@ pub(crate) fn compile_resolved_package_candidate_for_check_with_checkpoint(
     entry_path: &Path,
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     restricted_build_checkpoint: &RestrictedBuildCheckpoint,
+    collect_timings: bool,
 ) -> Result<
     (compiler::CheckedCompilation, CompilerIssuedPackageReviewSet),
     CompileResolvedPackageReviewsError,
@@ -291,6 +330,7 @@ pub(crate) fn compile_resolved_package_candidate_for_check_with_checkpoint(
         entry_path,
         root_build_snapshot,
         Some(restricted_build_checkpoint),
+        collect_timings,
     )
 }
 
@@ -300,6 +340,7 @@ fn compile_candidate_for_check(
     entry_path: &Path,
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
+    collect_timings: bool,
 ) -> Result<
     (compiler::CheckedCompilation, CompilerIssuedPackageReviewSet),
     CompileResolvedPackageReviewsError,
@@ -311,7 +352,8 @@ fn compile_candidate_for_check(
         Some(entry_path),
         root_build_snapshot,
         restricted_build_checkpoint,
-        &mut CandidateSourcePreparation::for_closure(target_closure.source_closure()),
+        &mut CandidateSourcePreparation::for_closure(target_closure.source_closure())
+            .collecting_timings(collect_timings),
     )?;
     let CompiledPackageReviews {
         reviews,
