@@ -888,9 +888,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   selects `omega.psi-pass.state-specialization.v1` (rule
   `omega.psi-rule.state-argument-specialization.v1`) by exact name through
   `PSI_PASS_CATALOG`/`optimize_abstract_operations`, publishing and replaying
-  independently under the evidence-matrix legs. It still declines every
+  independently under the evidence-matrix legs. The fused incoming edge is an
+  unconditional `Jump` successor or one arm of a `Conditional` predecessor —
+  a fused conditional arm leaves its sibling byte-exact, and both arms of one
+  predecessor may specialize in a single candidate. It still declines every
   machine holding a cyclic component and does not cover non-Boolean state
-  arguments, conditional incoming edges, or result specialization.
+  arguments or result specialization.
   Acceptance: a source-produced state machine selects the rule by exact name
   through `optimize_abstract_operations`, publishes, and replays
   independently. Forged or stale edge provenance, a dispatch whose every
