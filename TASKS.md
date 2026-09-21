@@ -9328,6 +9328,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   sibling row BETA-ENCODING-SELECTED-CHAIN-PRODUCTION's "extent-supply leg"
   phrasing is partially stale — the request extent is no longer pending on
   this branch.
+  Re-verified under this name at `12ea4941ebd` (linux x86-64): the
+  row's residual stands — certificate `Checked` verdict awaits the
+  seeded-work work-counter leg (`comparison/session.gamma` 655,360-unit
+  counter vs the ledger-selected 67,108,864), which the row scopes as
+  its own claim slice. Implementing surfaces stay claim-fenced this
+  wave: `bootstrap/proofs/{beta_encoding,checker}` + `tests/gamma/*`
+  wholesale under BETA-ENCODING-NATIVE-CONTAINER-ACCEPTANCE,
+  `tests/gamma/beta-encoding-check` + `bootstrap/proofs/checker` under
+  GAMMA-CERTIFICATE-NATIVE-EXECUTION, `tools/bootstrap/proofs` under
+  CHAIN-CERTIFICATE-ADMISSION-BINDING, `tests/beta/compiler` +
+  `tools/bootstrap/beta` under BETA-PE-SEED-REFUSAL. Host-gated
+  residual: seed-host evaluator completion (128 GiB `M` arena).
 - **BETA-ENCODING-MUTATION-REJECTION.** Landed on main — the full-subject
   mutation controls exist as `tests/gamma/beta-encoding-theory/mutations.py`
   exposed via `run.sh --mutations` / `--mutations-self-test`
