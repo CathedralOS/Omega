@@ -240,6 +240,13 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     `forwarded_dynamic_descriptor_calls` require exactly one Text
     relocation plus an exact callee join for `ResolvedInternalCall`.
     Witness `derivation::tests::dynamic_call_occurrence_binds_its_dispatch_role_and_parent_identity`.
+    Re-verified at `138ed79a677` for mined stub
+    **DYNAMIC-CALL-OCCURRENCE-SPANS** (resolved — this landed slice is the
+    whole item: `CallDynamic*` occurrences enumerated in
+    `physical/projection.rs`, span join in `derive_dynamic_call_span`, witness
+    test PASS on linux x86-64). Residual stays here: descriptor-materializing
+    relocation custody (fenced PHYSICAL-ACCESS-PROFILES) and the e2e replay leg
+    (dynamic-call programs red before the physical stage upstream).
     Remaining intrinsic kinds still produce no occurrences, so their
     span arms have no demand side — the occurrence replay for them is
     TV-OPERATOR-APPLICATIONS-REPLAY's scope. Descriptor-materializing
