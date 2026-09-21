@@ -95,6 +95,7 @@ pub(super) fn byte_view_length_module() -> TerminalModule {
             entry: block,
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
                 structural_parameters: Vec::new(),
@@ -116,6 +117,7 @@ pub(super) fn byte_view_length_module() -> TerminalModule {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(9).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -154,6 +156,7 @@ pub(super) fn byte_view_read_module() -> TerminalModule {
     });
     let successor = |edge, block| SuccessorEdge {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target: BlockId::new(block).unwrap(),
         arguments: Vec::new(),
@@ -168,6 +171,7 @@ pub(super) fn byte_view_read_module() -> TerminalModule {
     machine.blocks.extend([
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: BlockId::new(12).unwrap(),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -210,6 +214,7 @@ pub(super) fn byte_view_read_module() -> TerminalModule {
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: BlockId::new(15).unwrap(),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -266,6 +271,7 @@ pub(super) fn byte_view_length_helper_chain(depth: u64) -> TerminalModule {
         };
         caller.blocks[0].operations[0].kind = OperationKind::CallStructuralScalar {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: module.entry,
             arguments: Vec::new(),
             structural_arguments: vec![terminal_psi::StructuralArgument {
@@ -346,6 +352,7 @@ pub(super) fn byte_view_read_call_module() -> TerminalModule {
     caller.contract.id = ContractId::new(110).unwrap();
     caller.blocks = vec![Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: caller.entry,
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -362,6 +369,7 @@ pub(super) fn byte_view_read_call_module() -> TerminalModule {
                 }),
                 kind: OperationKind::CallStructuralScalar {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     callee: module.entry,
                     arguments: vec![byte_index],
                     structural_arguments: vec![terminal_psi::StructuralArgument {
@@ -399,6 +407,7 @@ pub(super) fn byte_view_conditional_read_call_module() -> TerminalModule {
     let sentinel = ValueId::new(124).unwrap();
     let successor = |edge, target| SuccessorEdge {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target,
         arguments: Vec::new(),
@@ -407,6 +416,7 @@ pub(super) fn byte_view_conditional_read_call_module() -> TerminalModule {
     };
     let conditional = Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: BlockId::new(90).unwrap(),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -447,6 +457,7 @@ pub(super) fn byte_view_conditional_read_call_module() -> TerminalModule {
     caller.blocks.insert(0, conditional);
     caller.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: BlockId::new(123).unwrap(),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),

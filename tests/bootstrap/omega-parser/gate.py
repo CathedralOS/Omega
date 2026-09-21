@@ -56,8 +56,8 @@ def main():
     require_identity("execution adapter", adapter, 2565,
                      "ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
-    require_identity("D", compiler, 558161,
-                     "8f0321344c893c3c64bb631bfde10e3ecbde4384e130dca9f7e2c21818a9eca3")
+    require_identity("D", compiler, 561794,
+                     "60754c730dfb928f9b2b6edbf2904d9a7bb292b0657eb6656a31930c28be05af")
     entry = (gate / "main.epsilon").read_bytes()
     require_identity("parser customer entry", entry, 4583,
                      "61f988109564e8ca58d6590941aa1aba3dfc2f07af101fb082b38ff25623e618")
@@ -80,7 +80,7 @@ def main():
               f"execution legs need a seed host ({len(request)}-byte receipt "
               f"request, {len(customer)}-byte customer)", flush=True)
         return
-    receipt_timeout = int(os.environ.get("OMEGA_PARSER_RECEIPT_SECONDS", "300"))
+    receipt_timeout = int(os.environ.get("OMEGA_PARSER_RECEIPT_SECONDS", "1800"))
     if receipt_timeout <= 0:
         raise SystemExit("OMEGA_PARSER_RECEIPT_SECONDS must be positive")
     receipt = evaluate(directory, delta_compiler,

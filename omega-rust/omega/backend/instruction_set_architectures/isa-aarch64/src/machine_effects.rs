@@ -424,7 +424,9 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         MachineSemanticKind::ExactDivideU64
         | MachineSemanticKind::ExactRemainderU64
         | MachineSemanticKind::WrappingRemainderI64
-        | MachineSemanticKind::WrappingDivideI64 => (vec![0, 1], vec![2]),
+        | MachineSemanticKind::WrappingDivideI64
+        | MachineSemanticKind::ExactDivideI64
+        | MachineSemanticKind::ExactRemainderI64 => (vec![0, 1], vec![2]),
         MachineSemanticKind::SaturatingAdd(_)
         | MachineSemanticKind::SaturatingSubtract(_)
         | MachineSemanticKind::SaturatingDivide(_)
@@ -499,7 +501,9 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         MachineSemanticKind::ExactDivideU64
         | MachineSemanticKind::ExactRemainderU64
         | MachineSemanticKind::WrappingRemainderI64
-        | MachineSemanticKind::WrappingDivideI64 => (
+        | MachineSemanticKind::WrappingDivideI64
+        | MachineSemanticKind::ExactDivideI64
+        | MachineSemanticKind::ExactRemainderI64 => (
             vec![],
             vec![],
             MachineEncodedTrapBehavior::NeverV1,
@@ -680,12 +684,12 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         | MachineSemanticKind::NormalizedForeignCall => {
             panic!("scalar calls use their dedicated declaration")
         }
-        MachineSemanticKind::ExactDivideU64 | MachineSemanticKind::WrappingDivideI64 => {
-            MachineSizeKnowledge::ExactBytes(4)
-        }
-        MachineSemanticKind::ExactRemainderU64 | MachineSemanticKind::WrappingRemainderI64 => {
-            MachineSizeKnowledge::ExactBytes(8)
-        }
+        MachineSemanticKind::ExactDivideU64
+        | MachineSemanticKind::WrappingDivideI64
+        | MachineSemanticKind::ExactDivideI64 => MachineSizeKnowledge::ExactBytes(4),
+        MachineSemanticKind::ExactRemainderU64
+        | MachineSemanticKind::WrappingRemainderI64
+        | MachineSemanticKind::ExactRemainderI64 => MachineSizeKnowledge::ExactBytes(8),
         // Each saturating carrier class is one fixed word sequence.
         MachineSemanticKind::SaturatingAdd(carrier) => MachineSizeKnowledge::ExactBytes(
             SaturatingRealization::of(SaturatingOperation::Add, carrier).byte_size(),

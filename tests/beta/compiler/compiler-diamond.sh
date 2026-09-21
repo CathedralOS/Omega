@@ -24,14 +24,10 @@ fi
 cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "compiler-diamond SKIP — no python3"; exit 0; }
 
-# The materialized assembler runs inside the audited Alpha container: a Mach-O
-# seed on macOS arm64, the ELF64 seed on Linux x86-64, the Windows PE seed elsewhere. Hosts that cannot exec
-# the selected container refuse (exit 2) rather than crash on the exec below.
-case "$(uname -s)-$(uname -m)" in
-    Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64|Linux-x86_64) ;;
-    *) echo "Beta compiler diamond: requires macOS arm64, Windows x64, or Linux x86-64" >&2
-       exit 2 ;;
-esac
+# The materialized assembler runs inside the audited Alpha container. Hosts
+# that cannot exec the selected container refuse (exit 2) rather than crash on
+# the exec below; the audited host matrix lives in seed_env.sh.
+require_seed_execution_host "Beta compiler diamond"
 
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 materialize_beta_compiler "$T/assembler" >/dev/null

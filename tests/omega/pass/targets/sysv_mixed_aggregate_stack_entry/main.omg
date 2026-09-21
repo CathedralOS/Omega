@@ -3,7 +3,7 @@ use omega::language::core::float_operations;
 // Six scalars exhaust the SysV GPR bank. Although xmm0 remains free, the
 // INTEGER/SSE record rolls wholly to the stack; the trailing float keeps xmm0.
 pub data MixedPair {
-    integer: u64;
+    integer: u64 [0..=100];
     floating: f64;
 }
 
@@ -11,12 +11,12 @@ pub data Main { observed_integer: u64; observed_float: f64; }
 
 boundary machine Main::main(
     &mut self,
-    a0: u64,
-    a1: u64,
-    a2: u64,
-    a3: u64,
-    a4: u64,
-    a5: u64,
+    a0: u64 [0..=10],
+    a1: u64 [0..=10],
+    a2: u64 [0..=10],
+    a3: u64 [0..=10],
+    a4: u64 [0..=10],
+    a5: u64 [0..=10],
     pair: MixedPair,
     tail: f64
 ) -> i32 {

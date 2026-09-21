@@ -50,6 +50,8 @@
 //! eligibility and `recast_judgments.rs` judges scalar and slice recasts.
 
 mod literal_indexed_footprints;
+#[cfg(test)]
+mod offset_bound_tests;
 mod offset_bounds;
 mod qualification;
 mod raw_byte_region;

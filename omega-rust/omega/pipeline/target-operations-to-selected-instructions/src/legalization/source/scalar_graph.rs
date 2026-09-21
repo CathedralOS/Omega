@@ -48,6 +48,11 @@ pub(super) fn derive(
                 .ok_or(Error::SourceCustodyMismatch)?;
             let mut instructions = Vec::with_capacity(body.len());
             for node in body {
+                // Signature-only descriptor declarations project no
+                // instruction row; the call reads their roster entry.
+                if scalar_graph_input::indirect_calls::is_descriptor_declaration(node) {
+                    continue;
+                }
                 instructions.push(instruction::project(
                     node, optimized, native, plan, unit, &custody,
                 )?);

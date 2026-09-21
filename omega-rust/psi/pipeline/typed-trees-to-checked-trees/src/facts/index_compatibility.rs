@@ -423,6 +423,7 @@ fn append_expression_compatibilities(
                 contexts,
                 &actual.arguments,
                 &expected.arguments,
+                &substitutions,
             ) {
                 IndexCompatibilityDischarge::EstablishedLocalFacts { facts }
             } else {
@@ -623,6 +624,20 @@ fn literal_element_type(
 /// ordinary index-compatibility treatment above, including the distinct
 /// normalized instance refusal, and a predicate-bearing domain keeps its
 /// `checks/contracts/writes.rs` discharge untouched.
+///
+/// A semantic-domain cast is the other introduction surface the same write
+/// must not seed from: `x as T in D` mints a predicate-free, route-free family
+/// instance unconditionally (validation's staged mint fence judges only
+/// predicate-bearing or routed domains). Minting remains the sanctioned
+/// introduction on carriers whose domain set is all tag-style qualifications
+/// (a `Region::Left -> Region::Right` retag, a scalar's `Wrapping`), but on a
+/// custody-marked carrier -- one that already declares a predicate-bearing or
+/// `established by`-routed domain, like `Extent` with `Granted` -- a vacuous
+/// family is a member of a managed custody system, not a tag namespace:
+/// `Resident<P, T>` and `Vacant` assert facts about who owns the range, and
+/// `placed_access.md` fixes `Resident`'s route set while no declaration on
+/// `Extent` authorizes an `as` mint. Until such a family declares its
+/// qualification-carrier route, the only establishment is refusal.
 #[allow(clippy::too_many_arguments)]
 fn append_unevidenced_establishment_diagnostics(
     program: &TypedTrees,
@@ -634,6 +649,18 @@ fn append_unevidenced_establishment_diagnostics(
     diagnostics: &mut Vec<Diagnostic>,
     unresolved: &mut Vec<CompatibilityKey>,
 ) {
+    if let ExpressionNode::Cast(cast) = program.expression_table.expression(value) {
+        append_unevidenced_cast_mint_diagnostic(
+            program,
+            cast,
+            value,
+            target_type,
+            point,
+            diagnostics,
+            unresolved,
+        );
+        return;
+    }
     if !matches!(
         program.expression_table.expression(value),
         ExpressionNode::Call(_)
@@ -673,6 +700,112 @@ fn append_unevidenced_establishment_diagnostics(
             point_label(program, point),
         )));
     }
+}
+
+/// A semantic-domain cast whose introduced family is a predicate-free,
+/// route-free domain declared over a custody-marked carrier mints managed
+/// state the caller never produced. Tag-style minting on carriers whose
+/// domains are all vacuous keeps the staged `as` surface; on a carrier with
+/// any predicate-bearing or routed domain the vacuous member's qualification
+/// names custody state, so the write must refuse the value the cast minted.
+fn append_unevidenced_cast_mint_diagnostic(
+    program: &TypedTrees,
+    cast: &typed_trees::expression::TableCastExpression,
+    value: ExpressionHandle,
+    target_type: TypeReferenceHandle,
+    point: ProgramPoint,
+    diagnostics: &mut Vec<Diagnostic>,
+    unresolved: &mut Vec<CompatibilityKey>,
+) {
+    if !cast.semantic_domain_symbol.is_valid() {
+        return;
+    }
+    let Some(domain) = program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == cast.semantic_domain_symbol)
+    else {
+        return;
+    };
+    if domain.predicate_body.is_present() || !domain.establishment_routes.is_empty() {
+        return;
+    }
+    if !domain_target_is_custody_marked(program, domain.target_type) {
+        return;
+    }
+    let key = CompatibilityKey {
+        point,
+        value,
+        target_type,
+        family: cast.semantic_domain_symbol,
+        actual: SemanticDomainId::NULL,
+        expected: cast.semantic_domain_id,
+    };
+    if unresolved.contains(&key) {
+        return;
+    }
+    unresolved.push(key);
+    diagnostics.push(Diagnostic::error(format!(
+        "declared instance `{}` has no establishment: `as` mints an instance of \
+         domain family `{}` on custody-marked carrier `{}` -- the family \
+         declares no predicate body and no `establishment` route, and a \
+         carrier that already route-manages a domain does not admit a minted \
+         member; the instance must come from an establishing call, an \
+         `established by` route, or the family's declared qualification-carrier \
+         route (at {})",
+        qualification_label(program, cast),
+        family_label(&qualification_label(program, cast)),
+        carrier_label(program, domain.target_type),
+        point_label(program, point),
+    )));
+}
+
+/// Whether the type a domain is declared over already carries a
+/// predicate-bearing or `established by`-routed domain: such a carrier's
+/// qualifications are route-managed custody state, so a predicate-free,
+/// route-free member cannot be introduced by `as`. Constrained or borrowed
+/// spellings of the carrier unwrap to the named root the domains attach to.
+fn domain_target_is_custody_marked(program: &TypedTrees, target_type: TypeReferenceHandle) -> bool {
+    let mut type_reference = target_type;
+    loop {
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
+            TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
+            TypeReferenceNode::Named { symbol, .. } => {
+                if !symbol.is_valid() {
+                    return false;
+                }
+                return program.domain_definitions().iter().any(|domain| {
+                    domain_carrier_symbol(program, domain.target_type) == Some(*symbol)
+                        && (domain.predicate_body.is_present()
+                            || !domain.establishment_routes.is_empty())
+                });
+            }
+            _ => return false,
+        }
+    }
+}
+
+/// The named carrier symbol a domain declaration attaches to, unwrapping
+/// constrained or borrowed spellings.
+fn domain_carrier_symbol(
+    program: &TypedTrees,
+    target_type: TypeReferenceHandle,
+) -> Option<SymbolHandle> {
+    let mut type_reference = target_type;
+    loop {
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
+            TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
+            TypeReferenceNode::Named { symbol, .. } => return Some(*symbol),
+            _ => return None,
+        }
+    }
+}
+
+/// Display spelling of a domain's declared carrier for the mint diagnostic.
+fn carrier_label(program: &TypedTrees, target_type: TypeReferenceHandle) -> String {
+    program.display_type_reference(target_type)
 }
 
 /// The family spelling inside an instance label: `Resident<SlotPlacement, Slot>`
@@ -724,6 +857,7 @@ fn established_index_equalities(
     contexts: HandleSpan<FlowSemanticContextRef>,
     actual: &[TypeReferenceHandle],
     expected: &[TypeReferenceHandle],
+    bound_substitutions: &BoundIndexSubstitutions,
 ) -> Option<Vec<FactHandle>> {
     if actual.len() != expected.len() {
         return None;
@@ -740,7 +874,13 @@ fn established_index_equalities(
     let mut evidence = Vec::new();
     for (actual, expected) in differing {
         let fact = established_index_equality_for_argument(
-            program, semantic, flow, contexts, *actual, *expected,
+            program,
+            semantic,
+            flow,
+            contexts,
+            *actual,
+            *expected,
+            bound_substitutions,
         )?;
         if !evidence.contains(&fact) {
             evidence.push(fact);
@@ -756,6 +896,7 @@ fn established_index_equality_for_argument(
     contexts: HandleSpan<FlowSemanticContextRef>,
     actual: TypeReferenceHandle,
     expected: TypeReferenceHandle,
+    bound_substitutions: &BoundIndexSubstitutions,
 ) -> Option<FactHandle> {
     for context_ref in flow.contexts.semantic_context_refs.span_or_empty(contexts) {
         let context = semantic.contexts.get(context_ref.context);
@@ -773,6 +914,7 @@ fn established_index_equality_for_argument(
                 &substitutions,
                 actual,
                 expected,
+                bound_substitutions,
             ) {
                 return Some(fact_ref.fact);
             }
@@ -787,6 +929,7 @@ fn expression_proves_index_equality(
     substitutions: &[ExpressionSubstitution<'_>],
     actual: TypeReferenceHandle,
     expected: TypeReferenceHandle,
+    bound_substitutions: &BoundIndexSubstitutions,
 ) -> bool {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return false;
@@ -801,35 +944,44 @@ fn expression_proves_index_equality(
             substitutions,
             actual,
             expected,
+            bound_substitutions,
         ) || expression_proves_index_equality(
             program,
             binary.right,
             substitutions,
             actual,
             expected,
+            bound_substitutions,
         );
     }
     if binary.operator != BinaryOperator::Equal {
         return false;
     }
-    let direct =
-        substituted_expression_matches_index_argument(program, binary.left, substitutions, actual)
-            && substituted_expression_matches_index_argument(
-                program,
-                binary.right,
-                substitutions,
-                expected,
-            );
+    let direct = substituted_expression_matches_index_argument(
+        program,
+        binary.left,
+        substitutions,
+        actual,
+        bound_substitutions,
+    ) && substituted_expression_matches_index_argument(
+        program,
+        binary.right,
+        substitutions,
+        expected,
+        bound_substitutions,
+    );
     let symmetric = substituted_expression_matches_index_argument(
         program,
         binary.left,
         substitutions,
         expected,
+        bound_substitutions,
     ) && substituted_expression_matches_index_argument(
         program,
         binary.right,
         substitutions,
         actual,
+        bound_substitutions,
     );
     direct || symmetric
 }
@@ -1037,11 +1189,10 @@ pub(crate) fn bound_index_substitutions(
         };
         match slot {
             Slot::Const => {
-                if let Some(parameter) = const_parameters.get(const_index) {
-                    if let Some(bound) = bound_index_argument(program, state, scope_limit, argument)
-                    {
-                        substitutions.push((parameter.symbol, bound));
-                    }
+                if let Some(parameter) = const_parameters.get(const_index)
+                    && let Some(bound) = bound_index_argument(program, state, scope_limit, argument)
+                {
+                    substitutions.push((parameter.symbol, bound));
                 }
                 const_index += 1;
             }
@@ -1220,21 +1371,244 @@ fn bound_index_argument_equal(
     expected: TypeReferenceHandle,
     substitutions: &BoundIndexSubstitutions,
 ) -> bool {
+    // An index spelled as a const expression substitutes the callee's binder
+    // at leaf positions rather than as a whole argument: the callee's
+    // `Indexed<A + 0>` compares against the caller's `Indexed<I + 0>`
+    // leaf-wise under `A -> I`.
+    match (
+        program.type_reference_table.type_reference(actual),
+        program.type_reference_table.type_reference(expected),
+    ) {
+        (TypeReferenceNode::ConstExpression(left), TypeReferenceNode::ConstExpression(right)) => {
+            return bound_index_expressions_equal(program, *left, *right, substitutions);
+        }
+        (
+            named @ TypeReferenceNode::Named { .. },
+            TypeReferenceNode::ConstExpression(expression),
+        )
+        | (
+            TypeReferenceNode::ConstExpression(expression),
+            named @ TypeReferenceNode::Named { .. },
+        ) => {
+            return bound_index_named_matches_expression(
+                program,
+                named,
+                *expression,
+                substitutions,
+            );
+        }
+        _ => {}
+    }
     let bound_actual = substitute_bound_index(program, actual, substitutions);
     let bound_expected = substitute_bound_index(program, expected, substitutions);
     match (bound_actual, bound_expected) {
         (None, None) => index_arguments_structurally_equal(program, actual, expected),
         (Some(bound), None) => bound_index_argument_matches(program, bound, expected),
         (None, Some(bound)) => bound_index_argument_matches(program, bound, actual),
-        (Some(left), Some(right)) => match (left, right) {
-            (BoundIndexArgument::Subject(left), BoundIndexArgument::Subject(right)) => {
-                left == right
-            }
-            (BoundIndexArgument::Literal(left), BoundIndexArgument::Literal(right)) => {
-                left == right
-            }
+        (Some(left), Some(right)) => bound_index_argument_values_equal(left, right),
+    }
+}
+
+fn bound_index_argument_values_equal(
+    left: &BoundIndexArgument,
+    right: &BoundIndexArgument,
+) -> bool {
+    match (left, right) {
+        (BoundIndexArgument::Subject(left), BoundIndexArgument::Subject(right)) => left == right,
+        (BoundIndexArgument::Literal(left), BoundIndexArgument::Literal(right)) => left == right,
+        _ => false,
+    }
+}
+
+/// The bound index a leaf denotes when the leaf names a binder the enclosing
+/// call bound to a caller-side index.
+fn bound_index_leaf_argument<'a>(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    substitutions: &'a BoundIndexSubstitutions,
+) -> Option<&'a BoundIndexArgument> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let leaf_symbol = if path.symbol.is_valid() {
+        path.symbol
+    } else {
+        path.head_symbol
+    };
+    if !leaf_symbol.is_valid() {
+        return None;
+    }
+    substitutions
+        .iter()
+        .find(|(binder, _)| *binder == leaf_symbol)
+        .map(|(_, bound)| bound)
+}
+
+/// Whether a bound index denotes the same index an expression leaf spells: a
+/// bound subject is the leaf's own binder symbol, and a bound literal is the
+/// leaf's closed value.
+fn bound_index_argument_matches_expression(
+    program: &TypedTrees,
+    bound: &BoundIndexArgument,
+    expression: ExpressionHandle,
+) -> bool {
+    match (bound, program.expression_table.expression(expression)) {
+        (BoundIndexArgument::Subject(subject), ExpressionNode::Name(path)) => {
+            *subject == path.symbol || *subject == path.head_symbol
+        }
+        (BoundIndexArgument::Literal(spelling), ExpressionNode::Integer(literal)) => {
+            named_integer_value(spelling.as_str())
+                .is_some_and(|expected| literal.value_bignum() == Some(expected))
+        }
+        (BoundIndexArgument::Literal(spelling), ExpressionNode::Name(path)) => {
+            expression_name_atom(program, path) == Some(spelling.as_str())
+                || expression_name_atom(program, path)
+                    .and_then(named_integer_value)
+                    .zip(named_integer_value(spelling.as_str()))
+                    .is_some_and(|(left, right)| left == right)
+        }
+        _ => false,
+    }
+}
+
+/// Whether a `Named` index argument denotes the same index an
+/// expression-spelled argument does: a bound binder compares through its
+/// bound index; an unbound one compares only to a leaf spelling the same
+/// binder or closed literal.
+fn bound_index_named_matches_expression(
+    program: &TypedTrees,
+    named: &TypeReferenceNode,
+    expression: ExpressionHandle,
+    substitutions: &BoundIndexSubstitutions,
+) -> bool {
+    let TypeReferenceNode::Named { symbol, name } = named else {
+        return false;
+    };
+    if let Some((_, bound)) = substitutions.iter().find(|(binder, _)| binder == symbol) {
+        return bound_index_argument_matches_expression(program, bound, expression);
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => {
+            (symbol.is_valid() && (path.symbol == *symbol || path.head_symbol == *symbol))
+                || matches!(
+                    program.expression_table.name_path_members(path.members),
+                    [only] if only.as_str() == name.as_str()
+                )
+        }
+        ExpressionNode::Integer(literal) => named_integer_value(name.as_str())
+            .is_some_and(|expected| literal.value_bignum() == Some(expected)),
+        ExpressionNode::Boolean(value) => match name.as_str() {
+            "true" => *value,
+            "false" => !*value,
             _ => false,
         },
+        _ => false,
+    }
+}
+
+/// Whether any leaf of `expression` names a binder this call bound — i.e. the
+/// expression is spelled on the CALLEE's side of the substitution. A match
+/// candidate containing a bound key is the callee's own spelling (or another
+/// callee-side site), not the caller's.
+pub(crate) fn expression_uses_binder(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    substitutions: &BoundIndexSubstitutions,
+) -> bool {
+    bound_index_leaf_argument(program, expression, substitutions).is_some()
+        || match program.expression_table.expression(expression) {
+            ExpressionNode::Unary(unary) => {
+                expression_uses_binder(program, unary.operand, substitutions)
+            }
+            ExpressionNode::Binary(binary) => {
+                expression_uses_binder(program, binary.left, substitutions)
+                    || expression_uses_binder(program, binary.right, substitutions)
+            }
+            ExpressionNode::Member(member) => {
+                expression_uses_binder(program, member.receiver, substitutions)
+            }
+            _ => false,
+        }
+}
+
+/// Substitute bound binder leaves on both sides, then compare the index
+/// expressions pairwise: every leaf denotes the same bound subject or literal
+/// and every interior node has the same shape.
+pub(crate) fn bound_index_expressions_equal(
+    program: &TypedTrees,
+    actual: ExpressionHandle,
+    expected: ExpressionHandle,
+    substitutions: &BoundIndexSubstitutions,
+) -> bool {
+    if actual == expected {
+        return true;
+    }
+    if !actual.is_valid() || !expected.is_valid() {
+        return false;
+    }
+    let bound_actual = bound_index_leaf_argument(program, actual, substitutions);
+    let bound_expected = bound_index_leaf_argument(program, expected, substitutions);
+    if bound_actual.is_some() || bound_expected.is_some() {
+        return match (bound_actual, bound_expected) {
+            (Some(left), Some(right)) => bound_index_argument_values_equal(left, right),
+            (Some(bound), None) => {
+                bound_index_argument_matches_expression(program, bound, expected)
+            }
+            (None, Some(bound)) => bound_index_argument_matches_expression(program, bound, actual),
+            (None, None) => false,
+        };
+    }
+    match (
+        program.expression_table.expression(actual),
+        program.expression_table.expression(expected),
+    ) {
+        (ExpressionNode::Integer(left), ExpressionNode::Integer(right)) => left == right,
+        (ExpressionNode::Integer(left), ExpressionNode::Name(right))
+        | (ExpressionNode::Name(right), ExpressionNode::Integer(left)) => {
+            expression_name_atom(program, right)
+                .and_then(named_integer_value)
+                .is_some_and(|right| left.value_bignum() == Some(right))
+        }
+        (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) => left == right,
+        (ExpressionNode::Name(left), ExpressionNode::Name(right)) => {
+            left.head_symbol == right.head_symbol
+                && left.symbol == right.symbol
+                && program
+                    .expression_table
+                    .name_path_members(left.members)
+                    .iter()
+                    .map(|member| member.as_str())
+                    .eq(program
+                        .expression_table
+                        .name_path_members(right.members)
+                        .iter()
+                        .map(|member| member.as_str()))
+        }
+        (ExpressionNode::Unary(left), ExpressionNode::Unary(right)) => {
+            left.operator == right.operator
+                && bound_index_expressions_equal(
+                    program,
+                    left.operand,
+                    right.operand,
+                    substitutions,
+                )
+        }
+        (ExpressionNode::Binary(left), ExpressionNode::Binary(right)) => {
+            left.operator == right.operator
+                && bound_index_expressions_equal(program, left.left, right.left, substitutions)
+                && bound_index_expressions_equal(program, left.right, right.right, substitutions)
+        }
+        (ExpressionNode::Member(left), ExpressionNode::Member(right)) => {
+            left.member_symbol == right.member_symbol
+                && left.member.as_str() == right.member.as_str()
+                && bound_index_expressions_equal(
+                    program,
+                    left.receiver,
+                    right.receiver,
+                    substitutions,
+                )
+        }
+        _ => false,
     }
 }
 
@@ -1292,14 +1666,27 @@ fn substituted_expression_matches_index_argument(
     expression: ExpressionHandle,
     substitutions: &[ExpressionSubstitution<'_>],
     argument: TypeReferenceHandle,
+    bound_substitutions: &BoundIndexSubstitutions,
 ) -> bool {
     match program.type_reference_table.type_reference(argument) {
-        TypeReferenceNode::ConstExpression(expected) => {
-            substituted_expressions_equal(program, expression, substitutions, *expected)
-        }
+        TypeReferenceNode::ConstExpression(expected) => substituted_expressions_equal(
+            program,
+            expression,
+            substitutions,
+            *expected,
+            bound_substitutions,
+        ),
         TypeReferenceNode::Named { symbol, name } => {
             let expression =
                 substituted_root(program, expression, substitutions).unwrap_or(expression);
+            if let Some((_, bound)) = bound_substitutions
+                .iter()
+                .find(|(binder, _)| binder == symbol)
+            {
+                // The named position is a callee binder the enclosing call
+                // bound: it denotes the bound index, not its own spelling.
+                return bound_index_argument_matches_expression(program, bound, expression);
+            }
             match program.expression_table.expression(expression) {
                 ExpressionNode::Name(path) => {
                     if symbol.is_valid() && (path.symbol.is_valid() || path.head_symbol.is_valid())
@@ -1357,6 +1744,7 @@ fn substituted_expressions_equal(
     authored: ExpressionHandle,
     substitutions: &[ExpressionSubstitution<'_>],
     local: ExpressionHandle,
+    bound_substitutions: &BoundIndexSubstitutions,
 ) -> bool {
     if authored == local {
         return true;
@@ -1365,9 +1753,22 @@ fn substituted_expressions_equal(
         return false;
     }
     if let Some(substituted) = substituted_root(program, authored, substitutions) {
-        return substituted_expressions_equal(program, substituted, &[], local);
+        return substituted_expressions_equal(
+            program,
+            substituted,
+            &[],
+            local,
+            bound_substitutions,
+        );
+    }
+    // A leaf on the compared index side can name a callee binder the
+    // enclosing call bound to a caller-side index; the leaf denotes the
+    // bound index, not its own spelling.
+    if let Some(bound) = bound_index_leaf_argument(program, local, bound_substitutions) {
+        return bound_index_argument_matches_expression(program, bound, authored);
     }
     if substitutions.is_empty()
+        && bound_substitutions.is_empty()
         && program
             .expression_table
             .expressions_structurally_equal(authored, local)
@@ -1409,7 +1810,13 @@ fn substituted_expressions_equal(
         }
         (ExpressionNode::Borrow(left), ExpressionNode::Borrow(right)) => {
             left.access == right.access
-                && substituted_expressions_equal(program, left.target, substitutions, right.target)
+                && substituted_expressions_equal(
+                    program,
+                    left.target,
+                    substitutions,
+                    right.target,
+                    bound_substitutions,
+                )
         }
         (ExpressionNode::Unary(left), ExpressionNode::Unary(right)) => {
             left.operator == right.operator
@@ -1418,16 +1825,40 @@ fn substituted_expressions_equal(
                     left.operand,
                     substitutions,
                     right.operand,
+                    bound_substitutions,
                 )
         }
         (ExpressionNode::Binary(left), ExpressionNode::Binary(right)) => {
             left.operator == right.operator
-                && substituted_expressions_equal(program, left.left, substitutions, right.left)
-                && substituted_expressions_equal(program, left.right, substitutions, right.right)
+                && substituted_expressions_equal(
+                    program,
+                    left.left,
+                    substitutions,
+                    right.left,
+                    bound_substitutions,
+                )
+                && substituted_expressions_equal(
+                    program,
+                    left.right,
+                    substitutions,
+                    right.right,
+                    bound_substitutions,
+                )
         }
         (ExpressionNode::Indexed(left), ExpressionNode::Indexed(right)) => {
-            substituted_expressions_equal(program, left.collection, substitutions, right.collection)
-                && substituted_expressions_equal(program, left.index, substitutions, right.index)
+            substituted_expressions_equal(
+                program,
+                left.collection,
+                substitutions,
+                right.collection,
+                bound_substitutions,
+            ) && substituted_expressions_equal(
+                program,
+                left.index,
+                substitutions,
+                right.index,
+                bound_substitutions,
+            )
         }
         (ExpressionNode::Member(left), ExpressionNode::Member(right)) => {
             left.member_symbol == right.member_symbol
@@ -1437,6 +1868,7 @@ fn substituted_expressions_equal(
                     left.receiver,
                     substitutions,
                     right.receiver,
+                    bound_substitutions,
                 )
         }
         (ExpressionNode::Call(left), ExpressionNode::Call(right)) => {
@@ -1449,13 +1881,20 @@ fn substituted_expressions_equal(
                     left.receiver,
                     substitutions,
                     right.receiver,
+                    bound_substitutions,
                 )
                 && left_arguments.len() == right_arguments.len()
                 && left_arguments
                     .iter()
                     .zip(right_arguments)
                     .all(|(left, right)| {
-                        substituted_expressions_equal(program, *left, substitutions, *right)
+                        substituted_expressions_equal(
+                            program,
+                            *left,
+                            substitutions,
+                            *right,
+                            bound_substitutions,
+                        )
                     })
         }
         (ExpressionNode::ArrayLiteral(left), ExpressionNode::ArrayLiteral(right)) => {
@@ -1463,7 +1902,13 @@ fn substituted_expressions_equal(
             let right = program.expression_table.expression_handles(*right);
             left.len() == right.len()
                 && left.iter().zip(right).all(|(left, right)| {
-                    substituted_expressions_equal(program, *left, substitutions, *right)
+                    substituted_expressions_equal(
+                        program,
+                        *left,
+                        substitutions,
+                        *right,
+                        bound_substitutions,
+                    )
                 })
         }
         (ExpressionNode::StructLiteral(left), ExpressionNode::StructLiteral(right)) => {
@@ -1480,6 +1925,7 @@ fn substituted_expressions_equal(
                             left.value,
                             substitutions,
                             right.value,
+                            bound_substitutions,
                         )
                 })
         }
@@ -1793,6 +2239,9 @@ fn instance_from_constraint(program: &TypedTrees, domain: &DomainConstraint) -> 
 }
 
 fn domain_label(program: &TypedTrees, name: &str, arguments: &[TypeReferenceHandle]) -> String {
+    if arguments.is_empty() {
+        return name.to_owned();
+    }
     let arguments = arguments
         .iter()
         .map(|argument| index_argument_label(program, *argument))

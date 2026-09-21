@@ -49,6 +49,29 @@ pub(crate) fn semantic_target_address(
     layout: &ValidatedElfDynamicLoadLayout,
     fixup: &ElfIndexedProcedureFixup,
 ) -> Result<u64, Diagnostic> {
+    if let ElfProcedureLinkageSemanticTarget::RelocatedImageSection {
+        section,
+        byte_offset,
+    } = fixup.target
+    {
+        let base = match section {
+            image::FinalImageSection::Text => layout.image_memory().text_virtual_address(),
+            image::FinalImageSection::Data => layout.image_memory().data_virtual_address(),
+            image::FinalImageSection::Bss => layout.image_memory().bss_virtual_address(),
+            image::FinalImageSection::None => {
+                return Err(Diagnostic::error(
+                    "general relocation fixup targets no materialized image section",
+                ));
+            }
+        };
+        return checked_sum_u64(
+            base,
+            u64::try_from(byte_offset).map_err(|_| {
+                Diagnostic::error("general relocation slot offset exceeds Elf64_Addr")
+            })?,
+            "general relocation target slot address",
+        );
+    }
     let section = exact_section(layout, fixup.target_section_index)?;
     let (expected_kind, offset) = match fixup.target {
         ElfProcedureLinkageSemanticTarget::FutureDynamicSection => {
@@ -105,6 +128,9 @@ pub(crate) fn semantic_target_address(
                 "procedure GOT slot offset",
             )?,
         ),
+        ElfProcedureLinkageSemanticTarget::RelocatedImageSection { .. } => {
+            unreachable!("image-section targets resolve through image memory placement")
+        }
     };
     require(
         section.kind() == expected_kind,
@@ -288,6 +314,9 @@ pub(crate) fn upstream_storage_bytes(
             10,
             ElfDynamicRosterSectionKind::ProcedureRelocation,
         ),
+        ElfAppliedProcedureLinkageStorage::GeneralRelocation => {
+            indexed_row_bytes(payloads, 11, ElfDynamicRosterSectionKind::GeneralRelocation)
+        }
     }
 }
 
@@ -315,6 +344,7 @@ pub(crate) fn storage_bytes(
         ElfAppliedProcedureLinkageStorage::ProcedureRelocation => {
             &contents.procedure_relocation_bytes
         }
+        ElfAppliedProcedureLinkageStorage::GeneralRelocation => &contents.general_relocation_bytes,
     }
 }
 
@@ -330,6 +360,9 @@ pub(crate) fn storage_bytes_mut(
         ElfAppliedProcedureLinkageStorage::ProcedureGot => &mut contents.procedure_got_bytes,
         ElfAppliedProcedureLinkageStorage::ProcedureRelocation => {
             &mut contents.procedure_relocation_bytes
+        }
+        ElfAppliedProcedureLinkageStorage::GeneralRelocation => {
+            &mut contents.general_relocation_bytes
         }
     }
 }
@@ -395,6 +428,9 @@ pub(crate) fn public_storage(
             ElfDynamicRosterSectionKind::ProcedureRelocation => {
                 Ok(ElfAppliedProcedureLinkageStorage::ProcedureRelocation)
             }
+            ElfDynamicRosterSectionKind::GeneralRelocation => {
+                Ok(ElfAppliedProcedureLinkageStorage::GeneralRelocation)
+            }
             _ => Err(Diagnostic::error(
                 "procedure fixup names a non-procedure storage section",
             )),
@@ -450,6 +486,13 @@ pub(crate) const fn public_target(
         ElfProcedureLinkageSemanticTarget::GotPltSlot { logical_ordinal } => {
             ElfAppliedProcedureLinkageTarget::ProcedureGotSlot { logical_ordinal }
         }
+        ElfProcedureLinkageSemanticTarget::RelocatedImageSection {
+            section,
+            byte_offset,
+        } => ElfAppliedProcedureLinkageTarget::RelocatedImageSection {
+            section,
+            byte_offset,
+        },
     }
 }
 
@@ -473,6 +516,9 @@ const fn public_section_kind(kind: ElfDynamicRosterSectionKind) -> ElfPlacedDyna
         ElfDynamicRosterSectionKind::ProcedureGot => ElfPlacedDynamicSectionKind::ProcedureGot,
         ElfDynamicRosterSectionKind::ProcedureRelocation => {
             ElfPlacedDynamicSectionKind::ProcedureRelocation
+        }
+        ElfDynamicRosterSectionKind::GeneralRelocation => {
+            ElfPlacedDynamicSectionKind::GeneralRelocation
         }
         ElfDynamicRosterSectionKind::DynamicTable => ElfPlacedDynamicSectionKind::DynamicTable,
         ElfDynamicRosterSectionKind::SectionNameTable => {

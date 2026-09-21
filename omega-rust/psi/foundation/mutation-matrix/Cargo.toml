@@ -1,0 +1,14 @@
+[package]
+name = "mutation-matrix"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[features]
+test-support = []
+
+[lib]
+name = "mutation_matrix"
+path = "src/lib.rs"
+
+[dependencies]

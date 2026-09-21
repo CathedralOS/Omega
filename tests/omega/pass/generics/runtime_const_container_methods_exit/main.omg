@@ -3,7 +3,9 @@
 use omega_language_std::console;
 use omega::language::core::service;
 
-data FixedBuffer<const N: u64> {
+// `items[0]` reads discharge against the symbolic extent: the template must
+// declare N >= 1 so index 0 is provably inside every admissible specialization.
+data FixedBuffer<const N: u64[1..=18446744073709551615]> {
     items: [i32 in Wrapping; N];
 }
 

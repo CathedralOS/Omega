@@ -8,6 +8,7 @@ export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/evaluator_env.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/proofs/sources_env.sh"
 
+ENCODING_OUT=
 case "${1:-}" in
     '') ENCODING_GATE=gate.py ;;
     --subject-shape) ENCODING_GATE=subject_shape.py ;;
@@ -15,9 +16,17 @@ case "${1:-}" in
     --full-subject) ENCODING_GATE=full_subject.py ;;
     --mutations) ENCODING_GATE=mutations.py ;;
     --mutations-self-test) ENCODING_GATE=mutations.py; MUTATION_MODE=--self-test ;;
-    *) echo "usage: run.sh [--subject-shape|--counter-cost|--full-subject|--mutations|--mutations-self-test]" >&2; exit 2 ;;
+    --produce-request)
+        ENCODING_GATE=full_subject.py
+        ENCODING_OUT=${2:-}
+        [ "$ENCODING_OUT" != "" ] || { echo "run.sh --produce-request requires an output path" >&2; exit 2; }
+        ;;
+    *) echo "usage: run.sh [--subject-shape|--counter-cost|--full-subject|--mutations|--mutations-self-test|--produce-request PATH]" >&2; exit 2 ;;
 esac
-[ "$#" -le 1 ] || { echo "usage: run.sh [--subject-shape|--counter-cost|--full-subject|--mutations|--mutations-self-test]" >&2; exit 2; }
+[ "$#" -le 1 ] || [ "$1" = "--produce-request" -a "$#" -eq 2 ] || {
+    echo "usage: run.sh [--subject-shape|--counter-cost|--full-subject|--mutations|--mutations-self-test|--produce-request PATH]" >&2
+    exit 2
+}
 
 command -v python3 >/dev/null 2>&1 || {
     echo "Beta encoding theory: skipped (python3 absent)"
@@ -32,13 +41,12 @@ if [ "$ENCODING_GATE" = "full_subject.py" ] || [ "${MUTATION_MODE:-}" = "--self-
     # asserting any checker verdict.
     require_beta_encoding_theory_identity
     require_gamma_evaluator_identity
+    if [ -n "$ENCODING_OUT" ]; then
+        exec python3 -B "$GATE_DIR/$ENCODING_GATE" --emit-request "$ENCODING_OUT"
+    fi
     exec python3 -B "$GATE_DIR/$ENCODING_GATE" ${MUTATION_MODE:-}
 fi
-case "$(uname -s)-$(uname -m)" in
-    Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64|Linux-x86_64) ;;
-    *) echo "Beta encoding theory: unsupported host; needs macOS arm64, Windows x64, or Linux x86-64" >&2
-       exit 2 ;;
-esac
+require_seed_execution_host "Beta encoding theory"
 
 ENCODING_TMP=$(mktemp -d)
 trap 'rm -rf -- "$ENCODING_TMP"' EXIT HUP INT TERM

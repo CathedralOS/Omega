@@ -44,8 +44,9 @@
 //! crossed positions, not window members — and a boundary settlement
 //! refuses where the member changes sides with its block's executed
 //! prefix: past the member's index in the join, or past the landing index
-//! in the head. Arm blocks need no settlement audit: the member never
-//! enters an arm's body, so no arm prefix ever contained or loses it.
+//! in the head. A settlement inside a crossed arm refuses as well: the
+//! member executes before the arm's point after the move where it
+//! executed after it before.
 //! Memory motion stays the shared accounting: a roster-carrying member
 //! crosses only row-less positions, each terminator and each edge's own
 //! access rows counting as accounted boundary positions.

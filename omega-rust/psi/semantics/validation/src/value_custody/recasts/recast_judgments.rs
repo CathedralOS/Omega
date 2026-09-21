@@ -528,16 +528,36 @@ fn judge_slice_recast(
                 );
             }
         } else if element_representation.size != 1 {
-            diagnostics.push(
-                Diagnostic::error(format!(
-                    "{context}: cannot prove exact tiling for interior slice `{target_label}`: \
-                     the runtime byte offset may leave a remainder for {}-byte elements; use a \
-                     statically exact offset or validate the dynamic region before establishing \
-                     the typed slice",
-                    element_representation.size,
-                ))
-                .with_source_span(source_span),
-            );
+            // Congruent runtime offsets admit without an exact value: when
+            // the region length and every reachable offset residue are both
+            // `0 (mod size)`, the remaining bytes always tile whole
+            // elements. The bound already proved the composed offset small
+            // enough to stay inside the region, so the residue arithmetic
+            // cannot have wrapped.
+            let congruent = (region_length as usize).is_multiple_of(element_representation.size)
+                && matches!(
+                    program.expression_table.expression(source),
+                    ExpressionNode::Indexed(indexed)
+                        if super::offset_bounds::offset_expression_is_multiple_of(
+                            program,
+                            machine,
+                            state,
+                            indexed.index,
+                            element_representation.size,
+                        )
+                );
+            if !congruent {
+                diagnostics.push(
+                    Diagnostic::error(format!(
+                        "{context}: cannot prove exact tiling for interior slice `{target_label}`: \
+                         the runtime byte offset may leave a remainder for {}-byte elements; use a \
+                         statically exact offset or validate the dynamic region before establishing \
+                         the typed slice",
+                        element_representation.size,
+                    ))
+                    .with_source_span(source_span),
+                );
+            }
         }
         return;
     }

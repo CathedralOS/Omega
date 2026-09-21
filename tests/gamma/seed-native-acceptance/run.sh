@@ -4,10 +4,11 @@
 #
 #   identity   - the canonical source/tape pair matches the bound evaluator
 #                identities before anything is stamped.
-#   acceptance - the evaluator tape is stamped into every audited Alpha seed:
-#                the host-selected container through the real materializer
-#                (which re-signs on macOS), the non-host container at its own
-#                recorded hole offset. Each stamped result must satisfy the
+#   acceptance - the evaluator tape is stamped into EVERY audited Alpha
+#                seed: the host-selected container through the real
+#                materializer (which re-signs on macOS), each non-host
+#                container at its own recorded hole offset. Every stamped
+#                result must satisfy the
 #                native-container contract enforced by
 #                tests/alpha/container.py: format structure, executable entry,
 #                loader imports/signature, hole = [length][tape][zeros], and —
@@ -54,21 +55,24 @@ echo "--- stamped evaluator native acceptance (every audited seed) ---"
 # and its outside-hole bytes legitimately differ from the pristine image.
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null ||
   fail "materialize_gamma_evaluator refused the bound tape or seed"
+LIN_SEED="$OMEGA_PATH_ALPHA/alpha_x64_linux"
+WIN_SEED="$OMEGA_PATH_ALPHA/alpha_x64_windows.exe"
+MAC_SEED="$OMEGA_PATH_ALPHA/alpha_arm64_macos"
 case "$ALPHA_SEED" in
   alpha_x64_windows.exe)
     STAMP_FORMAT=pe
-    STAMP_PRISTINE="$OMEGA_PATH_ALPHA/alpha_x64_windows.exe"
-    OTHERS="$OMEGA_PATH_ALPHA/alpha_arm64_macos:macho:$ALPHA_SEED_ARM64_MACOS_HOLE_OFF $OMEGA_PATH_ALPHA/alpha_x64_linux:elf:$ALPHA_SEED_X64_LINUX_HOLE_OFF"
+    STAMP_PRISTINE="$WIN_SEED"
+    OTHERS="$MAC_SEED:macho:$ALPHA_SEED_ARM64_MACOS_HOLE_OFF $LIN_SEED:elf:$ALPHA_SEED_X64_LINUX_HOLE_OFF"
     ;;
   alpha_x64_linux)
     STAMP_FORMAT=elf
-    STAMP_PRISTINE="$OMEGA_PATH_ALPHA/alpha_x64_linux"
-    OTHERS="$OMEGA_PATH_ALPHA/alpha_x64_windows.exe:pe:$ALPHA_SEED_X64_WINDOWS_HOLE_OFF $OMEGA_PATH_ALPHA/alpha_arm64_macos:macho:$ALPHA_SEED_ARM64_MACOS_HOLE_OFF"
+    STAMP_PRISTINE="$LIN_SEED"
+    OTHERS="$WIN_SEED:pe:$ALPHA_SEED_X64_WINDOWS_HOLE_OFF $MAC_SEED:macho:$ALPHA_SEED_ARM64_MACOS_HOLE_OFF"
     ;;
   *)
     STAMP_FORMAT=macho
     STAMP_PRISTINE=
-    OTHERS="$OMEGA_PATH_ALPHA/alpha_x64_windows.exe:pe:$ALPHA_SEED_X64_WINDOWS_HOLE_OFF $OMEGA_PATH_ALPHA/alpha_x64_linux:elf:$ALPHA_SEED_X64_LINUX_HOLE_OFF"
+    OTHERS="$WIN_SEED:pe:$ALPHA_SEED_X64_WINDOWS_HOLE_OFF $LIN_SEED:elf:$ALPHA_SEED_X64_LINUX_HOLE_OFF"
     ;;
 esac
 if [ -n "$STAMP_PRISTINE" ]; then

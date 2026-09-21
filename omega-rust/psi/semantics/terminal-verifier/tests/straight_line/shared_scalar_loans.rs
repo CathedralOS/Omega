@@ -154,11 +154,13 @@ fn scalar_loan_module(multiplicity: StructuralMultiplicity) -> TerminalModule {
         target: id(JOIN_BLOCK),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         residual_affine_discards: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: vec![shared_parameter(VIEW, 0, SCALAR_TYPE)],
         id: id(JOIN_BLOCK),
         parameters: Vec::new(),
@@ -215,6 +217,7 @@ fn scalar_call_module() -> TerminalModule {
             callee: id(CALLEE),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
                 place: id(VIEW),
                 path: Vec::new(),
@@ -258,6 +261,7 @@ fn scalar_call_module() -> TerminalModule {
         entry: id(CALLEE_BLOCK),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id(CALLEE_BLOCK),
             parameters: Vec::new(),
@@ -282,6 +286,7 @@ fn scalar_call_module() -> TerminalModule {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id(911),
             crash_routes: Vec::new(),
             requires: Vec::new(),

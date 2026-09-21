@@ -45,15 +45,11 @@ pub use machine_lowering::{
 pub use proofs::content_conservation::{
     LoweredContentConservation, LoweredContentIdentityReshuffles,
     LoweredContentPartitionComposition, LoweredContentPartitionCompositions,
-    lower_boundary_content_guarantees, lower_content_conservation_plan,
-    lower_content_identity_reshuffles, lower_content_partition_compositions,
 };
-pub use proofs::float_meaning_projection::{
-    FloatMeaningProjectionLoweringError, lower_float_meaning_equality,
-    lower_float_meaning_projection,
-};
+pub use proofs::float_meaning_projection::FloatMeaningProjectionLoweringError;
+// The native-differential optimizer corpus proves trap obligations through
+// the checked canonical certificate producer from outside this crate.
 pub use proofs::nonzero_divisor_certificate::produce_checked_canonical_integer_proof;
-pub use proofs::quotient_correspondence::install_non_executable_quotient_correspondences;
 
 #[cfg(test)]
 mod tests;

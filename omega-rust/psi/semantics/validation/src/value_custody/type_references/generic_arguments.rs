@@ -205,6 +205,17 @@ pub(super) fn validate_const_data_argument(
 ) {
     let primitive = program.type_reference_table.primitive_type(parameter_type);
     let is_integer_parameter = primitive.is_some_and(PrimitiveType::accepts_integer_literal);
+    if let TypeReferenceNode::ConstExpression(root) =
+        program.type_reference_table.type_reference(argument)
+    {
+        // A pending-marked application is pre-check continuation custody: the
+        // semantic evaluation owner folds it once selected provider execution
+        // is known. Preliminary checking tolerates the authored shape; every
+        // other mode rejects surviving marks before reaching this argument.
+        if program.pending_const_range_endpoints.contains(root) {
+            return;
+        }
+    }
     let TypeReferenceNode::Named { symbol, name } =
         program.type_reference_table.type_reference(argument)
     else {

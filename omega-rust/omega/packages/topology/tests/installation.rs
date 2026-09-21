@@ -14,6 +14,7 @@ mod support;
 
 use std::collections::BTreeSet;
 use std::fmt;
+use std::sync::Arc;
 use support::*;
 use topology_plan::topology_installation::*;
 use topology_plan::*;
@@ -270,14 +271,7 @@ fn payment_installation_request(request_bytes: &[u8], occurrence: u64) -> Instal
     InstallationRequest {
         expected_request: request_commitment(request_bytes),
         occurrence,
-        artifacts: payment_components()
-            .iter()
-            .enumerate()
-            .map(|(index, admission)| AdmittedArtifact {
-                artifact: identity(0xA1 + index as u8),
-                component_subject: subject_of(admission),
-            })
-            .collect(),
+        artifacts: artifact_roster(&payment_components(), |index| identity(0xA1 + index as u8)),
     }
 }
 
@@ -642,10 +636,12 @@ fn artifact_mismatches_reject_before_any_endpoint() {
         other => panic!("artifact count must reject: {other:?}"),
     }
 
-    // A different component subject than the roster requires.
+    // A different component subject than the roster requires: the
+    // artifact's subject is admission-derived, so substituting it means
+    // carrying a different component's admission.
     let (checked, request_bytes, _) = checked_payment_plan();
     let mut authorization = payment_installation_request(&request_bytes, 2);
-    authorization.artifacts[2].component_subject = identity(0x34);
+    authorization.artifacts[2].admission = Arc::clone(&authorization.artifacts[0].admission);
     match prepare_installation(
         checked,
         supervisor
@@ -656,10 +652,44 @@ fn artifact_mismatches_reject_before_any_endpoint() {
         payment_operation_schemas(),
     ) {
         Err(PrepareError::Rejected {
-            rejection: InstallationRejection::ArtifactMismatch { instance },
+            rejection:
+                InstallationRejection::ArtifactMismatch {
+                    instance,
+                    field: "component_subject",
+                },
             ..
         }) => assert_eq!(instance, 2),
         other => panic!("artifact subject must reject: {other:?}"),
+    }
+
+    // The admission's request profile must equal the profile the plan's
+    // component record claims: an artifact admitted under a different
+    // request — here one accepting an extra assumption digest — is a
+    // substitution even when the subject matches.
+    let (checked, request_bytes, _) = checked_payment_plan();
+    let mut authorization = payment_installation_request(&request_bytes, 3);
+    authorization.artifacts[1].admission = Arc::new(admit_with(
+        &authorization_module(),
+        BTreeSet::from([identity(0x55)]),
+    ));
+    match prepare_installation(
+        checked,
+        supervisor
+            .lifecycle
+            .authorize(authorization)
+            .expect("owner authorization"),
+        SimAdapter::new(),
+        payment_operation_schemas(),
+    ) {
+        Err(PrepareError::Rejected {
+            rejection:
+                InstallationRejection::ArtifactMismatch {
+                    instance,
+                    field: "verification_profile",
+                },
+            ..
+        }) => assert_eq!(instance, 1),
+        other => panic!("artifact admission profile must reject: {other:?}"),
     }
 }
 
@@ -1141,6 +1171,102 @@ fn replacement_keeps_the_old_generation_when_it_cannot_release() {
     }
 }
 
+// The replacement generation's artifacts are a distinct admission roster:
+// the same modules re-verified under a different request carry a different
+// `verification_profile`, and the live path binds each artifact's own
+// admission profile to the instance's recorded one. An artifact admitted
+// under the old generation's profile can never ride the new plan.
+#[test]
+fn replacement_activates_artifacts_admitted_under_the_replacement_profile() {
+    let (old, mut supervisor) = installed_payment();
+
+    let accept = BTreeSet::from([[0xCD; 32]]);
+    let replacement_components: Vec<Arc<AdmittedComponent>> = vec![
+        Arc::new(admit_with(&api_module(), accept.clone())),
+        Arc::new(admit_with(&authorization_module(), accept.clone())),
+        Arc::new(admit_with(&billing_module(), accept)),
+    ];
+    let request = payment_request();
+    let request_bytes = encode_request(&request).unwrap();
+    let instances = vec![
+        verified_instance(name("api"), &replacement_components[0]),
+        verified_instance(name("authorization"), &replacement_components[1]),
+        verified_instance(name("billing"), &replacement_components[2]),
+    ];
+    let (plan, _) = compose_plan(
+        &request,
+        &request_bytes,
+        instances,
+        payment_bindings(),
+        verifier(),
+        &replacement_components,
+    )
+    .expect("replacement composition succeeds");
+    let plan_bytes = encode_plan(&plan).unwrap();
+    let checked = verify_plan(&plan_bytes, &request_bytes, &replacement_components)
+        .expect("the replacement-profile plan verifies");
+
+    // A request still carrying the old profile's admissions answers this
+    // plan only in the artifact identity slot: prepare rejects it before
+    // any endpoint is allocated, so it can never reach `replace_installation`.
+    let stale = InstallationRequest {
+        expected_request: request_commitment(&request_bytes),
+        occurrence: 2,
+        artifacts: artifact_roster(&payment_components(), |index| identity(0xB1 + index as u8)),
+    };
+    match prepare_installation(
+        checked,
+        supervisor
+            .lifecycle
+            .authorize(stale)
+            .expect("replacement intent"),
+        SimAdapter::new(),
+        payment_operation_schemas(),
+    ) {
+        Err(PrepareError::Rejected {
+            rejection:
+                InstallationRejection::ArtifactMismatch {
+                    instance: 0,
+                    field: "verification_profile",
+                },
+            leaked,
+        }) => {
+            assert!(leaked.is_empty(), "rejection preceded endpoint custody");
+            assert!(
+                old.members().iter().all(|member| member.entered),
+                "the old generation is untouched"
+            );
+        }
+        other => panic!("a stale-profile admission must reject at prepare: {other:?}"),
+    }
+
+    let prepared = prepare_installation(
+        verify_plan(&plan_bytes, &request_bytes, &replacement_components)
+            .expect("the replacement-profile plan verifies again"),
+        supervisor
+            .lifecycle
+            .authorize(InstallationRequest {
+                expected_request: request_commitment(&request_bytes),
+                occurrence: 3,
+                artifacts: artifact_roster(&replacement_components, |index| {
+                    identity(0xB1 + index as u8)
+                }),
+            })
+            .expect("fresh intent for the corrected roster"),
+        SimAdapter::new(),
+        payment_operation_schemas(),
+    )
+    .expect("the replacement-profile roster prepares");
+    let installed = replace_installation(old, prepared, &mut supervisor)
+        .expect("the replacement generation activates");
+    assert_eq!(installed.receipt().occurrence, 3);
+    assert_eq!(
+        installed.receipt().artifacts,
+        vec![identity(0xB1), identity(0xB2), identity(0xB3)],
+        "the activated generation retains the replacement-profile artifacts"
+    );
+}
+
 // ---- the host adapter ----------------------------------------------------
 
 #[test]
@@ -1456,13 +1582,7 @@ fn local_payment_request(
     InstallationRequest {
         expected_request: request_commitment(request_bytes),
         occurrence,
-        artifacts: payment_components()
-            .iter()
-            .map(|admission| AdmittedArtifact {
-                artifact,
-                component_subject: subject_of(admission),
-            })
-            .collect(),
+        artifacts: artifact_roster(&payment_components(), |_| artifact),
     }
 }
 
@@ -1808,6 +1928,55 @@ fn a_substituted_mapping_refuses_at_the_gate_before_any_entry() {
     }
     // api's member was still prepared and is quiesced by the rollback —
     // dropping the supervisor confirms no unowned child survives.
+}
+
+#[cfg(unix)]
+#[test]
+fn a_late_activation_failure_quiesces_the_started_roster() {
+    let (mut supervisor, artifact) = local_payment_supervisor();
+    // billing dies between its install echo and the gate — a later
+    // activation failure after api and authorization already entered.
+    supervisor.configure_member(|prepared, instance| {
+        if instance.name.as_str() == "billing" {
+            prepared.env(MEMBER_DIE_BEFORE_GATE_ENV, "1");
+        }
+    });
+    let (checked, request_bytes, _) = checked_payment_plan();
+    let authorization = supervisor
+        .lifecycle_mut()
+        .authorize(local_payment_request(&request_bytes, 1, artifact))
+        .expect("owner authorization");
+    let prepared = prepare_installation(
+        checked,
+        authorization,
+        StdPipeAdapter,
+        payment_operation_schemas(),
+    )
+    .expect("preparation admits");
+    let failure = match prepared.activate(&mut supervisor) {
+        Err(failure) => failure,
+        Ok(_) => panic!("billing's gate death must refuse activation"),
+    };
+    assert_eq!(failure.instance, 2);
+    match &failure.cause {
+        ActivationCause::Supervisor(LocalSupervisorError::Protocol { member, .. }) => {
+            assert_eq!(member.as_str(), "billing");
+        }
+        other => panic!("the gate loss is the member's custody channel: {other:?}"),
+    }
+    // No receipt exists for the partially started roster, supervision
+    // reports nothing retained (both entered members reaped — the empty
+    // list is the cleanup-success answer, not a missing report), and every
+    // installer-held end drained.
+    assert!(
+        failure.retained.is_empty(),
+        "started members must quiesce under supervision"
+    );
+    assert!(
+        failure.leaked.is_empty(),
+        "no end may leak: {:?}",
+        failure.leaked
+    );
 }
 
 #[cfg(unix)]
