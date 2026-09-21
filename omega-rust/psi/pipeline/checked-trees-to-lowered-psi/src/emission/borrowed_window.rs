@@ -1306,4 +1306,82 @@ mod tests {
         terminal_verifier::validate_module(&lowered.semantic_module)
             .expect("the emitted module verifies");
     }
+
+    /// A route spelled through a `&mut` alias local names the same storage
+    /// hole as the owner path: the checker keys the window on the resolved
+    /// place, so `let r = &mut self; let x = r.f; r.f = move x` plans and
+    /// emits the same Move/Store pair as the direct spelling.
+    #[test]
+    fn the_reborrow_alias_route_routes_move_out_and_restore_through_the_ledger() {
+        let source = r#"
+            data Inventory {
+                slots: i32;
+            }
+
+            data Main {
+                inventory: Inventory;
+            }
+
+            machine Main::main(&mut self) {
+                let view: &mut Main = &mut self;
+                let replacement: Inventory = view.inventory;
+                view.inventory = move replacement;
+            }
+        "#;
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .expect("tokenize");
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("resolve");
+        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type");
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
+            .expect("the borrowed window checks");
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str().ends_with("main"))
+            .expect("Main::main");
+        let plans = &checked.facts.flow.terminal_unit_effects;
+        let plan = plans
+            .for_machine(machine.symbol)
+            .expect("the reborrowed move-out/restore pair plans");
+        assert!(plan.operations.iter().any(|operation| {
+            matches!(
+                operation,
+                checked_trees::CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+            )
+        }));
+        assert!(plan.operations.iter().any(|operation| {
+            matches!(
+                operation,
+                checked_trees::CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
+            )
+        }));
+        let lowered =
+            crate::lower_machine(&checked, "Main::main").expect("lowers through the ledger");
+        let emitted_kinds: Vec<&OperationKind> = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .flat_map(|terminal| &terminal.blocks)
+            .flat_map(|block| &block.operations)
+            .map(|operation| &operation.kind)
+            .collect();
+        assert!(
+            emitted_kinds
+                .iter()
+                .any(|kind| { matches!(kind, OperationKind::MoveStructuralField { .. }) })
+        );
+        assert!(
+            emitted_kinds
+                .iter()
+                .any(|kind| { matches!(kind, OperationKind::StoreStructuralField { .. }) })
+        );
+        terminal_verifier::validate_module(&lowered.semantic_module)
+            .expect("the emitted module verifies");
+    }
 }
