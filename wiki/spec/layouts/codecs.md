@@ -20,8 +20,10 @@ composes outside that law.
 
 Artifacts retain normalized plan, requirement identity, realization origin,
 trust class, and evidence independently. Generated origin does not mean derived
-trust. Independent generated-codec verification and preserving-codec
-realizations remain implementation work.
+trust; admission verifies each generated codec against this contract
+(`checked_interpreter::verify_wire_schema_codec`), and only a fully exercised
+requirement reports `Derived`. Preserving-codec realizations remain
+implementation work.
 
 ## Boundary establishment
 
