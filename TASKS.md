@@ -7762,7 +7762,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   PACKAGE landed at 6e8dd6fa33), -NATIVE-CONTAINER-ACCEPTANCE;
   BETA-ENCODING-MUTATION-REJECTION is the active controls row.
 - **BETA-SEED-EXEC-HOST-REFUSAL.** Resolved — re-mine of the landed Beta seed-refusal surface. The refusal leg exists: `tests/beta/compiler/reconstruction.sh`, `tests/beta/compiler/compiler-diamond.sh`, and `tools/bootstrap/beta/build.sh` each refuse exit 2 on hosts that cannot exec the selected container ("refuse rather than crash"), per the same landed host-degradation design recorded on sibling BETA-SEED-REFUSAL-ON-UNSUPPORTED-HOST (BETA-RECONSTRUCTION-REFUSAL). On Linux x86-64 the audited `alpha_x64_linux` seed IS executable, so the gates run their positive legs (`reconstruction.sh` re-ran green at tip — byte-identical Beta→Alpha tape). The refusal-on-unsupported-host side is host-gated by definition; no implementable slice remains here. Cluster: BETA-COMPILER-SEED-REFUSAL is the other alias stub; BETA-PE-SEED-REFUSAL owns the live `tests/beta/compiler` + `tools/bootstrap/beta` fence (exp 22:13Z).
-- **BOOTSTRAP-EPSILON-EVALUATOR.** — mined candidate; verify scope then implement.
+- **BOOTSTRAP-EPSILON-EVALUATOR.** — mined candidate; scope verified,
+  covered. The name mines the chain's Delta-authored Epsilon evaluator
+  leg — landed in full: `bootstrap/4_epsilon/` carries the Delta-written
+  evaluator + compiler closure (`epsilon_compiler.delta` +
+  `epsilon_compiler.delta.sources`, 617,354-byte manifest) with
+  checking/, execution/, lexical/, parsing/, representations/ trees per
+  the Epsilon v1 contract (`LANGUAGE.md`, `FEATURE_LEDGER.md`).
+  Identities are bound: `EPSILON_EVALUATOR_{MANIFEST,PACKED,RECEIPT}_*`,
+  `EPSILON_EXECUTION_DRIVER_*` and `EPSILON_EVALUATOR_ENTRY_*` pins in
+  `tools/bootstrap/epsilon/evaluator_env.sh` re-verified at
+  `f600f8400b7` (manifest and entry SHA-256s match the on-disk bytes),
+  with `require_epsilon_execution_driver_identity` gating every
+  cross-rung consumer. Executed gates exist under `tests/epsilon/`
+  (evaluator-entry reconstructs the canonical evaluator edge and runs
+  its EREQ boundary; d-composition, refinement, runtime-invariants,
+  runtime-references, source-views et al.). The evaluator's downstream
+  legs live on named rows (OMEGA-D and family for the Epsilon-authored
+  Omega compiler; DELTA-EPSILON-CLOSURE-ACCEPTANCE for the closure
+  acceptance surface). No separable slice remains under this name.
 - **BOOTSTRAP-HOST-COVERAGE.** — mined candidate; host coverage recorded at `8734480a01` on linux x86-64, re-verified green at `bde84d1765` after the in-window bootstrap commits. Every host-feasible bootstrap gate passes with real seed execution: `tools/bootstrap/check-chain-hygiene.sh` OK; `tests/bootstrap/alpha-beta-edge.sh --edge` VERIFIED on the audited `alpha_x64_linux` seed (34/34 conformance, 78/78 native bounds, Beta reconstruction byte-identical, root audit 12,536→52+273→253 instructions, 736 word-prefix controls); all seven `*-identity.sh` gates stamp exactly and refuse corrupted/truncated inputs; `source-closure.sh` 4/4. The coverage already exists per-row on the bootstrap board — every remaining host-gated leg is a named item (ALPHA-WINDOWS-CONFORMANCE needs Windows x64; GAMMA-DERIVATION-CHECKER native acceptance needs Windows/macOS/QEMU; the omega-parser/outcome/request/executable gates are explicit slow gates). Nothing implementable remains on this host class; Windows/macOS legs stay host-gated to their owning items. Re-verified green a third time at `0f75a052f0`: chain
   hygiene OK, source-closure 4/4, and `alpha-beta-edge.sh --edge` VERIFIED
   — 34/34 conformance, 78/78 native bounds, Beta reconstruction
