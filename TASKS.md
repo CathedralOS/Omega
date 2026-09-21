@@ -13808,7 +13808,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   independent slice exists here. Sibling stubs on the same landed order:
   TERMINAL-SOURCE-CUSTODY-ORDER, EDGE-CLEANUP-ERROR-PRECEDENCE,
   SUCCESSOR-DISCARD-ORDER, FRONTIER-EDGE-ERROR-ORDERING,
-  OWNED-SUCCESSOR-DISCARD-ORDER.
+  OWNED-SUCCESSOR-DISCARD-ORDER. Re-verified at `7241e02227` on linux
+  x86-64 (z146): `terminators.rs` module-header order unchanged (last
+  move c69dfc79f20 — provider boundary claim mints, not ordering), and
+  `cargo nextest run -p terminal-verifier structural_scalar_fields` is
+  again 62/62 green including
+  `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal`.
 - **TERMINATION-FIELD-ENDPOINT-TRIO.** Mined candidate — resolved: the name
   names the three `rank_ranges` field-endpoint failures recorded in
   `wiki/drafts/known_baseline_failures.md` at `660f5af762`
