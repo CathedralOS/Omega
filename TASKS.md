@@ -8284,7 +8284,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   acceptance and still needs the fenced tree. Owning parent:
   SQUALR-GEOMETRY-PARITY; sibling re-mine stub GEOMETRY-WINDOWS-REVALIDATION
   names the same leg.
-- **GEOMETRY-WINDOWS-REVALIDATION.** — mined candidate; verify scope then implement.
+- **GEOMETRY-WINDOWS-REVALIDATION.** Mined candidate — scope verified at
+  `94e764a6da`, re-mine of the settled adjacent row
+  GEOMETRY-WINDOWS-VALIDATION (scope verified `8734480a01`): both names
+  land on the Windows leg of the squalr app's GEOMETRY-PARITY acceptance,
+  `python tools/verify.py native --timeout 600` on a Windows host against
+  the pinned submodule (gitlink now `5b0307c352`, moved since the sibling
+  audit). Recorded evidence covers macOS ARM64 + Linux x86-64; the Windows
+  leg stays "was not run". Doubly gated: no Windows development host in
+  this lane, and `samples/apps/squalr` is dir-fenced by
+  SQUALR-WINDOWS-GEOMETRY-VALIDATION (dev-88738); a Linux
+  `--target windows_x86_64` emit leg does not satisfy the run-based
+  acceptance. Sibling re-mines of this surface on the board:
+  GEOMETRY-WINDOWS-LEG (resolved `9beef2b045`), this stub, and
+  SQUALR-WINDOWS-GEOMETRY-VALIDATION (re-verified `7110606f46`,
+  ~line 10643) which also records the moved submodule pin.
+  No linux_x86_64 slice exists.
 - **GEOMETRY-WINDOWS-VALIDATION.** Mined candidate; scope verified at
   `8734480a01`: names the Windows leg of the app repo's GEOMETRY-PARITY
   acceptance ("Validate the geometry application on Windows"; the 12-check
