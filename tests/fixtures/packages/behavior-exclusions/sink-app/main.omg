@@ -1,7 +1,7 @@
 // An actual Sink invocation through the boundary. The selected provider is
 // silent, but physical silence is a different property from absence of the
 // abstract service invocation.
-use logger_kit::main;
+use logger_kit::main::Sink;
 use omega::language::core::service;
 
 data Main {

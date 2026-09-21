@@ -8,7 +8,7 @@ use super::super::{
     TerminalMachine, TerminalModule, insert_unique, insert_value, propositions,
     validate_boolean_structural_field,
 };
-use semantic_vocabulary::ValueId;
+use semantic_vocabulary::{StructuralPlaceKind, ValueId};
 use terminal_psi::Operation;
 
 /// Registers a scalar-result operation's value and checks its operands
@@ -104,6 +104,7 @@ pub(super) fn register_scalar_result_operation(
             callee,
             arguments,
             erased_arguments,
+            erased_proof_arguments,
             requirement_obligations,
             crash_continuations,
         } => {
@@ -162,10 +163,21 @@ pub(super) fn register_scalar_result_operation(
                 &crash_continuations,
                 operation.id,
             )?;
-            if callee.structural_places.iter().any(|place| {
-                !super::super::scalar_array::plain_return_source(module, callee, place.id)
-                    && super::super::record::completed_source(module, callee, place.id).is_none()
-            }) || !callee.content_entry_claims.is_empty()
+            // A scalar-only call supplies no structural boundary roots. Local
+            // storage is different: every callee is independently checked for
+            // establishment, dominance and cleanup by validate_machine. Do not
+            // turn its local case/record/array choices into caller obligations.
+            if !callee.structural_parameters.is_empty()
+                || !callee.entry_claims.is_empty()
+                || callee.structural_places.iter().any(|place| {
+                    matches!(
+                        place.kind,
+                        StructuralPlaceKind::Parameter { .. }
+                            | StructuralPlaceKind::Result
+                            | StructuralPlaceKind::ProviderAttachment { .. }
+                    )
+                })
+                || !callee.content_entry_claims.is_empty()
                 || !callee.content_identity_reshuffles.is_empty()
                 || !callee.content_partition_compositions.is_empty()
                 || callee
@@ -217,6 +229,12 @@ pub(super) fn register_scalar_result_operation(
                 machine,
                 operation.id,
                 &erased_arguments,
+            )?;
+            crate::validation::validate_erased_proof_terms(
+                crate::validation::proof_formals_in_scope(machine, operation.id),
+                &callee.contract.erased_proof_formals,
+                erased_proof_arguments.as_slice(),
+                operation.id,
             )?;
 
             for obligation in requirement_obligations {

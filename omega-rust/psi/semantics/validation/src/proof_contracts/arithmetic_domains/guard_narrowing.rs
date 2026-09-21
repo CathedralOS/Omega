@@ -449,6 +449,7 @@ pub(super) fn narrow_env_by_condition(
             | BinaryOperator::Greater
             | BinaryOperator::GreaterOrEqual
     ) && !has_builtin_ordering(program, machine, state, condition)
+        && !meaning::sealed_float_comparison(program, machine, state, condition, comparison)
     {
         return;
     }
@@ -456,6 +457,7 @@ pub(super) fn narrow_env_by_condition(
         comparison.operator,
         BinaryOperator::Equal | BinaryOperator::NotEqual
     ) && !has_builtin_equality(program, machine, state, condition)
+        && !meaning::sealed_float_comparison(program, machine, state, condition, comparison)
     {
         return;
     }

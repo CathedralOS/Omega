@@ -31,11 +31,13 @@ pub(super) fn boundary_qualification_verified() -> VerifiedPsiOptimizationUnit {
         TerminalMachineResult::Unit,
         vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation,
                 result: OperationResult::Unit,
                 kind: OperationKind::BoundaryCall {
@@ -62,6 +64,7 @@ pub(super) fn boundary_qualification_verified() -> VerifiedPsiOptimizationUnit {
     }];
     module.structural_domains = vec![
         terminal_psi::StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: required_domain,
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1_911).unwrap(),
             identity: "test::RequiredBoundaryQualification".into(),
@@ -69,6 +72,7 @@ pub(super) fn boundary_qualification_verified() -> VerifiedPsiOptimizationUnit {
             content_projection: None,
         },
         terminal_psi::StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: unrelated_domain,
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1_912).unwrap(),
             identity: "test::UnrelatedQualification".into(),
@@ -125,11 +129,13 @@ pub(super) fn partial_path_boundary_qualification_verified() -> VerifiedPsiOptim
         TerminalMachineResult::Unit,
         vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation,
                 result: OperationResult::Unit,
                 kind: OperationKind::BoundaryCall {
@@ -177,6 +183,7 @@ pub(super) fn partial_path_boundary_qualification_verified() -> VerifiedPsiOptim
     ];
     module.structural_domains = vec![
         terminal_psi::StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: required_domain,
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1_926).unwrap(),
             identity: "test::RequiredProjectedBoundaryQualification".into(),
@@ -184,6 +191,7 @@ pub(super) fn partial_path_boundary_qualification_verified() -> VerifiedPsiOptim
             content_projection: None,
         },
         terminal_psi::StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: unrelated_domain,
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1_927).unwrap(),
             identity: "test::UnrelatedProjectedBoundaryQualification".into(),
@@ -286,13 +294,16 @@ pub(super) fn projected_structural_result_verified() -> VerifiedPsiOptimizationU
         TerminalMachineResult::Structural(result(caller_result)),
         vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: caller_block,
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: call,
                 result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place: call_result,
                     structural_type: root,
                     multiplicity: terminal_psi::StructuralMultiplicity::Linear,
@@ -366,6 +377,7 @@ pub(super) fn projected_structural_result_verified() -> VerifiedPsiOptimizationU
         },
     ];
     module.structural_domains = vec![terminal_psi::StructuralDomainDeclaration {
+        establishment_routes: Vec::new(),
         id: domain,
         semantic_domain: semantic_vocabulary::DomainSemanticId::new(1_946).unwrap(),
         identity: "test::ProjectedResultReady".into(),
@@ -425,6 +437,7 @@ pub(super) fn projected_structural_result_verified() -> VerifiedPsiOptimizationU
     callee_machine.entry = callee_block;
     callee_machine.blocks = vec![Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: callee_block,
         parameters: Vec::new(),

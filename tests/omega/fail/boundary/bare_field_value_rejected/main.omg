@@ -1,0 +1,11 @@
+// The intrinsic `Service<R>` carrier is the only service value spelling
+// (32f5182): a bare boundary trait in a data field rejects during source
+// checking rather than waiting for bridge planning.
+boundary trait Console {
+    machine write_line(text: &[u8]);
+}
+
+data Main { console: Console; }
+
+machine Main::main(&mut self) {
+}

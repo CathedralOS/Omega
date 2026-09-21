@@ -59,8 +59,11 @@ pub fn validate_fixed_entry_fuel(
 
 /// Derive an exact bound for one selected acyclic path segment. The charged
 /// endpoint is part of the segment so adjacent certificates neither omit nor
-/// double-charge an edge. A conditional edge can be an endpoint; crossing an
-/// unresolved conditional without selecting its successor fails closed.
+/// double-charge an edge. A conditional edge can be an endpoint, and an
+/// interior conditional or case composes the maximum arm: the certificate
+/// bounds every walk from `start_block` that commits `end_edge`, while walks
+/// leaving through another terminal edge are covered by that edge's own
+/// certificate.
 pub fn derive_fixed_segment_fuel(
     verified: &VerifiedTerminalModule<'_>,
     machine: MachineId,

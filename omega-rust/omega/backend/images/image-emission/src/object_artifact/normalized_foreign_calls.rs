@@ -7,7 +7,7 @@
 //! through the retained selected-plan roster and frame layout into one exact
 //! [`ObjectForeignCall`] row per call site.
 //!
-//! Scalar custody is projected for the admitted fixed-integer lane: an
+//! Scalar custody preserves fixed integer, Boolean and IEEE types: an
 //! integer immediate names the register copy or the contiguous
 //! outgoing-slot address-plus-store pair that materializes it, a preceding
 //! scalar-call result keeps its `Home` source and its allocated slot in the
@@ -16,10 +16,11 @@
 //! call. Result and `Home` records share one per-caller home-area map so a
 //! consumer names the producer's slot exactly. Floating controls name the
 //! call-owned frame slot and the selected save/restore intervals.
-//! Incoming and block parameters use ordinary `SelectedCall` custody: the
-//! argument retains its exact SSA value and type, and its span names the call
-//! instruction. The validated selected graph and physical replay own entry
-//! transport and edge copies, including changing values on ranked backedges.
+//! Incoming parameters, block parameters and Boolean/IEEE constants use
+//! ordinary `SelectedCall` custody: the argument retains its exact SSA value
+//! and type, and its span names the call instruction. The validated selected
+//! graph retains the exact constant payload; physical replay owns its transport,
+//! entry transport and edge copies, including values on ranked backedges.
 //! No parameter is relabeled as an immediate or an operation-defined home.
 //! Callback materialization stays out of the projection; selection
 //! rejects callback-bearing calls before they reach this roster at all.
@@ -342,7 +343,7 @@ fn producer_instruction(
         .map(|(_, instruction)| instruction)
 }
 
-/// Scalar-argument custody for one roster row's admitted fixed-integer lane.
+/// Scalar-argument custody for one roster row's admitted fixed scalar lane.
 ///
 /// Every argument keeps its authored plan position and the exact placement
 /// the evaluated plan assigned. An `IntegerImmediate` names the instruction
@@ -380,8 +381,8 @@ where
         return Err(invalid());
     }
     // The call's operand roster is every register-resident argument word in
-    // authored plan order — scalar arguments and structural referent pointers
-    // alike — then the optional scalar result definition.
+    // canonical bank order — GPR scalars and structural referent pointers,
+    // then IEEE inputs — followed by the optional scalar result definition.
     let register_arguments = record
         .call
         .scalar_arguments
@@ -409,37 +410,45 @@ where
     {
         return Err(invalid());
     }
+    let mut register_positions = plan
+        .parameters
+        .iter()
+        .enumerate()
+        .filter(|(_, placement)| {
+            matches!(
+                placement.locations.as_slice(),
+                [ValueLocation::Register { .. }]
+            )
+        })
+        .map(|(position, _)| position)
+        .collect::<Vec<_>>();
+    register_positions.sort_by_key(|position| {
+        plan.parameters[*position].shape.class == calling_conventions::ValueClass::Float
+    });
     let mut scalar_arguments = Vec::new();
     for (scalar_ordinal, argument) in record.call.scalar_arguments.iter().enumerate() {
         let native_position = usize::try_from(argument.parameter_index).map_err(|_| invalid())?;
-        let ScalarType::Integer(integer) = argument.source.scalar_type() else {
-            return Err(invalid());
-        };
-        if integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
-            || !matches!(integer.bits(), 8 | 16 | 32 | 64)
-            || scalar_ordinal.checked_sub(1).is_some_and(|previous| {
-                record.call.scalar_arguments[previous].parameter_index >= argument.parameter_index
-            })
-            || plan.parameters.get(native_position) != Some(&argument.placement)
-            || argument.placement.shape
-                != calling_conventions::ValueShape::integer(integer.bits() / 8, integer.bits() / 8)
+        let shape = scalar_shape(argument.source.scalar_type()).ok_or_else(invalid)?;
+        if scalar_ordinal.checked_sub(1).is_some_and(|previous| {
+            record.call.scalar_arguments[previous].parameter_index >= argument.parameter_index
+        }) || plan.parameters.get(native_position) != Some(&argument.placement)
+            || argument.placement.shape != shape
         {
             return Err(invalid());
         }
-        let register_operand = plan
-            .parameters
+        let register_operand = register_positions
             .iter()
-            .take(native_position)
-            .filter(|placement| {
-                matches!(
-                    placement.locations.as_slice(),
-                    [ValueLocation::Register { .. }]
-                )
-            })
-            .count();
+            .position(|position| *position == native_position)
+            .unwrap_or(register_arguments);
         let (source, span) = match argument.source {
             source @ (target_operations::TargetUnitScalarArgumentSource::Parameter { .. }
-            | target_operations::TargetUnitScalarArgumentSource::BlockParameter(_)) => (
+            | target_operations::TargetUnitScalarArgumentSource::BlockParameter(_)
+            | target_operations::TargetUnitScalarArgumentSource::BooleanImmediate {
+                ..
+            }
+            | target_operations::TargetUnitScalarArgumentSource::IeeeFloatImmediate {
+                ..
+            }) => (
                 machine_code::InternalUnitScalarArgumentSourceRecord::SelectedCall {
                     source_value: source.source_value(),
                     scalar_type: source.scalar_type(),
@@ -512,7 +521,6 @@ where
                     span,
                 )
             }
-            _ => return Err(invalid()),
         };
         scalar_arguments.push(machine_code::ForeignCallScalarArgumentRecord {
             parameter_index: argument.parameter_index,
@@ -553,14 +561,9 @@ fn foreign_scalar_result_custody(
         }
         return Err(invalid());
     };
-    let ScalarType::Integer(integer) = home.scalar_type else {
-        return Err(invalid());
-    };
-    if integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
-        || !matches!(integer.bits(), 8 | 16 | 32 | 64)
-        || home.defining_operation != record.operation
-        || home.shape
-            != calling_conventions::ValueShape::integer(integer.bits() / 8, integer.bits() / 8)
+    let shape = scalar_shape(home.scalar_type).ok_or_else(invalid)?;
+    if home.defining_operation != record.operation
+        || home.shape != shape
         || placement.shape != home.shape
         || !matches!(
             placement.locations.as_slice(),
@@ -655,6 +658,12 @@ fn scalar_result_normalization_kind(
     use selected_instructions::SelectedInstructionKind as Kind;
     use semantic_vocabulary::IntegerSign;
     match scalar_type {
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
+            Some(Kind::Float32ToBits)
+        }
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
+            Some(Kind::Float64ToBits)
+        }
         ScalarType::Boolean => Some(Kind::ZeroExtendU8),
         ScalarType::Integer(integer) => match (integer.sign(), integer.bits()) {
             (IntegerSign::Unsigned, 8) => Some(Kind::ZeroExtendU8),
@@ -666,6 +675,27 @@ fn scalar_result_normalization_kind(
             (IntegerSign::Signed, 32) => Some(Kind::SignExtendI32),
             _ => None,
         },
+    }
+}
+
+/// Object custody derives the same fixed ABI shape from semantic type, never
+/// from the width of a scratch register or a producer-supplied placement.
+fn scalar_shape(scalar_type: ScalarType) -> Option<calling_conventions::ValueShape> {
+    use calling_conventions::ValueShape;
+    match scalar_type {
+        ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
+            Some(ValueShape::float(4))
+        }
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
+            Some(ValueShape::float(8))
+        }
+        ScalarType::Integer(integer)
+            if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
+        {
+            Some(ValueShape::integer(integer.bits() / 8, integer.bits() / 8))
+        }
         _ => None,
     }
 }

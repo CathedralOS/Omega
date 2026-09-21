@@ -213,10 +213,7 @@ pub(super) fn attach_checked_crash_calls(
             else {
                 continue;
             };
-            let local_target = program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == target_machine_symbol);
+            let local_target = crate::lookup::machine_by_symbol(program, target_machine_symbol);
             let local_plan = plans
                 .iter()
                 .find(|plan| plan.machine == target_machine_symbol);

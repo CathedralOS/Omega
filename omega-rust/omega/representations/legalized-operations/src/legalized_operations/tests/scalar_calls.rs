@@ -26,6 +26,7 @@ fn empty_aggregate_result_shape_retains_some_and_rejects_fake_storage() {
         // Raw ABI checks retain the structural role, but do not establish that
         // this nominal declaration actually names an empty source array.
         call.structural_result = Some(terminal_psi::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: semantic_vocabulary::PlaceId::new(1).unwrap(),
             structural_type: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,

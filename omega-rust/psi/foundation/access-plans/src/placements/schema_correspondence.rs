@@ -307,7 +307,7 @@ impl AdmittedSchemaDeviceCorrespondence {
         }
     }
 
-    fn validate_structure(&self) -> Result<(), AccessPlanDiagnostic> {
+    pub(crate) fn validate_structure(&self) -> Result<(), AccessPlanDiagnostic> {
         if self.revision.as_ref().is_some_and(|revision| {
             revision.provider != self.provider
                 || revision.device != self.device

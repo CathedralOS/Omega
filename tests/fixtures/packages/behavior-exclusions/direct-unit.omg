@@ -1,0 +1,11 @@
+// Appended to assert-kit's main module only by the direct-Unit control.
+pub data DirectCheckingAssert { }
+
+machine DirectCheckingAssert::check(ok: bool)
+satisfies Assert::check
+crashes Trap
+{
+    transition ok { true -> pass() false -> fail() }
+    state pass() { }
+    state fail() { crash Trap; }
+}

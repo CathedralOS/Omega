@@ -37,6 +37,7 @@ fn scalar_call_cycle() -> TerminalModule {
     };
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(30, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -45,6 +46,7 @@ fn scalar_call_cycle() -> TerminalModule {
         }),
         kind: OperationKind::Call {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: callee.id,
             arguments: vec![id(10, ValueId::new)],
             requirement_obligations: Vec::new(),
@@ -233,6 +235,7 @@ fn structural_scalar_call_cycle() -> TerminalModule {
     callee.entry = id(100, BlockId::new);
     callee.blocks = vec![Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(100, BlockId::new),
         parameters: Vec::new(),
@@ -259,8 +262,10 @@ fn structural_scalar_call_cycle() -> TerminalModule {
     machine.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(20, OperationId::new),
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: id(1, PlaceId::new),
                 structural_type: id(1, StructuralTypeId::new),
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -274,6 +279,7 @@ fn structural_scalar_call_cycle() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(30, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -282,6 +288,7 @@ fn structural_scalar_call_cycle() -> TerminalModule {
             }),
             kind: OperationKind::CallStructuralScalar {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: callee.id,
                 arguments: vec![id(10, ValueId::new)],
                 structural_arguments: vec![StructuralArgument {
@@ -489,13 +496,16 @@ fn unrestricted_structural_call_cycle() -> TerminalModule {
     callee.entry = id(100, BlockId::new);
     callee.blocks = vec![Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(100, BlockId::new),
         parameters: Vec::new(),
         operations: vec![Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(20, OperationId::new),
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: id(11, PlaceId::new),
                 structural_type: sum_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -530,8 +540,10 @@ fn unrestricted_structural_call_cycle() -> TerminalModule {
     machine.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(30, OperationId::new),
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: id(1, PlaceId::new),
                 structural_type: sum_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -541,6 +553,7 @@ fn unrestricted_structural_call_cycle() -> TerminalModule {
             }),
             kind: OperationKind::CallStructuralWithScalarArguments {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: callee.id,
                 arguments: vec![id(10, ValueId::new)],
                 structural_arguments: Vec::new(),
@@ -552,6 +565,7 @@ fn unrestricted_structural_call_cycle() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(31, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

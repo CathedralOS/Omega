@@ -23,6 +23,17 @@ The Omega-written implementation is split across sibling `source/psi/` and
 `source/omega/` packages. This Rust producer may be
 omitted even if retained for cross-compiler bug finding.
 
+Omission is a property of a produced closure, not of this workspace: a
+toolchain, release, or bootstrap input set omits the Rust producer when its
+closed dependency set contains no `omega-rust/` artifact, build step, or
+checkout-derived path (including the bundled `source/library/` location, which
+a self-hosted product must resolve without this checkout). An omitted
+producer's products keep identical admission rules — artifact bytes, manifest
+identities, and proof sidecars are checked against their own claims, never
+against which implementation emitted them. Whether the workspace itself is
+retained as a comparator or retired is a separate policy; omission alone never
+implies deletion.
+
 ## Implementation entrypoints
 
 - [Pipeline and ownership](pipeline.md): the connected source-to-Terminal and

@@ -15,11 +15,7 @@ pub(super) fn check_self_transition_arrival_requires(
     state_flow: &FlowStateFact,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == state_flow.machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
         return;
     };
     let Some(state) = program

@@ -31,6 +31,7 @@ fn view_argument(place: u64) -> StructuralArgument {
 fn length_operation(operation: u64, value: u64, source: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(operation, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -121,6 +122,7 @@ pub(super) fn view_cycle() -> TerminalModule {
     machine.blocks[2].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(11, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -138,8 +140,10 @@ pub(super) fn view_cycle() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(12, OperationId::new),
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: id(3, PlaceId::new),
                 structural_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -248,6 +252,7 @@ fn multiple_entry_cycle_cannot_bypass_view_parameter_binding() {
             target: id(2, BlockId::new),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: vec![view_argument(1)],
             trivial_affine_discards: Vec::new(),
         },
@@ -256,6 +261,7 @@ fn multiple_entry_cycle_cannot_bypass_view_parameter_binding() {
             target: id(3, BlockId::new),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -395,6 +401,7 @@ fn boundary_view_call(module: &mut TerminalModule, source: u64) -> Operation {
     });
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(40, OperationId::new),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {

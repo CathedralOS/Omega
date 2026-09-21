@@ -275,6 +275,41 @@ fn divergent_origins_compose_through_expression_calls() {
     }
 }
 
+// A method call on a divergent computed receiver resolves to its attached
+// machine by target symbol alone; the callee's `self`-relative writes then
+// instantiate under every proven candidate and union. The divergent set is
+// evidence of where the receiver may land, never a spelling that selects the
+// callee.
+#[test]
+fn divergent_computed_receiver_unions_candidate_writes() {
+    for (name, helpers, body, expected) in [
+        (
+            "pick_receiver",
+            "machine Cell::set_n(&mut self, x: u64) -> u64 { self.n = x; x }",
+            "let sink: u64 = pick_cell(&mut self.c1, &mut self.c2, self.tag).set_n(1);",
+            ["self.c1.n", "self.c2.n"].as_slice(),
+        ),
+        // A match expression receiver carries the same finite set.
+        (
+            "match_receiver",
+            "machine Cell::set_n(&mut self, x: u64) -> u64 { self.n = x; x }",
+            "let sink: u64 = (match self.tag { 0 -> &mut self.c1, _ -> &mut self.c2 }).set_n(1);",
+            ["self.c1.n", "self.c2.n"].as_slice(),
+        ),
+    ] {
+        let program = probe_program_with_helpers(body, helpers);
+        let expected = expected
+            .iter()
+            .map(|path| (*path).to_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            caller_frames(&program),
+            [Some(expected.clone()), Some(expected)],
+            "{name}"
+        );
+    }
+}
+
 // Routes that cannot name every arm's provenance still fail closed: a
 // recursive helper, an arm landing on helper-private storage, a divergent
 // binding rebound to an unproven source, and an unproven interior reference
@@ -329,6 +364,19 @@ fn unproven_candidate_routes_stay_opaque() {
             "",
             "let alias: &mut View = pick_carrier(&mut self.v1, &mut self.v2, self.tag); alias.body = 1; consume(&mut self.audit);",
         ),
+        // A receiver call whose result has no finite candidate set — a
+        // recursive helper, or an arm landing on private storage — cannot
+        // route `self`-relative callee writes and fails closed.
+        (
+            "recursive_receiver_result",
+            "machine Cell::set_n(&mut self, x: u64) -> u64 { self.n = x; x }\n         machine bounce_cell(a: &mut Cell) -> &mut Cell { bounce_cell(a) }",
+            "let sink: u64 = bounce_cell(&mut self.c1).set_n(1);",
+        ),
+        (
+            "private_arm_receiver",
+            "machine Cell::set_n(&mut self, x: u64) -> u64 { self.n = x; x }\n         machine pick_priv_cell(a: &mut Cell, tag: u64) -> &mut Cell { let local: Cell = Cell { n: 0 }; match tag { 0 -> a, _ -> &mut local } }",
+            "let sink: u64 = pick_priv_cell(&mut self.c1, self.tag).set_n(1);",
+        ),
     ] {
         let program = probe_program_with_helpers(body, helpers);
         let [state, _public] = caller_frames(&program);
@@ -340,7 +388,7 @@ fn unproven_candidate_routes_stay_opaque() {
 }
 
 #[test]
-fn divergent_named_state_transfer_cannot_drop_candidate_writes() {
+fn divergent_named_state_transfer_unions_candidate_writes() {
     let program = probe_program(
         "let alias: &mut u64 = pick(&mut self.value, &mut self.other, self.tag);
         transition { _ -> next(alias) }
@@ -352,10 +400,13 @@ fn divergent_named_state_transfer_cannot_drop_candidate_writes() {
         .find(|machine| machine.name.as_str() == "Main::run")
         .expect("caller");
     let resolver = validation::CallFrameResolver::new(&program).expect("resolver");
-    assert!(
-        !resolver
-            .inferred_state_write_frame(machine, &program.machine_states(machine)[0])
-            .is_complete()
+    assert_eq!(
+        visible_paths(
+            resolver
+                .inferred_state_write_frame(machine, &program.machine_states(machine)[0])
+                .into_complete_paths()
+        ),
+        Some(vec!["self.other".to_string(), "self.value".to_string()]),
     );
 }
 

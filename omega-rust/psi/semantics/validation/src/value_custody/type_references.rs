@@ -428,7 +428,7 @@ fn validate_routed_service_carrier_placement(
         Ok(Some(_)) => {
             if !direct || !owner.allows_direct_routed_service_carrier() {
                 diagnostics.push(Diagnostic::error(format!(
-                    "{owner} places `Service<R> in Bound` outside the first direct field/owned concrete-machine-parameter rung"
+                    "{owner} places the routed `Service<R>` carrier outside the first direct field/owned concrete-machine-parameter rung"
                 )));
             }
             return;

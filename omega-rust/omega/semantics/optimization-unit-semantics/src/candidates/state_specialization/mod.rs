@@ -12,6 +12,8 @@ use crate::validate_psi_optimization_unit;
 
 mod replay;
 
+pub(crate) use replay::cyclic_machines;
+
 pub fn validate_state_argument_specialization_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,

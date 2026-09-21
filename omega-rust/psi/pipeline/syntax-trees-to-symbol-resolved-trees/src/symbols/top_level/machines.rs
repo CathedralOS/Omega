@@ -1,5 +1,6 @@
 use arena::Arena;
 use diagnostics::Diagnostic;
+use std::collections::HashSet;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
@@ -39,6 +40,18 @@ pub(super) fn assign_machine_symbols(
         })
         .collect::<Vec<_>>();
     let mut diagnostics = Vec::new();
+    // A transparent refinement (`trait R = Base`) bounds an existing base
+    // conformance; it is never itself a `satisfies` target.
+    let refinement_symbols: HashSet<SymbolHandle> = program
+        .roots
+        .traits
+        .iter()
+        .filter(|definition| definition.refines.is_some())
+        .filter_map(|definition| {
+            let symbol = top_level_symbol_for_source(symbols, SymbolKind::Trait, &definition.name);
+            symbol.is_valid().then_some(symbol)
+        })
+        .collect();
     let trait_proposition_slots = program
         .roots
         .traits
@@ -343,7 +356,15 @@ pub(super) fn assign_machine_symbols(
                             source_span,
                         )
                         .is_some();
-                    if !conformance.symbol.is_valid() && !names_operator {
+                    if refinement_symbols.contains(&conformance.symbol) {
+                        diagnostics.push(
+                            Diagnostic::error(format!(
+                                "machine satisfaction target `{path}` names a transparent refinement — refinements bound existing conformance evidence, they are not satisfied directly"
+                            ))
+                            .with_source_span(source_span),
+                        );
+                        conformance.symbol = SymbolHandle::invalid();
+                    } else if !conformance.symbol.is_valid() && !names_operator {
                         diagnostics.push(
                             Diagnostic::error(format!(
                                 "machine satisfaction target `{path}` does not resolve to an exact trait requirement or top-level `boundary requirement`"

@@ -1,0 +1,24 @@
+// A zero-length fixed byte array is a first-class value at check: `[u8; 0]` is
+// admitted in every structural position -- locals, constants, parameters,
+// returns, record fields, and nested arrays. An empty array literal `[]` or an
+// empty quoted byte literal `""` constructs it exactly; it compares by value
+// and reports `.len` = 0. The only fences live at USE, pinned by
+// fail/data/zero_length_byte_array_*: no index is provable (no element
+// exists), and construction must supply exactly 0 elements or bytes.
+const EMPTY: [u8; 0] = "";
+
+data Holder { bytes: [u8; 0]; }
+
+machine first(rows: [[u8; 0]; 1]) -> [u8; 0] { rows[0] }
+
+data Main {}
+
+machine Main::main(&mut self) {
+    let from_literal: [u8; 0] = [];
+    let from_bytes: [u8; 0] = "";
+    let nested: [[u8; 0]; 0] = [];
+    let held: Holder = Holder { bytes: [] };
+    let selected: [u8; 0] = first([EMPTY]);
+    let same: bool = from_literal == selected;
+    let count: u64 = from_bytes.len;
+}

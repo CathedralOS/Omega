@@ -12,9 +12,9 @@ use super::super::{AbstractOperation, Error, PsiOptimizationUnit, TargetOperatio
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
 use abstract_operations::AbstractOperationPlan;
-use calling_conventions::{CallSignature, CallingPolicy, EntryControl, ValueLocation, ValueShape};
+use calling_conventions::{CallSignature, CallingPolicy, EntryControl, ValueLocation};
 use legalized_operations::LegalizedScalarInstruction;
-use semantic_vocabulary::{OperationId, ScalarType};
+use semantic_vocabulary::OperationId;
 use target_operations::{TargetUnitOperation, TargetUnitScalarHomeRequirement};
 
 #[allow(clippy::too_many_arguments)]
@@ -79,18 +79,7 @@ pub(super) fn validate(
     let scalar_shapes = declaration
         .scalar_parameters
         .iter()
-        .map(|parameter| {
-            let ScalarType::Integer(integer_type) = parameter else {
-                return Err(invalid.clone());
-            };
-            if integer_type.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
-                || !matches!(integer_type.bits(), 8 | 16 | 32 | 64)
-            {
-                return Err(invalid.clone());
-            }
-            let bytes = integer_type.bits().div_ceil(8);
-            Ok(ValueShape::integer(bytes, bytes.next_power_of_two().min(8)))
-        })
+        .map(|parameter| scalar_graph_input::scalar_shape(*parameter).ok_or(invalid.clone()))
         .collect::<Result<Vec<_>, LegalizationError>>()?;
     // Lane-local custody rejoins the declaration's retained authored order.
     if !declaration.has_valid_parameter_order()
@@ -146,12 +135,9 @@ pub(super) fn validate(
         ) => None,
         (
             abstract_operations::AbstractBoundaryResult::Scalar(result),
-            terminal_psi::BoundaryMachineResult::Scalar(ScalarType::Integer(declared)),
+            terminal_psi::BoundaryMachineResult::Scalar(declared),
         ) => {
-            let ScalarType::Integer(result_type) = result.scalar_type else {
-                return Err(invalid);
-            };
-            if *declared != result_type
+            if *declared != result.scalar_type
                 || scalar_graph_input::value_type(optimized, result.value)
                     != Some(result.scalar_type)
                 || function.attachment.is_none()
@@ -226,6 +212,7 @@ pub(super) fn validate(
         || scalar_arguments.as_slice() != call.scalar_arguments.as_slice()
         || row_structural.as_slice() != call.structural_arguments.as_slice()
         || *result_home != call.result_home
+        || callback != call.callback.as_ref()
         || !completion_claim_sources.is_empty()
         || !completion_receipts.is_empty()
         || call.binding.locator.target().native_target() != native.target
@@ -254,9 +241,6 @@ pub(super) fn validate(
             .zip(&scalar_shapes)
             .zip(declaration.parameter_positions(terminal_psi::BoundaryParameterKind::Scalar))
             .any(|((((argument, value), parameter), shape), index)| {
-                let ScalarType::Integer(integer_type) = parameter else {
-                    return true;
-                };
                 let placed_byte_size = match argument.placement.locations.as_slice() {
                     [
                         ValueLocation::Register {
@@ -286,7 +270,7 @@ pub(super) fn validate(
                         != Some(&argument.placement)
                     || argument.placement.shape != *shape
                     || shape.byte_size != placed_byte_size
-                    || argument.source.scalar_type() != ScalarType::Integer(*integer_type)
+                    || argument.source.scalar_type() != *parameter
                     || argument.source.source_value() != *value
                     || match &argument.source {
                         target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {

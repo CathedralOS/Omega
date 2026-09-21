@@ -1,0 +1,24 @@
+// A specification call cited through the abstract requirement signature
+// attributes the signature's precondition to the call's exact subject: the
+// contract owner is `Empties::read` itself, not any conformance rewrite.
+
+data Tree {
+    marked: bool;
+    case Empty;
+    case Node(child: Tree);
+}
+
+trait Empties {
+    machine Self::read(value: Tree) requires value in Tree::Empty;
+}
+
+machine direct(value: Tree)
+requires value in Tree::Empty;
+ensures Empties::read(value) == Empties::read(value);
+{}
+
+machine alias_subject(value: Tree, alias: Tree)
+requires value == alias;
+requires value in Tree::Empty;
+ensures Empties::read(alias) == Empties::read(alias);
+{}

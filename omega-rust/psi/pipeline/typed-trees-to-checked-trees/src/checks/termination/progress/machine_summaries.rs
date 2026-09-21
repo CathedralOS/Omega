@@ -203,13 +203,11 @@ pub(crate) fn selected_call_summary<'a>(
             build_bound_demands: &[],
         });
     }
-    let target_machine = program.machines().iter().find(|candidate| {
-        candidate.symbol == target_symbol
-            || program
-                .machine_states(candidate)
-                .iter()
-                .any(|state| state.symbol == target_symbol)
-    })?;
+    let target_machine =
+        crate::lookup::machine_by_symbol(program, target_symbol).or_else(|| {
+            crate::semantic_calls::find_state_with_machine(program, target_symbol)
+                .map(|(machine, _)| machine)
+        })?;
     match &target_machine.termination_plan.interface {
         language_semantics::TerminationInterface::Published(guarantee) => {
             let build_bound_demands = summaries
@@ -400,6 +398,17 @@ pub(crate) fn call_argument_subject_with_parameters(
             call_frames,
         )?
     };
+    // A demanded operand spelled through a reference leaf names the
+    // referent's storage, not the carrier's: resolve the leaf so the premise
+    // surface never sees the index selectors it cannot carry.
+    let place = origins::call_argument_boundary_place(
+        program,
+        machine,
+        state_flow,
+        call.statement_index,
+        place,
+        call_frames,
+    )?;
     subject_from_place(place.root, &place.segments)
 }
 

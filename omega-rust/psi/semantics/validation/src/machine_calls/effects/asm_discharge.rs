@@ -1,18 +1,127 @@
 use diagnostics::Diagnostic;
+use language_core::inline_assembly::AsmAuthorityRequirement;
 use typed_trees::TypedTrees;
 use typed_trees::statement::StatementNode;
 
-/// Current coarse target-class gate for authority-bearing assembly intrinsics.
-/// Hosted compilation rejects them; freestanding selection passes this gate.
-/// That implementation restriction is not proof of a concrete machine-control
-/// capability. The required authority contract is in
-/// wiki/spec/build/permissions.md#privileged-services. Instructions with no
-/// authority requirement do not need this gate's freestanding condition.
+/// The privileged-service authority classes an evaluated build supplies to the
+/// asm authority discharge. Each catalog contract carries its own
+/// `AsmAuthorityRequirement` and this admission independently answers for the
+/// exact class, per
+/// wiki/spec/build/permissions.md#privileged-services: a machine's `reaches`
+/// row names the service it may reach; this evidence states which privileged
+/// classes the produced image may exercise at all.
+///
+/// `Build.freestanding` is the machine-owner supply: the freestanding
+/// selection is the boot-root machine owner, and the machine owner can
+/// self-grant the mediated classes (port permission maps, interrupt-table
+/// publication) alongside machine control itself. A hosted build begins with
+/// no class but may grant each mediated class independently through
+/// `Build.privileged_services` flags — port permission without
+/// interrupt-table control, and so on. Machine-owner authority itself has no
+/// granular grant and stays `freestanding`-only. Consumer-defined
+/// publication authority stays receiver-side per the permissions spec and
+/// never enters this input.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AsmAuthorityAdmission {
+    machine_owner: bool,
+    port_io: bool,
+    idt_control: bool,
+}
+
+impl AsmAuthorityAdmission {
+    /// A hosted image supplies no privileged-service authority.
+    pub const HOSTED: Self = Self {
+        machine_owner: false,
+        port_io: false,
+        idt_control: false,
+    };
+
+    /// The freestanding machine-owner selection admits every authority class
+    /// the catalog defines: owning the machine includes its mediated
+    /// capabilities.
+    pub const MACHINE_OWNER: Self = Self {
+        machine_owner: true,
+        port_io: true,
+        idt_control: true,
+    };
+
+    /// The admission evidence an evaluated `Build.freestanding` selection
+    /// supplies: full machine-owner admission or none.
+    pub const fn from_freestanding(freestanding: bool) -> Self {
+        if freestanding {
+            Self::MACHINE_OWNER
+        } else {
+            Self::HOSTED
+        }
+    }
+
+    /// Widen by each authored `Build.privileged_services` flag. Grants are
+    /// independent: `port_io` admits port I/O only and `interrupt_table`
+    /// admits interrupt-table publication only; neither claims machine-owner
+    /// authority, which stays `freestanding`-only and already covers both
+    /// mediated classes when set.
+    pub const fn with_grants(self, port_io: bool, interrupt_table: bool) -> Self {
+        Self {
+            machine_owner: self.machine_owner,
+            port_io: self.port_io || port_io,
+            idt_control: self.idt_control || interrupt_table,
+        }
+    }
+
+    /// Whether this admission supplies the exact authority class one
+    /// instruction contract requires. `None`-authority instructions admit
+    /// unconditionally and never reach the gate's rejection path.
+    pub const fn admits(&self, requirement: AsmAuthorityRequirement) -> bool {
+        match requirement {
+            AsmAuthorityRequirement::None => true,
+            AsmAuthorityRequirement::MachineOwner => self.machine_owner,
+            AsmAuthorityRequirement::PortIo => self.port_io,
+            AsmAuthorityRequirement::IdtControl => self.idt_control,
+        }
+    }
+
+    fn description(requirement: AsmAuthorityRequirement) -> &'static str {
+        match requirement {
+            AsmAuthorityRequirement::None => "no authority",
+            AsmAuthorityRequirement::MachineOwner => "machine-owner authority",
+            AsmAuthorityRequirement::PortIo => "port-I/O authority",
+            AsmAuthorityRequirement::IdtControl => "interrupt-table publication authority",
+        }
+    }
+}
+
+/// The authored supply the diagnostic names for the missing class. A
+/// freestanding boundary root always suffices; each mediated class also
+/// accepts its exact `Build.privileged_services` flag, while machine-owner
+/// authority has no granular grant.
+fn authored_admission_fix(requirement: AsmAuthorityRequirement) -> &'static str {
+    match requirement {
+        AsmAuthorityRequirement::PortIo => {
+            "Set `b.freestanding = true` or grant exactly this class with \
+             `b.privileged_services.port_io = true` in build.omg, \
+             or remove the asm block"
+        }
+        AsmAuthorityRequirement::IdtControl => {
+            "Set `b.freestanding = true` or grant exactly this class with \
+             `b.privileged_services.interrupt_table = true` in build.omg, \
+             or remove the asm block"
+        }
+        AsmAuthorityRequirement::None | AsmAuthorityRequirement::MachineOwner => {
+            "Set `b.freestanding = true` in build.omg, or remove the asm block"
+        }
+    }
+}
+
+/// Per-capability admission gate for authority-bearing assembly intrinsics.
+/// Each instruction's contract authority class is checked against the build's
+/// supplied admission evidence; instructions with no authority requirement
+/// pass unconditionally. A build supplying no class rejects each
+/// authority-bearing emission with its exact missing class.
 pub fn validate_asm_discharge(
     program: &TypedTrees,
-    freestanding: bool,
+    admission: AsmAuthorityAdmission,
 ) -> Result<(), Vec<Diagnostic>> {
-    if freestanding {
+    if admission == AsmAuthorityAdmission::MACHINE_OWNER {
         return Ok(());
     }
 
@@ -25,17 +134,17 @@ pub fn validate_asm_discharge(
                 else {
                     continue;
                 };
-                if required_authority
-                    == language_core::inline_assembly::AsmAuthorityRequirement::None
-                {
+                if admission.admits(required_authority) {
                     continue;
                 }
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` uses asm instruction `{}`, which requires a FREESTANDING \
-                     boundary root (v0 discharge: only code that owns the machine may emit \
-                     privileged instructions; a hosted build would fault at ring 3). Set \
-                     `b.freestanding = true` in build.omg, or remove the asm block",
-                    machine.name, instruction
+                     boundary root (the contract requires {}, and this build's \
+                     privileged-service admission does not supply it). {}",
+                    machine.name,
+                    instruction,
+                    AsmAuthorityAdmission::description(required_authority),
+                    authored_admission_fix(required_authority)
                 )));
             }
         }
@@ -43,6 +152,9 @@ pub fn validate_asm_discharge(
 
     crate::program_validation::finish_diagnostics(diagnostics)
 }
+
+#[cfg(test)]
+mod tests;
 
 /// Direct assembly emission declares its canonical service at the instruction
 /// owner. Ordinary checked callers propagate that reach through the shared
@@ -161,6 +273,9 @@ fn statement_asm_intrinsic(
         symbols::BuiltinFunction::AsmWriteCr0 => "write_cr0",
         symbols::BuiltinFunction::AsmWriteCr3 => "write_cr3",
         symbols::BuiltinFunction::AsmWriteCr4 => "write_cr4",
+        symbols::BuiltinFunction::AsmWriteBackInvalidate => "wbinvd",
+        symbols::BuiltinFunction::AsmInvalidate => "invd",
+        symbols::BuiltinFunction::AsmWriteBackNoInvalidate => "wbnoinvd",
         _ => return None,
     };
     let language_core::inline_assembly::AsmCatalogEntry::Contract(contract) =

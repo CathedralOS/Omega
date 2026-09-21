@@ -311,6 +311,33 @@ pub fn supports_symbol_only_proof(program: &TypedTrees, domain_symbol: SymbolHan
     visit(program, domain_symbol, &mut Vec::new())
 }
 
+/// The `self in Parent` propositions in a domain's predicate list: the implied
+/// parent a refinement-chain declaration (`domain A::B::C`) desugars to, and
+/// any authored self-memberships. A membership in the domain entails each of
+/// these, so every reader of the domain's theory walks them the same way.
+pub fn self_membership_facts<'a>(
+    program: &'a TypedTrees,
+    domain: &'a DomainDefinition,
+) -> impl Iterator<Item = &'a ProofMembershipFact> + 'a {
+    program
+        .proof_facts(domain)
+        .iter()
+        .filter_map(|fact| match fact {
+            ProofFact::Membership(membership) => {
+                let self_member = matches!(
+                    program.expression_table.expression(membership.value),
+                    crate::expression::ExpressionNode::Name(path)
+                        if matches!(
+                            program.expression_table.name_path_members(path.members),
+                            [member] if member.as_str() == "self"
+                        )
+                );
+                self_member.then_some(membership)
+            }
+            _ => None,
+        })
+}
+
 /// Whether one declared domain implies another by normalized semantic identity
 /// or by an explicit domain-membership chain.
 ///

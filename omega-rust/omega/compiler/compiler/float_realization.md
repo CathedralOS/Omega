@@ -20,7 +20,7 @@ exact profile and canonical AVX+FMA3 requirement to register-only
 receipts distinguishing fused from separately rounded results. An encoder or
 checked build selection alone is not hardware execution evidence.
 
-[x86_fma_plan_association.rs](src/pipeline/x86_fma_plan_association.rs) joins the
+[x86_fma_plan_association.rs](../../build/provider-planning/src/x86_fma_plan_association/mod.rs) joins the
 complete selected `ProviderPlan`, compiler-intrinsic provenance, exact requirement,
 format/slot, and admitted profile. Repeated uses may deduplicate the selected
 association but retain distinct operation occurrences. Non-x86, cross-profile,

@@ -247,7 +247,7 @@ specialized authority. Natural-rank verification is not countdown admission.
 
 ## Trust and implementation gaps
 
-The [codec trust graph](../terminal-codec/src/trust_graph/current.rs) binds the
+The [codec trust graph](../terminal-codec/src/sections/trust_graph/current.rs) binds the
 exact deciding source closure and registered dependencies. Source files moved
 during refactoring remain in that closure; a module split is not a proof.
 
@@ -260,3 +260,11 @@ a ledger and supplies no reconstruction assurance by itself.
 The [execution board](../../../../TASKS.md) owns that work. Do not preserve old
 format-bound feasibility implementations or version-by-version migration
 reports here.
+
+Field note (review 23338b3d093c..58b08fc20f2f): `matches_return_source` in
+`validation/structural_result_contracts.rs` lets a declared result introduce
+whole-root qualifications the returned source does not carry, but Terminal Psi
+publishes no `established by` roster, so the verifier cannot re-decide that the
+machine is a declared establisher — the frontend is trusted for that domain
+minting. Close by publishing establishment authority on
+`StructuralDomainDeclaration` and checking it at the `ReturnStructural` edge.

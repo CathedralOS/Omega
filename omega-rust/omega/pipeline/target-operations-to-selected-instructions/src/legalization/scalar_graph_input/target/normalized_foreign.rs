@@ -16,13 +16,13 @@
 //! The boundary declaration's parameter order is the authority for interleaving
 //! scalar values and referent pointers; callback slots offset that order only
 //! at the native boundary. Reconstruct both shapes and placements in that order.
-use super::super::{ScalarType, scalar_shape};
+use super::super::scalar_shape;
 use super::{
     AbstractOperationPlan, PsiOptimizationFunction, PsiOptimizationUnit, TargetFunction,
     TargetUnitOperation, ValueId,
 };
 use crate::LegalizationError;
-use calling_conventions::{CallSignature, CallingPolicy, EntryControl, ValueLocation, ValueShape};
+use calling_conventions::{CallSignature, CallingPolicy, EntryControl, ValueLocation};
 use target_operations::{
     TargetOperationPlan, TargetStructuralParameter, TargetUnitScalarArgumentSource as Source,
     TargetUnitScalarHomeRequirement,
@@ -84,18 +84,7 @@ pub(super) fn validate(
     let scalar_shapes = declaration
         .scalar_parameters
         .iter()
-        .map(|parameter| {
-            let ScalarType::Integer(integer_type) = parameter else {
-                return Err(invalid.clone());
-            };
-            if integer_type.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
-                || !matches!(integer_type.bits(), 8 | 16 | 32 | 64)
-            {
-                return Err(invalid.clone());
-            }
-            let bytes = integer_type.bits().div_ceil(8);
-            Ok(ValueShape::integer(bytes, bytes.next_power_of_two().min(8)))
-        })
+        .map(|parameter| scalar_shape(*parameter).ok_or(invalid.clone()))
         .collect::<Result<Vec<_>, LegalizationError>>()?;
     // Lane-local custody rejoins the declaration's retained authored order.
     if !declaration.has_valid_parameter_order()
@@ -151,12 +140,9 @@ pub(super) fn validate(
         ) => None,
         (
             abstract_operations::AbstractBoundaryResult::Scalar(result),
-            terminal_psi::BoundaryMachineResult::Scalar(ScalarType::Integer(declared)),
+            terminal_psi::BoundaryMachineResult::Scalar(declared),
         ) => {
-            let ScalarType::Integer(result_type) = result.scalar_type else {
-                return Err(invalid);
-            };
-            if *declared != result_type
+            if *declared != result.scalar_type
                 || super::super::value_type(optimized, result.value) != Some(result.scalar_type)
                 || function.attachment.is_none()
             {
@@ -244,9 +230,6 @@ pub(super) fn validate(
             .zip(&scalar_shapes)
             .zip(declaration.parameter_positions(terminal_psi::BoundaryParameterKind::Scalar))
             .any(|((((argument, value), parameter), shape), index)| {
-                let ScalarType::Integer(integer_type) = parameter else {
-                    return true;
-                };
                 let placed_byte_size = match argument.placement.locations.as_slice() {
                     [
                         ValueLocation::Register {
@@ -275,7 +258,7 @@ pub(super) fn validate(
                         != Some(&argument.placement)
                     || argument.placement.shape != *shape
                     || shape.byte_size != placed_byte_size
-                    || argument.source.scalar_type() != ScalarType::Integer(*integer_type)
+                    || argument.source.scalar_type() != *parameter
                     || match &argument.source {
                         Source::IntegerImmediate {
                             scalar_type, value, ..

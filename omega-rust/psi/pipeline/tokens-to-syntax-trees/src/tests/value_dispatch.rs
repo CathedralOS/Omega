@@ -113,15 +113,22 @@ fn value_match_rejects_empty_and_unimplemented_binding_patterns() {
     for source in [
         "match value {}",
         "match value { Record { field } -> field, _ -> 0 }",
+        "match value { Record { field, .. } -> field, _ -> 0 }",
     ] {
         let tokens = Lexer::new(source).tokenize().expect("tokens");
         let mut trees = syntax_trees::SyntaxTrees::new(source::SourceId::default());
-        assert!(
-            crate::expressions::parse_expression::parse_expression_handle(
-                &mut trees,
-                crate::input::token_cursor::Input::new(source::SourceId::default(), &tokens),
-            )
-            .is_err()
-        );
+        let error = crate::expressions::parse_expression::parse_expression_handle(
+            &mut trees,
+            crate::input::token_cursor::Input::new(source::SourceId::default(), &tokens),
+        )
+        .err()
+        .expect("empty match and destructure arms reject");
+        if source.contains("Record") {
+            assert!(
+                error.message.contains("`transition`"),
+                "destructure spelling must name the owning dispatch form: {}",
+                error.message
+            );
+        }
     }
 }

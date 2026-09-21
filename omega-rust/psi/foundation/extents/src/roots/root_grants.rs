@@ -3,7 +3,7 @@
 //! carry.
 
 use crate::extent::diagnostic::{ExtentDiagnostic, validate_range};
-use crate::extent::{Extent, Lineage};
+use crate::extent::{Extent, ExtentSharingMode, Lineage};
 use crate::identities::{
     AddressSpaceId, ExtentContentCustodyReceiptId, ExtentContentInterpretation,
     ExtentContentValidityReceiptId, ExtentLineageId, ExtentProvenanceId, ExtentRights,
@@ -27,6 +27,7 @@ pub struct ExtentRootGrant {
     rights: ExtentRights,
     provenance: ExtentProvenanceId,
     era: MappingEraId,
+    sharing: ExtentSharingMode,
 }
 
 /// One-shot provider evidence that an exact freshly introduced Extent already
@@ -141,7 +142,18 @@ impl ExtentRootGrant {
             rights,
             provenance,
             era,
+            sharing: ExtentSharingMode::Exclusive,
         }
+    }
+
+    /// Admit that this root's backing may carry writable peer aliases the
+    /// checker cannot see. The minted extent and every descendant refuse
+    /// exclusive borrows: a writable peer cannot be wished into an exclusive
+    /// borrow, and shared reads remain the consumer's copy-and-validate
+    /// responsibility.
+    pub const fn admitting_peer_shared_backing(mut self) -> Self {
+        self.sharing = ExtentSharingMode::PeerShared;
+        self
     }
 
     #[doc(hidden)]
@@ -160,6 +172,7 @@ impl ExtentRootGrant {
             rights,
             provenance,
             era,
+            sharing: ExtentSharingMode::Exclusive,
         }
     }
 
@@ -245,6 +258,7 @@ impl ExtentRootGrant {
             rights,
             provenance,
             era,
+            sharing,
         } = self;
         Extent {
             base: geometry.base,
@@ -258,6 +272,7 @@ impl ExtentRootGrant {
                 root: lineage,
                 path: Vec::new(),
             },
+            sharing,
         }
     }
 }

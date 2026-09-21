@@ -141,6 +141,7 @@ mod tests {
             blocks: Vec::new(),
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(1).expect("contract"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -177,6 +178,38 @@ mod tests {
     fn exact_semantic_roster_rejoins_terminal() {
         let (machine, abi) = fixture();
         assert!(matches_terminal_machine(&machine, &abi));
+    }
+
+    #[test]
+    fn every_access_profile_rejoins_terminal() {
+        for access in [
+            StructuralAccess::Owned,
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::MutableBorrow,
+            StructuralAccess::WriteOnlyBorrow,
+        ] {
+            let (mut machine, mut abi) = fixture();
+            machine.structural_parameters[0].access = access;
+            abi.structural_parameters[0].access = access;
+            assert!(matches_terminal_machine(&machine, &abi), "{access:?}");
+        }
+    }
+
+    #[test]
+    fn mismatched_access_profiles_reject() {
+        let (machine, abi) = fixture();
+        for retained in [
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::MutableBorrow,
+            StructuralAccess::WriteOnlyBorrow,
+        ] {
+            let mut drifted = abi.clone();
+            drifted.structural_parameters[0].access = retained;
+            assert!(
+                !matches_terminal_machine(&machine, &drifted),
+                "{retained:?}"
+            );
+        }
     }
 
     #[test]

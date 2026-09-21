@@ -1,0 +1,26 @@
+// PASS canary (lifetimes stage 2): one explicit lifetime shared by two ref
+// inputs declares each a possible source of the returned view.
+
+machine pick<'a>(first: &'a mut i32, second: &'a mut i32) -> &'a mut i32 {
+    transition {
+        _ -> first
+    }
+}
+
+machine peek<'a>(first: &'a i32, second: &'a i32) -> &'a i32 {
+    transition {
+        _ -> second
+    }
+}
+
+machine exercise<'a>(first: &'a mut i32, second: &'a mut i32) {
+    let selected: &'a mut i32 = pick(first, second);
+    selected = 1;
+    let observed: &'a i32 = peek(first, second);
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

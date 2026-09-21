@@ -1,0 +1,29 @@
+// FAIL canary: a `dyn` call on a finite generic method family must spell
+// exactly one declared roster tuple. `code<64>` is not a member of
+// `Width == 16 || Width == 32`, so no family row exists for it -- the call
+// must reject by naming the roster, never silently dispatch.
+
+trait Shape {
+    machine code<Width: u32>(&self) -> i32 where Width == 16 || Width == 32;
+}
+
+data Item {
+    value: i32;
+}
+
+machine Item::code<Width: u32>(&self) -> i32 satisfies Shape::code {
+    transition { _ -> self.value }
+}
+
+Primary: Item satisfies Shape {
+    Shape::code = Item::code;
+}
+
+data Main {
+    item: Item;
+}
+
+machine Main::run(&mut self) {
+    let erased: &dyn Shape = &self.item as &dyn Item::Primary;
+    let missing: i32 = erased.code<64>();
+}

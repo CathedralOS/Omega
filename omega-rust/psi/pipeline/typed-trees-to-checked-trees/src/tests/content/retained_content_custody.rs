@@ -552,3 +552,64 @@ fn retained_content_custody_rejects_authored_borrow_correspondence() {
         "an authored equality cannot convert a borrow into retained custody: {diagnostics:#?}"
     );
 }
+
+#[test]
+fn retained_content_custody_authorizes_invoked_call_result_spelling() {
+    // The invoked requirement spells its result `PendingRead<'storage>` while
+    // the domain target is the bare nominal `PendingRead`: the lifetime slot
+    // is erased from the semantic identity, so authorization compares head
+    // nominals. Without that match the propagated `result in
+    // PendingRead::Retained` fact on the call's result could not be
+    // established.
+    let source = r#"
+        data ByteUnit {}
+        data CountedQuantity<Unit> { magnitude: u64; }
+        trait Content<A> { machine project(subject: &Self) -> A; }
+
+        data Buffer [linear] {}
+        domain Buffer::Owned;
+        machine Owned::content(buffer: &Buffer) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        { CountedQuantity { magnitude: 1 } }
+
+        data PendingRead<'storage> [linear] {}
+        domain PendingRead::Retained
+        established by Reader::submit;
+        machine Retained::content(pending: &PendingRead) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        { CountedQuantity { magnitude: 1 } }
+
+        boundary trait Reader {
+            machine submit<'storage>(
+                buffer: &'storage Buffer in Buffer::Owned
+            ) -> PendingRead<'storage>
+            ensures
+                result in PendingRead::Retained;
+
+            machine reclaim<'a>(pending: PendingRead<'a>);
+        }
+
+        data Worker {}
+        machine Worker::run<'a>(
+            &mut self,
+            buffer: &'a Buffer in Buffer::Owned
+        ) reaches Reader {
+            let pending: PendingRead<'a> = Reader::submit(buffer);
+            Reader::reclaim(pending);
+        }
+
+        data Main {}
+        machine Main::main(&mut self) {}
+    "#;
+    let checked = checked(source);
+    let [fact] = checked
+        .facts
+        .qualifications
+        .content
+        .retained_borrow_custodies
+        .as_slice()
+    else {
+        panic!("the invoked requirement still records its custody fact");
+    };
+    assert_eq!(fact.lifetime.as_str(), "storage");
+}

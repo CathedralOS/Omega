@@ -1,0 +1,12 @@
+// Dependency-free measurable subject: no depend() edges at all, so
+// `omega update` settles the review with no dependency findings and
+// tools/benchmark can measure compile-time, peak-memory, code-size, and
+// runtime rows on any hosted target without settling a dependency graph.
+
+machine build(builder: &mut Build) {
+    builder.application("wrapping-square-sum");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+}

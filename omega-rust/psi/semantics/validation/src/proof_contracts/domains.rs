@@ -515,3 +515,102 @@ fn domain_definition_by_symbol(
         .iter()
         .find(|domain| domain.symbol == symbol)
 }
+
+/// Unmanaged source maps carry no reconciled `PackageKeyIdentity`: ownership
+/// falls back to the recorded package root directory. These tests pin that
+/// fallback's contract — equal module/domain paths across distinct roots
+/// remain distinct owners and collide on a shared identity, while repeated
+/// declarations inside one unmanaged root still group as specializations.
+#[cfg(test)]
+mod unmanaged_root_tests {
+    use std::path::PathBuf;
+    use std::sync::Arc;
+
+    use diagnostics::Diagnostic;
+    use source::SourceMap;
+    use source_files_to_tokens::Lexer;
+    use syntax_trees_to_symbol_resolved_trees::ResolutionRequest;
+    use tokens_to_syntax_trees::parse_syntax_trees_with_id;
+    use typed_trees::TypedTrees;
+
+    use super::validate_repeated_normalized_domain_identities;
+
+    fn packaged(entries: &[(&str, &str)]) -> TypedTrees {
+        let mut map = SourceMap::default();
+        let mut forests = Vec::new();
+        for &(package_root, text) in entries {
+            let source_id = map
+                .add_with_metadata(
+                    PathBuf::from(format!("{package_root}/main.omg")),
+                    text.to_owned(),
+                    PathBuf::from(package_root),
+                    None,
+                    source::SourceOrigin::User,
+                )
+                .source_id;
+            let tokens = Lexer::new(text).tokenize().expect("tokenize source");
+            forests.push(parse_syntax_trees_with_id(source_id, &tokens).expect("parse source"));
+        }
+        let mut syntax = forests.remove(0);
+        for forest in &forests {
+            syntax.extend_from(forest);
+        }
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(ResolutionRequest {
+            syntax: &syntax,
+            sources: Some(Arc::new(map)),
+            top_level_bindings: Vec::new(),
+        })
+        .expect("resolve unmanaged packaged sources");
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type unmanaged packaged sources")
+    }
+
+    fn identity_diagnostics(program: &TypedTrees) -> Vec<Diagnostic> {
+        let fact_plan = crate::build_definition_fact_plan(program);
+        let mut diagnostics = Vec::new();
+        validate_repeated_normalized_domain_identities(program, &fact_plan, &mut diagnostics);
+        diagnostics
+    }
+
+    #[test]
+    fn unmanaged_distinct_roots_cannot_share_a_domain_identity() {
+        let program = packaged(&[
+            ("root_a", "domain i64::Km requires self >= 0;"),
+            ("root_b", "domain i64::Km requires self >= 0;"),
+        ]);
+        assert_eq!(
+            program.domain_definitions()[0].semantic_id,
+            program.domain_definitions()[1].semantic_id,
+            "equal leaf paths under unmanaged roots normalize to one identity"
+        );
+        let diagnostics = identity_diagnostics(&program);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(
+                    "shares a normalized semantic identity with a distinct declaration owner"
+                )),
+            "{diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn unmanaged_one_root_still_groups_repeated_declarations() {
+        let program = packaged(&[
+            ("root_a", "domain i64::Km requires self >= 0;"),
+            ("root_a", "domain i64::Km requires self <= 10;"),
+        ]);
+        assert_eq!(
+            program.domain_definitions()[0].semantic_id,
+            program.domain_definitions()[1].semantic_id,
+            "one unmanaged root keeps one normalized identity per leaf path"
+        );
+        let diagnostics = identity_diagnostics(&program);
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("declared more than once with different normalized semantics")),
+            "{diagnostics:?}"
+        );
+    }
+}

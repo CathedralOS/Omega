@@ -1,0 +1,19 @@
+// FAIL canary (sibling of pass/dependent/local_alias_forwards_entry_origin):
+// a `let mut` local may be reseated before the transition, so forwarding it
+// does not carry the entry parameter's exact origin and the ensures cannot
+// prove.
+machine held_mut(input: i32) -> i32
+ensures result == input
+{
+    let mut held: i32 = input;
+    transition { _ -> last(held) }
+    state last(carried: i32) {
+        carried
+    }
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

@@ -45,7 +45,9 @@ mod fixtures_control_flow;
 mod fixtures_copy_propagation;
 mod fixtures_gvn;
 mod fixtures_proof_elision;
+mod fixtures_representation_specialization;
 mod fixtures_scalar;
+mod fixtures_state_specialization;
 
 use fixtures_boundary_qualifications::*;
 use fixtures_common::*;
@@ -53,7 +55,9 @@ use fixtures_control_flow::*;
 use fixtures_copy_propagation::*;
 use fixtures_gvn::*;
 use fixtures_proof_elision::*;
+use fixtures_representation_specialization::*;
 use fixtures_scalar::*;
+use fixtures_state_specialization::*;
 
 mod boundary_qualifications;
 mod control_flow;
@@ -64,5 +68,6 @@ mod decision_custody;
 mod global_value_numbering;
 mod manifests;
 mod proof_check_elision;
+mod representation_specialization_custody;
 mod selection_and_external_decisions;
 mod sparse_conditional_constants;

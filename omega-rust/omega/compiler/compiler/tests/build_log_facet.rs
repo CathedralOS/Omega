@@ -245,8 +245,8 @@ machine accept_package_log(log: &mut BuildLog) {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        rendered.contains("BuildLog")
-            && (rendered.contains("accept_package_log") || rendered.contains("duplicate")),
+        rendered.contains("expects the `BuildLog` data type but got `BuildLog`")
+            && rendered.contains("declared type must match"),
         "the lookalike must reject at the exact nominal handoff, not merely because Build.log is absent:\n{rendered}",
     );
 }

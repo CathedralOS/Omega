@@ -81,14 +81,45 @@ pub(crate) fn validate_transition_target_node(
         return;
     };
 
+    // A named transition on an attached machine is a jump within the current
+    // machine: its bare one-member target must resolve to the machine's own
+    // entry or one of its states. A one-member target resolving to ANOTHER
+    // machine -- the machine declaration or one of its states -- spells a
+    // foreign call without the value-call parentheses (`-> (callee(..))`),
+    // so reject it rather than repairing it through local-state lookup.
+    // Free machines keep the call-edge reading used by measured call
+    // components (`outer -> inner(..)`), and receiver-qualified targets
+    // (`self.m(..)` or a callable field's `field.state(..)`) keep their
+    // nested-receiver admission below.
+    if current_machine.attached_data.is_some() {
+        let members = program.statement_table.name_path_members(path.members);
+        if members.len() == 1
+            && program.machines().iter().any(|candidate| {
+                candidate.symbol != current_machine.symbol
+                    && (candidate.symbol == path.symbol
+                        || program
+                            .machine_states(candidate)
+                            .iter()
+                            .any(|state| state.symbol == path.symbol))
+            })
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "unsupported transition target `{}`",
+                members[0].as_str()
+            )));
+            return;
+        }
+    }
+
     let arguments = program.statement_table.expression_handles(*arguments);
-    crate::proof_contracts::contract_entailment::validate_const_range_call(
+    crate::proof_contracts::contract_entailment::validate_const_range_call_in_environment(
         program,
         current_machine,
         current_state,
         path.symbol,
         &[],
         arguments,
+        Some(value_env),
         diagnostics,
     );
 

@@ -1,8 +1,10 @@
+#[cfg(any(windows, target_os = "macos"))]
+use super::compile_rooted_canary_for_target;
 use super::{
     CanaryCompileProduct, CanaryCompileSpec, Command, compile, compile_canary_without_output,
     compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host,
-    compile_rooted_canary_for_target, compile_single_file_hosted_main, executable_name,
-    fail_canary, fs, hosted_main_program_entry_build_for, interpret, pass_canary, repo_root,
+    compile_single_file_hosted_main, executable_name, fail_canary, fs,
+    hosted_main_program_entry_build_for, interpret, pass_canary, repo_root,
 };
 use compiler::CheckedCompileRequest;
 

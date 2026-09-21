@@ -52,10 +52,12 @@ pub(crate) fn scalar_call_unit_artifact_with(
         conditional_u64_integer_equal_parameters_machine(SCALAR_CALL_UNIT_CALLEE_BASE, [1, 0]);
     let call = |id, result, arguments| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Scalar(declaration(result)),
         kind: OperationKind::Call {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: callee.id,
             arguments,
             requirement_obligations: Vec::new(),
@@ -80,12 +82,14 @@ pub(crate) fn scalar_call_unit_artifact_with(
         entry,
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: entry,
             parameters: Vec::new(),
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(SCALAR_CALL_UNIT_LEFT_OPERATION).unwrap(),
                     result: OperationResult::Scalar(declaration(left)),
                     kind: OperationKind::IntegerConstant {
@@ -94,6 +98,7 @@ pub(crate) fn scalar_call_unit_artifact_with(
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(SCALAR_CALL_UNIT_RIGHT_OPERATION).unwrap(),
                     result: OperationResult::Scalar(declaration(right)),
                     kind: OperationKind::IntegerConstant {
@@ -119,6 +124,7 @@ pub(crate) fn scalar_call_unit_artifact_with(
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(21_015).unwrap(),
             crash_routes: Vec::new(),
             requires: Vec::new(),

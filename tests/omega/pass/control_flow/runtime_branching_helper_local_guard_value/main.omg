@@ -1,3 +1,10 @@
+// A branching helper's value lands through local guards: `pick` folds
+// `depth`/`roll` into a case ladder and `main` stores it in the carrier. The
+// deployable shape matches the sibling runtime canaries: the stored case is
+// checked in a guard ladder and the process exits 70 only when exact.
+
+use omega_language_std::console;
+use omega::language::core::service;
 use omega::language::core::numeric_conversion;
 
 data RandomState {
@@ -32,17 +39,27 @@ data Reward {
 }
 
 data Main {
+    console: Service<Console>;
     rng: Random;
+    reward: Reward;
 }
 
-machine Main::main(
-    &mut self,
-    depth: u32,
-    random: &mut RandomState,
-    reward: &mut Reward
-) {
-    reward.item = self.pick(depth, random);
-    
+machine Main::main(&mut self) reaches Console {
+    let mut state: RandomState = RandomState { seed: 0, calls: 0 };
+    self.reward.item = self.pick(1, &mut state);
+
+    transition self.reward.item == ItemKind::RustedDagger {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
 }
 
 machine Main::pick(

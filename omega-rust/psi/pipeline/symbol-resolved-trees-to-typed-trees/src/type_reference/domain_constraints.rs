@@ -251,7 +251,6 @@ pub(crate) fn select_domain_candidates(
     reference: Option<source::SourceSpan>,
     retained: symbols::SymbolHandle,
 ) -> Vec<typed_trees::domain::DomainDefinition> {
-    let carrier_label = program.display_type_reference_with_constraints(carrier);
     let selected = reference
         .and_then(|span| {
             source.symbols.find_top_level_by_name_and_kinds_from_source(
@@ -276,12 +275,18 @@ pub(crate) fn select_domain_candidates(
             } else {
                 let local = domain.name.as_str();
                 let qualified = source.symbols.display_path(domain.symbol, "::");
+                // A refinement-chain domain also answers to its carrier-relative
+                // member spelling: `Token in Issued::Fresh` names the
+                // `Token::Issued::Fresh` declaration the way `Token in Issued`
+                // names `Token::Issued`.
+                let member_relative = local.split_once("::").map(|(_, members)| members);
                 qualified == authored_name
                     || ((local == authored_name
+                        || member_relative == Some(authored_name)
                         || local.rsplit("::").next().unwrap_or(local) == authored_name)
                         && domain_exposed_to(source, domain, &qualified, authored_name, reference))
             };
-            name_matches && domain_accepts_carrier(program, domain, carrier, &carrier_label)
+            name_matches && domain_accepts_carrier(program, domain, carrier)
         })
         .cloned()
         .collect();
@@ -365,11 +370,14 @@ pub(crate) fn domain_accepts_carrier(
     program: &TypedTrees,
     domain: &typed_trees::domain::DomainDefinition,
     carrier: typed_trees::types::TypeReferenceHandle,
-    carrier_label: &str,
 ) -> bool {
     if !typed_trees::domain::has_generic_carrier(program, domain) {
-        return program.display_type_reference_with_constraints(domain.target_type)
-            == carrier_label;
+        // The declaration may import its carrier by a short name while the
+        // consumer qualifies it. Spelling is not carrier identity; retain the
+        // package owner too so equal module paths in different dependencies
+        // cannot borrow each other's domain.
+        return program.package_qualified_type_identity(domain.target_type)
+            == program.package_qualified_type_identity(carrier);
     }
     let parameters = program.domain_type_parameters(domain);
     let Some(parameter) = parameters.first() else {

@@ -3,9 +3,11 @@
 use super::super::patterns;
 use super::super::write_preservation::prefix_preserves_path;
 use super::Bounds;
+use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
+use typed_trees::statement::StatementNode;
 
 mod endpoint_input;
 use endpoint_input::EndpointInput;
@@ -44,9 +46,18 @@ pub(super) fn pinned_expression_bounds(
     // Immutable storage is not enough: transition actuals may replace that
     // formal on every iteration, even with another value of the same type.
     for edge in patterns::edges_to_state(program, state, state.symbol) {
+        let locals: Vec<(SymbolHandle, ExpressionHandle)> = statements[..=edge.statement_ordinal]
+            .iter()
+            .filter_map(|statement| match statement {
+                StatementNode::LocalData(local) if !local.is_mutable => {
+                    Some((local.symbol, local.initial_value))
+                }
+                _ => None,
+            })
+            .collect();
         for input in &inputs {
             let actual = *edge.arguments.get(input.argument_position)?;
-            if !input.preserved_by(program, actual)
+            if !input.preserved_by(program, actual, &locals)
                 || !prefix_preserves_path(
                     frames,
                     machine,

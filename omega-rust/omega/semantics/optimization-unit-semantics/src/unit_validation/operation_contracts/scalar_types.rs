@@ -6,6 +6,7 @@ use crate::MachineId;
 use crate::O;
 use crate::PsiOptimizationFunction;
 use crate::ScalarType;
+use crate::StructuralPlaceKind;
 use crate::ValueDefinition;
 use crate::ValueId;
 
@@ -59,6 +60,17 @@ pub(crate) fn operation_scalar_types_match(
         | O::WriteOnlyPrimitiveStore { value, .. }
         | O::StructuralScalarFieldStore { value, .. } => {
             scalar(value.value) == Some(value.scalar_type)
+        }
+        // The runtime selector rejoins its dominating u64 definition; the
+        // stored scalar keeps the array's exact element type.
+        O::WriteOnlyIndexedPrimitiveStore { index, value, .. } => {
+            scalar(index.value) == Some(index.scalar_type)
+                && index.scalar_type
+                    == ScalarType::Integer(
+                        IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                            .expect("u64 is valid"),
+                    )
+                && scalar(value.value) == Some(value.scalar_type)
         }
         O::StructuralCaseMembership { result, .. } => result.scalar_type == ScalarType::Boolean,
         O::AtomicEvent { event, .. } => {
@@ -340,9 +352,19 @@ pub(crate) fn operation_scalar_types_match(
             arguments,
             ..
         } => functions.get(callee).is_some_and(|callee| {
+            // Declared places include locals, not only call inputs. Each
+            // function's catalog, producers and ownership are independently
+            // replayed; scalar calls forbid boundary roots, not local storage.
             callee.structural_parameters.is_empty()
-                && callee.declared_places.is_empty()
                 && callee.entry_claim_declarations.is_empty()
+                && !callee.structural_places.iter().any(|place| {
+                    matches!(
+                        place.kind,
+                        StructuralPlaceKind::Parameter { .. }
+                            | StructuralPlaceKind::Result
+                            | StructuralPlaceKind::ProviderAttachment { .. }
+                    )
+                })
                 && matches!(
                     callee.result,
                     abstract_operations::AbstractFunctionResult::Scalar(signature)

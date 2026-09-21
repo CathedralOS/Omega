@@ -1,4 +1,4 @@
-use super::{device_claim, device_requirement, device_scope_occurrence};
+use super::{device_claim, device_coordinates, device_requirement, device_scope_occurrence};
 use crate::{
     DeviceOperation, DeviceOperationProviderPlanId, DeviceOrderingScopeId,
     ProviderAssertedDeviceOperationClaim, structurally_close_device_operation_requirements,
@@ -49,6 +49,30 @@ fn device_operation_requirements_close_all_five_non_fence_families_exactly() {
             && row.scope_occurrence().scope_capability()
                 == DeviceOrderingScopeId::from_normalized_identity(821).unwrap()
     }));
+}
+
+#[test]
+fn device_operation_coordinates_carry_the_role_and_its_places() {
+    // The coordinate variant is the role: a mismatched role/coordinate pair
+    // is unrepresentable, and each role names the spec's data, descriptor,
+    // doorbell, request, completion, or maintained places instead of one
+    // uniform range.
+    for operation in [
+        DeviceOperation::DmaPublication,
+        DeviceOperation::DeviceAcquisition,
+        DeviceOperation::CacheMaintenance,
+        DeviceOperation::MmioNotification,
+        DeviceOperation::PostedWriteCompletion,
+    ] {
+        let coordinates = device_coordinates(operation, 0);
+        assert_eq!(coordinates.operation(), operation);
+    }
+
+    let notification = device_coordinates(DeviceOperation::MmioNotification, 0);
+    let other_place = device_coordinates(DeviceOperation::MmioNotification, 0x40);
+    let other_role = device_coordinates(DeviceOperation::PostedWriteCompletion, 0);
+    assert_ne!(notification, other_place);
+    assert_ne!(notification, other_role);
 }
 
 #[test]

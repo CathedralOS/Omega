@@ -756,7 +756,7 @@ pub(crate) fn derive_normalized_foreign_child(
         .scalar_parameters
         .iter()
         .copied()
-        .map(fixed_integer_shape)
+        .map(fixed_scalar_shape)
         .collect::<Option<Vec<_>>>()
     else {
         return Ok(None);
@@ -842,7 +842,7 @@ pub(crate) fn derive_normalized_foreign_child(
             && physical.home.source_value == value.id
             && physical.home.scalar_type == *declared =>
         {
-            let Some(shape) = fixed_integer_shape(*declared) else {
+            let Some(shape) = fixed_scalar_shape(*declared) else {
                 return Ok(None);
             };
             Some(shape)
@@ -867,7 +867,7 @@ pub(crate) fn derive_normalized_foreign_child(
             {
                 return Err("normalized foreign D41 child changed its scalar result custody");
             }
-            let Some(shape) = fixed_integer_shape(*declared) else {
+            let Some(shape) = fixed_scalar_shape(*declared) else {
                 return Ok(None);
             };
             if home.shape != shape {
@@ -1646,8 +1646,8 @@ fn fragment_scalar_argument_custody_rejoin(
         return false;
     }
     // The call's operand roster is every register-resident argument word in
-    // authored plan order — scalar arguments and structural referent pointers
-    // alike — then the optional scalar result definition.
+    // canonical bank order — GPR scalars and structural referent pointers,
+    // then IEEE inputs — followed by the optional scalar result definition.
     let register_arguments = record
         .call
         .scalar_arguments
@@ -1675,6 +1675,21 @@ fn fragment_scalar_argument_custody_rejoin(
     {
         return false;
     }
+    let mut register_positions = plan
+        .parameters
+        .iter()
+        .enumerate()
+        .filter(|(_, placement)| {
+            matches!(
+                placement.locations.as_slice(),
+                [calling_conventions::ValueLocation::Register { .. }]
+            )
+        })
+        .map(|(position, _)| position)
+        .collect::<Vec<_>>();
+    register_positions.sort_by_key(|position| {
+        plan.parameters[*position].shape.class == calling_conventions::ValueClass::Float
+    });
     for (scalar_ordinal, (argument, physical)) in record
         .call
         .scalar_arguments
@@ -1685,37 +1700,32 @@ fn fragment_scalar_argument_custody_rejoin(
         let Ok(native_position) = usize::try_from(argument.parameter_index) else {
             return false;
         };
-        let ScalarType::Integer(integer) = argument.source.scalar_type() else {
+        let Some(shape) = fixed_scalar_shape(argument.source.scalar_type()) else {
             return false;
         };
-        if integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
-            || !matches!(integer.bits(), 8 | 16 | 32 | 64)
-            || scalar_ordinal.checked_sub(1).is_some_and(|previous| {
-                record.call.scalar_arguments[previous].parameter_index >= argument.parameter_index
-            })
-            || physical.parameter_index != argument.parameter_index
+        if scalar_ordinal.checked_sub(1).is_some_and(|previous| {
+            record.call.scalar_arguments[previous].parameter_index >= argument.parameter_index
+        }) || physical.parameter_index != argument.parameter_index
             || physical.placement != argument.placement
             || plan.parameters.get(native_position) != Some(&argument.placement)
-            || argument.placement.shape
-                != calling_conventions::ValueShape::integer(integer.bits() / 8, integer.bits() / 8)
+            || argument.placement.shape != shape
         {
             return false;
         }
-        let register_operand = plan
-            .parameters
+        let register_operand = register_positions
             .iter()
-            .take(native_position)
-            .filter(|placement| {
-                matches!(
-                    placement.locations.as_slice(),
-                    [calling_conventions::ValueLocation::Register { .. }]
-                )
-            })
-            .count();
+            .position(|position| *position == native_position)
+            .unwrap_or(register_arguments);
         let span_rejoins = match (argument.source, physical.source) {
             (
                 source @ (target_operations::TargetUnitScalarArgumentSource::Parameter { .. }
-                | target_operations::TargetUnitScalarArgumentSource::BlockParameter(_)),
+                | target_operations::TargetUnitScalarArgumentSource::BlockParameter(_)
+                | target_operations::TargetUnitScalarArgumentSource::BooleanImmediate {
+                    ..
+                }
+                | target_operations::TargetUnitScalarArgumentSource::IeeeFloatImmediate {
+                    ..
+                }),
                 machine_code::InternalUnitScalarArgumentSourceRecord::SelectedCall {
                     source_value,
                     scalar_type,
@@ -1723,7 +1733,7 @@ fn fragment_scalar_argument_custody_rejoin(
                 },
             ) => {
                 // Retained selected/physical replay validates the SSA source's
-                // entry or edge transport. Rejoin its exact call coordinate,
+                // entry, edge or constant transport. Rejoin its exact call coordinate,
                 // value and type here; equal-width values are not substitutes.
                 source_value == source.source_value()
                     && scalar_type == source.scalar_type()
@@ -1967,14 +1977,11 @@ fn fragment_scalar_result_custody_rejoin(
     let Some(physical) = physical else {
         return false;
     };
-    let ScalarType::Integer(integer) = home.scalar_type else {
+    let Some(shape) = fixed_scalar_shape(home.scalar_type) else {
         return false;
     };
-    if integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
-        || !matches!(integer.bits(), 8 | 16 | 32 | 64)
-        || home.defining_operation != record.operation
-        || home.shape
-            != calling_conventions::ValueShape::integer(integer.bits() / 8, integer.bits() / 8)
+    if home.defining_operation != record.operation
+        || home.shape != shape
         || placement.shape != home.shape
         || !matches!(
             placement.locations.as_slice(),
@@ -2064,12 +2071,18 @@ fn fragment_scalar_result_custody_rejoin(
 }
 
 /// The normalization kind one scalar result's durable definition emits —
-/// the rejoin-side copy of the projection's fixed-integer lane mapping.
+/// independently reconstructed from the retained semantic type.
 fn fragment_scalar_result_normalization_kind(
     scalar_type: ScalarType,
 ) -> Option<selected_instructions::SelectedInstructionKind> {
     use selected_instructions::SelectedInstructionKind as Kind;
     match scalar_type {
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
+            Some(Kind::Float32ToBits)
+        }
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
+            Some(Kind::Float64ToBits)
+        }
         ScalarType::Boolean => Some(Kind::ZeroExtendU8),
         ScalarType::Integer(integer) => match (integer.sign(), integer.bits()) {
             (semantic_vocabulary::IntegerSign::Unsigned, 8) => Some(Kind::ZeroExtendU8),
@@ -2082,7 +2095,20 @@ fn fragment_scalar_result_normalization_kind(
             (semantic_vocabulary::IntegerSign::Signed, 32) => Some(Kind::SignExtendI32),
             _ => None,
         },
-        _ => None,
+    }
+}
+
+fn fixed_scalar_shape(scalar_type: ScalarType) -> Option<calling_conventions::ValueShape> {
+    use calling_conventions::ValueShape;
+    match scalar_type {
+        ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
+            Some(ValueShape::float(4))
+        }
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
+            Some(ValueShape::float(8))
+        }
+        ScalarType::Integer(_) => fixed_integer_shape(scalar_type),
     }
 }
 

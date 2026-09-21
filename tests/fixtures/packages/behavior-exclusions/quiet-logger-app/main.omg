@@ -1,6 +1,7 @@
 // The ordinary silent logger: a broad Sink allowance on the contract, no
 // invocation in the verified body.
-use logger_kit::main;
+use logger_kit::main::Sink;
+use logger_kit::main::log_quiet;
 
 data Main { }
 

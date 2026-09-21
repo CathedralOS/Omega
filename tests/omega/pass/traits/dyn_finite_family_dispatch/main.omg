@@ -1,0 +1,32 @@
+// Finite generic method family: a `dyn` requirement whose signature `where`
+// clause is one explicit disjunction of complete value-binder tuples admits a
+// borrowed dynamic receiver, and the selection alone materializes every roster
+// tuple's provider specialization -- no static call site demands either one.
+// Both `code<16>` and `code<32>` must resolve to their own generated rows.
+
+trait Shape {
+    machine code<Width: u32>(&self) -> i32 where Width == 16 || Width == 32;
+}
+
+data Item {
+    value: i32;
+}
+
+machine Item::code<Width: u32>(&self) -> i32 satisfies Shape::code {
+    transition { _ -> self.value }
+}
+
+Primary: Item satisfies Shape {
+    Shape::code = Item::code;
+}
+
+data Main {
+    item: Item;
+}
+
+machine Main::run(&mut self) {
+    self.item.value = 7;
+    let erased: &dyn Shape = &self.item as &dyn Item::Primary;
+    let half: i32 = erased.code<16>();
+    let full: i32 = erased.code<32>();
+}
