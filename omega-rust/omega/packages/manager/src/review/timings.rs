@@ -9,6 +9,12 @@
 //! `omega install|update|audit packages` supplies the figures a hotspot
 //! study needs. Normal invocations collect nothing beyond one env-var
 //! check per stage; measurements describe cost, never a verdict.
+//!
+//! The CLI already owns an opt-in `--timings` route for command-stage
+//! durations (`omega-rust/omega/src/cli/arguments/compile.rs`); this
+//! env-var channel is a second observation surface and should either be
+//! reached from `--timings` on `install|update|audit packages` or folded
+//! into it before it is documented as a user-facing knob.
 
 use std::cell::{Cell, RefCell};
 use std::time::Instant;

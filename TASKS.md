@@ -14114,12 +14114,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   family is exercised by the native-differential register_allocation
   suite, so deletion needs consumer proof, and sequencing belongs to
   SPILL-REALIZATION — no independent slice exists under this name.
-
-- **UNSEQUENCED-SPILL-STAGE-DISPOSITION** — mined candidate; verify scope then implement.
-  recorded on the sibling rows. Territory fenced this wave: the directory
-  wholesale under POC-SPILL-FAMILY-SEQUENCING (~06:53Z Sep 21) and the
-  adjacent UNSEQUENCED-SPILL-STAGE-DISPOSITION claim (~08:13Z). No
-  independent slice.
+  Field note (review 0bad962c54ae..0a0662ad27ad): z181 and z57 both
+  resolved a stub as "the seventh duplicate" in the same batch; a merge
+  left a duplicate stub line plus an orphan fence paragraph here (removed).
+  The UNSEQUENCED-SPILL-* cluster now has eight folded aliases — retire
+  the stubs into the canonical row instead of stamping each.
 - **UNSEQUENCED-SPILL-STAGE-DISPOSITION.** Mined candidate — resolved at
   `58b08fc20f`: seventh mined duplicate of the
   UNSEQUENCED-SPILL-STAGES-DISPOSITION row (this file, same
