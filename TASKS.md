@@ -10142,21 +10142,33 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   EXACT-PROGRAM-ENTRY-MULTIPLICITY row. On `linux_x86_64`, `linux_arm64` and
   `macos_arm64` the gate reads "selected ProgramEntry establishment rejoins 0
   Terminal attachment identities; expected one" because the entry machine
-  leaves the unit plan roster at local construction: `has_statement_shape`
-  (typed-trees-to-checked-trees
-  `src/execution/unit/control/statement_sequence.rs`) rejects a call-produced
-  `&[T]` view local such as
-  `let s: &[i32 in Wrapping] = self.adder.bytes.as_slice();`. LocalData
-  admission covers only primitive, structural result and erased
-  exclusive-borrow alias, and `CheckedUnitStructuralTypeShape`
-  (`checked-trees/src/checked_trees/flow/terminal/structural_type_plans.rs`)
-  carries no runtime-length slice shape. Give the view local its own checked
-  shape and let ordinary statement sequencing admit it — do not add a
-  recognizer for this statement arrangement (AGENTS.md, compositional
-  lowering). Callee `&[T]` parameters face the same vocabulary gap; the pattern
-  appears in 12 samples, including `samples/cli/text/fletcher_checksum`,
+  leaves the unit plan roster at local construction over a `&[T]` view local
+  such as `let s: &[i32 in Wrapping] = self.adder.bytes.as_slice();`. The
+  pattern appears in 12 samples, including `samples/cli/text/fletcher_checksum`,
   `samples/cli/arithmetic/recursive_sum`, `samples/cli/collections/slice_maximum`
   and `samples/cli/systems/framed_payload`.
+
+  The view local itself now composes. `CheckedUnitStructuralTypeShape`
+  (`checked-trees/src/checked_trees/flow/terminal/structural_type_plans.rs`)
+  carries `BorrowedSliceView { element_type_identity }` — no length, because a
+  slice's extent is its own stored runtime length — and the local's value is
+  `CheckedStructuralValueKind::BorrowedSliceView`, which rejoins the shared
+  loan checked borrow admission already records for the lent collection.
+  Ordinary statement sequencing establishes it and forwards it whole to a
+  `&[T]` formal, and callee `&[T]` parameters carry the same shape. Terminal
+  lowering rejects the shape with "borrowed slice view has no Terminal
+  descriptor" rather than dropping its extent.
+
+  The frontier is now the `&[T]`-consuming callee. Both samples report
+  `statement sequence: call: call operation` (recursive_sum: state 0,
+  statement 6) because `Adder::fletcher` / `Summer::sum` have no plan of their
+  own: their bodies need `s.len`, `s[0]` and `s[1..]` over a non-byte view, and
+  `wiki/spec/terminal-psi/byte_views.md` supplies length, read and subslice
+  operations only for borrowed *byte* views. `Slice::index` and `Slice::range`
+  are settled at the language level (language guide chapters 5 and 19), so the
+  missing piece is the Terminal Psi vocabulary and its spec section, not a
+  language decision. Do not add a recognizer for this statement arrangement
+  (AGENTS.md, compositional lowering).
 
   Acceptance: `fletcher_checksum` and `recursive_sum` reach selected
   ProgramEntry establishment on `linux_x86_64` without the "rejoins 0 Terminal

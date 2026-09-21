@@ -253,6 +253,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                         pending.push(source);
                     }
                     checked_trees::CheckedStructuralValueKind::Reference { .. }
+                    | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
                     | checked_trees::CheckedStructuralValueKind::Case(_)
                     | checked_trees::CheckedStructuralValueKind::Place(_) => {}
                 }

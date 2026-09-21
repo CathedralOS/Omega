@@ -183,6 +183,11 @@ pub(crate) fn validate(
             return unsupported("structural construction exchanged authored value occurrences");
         }
         match node.kind.clone() {
+            // Terminal Psi carries no runtime-length view descriptor, so a
+            // borrowed `&[T]` view rejects here instead of losing its extent.
+            CheckedStructuralValueKind::BorrowedSliceView { .. } => {
+                return unsupported("borrowed slice view has no Terminal descriptor");
+            }
             CheckedStructuralValueKind::Place(argument) => {
                 if let Some(receipt) = selection {
                     if projected_leaf.is_some() {

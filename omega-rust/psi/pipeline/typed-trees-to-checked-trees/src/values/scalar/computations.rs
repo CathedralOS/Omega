@@ -157,7 +157,15 @@ pub(crate) fn build_checked_value_computation_plans(
                         || (matches!(statement, StatementNode::LocalData(_))
                             && structural_values::is_shared_borrow_value(
                                 program, expression, expected,
-                            )))
+                            ))
+                        // A `&[T]` view local lends an existing collection the
+                        // same way `&place` lends a record: its value is the
+                        // lent place under the loan checked borrow admission
+                        // already recorded, so it belongs to the same
+                        // LocalData admission rather than to a producer family
+                        // of its own.
+                        || (matches!(statement, StatementNode::LocalData(_))
+                            && structural_values::is_borrowed_slice_view_value(program, expected)))
                     && let Some(root) =
                         builder.structural_value(expression, expected, &mut structural_values, pure)
                 {
