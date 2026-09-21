@@ -163,6 +163,28 @@ impl<'program> Evaluator<'program> {
         let entry_machine = self
             .find_machine_by_name(entry_machine_name)
             .ok_or_else(|| Halt::Unsupported(format!("no entry machine `{entry_machine_name}`")))?;
+        self.run_resolved_entry(entry_machine)
+    }
+
+    /// Entry dispatch on the selected machine's exact symbol. Root-slot
+    /// bindings already carried identity as a symbol; dispatching on the
+    /// spelling could reach a same-named machine from another module.
+    pub(in crate::interpreter) fn run_entry_symbol(
+        &mut self,
+        entry_machine_symbol: SymbolHandle,
+    ) -> EvalResult<()> {
+        let entry_machine = self
+            .find_machine_by_symbol(entry_machine_symbol)
+            .ok_or_else(|| {
+                Halt::Unsupported(
+                    "the selected program entry is not a machine in the checked program".to_owned(),
+                )
+            })?;
+        self.run_resolved_entry(entry_machine)
+    }
+
+    fn run_resolved_entry(&mut self, entry_machine: &'program Machine) -> EvalResult<()> {
+        let entry_machine_name = entry_machine.name.as_str();
         let entry_state = self.machine_entry_state(entry_machine).ok_or_else(|| {
             Halt::Unsupported(format!(
                 "entry machine `{entry_machine_name}` has no executable state"

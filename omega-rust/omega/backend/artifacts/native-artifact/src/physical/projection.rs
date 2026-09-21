@@ -284,6 +284,7 @@ fn validated_authority_bytes(authority: ValidatedProjectionCoordinates) -> Vec<u
 fn abstract_operation_psi_operation(operation: &AbstractOperation) -> Option<OperationId> {
     match operation {
         AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
+        | AbstractOperation::WriteOnlyIndexedPrimitiveStore { psi_operation, .. }
         | AbstractOperation::ByteSequenceWrite { psi_operation, .. }
         | AbstractOperation::StructuralByteSequenceFieldByteStore { psi_operation, .. }
         | AbstractOperation::StructuralByteSequenceFieldStore { psi_operation, .. }

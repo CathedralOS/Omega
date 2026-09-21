@@ -46,6 +46,7 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
             | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+            | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. } => continue,
             _ => return unsupported("composed root retained a non-call operation"),
@@ -143,6 +144,7 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
                 structural_parameters: entry.structural_parameters.to_vec(),
                 id,
                 erased_scalar_formals: declaration.contract.erased_scalar_formals.clone(),
+                erased_proof_formals: declaration.contract.erased_proof_formals.clone(),
                 requires: declaration.contract.requires.clone(),
                 scalar_parameters: declaration
                     .parameters
@@ -171,6 +173,12 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
             .clone()
             .into(),
         type_ids: shared.type_ids.into(),
+        structural_domains: shared
+            .lowered
+            .semantic_module
+            .structural_domains
+            .clone()
+            .into(),
         domain_ids: shared.domain_ids.into(),
         services: shared.lowered.semantic_module.services.clone().into(),
         root_service_reach: std::borrow::Cow::Owned(

@@ -218,6 +218,7 @@ mod tests {
         let calls = [
             O::Call {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee,
                 arguments: Vec::new(),
                 requirement_obligations: Vec::new(),
@@ -225,6 +226,7 @@ mod tests {
             },
             O::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee,
                 arguments: Vec::new(),
                 structural_arguments: Vec::new(),
@@ -234,6 +236,7 @@ mod tests {
             },
             O::CallStructuralScalar {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee,
                 arguments: Vec::new(),
                 structural_arguments: Vec::new(),
@@ -274,6 +277,7 @@ mod tests {
             },
             O::CallStructuralWithScalarArguments {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee,
                 arguments: Vec::new(),
                 structural_arguments: Vec::new(),

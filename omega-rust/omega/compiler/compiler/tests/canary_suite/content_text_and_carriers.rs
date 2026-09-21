@@ -312,6 +312,44 @@ fn content_conservation_contract_is_normalized() {
     ));
     assert_ne!(plan.report_fingerprint, 0);
 
+    let forward = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "forward")
+        .expect("the invoked-route wrapper machine");
+    let split = checked
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "RegionSplit")
+        .and_then(|owner| {
+            checked
+                .trait_machine_signatures(owner)
+                .iter()
+                .find(|signature| signature.name.as_str() == "split")
+        })
+        .expect("the authored split requirement")
+        .symbol;
+    let [composition] = checked
+        .facts
+        .qualifications
+        .content
+        .partition_compositions
+        .as_slice()
+    else {
+        panic!(
+            "forward's boundary call should instantiate the authored theorem: {:#?}",
+            checked.facts.qualifications.content.partition_compositions
+        );
+    };
+    assert_eq!(composition.machine_symbol, forward.symbol);
+    assert_eq!(composition.source_callable, split);
+    assert_eq!(
+        composition.source_plan.report_fingerprint,
+        plan.report_fingerprint
+    );
+    assert_eq!(composition.input_claim_identities.len(), 1);
+    assert_eq!(composition.substitutions.len(), 3);
+
     let build_dir =
         std::env::temp_dir().join(format!("omega-content-conservation-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -322,6 +360,76 @@ fn content_conservation_contract_is_normalized() {
         product: CanaryCompileProduct::Check,
     })
     .expect("the normalized conservation contract should compile");
+    assert!(!build_dir.exists(), "checking does not write debug dumps");
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn content_retained_custody_round_trip_invokes_the_boundaries() {
+    let canary = pass_canary(fixture_roster::CONTENT_RETAINED_CUSTODY_ROUND_TRIP);
+    let source = fs::read_to_string(canary.join("main.omg")).expect("round-trip canary source");
+    assert!(source.contains("established by Writer::submit"));
+    assert!(source.contains("established by Writer::complete"));
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("the retained-custody round trip should check");
+
+    let writer = checked
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "Writer")
+        .expect("the Writer boundary");
+    let requirement = |name: &str| {
+        checked
+            .trait_machine_signatures(writer)
+            .iter()
+            .find(|signature| signature.name.as_str() == name)
+            .unwrap_or_else(|| panic!("Writer::{name} requirement"))
+            .symbol
+    };
+    let submit = requirement("submit");
+    let complete = requirement("complete");
+
+    let round_trip = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "round_trip")
+        .expect("the invoked-route wrapper machine");
+    let reach = checked
+        .facts
+        .service_reaches
+        .for_machine(round_trip.symbol)
+        .expect("round_trip should publish a Writer reach row");
+    let calls: Vec<_> = checked
+        .facts
+        .service_reaches
+        .states_for(reach)
+        .iter()
+        .flat_map(|state| checked.facts.service_reaches.calls_for(state))
+        .collect();
+    assert!(
+        calls.iter().any(|call| call.target_state == submit),
+        "round_trip should invoke Writer::submit: {calls:#?}"
+    );
+    assert!(
+        calls.iter().any(|call| call.target_state == complete),
+        "round_trip should invoke Writer::complete: {calls:#?}"
+    );
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-content-retained-round-trip-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    production_compile(CanaryCompileSpec {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        product: CanaryCompileProduct::Check,
+    })
+    .expect("the retained-custody round trip should compile");
     assert!(!build_dir.exists(), "checking does not write debug dumps");
     let _ = fs::remove_dir_all(&build_dir);
 }

@@ -360,7 +360,7 @@ fn validate_branch_request(
     alternative: MachineAlternativeKey,
     family: MachineAlternativeFamily,
 ) -> Result<(), Aarch64SelectedFormEncodingError> {
-    if physical.model() != &aarch64_physical_register_model() {
+    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
         return Err(Aarch64SelectedFormEncodingError::NonCanonicalPhysicalModel);
     }
     if alternative != (MachineAlternativeKey { family, variant: 0 }) {
@@ -434,7 +434,7 @@ fn validate_cbnz_request(
     physical: &ValidatedPhysicalRegisterModel,
     source: RegisterViewId,
 ) -> Result<u8, Aarch64SelectedFormEncodingError> {
-    if physical.model() != &aarch64_physical_register_model() {
+    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
         return Err(Aarch64SelectedFormEncodingError::NonCanonicalPhysicalModel);
     }
     let registers = resolve_registers(physical, &[source])?;

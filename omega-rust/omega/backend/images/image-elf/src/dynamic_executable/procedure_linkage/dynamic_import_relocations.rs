@@ -1,21 +1,24 @@
 //! Address-free procedure-linkage relocation requirements for dynamic imports.
 //!
-//! The System V ABI defines the dynamic [`DT_JMPREL`], [`DT_PLTRELSZ`], and
-//! [`DT_PLTREL`] relationship. The target relocation numbers and procedure
-//! linkage details come from the [x86-64 psABI] and [AArch64 ELF ABI]. This
-//! module stops at semantic PLT/GOT slots, RELA `JUMP_SLOT` requirements, and
-//! admitted general `.rela.dyn` rows; it does not create addresses, final
-//! section indexes, GOT/PLT bytes, `Elf64_Rela` bytes, placement, or mutation
-//! authority.
+//! The System V ABI defines the dynamic [`DT_JMPREL`], [`DT_PLTRELSZ`],
+//! [`DT_PLTREL`], [`DT_RELA`], and [`DT_RELASZ`] relationships. The target
+//! relocation numbers and procedure linkage details come from the [x86-64
+//! psABI] and [AArch64 ELF ABI]. This module stops at semantic PLT/GOT slots,
+//! RELA `JUMP_SLOT` requirements, and general RELA rows; it does not create
+//! addresses, final section indexes, GOT/PLT bytes, `Elf64_Rela` bytes,
+//! placement, or mutation authority.
 //!
 //! [`DT_JMPREL`]: https://gabi.xinuos.com/elf/08-dynamic.html#dynamic-section
 //! [`DT_PLTRELSZ`]: https://gabi.xinuos.com/elf/08-dynamic.html#dynamic-section
 //! [`DT_PLTREL`]: https://gabi.xinuos.com/elf/08-dynamic.html#dynamic-section
+//! [`DT_RELA`]: https://gabi.xinuos.com/elf/08-dynamic.html#dynamic-section
+//! [`DT_RELASZ`]: https://gabi.xinuos.com/elf/08-dynamic.html#dynamic-section
 //! [x86-64 psABI]: https://gitlab.com/x86-psABIs/x86-64-ABI
 //! [AArch64 ELF ABI]: https://github.com/ARM-software/abi-aa/blob/main/aaelf64/aaelf64.rst
 
 use crate::dynamic_executable::checked::{checked_u32, require};
 use crate::dynamic_executable::import_sections::dynamic_section_descriptors::ValidatedElfDynamicSectionDescriptorPlan;
+use crate::dynamic_executable::import_sections::dynamic_sections::ElfDynamicImportBinding;
 use crate::imports::{ElfImportLocator, ElfImportRequest};
 use diagnostics::Diagnostic;
 use image::{FinalImageRelocation, FinalImageSection};
@@ -26,6 +29,7 @@ const R_X86_64_JUMP_SLOT: u32 = 7;
 const R_AARCH64_JUMP_SLOT: u32 = 1026;
 const R_X86_64_64: u32 = 1;
 const R_AARCH64_ABS64: u32 = 257;
+const ELF64_GENERAL_SLOT_WIDTH: usize = 8;
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
@@ -34,11 +38,8 @@ const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 ///
 /// Each logical ordinal names one future PLT entry and its corresponding GOT
 /// slot without claiming either section's physical numbering or placement.
-/// Every referenced import retains at least one exact direct call, which
-/// carries its logical PLT/GOT slot and RELA `JUMP_SLOT` requirement. Any
-/// remaining absolute data references to an imported symbol are admitted as
-/// semantic general `.rela.dyn` rows; the section/tag emission for them is a
-/// downstream stage.
+/// Unresolved import uses are either direct calls represented by the slot
+/// rows or eight-byte `.data` slots bound through general `.rela.dyn` rows.
 #[derive(Debug)]
 #[must_use = "validated procedure linkage retains the exact descriptor plan"]
 pub struct ValidatedElfProcedureLinkageRelocationPlan {
@@ -68,16 +69,15 @@ impl ValidatedElfProcedureLinkageRelocationPlan {
             .sum()
     }
 
-    /// Semantic general `.rela.dyn` rows admitted beside the procedure slots
-    /// (absolute data references to imported symbols).
+    /// Number of semantic general `.rela.dyn` rows this plan emits, one per
+    /// admitted data-slot import reference.
     pub fn general_dynamic_relocation_count(&self) -> usize {
         self.contents.general_relocations.len()
     }
 
     /// Compatibility fingerprint of the exact descriptor identity, target,
-    /// logical PLT/GOT slots, semantic JUMP_SLOT rows, admitted general
-    /// `.rela.dyn` rows, and canonical call-site mapping. This is not an
-    /// address, layout, or runnable-image identity.
+    /// logical PLT/GOT slots, semantic JUMP_SLOT rows, and canonical call-site
+    /// mapping. This is not an address, layout, or runnable-image identity.
     pub const fn non_authoritative_linkage_compatibility_fingerprint(&self) -> u64 {
         self.non_authoritative_linkage_compatibility_fingerprint
     }
@@ -157,15 +157,17 @@ pub(crate) struct ElfSemanticJumpSlotRelocation {
     pub(crate) addend: i64,
 }
 
-/// A semantic `.rela.dyn` row: an absolute data reference to an imported
-/// symbol that the dynamic linker patches at the section/offset named here.
+/// One semantic `.rela.dyn` requirement: an exact eight-byte slot inside the
+/// retained `.data` image section bound to an import's dynamic symbol at load
+/// time. The source offset stays address-free until load placement resolves
+/// the future `r_offset` fixup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ElfSemanticGeneralRelocation {
-    pub(crate) section: FinalImageSection,
-    pub(crate) offset: usize,
-    pub(crate) byte_width: usize,
+    pub(crate) request_index: usize,
     pub(crate) dynamic_symbol_index: u32,
     pub(crate) relocation_type: u32,
+    pub(crate) source_section: FinalImageSection,
+    pub(crate) source_offset: usize,
     pub(crate) addend: i64,
 }
 
@@ -183,12 +185,12 @@ struct CandidateValidationError {
 /// Consume exact dynamic-section descriptors into one canonical, address-free
 /// procedure-linkage relocation plan.
 ///
-/// Every referenced import must retain at least one direct call in the
-/// target's exact call relocation shape. Success creates one logical PLT/GOT
-/// slot and one semantic RELA `JUMP_SLOT` requirement per imported dynamic
-/// symbol, and admits that import's absolute data references as semantic
-/// general `.rela.dyn` rows. It deliberately emits no bytes and assigns no
-/// address or final section index.
+/// Every referenced import must be used only by the target's exact direct-call
+/// relocation shape or by eight-byte aligned `.data` slots. Success creates
+/// one logical PLT/GOT slot and one semantic RELA `JUMP_SLOT` requirement per
+/// imported dynamic symbol plus one semantic general RELA row per data slot.
+/// It deliberately emits no bytes and assigns no address or final section
+/// index.
 pub fn plan_elf_procedure_linkage_relocations(
     descriptors: ValidatedElfDynamicSectionDescriptorPlan,
 ) -> Result<
@@ -230,8 +232,8 @@ fn derive_contents(
         bindings.len() == inputs.imports().len(),
         "ELF dynamic bindings do not cover every canonical import request",
     )?;
-    let (source_kind, relocation_type) = target_relocation_spec(inputs.interpreter().target())?;
-    let general_relocation_type = target_general_relocation_type(inputs.interpreter().target())?;
+    let (source_kind, relocation_type, general_type) =
+        target_relocation_spec(inputs.interpreter().target())?;
     let mut slots = Vec::with_capacity(bindings.len());
     let mut jump_slot_relocations = Vec::with_capacity(bindings.len());
     let mut general_relocations = Vec::new();
@@ -245,22 +247,16 @@ fn derive_contents(
             compatibility_report_identity == binding.compatibility_report_identity,
             "ELF dynamic binding report identity does not match its canonical import request",
         )?;
-        let (call_relocations, data_relocations) =
-            partition_request_relocations(request, source_kind)?;
-        let call_sites = canonical_call_sites(
+        let (call_sites, mut general) = canonical_relocation_classes(
             inputs.interpreter().target(),
             &inputs.image().memory.text,
+            inputs.image().memory.data.len(),
             source_kind,
-            &call_relocations,
+            general_type,
+            binding,
+            request,
         )?;
-        for relocation in &data_relocations {
-            general_relocations.push(general_relocation(
-                inputs.image().memory.data.len(),
-                relocation,
-                binding.dynamic_symbol_index,
-                general_relocation_type,
-            )?);
-        }
+        general_relocations.append(&mut general);
         slots.push(ElfLogicalProcedureLinkageSlot {
             logical_ordinal,
             request_index: binding.request_index,
@@ -276,21 +272,29 @@ fn derive_contents(
             addend: 0,
         });
     }
-    general_relocations.sort_unstable_by_key(|relocation| relocation.offset);
+    general_relocations.sort_unstable_by_key(|relocation| relocation.source_offset);
     let contents = ElfProcedureLinkageRelocationContents {
         slots,
         jump_slot_relocations,
         general_relocations,
     };
     validate_nonoverlapping_call_sites(&contents)?;
-    validate_nonoverlapping_general_relocations(&contents)?;
+    validate_nonoverlapping_general_slots(&contents)?;
     Ok(contents)
 }
 
-fn target_relocation_spec(target: TargetProfile) -> Result<(RelocationKind, u32), Diagnostic> {
+fn target_relocation_spec(target: TargetProfile) -> Result<(RelocationKind, u32, u32), Diagnostic> {
     match target {
-        TargetProfile::LinuxX64 => Ok((RelocationKind::X86_64Relative32, R_X86_64_JUMP_SLOT)),
-        TargetProfile::LinuxArm64 => Ok((RelocationKind::Aarch64Branch26, R_AARCH64_JUMP_SLOT)),
+        TargetProfile::LinuxX64 => Ok((
+            RelocationKind::X86_64Relative32,
+            R_X86_64_JUMP_SLOT,
+            R_X86_64_64,
+        )),
+        TargetProfile::LinuxArm64 => Ok((
+            RelocationKind::Aarch64Branch26,
+            R_AARCH64_JUMP_SLOT,
+            R_AARCH64_ABS64,
+        )),
         _ => Err(Diagnostic::error(
             "ELF procedure linkage requires an exact Linux x86-64 or AArch64 profile",
         )),
@@ -309,87 +313,78 @@ fn request_compatibility_report_identity(request: &ElfImportRequest) -> Result<u
     }
 }
 
-fn target_general_relocation_type(target: TargetProfile) -> Result<u32, Diagnostic> {
-    match target {
-        TargetProfile::LinuxX64 => Ok(R_X86_64_64),
-        TargetProfile::LinuxArm64 => Ok(R_AARCH64_ABS64),
-        _ => Err(Diagnostic::error(
-            "ELF general relocations require an exact Linux x86-64 or AArch64 profile",
-        )),
-    }
-}
-
-/// Split one import's retained relocations into its exact direct-call shape
-/// and its admitted absolute data-reference shape; any other form refuses.
-fn partition_request_relocations(
+/// Partition one import's retained relocations into the target's exact
+/// direct-call sites and eight-byte aligned `.data` slot rows. Any other
+/// shape still rejects: there is no third admitted import relocation class.
+fn canonical_relocation_classes(
+    target: TargetProfile,
+    text: &[u8],
+    data_len: usize,
+    expected_kind: RelocationKind,
+    general_type: u32,
+    binding: &ElfDynamicImportBinding,
     request: &ElfImportRequest,
-    expected_call_kind: RelocationKind,
-) -> Result<(Vec<FinalImageRelocation>, Vec<FinalImageRelocation>), Diagnostic> {
-    let mut call_relocations = Vec::new();
-    let mut data_relocations = Vec::new();
+) -> Result<
+    (
+        Vec<ElfDirectImportCallSite>,
+        Vec<ElfSemanticGeneralRelocation>,
+    ),
+    Diagnostic,
+> {
+    require(
+        !request.relocations.is_empty(),
+        "ELF procedure-linkage import has no retained relocations",
+    )?;
+    let mut sites = Vec::new();
+    let mut general = Vec::new();
     for relocation in &request.relocations {
-        if relocation.section == FinalImageSection::Text
-            && relocation.kind == expected_call_kind
-            && relocation.byte_width == 4
-            && relocation.addend == 0
-        {
-            call_relocations.push(relocation.clone());
-        } else if relocation.section == FinalImageSection::Data
-            && relocation.kind == RelocationKind::Absolute64
-            && relocation.byte_width == 8
-        {
-            data_relocations.push(relocation.clone());
+        if is_direct_call_shape(relocation, expected_kind) {
+            sites.push(call_site(target, text, expected_kind, relocation)?);
         } else {
-            return Err(Diagnostic::error(
-                "ELF dynamic import requires a non-procedure or malformed source relocation",
-            ));
+            general.push(general_slot(data_len, general_type, binding, relocation)?);
         }
     }
-    Ok((call_relocations, data_relocations))
+    sites.sort_unstable_by_key(|site| (site.instruction_offset, site.relocation_offset));
+    validate_site_spans(&sites)?;
+    Ok((sites, general))
 }
 
-fn general_relocation(
+fn is_direct_call_shape(relocation: &FinalImageRelocation, expected_kind: RelocationKind) -> bool {
+    relocation.section == FinalImageSection::Text
+        && relocation.kind == expected_kind
+        && relocation.byte_width == 4
+        && relocation.addend == 0
+}
+
+/// Admit one `.data` import slot as a semantic general RELA row. The admitted
+/// shape is exactly the object envelope's data relocation contract: an
+/// eight-byte-aligned `Absolute64` slot that stays inside `.data`.
+fn general_slot(
     data_len: usize,
+    general_type: u32,
+    binding: &ElfDynamicImportBinding,
     relocation: &FinalImageRelocation,
-    dynamic_symbol_index: u32,
-    relocation_type: u32,
 ) -> Result<ElfSemanticGeneralRelocation, Diagnostic> {
     require(
-        relocation.offset.is_multiple_of(8),
-        "ELF general dynamic relocation is not aligned to an eight-byte field",
+        relocation.section == FinalImageSection::Data
+            && relocation.kind == RelocationKind::Absolute64
+            && relocation.byte_width == ELF64_GENERAL_SLOT_WIDTH
+            && relocation.offset.is_multiple_of(ELF64_GENERAL_SLOT_WIDTH),
+        "ELF dynamic import requires a non-procedure or malformed source relocation",
     )?;
     relocation
         .offset
-        .checked_add(relocation.byte_width)
+        .checked_add(ELF64_GENERAL_SLOT_WIDTH)
         .filter(|end| *end <= data_len)
-        .ok_or_else(|| Diagnostic::error("ELF general dynamic relocation exceeds .data"))?;
+        .ok_or_else(|| Diagnostic::error("ELF dynamic import data slot exceeds .data"))?;
     Ok(ElfSemanticGeneralRelocation {
-        section: relocation.section,
-        offset: relocation.offset,
-        byte_width: relocation.byte_width,
-        dynamic_symbol_index,
-        relocation_type,
+        request_index: binding.request_index,
+        dynamic_symbol_index: binding.dynamic_symbol_index,
+        relocation_type: general_type,
+        source_section: relocation.section,
+        source_offset: relocation.offset,
         addend: relocation.addend,
     })
-}
-
-fn canonical_call_sites(
-    target: TargetProfile,
-    text: &[u8],
-    expected_kind: RelocationKind,
-    relocations: &[FinalImageRelocation],
-) -> Result<Vec<ElfDirectImportCallSite>, Diagnostic> {
-    require(
-        !relocations.is_empty(),
-        "ELF procedure-linkage import has no retained direct call site",
-    )?;
-    let mut sites = relocations
-        .iter()
-        .map(|relocation| call_site(target, text, expected_kind, relocation))
-        .collect::<Result<Vec<_>, _>>()?;
-    sites.sort_unstable_by_key(|site| (site.instruction_offset, site.relocation_offset));
-    validate_site_spans(&sites)?;
-    Ok(sites)
 }
 
 fn call_site(
@@ -475,29 +470,13 @@ fn validate_nonoverlapping_call_sites(
     Ok(())
 }
 
-fn validate_nonoverlapping_general_relocations(
+fn validate_nonoverlapping_general_slots(
     contents: &ElfProcedureLinkageRelocationContents,
 ) -> Result<(), Diagnostic> {
-    let mut spans = contents
-        .general_relocations
-        .iter()
-        .map(|relocation| {
-            Ok((
-                relocation.offset,
-                relocation
-                    .offset
-                    .checked_add(relocation.byte_width)
-                    .ok_or_else(|| {
-                        Diagnostic::error("ELF general relocation window overflows usize")
-                    })?,
-            ))
-        })
-        .collect::<Result<Vec<_>, Diagnostic>>()?;
-    spans.sort_unstable();
-    for pair in spans.windows(2) {
+    for pair in contents.general_relocations.windows(2) {
         require(
-            pair[0].1 <= pair[1].0,
-            "ELF general relocation windows overlap",
+            pair[0].source_offset != pair[1].source_offset,
+            "ELF import data slots overlap or repeat one eight-byte span",
         )?;
     }
     Ok(())
@@ -552,8 +531,8 @@ fn validate_contents(
             && bindings.len() == inputs.imports().len(),
         "ELF procedure-linkage slots, relocations, bindings, and imports do not correspond",
     )?;
-    let (source_kind, relocation_type) = target_relocation_spec(inputs.interpreter().target())?;
-    let general_relocation_type = target_general_relocation_type(inputs.interpreter().target())?;
+    let (source_kind, relocation_type, general_type) =
+        target_relocation_spec(inputs.interpreter().target())?;
     let mut expected_general = Vec::new();
     for (index, binding) in bindings.iter().enumerate() {
         let logical_ordinal = checked_u32(index, "validated logical PLT/GOT slot ordinal")?;
@@ -561,22 +540,16 @@ fn validate_contents(
             Diagnostic::error("validated ELF binding exceeds canonical import requests")
         })?;
         let compatibility_report_identity = request_compatibility_report_identity(request)?;
-        let (call_relocations, data_relocations) =
-            partition_request_relocations(request, source_kind)?;
-        let expected_sites = canonical_call_sites(
+        let (expected_sites, mut binding_general) = canonical_relocation_classes(
             inputs.interpreter().target(),
             &inputs.image().memory.text,
+            inputs.image().memory.data.len(),
             source_kind,
-            &call_relocations,
+            general_type,
+            binding,
+            request,
         )?;
-        for relocation in &data_relocations {
-            expected_general.push(general_relocation(
-                inputs.image().memory.data.len(),
-                relocation,
-                binding.dynamic_symbol_index,
-                general_relocation_type,
-            )?);
-        }
+        expected_general.append(&mut binding_general);
         let expected_slot = ElfLogicalProcedureLinkageSlot {
             logical_ordinal,
             request_index: binding.request_index,
@@ -598,14 +571,14 @@ fn validate_contents(
             "ELF procedure-linkage slot or JUMP_SLOT row drifted from its exact import binding",
         )?;
     }
-    expected_general.sort_unstable_by_key(|relocation| relocation.offset);
+    expected_general.sort_unstable_by_key(|relocation| relocation.source_offset);
     require(
         contents.general_relocations == expected_general,
-        "ELF general relocation rows drifted from their exact import bindings",
+        "ELF general RELA rows drifted from their exact import bindings",
     )?;
     require_unique_semantic_rows(contents)?;
     validate_nonoverlapping_call_sites(contents)?;
-    validate_nonoverlapping_general_relocations(contents)
+    validate_nonoverlapping_general_slots(contents)
 }
 
 fn require_unique_semantic_rows(
@@ -635,7 +608,7 @@ fn non_authoritative_linkage_compatibility_fingerprint(
     contents: &ElfProcedureLinkageRelocationContents,
 ) -> u64 {
     let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-procedure-linkage-relocations.v2");
+    hash.bytes(b"omega.elf-procedure-linkage-relocations.v1");
     hash.bytes(
         &descriptors
             .non_authoritative_descriptor_compatibility_fingerprint()
@@ -675,22 +648,22 @@ fn non_authoritative_linkage_compatibility_fingerprint(
     }
     hash.bytes(&(contents.general_relocations.len() as u64).to_le_bytes());
     for relocation in &contents.general_relocations {
-        hash.byte(final_image_section_tag(relocation.section));
-        hash.bytes(&(relocation.offset as u64).to_le_bytes());
-        hash.bytes(&(relocation.byte_width as u64).to_le_bytes());
+        hash.bytes(&(relocation.request_index as u64).to_le_bytes());
         hash.bytes(&relocation.dynamic_symbol_index.to_le_bytes());
         hash.bytes(&relocation.relocation_type.to_le_bytes());
+        hash.byte(section_tag(relocation.source_section));
+        hash.bytes(&(relocation.source_offset as u64).to_le_bytes());
         hash.bytes(&relocation.addend.to_le_bytes());
     }
     hash.finish()
 }
 
-const fn final_image_section_tag(section: FinalImageSection) -> u8 {
+const fn section_tag(section: FinalImageSection) -> u8 {
     match section {
         FinalImageSection::Text => 1,
         FinalImageSection::Data => 2,
         FinalImageSection::Bss => 3,
-        _ => 4,
+        FinalImageSection::None => 4,
     }
 }
 

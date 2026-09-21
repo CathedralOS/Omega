@@ -317,10 +317,22 @@ fn builtin_function_review_rejects_checked_target_symbol_tamper() {
     let call_expression = checked
         .expression_table
         .iter_expressions()
-        .find_map(|(expression, node)| {
-            matches!(node, typed_trees::expression::ExpressionNode::Call(_)).then_some(expression)
+        .find_map(|(expression, node)| match node {
+            typed_trees::expression::ExpressionNode::Call(call)
+                if call.target.as_str() == "min" =>
+            {
+                Some(expression)
+            }
+            _ => None,
         })
         .expect("builtin call expression");
+    let tampered_symbol = checked
+        .typed
+        .propositions
+        .iter()
+        .map(|(_, proposition)| proposition.symbol)
+        .find(|symbol| symbol.is_valid())
+        .expect("a proposition symbol to substitute");
     let typed_trees::expression::ExpressionNode::Call(call) = checked
         .typed
         .expression_table
@@ -328,7 +340,7 @@ fn builtin_function_review_rejects_checked_target_symbol_tamper() {
     else {
         panic!("call expression")
     };
-    call.target_symbol = symbols::SymbolHandle::invalid();
+    call.target_symbol = tampered_symbol;
 
     let diagnostics = project_checked_package_review(&checked)
         .expect_err("builtin target-symbol tamper must reject");
@@ -336,6 +348,9 @@ fn builtin_function_review_rejects_checked_target_symbol_tamper() {
         diagnostic
             .message
             .contains("contract call target disagrees with its exact checked call-selection row")
+            || diagnostic.message.contains(
+                "contract call retained target disagrees with its exact checked owner derivation",
+            )
     }));
 }
 

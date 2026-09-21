@@ -1233,6 +1233,7 @@ fn foreign_affine_structural_result() -> machine_code::InternalStructuralCallRes
     };
     machine_code::InternalStructuralCallResult {
         operation_result: terminal_psi::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: PlaceId::new(31).unwrap(),
             structural_type: StructuralTypeId::new(31).unwrap(),
             multiplicity: StructuralMultiplicity::Affine,
@@ -2304,4 +2305,55 @@ fn installation_decoder_rejects_alternate_and_malformed_encodings() {
         decode_installation_record(&trailing),
         Err(InstallationError::TrailingBytes(1))
     );
+}
+
+/// The record reader is the boundary between untrusted image bytes and the
+/// installed-artifact contract: injected faults must be refused. No proper
+/// prefix may decode a record that still binds to the image. A single-byte
+/// fault must fail decode, decode to the honest record's equal only by
+/// reproducing an already-canonical byte stream (impossible — the encode is
+/// deterministic), or produce a record the image binding refuses. The sole
+/// tolerated mutation is the profile-decision identity at bytes 68..76: it is
+/// attribution provenance the image cannot contradict, and a faulted value
+/// still describes an honestly bound record.
+#[test]
+fn installation_reader_rejects_every_truncation_and_byte_fault() {
+    let artifact = build_object_artifact(&two_function_plan()).expect("artifact");
+    let image = emit_executable_image(&artifact, 3).expect("image");
+    let record =
+        build_installation_record(&image, ProfileDecisionId::new(1).unwrap()).expect("record");
+    let bytes = encode_installation_record(&record).expect("bytes");
+
+    for len in 0..bytes.len() {
+        if let Ok(prefix_record) = decode_installation_record(&bytes[..len]) {
+            assert!(
+                validate_installation_record(&prefix_record, &image).is_err(),
+                "truncated prefix of {len} bytes must not bind to the image"
+            );
+        }
+    }
+
+    let mut ignored = Vec::new();
+    let mut tolerated = Vec::new();
+    for position in 0..bytes.len() {
+        let mut faulted = bytes.clone();
+        faulted[position] ^= 0xFF;
+        if let Ok(faulted_record) = decode_installation_record(&faulted) {
+            if faulted_record == record {
+                ignored.push(position);
+            } else if validate_installation_record(&faulted_record, &image).is_ok() {
+                tolerated.push(position);
+            }
+        }
+    }
+    assert_eq!(
+        ignored,
+        Vec::<usize>::new(),
+        "no encoded byte may be ignored"
+    );
+    // The profile-decision identity occupies bytes 68..76 in the format-99
+    // header; validate_installation_record binds record↔image facts, so a
+    // nonzero faulted identity remains a well-formed record of the same
+    // installation. Everything else must be refused.
+    assert_eq!(tolerated, (68..76).collect::<Vec<usize>>());
 }

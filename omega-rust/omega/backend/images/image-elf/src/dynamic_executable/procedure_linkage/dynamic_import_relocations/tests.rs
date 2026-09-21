@@ -1,11 +1,11 @@
 //! Dynamic import relocation tests.
 
 use super::{
-    Candidate, ElfDirectImportCallSite, FinalImageSection, R_AARCH64_JUMP_SLOT, R_X86_64_JUMP_SLOT,
-    RelocationKind, TargetProfile, ValidatedElfDynamicSectionDescriptorPlan, call_site,
-    checked_u32, derive_contents, non_authoritative_linkage_compatibility_fingerprint,
-    plan_elf_procedure_linkage_relocations, site_end, validate_candidate, validate_contents,
-    validate_site_spans,
+    Candidate, ElfDirectImportCallSite, FinalImageSection, R_AARCH64_ABS64, R_AARCH64_JUMP_SLOT,
+    R_X86_64_64, R_X86_64_JUMP_SLOT, RelocationKind, TargetProfile,
+    ValidatedElfDynamicSectionDescriptorPlan, call_site, checked_u32, derive_contents,
+    non_authoritative_linkage_compatibility_fingerprint, plan_elf_procedure_linkage_relocations,
+    site_end, validate_candidate, validate_contents, validate_site_spans,
 };
 use crate::{
     plan_elf_dynamic_link_inputs, plan_elf_dynamic_section_descriptors, plan_elf_dynamic_sections,
@@ -257,6 +257,75 @@ fn both_linux_targets_plan_exact_slots_jump_relocations_and_call_sites() {
 }
 
 #[test]
+fn data_slot_import_relocations_plan_exact_general_rela_rows() {
+    for (target, relocation_type) in [
+        (TargetProfile::LinuxX64, R_X86_64_64),
+        (TargetProfile::LinuxArm64, R_AARCH64_ABS64),
+    ] {
+        let mut image = FinalImage::with_capacity(
+            target.native_target(),
+            FinalImageMemory {
+                text: vec![0; 8],
+                data: vec![0; 8],
+                ..FinalImageMemory::default()
+            },
+            Handle::invalid(),
+            1,
+            1,
+            1,
+        );
+        let symbol_handle = image.symbol_table.symbols.insert(FinalImageSymbol {
+            name: "__omega_data_import_0".to_owned(),
+            section: FinalImageSection::None,
+            offset: 0,
+            size: 0,
+            kind: SymbolKind::Import,
+        });
+        image.symbol_table.imports.insert(FinalImageImport {
+            symbol_handle,
+            import: FinalImageImportPlan::Normalized(
+                normalize_foreign_locator(
+                    ForeignLocatorCandidate::ElfVersioned {
+                        object: b"libslots.so".to_vec(),
+                        symbol: b"slot_cell".to_vec(),
+                        version: b"V1".to_vec(),
+                    },
+                    target,
+                )
+                .expect("valid data-slot locator"),
+            ),
+        });
+        image
+            .relocation_table
+            .relocations
+            .insert(FinalImageRelocation {
+                section: FinalImageSection::Data,
+                offset: 0,
+                byte_width: 8,
+                symbol_handle,
+                addend: 7,
+                kind: RelocationKind::Absolute64,
+            });
+
+        let plan = plan_elf_procedure_linkage_relocations(descriptors_from_image(target, image))
+            .expect("validated procedure-linkage plan with a general row");
+        assert_eq!(plan.logical_slot_count(), 1);
+        assert_eq!(plan.procedure_relocation_count(), 1);
+        assert_eq!(plan.direct_call_site_count(), 0);
+        assert_eq!(plan.general_dynamic_relocation_count(), 1);
+        let row = plan.contents.general_relocations[0];
+        assert_eq!(row.request_index, 0);
+        assert_eq!(row.dynamic_symbol_index, 1);
+        assert_eq!(row.relocation_type, relocation_type);
+        assert_eq!(row.source_section, FinalImageSection::Data);
+        assert_eq!(row.source_offset, 0);
+        assert_eq!(row.addend, 7);
+        validate_contents(plan.descriptors(), &plan.contents)
+            .expect("independent procedure-linkage replay");
+    }
+}
+
+#[test]
 fn import_permutation_preserves_identity_and_multiple_calls_share_one_slot() {
     let forward =
         plan_elf_procedure_linkage_relocations(descriptors(TargetProfile::LinuxX64, &IMPORTS))
@@ -407,12 +476,13 @@ fn independent_validation_rejects_every_slot_relocation_site_and_identity_corrup
         Box::new(|candidate| {
             candidate.contents.general_relocations.pop();
         }),
-        Box::new(|candidate| candidate.contents.general_relocations[0].offset += 8),
+        Box::new(|candidate| candidate.contents.general_relocations[0].request_index += 1),
+        Box::new(|candidate| candidate.contents.general_relocations[0].source_offset += 8),
         Box::new(|candidate| candidate.contents.general_relocations[0].dynamic_symbol_index += 1),
         Box::new(|candidate| candidate.contents.general_relocations[0].relocation_type += 1),
         Box::new(|candidate| candidate.contents.general_relocations[0].addend += 1),
         Box::new(|candidate| {
-            candidate.contents.general_relocations[0].section = FinalImageSection::Text
+            candidate.contents.general_relocations[0].source_section = FinalImageSection::Text
         }),
         Box::new(|candidate| candidate.non_authoritative_linkage_compatibility_fingerprint ^= 1),
     ];
@@ -479,14 +549,22 @@ fn absolute_data_references_admit_general_relocation_rows() {
         assert_eq!(plan.direct_call_site_count(), 4);
         assert_eq!(plan.general_dynamic_relocation_count(), 2);
         let expected_type = match target {
-            TargetProfile::LinuxX64 => 1,
-            TargetProfile::LinuxArm64 => 257,
+            TargetProfile::LinuxX64 => R_X86_64_64,
+            TargetProfile::LinuxArm64 => R_AARCH64_ABS64,
             _ => unreachable!(),
         };
         let rows = &plan.contents.general_relocations;
         assert_eq!(
-            rows.iter().map(|row| row.offset).collect::<Vec<_>>(),
+            rows.iter()
+                .map(|row| row.source_offset)
+                .collect::<Vec<_>>(),
             [8, 24]
+        );
+        assert_eq!(
+            rows.iter()
+                .map(|row| row.request_index)
+                .collect::<Vec<_>>(),
+            [0, 2]
         );
         assert_eq!(
             rows.iter()
@@ -495,8 +573,7 @@ fn absolute_data_references_admit_general_relocation_rows() {
             [1, 3]
         );
         assert!(rows.iter().all(|row| {
-            row.section == FinalImageSection::Data
-                && row.byte_width == 8
+            row.source_section == FinalImageSection::Data
                 && row.relocation_type == expected_type
                 && row.addend == 0
         }));

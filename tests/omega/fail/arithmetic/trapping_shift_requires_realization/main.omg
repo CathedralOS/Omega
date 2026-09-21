@@ -1,0 +1,13 @@
+// FAIL canary: authored `in Trapping` shifts check cleanly but elaborate to
+// TrappingShiftLeft/TrappingShiftRight at lowering, and no Terminal trapping
+// operation family exists yet — production must refuse loudly rather than
+// silently weaken the policy into Exact (ARITHMETIC-POLICY-REALIZATION). The
+// hosted trapping canaries (`arithmetic/trapping_shift_count_traps` et al.)
+// exercise the realized route; this pin guards the refusal until then.
+data Main {
+}
+machine Main::main(&mut self) {
+    let a: u32 in Trapping = (0 as u32 in Trapping);
+    let k: u32 in Trapping = (40 as u32 in Trapping);
+    let r: u32 in Trapping = a << k;
+}
