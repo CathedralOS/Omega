@@ -218,11 +218,17 @@ fn shared_nominal_argument(
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
-    if !place
-        .segments
-        .iter()
-        .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))
-    {
+    // A literal subscript canonicalizes to `FixedIndex`, which names an exact
+    // element the checked path can carry. A runtime subscript canonicalizes to
+    // `Index { expression }`, which has no `CheckedUnitStructuralPathSegment`
+    // counterpart at all, so leaving it out of this pattern is what keeps the
+    // dynamic form rejecting -- no separate guard states that.
+    if !place.segments.iter().all(|segment| {
+        matches!(
+            segment,
+            facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+        )
+    }) {
         return None;
     }
     // A shared formal borrows the selected record at its existing root/path.

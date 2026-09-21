@@ -3523,10 +3523,25 @@ moved to the termination-catalog fence (see that row's refresh note).
     `local_indexed_receiver_still_omits_in_call_statement_shape`,
     `dynamic_indexed_parameter_receiver_stops_at_receiver_reconciliation`,
     `literal_indexed_parameter_receiver_can_supply_shared_receiver`):
-    explicit `&` arguments carrying any index segment (literal or dynamic)
-    stop the caller in the call-operation phase — a reference `self` is not
-    a structural parameter under the non-retained builders, so the argument
-    cannot name its source — local-rooted indexed receivers stop earlier at
+    explicit `&` arguments carrying a LITERAL index segment now name their
+    caller — `shared_nominal_argument`
+    (`execution/unit/calls/computation_arguments/mod.rs`) admitted only
+    all-`Field` paths, and now admits `FixedIndex` beside `Field`, so
+    `take(&self.cells[0])` plans with
+    `source: Parameter { parameter_index: 0 }, path: [Field("cells"),
+    FixedIndex(0)]`. The former reason recorded here — "a reference `self` is
+    not a structural parameter under the non-retained builders" — was
+    measured false: the retained-self retry does fire, the same shape with a
+    non-`self` root (`take(&rack.cells[0])`) omitted identically, and the
+    same shape with a Unit-returning callee already planned; only the
+    scalar-computation lane was blocked. Dynamic `Index` segments still stop
+    in the call-operation phase, and by construction rather than by a guard:
+    `CheckedUnitStructuralPathSegment` has `Referent | Field | FixedIndex`
+    and no `Index` variant at all, so admitting it needs a representation
+    change. The per-shape pins are now
+    `explicit_shared_literal_indexed_argument_names_its_caller_in_the_call_operation`
+    and `explicit_shared_dynamic_indexed_argument_still_omits_caller_in_call_operation`.
+    Local-rooted indexed receivers stop earlier at
     call-statement shape, and parameter-rooted dynamic `Index` reaches
     receiver reconciliation before dropping. Terminal's owned-root array and
     construction-local restrictions remain separate; do not infer their
