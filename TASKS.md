@@ -12093,6 +12093,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   and the `pcc.rs`/`executable_publication.rs` pre-install re-verify
   callsites remain in `compilation-report`. No callsite change that would
   reopen the closed residual.
+  Re-verified at `832c55e69b7` (linux x86-64): all four mechanism pins hold
+  — `proof/src/checker/derivation_cache.rs:171` still re-runs
+  `candidate.verify()` through the admission kernel per consult,
+  `build-evaluation/.../independent_components.rs` still re-verifies attached
+  descriptions under the build's own `AdmissionProfile`, and
+  `compilation-report`'s `pcc.rs:154`/`228` + `executable_publication.rs:262`
+  pre-install re-verifies (`verify_pcc_claim_fields`,
+  `verify_psi_proof_sidecar`) remain. Fence map: the audit draft
+  `wiki/drafts/producer_checker_decision_sharing_audit.md` is under
+  PRODUCER-CHECKER-BOUNDARY-AUDIT (dev-88738, ~09:27Z); none of the four
+  audited source files is claimed — row text is the only writable surface.
+  Sibling duplicate row below keeps its own record; verdict stands — no
+  decision sharing found, residual closed at the recorded enumeration depth.
 - **PROGRAM-ENTRY-SELECTION-EXACTNESS.** — mined candidate; residual slice
 - **PRODUCER-CHECKER-DECISION-SHARING-AUDIT** — mined candidate; bounded audit at `8734480a01`, re-verified at `f44a1177ed` (all four mechanisms unchanged), no decision sharing found on the named reuse surfaces. `proof/src/checker/derivation_cache.rs` retains only kernel-accepted certificates and every consult re-runs `candidate.verify()` through the admission kernel — a hit is a re-checked reuse, not a trusted verdict (hits rejected by the kernel fall through to fresh derivation). `component-description`'s `verify` re-derives subject/schema/entries/custody/assumptions from bytes with the expected subject caller-supplied (substitution tests prove independent replay). `build-evaluation/src/provider_settlement/independent_components.rs::verify_independent_component_descriptions` re-verifies every attached description under the build's own admission profile, never the producer's accept. PCC admission replays normalized rows against closed target specs per `machine_state_evidence.md`. Residual: an exhaustive whole-tree audit of every verifier callsite is open, but the four decision-adjacent reuse mechanisms are each independently checked.
 - **PRODUCER-HISTORY-CUSTODY** — mined candidate; verify scope then implement.
