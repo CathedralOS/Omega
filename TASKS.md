@@ -1452,6 +1452,18 @@ Owners include
   parameters (or restructure the authored cycle so legs live on the entry
   carrier), then run the firmware/controlled-provider harness legs below.
 
+  P1 refresh at `b868b9ee8f270` (z75): the z148-recorded cyclic-custody stop
+  is crossed — `unranked_cycles::eligible` no longer the first refusal; the
+  authored cycle was restructured so leg calls ride record-local forwarders
+  and granted extents on `Loader::run`'s plain block parameters, and the pin
+  renamed to
+  `native_uefi_os_handoff_invocation_reports_termination_catalog_frontier`.
+  The new first refusal is native realization of the compiler-owned
+  termination edges: `UefiOsHandoffTermination::transfer`/`firmware_return`
+  settle as compiler-intrinsic provider rows but no closed native catalog
+  identity exists for them — per the pin's comment that leg belongs to the
+  UEFI physical-entry lane. (Same-item claim live: z19, exp ~10:19Z.)
+
   Acceptance: evolve `build/uefi_os_handoff_invocation` from binding-only coverage
   into authored execution through native emission and a firmware or controlled
   provider harness. Cover grow-then-stale-key retry, bounded exhaustion, malformed
@@ -1648,6 +1660,19 @@ Owners include
   construction, foreign/replayed receipts, substituted geometry and duplicate
   fresh supply, while legitimate provider issuance and identity-preserving
   transfers succeed without re-minting capacity.
+
+P1 section refresh at `b868b9ee8f270` (z75, NEW-P1-BOARD-REFRESH): each
+epic's last recorded frontier re-verified against HEAD. Holds:
+`Bound` still absent from `core/service.omg` (ENTRY-CONTENT-ROOTS cut);
+`stage_validated_optimized_program_storage_semantic_wrapper_object` still
+has no production callers (UEFI-PHYSICAL-SEMANTIC-ENTRY);
+`secondary_processor` ledger + canary + startup test in place and the
+trampoline-emission lane still open (AP-BRINGUP); both conservation
+fixtures still end in empty `Main::main` bodies (CONSERVATION-CONTRACT);
+BOUNDARY-ISSUANCE's frontier still fences the provider-planning/
+native-settlement join (PROVIDER-ATTACHMENT-MACHINE-PLAN live). Drift
+found and corrected in-row: UEFI-OS-HANDOFF's z148 cyclic-custody stop
+moved to the termination-catalog fence (see that row's refresh note).
 
 ## P2 - Materialization and placed access
 
