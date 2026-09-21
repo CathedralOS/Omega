@@ -21,6 +21,7 @@ pub use compilation::{
 pub(crate) use compilation::{
     compile_resolved_package_candidate_for_check,
     compile_resolved_package_candidate_for_check_with_checkpoint,
+    compile_resolved_package_candidate_for_production_collecting_timings,
 };
 pub(crate) use custody::verify_transitive_source_custody;
 pub use error::CompileResolvedPackageReviewsError;

@@ -10,8 +10,7 @@ use crate::admission::{
 use crate::review::{
     CanonicalPackageReconstructionQuestionLimits, CompileResolvedPackageReviewsError,
     RestrictedBuildCheckpoint, ReviewOnlyCapabilityConflictLimits,
-    compile_resolved_package_candidate_for_production,
-    compile_resolved_package_candidate_for_production_with_checkpoint,
+    compile_resolved_package_candidate_for_production_collecting_timings,
 };
 use compiler::{CompileReport, OptimizationRollback, TrustAdmission};
 use diagnostics::Diagnostic;
@@ -41,6 +40,7 @@ pub struct PreparedLocalProjectNativeRequest {
     build_snapshot: Option<build_evaluation::BuildSnapshotRequest>,
     terminal_authority_policy: TerminalAuthorityPolicy,
     receiving_terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
+    timings: bool,
 }
 
 impl PreparedLocalProjectNativeRequest {
@@ -59,7 +59,15 @@ impl PreparedLocalProjectNativeRequest {
             build_snapshot: None,
             terminal_authority_policy: current_terminal_authority_policy(),
             receiving_terminal_authority_permission_policy: None,
+            timings: false,
         }
+    }
+
+    /// Record per-stage timings on the produced report. Off by default: the
+    /// ladder measures nothing until a caller asks for it.
+    pub fn with_timings(mut self, timings: bool) -> Self {
+        self.timings = timings;
+        self
     }
 
     pub fn with_accepted_trust_admissions(mut self, admissions: Vec<TrustAdmission>) -> Self {
@@ -162,6 +170,7 @@ pub fn compile_prepared_local_project_for_native<Observation>(
         build_snapshot,
         terminal_authority_policy,
         receiving_terminal_authority_permission_policy,
+        timings,
     } = request;
     let (_, source_closure, accepted_target) = prepared.into_review_parts();
     let target_closure = source_closure.for_exact_target(target_profile);
@@ -170,22 +179,21 @@ pub fn compile_prepared_local_project_for_native<Observation>(
     // request the accepted rows do not grant rejects before its own build
     // effect executes — before generated sources or the checked root can
     // reach realization.
-    let candidate = match accepted_target.as_ref() {
-        Some(accepted) => compile_resolved_package_candidate_for_production_with_checkpoint(
-            &target_closure,
-            &build_dir,
-            SemanticBindingReview::Discover,
-            build_snapshot.as_ref(),
-            &RestrictedBuildCheckpoint::derive(accepted),
-        ),
-        None => compile_resolved_package_candidate_for_production(
-            &target_closure,
-            &build_dir,
-            SemanticBindingReview::Discover,
-            build_snapshot.as_ref(),
-        ),
-    }
+    let checkpoint = accepted_target
+        .as_ref()
+        .map(RestrictedBuildCheckpoint::derive);
+    let candidate = compile_resolved_package_candidate_for_production_collecting_timings(
+        &target_closure,
+        &build_dir,
+        SemanticBindingReview::Discover,
+        build_snapshot.as_ref(),
+        checkpoint.as_ref(),
+        timings,
+    )
     .map_err(CompilePreparedLocalProjectNativeError::Review)?;
+    // Snapshot the ladder before realization: native realization overwrites
+    // the checked record's timing rows as it reuses them.
+    let stage_timings = candidate.checked_root().timings().phases().to_vec();
     let evidence = accept_ordinary_closure_evidence(
         &target_closure,
         candidate.reviews(),
@@ -214,7 +222,9 @@ pub fn compile_prepared_local_project_for_native<Observation>(
     )
     .map(|report| {
         (
-            report.with_trust_admission_settlement(trust_settlement),
+            report
+                .with_trust_admission_settlement(trust_settlement)
+                .with_timings(stage_timings),
             observation,
         )
     })
