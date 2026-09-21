@@ -85,6 +85,7 @@ impl Context<'_> {
                 ExpressionNode::Member(member) => {
                     if self.subslice_length(source).is_some()
                         && !self.static_subslice(member.receiver, 0)
+                        && !self.slice_backed_subslice(member.receiver)
                     {
                         return Err(LoweringError::Unsupported(
                             "eliminated subslice extent requires retained source evaluation and view bounds custody",
@@ -277,5 +278,387 @@ impl Context<'_> {
             ExpressionNode::Indexed(_) => self.static_extent(source, depth + 1).is_some(),
             _ => false,
         }
+    }
+
+    /// A slice-backed eliminated extent is sound only while the same authored
+    /// view carries a retained bounds plan at this statement: the operand's
+    /// subslice formation still evaluates the endpoints and discharges
+    /// `start <= end <= source.len` at runtime, so folding `end - start` keeps
+    /// that observable check instead of erasing the view's only bounds
+    /// evidence. Without the plan the slice is never materialized and its
+    /// bounds go unchecked.
+    fn slice_backed_subslice(&self, source: ExpressionHandle) -> bool {
+        let ExpressionNode::Indexed(indexed) = self.checked.expression_table.expression(source)
+        else {
+            return false;
+        };
+        let ExpressionNode::Range(range) = self.checked.expression_table.expression(indexed.index)
+        else {
+            return false;
+        };
+        let Ok((machine, state)) =
+            crate::expression_preparation::source_custody::authored_state(self.checked, self.state)
+        else {
+            return false;
+        };
+        if range.end_inclusive
+            || !self.indexed_builtin(source, language_core::OperatorSpelling::Range)
+            || !validation::has_builtin_subslice_meaning(
+                &self.checked.typed,
+                machine,
+                Some(state),
+                source,
+            )
+        {
+            return false;
+        }
+        let mut views = Vec::new();
+        self.statement_subslice_views(&mut views);
+        views
+            .iter()
+            .any(|view| self.same_subslice_view(*view, source))
+    }
+
+    /// Authored `collection[start..end]` occurrences that a retained
+    /// view/bounds plan materializes at this exact statement. Each family
+    /// that can own the enclosing statement's structural operands reports its
+    /// subslice sources.
+    fn statement_subslice_views(&self, views: &mut Vec<ExpressionHandle>) {
+        let scalar_graphs = &self.checked.facts.flow.terminal_scalar_graphs;
+        for machine in &scalar_graphs.machines {
+            for state in machine
+                .states
+                .iter()
+                .filter(|state| state.state == self.state)
+            {
+                for operation in &state.unit_operations {
+                    self.operation_subslice_views(operation, views);
+                }
+                self.scalar_terminator_subslice_views(&state.terminator, views);
+            }
+        }
+        for tail in scalar_graphs
+            .guarded_tails
+            .iter()
+            .filter(|tail| tail.state == self.state)
+        {
+            self.scalar_guard_subslice_views(
+                scalar_graphs.guarded_exits.span_or_empty(tail.arms),
+                tail.fallback.as_ref(),
+                views,
+            );
+        }
+        let effects = &self.checked.facts.flow.terminal_unit_effects;
+        for machine in effects
+            .machines
+            .iter()
+            .filter(|machine| machine.state == self.state)
+        {
+            for operation in &machine.operations {
+                self.operation_subslice_views(operation, views);
+            }
+        }
+        for machine in &effects.composed_machines {
+            for state in machine
+                .states
+                .iter()
+                .filter(|state| state.state == self.state)
+            {
+                for operation in state.operation_dependencies() {
+                    self.operation_subslice_views(operation, views);
+                }
+                self.composed_terminator_subslice_views(&state.terminator, views);
+            }
+        }
+    }
+
+    /// Structural call arguments on one operation at this statement's
+    /// coordinate retain their authored subslice source.
+    fn operation_subslice_views(
+        &self,
+        operation: &checked_trees::CheckedUnitEffectOperationPlan,
+        views: &mut Vec<ExpressionHandle>,
+    ) {
+        use checked_trees::CheckedUnitEffectOperationPlan as Plan;
+        let (coordinate, arguments) = match operation {
+            Plan::CallUnit {
+                coordinate,
+                structural_arguments,
+                ..
+            }
+            | Plan::ScalarCall {
+                coordinate,
+                structural_arguments,
+                ..
+            }
+            | Plan::StructuralCall {
+                coordinate,
+                structural_arguments,
+                ..
+            }
+            | Plan::BoundaryCall {
+                coordinate,
+                structural_arguments,
+                ..
+            }
+            | Plan::BoundaryScalarCall {
+                coordinate,
+                structural_arguments,
+                ..
+            }
+            | Plan::BoundaryStructuralCall {
+                coordinate,
+                structural_arguments,
+                ..
+            }
+            | Plan::SelectedOperatorStructuralScalarCall {
+                coordinate,
+                structural_arguments,
+                ..
+            }
+            | Plan::SelectedOperatorStructuralCall {
+                coordinate,
+                structural_arguments,
+                ..
+            } => (coordinate.statement_index, structural_arguments),
+            Plan::EstablishStructuralValue { calls, .. } => {
+                for call in calls {
+                    self.operation_subslice_views(call.operation(), views);
+                }
+                return;
+            }
+            _ => return,
+        };
+        if coordinate != self.statement {
+            return;
+        }
+        for argument in arguments {
+            if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+                expression,
+                ..
+            } = &argument.source
+            {
+                views.push(*expression);
+            }
+        }
+    }
+
+    fn scalar_terminator_subslice_views(
+        &self,
+        terminator: &checked_trees::CheckedScalarStateTerminator,
+        views: &mut Vec<ExpressionHandle>,
+    ) {
+        match terminator {
+            checked_trees::CheckedScalarStateTerminator::Jump(successor) => {
+                self.scalar_successor_subslice_views(successor, views);
+            }
+            checked_trees::CheckedScalarStateTerminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                self.scalar_destination_subslice_views(when_true, views);
+                self.scalar_destination_subslice_views(when_false, views);
+            }
+            checked_trees::CheckedScalarStateTerminator::Guarded { arms, fallback } => {
+                let arms = self
+                    .checked
+                    .facts
+                    .flow
+                    .terminal_scalar_graphs
+                    .guarded_exits
+                    .span_or_empty(*arms);
+                self.scalar_guard_subslice_views(arms, fallback.as_ref(), views);
+            }
+            _ => {}
+        }
+    }
+
+    fn scalar_guard_subslice_views(
+        &self,
+        arms: &[checked_trees::CheckedScalarGuardedExit],
+        fallback: Option<&checked_trees::CheckedScalarBranchDestination>,
+        views: &mut Vec<ExpressionHandle>,
+    ) {
+        for arm in arms {
+            self.scalar_destination_subslice_views(&arm.destination, views);
+        }
+        if let Some(destination) = fallback {
+            self.scalar_destination_subslice_views(destination, views);
+        }
+    }
+
+    fn scalar_destination_subslice_views(
+        &self,
+        destination: &checked_trees::CheckedScalarBranchDestination,
+        views: &mut Vec<ExpressionHandle>,
+    ) {
+        let checked_trees::CheckedScalarBranchDestination::Jump(successor) = destination else {
+            return;
+        };
+        self.scalar_successor_subslice_views(successor, views);
+    }
+
+    /// A scalar-graph edge retains subslice transfer sources in the shared
+    /// transfer arena keyed by the edge's authored statement ordinal.
+    fn scalar_successor_subslice_views(
+        &self,
+        successor: &checked_trees::CheckedScalarSuccessor,
+        views: &mut Vec<ExpressionHandle>,
+    ) {
+        if successor.statement_ordinal != self.statement {
+            return;
+        }
+        for transfer in self
+            .checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .structural_transfers
+            .span_or_empty(successor.structural_transfers)
+        {
+            if let checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
+                expression,
+                ..
+            } = &transfer.source
+            {
+                views.push(*expression);
+            }
+        }
+    }
+
+    fn composed_terminator_subslice_views(
+        &self,
+        terminator: &checked_trees::CheckedComposedUnitControlTerminatorPlan,
+        views: &mut Vec<ExpressionHandle>,
+    ) {
+        use checked_trees::CheckedComposedUnitControlTerminatorPlan as Plan;
+        match terminator {
+            Plan::Jump { successor } => {
+                self.composed_successor_subslice_views(successor, views);
+            }
+            Plan::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                self.composed_successor_subslice_views(when_true, views);
+                self.composed_successor_subslice_views(when_false, views);
+            }
+            Plan::Guarded { arms, fallback, .. } => {
+                let arms = self
+                    .checked
+                    .facts
+                    .flow
+                    .terminal_scalar_graphs
+                    .guarded_exits
+                    .span_or_empty(*arms);
+                self.scalar_guard_subslice_views(arms, fallback.as_ref(), views);
+            }
+            Plan::GuardedJumps { arms, fallback } => {
+                for arm in arms {
+                    self.composed_successor_subslice_views(&arm.successor, views);
+                }
+                self.composed_successor_subslice_views(fallback, views);
+            }
+            Plan::ClosedSum { subject, cases } => {
+                if !cases
+                    .iter()
+                    .any(|case| case.successor.statement_ordinal == self.statement)
+                {
+                    return;
+                }
+                if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+                    expression,
+                    ..
+                } = &subject.source
+                {
+                    views.push(*expression);
+                }
+                for case in cases {
+                    self.composed_successor_subslice_views(&case.successor, views);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn composed_successor_subslice_views(
+        &self,
+        successor: &checked_trees::CheckedStructuralControlSuccessorPlan,
+        views: &mut Vec<ExpressionHandle>,
+    ) {
+        if successor.statement_ordinal != self.statement {
+            return;
+        }
+        for transfer in &successor.transfers {
+            if let checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
+                expression,
+                ..
+            } = &transfer.source
+            {
+                views.push(*expression);
+            }
+        }
+    }
+
+    /// The retained plan's authored view is a separate occurrence naming the
+    /// same subslice: the same single-segment parameter place and the same
+    /// literal bounds.
+    fn same_subslice_view(&self, retained: ExpressionHandle, source: ExpressionHandle) -> bool {
+        let (ExpressionNode::Indexed(retained), ExpressionNode::Indexed(authored)) = (
+            self.checked.expression_table.expression(retained),
+            self.checked.expression_table.expression(source),
+        ) else {
+            return false;
+        };
+        let (ExpressionNode::Range(retained_bounds), ExpressionNode::Range(authored_bounds)) = (
+            self.checked.expression_table.expression(retained.index),
+            self.checked.expression_table.expression(authored.index),
+        ) else {
+            return false;
+        };
+        if retained_bounds.end_inclusive != authored_bounds.end_inclusive
+            || retained_bounds.start.is_valid() != authored_bounds.start.is_valid()
+            || retained_bounds.end.is_valid() != authored_bounds.end.is_valid()
+        {
+            return false;
+        }
+        let (ExpressionNode::Name(retained_collection), ExpressionNode::Name(authored_collection)) = (
+            self.checked
+                .expression_table
+                .expression(retained.collection),
+            self.checked
+                .expression_table
+                .expression(authored.collection),
+        ) else {
+            return false;
+        };
+        if retained_collection.symbol != authored_collection.symbol
+            || retained_collection.head_symbol != authored_collection.head_symbol
+            || self
+                .checked
+                .expression_table
+                .name_path_member_symbols(retained_collection.member_symbols)
+                != self
+                    .checked
+                    .expression_table
+                    .name_path_member_symbols(authored_collection.member_symbols)
+        {
+            return false;
+        }
+        let same_bound = |left: ExpressionHandle, right: ExpressionHandle| match (
+            self.checked.expression_table.expression(left),
+            self.checked.expression_table.expression(right),
+        ) {
+            (ExpressionNode::Integer(left), ExpressionNode::Integer(right)) => {
+                left.value_u64() == right.value_u64()
+            }
+            _ => false,
+        };
+        (!retained_bounds.start.is_valid()
+            || same_bound(retained_bounds.start, authored_bounds.start))
+            && (!retained_bounds.end.is_valid()
+                || same_bound(retained_bounds.end, authored_bounds.end))
     }
 }
