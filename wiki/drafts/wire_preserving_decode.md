@@ -60,11 +60,15 @@ For a preserving realization under the `compact_binary` grammar:
   the relay-ordering sidecar — into `OpaqueWireRemainder.bytes_and_ordering`.
   The sidecar is codec-private; its layout is the realization's own choice
   and is never part of the schema report.
-- `codec_identity` binds the producing realization. For generated codecs
-  the natural identity is the schema's `normalized_schema_report_identity`
-  (already the stable identity admission uses for requirement rows), so a
-  remainder cannot be relayed through a codec compiled for a different
-  schema or policy spelling.
+- `codec_identity` binds the producing realization's schema and decode
+  policy jointly. For generated codecs the natural identity is the
+  schema's `normalized_schema_report_identity` folded with the policy
+  spelling: the fingerprint folds member identities, types, and retired
+  rows but no policy (`typed-trees/.../names/identity.rs`), so two
+  policies over one schema would otherwise collide. A remainder's splice
+  positions are defined only relative to the known-member set the
+  producing policy elected, so relaying it through the same schema under
+  a different policy must reject.
 - `Relayed<T>.value` carries the fully validated known value; ordinary
   facts about `T` describe only it. The remainder is semantically
   uninterpreted — opaque means uninterpreted, not confidential or
@@ -144,14 +148,33 @@ become mode-aware when a preserving codec is selected:
   a spelled trait (e.g. `EncodeRelayed<Policy, Value>`) — today the splice
   contract rides inside the codec-private sidecar.
 
-## Open questions
+## Decisions and open questions
 
-- Whether the generated `compact_binary` codec grows a synthesized
-  `decode_preserving` entry or preserving realizations remain authored
-  machines selected by policy. The demand machinery accepts either; a
-  synthesized entry additionally needs the sidecar layout fixed per schema
-  so independently compiled producer/consumer pairs agree.
-- Whether `codec_identity` is the schema's normalized report identity alone
-  or `policy ⊗ schema`; the former already covers "different schema or
-  policy spelling" because the report identity folds the declared members,
-  but two policies sharing one schema would collide.
+Resolved while drafting:
+
+- `codec_identity` binds `policy ⊗ schema`, not the schema's report
+  identity alone — `normalized_schema_report_fingerprint` folds member
+  identities, types, and retired rows but no policy spelling, and a
+  remainder's splice positions are defined only relative to the
+  known-member set the producing policy elected. Under today's generated
+  codec (single `compact_binary` spelling) the joint identity is
+  observationally equal to the report identity; the fold exists so a
+  second policy on one schema cannot silently share a remainder.
+- The first preserving realization is an authored machine conformance:
+  `published_preserving_decode` already joins it and the relay-exit
+  canary exercises the form end to end. A synthesized
+  `decode_preserving` entry on the generated `compact_binary` codec is a
+  separable follow-up, not a prerequisite — it needs a deterministic
+  per-schema sidecar layout (codec-private per realization today), a
+  spelled relay-encode requirement, and the mode-aware report fields.
+  It also shifts trust class: an authored or generated body checked
+  against the public requirement is Derived, while
+  generator-as-correct-by-construction is Admitted naming the compiler
+  (codecs.md realization table).
+
+Open:
+
+- None blocking the authored route. The synthesized entry — if elected —
+  must answer whether independently compiled producer/consumer pairs
+  agree on the fixed sidecar layout across toolchain versions, or whether
+  the splice is constrained to same-realization relays only.
