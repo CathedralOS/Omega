@@ -17,6 +17,7 @@ use super::{
     ConsumerScopedSemanticBindingReviewInput, ReviewedPackageProductionCandidate,
 };
 use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedPackageSourceClosure};
+use crate::review::restricted_build_grants::RestrictedBuildCheckpoint;
 use package_pass::{CompiledPackageReviews, TargetEntryDiscovery};
 use session::ReviewBuildSession;
 use std::path::Path;
@@ -133,6 +134,7 @@ pub fn compile_resolved_package_reviews_reusing(
         bindings,
         None,
         root_build_snapshot,
+        None,
         preparation,
     )
     .map(|compiled| compiled.reviews)
@@ -168,6 +170,7 @@ pub fn compile_resolved_package_candidate_for_production(
         bindings,
         Some(&root_path),
         root_build_snapshot,
+        None,
         &mut CandidateSourcePreparation::for_closure(closure),
     )?;
     let checked_root = compiled.checked_root.ok_or_else(|| {
@@ -204,6 +207,7 @@ pub(crate) fn compile_resolved_package_candidate_for_check(
         SemanticBindingReview::Discover,
         Some(entry_path),
         root_build_snapshot,
+        None,
         &mut CandidateSourcePreparation::for_closure(target_closure.source_closure()),
     )?;
     let CompiledPackageReviews {
@@ -217,12 +221,19 @@ pub(crate) fn compile_resolved_package_candidate_for_check(
         })
 }
 
+/// Audit-only candidate observation carries no restricted-request
+/// checkpoint (`None`): inspection never issues grants, and projected
+/// requests must survive to the decision document. The wired executor
+/// callers keep the same None today — the consuming operations join the
+/// retained policy after the pass — while `compile_dependency_closure`
+/// accepts the checkpoint for callers that already hold accepted consent.
 fn compile_candidate(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     build_root: &Path,
     bindings: SemanticBindingReview<'_>,
     retained_root_entry: Option<&Path>,
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
+    restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
     preparation.size_for(target_closure.source_closure());
@@ -233,6 +244,7 @@ fn compile_candidate(
             inputs,
             retained_root_entry,
             root_build_snapshot,
+            restricted_build_checkpoint,
             TargetEntryDiscovery::Disabled,
             preparation,
         );
@@ -243,6 +255,7 @@ fn compile_candidate(
         &[],
         retained_root_entry,
         root_build_snapshot,
+        restricted_build_checkpoint,
         TargetEntryDiscovery::Dependencies,
         preparation,
     )?;
@@ -262,6 +275,7 @@ fn compile_candidate(
         &discovered,
         retained_root_entry,
         root_build_snapshot,
+        restricted_build_checkpoint,
         TargetEntryDiscovery::Disabled,
         preparation,
     )
@@ -273,6 +287,7 @@ fn compile_pass(
     bindings: &[ConsumerScopedSemanticBindingReviewInput],
     retained_root_entry: Option<&Path>,
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
+    restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
     discovery: TargetEntryDiscovery,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
@@ -305,6 +320,7 @@ fn compile_pass(
         &bindings,
         retained_root_entry,
         root_build_snapshot,
+        restricted_build_checkpoint,
         discovery,
         preparation,
     );

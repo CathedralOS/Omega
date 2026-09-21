@@ -18,7 +18,7 @@ admission result, and no production function is extracted or replaced.
 The vectors cover all short-header extents; every identity/reserved byte;
 individual and combined high length bits; missing sections; maximum legal
 length claims; trailing bytes; empty and opaque sections; validation priority;
-and exact/adjacent 8 MiB request provision. Small controls run twice; large
+and exact/adjacent 130 MiB request provision. Small controls run twice; large
 boundary vectors run once. Every complete Gamma request, including diagnostic
 source and the evaluator's four-byte prefix, must fit its selected provision.
 The 60-second host watchdog produces no admission or proof judgment.

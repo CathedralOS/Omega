@@ -11,22 +11,24 @@ const SOURCE: &str = r#"use omega::language::core::service;
 
 pub boundary trait Folder { machine touch() reaches Folder; }
 pub boundary trait SubFolder { machine touch() reaches SubFolder; }
-pub boundary trait RootDir { machine open() -> Service<Folder> reaches RootDir; }
-pub boundary trait Workspace { machine narrow(parent: Service<Folder>) -> Service<SubFolder> reaches Workspace; }
+pub data FolderHandle { folder: Service<Folder>; }
+pub data SubFolderHandle { sub: Service<SubFolder>; }
+pub boundary trait RootDir { machine open() -> FolderHandle reaches RootDir; }
+pub boundary trait Workspace { machine narrow(parent: FolderHandle) -> SubFolderHandle reaches Workspace; }
 pub data Vault { root: Service<RootDir>; }
-pub machine Vault::direct(&self) -> Service<Folder>
+pub machine Vault::direct(&self) -> FolderHandle
 reaches RootDir
 invokes RootDir;
 { self.root.open() }
-machine Vault::open_folder(&self) -> Service<Folder> reaches RootDir { self.root.open() }
-machine Vault::relay(&self) -> Service<Folder> { self.open_folder() }
-pub machine Vault::expose(&self) -> Service<Folder>
+machine Vault::open_folder(&self) -> FolderHandle reaches RootDir { self.root.open() }
+machine Vault::relay(&self) -> FolderHandle { self.open_folder() }
+pub machine Vault::expose(&self) -> FolderHandle
 reaches RootDir
 invokes RootDir;
 { self.relay() }
 pub data Broker { workspace: Service<Workspace>; }
-machine Broker::narrow(&self, folder: Service<Folder>) -> Service<SubFolder> reaches Workspace { self.workspace.narrow(folder) }
-pub machine Broker::delegate(&self, folder: Service<Folder>) -> Service<SubFolder>
+machine Broker::narrow(&self, folder: FolderHandle) -> SubFolderHandle reaches Workspace { self.workspace.narrow(folder) }
+pub machine Broker::delegate(&self, folder: FolderHandle) -> SubFolderHandle
 reaches Workspace
 invokes Workspace;
 { self.narrow(folder) }

@@ -197,6 +197,35 @@ pub(super) fn check_call_result_qualifications(
                 return Some(());
             }
 
+            // A case-scoped grant: the requirement is an `established by`
+            // route for the domain and the subject path selects one case's
+            // payload of the owned result carrier, where that payload's
+            // declared type carries this domain on the domain's own target
+            // carrier. The payload annotation is the provider's issuance
+            // assertion for that case — the same authority as `-> T in D` on
+            // a bare result, scoped to the selected case. The declared
+            // identity gate above already pinned path, domain, and algebra
+            // identity; a call that consumed a live owned claim of this
+            // family transfers it and must justify itself below.
+            if path
+                .iter()
+                .any(|segment| matches!(segment, PlaceSegment::Case { .. }))
+                && case_payload_issuance_route(program, call.target_symbol, domain, path)
+                && match (call_parameters, projection) {
+                    (Some(parameters), Some(projection)) => !consumes_qualified_input(
+                        program,
+                        facts,
+                        &invocation,
+                        parameters,
+                        projection,
+                    ),
+                    (Some(_), None) => true,
+                    (None, _) => false,
+                }
+            {
+                return Some(());
+            }
+
             // Non-content theories retain the existing boundary authorization
             // rule. In particular, a routed alias without an exact direct
             // route is not silently accepted as a predicate-only theory.
@@ -392,6 +421,124 @@ fn result_type_issuance_route(
         signature.return_type,
         domain.target_type,
     )
+}
+
+/// The case-scoped spelling of `result_type_issuance_route`: instead of the
+/// result itself being `T in D`, one case of the owned result carrier
+/// declares its payload `T in D` and the granted subject path selects exactly
+/// that payload. The `established by` route must name the called requirement,
+/// and the leaf field's declared carrier must be the domain's own target
+/// type — a payload that wears the constraint on an unrelated carrier cannot
+/// mint here.
+fn case_payload_issuance_route(
+    program: &TypedTrees,
+    target_symbol: SymbolHandle,
+    domain: &typed_trees::domain::DomainDefinition,
+    path: &[PlaceSegment],
+) -> bool {
+    let Some(owner) = program.traits().iter().find(|owner| {
+        owner.is_boundary
+            && program
+                .trait_machine_signatures(owner)
+                .iter()
+                .any(|signature| signature.symbol == target_symbol)
+    }) else {
+        return false;
+    };
+    let Some(signature) = program
+        .trait_machine_signatures(owner)
+        .iter()
+        .find(|signature| signature.symbol == target_symbol)
+    else {
+        return false;
+    };
+    domain.establishment_routes.iter().any(|route| {
+        matches!(
+            route,
+            DomainEstablishmentRoute::BoundaryRequirement {
+                boundary_trait,
+                requirement,
+            } if *boundary_trait == owner.symbol && *requirement == signature.symbol
+        )
+    }) && qualified_leaf_carrier(program, signature.return_type, path).is_some_and(|carrier| {
+        crate::facts::qualification_evidence::unwrapped_type_references_match(
+            program,
+            carrier,
+            domain.target_type,
+        )
+    })
+}
+
+/// The declared type of the field at `path` inside an owned result carrier:
+/// `Case` segments select the variant whose payload the following `Field`
+/// resolves in, `Field` descends record storage, `FixedIndex` descends an
+/// element. Anything else has no declared carrier to compare.
+fn qualified_leaf_carrier(
+    program: &TypedTrees,
+    return_type: typed_trees::types::TypeReferenceHandle,
+    path: &[PlaceSegment],
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    let mut carrier = return_type;
+    let mut variant_scope: Option<SymbolHandle> = None;
+    for segment in path {
+        match segment {
+            PlaceSegment::Case { variant } => {
+                variant_scope = Some(*variant);
+            }
+            PlaceSegment::Field { symbol } => {
+                let data =
+                    crate::facts::field_domain::owned_nominal_data_definition(program, carrier)?;
+                let field = match variant_scope.take() {
+                    Some(variant_symbol) => program
+                        .data_members(data)
+                        .iter()
+                        .find_map(|member| match member {
+                            typed_trees::data::DataMember::Variant(variant)
+                                if variant.symbol == variant_symbol =>
+                            {
+                                Some(variant)
+                            }
+                            _ => None,
+                        })
+                        .and_then(|variant| {
+                            program
+                                .data_payload_fields(variant)
+                                .iter()
+                                .find(|field| field.symbol == *symbol)
+                        })?,
+                    None => program
+                        .data_members(data)
+                        .iter()
+                        .find_map(|member| match member {
+                            typed_trees::data::DataMember::Field(field)
+                                if field.symbol == *symbol =>
+                            {
+                                Some(field)
+                            }
+                            _ => None,
+                        })?,
+                };
+                carrier = field.type_reference;
+            }
+            PlaceSegment::FixedIndex { .. } => {
+                let mut reference = carrier;
+                while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
+                    program.type_reference_table.type_reference(reference)
+                {
+                    reference = *base_type;
+                }
+                let typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
+                    program.type_reference_table.type_reference(reference)
+                else {
+                    return None;
+                };
+                carrier = *element_type;
+                variant_scope = None;
+            }
+            _ => return None,
+        }
+    }
+    Some(carrier)
 }
 
 fn projection_places<'term>(
@@ -712,7 +859,9 @@ mod tests {
     use super::check_call_result_qualifications;
     use checked_trees::CheckedTrees;
     use facts::{FactOrigin, FactPayload, FactPlace, PlaceRoot, PlaceSegment, ProgramPoint};
-    use language_semantics::{PermissionAccess, PermissionEventKind, PermissionEventSource};
+    use language_semantics::{
+        PermissionAccess, PermissionEventKind, PermissionEventSource, QualificationEvidenceOrigin,
+    };
     use source_files_to_tokens::Lexer;
     use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
     use tokens_to_syntax_trees::parse_syntax_trees;
@@ -935,6 +1084,115 @@ mod tests {
     #[test]
     fn replay_accepts_authorized_issuance_occurrence() {
         issuance_fixture();
+    }
+
+    fn issuance_fact(checked: &CheckedTrees) -> facts::FactHandle {
+        checked
+            .facts
+            .semantic
+            .facts
+            .iter()
+            .find_map(|(handle, fact)| {
+                (fact.origin == FactOrigin::CallEnsures
+                    && matches!(fact.payload, FactPayload::DomainMembership { .. })
+                    && matches!(fact.place, FactPlace::Place(place)
+                        if matches!(checked.facts.semantic.places.get(place).root, PlaceRoot::Expression(_))
+                            && checked.facts.semantic.places.get(place).segments.is_empty()))
+                .then_some(handle)
+            })
+            .expect("bare result issuance fact")
+    }
+
+    #[test]
+    fn replay_rejects_foreign_receipt_identity() {
+        // A nonzero receipt identity is receipt evidence, not fresh issuance:
+        // the occurrence must trace to this exact invocation, not to an
+        // admitted receipt that already crossed a boundary.
+        let mut checked = issuance_fixture();
+        let handle = issuance_fact(&checked);
+        checked
+            .facts
+            .semantic
+            .facts
+            .get_mut(handle)
+            .evidence
+            .receipt_identity = 7;
+        assert_replay(&checked, false);
+    }
+
+    #[test]
+    fn replay_rejects_admitted_receipt_origin() {
+        // Evidence that already crossed an admitted boundary under a public
+        // contract cannot re-enter through the bare issuance route.
+        let mut checked = issuance_fixture();
+        let handle = issuance_fact(&checked);
+        checked.facts.semantic.facts.get_mut(handle).evidence.origin =
+            QualificationEvidenceOrigin::AdmittedReceipt;
+        assert_replay(&checked, false);
+    }
+
+    #[test]
+    fn replay_rejects_requirement_routed_evidence() {
+        // Evidence already attributed to a requirement route is not a bare
+        // invocation occurrence; counting it as issuance would mint twice.
+        let mut checked = issuance_fixture();
+        let handle = issuance_fact(&checked);
+        let routed = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "obtain")
+            .expect("caller machine")
+            .symbol;
+        checked
+            .facts
+            .semantic
+            .facts
+            .get_mut(handle)
+            .evidence
+            .requirement_symbol = routed;
+        assert_replay(&checked, false);
+    }
+
+    #[test]
+    fn sibling_requirement_on_authorized_boundary_cannot_mint() {
+        // `established by Provider::grant` names the exact requirement, not
+        // the trait: a sibling requirement on the same authorized boundary
+        // declaring the same result constraint is foreign issuance.
+        let source = r#"
+            data ByteUnit {}
+            data CountedQuantity<Unit> { magnitude: u64; }
+            trait Content<A> { machine project(subject: &Self) -> A; }
+            data Region [linear] { length: u64; }
+            domain Region::Granted established by Provider::grant;
+            machine Granted::content(region: &Region) -> CountedQuantity<ByteUnit>
+            satisfies Content<CountedQuantity<ByteUnit>>::project
+            { CountedQuantity { magnitude: region.length } }
+            boundary trait Provider {
+                machine grant(raw: Region) -> Region ensures result in Granted;
+                machine mint(raw: Region) -> Region ensures result in Granted;
+            }
+            machine obtain(provider: &Provider, raw: Region) -> Region in Granted
+            reaches Provider
+            {
+                provider.mint(raw)
+            }
+        "#;
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize sibling-route fixture");
+        let syntax = parse_syntax_trees(&tokens).expect("parse sibling-route fixture");
+        let resolved =
+            resolve(ResolutionRequest::new(&syntax)).expect("resolve sibling-route fixture");
+        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type sibling-route fixture");
+        let error = crate::lower_typed_trees(typed)
+            .expect_err("an unnamed sibling requirement cannot mint the routed domain");
+        assert!(
+            error.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("cannot establish call-result qualification")),
+            "expected call-result qualification rejection, got: {error:#?}"
+        );
     }
 
     #[test]

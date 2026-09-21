@@ -24,6 +24,7 @@ use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 mod control_flow;
 mod dominance;
+mod independence_tests;
 mod liveness_custody;
 mod parameters;
 mod read_modify_write;

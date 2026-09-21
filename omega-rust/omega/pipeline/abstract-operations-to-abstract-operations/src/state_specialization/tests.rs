@@ -133,6 +133,116 @@ const ALL_CONSTANT_SOURCE: &str = r#"
     }
 "#;
 
+/// One shared dispatch state `choose` whose literal-supplied incoming edge is
+/// one arm of a `Conditional` predecessor rather than an unconditional jump:
+/// `relay`'s `g` parameter is proven `true` by `warm`'s only binding of it,
+/// so `relay`'s `true` arm — a conditional successor edge that binds `f`
+/// directly to the parameter `g` — specializes while its sibling arm keeps
+/// routing to `right`. `variable`'s jump keeps a still-variable path into the
+/// dispatch, so exactly the conditional arm fuses.
+const CONDITIONAL_EDGE_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::run(flag: bool, mode: u32 in Wrapping)
+    {
+        transition flag {
+            true -> warm(mode)
+            _ -> variable(flag, mode)
+        }
+        state warm(m: u32 in Wrapping) {
+            let on: bool = true;
+            transition { _ -> relay(on, m) }
+        }
+        state relay(g: bool, m: u32 in Wrapping) {
+            transition g {
+                true -> choose(g, m)
+                _ -> right(m)
+            }
+        }
+        state variable(f: bool, m: u32 in Wrapping) {
+            transition { _ -> choose(f, m) }
+        }
+        state choose(f: bool, m: u32 in Wrapping) {
+            transition f {
+                true -> left(m)
+                _ -> right(m)
+            }
+        }
+        state left(x: u32 in Wrapping) {}
+        state right(x: u32 in Wrapping) {}
+    }
+"#;
+
+/// Both arms of one `Conditional` predecessor supply different literals to the
+/// same dispatch state — `relay`'s `g` and `gg` parameters are proven `true`
+/// and `false` by `warm`'s only bindings — while `variable`'s jump keeps the
+/// dispatch reachable: both arms specialize atomically in one candidate
+/// through a single node reconstruction.
+const BOTH_CONDITIONAL_ARMS_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::run(flag: bool, mode: u32 in Wrapping)
+    {
+        transition flag {
+            true -> warm(mode)
+            _ -> variable(flag, mode)
+        }
+        state warm(m: u32 in Wrapping) {
+            let on: bool = true;
+            let off: bool = false;
+            transition { _ -> relay(on, off, m) }
+        }
+        state relay(g: bool, gg: bool, m: u32 in Wrapping) {
+            transition g {
+                true -> choose(g, m)
+                _ -> choose(gg, m)
+            }
+        }
+        state variable(f: bool, m: u32 in Wrapping) {
+            transition { _ -> choose(f, m) }
+        }
+        state choose(f: bool, m: u32 in Wrapping) {
+            transition f {
+                true -> left(m)
+                _ -> right(m)
+            }
+        }
+        state left(x: u32 in Wrapping) {}
+        state right(x: u32 in Wrapping) {}
+    }
+"#;
+
+/// Both arms of one `Conditional` predecessor are the dispatch's only incoming
+/// edges and both supply proven constants, so specializing all of them would
+/// orphan the dispatch state; the family declines the site entirely.
+const ALL_CONSTANT_CONDITIONAL_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::run(mode: u32 in Wrapping)
+    {
+        transition { _ -> warm(mode) }
+        state warm(m: u32 in Wrapping) {
+            let on: bool = true;
+            let off: bool = false;
+            transition { _ -> relay(on, off, m) }
+        }
+        state relay(g: bool, gg: bool, m: u32 in Wrapping) {
+            transition g {
+                true -> choose(g, m)
+                _ -> choose(gg, m)
+            }
+        }
+        state choose(f: bool, m: u32 in Wrapping) {
+            transition f {
+                true -> left(m)
+                _ -> right(m)
+            }
+        }
+        state left(x: u32 in Wrapping) {}
+        state right(x: u32 in Wrapping) {}
+    }
+"#;
+
 /// The same specialization shape inside a machine carrying an authenticated
 /// cyclic component: the frozen-territory gate declines every dispatch there
 /// even though an incoming edge binds a literal constant.
@@ -398,6 +508,342 @@ fn constant_edges_on_both_arms_specialize_together() {
         dispatch_node.successors.len(),
         2,
         "both dispatch arms remain for the variable path"
+    );
+}
+
+#[test]
+fn conditional_arm_state_argument_edge_specializes_the_dispatch() {
+    let session = lowered_session(CONDITIONAL_EDGE_SOURCE, "conditional-arm specialization");
+    let unit = session.unit().clone();
+    let machine = unit.functions[0].machine;
+
+    let candidates = propose_state_argument_specializations(&session, 4).expect("proposal runs");
+    let [candidate] = candidates.as_slice() else {
+        panic!("exactly one specialization candidate")
+    };
+    let dispatch = candidate.dispatch();
+    let [row] = candidate.specializations() else {
+        panic!("one specialized incoming edge")
+    };
+    let parameter = row.parameter();
+    let predecessor = edge_owner(&unit, machine, row.incoming_edge());
+    assert_eq!(row.predecessor(), predecessor);
+    let input_function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine exists");
+    let predecessor_node = &input_function
+        .blocks
+        .iter()
+        .find(|block| block.id == predecessor.block)
+        .expect("predecessor block exists")
+        .nodes[usize::try_from(predecessor.node).expect("node index")];
+    let AbstractOperation::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &predecessor_node.operation
+    else {
+        panic!("the fused predecessor site is a conditional")
+    };
+    let sibling = if when_true.psi_edge == row.incoming_edge() {
+        when_false
+    } else {
+        assert_eq!(when_false.psi_edge, row.incoming_edge());
+        when_true
+    };
+    let incoming = predecessor_node
+        .successors
+        .iter()
+        .find(|edge| edge.psi_edge == row.incoming_edge())
+        .expect("admitted arm edge exists");
+    assert_eq!(row.argument(), bound_argument(incoming, parameter));
+    assert!(row.constant());
+    let (taken_edge, rejected_edge, resolved_target) =
+        dispatch_arms(&unit, machine, dispatch, row.constant());
+    assert_eq!(row.taken_edge(), taken_edge.psi_edge);
+    assert_eq!(row.rejected_edge(), rejected_edge.psi_edge);
+    assert_eq!(row.resolved_target(), taken_edge.target);
+
+    let validated =
+        validate_state_argument_specialization(&session, candidate).expect("independent replay");
+    let applied = apply_state_argument_specialization(session, validated).expect("apply");
+    let output_function = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine retained");
+    let output_node = &output_function
+        .blocks
+        .iter()
+        .find(|block| block.id == predecessor.block)
+        .expect("predecessor block retained")
+        .nodes[usize::try_from(predecessor.node).expect("node index")];
+
+    // The predecessor stays a conditional: the admitted arm retargets to the
+    // resolved dispatch arm's block while the sibling arm stays byte-exact.
+    let AbstractOperation::Conditional {
+        when_true: fused_true,
+        when_false: fused_false,
+        ..
+    } = &output_node.operation
+    else {
+        panic!("the predecessor keeps its conditional shape")
+    };
+    let (fused_arm, kept_arm) = if fused_true.psi_edge == row.incoming_edge() {
+        (fused_true, fused_false)
+    } else {
+        (fused_false, fused_true)
+    };
+    assert_eq!(fused_arm.target, resolved_target);
+    assert_eq!(kept_arm, sibling, "the sibling arm is byte-exact");
+    let fused_edge = output_node
+        .successors
+        .iter()
+        .find(|edge| edge.psi_edge == row.incoming_edge())
+        .expect("fused edge exists");
+    assert_eq!(fused_edge.target, resolved_target);
+    assert_eq!(
+        fused_edge.provenance,
+        vec![
+            PsiProvenance::Edge(row.incoming_edge()),
+            PsiProvenance::Edge(taken_edge.psi_edge),
+        ]
+    );
+    assert_eq!(
+        fused_edge.fuel,
+        vec![
+            optimization_unit::FuelSettlement {
+                site: PsiProvenance::Edge(row.incoming_edge()),
+                units: 1,
+            },
+            optimization_unit::FuelSettlement {
+                site: PsiProvenance::Edge(taken_edge.psi_edge),
+                units: 1,
+            },
+        ]
+    );
+    let kept_edge = output_node
+        .successors
+        .iter()
+        .find(|edge| edge.psi_edge == sibling.psi_edge)
+        .expect("sibling edge retained");
+    let input_sibling_edge = predecessor_node
+        .successors
+        .iter()
+        .find(|edge| edge.psi_edge == sibling.psi_edge)
+        .expect("input sibling edge");
+    assert_eq!(
+        kept_edge, input_sibling_edge,
+        "the sibling edge is byte-exact"
+    );
+    assert_eq!(output_node.successors.len(), 2);
+
+    // The dispatch keeps exactly its one unfused incoming path — the
+    // still-variable `variable` jump.
+    let remaining_incoming = output_function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .flat_map(|node| &node.successors)
+        .filter(|edge| edge.target == dispatch)
+        .count();
+    assert_eq!(remaining_incoming, 1);
+    assert!(
+        propose_state_argument_specializations(applied.session(), 4)
+            .expect("fixed-point proposal runs")
+            .is_empty(),
+        "the specialization reaches a fixed point"
+    );
+}
+
+#[test]
+fn both_arms_of_one_conditional_specialize_together() {
+    let session = lowered_session(BOTH_CONDITIONAL_ARMS_SOURCE, "both-arms specialization");
+    let candidates = propose_state_argument_specializations(&session, 4).expect("proposal runs");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one candidate covering both constant arms")
+    };
+    let [first, second] = candidate.specializations() else {
+        panic!("two specialized incoming edges")
+    };
+    // Both rows name the same predecessor conditional site but different arm
+    // edges; they fold into a single node reconstruction, not two overwrites.
+    assert_eq!(first.predecessor(), second.predecessor());
+    assert_ne!(first.incoming_edge(), second.incoming_edge());
+    assert_ne!(first.constant(), second.constant());
+    assert_ne!(first.resolved_target(), second.resolved_target());
+
+    let validated =
+        validate_state_argument_specialization(&session, candidate).expect("independent replay");
+    let applied = apply_state_argument_specialization(session, validated).expect("apply");
+    let function = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == candidate.machine())
+        .expect("machine retained");
+    let predecessor = first.predecessor();
+    let output_node = &function
+        .blocks
+        .iter()
+        .find(|block| block.id == predecessor.block)
+        .expect("predecessor block retained")
+        .nodes[usize::try_from(predecessor.node).expect("node index")];
+    let AbstractOperation::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &output_node.operation
+    else {
+        panic!("the predecessor keeps its conditional shape")
+    };
+    let fused_true = output_node
+        .successors
+        .iter()
+        .find(|edge| edge.psi_edge == when_true.psi_edge)
+        .expect("when_true edge exists");
+    let fused_false = output_node
+        .successors
+        .iter()
+        .find(|edge| edge.psi_edge == when_false.psi_edge)
+        .expect("when_false edge exists");
+    let rows = [first, second];
+    for (arm, edge) in [(when_true, fused_true), (when_false, fused_false)] {
+        let row = rows
+            .iter()
+            .find(|row| row.incoming_edge() == arm.psi_edge)
+            .expect("every arm fused");
+        assert_eq!(arm.target, row.resolved_target());
+        assert_eq!(edge.target, row.resolved_target());
+    }
+    // Only the entry's unfused arm still enters the dispatch.
+    let remaining = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .flat_map(|node| &node.successors)
+        .filter(|edge| edge.target == candidate.dispatch())
+        .count();
+    assert_eq!(remaining, 1, "only the variable edge still enters");
+    let [record] = applied.ledger().records() else {
+        panic!("one transformation record")
+    };
+    assert_eq!(
+        record.provenance.len(),
+        6,
+        "three custody rows per fused edge"
+    );
+    assert!(
+        propose_state_argument_specializations(applied.session(), 4)
+            .expect("fixed-point proposal runs")
+            .is_empty(),
+        "the specialization reaches a fixed point"
+    );
+}
+
+#[test]
+fn all_constant_conditional_arms_decline_to_orphan_the_dispatch() {
+    let session = lowered_session(
+        ALL_CONSTANT_CONDITIONAL_SOURCE,
+        "all-constant conditional decline",
+    );
+    assert!(
+        propose_state_argument_specializations(&session, 4)
+            .expect("proposal runs")
+            .is_empty(),
+        "fusing every incoming edge — both arms of the only conditional \
+         predecessor — would orphan the dispatch state"
+    );
+}
+
+#[test]
+fn replay_rejects_forged_conditional_arm_rows() {
+    let session = lowered_session(CONDITIONAL_EDGE_SOURCE, "conditional-arm specialization");
+    let unit = session.unit().clone();
+    let candidates = propose_state_argument_specializations(&session, 4).expect("proposal runs");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one specialization candidate")
+    };
+    let row = candidate.specializations()[0].clone();
+    let predecessor = edge_owner(&unit, candidate.machine(), row.incoming_edge());
+    let predecessor_node = &unit
+        .functions
+        .iter()
+        .find(|function| function.machine == candidate.machine())
+        .and_then(|function| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == predecessor.block)
+        })
+        .expect("predecessor block exists")
+        .nodes[usize::try_from(predecessor.node).expect("node index")];
+    let AbstractOperation::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &predecessor_node.operation
+    else {
+        panic!("the fused predecessor site is a conditional")
+    };
+    let sibling = if when_true.psi_edge == row.incoming_edge() {
+        when_false
+    } else {
+        when_true
+    };
+
+    // A forged supplying edge naming the conditional's sibling arm — the arm
+    // that does not enter the dispatch at all.
+    let mut forged = candidate.clone();
+    forged.specializations[0].incoming_edge = sibling.psi_edge;
+    assert_eq!(
+        validate_state_argument_specialization(&session, &forged).err(),
+        Some(StateArgumentSpecializationError::CandidateMismatch)
+    );
+
+    // A forged predecessor coordinate.
+    let mut forged = candidate.clone();
+    forged.specializations[0].predecessor.node += 1;
+    assert_eq!(
+        validate_state_argument_specialization(&session, &forged).err(),
+        Some(StateArgumentSpecializationError::CandidateMismatch)
+    );
+
+    // A forged resolved arm edge.
+    let mut forged = candidate.clone();
+    forged.specializations[0].taken_edge = forged.specializations[0].rejected_edge;
+    assert_eq!(
+        validate_state_argument_specialization(&session, &forged).err(),
+        Some(StateArgumentSpecializationError::CandidateMismatch)
+    );
+
+    // A forged output revision.
+    let mut forged = candidate.clone();
+    forged.output =
+        optimization_core::OptimizationUnitIdentity::from_canonical_bytes(b"forged-output");
+    assert_eq!(
+        validate_state_argument_specialization(&session, &forged).err(),
+        Some(StateArgumentSpecializationError::CandidateMismatch)
+    );
+
+    // A duplicated row — the same arm claimed twice — cannot validate: the
+    // replayed plan carries each admissible edge exactly once.
+    let mut forged = candidate.clone();
+    forged.specializations.push(row);
+    assert_eq!(
+        validate_state_argument_specialization(&session, &forged).err(),
+        Some(StateArgumentSpecializationError::CandidateMismatch)
+    );
+
+    // The untampered candidate still validates.
+    assert!(
+        validate_state_argument_specialization(&session, candidate).is_ok(),
+        "the exact candidate still validates"
     );
 }
 

@@ -1,12 +1,13 @@
 //! A source-produced foreign call carrying mixed scalar and record arguments
-//! reaches target-lowering translation validation on the linux_x86_64 host: a
-//! record actual established by an ordinary call result lowers into a
-//! structural-home boundary argument, then the normalized-foreign signature
-//! rebuild — which still realizes only borrowed pointer transport — rejects it
-//! closed instead of silently transporting ownership.
+//! reaches instruction selection on the linux_x86_64 host: a record actual
+//! established by an ordinary call result lowers into a structural-home
+//! boundary argument, the normalized-foreign signature rebuild classifies and
+//! admits it by value, then the legalizer's scalar-graph input — which still
+//! admits only borrowed pointer sources — rejects it closed instead of
+//! silently transporting ownership.
 
 #[test]
-fn mixed_scalar_and_record_arguments_stop_at_call_argument_validation() {
+fn mixed_scalar_and_record_arguments_stop_at_legalization_custody() {
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     run_linux_record_counterparty();
     #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
@@ -114,8 +115,8 @@ machine Main::main(&mut self) reaches Aggregate {
         diagnostics.iter().any(|diagnostic| {
             diagnostic
                 .to_string()
-                .contains("StructuralCallArgumentMismatch")
+                .contains("Selection(Legalization(SourceCustodyMismatch))")
         }),
-        "an owned record actual must refuse inside normalized-foreign signature rebuild, not earlier in lowering or later in emission; diagnostics: {diagnostics:?}",
+        "an owned record actual must refuse inside the legalizer's normalized-foreign scalar-graph input, not earlier in validation or later in emission; diagnostics: {diagnostics:?}",
     );
 }

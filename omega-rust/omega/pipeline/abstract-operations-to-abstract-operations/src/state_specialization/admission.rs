@@ -111,12 +111,15 @@ pub(super) fn incoming_edges(
 }
 
 /// The admissibility of one incoming edge under `evidence`, or `None` when
-/// the edge may not specialize. Only an unconditional traversal may fuse:
-/// the owner must be a `Jump` whose single successor is this exact edge, no
-/// affine or structural custody may ride either side of the fused traversal,
-/// the edge must bind the state argument to a value the sparse constant
-/// analysis proves is one exact Boolean, and the arm that constant resolves
-/// must carry no custody and reach a block without structural parameters.
+/// the edge may not specialize. Two predecessor shapes may fuse: an
+/// unconditional `Jump` whose single successor is this exact edge, or one arm
+/// of a `Conditional` predecessor — the sibling arm then executes exactly as
+/// before, so the dispatch stays reachable along it or another unfused edge.
+/// No affine or structural custody may ride either side of the fused
+/// traversal, the edge must bind the state argument to a value the sparse
+/// constant analysis proves is one exact Boolean, and the arm that constant
+/// resolves must carry no custody and reach a block without structural
+/// parameters.
 pub(super) fn admit_incoming_edge(
     evidence: &DispatchEvidence<'_>,
     owner_block: BlockId,
@@ -130,23 +133,46 @@ pub(super) fn admit_incoming_edge(
         block: owner_block,
         node: u32::try_from(node_index).ok()?,
     };
-    let O::Jump {
-        psi_edge,
-        target,
-        structural_bindings,
-        trivial_affine_discards,
-        residual_affine_discards,
-        ..
-    } = &owner_node.operation
-    else {
-        return None;
-    };
-    if *psi_edge != edge.psi_edge
-        || *target != evidence.dispatch
-        || !structural_bindings.is_empty()
-        || !trivial_affine_discards.is_empty()
-        || !residual_affine_discards.is_empty()
-        || !edge.structural_bindings.is_empty()
+    match &owner_node.operation {
+        O::Jump {
+            psi_edge,
+            target,
+            structural_bindings,
+            trivial_affine_discards,
+            residual_affine_discards,
+            ..
+        } => {
+            if *psi_edge != edge.psi_edge
+                || *target != evidence.dispatch
+                || !structural_bindings.is_empty()
+                || !trivial_affine_discards.is_empty()
+                || !residual_affine_discards.is_empty()
+            {
+                return None;
+            }
+        }
+        O::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => {
+            // The admitted edge is exactly one arm of the conditional; the
+            // sibling arm is not part of this traversal and keeps its own
+            // custody untouched. A conditional successor carries no residual
+            // affine discards, so only the arm's own fields can refuse.
+            let arm = [when_true, when_false]
+                .into_iter()
+                .find(|arm| arm.psi_edge == edge.psi_edge)?;
+            if arm.target != evidence.dispatch
+                || !arm.structural_bindings.is_empty()
+                || !arm.trivial_affine_discards.is_empty()
+            {
+                return None;
+            }
+        }
+        _ => return None,
+    }
+    if !edge.structural_bindings.is_empty()
         || !edge.trivial_affine_discards.is_empty()
         || !edge.residual_affine_discards.is_empty()
     {

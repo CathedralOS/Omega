@@ -253,3 +253,26 @@ pub struct FloatMeaningEqualityProposition {
     pub left: ProofValueId,
     pub right: ProofValueId,
 }
+
+/// The `Proposition` vocabulary identity one float-meaning equality row
+/// carries when an authored contract clause or obligation cites it as an
+/// `Atom`. The committed digest binds only the row's dense position in the
+/// module equality roster: clause carriers and the verifier's exit-axiom
+/// reconstruction derive the same identity without reading operand payload.
+pub fn float_meaning_equality_proposition_id(index: u32) -> semantic_vocabulary::PropositionId {
+    use sha2::{Digest, Sha256};
+
+    let digest = Sha256::digest(
+        [
+            b"omega.terminal_psi.float_meaning_equality_proposition.v1".as_slice(),
+            index.to_le_bytes().as_slice(),
+        ]
+        .concat(),
+    );
+    let raw = u64::from_le_bytes(
+        digest[..8]
+            .try_into()
+            .expect("sha256 digests cover at least eight bytes"),
+    ) | 1;
+    semantic_vocabulary::PropositionId::new(raw).expect("a digest bit-or 1 is nonzero")
+}

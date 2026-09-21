@@ -382,6 +382,82 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 }),
             })
         }
+        CheckedScalarExpression::IntegerSaturatingCast {
+            primitive_type,
+            operand,
+        } => {
+            let operand = lower_checked_scalar_expression_with_parameters(
+                operand,
+                structural_parameters,
+                structural_fields,
+                structural_cases,
+                primitive_storage,
+            )?;
+            let target = terminal_scalar_type(*primitive_type)?;
+            let (ScalarType::Integer(source_type), ScalarType::Integer(target_type)) =
+                (operand.scalar_type(), target)
+            else {
+                return unsupported("saturating conversion requires fixed integer carriers");
+            };
+            if source_type == target_type {
+                return Ok(operand);
+            }
+            // A widening carrier already clamps at the source range; the
+            // widened operand is the saturating image.
+            if source_type.can_widen_to(target_type) {
+                return Ok(LoweredDirectExpression::IntegerWiden {
+                    scalar_type: target,
+                    operand: Box::new(operand),
+                });
+            }
+            if source_type.sign() != IntegerSign::Unsigned
+                || target_type.sign() != IntegerSign::Unsigned
+            {
+                return unsupported(
+                    "saturating conversion with a signed carrier requires runtime policy realization",
+                );
+            }
+            if target_type.bits() >= source_type.bits() {
+                return unsupported("saturating conversion requires an unsigned narrowing carrier");
+            }
+            let maximum = (1_u128.checked_shl(u32::from(target_type.bits())))
+                .and_then(|modulus| modulus.checked_sub(1))
+                .ok_or(LoweringError::Unsupported(
+                    "saturating conversion bound exceeds u128",
+                ))?;
+            let modulus = 1_u128.checked_shl(u32::from(target_type.bits())).ok_or(
+                LoweringError::Unsupported("saturating conversion modulus exceeds u128"),
+            )?;
+            // `min(value, target_max)` is `value - (value sat_sub target_max)`
+            // on unsigned carriers: saturating subtraction floors at zero, so
+            // the clamp needs no branch. The modular remainder then carries
+            // the bound that the exact cast obligation consumes, exactly as
+            // the wrapping conversion does.
+            let saturated = |value: u128| LoweredDirectExpression::IntegerLiteral {
+                value: IntegerValue::Unsigned(value),
+                scalar_type: ScalarType::Integer(source_type),
+            };
+            let clamped = LoweredDirectExpression::IntegerBinary {
+                kind: LoweredIntegerBinaryKind::WrappingSubtract,
+                scalar_type: ScalarType::Integer(source_type),
+                left: Box::new(operand.clone()),
+                right: Box::new(LoweredDirectExpression::IntegerBinary {
+                    kind: LoweredIntegerBinaryKind::SaturatingSubtract,
+                    scalar_type: ScalarType::Integer(source_type),
+                    left: Box::new(operand),
+                    right: Box::new(saturated(maximum)),
+                }),
+            };
+            Ok(LoweredDirectExpression::IntegerExactCast {
+                scalar_type: target,
+                operand: Box::new(LoweredDirectExpression::IntegerBinary {
+                    kind: LoweredIntegerBinaryKind::ExactRemainder,
+                    scalar_type: ScalarType::Integer(source_type),
+                    left: Box::new(clamped),
+                    right: Box::new(saturated(modulus)),
+                }),
+            })
+        }
         CheckedScalarExpression::IntegerTrappingCast { .. } => {
             unsupported("checked trapping conversion requires runtime policy realization")
         }
@@ -561,6 +637,7 @@ fn lower_checked_boolean_expression_with_parameters(
             LoweredBooleanReturnExpression::StructuralCaseMembership { source, path, case }
         }
         CheckedBooleanExpression::IeeeFloatComparison { .. }
+        | CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
         | CheckedBooleanExpression::ErasedParameter { .. }
         | CheckedBooleanExpression::PayloadlessSumEqual { .. } => {

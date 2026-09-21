@@ -1,4 +1,6 @@
-//! Six rule-owning entrances, their sole catalogs, and next semantic rungs.
+//! Rule-owning entrances, their sole catalogs, next semantic rungs, and the
+//! consumers that keep each stage's produced route from becoming an orphan
+//! output (see `omega-rust/pipeline.md` placement rules).
 
 use std::fs;
 
@@ -35,6 +37,23 @@ pub(super) fn check(audit: &mut Audit) {
                     "rule-stage entrance {} lost next rung: {next_rung}",
                     stage.entrance
                 ));
+            }
+        }
+        for consumer in stage.consumers {
+            match fs::read_to_string(audit.repository.join(consumer)) {
+                Ok(contents) if contents.contains(stage.output_marker) => {}
+                Ok(_) => {
+                    audit.violations.insert(format!(
+                        "orphan stage output: {} produces `{}` but consumer {} no longer names it",
+                        stage.entrance, stage.output_marker, consumer
+                    ));
+                }
+                Err(error) => {
+                    audit.violations.insert(format!(
+                        "cannot read consumer {consumer} of {}: {error}",
+                        stage.entrance
+                    ));
+                }
             }
         }
     }

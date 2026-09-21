@@ -1,1 +1,1 @@
-cannot prove ensures contract for exit from big_products_fold_wrong at statement 0: false
+machine `big_products_fold_wrong` ensures contract proof fact `false` is disproved by constant arithmetic

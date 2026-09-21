@@ -12,17 +12,18 @@ use crate::{
 
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
-pub(crate) mod codec;
 pub(crate) mod compute;
 mod emission;
 mod evidence;
-pub(crate) mod identity;
 pub(crate) mod model;
 pub(crate) mod validate;
 mod work;
 
-pub use identity::fixed_view_copy_identity;
 pub use model::*;
+pub use register_homes::{
+    FixedViewCopy, FixedViewCopyDecodeError, FixedViewCopyDestination, FixedViewCopyPlan,
+    FixedViewCopyPolicy, FixedViewCopySourceEvidence, fixed_view_copy_identity,
+};
 pub use validate::validate_fixed_view_copies;
 
 /// Apply one explicitly selected fixed-view copy policy and independently

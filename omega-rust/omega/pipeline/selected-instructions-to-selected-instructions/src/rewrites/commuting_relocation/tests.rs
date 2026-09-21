@@ -1139,7 +1139,12 @@ fn replay_rejects_drift_outside_the_window() {
 /// proposal below is handed to `validate_commuting_relocation` directly,
 /// so every rejection comes from the validator's own window audit.
 mod independence_tests {
-    use super::*;
+    use super::{
+        CommutingRelocationError, LOAD_C, MAT_B, MAT_D, NativeTarget, STORE_A,
+        SelectedInstructionPlan, SelectedMemoryAccessRole, ValidatedCommutingRelocation, access,
+        baseline_target_register_environment, budget, fixture, mutated,
+        validate_commuting_relocation,
+    };
 
     /// Move the member at `member_index` onto `destination_index` inside
     /// a source fixture's plan, permuting the roster's window rows into
