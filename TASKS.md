@@ -13030,6 +13030,32 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `request_and_utf8.epsilon` + `omega_compiler.epsilon.sources` (exp 06:30Z),
   `representations.epsilon` (06:38Z), `omega-identity.sh`/`omega-executable`
   (06:46Z) and `source-closure.py` (08:06Z).
+||||||| parent of 50e63a152a4b (board: OMEGA-D-REQUEST-TABLES resolved — sibling of TABLE-COMPLETION)
+- **OMEGA-D-REQUEST-ROUTE-ENTRY** — mined candidate; verify scope then implement.
+- **OMEGA-D-REQUEST-TABLE-COMPLETION** — mined candidate; scope verified, implemented + gate-covered — re-mines the request-table leg of OMEGA-D (TASKS_BOOTSTRAP.md). On `main`, `bootstrap/5_omega/request_and_utf8.epsilon` (827 lines) parses the complete OCREQ V1 subject/invocation surface per `wiki/spec/build/compiler_request.md`: envelope identity, declared extents, package rows (name/lineage/revision/tree/content/member/role + snapshot rows incl. executable/content/target payloads), ordered edge rows (requester/scope/alias/target), root row and role, and invocation product/target/admissions — with first-missing-byte refusal coordinates. Exercised end to end by `tests/bootstrap/omega-request` (sealed OCREQ V1 request through the Gamma→Delta→Epsilon→D chain, exact OCOUT outcome frame). No separable slice: outcome-side tables are fenced by OMEGA-D-REQUEST-V1-TABLES (live claim on `bootstrap/5_omega/outcome.epsilon` + `tests/bootstrap/omega-outcome`), and the request spec file sits under the live OMEGA-D claim.
+- **OMEGA-D-REQUEST-TABLES** — mined candidate; verify scope then implement.
+- **OMEGA-D-REQUEST-ROUTE-ENTRY** — mined candidate; verify scope then implement.
+- **OMEGA-D-REQUEST-TABLE-COMPLETION** — mined candidate; scope verified, implemented + gate-covered — re-mines the request-table leg of OMEGA-D (TASKS_BOOTSTRAP.md). On `main`, `bootstrap/5_omega/request_and_utf8.epsilon` (827 lines) parses the complete OCREQ V1 subject/invocation surface per `wiki/spec/build/compiler_request.md`: envelope identity, declared extents, package rows (name/lineage/revision/tree/content/member/role + snapshot rows incl. executable/content/target payloads), ordered edge rows (requester/scope/alias/target), root row and role, and invocation product/target/admissions — with first-missing-byte refusal coordinates. Exercised end to end by `tests/bootstrap/omega-request` (sealed OCREQ V1 request through the Gamma→Delta→Epsilon→D chain, exact OCOUT outcome frame). No separable slice: outcome-side tables are fenced by OMEGA-D-REQUEST-V1-TABLES (live claim on `bootstrap/5_omega/outcome.epsilon` + `tests/bootstrap/omega-outcome`), and the request spec file sits under the live OMEGA-D claim.
+- **OMEGA-D-REQUEST-TABLES.** Scope verified, resolved — re-mines the
+  request-table leg of OMEGA-D (TASKS_BOOTSTRAP.md), same bound surface
+  as the resolved sibling OMEGA-D-REQUEST-TABLE-COMPLETION.
+  `bootstrap/5_omega/request_and_utf8.epsilon` (827 lines) parses the
+  complete OCREQ V1 subject/invocation surface per
+  `wiki/spec/build/compiler_request.md` — envelope identity, declared
+  extents, package rows (name/lineage/revision/tree/content/member/role
+  + snapshot rows incl. executable/content/target payloads), ordered
+  edge rows, root row and role, and invocation product/target/admissions
+  — with first-missing-byte refusal coordinates, exercised end to end by
+  `tests/bootstrap/omega-request` (sealed OCREQ V1 request through the
+  Gamma→Delta→Epsilon→D chain, exact OCOUT outcome frame). No separable
+  slice exists: at verification the implementing members are live-fenced —
+  `request_and_utf8.epsilon` + sources + README under
+  OMEGA-D-REQUEST-ADMISSION/semantics-4-5 (exp 2026-09-22T03:24Z),
+  `tools/bootstrap/omega` + `tests/bootstrap/omega-request` under
+  OMEGA-D-REQUEST-ADMISSION/records-env-request (exp 11:12Z),
+  `outcome.epsilon` + `tests/bootstrap/omega-outcome` under
+  OMEGA-D-REQUEST-V1-TABLES (exp 11:19Z), and `tests/epsilon` under
+  DELTA-COMPILER (exp 09:51Z).
 - **OMEGA-D-REQUEST-V1-TABLES.** Mined candidate; scope verified at
   `8a37f82686`: re-mine of the OMEGA-D EREQ v1 request clause — the
   request/outcome table surface of the first full Omega compiler in
