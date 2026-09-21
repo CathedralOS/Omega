@@ -324,11 +324,17 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   its complete source closure to native execution, not a third isolated helper
   milestone. Independent operation work remains actionable. Use the
   [Terminal production map](omega-rust/psi/compiler/terminal-production/README.md);
-  native join/replay belongs to **TRANSLATION-VALIDATION** in `TASKS_OPTIMIZER.md`
-  and package latency to **PACKAGE-PREPARATION-REUSE**. Acceptance requires every
-  maintained sample to check and every applicable exit/output oracle to execute
-  across the required hosted matrix. Record unavailable hosts explicitly;
-  scoped reruns do not establish a new complete baseline.
+  native join/replay belongs to **TRANSLATION-VALIDATION** in `TASKS_OPTIMIZER.md`.
+  Package preparation cost is observed but unowned:
+  `samples_with_documented_exit_run_correctly` gives every sample a fresh temp
+  build directory it removes first, so each sample redoes the whole preparation
+  pass, and the oracle was recorded running past 28 minutes at `12ecbe98f8`. No
+  row owns that cost, and none should be opened until a customer and a
+  measurement target are named; do not re-mine it as a caching task.
+  Acceptance requires every maintained sample to check and every applicable
+  exit/output oracle to execute across the required hosted matrix. Record
+  unavailable hosts explicitly; scoped reruns do not establish a new complete
+  baseline.
 
   z168 wave state: `samples/` and the integration harness
   (`compiler/tests/samples_compile.rs`) are fenced to six live claims —
