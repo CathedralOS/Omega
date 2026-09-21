@@ -8,7 +8,9 @@
 // description bytes and owner digests here — nothing is copied from a
 // caller-written plan inventory.
 //
-// Input layout (owner-supplied, confined to inputs/):
+// Input layout (owner-supplied, confined to inputs/; `..` or absolute
+// escapes are refused before evaluation — pinned by the package-manager
+// confinement suite):
 //   request.bin     — the canonical TopologyRequest bytes.
 //   components.bin  — {u32 n} + per-instance {u32 desc_len, desc bytes,
 //                     profile[32]}, in request-roster order.
