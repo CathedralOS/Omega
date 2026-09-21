@@ -10624,65 +10624,62 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   submodule gitlink now pins `5b0307c352` (was `4b1f7a6` at the sibling
   audit), so the Windows leg must additionally re-run against the moved
   pin; the host gate is unchanged — still no Windows host in this lane.
-- **PIPELINE-ORPHAN-ENTRANCE-RESIDUE.** (split-of:STAGE-ENTRANCE-ORPHAN-AUDIT) —
-  retire or wire the public stage entrances the executed stage-entrance orphan
-  sweep named but no sibling row owns. Re-verified at `716cb194aa`, which
-  corrected the inherited list: the sweep counted several `pub fn`s that are
-  not crate-public at all, so only these three are real entrances — each is
-  re-exported from its crate's `lib.rs` and has no caller outside its own
-  crate or tests:
+- **PIPELINE-ORPHAN-ENTRANCE-RESIDUE.** (split-of:STAGE-ENTRANCE-ORPHAN-AUDIT)
+  Retire or wire the public stage entrances the executed stage-entrance orphan
+  sweep named. **Re-verified at `a9286683d0` against the whole repository, and
+  the list shrank to one.** Both the original sweep and this row's first
+  revision searched only `omega-rust/`, which misses the `tests/` tree at the
+  repository root — a separate crate tree that consumes these crates. Any
+  future orphan audit must search both, or it will report used exports as
+  caller-free.
+
+  - `checked-trees-to-lowered-psi::produce_checked_canonical_integer_proof` is
+    **NOT an orphan** and must not be demoted. It has four external callers
+    under `tests/native-differential/`
+    (`pipeline_ownership/fixtures/common.rs:77`,
+    `pipeline_ownership/.../scalar_return_calls.rs:509`,
+    `abstract_publication/fixtures_common.rs:116`,
+    `optimizer_corpus/psi.rs:1636`), exactly as the comment above its
+    re-export at `lib.rs:51` says: "The native-differential optimizer corpus
+    proves trap obligations through the checked canonical certificate
+    producer from outside this crate." The comment was right and this row
+    was wrong.
   - `selected-instructions-to-register-homes::stage_fixed_view_register_allocation`
-    (`lib.rs:63`, def `assignment/recovery.rs`) — a second allocation stage
-    entrance beside the used `stage_register_allocation`; route_tests only.
-  - `checked-trees-to-lowered-psi::produce_checked_canonical_integer_proof`
-    (`lib.rs:52`, def `proofs/nonzero_divisor_certificate.rs:44`) — called
-    only from `proofs/scalar_block_invariants.rs:176` inside its own crate.
+    is **done**: demoted at `f44a1177ed`, and no longer re-exported.
   - `abstract-operations-to-target-operations::lower_to_target_operations_and_native_callbacks`
-    (`lib.rs:27`) — a competing public entrance beside the used
-    `lower_optimized_to_target_operations`, still delegated to internally, so
-    this one is a naming/ownership decision rather than dead code.
+    is the one that survives. It is re-exported at `lib.rs:27` with every
+    caller inside its own crate — `lowering.rs:67` delegates to it,
+    `lowering/optimized.rs:68` and `tests/normalized_foreign_calls.rs` use
+    it — so it is a competing public entrance beside the used
+    `lower_optimized_to_target_operations`, not dead code. Note before
+    changing it: `tests/architecture/stage_crate_ownership.rs:175` names it
+    as a string, so the architecture gate knows about it.
 
-  Also audit, per name rather than wholesale, the
-  `abstract-operations-to-abstract-operations` specialization surface:
-  `propose_case_membership_specializations` /
-  `validate_case_membership_specialization` (`lib.rs:61`) and
-  `propose_state_argument_specializations` /
-  `validate_state_argument_specialization` (`lib.rs:113-114`) are exported,
-  but `optimization-unit-semantics` carries a same-named
-  `validate_state_argument_specialization`, so confirm which crate owns each
-  name before removing anything.
+  Also still worth a per-name audit, unchanged: the
+  `abstract-operations-to-abstract-operations` specialization surface
+  (`propose_case_membership_specializations`,
+  `validate_state_argument_specialization`, `bind_revision`,
+  `commit_revision`, `replay_psi_registry`, `compute_cold_parallel`).
+  `optimization-unit-semantics` defines its own same-named
+  `validate_state_argument_specialization`
+  (`src/candidates/state_specialization/mod.rs`, used from
+  `candidates/dispatch.rs`), so a bare name search conflates two functions.
 
-  NOT in scope, and recorded here so the sweep's stale findings are not
-  re-mined: the seven `checked-trees-to-lowered-psi`
-  `lower_*`/`install_*` proof sub-passes the audit listed are `pub fn` inside
-  `pub(crate) mod`s (`proofs/mod.rs:74-84`) with no `lib.rs` re-export, so
-  they are already crate-private and every one has an internal caller —
-  `lower_content_conservation_plan` at `content_conservation.rs:469`,
-  `lower_boundary_content_guarantees` at `unit/attached_unit.rs:530`,
-  `lower_content_identity_reshuffles` at `unit/attached_unit/claims.rs:174`,
-  `lower_content_partition_compositions` at
-  `scalar_graph/scalar_graph_lowering/contract_lowering.rs:43`,
-  `lower_float_meaning_{equality,projection}` at
-  `machine_lowering/float_meanings.rs:77`, and
-  `install_non_executable_quotient_correspondences` is already `pub(crate)`
-  (`quotient_correspondence.rs:43`). `lower_symbol_resolved_trees_owned` no
-  longer exists in the tree. The `rewrites/`, `unsequenced_spill_stages/` and
-  wrapper-object families belong to POC-SELECTED-REWRITE-CATALOG,
-  POC-SPILL-FAMILY-* and POC-WRAPPER-OBJECT-PLACEMENT.
-
-  For each of the three entrances decide one of: delete it, demote it to
+  Decide the surviving entrance by one of: delete it, demote it to
   crate-private, or wire it to the coordinator that should call it — grounded
   in the owning stage's spec text, not in caller counts alone. Test-support
   `*_for_test`/`corrupt_*` helpers and crate-internal methods are out of
-  scope; they are not stage entrances.
+  scope. The `rewrites/`, `unsequenced_spill_stages/` and wrapper-object
+  families belong to POC-SELECTED-REWRITE-CATALOG, POC-SPILL-FAMILY-* and
+  POC-WRAPPER-OBJECT-PLACEMENT.
 
   Durable note carried from the retired POC-ORPHAN-ENTRANCE-AUDIT row: spill
   codec entrance names (`encode`, `decode`) collide workspace-wide, so any
   future automated orphan gate needs qualified identities to attribute them
   to a machine.
 
-  Acceptance: each of the three entrances is deleted, demoted, or called by a
-  real coordinator route with a test driving it; `cargo check --workspace
+  Acceptance: the surviving entrance is deleted, demoted, or called by a real
+  coordinator route with a test driving it; `cargo check --workspace
   --all-targets` stays clean.
 
 - **NATIVE-WRAPPER-ENCODING-AARCH64.** (new-scope) — the optimized program
