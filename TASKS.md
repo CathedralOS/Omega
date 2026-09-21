@@ -10111,17 +10111,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
     (basics, fletcher_checksum, caesar_cipher, format_number legs);
   (2) linux_x86_64/linux_arm64/macos_arm64 "selected ProgramEntry
     establishment rejoins 0 Terminal attachment identities; expected one"
-    — attributed under EXACT-PROGRAM-ENTRY-MULTIPLICITY at
-    `dbfa1b1702f`: the entry machine leaves the unit plan roster at
-    local construction ("call statement shape: call count without a
-    statement sequence") because `has_statement_shape`
-    (statement_sequence.rs) rejects a call-produced `&[T]` view local —
-    `let s: &[i32 in Wrapping] = self.adder.bytes.as_slice();`
-    (boundary `Array::as_slice`). LocalData admission covers only
-    primitive | structural result | erased exclusive-borrow alias;
-    `CheckedUnitStructuralTypeShape` deliberately has no runtime-length
-    slice shape and alias formation covers only `ExpressionNode::Borrow`
-    exclusive (Mutable/WriteOnly) carriers. The `&[T]` view local
+    — owned by SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT. The mechanism this
+    paragraph recorded is superseded: `d7a48d7af0` added the
+    `BorrowedSliceView` checked shape, so `has_statement_shape` now
+    admits the call-produced `&[T]` view local and a `&[T]` formal
+    carries the same shape. The frontier moved rather than closed —
+    both samples now stop at "statement sequence: call: call operation"
+    and still rejoin 0 Terminal attachment identities, because a callee
+    that *uses* the view has no Terminal descriptor
+    (TERMINAL-SLICE-VIEW-VOCABULARY). The `&[T]` view local
     pattern appears in 12 samples (fletcher_checksum, recursive_sum,
     dual_accumulator_recursion, slice_accum_probe, slice_maximum,
     subslice_sum, framed_payload, clamp_sum, dungeon_crawler modules);
@@ -10136,6 +10134,35 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
     here once main is green again: run the suite on windows_x86_64,
     macos_arm64, linux_arm64 hosts — host-gated, none producible on this
     machine.
+- **TERMINAL-SLICE-VIEW-VOCABULARY.** (split-of:SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT)
+  Give Terminal Psi a borrowed-view vocabulary for non-byte element types, so
+  a callee can use a `&[T]` it receives. `d7a48d7af0` made the view local a
+  checked shape and a `&[T]` formal carry it, which moved the samples'
+  frontier from local construction to the call — but a callee that *uses* the
+  view is still omitted. `Adder::fletcher` and `Summer::sum` need `s.len`,
+  `s[0]` and `s[1..]` over a non-byte element and have no Terminal
+  descriptor; the nine sites landed in `checked-trees-to-lowered-psi` and
+  `selected-dispatch` reject with "borrowed slice view has no Terminal
+  descriptor" rather than dropping the extent.
+
+  This is a vocabulary gap, not a language decision, and the row should stay
+  engineering unless the owner disagrees.
+  [byte views](wiki/spec/terminal-psi/byte_views.md) already supplies length,
+  read and subslice, but scopes itself to borrowed **byte** views in its title
+  and at `:5` ("immutable observations and fixed-extent writes through
+  borrowed byte views"). The language side is settled — `Slice::index` and
+  `Slice::range` are given in the language guide, chapter 5 lines 244-248 and
+  chapter 19 lines 46-50 — so what is missing is the Terminal form of an
+  already-decided semantics, plus the spec section that states it. If the
+  owner reads the generalization of byte_views.md to arbitrary element types
+  as a design decision rather than a transcription, say so and this becomes
+  an owner question instead.
+
+  Acceptance: a callee taking `&[T]` for a non-byte `T` reads its length,
+  indexes it and takes a subslice, reaching native production; the nine
+  "borrowed slice view has no Terminal descriptor" rejections are replaced by
+  real descriptors; and `fletcher_checksum` and `recursive_sum` pass
+  SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT's acceptance on `linux_x86_64`.
 - **SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT.** (split-of:SAMPLES-COMPILE-MULTI-HOST)
   Own the entry-establishment failure class that SAMPLES-COMPILE-MULTI-HOST and
   BORROWED-STORAGE-RESTORATION both route to a retired
