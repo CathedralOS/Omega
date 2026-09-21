@@ -8926,7 +8926,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   MACOS-X64-HOST-PROFILE.
 
   MACOS-X64-HOST-PROFILE's row. No unbound slice remains here.
-- **FILESYSTEM-SNAPSHOT-ISOLATION.** Verified ea025447fe; re-verified 201d58c591 and `ded56393da` (`cargo nextest run -p build-evaluation --lib` 84/84, linux x86-64): the contract
+- **FILESYSTEM-SNAPSHOT-ISOLATION.** Resolved — verified ea025447fe; re-verified 201d58c591 and `ded56393da` (`cargo nextest run -p build-evaluation --lib` 84/84, linux x86-64): the contract
   already holds in `build-evaluation/src/evidence/filesystem_scope/
   preparation.rs` + `filesystem_scope.rs`. Captured source snapshots get a
   create-exclusive owner-only (0o700) private staging parent placed outside
