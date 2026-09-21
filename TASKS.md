@@ -2303,279 +2303,140 @@ syntax and other terminal services are not prerequisites.
   handles are not a prerequisite. **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** owns
   permission/review rows and the broad filesystem-summary replacement.
 
-- **R5.** Finish exact inferred may-write summaries and relational candidates
-  in `validation/src/machine_calls/calls/write_frames/`. The inference returns
-  complete caller-visible paths or fails closed as opaque. It carries finite
-  candidate origin sets through transparent call results, alias bindings and
-  divergent exclusive-alias locals, solves transition cycles by permuted frame
-  equations, and does not count a reference-free by-value state parameter as
-  a write-capable cycle root
-  (`type_capabilities.rs::parameter_may_carry_write`). Precision still depends
-  on which source shape mentions a reference: a mention outside the admitted
-  shapes sinks the whole frame.
+- **R5.** Complete compositional caller-visible may-write inference in
+  `validation/src/machine_calls/calls/write_frames.rs` and its subordinate
+  origin/fixpoint owners. A complete frame must name every possible write;
+  unknown origins remain opaque and invalidate affected facts. This supplies
+  the exact preservation checks required by
+  [state contracts](wiki/spec/language/state_contracts.md) and
+  [progress lineage](wiki/spec/language/termination.md#subject-preservation).
 
-  Remaining work:
+  Candidate-origin unions, computed call/match receivers, named-state transfer,
+  aggregate helper-result projections, stored leaf rebinds and bound-reference
+  wire arguments already have implementations and tests. Reuse those paths,
+  rather than treating each source arrangement as another unsupported feature.
+  Remaining concrete joins:
 
-  - Converge the categories that still sink: unresolved receivers,
-    boundary-result origins, conditional helper-body case refinement, mutable
-    case-state transfer, graph-level aggregate result routes, and computed
-    reference arguments outside proven helper-result relations. Other
-    unsupported expression shapes remain conservative.
-    Each has landed slices; rerun its `write_frame_*` tests in
-    `typed-trees-to-checked-trees/src/tests/termination/` to find the residue.
-    Prefer shared fixpoint and alias reasoning over syntax-shape exceptions.
-  - Carry finite reference candidates through receiver dispatch, named-state
-    transfer and wire-codec calls; those consumers still lack contextual
-    substitution. Interior reference loads need independent load evidence,
-    not the enclosing carrier's path. Unknown rebinds must remain opaque.
-    Owners: `state_write_walk.rs`, `caller_aliases.rs`, `demand.rs`.
-    Call-argument composition alone does not establish source admission:
-    a reference-valued `match` still fails branch-custody joining, and a
-    boundary result with two inputs sharing its lifetime rejects in view
-    signature validation. Close those borrow-join dependencies before claiming
-    the source-to-checked example: choose either mutable input, write through
-    the returned alias inside a value expression, then prove a disjoint index
-    bound; the overlapping-index variant must reject.
+  - `demand.rs` still rejects a receiver mentioning a divergent local before
+    contextual substitution, despite supporting a directly computed receiver.
+    Carry the proven finite candidate set through the same receiver relation;
+    retain opacity for unknown callees, private escapes and unproved rebinds.
+  - `demand.rs` and `state_write_walk.rs` reject wire arguments mentioning a
+    divergent alias before `wire_codecs.rs` can resolve its candidate set. Remove that
+    mismatch by carrying checked argument origins through the caller and
+    synthesized-codec frame. Member/indexed reference loads still need their
+    own load evidence; the enclosing carrier's path is not the referent.
+  - Carry the receiver/codec repairs through contextual-case, named-state and
+    aggregate-result composition, preserving existing `write_frame_*` controls.
+    Add full source-checking witnesses where coverage stops at typed-tree frame
+    inference; retain conservative rejection at reference boundaries lacking
+    independent origin/load evidence and unsupported recursive result routes.
 
-  Flag: precision is added one source shape at a time. `write_frames/` is 51
-  files and about 17,000 lines, its checked-stage tests are 23 `write_frame_*`
-  modules named after shapes, and most of its 19 commits since 2026-09-15
-  admit one more mention kind and leave the rest failing closed. The general
-  mechanism is the candidate-origin relation that now exists, applied
-  uniformly to every reference-valued expression, binding, argument and
-  result through one fixpoint, so a new mention kind needs no new rule.
+  Architectural repair: share candidate-origin propagation and fixed-point
+  composition across expressions, bindings, arguments and results. Do not add
+  another recognizer per reference spelling or replace a complete-or-opaque
+  summary with a guessed write set.
 
-  Acceptance: all supported finite source shapes converge without widening
-  permissions, and unsupported recursion fails explicitly. Keep
-  `omega --check source/psi/gates/parser/main.omg` completing its cycle solves,
-  with `cli_mvp` and `nqueens` frames unchanged.
+  Acceptance: extend `typed-trees-to-checked-trees/src/tests/termination/`
+  `write_frame_*` coverage through full source checking, not only typed-tree
+  resolver probes. A helper choosing either mutable input, writing through its
+  result in a value expression, must preserve a disjoint index-bound fact and
+  invalidate the overlapping one. **MATCH-SELECTIVE-LOWERING** owns remaining
+  reference-branch custody joins. The old multi-input lifetime-signature
+  blocker is no longer general: `borrow/view_link.rs` now maps explicit
+  output lifetimes to the union of matching inputs, including bodyless
+  signatures. Reuse that relation; frame-only success does not establish
+  full source admission or executable result transport.
+  Preserve transition-cycle convergence on
+  `omega --check source/psi/gates/parser/main.omg` and the `cli_mvp`/
+  `nqueens` frame controls; finite permutations must not become opaque merely
+  because a state parameter changes position.
 
-- **TPR6.** Finish subject-bearing progress-premise normalization through
-  exported bodies, provider plans, recursive calls, and artifact evidence.
-  Private ranking witnesses stay outside public identity. Acceptance: every
-  used premise is reconstructed for the exact subject and no qualification or
-  similarly shaped row mints one implicitly.
+- **TPR6.** Finish exact subject-bearing progress-premise normalization through
+  exported bodies, provider plans, recursive calls and artifact evidence under
+  [subject preservation](wiki/spec/language/termination.md#subject-preservation).
+  Private ranking witnesses remain outside public identity; a qualification
+  or similarly shaped row cannot mint a premise.
 
-  Premise origins. Owners: `typed-trees-to-checked-trees`
-  `checks/termination/progress/{origins.rs,lineage.rs,lineage/places.rs}`,
-  `flow/value_origins.rs` and `flow/place/resolution.rs`. The backward trace
-  already derives exact frozen-input projections for captured constructors,
-  owned and nested checked helper results, constructed results and constructor
-  operands that select one operand, write-clean mutable helper bindings,
-  shared-reference leaves through their slot stores including leaf reads
-  spelled through an exclusive `&mut` carrier binding when every frontier
-  names the leaf's writes exactly, leaf spellings demanded as call operands
-  through exclusive bindings replayed from the binding's own provenance, `&`
-  bindings declared from literal-indexed carrier leaves resolved through the
-  binding's own provenance replay, `&` bindings declared from constructed
-  literal leaves — a record-literal member selection or a literal-indexed
-  array element — replayed through the same provenance walk, demanded call
-  operands spelled through a reference leaf inside an indexed carrier rebased
-  to the referent the element's literal store supplied before the premise
-  surface drops the index selector it cannot carry, helper-returned
-  reference leaves resolved through caller slot stores including callee-local
-  binding transfers and nested helper calls, and nested call-result
-  arguments; partition replay follows reference and generic-application leaves
-  with exact declared-field provenance. Do not rebuild those as new slices.
-  Remaining work:
+  Extend the shared backward provenance trace and finite lineage partitions in
+  `typed-trees-to-checked-trees/src/checks/termination/progress/`
+  (`origins.rs`, `lineage.rs`, `lineage/places.rs`) and `flow/value_origins.rs`.
+  Owned loads through references and exact written callee projections already
+  recover their actual replacement input. Remaining gaps are additional reference
+  boundaries lacking independent load evidence, unresolved control-flow result
+  routes, generic/dispatched callees and dynamic/unresolved projections.
+  Start with the unproven controls in `progress/origins/tests.rs`:
+  `control_flow_route_helper_result_stays_unproven`,
+  `dynamic_index_carrier_argument_stays_unproven` and
+  `embedded_call_written_on_the_demanded_path_has_no_exact_origin`.
+  Admit finite cases from exact provenance; unknown writes, aliases or routes
+  retain no guarantee. A may-write frame does not identify replacement contents,
+  and aggregate root correspondence cannot resurrect overwritten field evidence.
+  Generic field traversal is not the same gap as generic callee reasoning.
 
-  - Complete owned value loads through references — additional
-    reference-boundary loads.
-  - Mutable demanded paths, helper bodies that may write the demanded
-    projection, write-tainted nested calls, generic or dispatched callees,
-    ambiguous or dynamic projections — including a member selection whose
-    field symbol never resolved on an indexed temporary — opaque or
-    overlapping write frames, unresolved exclusive aliases and unresolved
-    result routes keep no checked guarantee. Admit one only from exact
-    provenance.
-  - A mutated aggregate cannot use root correspondence as evidence for its
-    previous field values; a may-write frame cannot identify a replacement
-    value. Retain opaque prefixes where declared-field provenance is absent.
-
-  Acceptance: those finite projected arrivals and checked helper
-  correspondences derive the replacement input's exact premise, while unknown
-  writes and reference aliases without exact provenance retain no checked
-  guarantee.
-
-  Nested value-call operands. Realize projected nested value-call operands
-  guarded by
+  Complete compositional nested structural-result operands through the shared
+  checked/lowered evaluation path with **STATE-LOCAL-VALUE-FRONTIER**.
+  `checked-trees-to-lowered-psi/tests/reference_result_source.rs` already
+  executes selected reference leaves, projected record arguments and
+  `select(forward_outer(outer).inner)` from encoded Terminal evidence.
+  The superficially similar rejection fixtures in `tests/borrow/carrier_results.rs`
+  use inline constructors, not the supported earlier-local record route.
+  Close those unchanged inline-construction cases and
+  `select(forward_array(values)[0])`, including structural-element array
+  ingress, residual carrier cleanup and recursive loan/qualification/linear-claim
+  custody. Retire superseded shape gates in
   `validation/src/machine_calls/calls/expression_scanning/result_realization.rs`
-  through the checked/lowered value planning path. Borrow checking can
-  transfer owned helper-result projections, but full checking still rejects
-  the inner call's result as an unrealized operand. Whole owned record ingress
-  and forwarding already execute from encoded Terminal evidence
-  (`checked-trees-to-lowered-psi/tests/reference_result_source.rs`); that is
-  Terminal acceptance, not native acceptance. The gate also admits nested call
-  operands for free scalar callers, bare scalar stores, and member scalar
-  stores on a borrowed parameter or receiver. Remaining work:
+  as real evaluation/result producers become available, rather than duplicating
+  the producer's walk for each destination spelling.
 
-  - Complete result projections through the shared evaluator and
-    result-binding lookup; extend the shared closure to general
-    structural-result callees. Carry loans, qualifications, and projected
-    claims through structural results without erasing their obligations.
-  - Resume at the checked/Terminal representation seam, not another evaluator
-    source-shape gate: realize projected owned reference leaves with residual
-    carrier cleanup, then nested result operands with their recursive loan
-    custody. Structural-element array construction is a further dependency.
-  - `select(value: View) -> &mut i32 { value.body }` must move the selected
-    permission and dispose the remainder, not create a reborrow whose parent
-    dies at return. `EstablishReference` creates a child loan and cannot
-    substitute for moving an existing leaf through call/edge/result moves.
-  - Keep carrier location distinct from loan occurrence/parent, relocate
-    runtime descriptors without copying referents, and reject nested
-    reference host interfaces until their custody exists. Reuse
-    `validation/src/machine_calls/reference_result_custody.rs` and the typed
-    projection/result maps; preserve conservative lifetime unions when
-    extending exact runtime origins beyond the whole-record route.
+  Preserve carrier locations, loan occurrences/parents and result homes. Move
+  selected permissions; `EstablishReference` creates a child loan and cannot
+  replace transferring a leaf whose parent would die at return. Relocate runtime
+  descriptors without copying referents; preserve conservative lifetime unions
+  and reject unsupported nested-reference host interfaces.
+  Acceptance: projected calls evaluate once, retain result homes until consumption,
+  and preserve selected loans and linear claims through source-free execution
+  and independent replay. Every consumed progress premise must reconstruct its
+  exact subject; missing, stale or substituted provenance grants none.
+  Keep rejection fixtures until their complete custody is implemented.
+  Terminal execution is not native acceptance.
 
-  Acceptance: `select(forward_outer(outer).inner)` and
-  `select(forward_array(values)[0])` evaluate each call once, retain the inner
-  result home through projection and the outer call, and preserve every
-  selected source loan and linear claim. Remove the nested-call gate only when
-  those result uses have real producers; a correct declared type or source
-  origin alone does not realize a value. Keep the rejection controls for those
-  two calls in
-  `typed-trees-to-checked-trees/src/tests/borrow/carrier_results.rs` until the
-  unchanged sources execute from encoded Terminal evidence, including
-  projected moves and array ingress.
+- **NOMINAL-FIELD-FLOW.** Finish receiver default-field contract handling and
+  its dungeon customer under
+  [default domains and invariant windows](wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization).
+  Owner: Psi `typed-trees-to-checked-trees` semantic field facts,
+  `checks/contracts/`, and `flow/call_phases/referents.rs`.
 
-  Flag: `result_realization.rs` is now 1391 lines of per-shape admission.
-  `unit_scalar_store_assignment_is_supported` (97b01d64f2) and
-  `unit_member_scalar_store_assignment_is_supported` (9baac8ad7b, 687 added
-  lines) each repeat inside validation the walk the checked Unit producer
-  performs for one destination shape, and the producer still rejects what it
-  cannot sequence. The general mechanism is the one named above: nested result
-  operands become ordinary evaluation-graph computations
-  (**STATE-LOCAL-VALUE-FRONTIER**) and the gate is deleted, not widened one
-  destination shape at a time.
+  Receiver widening is blocked by
+  [`mutable-self-receiver-declared-field-rows`](OWNER_QUESTIONS.md):
+  current `&mut self` entry assumptions, return checks and call handback use
+  only ZII-admitted `MachineFieldDomain` rows. Established non-ZII receiver
+  facts otherwise survive through precise frames or authored contracts.
+  Do not widen entry assumptions or handback independently of the owner ruling.
+  Readable mutable arguments and whole-extent collection-field coverage already
+  have a shared checked route; preserve it rather than rebuilding it.
 
-- **NOMINAL-FIELD-FLOW.** Complete declared-field domain evidence in Psi
-  semantic facts, flow transfer, and contract consumption. Collection elements
-  need explicit live coverage for their declared field predicates, transported
-  through indexing, views, copies, and calls. Mutable calls must preserve or
-  establish the appropriate returned field facts; an unchanged nominal type
-  annotation cannot restore evidence retired by a write. Do not encode
-  universal coverage as an unresolved index or assume arbitrary incoming
-  storage is zero-initialized. Owner: `typed-trees-to-checked-trees`
-  `checks/{contracts,ranges}/` and
-  `flow/{call_phases,mutation,reference_places,transfers}`.
+  Re-drive `omega --check --target linux_x86_64 samples/cli/games/dungeon_crawler_cli/main.omg`,
+  retaining `RoomLookup`, `MazeBuilder` and game-state field obligations.
+  Coordinate remaining bracketed-range migration with
+  **REMOVE-BRACKETED-RANGE-ANNOTATIONS** and any `RoomLookup` output migration
+  with **WRITE-ONLY-BORROW**. Its output still spells `&mut Room`, but
+  constrained-record `&write` admission is not wholly missing:
+  `tests/contracts/nominal_parameter_fields.rs` positively checks declared
+  nested invariants. Re-probe actual store/forwarding limits; ZII-valid local
+  storage is not invalid merely because no explicit initializer was written.
+  The historical `Filesystem::host` provider-join failure is not a current
+  measured blocker; canonical plan minting now exists. Attribute any reproduced
+  package/native stop to its owner, not field-fact machinery.
 
-  Already in place; reuse it. A machine's normal return re-proves the declared
-  default-domain rows of its readable `&mut` referents, `self`, and a returned
-  reference place, establishment-gated domains excluded
-  (`checks/contracts/exits/result_domains.rs`). Calls hand those rows back on
-  each readable `&mut` actual and `&mut self` receiver
-  (`flow/call_phases/referents.rs`). An unknown call frame retires only its
-  declared-signature ceiling (`flow/mutation/ceiling.rs`). A `&mut` local
-  bound from a checked reference result carries the callee's finite candidate
-  origins (`flow/reference_places/result_candidates.rs`; sub-state routes,
-  runtime indexes and unresolved callee locals stay conservative). A view
-  element write retires only that element's facts. Domain-declared
-  membership subjects project the carrier itself: `self.num.pos in
-  NonZero` and `self[0] in Utf8` resolve to the declared field or element
-  type instead of emitting `no resolved subject type`
-  (`validation/src/value_custody/expression_types/result_type.rs`).
-
-  `flow/state_values/fields.rs` joins each channel from per-edge
-  `EdgeDelivery` records instead of discarding provenance: literals must agree
-  on every predecessor, byte predicates intersect, integer bounds union with
-  the declared carrier standing in for a bound-free edge. A transition edge
-  lacking the field refutes; a call's return edge -- which never captures
-  field rows -- forwards the running `predicate_ceiling`, the co-inductive
-  premise element stores may assume for the carrier when re-seeding its
-  declared classes (`flow/transfers/byte_sequences.rs`). `ValidUtf8` reseeding
-  additionally requires the carrier to prove `AsciiOnly`; a store outside the
-  class retires it. Integer bounds that keep extending across joins widen to
-  the smallest authored integer literal covering the fresh bound rather than
-  the whole carrier range, so a converged loop counter keeps the authored
-  window (`bounds_growth` threshold widening). Guard arms mint
-  `AssignedIntegerBounds` for `place OP literal` conjuncts
-  (`flow/exits/guards.rs`), and `values/bounds.rs` carries the exact/wrapping/
-  saturating divide arm. `omega --check --target linux_x86_64
-  samples/cli/basics/multiplication_table/main.omg` reports no diagnostics.
-
-  Customer probe: `omega --check --target linux_x86_64
-  samples/cli/games/dungeon_crawler_cli/main.omg`. It reported 55
-  diagnostics at b2ea74973c; the call-side proofs now cover every finite
-  reference-result candidate (192fa77d3b), collection elements seed
-  whole-extent field domains that runtime-indexed subjects and slice views
-  narrow from (5292e6ec8c, which left only the four index rows), and the
-  sample's legacy scalar bound annotations let the single shared statement
-  transfer discharge those (4c09f582f1). Migrate those annotations under
-  **REMOVE-BRACKETED-RANGE-ANNOTATIONS**, preserving that proof coverage.
-  The probe reports
-  no diagnostics on macOS ARM64 and, after two same-day upstream
-  regressions were repaired, again on linux_x86_64 at 8421784e74:
-  package-keyed domain semantic identity (3248d8c82c) pooled a package's
-  own `[u8;8]::Utf8` against std's `[u8;256]::Utf8` as ambiguous until
-  domain references learned the documented own-package tier
-  (f900cba191), and operand-order move replay (6662a37929) exposed that
-  `expression_result_type_reference` never classified `UInt`/`Int`
-  carriers as integer, breaking `calls = calls + 1` restores
-  (3bf8be9383).
-
-  Remaining work:
-
-  - `&mut self` receivers hand back only the ZII-seeded `MachineFieldDomain`
-    rows: a callee's `self` entry assumption is ZII-gated, so its return
-    cannot guarantee non-ZII rows, and a caller's non-ZII receiver facts
-    survive a method call only through frame precision. Widening needs a
-    contract decision, not a flow change; the question is recorded in
-    `OWNER_QUESTIONS.md` as `mutable-self-receiver-declared-field-rows`
-    (8421784e74), and the clean probe does not exercise it.
-  - `RoomLookup` still passes an uninitialized readable `&mut Room`
-    out-parameter where write-only `&write Room` is the intended spelling;
-    `&write` admission still rejects constrained records. That spelling is
-    **WRITE-ONLY-BORROW**'s surface, not a flow gap here.
-
-  Wave-9 recheck at `ac4e4eee9b` (linux x86-64, under claim on
-  `flow/mutation`): the claimed surface is green — all 286
-  mutation-matching `typed-trees-to-checked-trees` unit tests pass.
-  The two named remaining legs are unchanged: the `&mut self` widening is
-  parked on contract question `mutable-self-receiver-declared-field-rows`,
-  and the `&write` out-parameter spelling is WRITE-ONLY-BORROW's. No
-  unclaimed leg inside `flow/mutation` was found. Caveat for the next
-  picker: the `dungeon_crawler_cli` `--check` probe exceeded ~19 minutes
-  of CPU at this revision without emitting a diagnostic (prior green
-  witness 8421784e74 recorded no duration, so this may be scale, not a
-  hang) — worth timing before treating it as regression evidence.
-
-  Wave-10 recheck at `e7c0099cb2b7` (linux x86-64; no claim landed —
-  four claims-ref pushes raced): the item surface stays green — all 286
-  mutation-matching and all 536 flow-matching
-  `typed-trees-to-checked-trees` unit tests pass. The timing caveat is
-  now answered, and the probe is a real regression: both cited probes
-  DO emit a diagnostic, and the dungeon run is bounded — it fails (not
-  hangs) at real 27m29s / user 30m32s. `omega --check --target
-  linux_x86_64` on `samples/cli/basics/multiplication_table` (~25m) and
-  `samples/cli/games/dungeon_crawler_cli` (27m29s) each fail inside
-  `omega-language-std` package compilation with `routed service field
-  Filesystem::host has no exact Fused selected-provider-plan join`
-  (selected-dispatch/src/boundary_dispatch.rs:229). The recorded-green
-  linux witness was 8421784e74; the join the diagnostic demands is
-  minted by 2704dd0edbf2 ("omega: mint the toolchain-settled
-  FilesystemHost provider plan", landed after that witness). The
-  settling surfaces that commit touched (`provider_settlement/`,
-  `effects/src/selected_provider_plans.rs`, `trust-model`,
-  `canonical_filesystem_host.rs`) hold no live claim at this writing —
-  PROVIDER-ATTACHMENT-MACHINE-PLAN's claim covers only t2c
-  `execution/unit/{providers.rs,types/mod.rs}` — so the join is an
-  unclaimed regression for a provider-settlement leg, not a flow gap
-  here. The two named remaining legs are unchanged: `&mut self`
-  widening parked on `mutable-self-receiver-declared-field-rows`, the
-  `&write` spelling is WRITE-ONLY-BORROW's.
-
-  Acceptance: the dungeon's `RoomLookup`, `MazeBuilder`, and game-state calls
-  satisfy default field obligations, while corrupted elements and stale
-  aliased fields reject at calls, transitions, and returns.
-
-  **DESIGN-BLOCKED (verified 2026-09-21).**
-  `wiki/spec/language/dependent_values.md` says only that machine-owned storage
-  may begin zeroed while gated fields stay inaccessible until established, and
-  elsewhere makes a call a consumption point where the domain must be proved
-  again -- but never says whether the receiver place at a method call is the
-  callee's machine storage or a caller-obligated place. Open as
-  `mutable-self-receiver-declared-field-rows` (OWNER_QUESTIONS.md:54).
+  Acceptance: apply the receiver ruling consistently at entry, call and return,
+  then close the dungeon checking customer without bypassing its field
+  obligations. Preserve indexing/view/copy/call transport and finite
+  candidate-origin coverage in `tests/contracts/{element_fields,nominal_parameter_fields}.rs`;
+  corrupted elements and stale aliases reject at calls, transitions and returns.
+  Nominal annotations never resurrect retired facts, unresolved selectors
+  never represent universal coverage, and arbitrary incoming storage gains
+  no ZII facts. Preserve negative controls while migrating revoked syntax.
 
 - **CML4.** Complete `EdgeCleanupPlan` after outgoing materialization and
   transfer commitment, including structural sums, nested projections, cycles,
@@ -5966,7 +5827,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **BENCHMARK-STANDALONE-SUBJECT.** Depend-free benchmark subject. Verified scope: a subject with no `depend()` skips the shared std plumbing and is the only compile reaching a published artifact at this revision — `samples/cli/basics/standalone` landed: empty `Main::main` bound to all hosted `ProgramEntry` roots, ~25 s end-to-end compile on w9 Linux x86-64. Runtime leg stays `skipped` (`--no-run`): `ProcessExit` provider authority is bound to the std package identity and a subject-local boundary machine produces no provider plan, so the artifact cannot exit cleanly. Re-verified on 97eeaf222a: `benchmark.py measure --target linux_x86_64 --no-run --print` publishes an 8192-byte artifact, median compile 27.6 s, peak RSS ~146 MB, runtime `skipped`; no committed record row yet. Remaining: the committed record row under `tools/benchmark/records/` and the `wiki/drafts/benchmarks.md` coverage entry are fenced to sibling claims this wave.
 - **BENCHMARK-STD-COMPARISON-OCCURRENCE-GATE** — mined candidate; scope verified, resolved — re-mine of BENCHMARK-COMPILE-UNBLOCK-COMPARISON-OCCURRENCES' producer fix (integer comparison-occurrence rejection repaired at `76dc49a99e`; `terminal_product::integer_comparisons` counts selected occurrences only against the artifact-bound checked scope). The "std" residual the name implies — provider coverage for genuinely selected occurrences, std-wide verification — is exactly what the landed publication test pins. Re-verified green at `1edade1a48`: `cargo nextest run -p compiler --test integer_comparison_publication` → `selected_comparison_publication_preserves_complete_custody_among_builtins` PASS (19.9s, linux x86-64). Sibling re-mines named on the parent row: BENCHMARK-COMPARISON-OCCURRENCE-GATE, COMPARISON-OCCURRENCE-PRODUCER-COVERAGE, the INTEGER-COMPARISON-OCCURRENCE-* family.
 - **BENCHMARK-SUBJECT-CORPUS-EXPANSION** — mined candidate; verify scope then implement.
-  covered — every producible leg claimed or gated; std-depend subjects blocked on the Filesystem::host join regression (NOMINAL-FIELD-FLOW leaf)
+  Historical std-dependent probes failed at the `Filesystem::host` provider join;
+  re-drive before claiming a current blocker. Any remaining join repair belongs
+  to build provider settlement, not NOMINAL-FIELD-FLOW.
 - **BENCHMARK-SUBJECT-ROW-EXPANSION** — mined candidate; verify scope then implement.
 - **BENCHMARK-WINDOWS-PEAK-MEMORY.** Scope verified at `5e2d355a02c0` —
   names the Windows leg of the versioned peak-memory axis
@@ -6005,7 +5868,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
       blocked at checked-call selection (PROOF-SAMPLES-CHECKED-CALL-
       SELECTION).
   No unfenced slice exists under this name.
-  covered — every producible leg claimed or gated; std-depend subjects blocked on the Filesystem::host join regression (NOMINAL-FIELD-FLOW leaf)
+  Historical std-dependent probes failed at the `Filesystem::host` provider join;
+  re-drive before claiming a current blocker. Any remaining join repair belongs
+  to build provider settlement, not NOMINAL-FIELD-FLOW.
 
 - **BUILD-DEPEND-PURPOSE-AWARE-LOCKS.** — mined candidate; scope verified,
   resolved — the purpose-aware lock landed at `748b07f622` ("packages: split
@@ -9146,7 +9011,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   domain predicates, postcondition transport, induction). No
   independent slice exists here.
   covered — sibling stub of resolved PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION
-- **PROOF-VALUE-SOURCE-CORRESPONDENCE** — mined candidate; verify scope then implement.
 - **PROOFS-SUBJECT-CHECKED-CALL-SELECTION.** Scope verified, covered — named sibling stub of PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's resolved row (re-verified at `4927883cf353`: filtered corpus still green — `proofs/case_call_*` fail twins reject with expected fragments, `proofs/case_call_premises` compiles), which owns this surface: a checked/specification call cited as a proof subject must attribute the callee's selected precondition to the call's exact subject. Implemented on `origin/main` at `1fc01bb690` (`validation/src/proof_contracts/contract_entailment/specification_calls.rs` checks selected concrete calls before fact intake; caller-terms attribution diagnostic in `typed-trees-to-checked-trees/src/checks/operators/requires.rs`); re-verified green at `f1675418b1` on the singular-variant row (`proofs/case_call_wrong_subject` rejects `empty_only(other)` when only `known in Tree::Empty` is established, `case_citation_wrong_result` pins the result side, pass twin `proofs/case_call_premises` compiles). Remaining owners stay the parent item's own list (abstract signatures, domain predicates, postcondition transport of case membership, induction). No independent slice exists here.
 - **PROVIDER-ATTACHMENT-MACHINE-PLAN** — mined candidate; scope verified, no bounded slice this wave (z175, `500878c473f4c`). The namesake surface — `typed-trees-to-checked-trees/src/execution/unit/providers.rs` — already produces the exact `CheckedProviderAttachmentRequirementPlan` roster (`checked_provider_attachment_requirements` + the composed-leaf variant), pinned across `tests/flow/terminal_unit` and rejoined to authored call sites by c2l `unit/attached_unit/provider_attachments/source.rs`. The residual the name carries is BOUNDARY-ISSUANCE's open frontier — the provider-planning/native-settlement join to the installed occurrence — and its implementing surfaces are fenced: `external-roots/src/program_local` under EPOCH-RESOURCE-SNAPSHOTS (~11:32Z), `platform_bringup/secondary_processor` under AP-BRINGUP (~13:50Z), `execution/unit/composed_control/topology.rs` under PASS-CANARY-GUARDED-PAIR-FALLBACK (~17:33Z). Plan-side work left for this item is join design across crates, not a file-local patch. providers.rs itself is unclaimed this wave.
   covered — roster already produced in `execution/unit/providers.rs`; residue is cross-crate join design, not a bounded slice
@@ -9168,7 +9032,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   pending_terminal_boundaries`) — stays with its storage owner
   STATE-LOCAL-VALUE-FRONTIER per MATCH-SELECTIVE-LOWERING's flag note.
   covered — closed as superseded at `03a942c3bb`, pinned by `borrowed_scalar_call_source` tests
-- **PSI-DOMAIN-FACT-SELECTION-COVERAGE** — mined candidate; verify scope then implement.
 - **PSI-FRESH-CONSTRUCTOR-CUSTODY-JOIN.** Resolved — the custody join for
   fresh (per-edge constructed) selection results is already implemented and
   pinned (re-verified at `5fdd41efd879`). `checks/multiplicity/claim_outcomes.rs`
@@ -9189,7 +9052,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   TPR6's progress surface, and static constructor matching is
   PROOF-CONTRACT-MIGRATION's remaining work — neither is this row's
   seam.
-- **PROOF-VALUE-SOURCE-CORRESPONDENCE.** — mined candidate; verify scope then implement.
 - **PROOFS-SUBJECT-CHECKED-CALL-SELECTION.** — mined candidate; scope verified, covered — named sibling stub of PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's resolved row, which owns this surface: a checked/specification call cited as a proof subject must attribute the callee's selected precondition to the call's exact subject. Implemented on `origin/main` at `1fc01bb690` (`validation/src/proof_contracts/contract_entailment/specification_calls.rs` checks selected concrete calls before fact intake; caller-terms attribution diagnostic in `typed-trees-to-checked-trees/src/checks/operators/requires.rs`); re-verified green at `f1675418b1` on the singular-variant row (`proofs/case_call_wrong_subject` rejects `empty_only(other)` when only `known in Tree::Empty` is established, `case_citation_wrong_result` pins the result side, pass twin `proofs/case_call_premises` compiles). Remaining owners stay the parent item's own list (abstract signatures, domain predicates, postcondition transport of case membership, induction). No independent slice exists here. Re-verified at `d74f2145b9` (linux x86-64): `OMEGA_PASS_CANARY_FILTER=proofs/case_call_premises` pass_canaries_compile 1/1 green; `OMEGA_FAIL_CANARY_FILTER=proofs/case_call_wrong_subject,proofs/case_citation_wrong_result` fail_canaries_reject 1/1 green. Re-verified at `ff2f489bbff` (linux x86-64): pass_canaries_compile + fail_canaries_reject under the same filters both green. Re-verified at `832c55e69b` (linux x86-64): same filtered pair still 2/2 green — no independent slice exists here. Re-verified at `836bb681a26` (linux x86-64) (z153): same filtered pair still 2/2 green — `OMEGA_FAIL_CANARY_FILTER=proofs/case_call_wrong_subject,proofs/case_citation_wrong_result` rejects with the recorded fragments and `OMEGA_PASS_CANARY_FILTER=proofs/case_call_premises` compiles; no independent slice exists here.
 - **PROVIDER-ATTACHMENT-MACHINE-PLAN.** — mined candidate; verify scope then implement.
   covered — roster already produced in `execution/unit/providers.rs`; residue is cross-crate join design, not a bounded slice
@@ -9216,7 +9078,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Re-verified holding at `ffa2553e4b1` (linux x86-64): same filtered run —
   19/19 pass.
   covered — closed as superseded at `03a942c3bb`, pinned by `borrowed_scalar_call_source` tests
-- **PSI-DOMAIN-FACT-SELECTION-COVERAGE.** — mined candidate; verify scope then implement.
 - **PSI-NATIVE-FIELD-STORES.** Mined candidate; scope verified at
   b28abc01fe — re-mines **STATE-LOCAL-VALUE-FRONTIER**'s field-store leg —
   the recorded `structural field store: scalar field type` frontier in
