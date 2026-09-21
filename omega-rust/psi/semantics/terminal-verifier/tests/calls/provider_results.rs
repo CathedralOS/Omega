@@ -128,21 +128,20 @@ fn provider_result_conformance_rejects_signature_and_contract_drift() {
                 result.structural_type = StructuralTypeId::new(1).unwrap();
             }
             3 | 4 => {
-                let TerminalMachineResult::Structural(result) = &mut module.machines[1].result
-                else {
-                    unreachable!()
-                };
-                result.multiplicity = if mutation == 3 {
-                    StructuralMultiplicity::Linear
-                } else {
-                    StructuralMultiplicity::Unrestricted
-                };
                 let BoundaryMachineResult::Structural(required) =
                     &mut module.boundary_machines[0].result
                 else {
                     unreachable!()
                 };
-                required.multiplicity = result.multiplicity;
+                // Mutation 3 widens the requirement to linear while the
+                // candidate stays affine — a supported multiplicity, but the
+                // candidate must match it. Mutation 4 widens the requirement
+                // to unrestricted, which has no installed-provider leg at all.
+                required.multiplicity = if mutation == 3 {
+                    StructuralMultiplicity::Linear
+                } else {
+                    StructuralMultiplicity::Unrestricted
+                };
             }
             5 => {
                 module.machines[1].contract.requires =
