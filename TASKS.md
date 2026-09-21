@@ -60,576 +60,272 @@ build authority, and artifact verification remain separate obligations.
 
 ## Immediate product closure
 
-These are the next product-level priorities for the maintained Rust
-implementation. They take precedence over adding another evidence carrier that
-has no exercising program. The finite definition of Rust-product completion is
-the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
+Prioritize unchanged customer programs reaching native execution over additional
+evidence carriers without an exercising program. The
+[Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md) defines
+the complete product bar; focused successes below do not establish that baseline.
 
-- **REMOVE-BRACKETED-RANGE-ANNOTATIONS.** (new-scope) Remove the revoked
-  scalar range suffix, such as `u64 [1..=8]`, from source admission and its
-  parallel type-constraint machinery. The owner decision is settled in
-  [domains](wiki/spec/language/domains.md#declaration-and-membership): ordinary
-  contracts and guards supply implicit bound facts; explicit qualifications
-  use domains. This is deletion and migration, not a compatibility mode or a
-  new compiler-provided range domain.
-
-  Size, measured at `7a9a7b8287` so this can be planned rather than
-  discovered mid-migration: the revoked suffix appears **1598 times across 544
-  `.omg` files**, and the Rust side names a range type-constraint in **41
-  files**. The authored corpus dominates — 456 of those files are under
-  `tests/omega`, then 48 under `samples/cli`, 14 under `source/library`, 11
-  under `tests/native-differential`, 7 under `omega-rust/psi`, 4 under
-  `samples/gui`. The parse site is `parse_type.rs:779-801`
-  (`TypeConstraintNode::Range`, both inclusive and exclusive forms). Expect
-  the corpus migration, not the compiler deletion, to be the bulk of it, and
-  expect it to want several sessions.
+- **REMOVE-BRACKETED-RANGE-ANNOTATIONS.** (new-scope) Delete the revoked
+  scalar range suffix, such as `u64 [1..=8]`, and its parallel authored
+  type-constraint machinery. [Domains](wiki/spec/language/domains.md#declaration-and-membership)
+  govern explicit qualification; contracts and guards supply implicit bound
+  facts. Preserve ordinary interval analysis, not a compatibility mode or a new
+  compiler-provided range domain.
 
   Owners: Psi's `tokens-to-syntax-trees/src/type_syntax/parse_type.rs`,
-  syntax/resolved/typed type-constraint representations,
-  `validation/src/proof_contracts/arithmetic_domains/`, and downstream
-  consumers of declared range constraints. Remove the authored Range variants,
-  range-shell generic matching, special endpoint folding, and diagnostics that
-  recommend the syntax; preserve ordinary interval analysis and proof facts.
-  Migrate libraries, product/compiler source, tests and samples, plus the
-  Epsilon-written Omega parser (`bootstrap/5_omega/{parser,representations}.epsilon`)
-  and `tests/bootstrap/omega-parser` fixtures. Repin the changed D closure and
-  execute that parser gate; a parser edit without its bound closure cannot run.
-  This does not change Epsilon or any other bootstrap language's own surface.
+  syntax/resolved/typed Range variants, range-shell generic matching, endpoint
+  folding, and `validation/src/proof_contracts/arithmetic_domains/`.
+  Migrate libraries, compiler source, tests and samples, including Epsilon's
+  `bootstrap/5_omega/{parser,representations}.epsilon` and
+  `tests/bootstrap/omega-parser`. Repin the changed D closure and run its parser
+  gate; this changes Omega syntax, not the bootstrap languages.
 
-  Customer: Squalr's `MemoryAlignment::get_size_in_bytes` returns plain `u64`
-  with `ensures result >= 1 && result <= 8`, or an explicit predicate domain.
-  Its caller's plain `u64` local must retain those facts for division/remainder
-  without restating a range annotation or inspecting the callee's private body.
-  Publish Squalr migration in its sub-repository before updating the gitlink.
-
-  Acceptance: reject the removed integer/float suffix on locals, parameters,
-  results and fields; reject an implementation returning zero against the
-  alignment contract; preserve postcondition transport through ordinary calls,
-  joins and write invalidation. Run Squalr's geometry command after migration.
-  Keep default-domain and case `where` couplings, explicit predicate domains,
-  slices/range membership/fixed arrays, and `[copy]`/`[linear]`/`[erased]`
-  unchanged. Migrate generic inference customers to explicit domain or type
-  arguments without extracting capacities from flow facts or adding implicit
-  variance between indexed domains. Delete obsolete positive syntax tests;
-  retain their useful arithmetic/ownership controls on the ordinary proof path.
+  Acceptance: Squalr's alignment machine returns plain `u64` with
+  `ensures result >= 1 && result <= 8` or an explicit domain; its plain local
+  retains those facts through calls and joins for division/remainder. An
+  implementation returning zero and stale facts after writes reject. Publish
+  the application migration before updating its gitlink, then run geometry.
+  Reject the suffix on integer/float locals, parameters, results and fields.
+  Preserve default-domain/case `where`, domain qualification, slices, range
+  membership, fixed arrays and relevance/multiplicity modifiers. Migrate generic
+  inference to explicit domains/type arguments without extracting capacities
+  from flow facts or inventing implicit variance; retain useful negative
+  arithmetic/ownership controls from obsolete syntax tests.
 
 - **SQUALR-HEADLESS.** Drive the independently versioned
-  [Squalr application](samples/apps/README.md) through its nested package builds
-  and native execution: geometry, then supplied-byte scanning and repeated
-  filtering. Preserve the essentially 1:1 Rust algorithms and complete package
-  graph. The application board owns port work; this item owns compiler
-  integration and the unchanged application acceptance.
+  [Squalr application](samples/apps/README.md) through nested package builds and
+  native geometry, supplied-byte scanning, and repeat filtering. Its board owns
+  the essentially 1:1 Rust port; this item owns compiler integration and unchanged
+  application acceptance.
 
-  Squalr uses only `main`: no feature branches or alternate publication
-  lineages. The parent pin must be a tested commit on the application's remote
-  `main`; an older ancestor is valid, an unpublished or divergent commit is
-  not. Reconcile retained work onto that line before advancing the pin, without
-  force-pushing away other application work.
+  Reconcile publication first: the parent pins
+  `ef6682f75f48f9a750bc8f7594cc1f04e78ddf60`, which is not an ancestor of fetched
+  application `origin/main` at `52bcf254c983a9ae9bf6e0c3661cafd656ca056b`
+  (2026-09-21). Preserve the geometry and scalar scan/RLE/dispatch work already
+  in the pin; do not re-port it or discard either lineage. Squalr uses only
+  `main`; publish cumulative work there without force-pushing, then pin a
+  tested commit on that line.
 
-  At Omega `0504c60747`, the pin is `251699c4669d5e2ae107051a5aa100f4565edaf7`,
-  containing geometry, scalar scan/RLE/dispatch sources and target-read
-  scaffolding. The fetched application `origin/main` is `52bcf254c9`, an
-  ancestor of that pin, not a branch containing it. This needs application
-  publication/reconciliation, not another port of the already-present scan
-  sources. Source presence does not establish native scanning acceptance.
-  Preserve the geometry and scanning work when reconciling; prior parent pins
-  switched between lineages and lost previously landed source.
+  Run `python samples/apps/squalr/tools/verify.py native --timeout 600 --omega <binary>`
+  through ordinary package review on matching hosts. Connect
+  **VEC-NATIVE-GROWTH** to partitioned scan results and repeated filtering;
+  **BUMP-ALLOCATOR-CANARY** and **PLAN-LAID-VIEWS** supply allocation and placed
+  access. Follow the application's actual next missing operation rather than
+  waiting for every related task to close.
 
-  Next deliveries:
+  Acceptance: geometry prints `Squalr geometry: PASS`; scans and repeat filters
+  match Rust's exact addresses/ranges, including overlap, tails and empty input.
+  Retain the 17-package/37-edge layout and application verification harness;
+  record exact compiler/application pins and host. No Rust FFI scanner,
+  fixed-capacity substitute, pull-only workaround, or application-specific
+  compiler behavior. Source presence, package checking and Terminal publication
+  are not native acceptance. Ordinary artifact production has
+  [conditional loading premises](wiki/spec/build/component_publication.md#products-and-authority),
+  not a fabricated runtime installation grant or mandatory Rust supervisor.
 
-  - Publish the cumulative application on its `main`, then rerun
-    `python samples/apps/squalr/tools/verify.py native --timeout 600 --omega <binary>`
-    through ordinary package review on each available matching host. Record
-    exact app/compiler pins and host; historical geometry results do not
-    validate this pin.
-  - **VEC-NATIVE-GROWTH.** owns the missing executable growable storage. Connect
-    it to the supplied-byte scanner's partitioned results and repeated
-    filtering. Keep **BUMP-ALLOCATOR-CANARY** and **PLAN-LAID-VIEWS** as the
-    allocator and placed-access dependencies, not substitute application
-    acceptance. Do not replace growable results with fixed capacity or a
-    pull-only interface merely to bypass the missing storage.
+- **VEC-NATIVE-GROWTH.** (split-of:BUMP-ALLOCATOR-CANARY) Implement ordinary
+  library `Vec<T>` for Squalr's growable scan results. Owners:
+  `source/library/core/vec.omg`, `source/library/alloc/`, and the compiler
+  operations exercised by the source. The current empty data/machine surface
+  has no runtime storage or construction implementation. Its compiler-owned
+  buffer/Arena comments are not the [allocation contract](wiki/spec/resources/allocation.md).
 
-  Acceptance: geometry prints `Squalr geometry: PASS`; supplied-byte scans
-  and repeat filtering produce the Rust reference's exact addresses/ranges,
-  including overlap, tails and empty input. Use the application harness and
-  ignored `build/verification/` outputs. Package checking, Terminal publication,
-  build-only packages and isolated helper tests do not establish native
-  application behavior. Keep the 17-package/37-edge layout, no Rust FFI scanner,
-  and no application-specific behavior in the compiler. Ordinary artifact
-  production has [conditional loading premises](wiki/spec/build/component_publication.md#products-and-authority),
-  not a fabricated runtime installation grant or a required Rust supervisor.
+  Acceptance: native `Vec<u32>` takes explicit backing, appends through two
+  growths, reads its preserved prefix and new elements, then cleans up and
+  returns backing under the allocator contract. Cover empty cleanup, allocation
+  failure preserving contents, invalidated loans and duplicate cleanup.
+  Growth transfers exact element custody and returns or retains old backing
+  explicitly; variable retained storage uses indirection, not an infinitely
+  recursive inline record or compiler vector special case.
 
-- **VEC-NATIVE-GROWTH.** (split-of:BUMP-ALLOCATOR-CANARY) Implement the ordinary
-  library `Vec<T>` needed by **SQUALR-HEADLESS**'s growable scan results.
-  Owners: `source/library/core/vec.omg`, `source/library/alloc/`, and the
-  existing compiler operations exposed by that source program. The vector
-  surface has no construction/storage implementation; the allocator canary's
-  finite retained buffer has no executable element storage.
-
-  First acceptance: a native `Vec<u32>` program takes explicit backing,
-  constructs the vector, appends past its initial capacity, reads the preserved
-  prefix and appended elements, and cleans up/returns backing under the selected
-  allocator's contract. Exercise another growth, empty cleanup, allocation
-  failure preserving the original contents, and rejection of invalidated loans
-  or duplicate cleanup. This is the first instance of generic library code,
-  not a compiler-owned vector special case or a fixed-capacity replacement.
-
-  Reuse the [ordinary allocation contract](wiki/spec/resources/allocation.md).
-  **BUMP-ALLOCATOR-CANARY** owns the package allocator and returned extents;
-  **PLAN-LAID-VIEWS** owns element establishment/access/retirement;
+  **BUMP-ALLOCATOR-CANARY** owns allocation/returned extents;
+  **PLAN-LAID-VIEWS** owns establishment/access/retirement;
   **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS** owns content-preserving
-  transfers; **BORROWED-STORAGE-RESTORATION** owns move-out/replace operations
-  when the source implementation needs them. Follow the actual program to its
-  next missing operation rather than waiting for every related task to finish.
+  transfer; **BORROWED-STORAGE-RESTORATION** owns move-out/replace when needed.
+  Keep the source program as outer acceptance through checking, interpretation
+  and native emission, then use that same implementation in Squalr.
 
-  Growth must move elements and their exact custody, retain or return old
-  backing as the allocator contract requires, and use explicit indirection for
-  variable retained storage. A recursively owned inline record has infinite
-  layout; neither implicit boxing nor a new compiler `Arena` is the repair.
-  Keep the source program as the outer acceptance while fixing its producer,
-  interpreter and native consumers; then use the same library implementation
-  in the supplied-byte scan.
+- **MACOS-APPLICATION-PUBLICATION.** Finish the
+  [macOS publication contract](wiki/spec/build/macos_application.md) for
+  `window_app`, `window_demo` and `windowed_calculator`. The
+  `compilation-report/src/package.rs` assembler and checked bundle accessors
+  already exist; do not build another packager.
 
-- **MACOS-APPLICATION-PUBLICATION.** Close end-to-end acceptance of the
-  [macOS publication contract](wiki/spec/build/macos_application.md), using the
-  existing `compilation-report/src/package.rs` assembler and checked
-  package/executable accessors. Do not build another packager or move assembly
-  into Psi or instruction lowering.
+  Start with [window_app's ordinary command/review flow](samples/gui/window_app/README.md).
+  Its four intrinsic service fields need exact selected providers for
+  `Console`, `Clock`, `Input` and `Gui`; its authored build currently supplies
+  no explicit provider selections. The historical macOS GUI wrapper is not
+  nominal satisfaction of the sample's traits merely because method names
+  match. Preserve signatures, receiver storage, rendering and effects under
+  [provider selection](wiki/spec/build/provider_selection.md).
 
-  Remaining: execute `window_app`, `window_demo`, and `windowed_calculator`
-  on macOS ARM64 through their authored builds and reported bundle paths.
-  Start with the [window_app command and review flow](samples/gui/window_app/README.md).
-  The sample uses intrinsic `Service<R>` fields and public requirement traits,
-  preserving its render loop, arrays and reach declaration. The current first
-  dependency is provider wiring, not bundle assembly or an invented attachment.
-  At `ea9d3dbfea`, the macOS ARM64 release CLI command
-  `omega --target macos_arm64 --build-dir build/window-app-intent samples/gui/window_app/main.omg`
-  with `RUST_MIN_STACK=67108864` failed during fresh package checking. The
-  checked omission is the entry state's attached data shape: `Console` has
-  Fused selection authority, but `Main::clock`, `Main::input`, and `Main::gui`
-  have none. Entry diagnostics now name each missing boundary selection before
-  looking for its unavailable Terminal attachment.
+  Compiler dependencies: `typed-trees-to-checked-trees/src/execution/unit/providers.rs`
+  admits one provider field, while this entry needs four; lowered
+  `attached_unit/providers.rs` excludes scalar-result provider candidates
+  needed by window/input/clock operations. Retain one occurrence-owned concrete
+  provider receiver across calls, including nested services: a Fused receipt
+  establishes service authority, not receiver storage, and
+  `ProviderAttachment` is not an ordinary structural argument.
+  **ENTRY-CONTENT-ROOTS**, **TR3-TR8** and **STATE-LOCAL-VALUE-FRONTIER** own these
+  general repairs. No global provider state or weakened occurrence matching.
 
-  Resume with exact declared conformances and selected providers for `Clock`,
-  `Input`, and `Gui` under the [provider-selection contract](wiki/spec/build/provider_selection.md).
-  The historical `source/library/std/macos_gui.omg` wrapper is not an already
-  selected conformer to these sample-owned requirements; matching method names
-  cannot establish nominal satisfaction. Preserve actual signatures, storage,
-  rendering and effects. Before treating signature selection as executable
-  supply, retain one occurrence-owned concrete provider receiver across its
-  calls and establish its nested services. Current Fused entry receipts
-  establish erased service authority, not that receiver storage;
-  `ProviderAttachment` is a specialization witness and cannot serve as an
-  ordinary structural argument.
-  Verified on `ddc66b61b5` (linux_x86_64 host, self-contained probe packages,
-  `--target macos_arm64`): the `Service<R>` + `select_provider` + `roots.bind`
-  chain compiles, passes package review, and publishes native output for a
-  one-provider-field entry whose selected provider uses unit-result checked
-  adapters. Recipe pins: provider is `pub data`; adapters are
-  `machine P::m(&mut self, ..) satisfies T::m { }` (trait methods must declare
-  `&mut self`, and adapters may not widen `reaches` beyond the requirement —
-  a requirement that covers delegation carries `reaches X invokes X`);
-  `builder.select_provider<Trait, Provider>()`; every `Service` field anywhere
-  needs its trait's selected plan to hold at least one CheckedAdapter row once
-  any adapters exist ("routed service field .. no exact Fused
-  selected-provider-plan join"), so leaf-only providers cannot join and foreign
-  leaves on providers currently fail realization ("no supplied execution and
-  stack custody", and `via` must name a satisfies requirement plus a
-  `Binding`-returning producer). Calls through a nested carrier's `Service`
-  field do not resolve; the field must sit on the receiver itself.
-  `typed-trees-to-checked-trees/src/execution/unit/providers.rs` and independent
-  lowering/replay currently limit an attachment to one provider field, while
-  this entry has four (verified: two `Service` fields with selected providers
-  rejoin `0 Terminal attachment identities; expected one`). Lowered
-  `attached_unit/providers.rs` also rejects scalar-result provider candidates,
-  and every window/input/clock op returns a scalar. These are implementation
-  dependencies under **ENTRY-CONTENT-ROOTS**, **TR3-TR8** and
-  **STATE-LOCAL-VALUE-FRONTIER**, not language-design blockers or permission to
-  inject global provider state.
-
-  Wave fence audit (z105, `163670cf6d`): every leg named above is currently
-  claimed or host-gated — the provider-plan admission surface
-  (`typed-trees-to-checked-trees/src/execution/unit/providers.rs`) is
-  file-fenced by PROVIDER-ATTACHMENT-MACHINE-PLAN (22:37Z); the entry
-  attached-data-shape surfaces (`native-realization/terminal-production`,
-  `image-emission/hosted_receiver.rs`) are fenced by ENTRY-CONTENT-ROOTS
-  (Zergling-193, 01:45Z next day); the sample-side provider wiring belongs
-  to `samples/gui`, dir-fenced by FFIVAL (21:39Z); and the closing bundle
-  execution acceptance needs a macOS arm64 host. No unclaimed
-  linux_x86_64 slice remains this wave — dispatch against this row should
-  wait for the fences above to settle.
-  After those dependencies and provider settlement, follow remaining checked
-  call, array and cyclic execution failures through their existing owners,
-  then finish ordinary package review without automatic admissions. The
-  `native_filesystem_canaries::gui_and_sample_apps::sample_window*` tests
-  supply test-owned package acceptance, not ordinary CLI review. Their
-  interactive-app checks only observe early failure or brief process survival;
-  do not report them as proof that a window rendered or Finder launched it.
-
-  Acceptance: the three procedural apps compile, publish one validated `.app`,
-  and execute on the matching host, with observed window/render and completion
-  behavior recorded separately from process-survival smoke coverage. Preserve
-  identifier requiredness, deterministic bytes, cross-invocation publication,
-  tamper/partial-output rejection, and flat-output regressions using
-  `compilation-report` tests and
+  Acceptance: all three authored apps publish a validated `.app` and execute
+  on macOS ARM64 with observed window/render and completion behavior. Test-owned
+  package acceptance and brief process survival do not prove ordinary review,
+  rendering or Finder launch. Keep identifier requiredness, deterministic
+  bytes, cross-invocation publication, tamper/partial-output rejection and flat
+  outputs covered by `compilation-report` and
   `compiler --test build_target_activation -E 'test(activation_identifiers_and_publication)'`.
-  Run the GUI cohort with
-  `mbx nextest run -p compiler --test native_filesystem_canaries --no-fail-fast --no-tests fail -E 'test(gui_and_sample_apps::sample_window)'`;
-  an unavailable ARM64 macOS host leaves runtime acceptance open.
+  Run `mbx nextest run -p compiler --test native_filesystem_canaries --no-fail-fast --no-tests fail -E 'test(gui_and_sample_apps::sample_window)'`;
+  unavailable macOS hardware leaves runtime acceptance open.
+  **PCC-PRODUCT-PUBLICATION** owns the native sidecar's
+  `Incomplete(UnsupportedEvidence)`; retain bundle placement coverage when it
+  closes. Resources and `image_viewer` bundle-relative lookup are outside v1;
+  do not silently change working directories.
 
-  Native sidecar placement already has
-  `pcc_publication::macos_gui_native_pcc_installs_the_inner_sidecar`, but its
-  independent receiver verdict is still `Incomplete(UnsupportedEvidence)`.
-  **PCC-PRODUCT-PUBLICATION** owns that evidence gap; emitted sidecar bytes do not
-  satisfy requested PCC acceptance. Keep the bundle join covered when it closes.
-  Application resources and `image_viewer` bundle-relative lookup are outside
-  v1; do not silently change the working directory or claim their Finder coverage.
+- **SAMPLE-CORPUS.** Close maintained `samples/cli|gui|uefi` through the
+  [Rust product gates](wiki/drafts/rust_compiler_completion.md#release-matrix):
+  checked semantics, native products for authored targets, and documented
+  exit/output on matching hosts. `compiler/tests/samples_compile.rs`, sample
+  commands and the actual failing stage own integration; application submodules
+  remain **SQUALR-HEADLESS** and language fixtures **CANARY-CORPUS**.
 
-- **SAMPLE-CORPUS.** Close maintained `samples/cli|gui|uefi` programs through
-  the [Rust product gates](wiki/drafts/rust_compiler_completion.md#release-matrix):
-  checked semantics, each authored target's native product, and documented
-  exit/output behavior on its matching host. Application submodules remain
-  **SQUALR-HEADLESS** scope; language canary maintenance is **CANARY-CORPUS**.
+  Preserve each algorithm, storage and observable behavior during legitimate
+  surface migration. Migrate remaining bare or authored-`Bound` service fields
+  under **ENTRY-CONTENT-ROOTS**, without relaxing provider/occurrence checks.
+  The harness already follows checked published executable paths and no longer
+  invents receiving permissions; its test-owned package acceptance still does
+  not complete ordinary CLI review.
 
-  Integration owner: `compiler/tests/samples_compile.rs`, the documented sample
-  commands, and the actual failing pipeline stage. Retain one customer command
-  while its dependencies are repaired; do not close this item with helper tests,
-  cross-emission, or another source-shape recognizer. Legitimate surface migration
-  must preserve the sample's algorithm, storage, and observable behavior.
-
-  Repair the harness before treating it as ordinary-production coverage:
-
-  - Done — `compile_native_and_publish` no longer copies package permission rows
-    into an explicit receiving policy: the harness's artificial requirement is
-    removed while ordinary compilation defaults the policy to absent, retaining
-    test-owned package acceptance and separate explicit receiver-admission
-    controls under
-    [the artifact/admission split](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission).
-    A harness pass does not complete the user's project review.
-  - Done — the runtime oracle and `cli_mvp_preserves_both_lines_with_eof_and_enter`
-    run the executable the published report receipts through
-    `checked_native_executable_path()`, including bundled paths, instead of a
-    guessed `build_dir/omega-program`; no application's output name is forced to
-    fit the test.
-  - Migrate bare service fields and `Service<Console> in Bound` to intrinsic
-    `Service<Console>` establishment with **ENTRY-CONTENT-ROOTS**. Never weaken
-    missing-provider or exact occurrence checks to preserve obsolete examples.
-
-  Resume from focused runs, not the accumulated historical failure counts.
-  At `d575c7e8e0` on macOS ARM64, `print_squares` reached unsupported
-  wrapping-u32 multiplication. Earlier
-  `print_squares` probes stopped at the nonzero-divisor proof
-  `1 <= self.place`; these are different checkpoints, not simultaneous claims
-  about today's first failure. The current scalar legalization has no wrapping-
-  integer multiply route, while scalar call lowering still reads only authored
-  `crash.published()` in `scalar_graph/scalar_graph_lowering/{call_lowering,unit_operations}.rs`.
-  **CRASH-CONTRACT** owns consistent inferred-ceiling publication; retain it as a
-  dependency rather than another sample-local workaround.
-
-  | Customer | Remaining integration and owner |
+  | Customer | Remaining acceptance and routing |
   | --- | --- |
-  | [`cli_mvp`](samples/cli/basics/cli_mvp/README.md) | Remaining: ordinary review and native execution on Windows x86-64 and both Linux hosts. On macOS ARM64, ordinary update/review/resume at `ba57b10d5e` published the local lock; the `c459b1d25c` release CLI compiled with `--target macos_arm64 --build-dir build/cli-mvp-route samples/cli/basics/cli_mvp/main.omg` and `RUST_MIN_STACK=67108864`, without receiving-policy input. Its emitted executable produced both exact lines, empty stderr, and exit 0 with EOF and Enter; prompts appeared before input and Enter completed the waiting process. Repeat review per checkout and target. **ENTRY-CONTENT-ROOTS** owns remaining service/entry custody; **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** owns production/admission coupling. |
-  | [`print_squares`](samples/cli/basics/print_squares/README.md) | Wrapping arithmetic legalization in `target-operations-to-selected-instructions`, cyclic field/divisor facts under **NOMINAL-FIELD-FLOW**, and complete cyclic plans under **GENERAL-CYCLIC-EXECUTION**. Preserve nine computed rows ending in `081`, byte storage, and exit 0. |
-  | `recursive_sum`, `framed_payload` | Native exit 70 and 60 respectively. **STATE-LOCAL-VALUE-FRONTIER** owns indexed primitive storage and replacements; **GENERAL-CYCLIC-EXECUTION** owns typed slice views, recursive/cyclic transfer and ranking. Preserve saved reads, untouched siblings and shared payload loans. No synthetic field IDs for scalar array elements or invented ranking for unranked cycles. |
-  | `dutch_flag` | At `6c653e7593`, ordinary macOS ARM64 release CLI review completed, then `omega --target macos_arm64 --build-dir build/dutch-flag-route samples/cli/algorithms/dutch_flag/main.omg` with `RUST_MIN_STACK=67108864` rejected `Main::main`: `structural field store: scalar field type`, state 0. **STATE-LOCAL-VALUE-FRONTIER** must compose indexed copyable enum construction, reads, swaps and case dispatch in `typed-trees-to-checked-trees/src/execution/unit/structural_scalar_store` and composed control; coordinate with **WRITE-ONLY-BORROW** on those producer paths. Preserve the Color array, runtime guards, Console interaction and exit 70; migrate the bare field to intrinsic `Service<Console>`. Native execution remains open; do not substitute integer tags for nominal enum storage. |
-  | [`euclid_gcd`](samples/cli/arithmetic/euclid_gcd/README.md) | Remaining: ordinary review and native execution on Windows x86-64 and both Linux hosts. Preserve the live-divisor loop, exact three output lines, empty stderr, EOF/Enter behavior and exit 12. The documented macOS ARM64 update/review/resume and native CLI route passes those checks; repeat review per checkout and target. Keep `euclid_gcd_retains_service_call_entry_plan` and `integer_comparison_publication` as the service-frame and selected-versus-builtin custody controls. |
-  | [`generic_counters`](samples/cli/basics/generic_counters/README.md) | Remaining: ordinary review and CLI execution on Windows x86-64 and both Linux hosts. At `b004b477e5`, macOS ARM64 `omega update --project samples/cli/basics/generic_counters --target macos_arm64`, exact review decisions, and `update --resume` published the local lock; `omega run samples/cli/basics/generic_counters/main.omg` then exited 16 with empty stdout and no receiving-policy input. Repeat review in each checkout; do not reuse the temporary checkout's local-source lock or reimplement counter calls. |
-  | [`number_guess`](samples/cli/basics/number_guess/README.md) | Remaining: ordinary review and CLI execution on Windows x86-64 and both Linux hosts, preserving seven search steps, exit 70, exact documented output, and intrinsic `Service<Console>`. At `ba57b10d5e`, macOS ARM64 `omega update --project samples/cli/basics/number_guess --target macos_arm64`, exact review decisions, and `update --resume` published the local lock; `omega run samples/cli/basics/number_guess/main.omg` then produced all three expected lines and exit 70 without receiving-policy input. Review again in each checkout; do not reuse its local-source lock or reimplement supported arithmetic. |
-  | Text, indexing and match samples | Recheck `binary_search_viz`, `maze_flood`, `prime_sieve`, `multiplication_table`, `dice_histogram`, `calendar`, `dungeon_render`, `mandelbrot{,_zoom}`, `wire_protocol`, and `dungeon_crawler_cli`. Route actual failures to **NOMINAL-FIELD-FLOW**, **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**, **MATCH-SELECTIVE-LOWERING**, or **CML4**, not one task per source permutation. Encoding facts follow [library domains](wiki/spec/language/domains.md#byte-containers-and-encoding-domains), not recognition of the name `valid_utf8`. |
-  | `cli/proofs/math_proofs` | Ordinary core multiset data/slice extraction, selected laws and checked proof terms; `core/seq.omg` is not a Bag implementation and equal lengths do not prove equal contents. Keep the false twin rejecting. |
-  | Bounded Console input | Finish [bounded-input](wiki/spec/resources/bounded_input.md) composition in selected-dispatch and ordinary provider/call transport: exact destination/prefix, once-only effects, cleanup and truthful blocking/crash contracts. Keep prefix guards until count-to-extent evidence exists; test zero-capacity non-consumption, LF/EOF/Full, exact bytes and untouched tails, failed reads, alias rejection, invalid results and caller continuation. |
+  | `cli_mvp`, `euclid_gcd`, `generic_counters`, `number_guess` | Complete ordinary review and native CLI execution on Windows x86-64 and both Linux hosts; the recorded macOS ARM64 routes passed. Preserve documented exact output, EOF/Enter and prompt timing where applicable, empty stderr, and exits 0/12/16/70 respectively. Review each checkout/target rather than reusing another checkout's local-source lock. |
+  | `print_squares` | Publish and execute the unchanged byte-storage/cyclic program, nine computed rows ending in `081`, exit 0. **NOMINAL-FIELD-FLOW**, **CRASH-CONTRACT** and **GENERAL-CYCLIC-EXECUTION** own facts, envelopes and plans. Wrapping multiplication legalization/selection already exists: rerun the customer, not the obsolete missing-multiply diagnosis. |
+  | `recursive_sum`, `framed_payload` | Exits 70/60, preserving saved reads, untouched siblings and shared payload loans. **STATE-LOCAL-VALUE-FRONTIER** and **GENERAL-CYCLIC-EXECUTION** own indexed storage, views and transfers; do not invent scalar-array field IDs or ranking for unranked cycles. |
+  | `dutch_flag` | Native Color-array construction, reads, swaps and case dispatch, Console interaction and exit 70. Its field is already intrinsic `Service<Console>`. **STATE-LOCAL-VALUE-FRONTIER** and **WRITE-ONLY-BORROW** own composition; replacing nominal enum storage with integers is not acceptance. |
+  | `calendar` | Publish unchanged trapping conversions through **ARITHMETIC-POLICY-REALIZATION**, finish ordinary package review, and verify all five grid rows plus the live 20-byte header in capacity-21 buffers. A `contains: 30` banner match is not a rendered calendar. `compiler --test byte_index_carriers` is the arithmetic/bounds/write control, not application acceptance. |
+  | `windowed_calculator` | Reproduce and locate the checked-compilation stall: at `50559da3ab9` on Linux x86-64 it exceeded 25 minutes of CPU without a diagnostic while the other 146 maintained mains checked. The cause was not established; do not label it a provider-selection or proof-search defect without evidence. Native GUI acceptance remains **MACOS-APPLICATION-PUBLICATION**. |
+  | Other text/index/match samples | Close `binary_search_viz`, `maze_flood`, `prime_sieve`, `multiplication_table`, `dice_histogram`, `dungeon_render`, `mandelbrot{,_zoom}`, `wire_protocol` and `dungeon_crawler_cli` through **NOMINAL-FIELD-FLOW**, **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**, **MATCH-SELECTIVE-LOWERING** or **CML4**, not one task per source permutation. Encoding facts use ordinary domains, not recognized function names. |
+  | `cli/proofs/math_proofs` | Ordinary multiset data/slice extraction, selected laws and checked proof terms; keep the false twin rejecting. Equal lengths are not equal contents and `core/seq.omg` is not a Bag implementation. |
+  | Bounded Console input | Finish selected-dispatch/provider/call transport under [bounded input](wiki/spec/resources/bounded_input.md): exact prefix/destination, once-only effects, cleanup, blocking/crash contracts, zero-capacity non-consumption, LF/EOF/Full, untouched tails, alias rejection, caller continuation, failure and invalid-result controls. Keep prefix guards until count-to-extent evidence exists. |
 
-  Focused native command:
-  `mbx nextest run -p compiler --test samples_compile --no-fail-fast --no-tests fail -E 'test(=samples_with_documented_exit_run_correctly)'`.
-  Set `$env:OMEGA_SAMPLE_RUNTIME_FILTER = 'print_squares'` in PowerShell or prefix
-  the command with `OMEGA_SAMPLE_RUNTIME_FILTER=print_squares` on macOS; this
-  filter affects only that oracle. Use
-  `-E 'test(=cli_mvp_preserves_both_lines_with_eof_and_enter)'` for exact byte/input
-  coverage, and `-E 'test(=all_samples_reach_checked_trees)'` for the full checked
-  cohort. Unset the filter for complete runtime coverage; an empty selection fails.
+  Use `mbx nextest run -p compiler --test samples_compile --no-fail-fast --no-tests fail -E 'test(=samples_with_documented_exit_run_correctly)'`.
+  PowerShell: `$env:OMEGA_SAMPLE_RUNTIME_FILTER = 'print_squares'`; macOS:
+  prefix with `OMEGA_SAMPLE_RUNTIME_FILTER=print_squares`. This filter affects
+  only that oracle; unset it for complete coverage, and empty selection fails.
+  `cli_mvp_preserves_both_lines_with_eof_and_enter` pins exact input/output;
+  `all_samples_reach_checked_trees` covers the checked cohort.
 
-  **Scope pause:** resume `print_squares` implementation only with a plan from
-  its complete source closure to native execution, not a third isolated helper
-  milestone. Independent operation work remains actionable. Use the
-  [Terminal production map](omega-rust/psi/compiler/terminal-production/README.md);
-  native join/replay belongs to **TRANSLATION-VALIDATION** in `TASKS_OPTIMIZER.md`.
-  Package preparation cost is observed but unowned:
-  `samples_with_documented_exit_run_correctly` gives every sample a fresh temp
-  build directory it removes first, so each sample redoes the whole preparation
-  pass, and the oracle was recorded running past 28 minutes at `12ecbe98f8`. No
-  row owns that cost, and none should be opened until a customer and a
-  measurement target are named; do not re-mine it as a caching task.
-  Acceptance requires every maintained sample to check and every applicable
-  exit/output oracle to execute across the required hosted matrix. Record
-  unavailable hosts explicitly; scoped reruns do not establish a new complete
-  baseline.
+  Scope pause: resume `print_squares` only with a plan from its full source
+  closure to native execution, not another isolated helper milestone.
+  Independent operation work remains actionable; use the
+  [Terminal production map](omega-rust/psi/compiler/terminal-production/README.md)
+  and **TRANSLATION-VALIDATION** in `TASKS_OPTIMIZER.md`.
+  Acceptance requires every maintained sample to check and applicable runtime
+  oracles to pass on the required hosted matrix. Record unavailable hosts;
+  scoped reruns are not a complete baseline.
 
-  z203 wave state (re-measured on linux x86-64 at `50559da3ab9`): the
-  checked-cohort leg was driven sample-by-sample with the same
-  `compile_sample_to_checked` plumbing as `all_samples_reach_checked_trees`
-  — **146 of 147 maintained `samples/cli|gui|uefi` mains reach checked
-  trees, zero check failures; `gui/windowed_calculator` is the sole
-  outlier: it does not terminate** (observed >25 minutes at ~100% CPU with
-  zero further file I/O inside checked compile, then killed). The sample is
-  1007 lines — 3–6x the sibling GUI mains (166–372) — and the previous
-  full-cohort run shows the same signature (froze at identical input
-  position, ~40.3 MB read). Superlinear blowup in source checking or
-  provider selection, not a diagnostic: no error is ever emitted.
-  `samples_with_documented_exit_run_correctly` remains the un-run native
-  leg; `OMEGA_SAMPLE_RUNTIME_FILTER` per-sample runs stay with the fenced
-  owners below.
+- **CANARY-PACKAGE-MODE-SIGNAL.** (new-scope) Replace
+  `fixture_declares_ordinary_std` in `compiler/tests/canary_suite.rs`: it
+  selects package mode by two source substrings, then hard-wires the repository's
+  std path instead of resolving the authored dependency.
 
-  Live fences this wave: `samples/gui` + `source/library/std/macos_gui.omg`
-  + `source/library/std/targets/macos_arm64` under
-  MACOS-APPLICATION-PUBLICATION (~08:13Z), `samples/cli/arithmetic/
-  prime_counter` under PRIME-COUNTER-BENCHMARK-ROW (~07:13Z), and
-  `samples/apps/squalr` under SQUALR-WINDOWS-GEOMETRY-VALIDATION (~05:49Z).
-  The windowed_calculator spin is inside the checked-compile surface — the
-  row's acceptance can move forward without touching the fenced lanes.
+  A package-mode fixture must not need an unused std edge. Remove the
+  `quotient_define_managed_compile` exception in
+  `repository_build_declarations.rs` once the harness accepts its actual
+  dependencies. Acceptance: package mode without std works; an invalid authored
+  dependency path rejects rather than resolving to the harness's hard-wired std.
+  Add a wrong-parent-path negative control based on the previously misresolved
+  theorem-equality fixture; its positive fixture now has the corrected path.
 
-  `calendar`'s next native dependency is **ARITHMETIC-POLICY-REALIZATION**:
-  its numeric helpers reach `checked trapping conversion requires runtime
-  policy realization` in `checked-trees-to-lowered-psi/src/expression_preparation/`.
-  The unchanged sample's macOS ARM64 native harness (`691e2346b8` plus the
-  byte-index repair, `RUST_MIN_STACK=67108864 OMEGA_SAMPLE_RUNTIME_FILTER=calendar
-  cargo nextest run -p compiler --test samples_compile --no-fail-fast --no-tests fail
-  -E 'test(=samples_with_documented_exit_run_correctly)'`) must advance past
-  that refusal. `compiler --test byte_index_carriers` pins original integer
-  arithmetic, exact coordinate conversion, live bounds and caller-visible byte
-  writes; these do not substitute for calendar execution. Preserve its qualified
-  capacity-21 buffers and 20-byte live header.
+- **CANARY-CORPUS.** Bring `tests/omega/{pass,fail,run}` and
+  `compiler/tests/canary_suite/` to their promised checked/native stages.
+  Use the [focused selectors](AGENTS.md#running-one-test); full closure is
+  `mbx nextest run -p compiler --test canary_suite --no-fail-fast` on one
+  revision with filters unset. Keep detailed logs outside the board; do not
+  migrate fixtures during a measured run.
 
-  Ordinary CLI review remains separate: the last
-  `RUST_MIN_STACK=67108864 omega run --target macos_arm64
-  samples/cli/simulation/calendar/main.omg` probe (stdin EOF, `b336531455`
-  plus the unchanged-delivery repair) exited 200 with six pending package
-  policy rows, including a filesystem capability. Complete that review without
-  automatic admissions. Native grid/output acceptance remains unverified:
-  check all five week rows and the live header, since `contains: 30` also
-  matches the banner without proving the grid rendered.
+  Follow `CheckedUnitEffectPlans::omissions`,
+  `InvalidUnitMachinePlan::omission` and `LocalConstructionTrace` to the
+  actual missing operation/facts, not just its phase label. The diagnostic route
+  is covered by `checked-trees-to-lowered-psi/tests/unit_plan_omissions.rs`;
+  another diagnostic-only change does not close corpus behavior.
 
-- **CANARY-PACKAGE-MODE-SIGNAL.** (new-scope) Give the canary harness a
-  package-mode signal that is not "the build file mentions
-  `source/library/std`", and resolve the declared dependency path instead of
-  matching substrings. `fixture_declares_ordinary_std`
-  (`omega-rust/omega/compiler/compiler/tests/canary_suite.rs:3391-3395`) is
-  two `contains` calls — `"builder.depend(Source::Path"` and
-  `"source/library/std"` — and the std package itself is hard-wired to
-  `repo_root().join("source/library/std")`, so the authored location is never
-  resolved or compared.
+  Current integration targets:
+  - `text/runtime_stdin_command_branch_exit`: owned `Command` result-to-field
+    assignment in `parsed_input`; `execution/unit/control/statement_sequence.rs`
+    still limits that call-result path to primitives. **STATE-LOCAL-VALUE-FRONTIER**
+    owns structural result storage and independent lowering. Keep the reader's
+    algorithm and run `runtime_stdin_command_branch_exit_canary_runs`.
+  - `host/runtime_console_bounded_line_exit`: compose its full result with
+    mutable field subslices, including `read_line(&mut self.line[0..0])`.
+    `calls/structural_arguments.rs` and `calls/byte_subslice.rs` restrict this
+    view/call transport; **STATE-LOCAL-VALUE-FRONTIER** owns the general repair.
+    Retain zero-capacity non-consumption, count and untouched-tail checks;
+    fixed-array discard-result execution is not this acceptance.
+  - `text/runtime_stdin_line_buffering_exit`: both `echo_line` calls already
+    carry `block`; finish borrowed intrinsic-service parameters through
+    `write_prefix` and state edges, which still use bare `&mut Console`.
+    **ENTRY-CONTENT-ROOTS** owns exact receipt/borrow transport through
+    declaration checks, Unit forwarding, lowered states and selected
+    `service_custody/parameters.rs`. Do not replace the two-read/helper flow
+    with a single-hop owned-Service recognizer.
 
-  Two real defects came from that single function, both found at
-  `2a9f9c02ad`:
-  - `tests/omega/pass/proofs/kernel_theorem_equality_certificates` declared
-    its dependency with **six** `../` segments where five reach the
-    repository root, so the authored path pointed outside the repository
-    entirely. It passed for as long as it existed, because the substring was
-    present.
-  - `tests/omega/pass/proofs/quotient_define_managed_compile` declares an std
-    edge it never imports, and that edge is load-bearing: removing it makes
-    `pass_canaries_compile` fail with "declaration `EquivalenceClass` has
-    non-hermetic source origin `User`", because the substring is what puts
-    the fixture in package mode at all. It is currently retained as a named
-    exception in `repository_build_declarations.rs` with the reason recorded
-    beside the assertion — a documented workaround, not a fix.
+  Route other failures to **STATE-LOCAL-VALUE-FRONTIER**,
+  **MATCH-SELECTIVE-LOWERING**, **GENERAL-CYCLIC-EXECUTION**,
+  **NOMINAL-FIELD-FLOW**, **BORROW-PROOF-CONVERGENCE**,
+  **OPERATOR-MACHINE-SUPPLY**, or **ARITHMETIC-POLICY-REALIZATION** as appropriate.
+  Audit fixtures against the spec before weakening checks:
+  `proof_inductive_climbing_sum` and its unbounded-accumulator negative still
+  owe [exact intermediate arithmetic](wiki/spec/language/numeric_values.md)
+  bounds even when a theorem uses `embed`.
 
-  The second is the one that needs this row: "declare only the edges you
-  consume" and "mentioning std is what selects package mode" cannot both
-  hold, so a fixture that needs package mode without consuming std has no
-  honest spelling today.
-
-  Acceptance: the harness selects package mode from something other than the
-  std substring; a fixture may declare no std edge and still compile in
-  package mode, letting the `quotient_define_managed_compile` exception be
-  deleted rather than documented; and a `build.omg` whose declared dependency
-  path does not resolve to an existing directory is refused rather than
-  silently accepted.
-- **CANARY-CORPUS.** Bring `tests/omega/{pass,fail,run}` and their
-  `compiler/tests/canary_suite/` owners to the promised checked/native stages.
-  **SAMPLE-CORPUS** owns maintained application examples, not this task's
-  prerequisite; both use the same compiler operation owners. Repository/library
-  passes do not establish corpus health.
-
-  Start with the [focused canary selectors](AGENTS.md#running-one-test).
-  For a refreshed distribution or closure run
-  `mbx nextest run -p compiler --test canary_suite --no-fail-fast` on a fixed
-  revision, with pass/fail filters unset. The last recorded full run,
-  `771d0a8c2e` (2026-09-18, macOS ARM64), was 238 passing and 1155 failing
-  tests; it is a historical starting point, not the current failure inventory.
-  Keep detailed logs outside this board and rerun the affected cohort after a
-  repair. Do not sync fixtures during a measured run or treat unavailable hosts
-  as passing runtime coverage.
-
-  Follow missing-plan diagnostics to the failing producer:
-  `CheckedUnitEffectPlans::omissions` and
-  `LoweringError::InvalidUnitMachinePlan::omission` retain the unavailable-callee
-  chain; `LocalConstructionTrace` names the local phase/state/statement.
-  `checked-trees-to-lowered-psi/tests/unit_plan_omissions.rs` pins this route.
-  A phase label is not the cause: inspect the missing value/effect/ownership
-  facts before classifying the failure as a control-builder gap. Preserve
-  diagnostics, but another diagnostic-only milestone is not corpus progress.
-
-  The unchanged `text/runtime_stdin_command_branch_exit` now reaches the owned
-  `Command` result-to-field assignment in `parsed_input`; its first remaining
-  plan omission is `statement sequence: assignment: call source result type`.
-  `execution/unit/control/statement_sequence.rs` in `typed-trees-to-checked-trees`
-  still accepts only primitive call results there. **STATE-LOCAL-VALUE-FRONTIER**
-  owns structural result storage; preserve the reader's algorithm while adding
-  that operation and its independent lowering checks. Resume on macOS ARM64 with
-  `mbx nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail -E 'test(runtime_stdin_command_branch_exit_canary_runs)'`.
-  The byte-read regression `hosted_read_unused_payload_retains_static_array_extent`
-  covers unused scalar case bindings and raw-array lengths separately; it does
-  not establish command-reader completion.
-
-  For bounded input, the full-result fixture
-  `host/runtime_console_bounded_line_exit` still omits its entry plan at the
-  first `read_line(&mut self.line[0..0])` call (macOS ARM64 native probe at
-  `d5e62f683d`: `statement sequence: call: call operation`, state 0, statement 4).
-  `execution/unit/calls/structural_arguments.rs` only admits byte subslices for
-  checked Unit-returning callees, and `calls/byte_subslice.rs` additionally
-  requires a shared slice parameter root without field projections. Mutable
-  field subslices need ordinary view/borrow transport and independent lowering
-  checks under **STATE-LOCAL-VALUE-FRONTIER**. Preserve zero-capacity non-consumption and
-  untouched-tail/count checks; the fixed-array discard-result native test
-  `fixed_array_line_reader_executes_only_until_its_first_completion` does not
-  close that remaining result/subslice composition.
-
-  The two-read echo `text/runtime_stdin_line_buffering_exit` first needs
-  `block` on both `echo_line` calls (native test at `df8954126a`, macOS ARM64).
-  Its intrinsic-service migration also needs borrowed `Service<Console>`
-  parameters through `write_prefix` and its state edges. The declaration
-  validator, Unit signatures/forwarding, lowered state admission and selected
-  `service_custody/parameters.rs` still fence that route; several also require
-  the retired authored `Bound` qualification. Extend ordinary borrow/state
-  transport with exact binding receipts, not the single-hop owned-Service
-  recognizer, and preserve the helper and two-read algorithm.
-
-  Route verified failures to existing owners:
-
-  - Ordinary statements, indexed/aggregate values and stored origins:
-    **STATE-LOCAL-VALUE-FRONTIER** and **MATCH-SELECTIVE-LOWERING**; cyclic
-    transfers and plans: **GENERAL-CYCLIC-EXECUTION**. Complete the common
-    sequencer and canonical paths, not another fixture-family recognizer.
-  - Bare service fields, obsolete `in Bound` requirements, selected entry and
-    exact receiver custody: **ENTRY-CONTENT-ROOTS**. Do not attribute absent
-    service establishment to storage layout or fabricate a provisioning row.
-  - Declared field/encoding facts: **NOMINAL-FIELD-FLOW**; borrow obligations:
-    **BORROW-PROOF-CONVERGENCE**; selected non-array indexing/operators:
-    **OPERATOR-MACHINE-SUPPLY**.
-  - Trapping and cross-sign conversion cases under `core/numeric_*`:
-    **ARITHMETIC-POLICY-REALIZATION**. Other scalar legalization belongs to
-    `target-operations-to-selected-instructions`, not a Unit-body workaround.
-    Reach and crash-envelope failures retain their actual contract owners.
-
-  Audit fixtures against the spec before weakening checking. The bounded
-  `proofs/proof_inductive_climbing_sum` and its negative
-  `proofs/inductive_climbing_sum_unbounded_accumulator` demonstrate why
-  [Exact intermediate arithmetic](wiki/spec/language/numeric_values.md) still
-  owes a carrier bound even when the theorem uses `embed`. Repair invalid
-  positive fixtures with real premises and negative controls; do not reclassify
-  valid accepted-language programs as checked-only merely to make the suite green.
-
-  Acceptance: the complete corpus reaches its declared stages,
-  negative controls reject for the intended reasons, runtime oracles execute on
-  their matching hosts, and roster/coverage guards remain intact. Remove this
-  item only when those checks pass, not when every failure has an owner.
+  Acceptance: complete corpus reaches declared stages, negatives fail for their
+  intended reasons, runtime oracles pass on matching hosts, and roster/coverage
+  guards remain intact. Do not demote valid accepted-language programs to
+  checked-only to turn the suite green; assigning every failure is not closure.
 
 - **TERMINATION-RANKING-CHECKS.** Finish exact rank-range transport under the
-  [termination contract](wiki/spec/language/termination.md), without extending
-  source-pattern recognizers for each new arrangement of calls and records.
-  Owners: `typed-trees-to-checked-trees/src/checks/termination/ranking/`,
+  [termination contract](wiki/spec/language/termination.md). Owners:
+  `typed-trees-to-checked-trees/src/checks/termination/ranking/`,
   validation's `proof_contracts/contract_entailment/ranking_range/`, and
   `machine_calls/call_cycles/runtime_ranking/`.
 
-  Remaining work:
-
-  - Extend non-polynomial actual-argument substitutions beyond the existing
-    quotient/remainder endpoint transport. Preserve both operands' exact
-    identity and independently recheck every constituent operation at each
-    arrival; cancellation cannot hide a zero divisor or intermediate overflow.
-    Reuse `rank_ranges/field_endpoint_arithmetic.rs` and
-    `rank_ranges/call_components.rs`, including their changed-input and
-    mixed ranged/unranged controls. Divisor bounds spanning both signs still
-    require stronger evidence than an unoriented disequality. The independent
-    interval-only fallback still requires one state; do not remove its guard
-    without proving every exact arrival. Reuse the relational field-coordinate
-    route for readable stored references, covered by
-    `termination/stored_reference_endpoint_arrivals` and its reseating twin.
-    Formation, arrival equality, and complete write-frame checks remain required;
-    polynomial cancellation, equal endpoint intervals, or positional guesses
-    cannot supply them. Mixed-component inputs beyond direct integers/arithmetic
-    trees still need their actual input correspondence and conservation evidence.
-    The stored-exclusive countdown in `compiler/tests/rank_endpoint_borrows.rs`
-    checks and runs in the checked interpreter (macOS ARM64, `a647d6afef` plus
-    the endpoint repair; `RUST_MIN_STACK=67108864 cargo nextest run -p compiler
-    --test rank_endpoint_borrows --no-fail-fast --no-tests fail`). Native
-    acceptance remains open: publishing its `walk` through
-    `TerminalProductionRequest` reaches "machine has no source-independent
-    checked scalar control plan". **STATE-LOCAL-VALUE-FRONTIER** owns that
-    next producer dependency; do not replace the stored loan with copied data.
+  - Extend non-polynomial actual-argument substitution beyond supported
+    quotient/remainder endpoints. Recheck constituent operations at each exact
+    arrival; cancellation, equal intervals and unoriented disequality do not
+    establish divisor validity, absence of overflow or subject identity.
+    The independent interval-only fallback still requires one state.
+    Reuse `rank_ranges/{field_endpoint_arithmetic,call_components}.rs` and
+    stored-reference arrival/reseating controls; mixed-component inputs need
+    actual correspondence and conservation evidence. Preserve formation, exact
+    arrival correspondence and complete write-frame checks.
   - Replace residual rank-role discovery limits with explicit arrival
-    correspondence where the program supplies enough evidence. Unique nested
-    carriers, borrowed roots, moved scalar/slice/record copies, custom
-    call-component views, and produced scalar/slice rank facts already have
-    implementations; do not rebuild those as new feature slices. Ambiguous
-    copies must remain rejected unless the checked correspondence identifies
-    the ranked value. A shared nominal type or a convenient decreasing copy
-    is not proof of that identity.
-    The unchanged named-state customer in
-    `compiler/tests/rank_remainder_endpoints.rs` checks and runs in the
-    checked interpreter, but native publication still needs exact rank-role
-    correspondence and a loop header distinct from the entry state.
-    On `e850106f7a1` plus the remainder endpoint repair, publishing `walk`
-    through `TerminalProductionRequest` rejects its terminal signature.
-    The downstream checked scalar `ranking.rs` and lowerer
-    `scalar_graph/scalar_graph_lowering/cycles.rs` also require a one-state
-    graph. Resume with the same named-state source and publish/run it natively;
-    the separate single-state native regression is not this acceptance.
+    correspondence. Do not rebuild already-supported nested carriers, moved
+    scalar/slice/record copies or produced rank facts; an arbitrary decreasing
+    copy or shared nominal type is not the ranked value.
+    Publish/run the unchanged named-state `compiler/tests/rank_remainder_endpoints.rs`
+    and stored-exclusive `rank_endpoint_borrows.rs` customers natively.
+    Their checked-interpreter routes exist; native scalar plans/signatures and
+    loop headers distinct from entry remain dependencies on
+    **STATE-LOCAL-VALUE-FRONTIER**.
+  - Complete rank-preserving boundary/requirement call handling using selected
+    execution/write contracts, not a signature-only claim that exclusive writes
+    never happen. Direct and composed checked-body call initializers already
+    preserve entry facts through `call_tree_initializer_preserves_entry`;
+    mutable writes to protected premise carriers must continue to reject.
+  - Use **STATE-LOCAL-VALUE-FRONTIER**'s common computation route to retire
+    generated operand-call states, not termination-only provenance for artificial
+    source edges. Independent endpoint/contract work can proceed.
 
-    Landed 2026-09-20 (w180, Devin / termination-ranking-checks): a `let`
-    whose initializer is a direct call to a checked-body callee now keeps the
-    statement-call bar in both prefix walks -- `preserves_rank` in
-    `validation/.../call_cycles/runtime_ranking/prefix.rs` and the named-state
-    `preserved_entry_prefix` in `checks/termination/ranking/ranges/relational.rs`.
-    The bound local is fresh storage no premise carrier can name, so admission
-    requires only a pure receiver and arguments plus a complete aggregate
-    write frame disjoint from every protected carrier. The corpus control
-    `rank_range_prefix_let_binding` moved to `tests/omega/pass/termination/`;
-    nested-call arguments, composed initializers, and `&mut` premise-carrier
-    writes still reject (checked-stage coverage in
-    `rank_ranges/call_components.rs::prefix_let_call_bindings_*`). Composed
-    initializers, bodyless boundary/requirement callees, and writes through Re-verified at
-    `74dda185a13` (linux x86-64): the let-initializer leg is now fully
-    corpus-pinned — `call_tree_initializer_preserves_entry` admits nested
-    call arguments and composed initializers alike, and
-    `tests/omega/pass/termination/rank_range_prefix_let_call_argument`
-    carries the nested-argument control beside the direct-call
-    `rank_range_prefix_let_binding`. Remaining legs are unchanged:
-    boundary/requirement callees deliberately reject (a signature-state
-    body summary would claim an exclusive argument write never happened —
-    needs selected-provider settlement machinery), `&mut` premise-carrier
-    writes stay refused, native acceptance stays gated on
-    STATE-LOCAL-VALUE-FRONTIER's checked scalar control plan, and the
-    non-polynomial substitution / rank-role-correspondence legs stay with
-    this row's owner lane.
-    the bound result remain open.
-  - Use STATE-LOCAL-VALUE-FRONTIER's checked computation route to retire
-    generated operand-call states. Do not add termination-only provenance for
-    artificial source edges. This dependency does not block independent
-    contract-bridge or endpoint work.
-
-  Acceptance: exercise valid named-state and mutually recursive call-component
-  customers through ordinary checking/lowering, with exact subject/view/range
-  identity. Include a subordinate call requiring the established range,
-  endpoint transport across a state arrival, and a valid projected/borrowed
-  rank beside unrelated computation. Changed endpoints, stale copied premises,
-  intervening direct or nested-call writes, overflowing intermediate arithmetic,
-  and nondecreasing cycles must reject. Preserve the private-witness/public-
-  guarantee split and the rule that every complete call cycle descends.
-  Start with `src/tests/termination/rank_ranges/` in the checked stage
-  (especially computed field limits, field coordinates, endpoint arithmetic,
-  and call components), plus matching `tests/omega/{pass,fail}/termination/`
-  controls; source inspection is not a current passing-test claim.
+  Acceptance: named-state and mutually recursive call components check, lower
+  and execute with exact subject/view/range identity, including subordinate calls
+  needing the range and projected/borrowed ranks beside unrelated computation.
+  Changed endpoints, stale copies, direct/nested-call writes, overflowing
+  intermediates and nondecreasing cycles reject. Preserve the
+  private-witness/public-guarantee split and descent of every complete call
+  cycle. Start with `src/tests/termination/rank_ranges/` and matching
+  `tests/omega/{pass,fail}/termination/` controls.
 
 ## Automatic service reach
 
