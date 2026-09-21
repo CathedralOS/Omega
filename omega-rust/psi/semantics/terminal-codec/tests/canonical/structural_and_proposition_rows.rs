@@ -9,8 +9,9 @@ use crate::canonical::{
     structural_type_id, value_id,
 };
 use semantic_vocabulary::{
-    IntegerValue, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralPlaceKind,
-    StructuralTypeId,
+    ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId, ContentPlaceVersion,
+    ContentProjectionIdentity, ContentStructuralPlace, ContentTerm, IntegerValue, PlaceId,
+    Proposition, ScalarTerm, ScalarType, StructuralPlaceKind, StructuralTypeId,
 };
 use terminal_codec::{CodecError, decode_module, encode_module, semantic_fingerprint};
 use terminal_psi::{
@@ -840,6 +841,42 @@ fn scalar_term_nesting_has_a_total_bound() {
     assert_eq!(
         encode_module(&module),
         Err(CodecError::ScalarTermNestingTooDeep)
+    );
+}
+
+#[test]
+fn content_term_nesting_has_a_total_bound() {
+    let mut module = fixture();
+    let leaf = ContentTerm::Projection {
+        projection: ContentProjectionIdentity {
+            domain: ContentDomainId::new(70).expect("domain"),
+            projection_report_fingerprint: 0x7071,
+        },
+        subject: ContentStructuralPlace {
+            version: ContentPlaceVersion::Entry,
+            root: PlaceId::new(71).expect("place"),
+            segments: Vec::new(),
+        },
+    };
+    // Direct `Separate` construction keeps nested separations reachable for the
+    // guard, unlike the canonicalizing `ContentTerm::separate` constructor.
+    let mut term = leaf.clone();
+    for _ in 0..257 {
+        term = ContentTerm::Separate(vec![term, leaf.clone()]);
+    }
+    module.machines[0].contract.ensures[0].proposition =
+        Proposition::ContentConservation(ContentConservation::new(
+            ContentAlgebra {
+                kind: ContentAlgebraKind::CountedQuantity,
+                parameter: "Byte".to_owned(),
+            },
+            leaf,
+            term,
+        ));
+
+    assert_eq!(
+        encode_module(&module),
+        Err(CodecError::ContentTermNestingTooDeep)
     );
 }
 
