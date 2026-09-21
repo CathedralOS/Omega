@@ -4,6 +4,7 @@
 mod identity_and_w_types;
 mod levels_and_declarations;
 mod schemes_and_quotients;
+mod spine_chains;
 mod strict_layer;
 mod type_checking;
 
