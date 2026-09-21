@@ -1,13 +1,17 @@
 //! Lowering caller store and realization store operations.
 
+use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::expression_preparation::bindings::StructuralScalarFieldBinding;
+use crate::expression_preparation::prepare_expression::lower_checked_scalar_expression_with_parameters;
 use crate::unit::{
-    LoweringError, PrimitiveType, allocate_dense, contract_id, integer_landing_scalar_type,
-    integer_value, lookup_type_id, lower_structural_path, operation_id, terminal_scalar_type,
-    unsupported, value_id,
+    LoweringError, PrimitiveType, allocate_dense, contract_id, emit_direct_expression,
+    integer_landing_scalar_type, integer_value, lookup_type_id, lower_structural_path,
+    operation_id, terminal_scalar_type, unsupported, value_id,
 };
 use checked_trees::{
     CheckedBooleanExpression, CheckedDynamicScalarCallPlan, CheckedScalarExpression,
-    CheckedStructuralPredicatePathSegment,
 };
 use terminal_psi::{
     MachineContract, Operation, OperationKind, OperationResult, StructuralAccess,
@@ -119,112 +123,106 @@ pub(crate) fn lower_realization_operations(
         next_operation,
         next_value,
     )?;
-    let operation = operation_id(allocate_dense(next_operation)?);
-    let value = value_id(allocate_dense(next_value)?);
-    if let CheckedScalarExpression::Boolean(boolean) = expression
-        && let CheckedBooleanExpression::StructuralParameterField {
-            parameter_position,
-            path,
-        } = boolean.as_ref()
-    {
-        let [CheckedStructuralPredicatePathSegment::Field(field_identity)] = path.as_slice() else {
-            return unsupported("direct dynamic realization field path is unsupported");
-        };
-        if *parameter_position != 0 || expected != semantic_vocabulary::ScalarType::Boolean {
-            return unsupported("direct dynamic realization field result does not match self");
-        }
-        let declaration = structural_types
-            .iter()
-            .find(|declaration| declaration.id == parameter.structural_type)
-            .ok_or(LoweringError::Unsupported(
-                "direct dynamic realization self type is absent",
-            ))?;
-        let terminal_psi::StructuralTypeShape::Record { fields } = &declaration.shape else {
-            return unsupported("direct dynamic realization self must be a record");
-        };
-        let matching = fields
-            .iter()
-            .filter(|field| {
-                field.identity == *field_identity
-                    && field.field_type
-                        == terminal_psi::StructuralFieldType::Scalar(
-                            semantic_vocabulary::ScalarType::Boolean,
-                        )
-            })
-            .collect::<Vec<_>>();
-        let [field] = matching.as_slice() else {
-            return unsupported("direct dynamic realization Boolean field is absent or ambiguous");
-        };
-        operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: operation,
-            result: OperationResult::Scalar(ValueDeclaration {
-                qualifications: Default::default(),
-                id: value,
-                scalar_type: semantic_vocabulary::ScalarType::Boolean,
-            }),
-            kind: OperationKind::BooleanStructuralField {
-                source: parameter.place,
-                path: Vec::new(),
-                field: field.id,
-            },
-        });
-        return Ok(operations);
+    // The checked plan retains any scalar `Return` expression, so the body
+    // lowers through the shared expression pipeline bound to the
+    // realization's one borrowed self parameter. Realization machines carry
+    // an empty contract and emit no proof-bundle evidence, so only
+    // obligation-free leaves may reach emission.
+    let parameters = [(parameter.position, parameter.clone())];
+    let fields = StructuralScalarFieldBinding::collect(&parameters, structural_types);
+    let expression = lower_checked_scalar_expression_with_parameters(
+        expression,
+        &parameters,
+        &fields,
+        &[],
+        &[],
+    )?;
+    if expression.scalar_type() != expected {
+        return unsupported("dynamic realization result drifted from its checked return type");
     }
-
-    if let CheckedScalarExpression::StructuralParameterField {
-        parameter_position,
-        path,
-        primitive_type: PrimitiveType::I32,
-    } = expression
+    validate_realization_return_shape(&expression)?;
+    let mut lowered = OperationBuffer::new(next_operation.checked_sub(1).ok_or(
+        LoweringError::Unsupported("dynamic realization operation namespace underflowed"),
+    )?);
+    emit_direct_expression(&expression, &[], next_value, &mut lowered);
+    if !lowered.structural_values.is_empty()
+        || !lowered.byte_lengths.is_empty()
+        || !lowered.source_calls.is_empty()
+        || !lowered.selected_integer_comparisons.is_empty()
+        || !lowered.selected_ieee_float_comparisons.is_empty()
+        || !lowered.selected_ieee_float_fmas.is_empty()
     {
-        let [CheckedStructuralPredicatePathSegment::Field(field_identity)] = path.as_slice() else {
-            return unsupported("direct dynamic realization integer field path is unsupported");
-        };
-        if *parameter_position != 0 || expected != terminal_scalar_type(PrimitiveType::I32)? {
-            return unsupported(
-                "direct dynamic realization integer field result does not match self",
-            );
-        }
-        let declaration = structural_types
-            .iter()
-            .find(|declaration| declaration.id == parameter.structural_type)
-            .ok_or(LoweringError::Unsupported(
-                "direct dynamic realization self type is absent",
-            ))?;
-        let terminal_psi::StructuralTypeShape::Record { fields } = &declaration.shape else {
-            return unsupported("direct dynamic realization self must be a record");
-        };
-        let matching = fields
-            .iter()
-            .filter(|field| {
-                field.identity == *field_identity
-                    && field.field_type.scalar_type() == Some(expected)
-            })
-            .collect::<Vec<_>>();
-        let [field] = matching.as_slice() else {
-            return unsupported("direct dynamic realization integer field is absent or ambiguous");
-        };
-        operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: operation,
-            result: OperationResult::Scalar(ValueDeclaration {
-                qualifications: Default::default(),
-                id: value,
-                scalar_type: expected,
-            }),
-            kind: OperationKind::IntegerStructuralField {
-                source: parameter.place,
-                path: Vec::new(),
-                field: field.id,
-            },
-        });
-        return Ok(operations);
+        return unsupported("dynamic realization return emitted retained source metadata");
     }
+    *next_operation = lowered.next_identity;
+    operations.extend(lowered.operations);
+    Ok(operations)
+}
 
-    unsupported("direct dynamic realization must return one exact Boolean or i32 self field")
+/// The realization's return leaves compose through one borrowed self view:
+/// field observations, literals, wrapping or saturating arithmetic, widening,
+/// bitwise complements, integer comparisons, and Boolean negation or
+/// equality. Shapes needing scalar locals, erased formals, byte storage,
+/// case payloads, short-circuit control, float comparisons, or a formation
+/// obligation still refuse — realization machines emit no discharge evidence.
+fn validate_realization_return_shape(
+    expression: &LoweredDirectExpression,
+) -> Result<(), LoweringError> {
+    match expression {
+        LoweredDirectExpression::StructuralField { .. }
+        | LoweredDirectExpression::IntegerLiteral { .. } => Ok(()),
+        LoweredDirectExpression::IntegerBitwiseNot { operand, .. }
+        | LoweredDirectExpression::IntegerWiden { operand, .. } => {
+            validate_realization_return_shape(operand)
+        }
+        LoweredDirectExpression::IntegerBinary {
+            kind, left, right, ..
+        } => {
+            let carries_obligation =
+                kind.integer_policy_binding()
+                    .is_some_and(|(primitive, policy)| {
+                        !numerics::integer_policy::integer_policy_bridge(primitive, policy)
+                            .formation_conditions
+                            .is_empty()
+                    });
+            if carries_obligation {
+                return unsupported(
+                    "dynamic realization arithmetic carries an undischargeable obligation",
+                );
+            }
+            validate_realization_return_shape(left)?;
+            validate_realization_return_shape(right)
+        }
+        LoweredDirectExpression::Boolean { expression } => {
+            validate_realization_return_boolean(expression)
+        }
+        _ => unsupported(
+            "direct dynamic realization return needs scalar custody beyond one self view",
+        ),
+    }
+}
+
+fn validate_realization_return_boolean(
+    expression: &LoweredBooleanReturnExpression,
+) -> Result<(), LoweringError> {
+    match expression {
+        LoweredBooleanReturnExpression::Constant { .. }
+        | LoweredBooleanReturnExpression::StructuralField { .. } => Ok(()),
+        LoweredBooleanReturnExpression::Not { operand } => {
+            validate_realization_return_boolean(operand)
+        }
+        LoweredBooleanReturnExpression::Equal { left, right } => {
+            validate_realization_return_boolean(left)?;
+            validate_realization_return_boolean(right)
+        }
+        LoweredBooleanReturnExpression::IntegerComparison { left, right, .. } => {
+            validate_realization_return_shape(left)?;
+            validate_realization_return_shape(right)
+        }
+        _ => unsupported(
+            "direct dynamic realization return needs scalar custody beyond one self view",
+        ),
+    }
 }
 
 fn lower_realization_store_operations(
@@ -345,5 +343,299 @@ pub(crate) fn empty_terminal_contract(identity: u64) -> MachineContract {
         requires: Vec::new(),
         ensures: Vec::new(),
         outcome_specific_ensures: Vec::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        LoweringError, OperationKind, OperationResult, PrimitiveType, StructuralAccess,
+        StructuralParameterDeclaration, lower_realization_operations,
+    };
+    use crate::terminal_identities::{
+        place_id, structural_field_id, structural_type_id, value_id,
+    };
+    use checked_trees::{
+        CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
+        CheckedScalarExpression, CheckedStructuralPredicatePathSegment,
+    };
+    use language_core::BindingRelevance;
+    use numerics::arithmetic::ArithmeticDomain;
+    use numerics::literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
+    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
+    use terminal_psi::{
+        StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+        StructuralTypeDeclaration, StructuralTypeShape,
+    };
+
+    fn i32_type() -> ScalarType {
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).expect("i32"))
+    }
+
+    fn item_types() -> [StructuralTypeDeclaration; 2] {
+        [
+            StructuralTypeDeclaration {
+                id: structural_type_id(10),
+                identity: "Inner".to_string(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![StructuralFieldDeclaration {
+                        id: structural_field_id(1),
+                        identity: "value".to_string(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(i32_type()),
+                    }],
+                },
+            },
+            StructuralTypeDeclaration {
+                id: structural_type_id(11),
+                identity: "Item".to_string(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![
+                        StructuralFieldDeclaration {
+                            id: structural_field_id(2),
+                            identity: "value".to_string(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Scalar(i32_type()),
+                        },
+                        StructuralFieldDeclaration {
+                            id: structural_field_id(3),
+                            identity: "flag".to_string(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+                        },
+                        StructuralFieldDeclaration {
+                            id: structural_field_id(4),
+                            identity: "inner".to_string(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Structural(structural_type_id(10)),
+                        },
+                    ],
+                },
+            },
+        ]
+    }
+
+    fn self_parameter() -> StructuralParameterDeclaration {
+        StructuralParameterDeclaration {
+            place: place_id(1),
+            position: 0,
+            is_self: true,
+            structural_type: structural_type_id(11),
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::SharedBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        }
+    }
+
+    fn field(identity: &str) -> CheckedScalarExpression {
+        CheckedScalarExpression::StructuralParameterField {
+            parameter_position: 0,
+            path: vec![CheckedStructuralPredicatePathSegment::Field(
+                identity.to_string(),
+            )],
+            primitive_type: PrimitiveType::I32,
+        }
+    }
+
+    fn literal(value: i64) -> CheckedScalarExpression {
+        CheckedScalarExpression::IntegerLiteral {
+            literal: IntegerLiteral::from_value(value).with_landing(IntegerLanding {
+                landed_type: LandedIntegerType::I32,
+                domain: ArithmeticDomain::Exact,
+            }),
+        }
+    }
+
+    fn boolean_field(identity: &str) -> CheckedBooleanExpression {
+        CheckedBooleanExpression::StructuralParameterField {
+            parameter_position: 0,
+            path: vec![CheckedStructuralPredicatePathSegment::Field(
+                identity.to_string(),
+            )],
+        }
+    }
+
+    fn lower(
+        expression: &CheckedScalarExpression,
+        expected: ScalarType,
+    ) -> Result<Vec<terminal_psi::Operation>, LoweringError> {
+        let types = item_types();
+        let mut next_operation = 2_u64;
+        let mut next_value = 2_u64;
+        lower_realization_operations(
+            &[],
+            expression,
+            expected,
+            &self_parameter(),
+            &types,
+            &mut next_operation,
+            &mut next_value,
+        )
+    }
+
+    #[test]
+    fn realization_returns_integer_self_field() {
+        let operations = lower(&field("value"), i32_type()).expect("field return lowers");
+        assert_eq!(operations.len(), 1);
+        assert_eq!(
+            operations[0].result,
+            OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                qualifications: Default::default(),
+                id: value_id(2),
+                scalar_type: i32_type(),
+            })
+        );
+        assert_eq!(
+            operations[0].kind,
+            OperationKind::IntegerStructuralField {
+                source: place_id(1),
+                path: Vec::new(),
+                field: structural_field_id(2),
+            }
+        );
+    }
+
+    #[test]
+    fn realization_returns_boolean_self_field() {
+        let expression = CheckedScalarExpression::Boolean(Box::new(boolean_field("flag")));
+        let operations = lower(&expression, ScalarType::Boolean).expect("Boolean field lowers");
+        assert_eq!(
+            operations[0].kind,
+            OperationKind::BooleanStructuralField {
+                source: place_id(1),
+                path: Vec::new(),
+                field: structural_field_id(3),
+            }
+        );
+    }
+
+    #[test]
+    fn realization_returns_nested_self_field() {
+        let expression = CheckedScalarExpression::StructuralParameterField {
+            parameter_position: 0,
+            path: vec![
+                CheckedStructuralPredicatePathSegment::Field("inner".to_string()),
+                CheckedStructuralPredicatePathSegment::Field("value".to_string()),
+            ],
+            primitive_type: PrimitiveType::I32,
+        };
+        let operations = lower(&expression, i32_type()).expect("nested field lowers");
+        assert_eq!(
+            operations[0].kind,
+            OperationKind::IntegerStructuralField {
+                source: place_id(1),
+                path: vec![
+                    semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                        structural_field_id(4),
+                    ),
+                ],
+                field: structural_field_id(1),
+            }
+        );
+    }
+
+    #[test]
+    fn realization_returns_landed_integer_literal() {
+        let operations = lower(&literal(7), i32_type()).expect("literal return lowers");
+        assert_eq!(
+            operations[0].kind,
+            OperationKind::IntegerConstant {
+                value: IntegerValue::Signed(7),
+            }
+        );
+    }
+
+    #[test]
+    fn realization_returns_wrapping_arithmetic_over_self() {
+        let expression = CheckedScalarExpression::IntegerBinary {
+            kind: CheckedIntegerBinaryKind::WrappingAdd,
+            primitive_type: PrimitiveType::I32,
+            left: Box::new(field("value")),
+            right: Box::new(literal(1)),
+        };
+        let operations = lower(&expression, i32_type()).expect("wrapping add lowers");
+        assert_eq!(operations.len(), 3);
+        let [field_read, constant, add] = operations.as_slice() else {
+            panic!("expected three operations");
+        };
+        assert!(matches!(
+            field_read.kind,
+            OperationKind::IntegerStructuralField { .. }
+        ));
+        assert!(matches!(constant.kind, OperationKind::IntegerConstant { .. }));
+        assert_eq!(
+            add.kind,
+            OperationKind::WrappingIntegerAdd {
+                left: value_id(2),
+                right: value_id(3),
+            }
+        );
+    }
+
+    #[test]
+    fn realization_returns_integer_comparison() {
+        let expression = CheckedScalarExpression::Boolean(Box::new(
+            CheckedBooleanExpression::IntegerComparison {
+                kind: CheckedIntegerComparisonKind::LessThan,
+                left: Box::new(field("value")),
+                right: Box::new(literal(9)),
+            },
+        ));
+        let operations =
+            lower(&expression, ScalarType::Boolean).expect("integer comparison lowers");
+        assert_eq!(operations.len(), 3);
+        assert_eq!(
+            operations[2].kind,
+            OperationKind::IntegerLessThan {
+                left: value_id(2),
+                right: value_id(3),
+            }
+        );
+    }
+
+    #[test]
+    fn realization_returns_negated_boolean_field() {
+        let expression = CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Not(
+            Box::new(boolean_field("flag")),
+        )));
+        let operations = lower(&expression, ScalarType::Boolean).expect("Boolean not lowers");
+        assert_eq!(operations.len(), 2);
+        assert_eq!(
+            operations[1].kind,
+            OperationKind::BooleanNot {
+                operand: value_id(2),
+            }
+        );
+    }
+
+    #[test]
+    fn realization_rejects_obligation_bearing_arithmetic() {
+        let expression = CheckedScalarExpression::IntegerBinary {
+            kind: CheckedIntegerBinaryKind::ExactAdd,
+            primitive_type: PrimitiveType::I32,
+            left: Box::new(field("value")),
+            right: Box::new(literal(1)),
+        };
+        assert!(lower(&expression, i32_type()).is_err());
+    }
+
+    #[test]
+    fn realization_rejects_scalar_locals_and_short_circuit() {
+        let local = CheckedScalarExpression::Local {
+            position: 0,
+            primitive_type: PrimitiveType::I32,
+        };
+        assert!(lower(&local, i32_type()).is_err());
+        let short_circuit = CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::And {
+            left: Box::new(boolean_field("flag")),
+            right: Box::new(boolean_field("flag")),
+        }));
+        assert!(lower(&short_circuit, ScalarType::Boolean).is_err());
+    }
+
+    #[test]
+    fn realization_rejects_result_type_drift() {
+        assert!(lower(&literal(7), ScalarType::Boolean).is_err());
     }
 }
