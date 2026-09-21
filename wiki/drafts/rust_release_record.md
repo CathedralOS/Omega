@@ -46,6 +46,7 @@ a pass, and rows are not averaged.
 | `linux_x86_64` | Evaluated — see gate rows above. |
 | `linux_arm64` | Open — no AArch64 runner or emulator available on this host. |
 | `macos_arm64` | Open — host unavailable. |
+| `macos_x86_64` | Open — host unavailable. The entry-bridge emission for this target is exercised replay-side only: the hosted receiver now emits the exact System V x86-64 bridge (`prepare_macos_x86_64`, 36-byte shim returning through the saved loader continuation) instead of falling through to the AArch64 emitter; native dyld `appMain` execution stays unwitnessed on this linux x86-64 host. |
 | `windows_x86_64` | Open — host unavailable. |
 
 ## Expected skips
