@@ -353,6 +353,7 @@ impl TerminalExecution {
         prepared_arguments: StructuralCallArguments,
         claim_transfers: &[ClaimTransfer],
         returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
+        minted_result_claims: bool,
     ) -> Result<(), TerminalInterpretError> {
         let machines = std::sync::Arc::clone(&self.machines);
         let callee = machines
@@ -551,6 +552,7 @@ impl TerminalExecution {
                 result,
                 returned_claim_transfers,
                 expected_reference_backings,
+                minted_result_claims,
             },
         });
         self.values = values;

@@ -127,7 +127,21 @@ fn provider_result_conformance_rejects_signature_and_contract_drift() {
                 };
                 result.structural_type = StructuralTypeId::new(1).unwrap();
             }
-            3 | 4 => {
+            3 => {
+                // Candidate drifts from the boundary's Affine result: Linear
+                // custody is admissible only when the boundary declares it.
+                let TerminalMachineResult::Structural(result) = &mut module.machines[1].result
+                else {
+                    unreachable!()
+                };
+                result.multiplicity = StructuralMultiplicity::Linear;
+            }
+            4 => {
+                let TerminalMachineResult::Structural(result) = &mut module.machines[1].result
+                else {
+                    unreachable!()
+                };
+                result.multiplicity = StructuralMultiplicity::Unrestricted;
                 let BoundaryMachineResult::Structural(required) =
                     &mut module.boundary_machines[0].result
                 else {
