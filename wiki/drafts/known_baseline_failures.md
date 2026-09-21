@@ -11,13 +11,25 @@ failure in affected behavior, and this file is not validation policy (see
 Rows verified by independent stash-baseline reproduction at revision
 `8220f55febc1` on 2026-09-13, macOS arm64, unless noted otherwise.
 
-> **Whole-doc caveat at `2dbfecd98e` (2026-09-21):** the workspace does not
-> compile — `StructuralTypeShape::ElementView` (`04f2fdbb853`, merged via
-> `48873065b72`) left every `StructuralTypeShape` match non-exhaustive
-> (terminal-verifier ×8, optimization-unit, image-emission codec, downstream
-> lowering). Every row below that names a nextest/cargo witness is
-> unmeasurable at this HEAD until the ElementView consumer legs land;
-> per-row memberships are carried from their last measurable readings.
+> **Whole-doc caveat LIFTED at `e2ef7324ee88` (2026-09-21, ~14:00Z).** The
+> `StructuralTypeShape::ElementView` consumer sweep is complete — 40 legs across
+> 6 crates — and `cargo check --workspace` is green again. Every row below that
+> names a nextest/cargo witness is measurable once more, so a row still carrying
+> "unmeasurable at this HEAD" is stale by that fact alone and should be
+> re-measured rather than believed. Measured on macOS arm64 right after the
+> lift: `omega-architecture-test` **596/596**; `terminal-codec` +
+> `optimization-unit-semantics` + `image-emission` + `native-realization` +
+> `legalized-operations` + `register-homes` **1176/1176**;
+> `selected-instructions-to-selected-instructions` **1737/1737**;
+> `checked-trees-to-lowered-psi` **2213 passed / 12 failed** (the
+> provider-attachment family plus two singletons).
+>
+> The superseded caveat read: the workspace does not compile because
+> `ElementView` (`04f2fdbb853`, merged via `48873065b72`) left every
+> `StructuralTypeShape` match non-exhaustive, so per-row memberships were
+> carried from their last measurable readings. Rows whose memberships were
+> carried that way have NOT all been re-measured individually — treat any
+> untouched membership below as provisional until its own witness is re-run.
 
 ## omega-architecture-test
 
@@ -1293,8 +1305,13 @@ passes; the `borrowed_subslices` members now live under the crate's
 
 ## workspace `--lib` red cluster
 
-> Refresh at `2dbfecd98e` (2026-09-21, linux x86-64, NEW-KBF-LIB-CLUSTER-AND-
-> STALE-ROWS-REFRESH leg): the gate is **unmeasurable** — the workspace does
+> **Measurable again at `e2ef7324ee88` (2026-09-21 ~14:00Z):** the ElementView
+> consumer sweep landed (40 legs, 6 crates) and `cargo check --workspace` is
+> green, so this gate can be re-run. The reading below was taken while it could
+> not be, and is kept only as the record of that window.
+>
+> Superseded refresh at `2dbfecd98e` (linux x86-64, NEW-KBF-LIB-CLUSTER-AND-
+> STALE-ROWS-REFRESH leg): the gate was **unmeasurable** — the workspace did
 > not compile. `StructuralTypeShape::ElementView` (`04f2fdbb853`, merged via
 > `48873065b72`) makes every exhaustive match non-exhaustive;
 > `terminal-verifier` (8 sites: `validation/foundation.rs:555`,
