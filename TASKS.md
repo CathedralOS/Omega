@@ -8455,7 +8455,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   prints nothing — setting the variable and rerunning the hang yields no
   line. Getting a first measurement therefore needs per-obligation progress
   output, a sampled stack, or a reduced input that still reproduces, not the
-  existing opt-in report. Measure the leg, name the obligation whose search does
+  existing opt-in report.
+
+  The fixture's shape is readable without running it, and points at the
+  likely cause. `MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE`
+  is a 183-line program whose one machine `Root::measure` takes 19
+  parameters and carries a single `requires` clause of 80 premises —
+  24 of them bounding `signed_arithmetic`, 18 bounding `small`, and 12 each
+  bounding `input` and `signed`. Many are mutually redundant on the same
+  variable (`input <= 255u64`, `<= 253u64`, `<= 252u64`, `<= 251u64`,
+  `<= 250u64`, `<= 127u64`, `<= 125u64`, `<= 124u64`, `<= 42u64`,
+  `<= 31u64`). A search that considers premise subsets, or that pairs
+  premises per obligation, faces a combinatorial blowup at exactly that
+  shape, and the fixture name says the machine converges on one shared
+  cleanup return, so every obligation meets the same premise pool. Confirm
+  that before bounding anything: a reduced copy that drops the redundant
+  bounds on one variable at a time should show where the cliff is, and gives
+  the terminating input the measurement report needs. Measure the leg, name the obligation whose search does
   not converge, then either bound that search in `proof/src/checker` or refuse
   it fail-closed with a diagnostic. A longer test timeout is not a repair.
 
