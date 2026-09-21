@@ -37,27 +37,6 @@ pub(super) fn project_top_level_requirement_external_supply(
         ))]);
     }
     let requirement_parameters = compilation.machine_type_parameters(requirement);
-    let realization_parameters = compilation.machine_type_parameters(machine);
-    let unsupported_static_parameter = |parameter: &typed_trees::data::TypeParameter| {
-        !matches!(
-            parameter.kind,
-            typed_trees::data::TypeParameterKind::Type
-                | typed_trees::data::TypeParameterKind::Const { .. }
-                | typed_trees::data::TypeParameterKind::Machine { .. }
-        )
-    };
-    if requirement_parameters
-        .iter()
-        .any(unsupported_static_parameter)
-        || realization_parameters
-            .iter()
-            .any(unsupported_static_parameter)
-    {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed callable `{}` realizes top-level requirement `{}` with static kinds not yet represented by package review",
-            machine.name, requirement.name
-        ))]);
-    }
     validation::revalidate_top_level_requirement_realization(
         &compilation.typed,
         machine,
