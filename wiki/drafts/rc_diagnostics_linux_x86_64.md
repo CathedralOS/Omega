@@ -65,3 +65,14 @@ The gate is a matrix row, not a standalone completion: the release
 contract still requires all eight gates on one clean commit across the
 four required hosts, and the negative-case obligations folded into
 `RC-SOURCE-SEMANTICS` are out of this row's scope.
+## Interim measurement (d8a4c5603fe)
+
+Between `1edade1a480` and the green `72fc66d6c326` re-witness the row was
+measured again at `d8a4c5603fe`: 118.0s, 4 drifted fail canaries (3 wording
+respells in `tests/omega/fail/proofs/quotient_*` — all still rejecting, with
+interface-privacy firing before the pinned closure checks after
+`be6e4a9acb673` — plus 1 silent-acceptance regression,
+`calls/machine_self_call_recursion_rejected` compiling 10 files where a
+rejection was pinned). Every one of those four rows was later repaired on
+main before the `72fc66d6c326` green above; retained here as the
+between-revisions drift record.
