@@ -493,11 +493,48 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     // contract shape is selected. Requires-tail `FloatRange` clauses are
     // discharged by the floating entry roster, never by the proposition tail.
     crate::unit::runtime_requirements::validate_graph_parameter_ranges(checked, machine, plan)?;
+    // Rejoin each authored `FloatMeaning` equality clause to the checked
+    // equality row the float-meaning binding already minted for that exact
+    // `==` expression. The clause's terminal `Atom` cite is only definable
+    // against that checked row — an unrecognized clause fails instead of
+    // erasing toward `Truth` or `Empty`.
+    let mut resolved_plan;
+    let plan = if plan.ensures().iter().flatten().any(|clause| {
+        matches!(
+            clause,
+            ClosedScalarContractValue::FloatMeaningEquality { .. }
+        )
+    }) {
+        resolved_plan = plan.clone();
+        resolved_plan
+            .resolve_float_meaning_equalities(|expression| {
+                checked
+                    .facts
+                    .proof
+                    .float_meaning_equalities
+                    .iter()
+                    .find(|equality| {
+                        equality.use_site.is_none() && equality.source_expression == expression
+                    })
+                    .map(|equality| equality.id)
+            })
+            .map_err(|_| {
+                LoweringError::Unsupported(
+                    "scalar contract float-meaning equality lost its checked equality row",
+                )
+            })?;
+        &resolved_plan
+    } else {
+        plan
+    };
     let requires = crate::scalar_graph::scalar_contracts::covered_requires(plan)?;
-    let has_predicates = requires
-        .iter()
-        .chain(plan.ensures())
-        .any(|clause| matches!(clause, Some(ClosedScalarContractValue::Predicate(_))));
+    let has_predicates = requires.iter().chain(plan.ensures()).any(|clause| {
+        matches!(
+            clause,
+            Some(ClosedScalarContractValue::Predicate(_))
+                | Some(ClosedScalarContractValue::FloatMeaningEquality { .. })
+        )
+    });
     let has_entry_ranges = plan
         .float_entry_ranges()
         .is_some_and(|ranges| !ranges.is_empty())
