@@ -3,9 +3,9 @@ use crate::{
     ACTIVE_FAIL_CANARIES, CANARY_UMBRELLA_LOCK, CHECKED_ONLY_FAIL_CANARIES,
     CROSS_TARGET_FAIL_CANARIES, Command, check_canary, compile_canary_without_output,
     compile_canary_without_output_for_target, compile_native_canary_without_output,
-    compile_reviewed_repository_fixture, compile_rooted_backend_canary_without_output_for_target,
-    compile_rooted_canary_for_native_host, executable_name, fail_canary, fs, pass_canary,
-    run_bounded_canary_jobs,
+    compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host,
+    compile_terminal_canary_without_output_for_target, executable_name, fail_canary, fs,
+    pass_canary, run_bounded_canary_jobs,
 };
 use compiler::CheckedCompileRequest;
 
@@ -107,8 +107,9 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
             check_canary(&canary).map(|()| "checked semantics".to_owned())
         } else {
             // Production-route entries refuse behind checked semantics, so a
-            // Check stop would admit them; they take the rooted
-            // native-artifact route at their bound target first.
+            // Check stop would admit them; they take the Terminal-artifact
+            // route at their bound target first, which reaches the lowering
+            // wall without entering native realization.
             let production_cross_target = fixture_roster::CROSS_TARGET_PRODUCTION_FAIL_CANARIES
                 .iter()
                 .find_map(|(candidate, target)| (*candidate == canary_name).then_some(*target));
@@ -117,7 +118,7 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
                 .find_map(|(candidate, target)| (*candidate == canary_name).then_some(*target));
             match (production_cross_target, cross_target) {
                 (Some(target), _) => {
-                    compile_rooted_backend_canary_without_output_for_target(&canary, target)
+                    compile_terminal_canary_without_output_for_target(&canary, target)
                 }
                 (None, Some(target)) => compile_canary_without_output_for_target(&canary, target),
                 (None, None) => compile_native_canary_without_output(&canary),

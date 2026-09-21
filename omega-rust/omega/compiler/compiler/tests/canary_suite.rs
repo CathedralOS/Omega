@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CanaryCompileProduct {
     Check,
+    TerminalArtifact,
     NativeArtifact,
     NativeArtifactAndPublish,
 }
@@ -50,6 +51,7 @@ fn production_compile(
     let build_dir = options.build_dir();
     let requested_product = match product {
         CanaryCompileProduct::Check => RequestedCompileProduct::Check,
+        CanaryCompileProduct::TerminalArtifact => RequestedCompileProduct::TerminalArtifact,
         CanaryCompileProduct::NativeArtifact | CanaryCompileProduct::NativeArtifactAndPublish => {
             RequestedCompileProduct::NativeArtifact
         }
@@ -73,7 +75,9 @@ fn production_compile(
     let report =
         compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report)?;
     match product {
-        CanaryCompileProduct::Check | CanaryCompileProduct::NativeArtifact => Ok(report),
+        CanaryCompileProduct::Check
+        | CanaryCompileProduct::TerminalArtifact
+        | CanaryCompileProduct::NativeArtifact => Ok(report),
         CanaryCompileProduct::NativeArtifactAndPublish => report
             .publish_retained_native_artifact(&build_dir)
             .map_err(|error| vec![diagnostics::Diagnostic::error(error)]),
@@ -2158,6 +2162,25 @@ fn compile_rooted_backend_canary_without_output(
     canary_dir: &Path,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     compile_rooted_backend_canary_without_output_for_target(canary_dir, native_hosted_target())
+}
+
+// Fail-closed fences owned by `checked-trees-to-lowered-psi` and Terminal
+// production are already exercised by the Terminal-artifact product; stopping
+// there keeps the canary on the exact refusal boundary instead of dragging
+// native realization into a lowering verdict.
+fn compile_terminal_canary_without_output_for_target(
+    canary_dir: &Path,
+    target: &str,
+) -> Result<CompileReport, Vec<Diagnostic>> {
+    let build_dir = unique_no_output_build_dir();
+    let result = production_compile(CanaryCompileSpec {
+        root_path: canary_dir.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some(target.into()),
+        product: CanaryCompileProduct::TerminalArtifact,
+    });
+    let _ = fs::remove_dir_all(&build_dir);
+    result
 }
 
 fn compile_rooted_backend_canary_without_output_for_target(
@@ -4961,7 +4984,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     // Checked semantics admits the conditional claim join as evidence;
     // `checked-trees-to-lowered-psi` refuses it pending Terminal
     // exit-alternative correspondence. The fixture binds only
-    // `linux_x86_64::ProgramEntry` and runs the production route.
+    // `linux_x86_64::ProgramEntry` and runs the Terminal-artifact route.
     "ownership/linear_ambiguous_state_result_mapping",
     // The v0 freestanding-authority discharge is wired into the typed->checked
     // settlement transition, so a hosted build (no `freestanding = true` in
