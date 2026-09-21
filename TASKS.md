@@ -13511,6 +13511,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SEMANTIC-WRAPPER-OWNERSHIP (z102 03:35Z, z167 00:58Z) and
   SEMANTIC-WRAPPER-OWNER-RELOCATION (z196 03:20Z). Same-item claims cannot
   be bypassed; do not re-mine.
+  Re-verified at `771d0469a1` (z102, linux x86-64): both wrapper modules
+  still sit unrelocated under `omega/compiler/native-realization/src/`
+  (`optimized_semantic_wrapper_{encoding,object}/`, lib.rs `mod` + `pub
+  use` only). One correction to the original annotation, matching the
+  corrected record on OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP's row: the
+  predicted "first real caller" already arrived through entry settlement —
+  `native_realization/optimized_fragment_projection.rs:133` stages
+  `stage_validated_optimized_program_storage_semantic_wrapper_object` for a
+  ProgramEntry carrying a planned semantic-entry wrapper (bound
+  placed-view establishments, PLAN-LAID-VIEWS lane) — not through a
+  UEFI-PHYSICAL-SEMANTIC-ENTRY bullet. The keep/move/delete disposition
+  and codec-move legs stay owned by their named items; the earlier
+  same-item claims have lapsed from the status sweep. Also removed a
+  duplicate bare stub of this same name that still read "verify scope then
+  implement" (~:13472). No independent slice exists here.
 - **SHARED-WORD-PREFIX-NATIVE-RUN.** — scope verified, resolved: the shared
   hexadecimal word-prefix gate (`tests/beta/compiler/word-prefix.{py,sh}`)
   runs natively on this host and passes — `sh
@@ -13541,7 +13556,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   DISPOSITION, OPTIMIZED-WRAPPER-OBJECT-RELOCATION.
 - **SEMANTIC-WRAPPER-OBJECT-OWNERSHIP** — mined candidate; verify scope then implement.
 - **SEMANTIC-WRAPPER-OWNER-RELOCATION** — mined candidate; scope verified, covered — same settled surface as resolved sibling SEMANTIC-WRAPPER-OWNERSHIP (adjacent row): the `native-realization/src/optimized_semantic_wrapper_{encoding,object}/` keep/move/delete decision is an enumerated bullet of PIPELINE-OWNER-CONSOLIDATION; the codec-move leg this stub's name asks for is exactly the leg deferred to DURABLE-CODEC-RELOCATION/REPRESENTATION-OWNERSHIP pending that owner decision; the first real caller of `stage_validated_optimized_program_storage_semantic_wrapper_object` is a UEFI-PHYSICAL-SEMANTIC-ENTRY bullet. No independent slice exists here. Sibling stubs on the same surface: SEMANTIC-WRAPPER-OBJECT-OWNERSHIP, SEMANTIC-WRAPPER-OWNER-RESOLUTION, SEMANTIC-WRAPPER-COORDINATOR-RESIDUE, OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION, OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION, OPTIMIZED-WRAPPER-OBJECT-RELOCATION.
-- **SEMANTIC-WRAPPER-OWNER-RESOLUTION** — mined candidate; verify scope then implement.
 - **SEMANTIC-WRAPPER-OWNERSHIP** — mined candidate; scope verified, covered — resolved sibling OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP (TASKS.md:6904) already names this stub and settles the surface: the `native-realization/src/optimized_semantic_wrapper_{encoding,object}/` keep/move/delete decision is an enumerated bullet of PIPELINE-OWNER-CONSOLIDATION; the codec-move leg is deferred to DURABLE-CODEC-RELOCATION/REPRESENTATION-OWNERSHIP pending that owner decision; the first real caller of `stage_validated_optimized_program_storage_semantic_wrapper_object` is a UEFI-PHYSICAL-SEMANTIC-ENTRY bullet. No independent slice exists here. Re-verified at `10d93dd448d`: both wrapper modules still sit under `native-realization/src/` unrelocated, both module entrances still have no caller outside their own tests (lib.rs re-export only), PIPELINE-OWNER-CONSOLIDATION stays open (TASKS_OPTIMIZER.md:26), and the surface remains fenced — `optimized_semantic_wrapper_object` under PIPELINE-WRAPPER-OBJECT-ORPHAN (22:46Z) plus pathless board claims OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP (00:10Z) and SEMANTIC-WRAPPER-OWNER-RESOLUTION (02:04Z). Other sibling stubs on the same surface: SEMANTIC-WRAPPER-OBJECT-OWNERSHIP, SEMANTIC-WRAPPER-OWNER-RELOCATION, SEMANTIC-WRAPPER-OWNER-RESOLUTION, SEMANTIC-WRAPPER-COORDINATOR-RESIDUE, OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION, OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION, OPTIMIZED-WRAPPER-OBJECT-RELOCATION.
 - **SERVICE-CARRIER-FIXTURE-MIGRATION** — mined candidate; verify scope then implement.
 - **SERVICE-ERA-REPLACEMENT-SUBSTRATE.** Mined candidate — scope verified, resolved — the `Bound` service-era replacement substrate is landed on `origin/main` at `6d00135b89`: `core/service.omg` declares `pub boundary data Service<R>` with the closed identity as the only carrier (`Bound` deleted; documented "any `Service<R> in <domain>` spelling is rejected during source checking"), `typed-trees-to-checked-trees/src/checking/program_validation.rs` rejects bare boundary traits in value position verbatim ("the intrinsic `Service<R>` carrier is the only service value spelling"), and no `in Bound` spelling survives in `source/`, `samples/cli/`, or non-fail `tests/omega/`. The wave evidence row on ENTRY-CONTENT-ROOTS records the landing; residual legs (fused-parameter rejoin gates, receiver lifecycle spellings) are named to their own owners there, not here. Re-verified on linux x86-64 at `12ecbe98f8`: `source/library/core/service.omg:13` still declares `pub boundary data Service<R>` with the `Bound`-deleted note, `program_validation.rs` still emits the "only service value spelling" rejection, and no `in Bound` spelling survives in `source/` or `samples/cli/`.
