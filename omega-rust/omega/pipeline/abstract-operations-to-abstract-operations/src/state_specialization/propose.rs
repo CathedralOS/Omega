@@ -62,9 +62,10 @@ pub(super) fn all(
 
 /// Independently derived specialization plan for one block, or `None` when the
 /// block is not an eligible dispatch state. An admissible plan carries at most
-/// the constant-supplied unconditional incoming edges; when every incoming
-/// edge qualifies, fusing them all would orphan the dispatch state, so the
-/// plan is reported with no edges.
+/// the constant-supplied incoming edges — unconditional `Jump` successors and
+/// `Conditional` predecessor arms; when every incoming edge qualifies, fusing
+/// them all would orphan the dispatch state, so the plan is reported with no
+/// edges.
 pub(crate) fn plan(
     unit: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,

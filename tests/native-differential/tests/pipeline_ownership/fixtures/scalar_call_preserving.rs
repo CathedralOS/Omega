@@ -50,6 +50,7 @@ pub(crate) fn scalar_call_preserving_artifact() -> (Vec<u8>, Vec<u8>) {
         result: OperationResult::Scalar(declaration(result)),
         kind: OperationKind::Call {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: callee.id,
             arguments,
             requirement_obligations: Vec::new(),
@@ -76,6 +77,7 @@ pub(crate) fn scalar_call_preserving_artifact() -> (Vec<u8>, Vec<u8>) {
         entry,
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: entry,
             parameters: Vec::new(),
@@ -112,6 +114,7 @@ pub(crate) fn scalar_call_preserving_artifact() -> (Vec<u8>, Vec<u8>) {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(SCALAR_CALL_PRESERVING_CONTRACT).unwrap(),
             crash_routes: Vec::new(),
             requires: Vec::new(),

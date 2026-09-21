@@ -8,7 +8,7 @@ use super::{AbstractOperation, AbstractOperationPlan, AbstractResult, NativeTarg
 use calling_conventions::{CallPlan, ValueClass, ValueShape};
 use semantic_vocabulary::{MachineId, ValueId};
 use target_operations::{
-    TargetControlTerminator, TargetDynamicDescriptorArgument,
+    TargetControlSuccessor, TargetControlTerminator, TargetDynamicDescriptorArgument,
     TargetDynamicDescriptorInstanceSource, TargetDynamicDescriptorParameterAbi, TargetFunction,
     TargetOperationPlan, TargetUnitOperation, TargetUnitScalarHomeRequirement,
 };
@@ -281,13 +281,41 @@ fn parameter_dispatch_row_replays_requirement_slot_and_result_home() {
         assert_eq!(home.source_value, result.value);
         assert_eq!(home.scalar_type, result.scalar_type);
         // The result home is a live scalar definition the block terminator
-        // consumes as the function's returned value.
+        // consumes as the function's returned value. Return values cross block
+        // boundaries through explicit edge bindings, so the return's source is
+        // a block parameter whose argument chain reaches the result home.
+        let mut bound_source = std::collections::BTreeMap::new();
+        for block in &finish.graph.blocks {
+            let successors: Vec<&TargetControlSuccessor> = match &block.terminator {
+                TargetControlTerminator::Jump { successor } => vec![successor],
+                TargetControlTerminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => vec![when_true, when_false],
+                _ => Vec::new(),
+            };
+            for successor in successors {
+                for binding in &successor.bindings {
+                    bound_source.insert(binding.parameter, binding.argument);
+                }
+            }
+        }
         let returns_result = finish.graph.blocks.iter().any(|block| {
-            matches!(
-                block.terminator,
-                TargetControlTerminator::ReturnScalar { source_value, .. }
-                    if source_value == home.source_value
-            )
+            let TargetControlTerminator::ReturnScalar { source_value, .. } = block.terminator
+            else {
+                return false;
+            };
+            let mut returned = source_value;
+            loop {
+                if returned == home.source_value {
+                    return true;
+                }
+                match bound_source.get(&returned) {
+                    Some(argument) => returned = *argument,
+                    None => return false,
+                }
+            }
         });
         assert!(returns_result, "dispatch result home feeds the return edge");
     }

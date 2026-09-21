@@ -73,6 +73,7 @@ use crate::deployment_plan::{
     EndpointDirection, EndpointKey, Identity, InstanceName, PlanInstance,
 };
 use crate::plan_verification::CheckedPlan;
+use crate::verified_components::{AdmittedComponent, component_subject_identity};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::sync::Arc;
@@ -85,8 +86,9 @@ use std::sync::Arc;
 /// never checked cannot reach here because `CheckedPlan` is only
 /// constructible by the verifier. The authorization is compared exactly:
 /// its expected request commitment must equal the plan's recorded
-/// commitment, and each artifact's verified component subject must equal
-/// the roster's.
+/// commitment, and each artifact's admission — the verified component
+/// description the artifact was admitted under — must re-derive the
+/// roster's recorded component subject and verification profile.
 pub fn prepare_installation<A: PipeAdapter>(
     checked: CheckedPlan,
     authorization: InstallationAuthorization,
@@ -123,10 +125,27 @@ pub fn prepare_installation<A: PipeAdapter>(
                 leaked: Vec::new(),
             });
         }
-        if artifact.component_subject != instance.component.subject {
+        if component_subject_identity(&artifact.admission.component.subject())
+            != instance.component.subject
+        {
             return Err(PrepareError::Rejected {
                 rejection: InstallationRejection::ArtifactMismatch {
                     instance: index as u32,
+                    field: "component_subject",
+                },
+                leaked: Vec::new(),
+            });
+        }
+        // The artifact's admission must bind the same profile the plan's
+        // component record claims the description was admitted under — an
+        // artifact admitted under a different profile is a substitution
+        // even when its subject happens to match.
+        if artifact.admission.request.profile_identity() != instance.component.verification_profile
+        {
+            return Err(PrepareError::Rejected {
+                rejection: InstallationRejection::ArtifactMismatch {
+                    instance: index as u32,
+                    field: "verification_profile",
                 },
                 leaked: Vec::new(),
             });
@@ -626,13 +645,23 @@ impl fmt::Display for ChannelEnd {
 }
 
 /// One executable admitted through generic executable installation.
+///
+/// The component subject is carried as the admission itself — the
+/// `VerifiedComponent` the artifact was admitted under — rather than a
+/// caller-supplied identity, so a roster slot can only ever name a
+/// subject `verify_component` actually admitted, under the exact
+/// request the admission recorded. `Arc` keeps the verified description
+/// shared evidence: the same admission can back the plan roster, this
+/// artifact row, and the supervisor's own record without copying the
+/// module.
 #[derive(Debug, Clone)]
 pub struct AdmittedArtifact {
     /// Exact artifact identity from executable admission.
     pub artifact: Identity,
-    /// The component subject admission verified the artifact implements;
-    /// it must equal the roster instance's component subject.
-    pub component_subject: Identity,
+    /// The component admission the artifact was verified under; its
+    /// derived subject and request profile must equal the roster
+    /// instance's recorded component record.
+    pub admission: Arc<AdmittedComponent>,
 }
 
 /// What the supervisor hands the installer, independent of any candidate
@@ -741,8 +770,12 @@ pub enum InstallationRejection {
     UnauthorizedRequest { expected: Identity, found: Identity },
     /// The artifact roster does not match the instance roster.
     ArtifactCount { expected: usize, found: usize },
-    /// An artifact's verified component subject differs from the instance's.
-    ArtifactMismatch { instance: u32 },
+    /// An artifact's admission diverges from the instance's recorded
+    /// component facts; `field` names the first divergent record —
+    /// `component_subject` when the admission verifies a different
+    /// subject, `verification_profile` when the admission's request
+    /// profile differs from the profile the plan claims.
+    ArtifactMismatch { instance: u32, field: &'static str },
     /// The reserved zero identity appeared where an exact one is required.
     NullIdentity { field: &'static str },
     /// The adapter reported one physical token for two distinct ends — a
@@ -780,9 +813,9 @@ impl fmt::Display for InstallationRejection {
                 formatter,
                 "authorization admits {found} artifacts, the roster requires {expected}"
             ),
-            Self::ArtifactMismatch { instance } => write!(
+            Self::ArtifactMismatch { instance, field } => write!(
                 formatter,
-                "artifact for instance {instance} implements a different component subject"
+                "artifact for instance {instance} diverges on {field}"
             ),
             Self::NullIdentity { field } => {
                 write!(formatter, "{field} uses the reserved zero identity")

@@ -4,9 +4,9 @@ use crate::tests::{
     AdmissionProfile, CertificateEnvelope, EdgeId, EvidenceIdentity, EvidenceRoute, IntegerValue,
     NativeTarget, ObligationEvidence, ObligationId, Operation, OperationId, OperationKind,
     OperationResult, Optimization, OptimizationSelections, ProofBundle, ProofSystemMarker,
-    Terminator, ValueDeclaration, ValueId, compiler_baseline_request_v1,
+    TerminalModule, Terminator, ValueDeclaration, ValueId, compiler_baseline_request_v1,
     conditional_immediate_module, conditional_u64_integer_equal_parameters_machine,
-    optimize_artifact_sections, reconstruct_operation_obligations, reseal_proof,
+    encode_fixture_sections, optimize_artifact_sections, reconstruct_operation_obligations,
     stage_function_fragment_frame_application, stage_optimized_fixed_frame_text_section,
     stage_optimized_function_fragment_emission, stage_optimized_relocation_free_object_container,
     stage_optimized_verified_physical_pipeline_with_provider_executions,
@@ -19,6 +19,11 @@ mod control_flow;
 mod framed_rel8;
 
 fn artifact(value: u64) -> (Vec<u8>, Vec<u8>) {
+    let (module, proof) = artifact_parts(value);
+    encode_fixture_sections(&module, &proof)
+}
+
+pub(super) fn artifact_parts(value: u64) -> (TerminalModule, ProofBundle) {
     let mut entry = conditional_u64_integer_equal_parameters_machine(28_000, [1, 0]);
     let mut middle = conditional_u64_integer_equal_parameters_machine(28_100, [1, 0]);
     let mut leaf = conditional_u64_integer_equal_parameters_machine(28_200, [1, 0]);
@@ -43,6 +48,7 @@ fn artifact(value: u64) -> (Vec<u8>, Vec<u8>) {
         }),
         kind: OperationKind::Call {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee,
             arguments: vec![argument],
             requirement_obligations: Vec::new(),
@@ -80,15 +86,11 @@ fn artifact(value: u64) -> (Vec<u8>, Vec<u8>) {
         cleanup_actions: Vec::new(),
     };
     let module = conditional_immediate_module(entry.id, vec![entry, middle, leaf]);
-    (
-        terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_section(&module, &ProofBundle::default()).unwrap(),
-    )
+    (module, ProofBundle::default())
 }
 
 fn preserving_artifact(value: u64) -> (Vec<u8>, Vec<u8>) {
-    let (semantic, proof) = artifact(value);
-    let mut module = terminal_codec::decode_module(&semantic).unwrap();
+    let (mut module, proof) = artifact_parts(value);
     // Both inputs affect the result. A lost original parameter or a lost
     // earlier call result makes the second equality return zero.
     let leaf = conditional_u64_integer_equal_parameters_machine(28_200, [u128::from(value), 0]);
@@ -114,15 +116,11 @@ fn preserving_artifact(value: u64) -> (Vec<u8>, Vec<u8>) {
     };
     *value = ValueId::new(28_131).unwrap();
     module.machines[2] = leaf;
-    (
-        terminal_codec::encode_module(&module).unwrap(),
-        reseal_proof(&module, &proof),
-    )
+    encode_fixture_sections(&module, &proof)
 }
 
 fn discarded_call_result_artifact(value: u64) -> (Vec<u8>, Vec<u8>) {
-    let (semantic, proof) = artifact(value);
-    let mut module = terminal_codec::decode_module(&semantic).unwrap();
+    let (mut module, proof) = artifact_parts(value);
     let middle = &mut module.machines[1];
     let mut second = middle.blocks[0].operations[0].clone();
     second.id = OperationId::new(28_130).unwrap();
@@ -137,10 +135,7 @@ fn discarded_call_result_artifact(value: u64) -> (Vec<u8>, Vec<u8>) {
     middle.blocks[0].operations.push(second);
     // Return the first call's result. The second call must still execute:
     // ordered calls are not reconstructed from the returned value's ancestry.
-    (
-        terminal_codec::encode_module(&module).unwrap(),
-        reseal_proof(&module, &proof),
-    )
+    encode_fixture_sections(&module, &proof)
 }
 
 #[test]

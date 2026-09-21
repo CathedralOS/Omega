@@ -1,0 +1,77 @@
+{
+  "schema": "omega-benchmark-record/1",
+  "recorded_utc": "2026-09-21T02:46:26Z",
+  "subject": {
+    "name": "structural_proofs",
+    "root": "samples/cli/proofs/structural_proofs/main.omg",
+    "source_revision": "5e2d355a02c0df9497096d160d897a099d7e47db"
+  },
+  "key": {
+    "target": "linux_x86_64",
+    "selection": {
+      "enabled": [],
+      "disabled": []
+    },
+    "selection_source": "build.omg enable calls plus --enable/--disable"
+  },
+  "host": {
+    "os": "linux",
+    "machine": "x86_64",
+    "cpu": "INTEL(R) XEON(R) PLATINUM 8559C",
+    "logical_cpus": 8,
+    "python": "3.10.12",
+    "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+    "omega_binary": "target/debug/omega",
+    "omega_profile": "dev"
+  },
+  "metrics": {
+    "compile_time_ms": {
+      "status": "measured",
+      "unit": "ms",
+      "samples": [
+        33947.861881999415,
+        34932.92971699702,
+        34995.55689100089
+      ],
+      "median_ms": 34932.92971699702,
+      "min_ms": 33947.861881999415,
+      "stage_timings_last_sample_ms": {
+        "prepare: project -> prepared sources": 5.232,
+        "compile: sources -> requested product": 34771.961,
+        "publish: retained product -> published product": 198.929,
+        "total elapsed": 34976.652
+      }
+    },
+    "peak_memory_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "compile_max_rss": 150704128,
+      "run_max_rss": null
+    },
+    "code_size_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "samples": [
+        8192,
+        8192,
+        8192
+      ],
+      "value": 8192,
+      "stable": true
+    },
+    "runtime_ms": {
+      "status": "skipped",
+      "unit": "ms",
+      "samples": [],
+      "median_ms": null,
+      "min_ms": null,
+      "exit_codes": [],
+      "exit_code_expected": null,
+      "stdin": "devnull",
+      "reason": "--no-run was passed"
+    }
+  },
+  "notes": [
+    "measured on linux x86_64 host; proof subject emits no runtime code, runtime leg skipped"
+  ]
+}

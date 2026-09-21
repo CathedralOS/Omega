@@ -513,6 +513,7 @@ mod tests {
                 entry: block,
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: block,
                     structural_parameters: Vec::new(),
                     parameters: Vec::new(),
@@ -521,6 +522,7 @@ mod tests {
                 }],
                 contract: MachineContract {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: id(1, ContractId::new),
                     crash_routes,
                     requires: Vec::new(),

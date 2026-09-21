@@ -54,6 +54,10 @@ pub(crate) fn validate_computation_calls(
     let mut pending = vec![(root, false, authored_root)];
     let mut active = Vec::new();
     let mut calls = Vec::new();
+    // Discriminant-dispatch selection chains pair each link with the authored
+    // match's next classifier arm; the DFS walk visits the head link first.
+    let mut case_selection_arms: std::collections::HashMap<ExpressionHandle, usize> =
+        std::collections::HashMap::new();
     while let Some((handle, exiting, authored_scope)) = pending.pop() {
         if exiting {
             active.pop();
@@ -284,6 +288,44 @@ pub(crate) fn validate_computation_calls(
                     *source_expression,
                     node.primitive_type,
                 )?;
+                if let ExpressionNode::Match(dispatch) =
+                    checked.expression_table.expression(*source_expression)
+                {
+                    select_case_arm(
+                        checked,
+                        machine,
+                        state,
+                        plans,
+                        &mut pending,
+                        &mut case_selection_arms,
+                        *source_expression,
+                        dispatch,
+                        *condition,
+                        *when_true,
+                        *when_false,
+                    )?;
+                    continue;
+                }
+                if let Some(arguments) =
+                    operand_scopes::pure_scalar_builtin_arguments(checked, *source_expression)
+                {
+                    // A pure scalar builtin selects between both evaluated
+                    // operands: `min(a, b)` lowers as `(a <= b) ? a : b`, so
+                    // the operand scopes are the call's authored arguments and
+                    // the synthesized comparison keeps the call's own scope.
+                    let arguments = checked.expression_table.expression_handles(arguments);
+                    let [true_scope, false_scope] = *arguments else {
+                        return unsupported(
+                            "computed selection lost its authored operand positions",
+                        );
+                    };
+                    pending.extend([
+                        (*when_false, false, false_scope),
+                        (*when_true, false, true_scope),
+                        (*condition, false, *source_expression),
+                    ]);
+                    continue;
+                }
                 let (condition_scope, selected_scope, evaluate_when) =
                     operand_scopes::selection(checked, *source_expression)?;
                 let (selected, skipped) = if evaluate_when {
@@ -417,8 +459,102 @@ pub(crate) fn validate_computation_calls(
         source.statement_index == statement as usize
             && executable.contains(&source.authored_expression)
             && !calls.contains(&source.authored_expression)
+            && !checked
+                .symbols
+                .builtin_function_for_symbol(source.target_symbol)
+                .is_some_and(symbols::BuiltinFunction::has_empty_write_frame)
     }) {
         return unsupported("computed invocation omitted an authored source call");
+    }
+    Ok(())
+}
+
+/// A discriminant dispatch lowers to a chain of selections over the authored
+/// match's classifier arms, in order: each link's condition is that arm's
+/// case-membership observation over the match, its taken operand is the arm's
+/// authored value, and its tail is either the next link or the wildcard arm's
+/// value. The chain carries no evaluated pattern operand, so the And/Or scope
+/// rules do not apply.
+fn select_case_arm(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    plans: &checked_trees::CheckedScalarComputationPlans,
+    pending: &mut Vec<(CheckedScalarComputationHandle, bool, ExpressionHandle)>,
+    case_selection_arms: &mut std::collections::HashMap<ExpressionHandle, usize>,
+    source_expression: ExpressionHandle,
+    dispatch: &checked_trees::expression::TableMatchExpression,
+    condition: CheckedScalarComputationHandle,
+    when_true: CheckedScalarComputationHandle,
+    when_false: CheckedScalarComputationHandle,
+) -> Result<(), LoweringError> {
+    let typed_machine = checked
+        .machines()
+        .iter()
+        .find(|candidate| candidate.symbol == machine)
+        .ok_or(LoweringError::Unsupported(
+            "computed selection lost its source machine",
+        ))?;
+    let typed_state = checked
+        .machine_states(typed_machine)
+        .iter()
+        .find(|candidate| candidate.symbol == state)
+        .ok_or(LoweringError::Unsupported(
+            "computed selection lost its source state",
+        ))?;
+    let plan =
+        validation::match_case_dispatch(&checked.typed, typed_machine, typed_state, dispatch)
+            .ok_or(LoweringError::Unsupported(
+                "computed selection lost its discriminant dispatch",
+            ))?;
+    let ordinal = case_selection_arms
+        .get(&source_expression)
+        .copied()
+        .unwrap_or(0);
+    case_selection_arms.insert(source_expression, ordinal + 1);
+    let arm = plan
+        .arms
+        .get(ordinal)
+        .filter(|arm| arm.case.is_some())
+        .ok_or(LoweringError::Unsupported(
+            "computed selection lost its classifier arm order",
+        ))?;
+    let observed = arm.case.ok_or(LoweringError::Unsupported(
+        "computed selection lost its classifier arm",
+    ))?;
+    if !plans.nodes.is_valid(condition)
+        || !matches!(
+            &plans.nodes.get(condition).kind,
+            CheckedScalarComputationKind::CaseMembership {
+                source_expression: source,
+                case,
+                ..
+            } if *source == source_expression && *case == observed
+        )
+    {
+        return unsupported("computed selection substituted its membership condition");
+    }
+    pending.push((when_true, false, arm.value));
+    pending.push((condition, false, source_expression));
+    match plan.arms.get(ordinal + 1) {
+        Some(next) if next.case.is_some() => {
+            if !plans.nodes.is_valid(when_false)
+                || !matches!(
+                    &plans.nodes.get(when_false).kind,
+                    CheckedScalarComputationKind::Select {
+                        source_expression: source,
+                        ..
+                    } if *source == source_expression
+                )
+            {
+                return unsupported("computed selection lost its next case arm");
+            }
+            pending.push((when_false, false, source_expression));
+        }
+        Some(wildcard) if wildcard.case.is_none() && ordinal + 1 == plan.arms.len() - 1 => {
+            pending.push((when_false, false, wildcard.value));
+        }
+        _ => return unsupported("computed selection has no wildcard tail"),
     }
     Ok(())
 }

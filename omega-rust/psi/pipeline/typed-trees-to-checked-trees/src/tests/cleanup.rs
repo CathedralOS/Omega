@@ -203,8 +203,8 @@ fn ordinary_drop_spelling_remains_callable() {
 }
 
 #[test]
-fn executable_cleanup_rejects_repeated_nonempty_or_argumented_helpers() {
-    rejects(
+fn accepts_repeated_nonempty_or_argumented_hook_bodies() {
+    for source in [
         r#"
             data Helper {}
             machine Helper::touch() {}
@@ -214,9 +214,6 @@ fn executable_cleanup_rejects_repeated_nonempty_or_argumented_helpers() {
                 Helper::touch();
             }
         "#,
-        "outside the executable cleanup slice",
-    );
-    rejects(
         r#"
             data Leaf {}
             machine Leaf::finish() {}
@@ -230,17 +227,19 @@ fn executable_cleanup_rejects_repeated_nonempty_or_argumented_helpers() {
                 Second::touch();
             }
         "#,
-        "outside the executable cleanup slice",
-    );
-    rejects(
         r#"
             data Helper {}
             machine Helper::touch(value: u8) {}
             data Wrapper { value: i32; }
             machine Wrapper::drop(&mut self) { Helper::touch(1u8); }
         "#,
-        "outside the executable cleanup slice",
-    );
+    ] {
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        lower_typed_trees(typed).expect("an ordinary hook body is checked like any Unit machine");
+    }
 }
 
 #[test]

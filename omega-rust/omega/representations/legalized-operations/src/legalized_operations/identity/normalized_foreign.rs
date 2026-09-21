@@ -1,7 +1,7 @@
 //! Evaluated normalized foreign call identity: the typed locator, admitted
 //! provider execution, boundary-entry plan, and exact argument/result homes
 //! encode as one indivisible row.
-use super::calling::{encode_call_plan, encode_placement, encode_shape};
+use super::calling::{encode_call_plan, encode_native_place, encode_placement, encode_shape};
 use super::scalar::{encode_integer, encode_integer_type, encode_scalar_type};
 use super::shared::*;
 use super::structural::encode_provider_execution;
@@ -32,6 +32,68 @@ pub(super) fn encode(bytes: &mut Vec<u8>, call: &LegalizedNormalizedForeignCall)
             encode_scalar_home(bytes, home);
         }
         None => bytes.push(0),
+    }
+    match &call.callback {
+        Some(callback) => {
+            bytes.push(1);
+            encode_native_callback_argument(bytes, callback);
+        }
+        None => bytes.push(0),
+    }
+}
+
+/// The retained registrar roster row: authored-use operation, thunk slot,
+/// private function identity, the exact native application, the registrar's
+/// own boundary-entry plan, its binder/demand context, and the sealed
+/// application commitment. Every field is retained custody, not derivation.
+fn encode_native_callback_argument(
+    bytes: &mut Vec<u8>,
+    callback: &target_operations::TargetNativeCallbackArgument,
+) {
+    bytes.extend_from_slice(&callback.terminal_operation.get().to_le_bytes());
+    bytes.extend_from_slice(&(callback.placement_index as u64).to_le_bytes());
+    encode_machine_function_identity(bytes, &callback.callback_function);
+    bytes.extend_from_slice(&callback.application.parameter.get().to_le_bytes());
+    bytes.extend_from_slice(&callback.application.native_ordinal.to_le_bytes());
+    encode_shape(bytes, callback.application.shape);
+    encode_placement(bytes, &callback.application.placement);
+    encode_call_plan(bytes, &callback.registrar_boundary_entry_plan.call);
+    encode_state_plan(bytes, &callback.registrar_boundary_entry_plan.state);
+    encode_len(bytes, callback.registrar_context.binders.len());
+    for row in &callback.registrar_context.binders {
+        bytes.extend_from_slice(&row.binder.get().to_le_bytes());
+        bytes.extend_from_slice(&row.requirement.get().to_le_bytes());
+    }
+    encode_len(bytes, callback.registrar_context.demands.len());
+    for demand in &callback.registrar_context.demands {
+        encode_native_place(bytes, &demand.destination);
+        bytes.extend_from_slice(&demand.requirement.get().to_le_bytes());
+    }
+    bytes.extend_from_slice(&callback.registrar_application_commitment);
+}
+
+/// Machine-function identity encodes its kind, retained source continuation,
+/// and thunk placement slot. The continuation's arena coordinates are exact
+/// identity, not an addressable reference.
+fn encode_machine_function_identity(
+    bytes: &mut Vec<u8>,
+    identity: &function_identity::MachineFunctionIdentity,
+) {
+    let continuation = identity.associated_source_continuation();
+    bytes.extend_from_slice(&continuation.machine.arena_index().to_le_bytes());
+    bytes.extend_from_slice(&continuation.machine.generation().to_le_bytes());
+    bytes.extend_from_slice(&continuation.state.arena_index().to_le_bytes());
+    bytes.extend_from_slice(&continuation.state.generation().to_le_bytes());
+    bytes.extend_from_slice(&(continuation.segment_index as u64).to_le_bytes());
+    if let Some(placement_index) = identity.callback_thunk_placement_index() {
+        bytes.push(3);
+        bytes.extend_from_slice(&(placement_index as u64).to_le_bytes());
+    } else if identity.source_key().is_some() {
+        bytes.push(1);
+    } else if identity.program_storage_entry_continuation().is_some() {
+        bytes.push(2);
+    } else {
+        bytes.push(0);
     }
 }
 

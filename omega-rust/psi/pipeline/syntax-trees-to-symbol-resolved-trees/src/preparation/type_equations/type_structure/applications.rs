@@ -1,26 +1,57 @@
 //! Nominal constructors decompose by declaration identity and parameter kind.
 //! Original application trees survive synthesis; generated display names never
 //! recover their arguments. This is structural matching, not const evaluation.
+//! Declared domains join the same tuple discipline: a carrier-qualified
+//! `u64::AtMost<N>` head and the constrained `u64 in AtMost<N>` spelling name
+//! the same application, indices bind by the family's declared telescope, and
+//! distinct indices gain no implicit variance — a predicate is never searched
+//! for a maximum.
 
 use super::super::{Binding, Solver, const_binder_envelope, normalized_boolean_argument};
-use crate::preparation::generic_data::{ClosedArgumentIdentity, closed_name_identity};
+use crate::preparation::generic_data::{
+    ClosedArgumentIdentity, closed_argument_identity, closed_name_identity,
+};
 use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstValue;
 use numerics::bignum::BigInt;
 use source::SourceSpan;
 use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{Item, ItemHandle, TypeParameter, TypeParameterKind};
-use syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use syntax_trees::item::{DomainDefinition, Item, ItemHandle, TypeParameter, TypeParameterKind};
+use syntax_trees::types::{
+    DomainConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 
-struct Application {
+pub(super) struct Application {
     name: Identifier,
     declaration: ItemHandle,
     arguments: Vec<TypeReferenceHandle>,
     parameters: Vec<TypeParameter>,
+    /// `Some` when the head is a declared domain: construction emits the
+    /// constrained runtime spelling rather than a nominal generic node.
+    domain: Option<DomainApplication>,
+}
+
+struct DomainApplication {
+    /// The declaration's qualified name; it materializes the constraint name
+    /// verbatim so module-law selection decides reachability downstream.
+    declared_name: Identifier,
+    /// The matched carrier: the declared target for a `Carrier::Name<..>`
+    /// head, the authored base for a `base in Name<..>` constraint.
+    carrier: TypeReferenceHandle,
+}
+
+/// One in-forest `domain` declaration selected as an application head.
+struct DomainHead {
+    declaration: ItemHandle,
+    declared_name: Identifier,
+    /// The family's index telescope: its declared parameters minus a leading
+    /// type binder that names a generic carrier (`domain<T> T::Foreign`).
+    index_parameters: Vec<TypeParameter>,
+    target_type: TypeReferenceHandle,
 }
 
 impl Solver<'_, '_> {
-    fn application(
+    pub(super) fn application(
         &self,
         reference: TypeReferenceHandle,
         pattern: bool,
@@ -31,46 +62,104 @@ impl Solver<'_, '_> {
             .type_references
             .generic_application_origin(reference);
         let reference = if origin.is_valid() { origin } else { reference };
-        let TypeReferenceNode::Generic {
-            base_name,
-            lifetime_arguments,
-            arguments,
-        } = self.syntax.type_references.type_reference(reference)
-        else {
-            return Err(self.type_structure_error("requires an exact declared application", span));
-        };
-        if pattern && self.parameter_position(base_name.as_str()).is_some() {
-            return Err(
-                self.type_structure_error("cannot use a binder as a nominal constructor", span)
-            );
+        match self.syntax.type_references.type_reference(reference) {
+            TypeReferenceNode::Generic {
+                base_name,
+                lifetime_arguments,
+                arguments,
+            } => {
+                if pattern && self.parameter_position(base_name.as_str()).is_some() {
+                    return Err(self.type_structure_error(
+                        "cannot use a binder as a nominal constructor",
+                        span,
+                    ));
+                }
+                let arguments = self
+                    .syntax
+                    .type_references
+                    .type_reference_handles(*arguments)
+                    .to_vec();
+                let (name, declaration, parameters, domain) =
+                    match closed_name_identity(self.syntax, self.selection, base_name) {
+                        Some(ClosedArgumentIdentity::Nominal(declaration)) => {
+                            let Item::Data(definition) = self.syntax.root_item(declaration) else {
+                                return Err(
+                                    self.type_structure_error("requires a data constructor", span)
+                                );
+                            };
+                            if !lifetime_arguments.is_empty()
+                                || !definition.lifetime_parameters.is_empty()
+                                || definition.generic_instance.is_some()
+                            {
+                                return Err(self.type_structure_error(
+                                    "requires original lifetime-free application structure",
+                                    span,
+                                ));
+                            }
+                            (
+                                base_name.clone(),
+                                declaration,
+                                self.syntax
+                                    .items
+                                    .type_parameters(definition.type_parameters)
+                                    .to_vec(),
+                                None,
+                            )
+                        }
+                        _ => {
+                            let Some(domain) = self.domain_head(base_name) else {
+                                return Err(self.type_structure_error(
+                                    "requires a selected application declaration",
+                                    span,
+                                ));
+                            };
+                            if !lifetime_arguments.is_empty() {
+                                return Err(self.type_structure_error(
+                                    "requires original lifetime-free application structure",
+                                    span,
+                                ));
+                            }
+                            (
+                                base_name.clone(),
+                                domain.declaration,
+                                domain.index_parameters,
+                                Some(DomainApplication {
+                                    declared_name: domain.declared_name,
+                                    carrier: domain.target_type,
+                                }),
+                            )
+                        }
+                    };
+                self.complete_application(name, declaration, parameters, arguments, domain, span)
+            }
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                let constraints = self.syntax.type_references.constraints(*constraints);
+                let [TypeConstraintNode::Domain(constraint)] = constraints else {
+                    return Err(
+                        self.type_structure_error("requires an exact declared application", span)
+                    );
+                };
+                self.domain_constraint_application(*base_type, constraint, span)
+            }
+            _ => Err(self.type_structure_error("requires an exact declared application", span)),
         }
-        let Some(ClosedArgumentIdentity::Nominal(declaration)) =
-            closed_name_identity(self.syntax, self.selection, base_name)
-        else {
-            return Err(
-                self.type_structure_error("requires a selected application declaration", span)
-            );
-        };
-        let Item::Data(definition) = self.syntax.root_item(declaration) else {
-            return Err(self.type_structure_error("requires a data constructor", span));
-        };
-        if !lifetime_arguments.is_empty()
-            || !definition.lifetime_parameters.is_empty()
-            || definition.generic_instance.is_some()
-        {
-            return Err(self.type_structure_error(
-                "requires original lifetime-free application structure",
-                span,
-            ));
-        }
-        let parameters = self
-            .syntax
-            .items
-            .type_parameters(definition.type_parameters);
-        let arguments = self
-            .syntax
-            .type_references
-            .type_reference_handles(*arguments);
+    }
+
+    /// The tuple discipline shared by nominal and domain applications: arity
+    /// against the head's declared telescope, then only type and scalar const
+    /// indices.
+    fn complete_application(
+        &self,
+        name: Identifier,
+        declaration: ItemHandle,
+        parameters: Vec<TypeParameter>,
+        arguments: Vec<TypeReferenceHandle>,
+        domain: Option<DomainApplication>,
+        span: SourceSpan,
+    ) -> Result<Application, Diagnostic> {
         if parameters.len() != arguments.len() {
             return Err(
                 self.type_structure_error("requires a complete constructor argument tuple", span)
@@ -88,11 +177,162 @@ impl Solver<'_, '_> {
             ));
         }
         Ok(Application {
-            name: base_name.clone(),
+            name,
             declaration,
-            arguments: arguments.to_vec(),
-            parameters: parameters.to_vec(),
+            arguments,
+            parameters,
+            domain,
         })
+    }
+
+    /// A carrier-qualified head selects the in-forest domain by leaf name and
+    /// carrier: `u64::AtMost` reaches `domain<const C: u64> u64::AtMost<C>`,
+    /// whose declared name retains only the domain segments. A generic-carrier
+    /// family (`domain<T> T::Foreign`) declines: its binder needs its own
+    /// binding law before an application can be structural.
+    fn domain_head(&self, name: &Identifier) -> Option<DomainHead> {
+        let spelled = name.as_str();
+        let (carrier, leaf) = match spelled.rsplit_once("::") {
+            Some((carrier, leaf)) => (Some(carrier), leaf),
+            None => (None, spelled),
+        };
+        let mut candidates = self
+            .syntax
+            .root_item_handles()
+            .iter()
+            .copied()
+            .filter(|handle| {
+                let Item::Domain(definition) = self.syntax.root_item(*handle) else {
+                    return false;
+                };
+                let declared = definition.name.as_str();
+                let declared_leaf = declared.rsplit("::").next().unwrap_or(declared);
+                if declared != spelled && declared_leaf != leaf {
+                    return false;
+                }
+                match carrier {
+                    None => true,
+                    Some(carrier) => matches!(
+                        self.syntax
+                            .type_references
+                            .type_reference(definition.target_type),
+                        TypeReferenceNode::Named(target) if target.as_str() == carrier
+                    ),
+                }
+            });
+        let declaration = candidates.next()?;
+        if candidates.next().is_some() {
+            return None;
+        }
+        let Item::Domain(definition) = self.syntax.root_item(declaration) else {
+            return None;
+        };
+        let (index_parameters, generic_carrier) = self.domain_index_parameters(definition);
+        if generic_carrier {
+            return None;
+        }
+        Some(DomainHead {
+            declaration,
+            declared_name: definition.name.clone(),
+            index_parameters,
+            target_type: definition.target_type,
+        })
+    }
+
+    /// The `base in Name<index, ..>` spelling: the constraint name reaches a
+    /// declaration's leaf or its full qualified name, and the declared carrier
+    /// must be the base's closed identity. Competing carriers or an ambiguous
+    /// leaf decline rather than match on spelling.
+    fn domain_constraint_application(
+        &self,
+        base_type: TypeReferenceHandle,
+        constraint: &DomainConstraint,
+        span: SourceSpan,
+    ) -> Result<Application, Diagnostic> {
+        let decline = || {
+            self.type_structure_error(
+                "requires a selected domain application declaration",
+                constraint.name.source_span(),
+            )
+        };
+        let base = closed_argument_identity(self.syntax, self.selection, base_type, false)
+            .ok_or_else(decline)?;
+        let mut candidates = self
+            .syntax
+            .root_item_handles()
+            .iter()
+            .copied()
+            .filter(|handle| {
+                let Item::Domain(definition) = self.syntax.root_item(*handle) else {
+                    return false;
+                };
+                let declared = definition.name.as_str();
+                let declared_leaf = declared.rsplit("::").next().unwrap_or(declared);
+                let authored = constraint.name.as_str();
+                let authored_leaf = authored.rsplit("::").next().unwrap_or(authored);
+                if declared != authored && declared_leaf != authored_leaf {
+                    return false;
+                }
+                closed_argument_identity(self.syntax, self.selection, definition.target_type, false)
+                    .as_ref()
+                    == Some(&base)
+            });
+        let Some(declaration) = candidates.next() else {
+            return Err(decline());
+        };
+        if candidates.next().is_some() {
+            return Err(decline());
+        }
+        let Item::Domain(definition) = self.syntax.root_item(declaration) else {
+            unreachable!("a domain head is a domain item")
+        };
+        let (index_parameters, generic_carrier) = self.domain_index_parameters(definition);
+        if generic_carrier {
+            return Err(self
+                .type_structure_error("requires a domain application on a closed carrier", span));
+        }
+        let arguments = self
+            .syntax
+            .type_references
+            .type_reference_handles(constraint.arguments)
+            .to_vec();
+        self.complete_application(
+            constraint.name.clone(),
+            declaration,
+            index_parameters,
+            arguments,
+            Some(DomainApplication {
+                declared_name: definition.name.clone(),
+                carrier: base_type,
+            }),
+            span,
+        )
+    }
+
+    /// The family's index telescope and whether its leading type binder names
+    /// the carrier. Concrete carriers like `domain<const C: u64> u64::AtMost<C>`
+    /// keep every declared parameter as an index.
+    fn domain_index_parameters(&self, definition: &DomainDefinition) -> (Vec<TypeParameter>, bool) {
+        let parameters = self
+            .syntax
+            .items
+            .type_parameters(definition.type_parameters);
+        let target_name = match self
+            .syntax
+            .type_references
+            .type_reference(definition.target_type)
+        {
+            TypeReferenceNode::Named(target) => Some(target.as_str()),
+            _ => None,
+        };
+        let generic_carrier = parameters.first().is_some_and(|parameter| {
+            matches!(parameter.kind, TypeParameterKind::Type)
+                && target_name == Some(parameter.name.as_str())
+        });
+        (
+            parameters[usize::from(generic_carrier)..].to_vec(),
+            generic_carrier,
+        )
     }
 
     pub(super) fn match_application(
@@ -209,6 +449,24 @@ impl Solver<'_, '_> {
             .syntax
             .type_references
             .insert_type_reference_handles(arguments);
+        if let Some(domain) = application.domain {
+            let Some(base_type) = self.construct_type_structure(domain.carrier, span)? else {
+                return Ok(None);
+            };
+            let constraints =
+                self.syntax
+                    .type_references
+                    .insert_constraints([TypeConstraintNode::Domain(DomainConstraint {
+                        name: domain.declared_name,
+                        arguments,
+                    })]);
+            return Ok(Some(self.syntax.type_references.insert(
+                TypeReferenceNode::Constrained {
+                    base_type,
+                    constraints,
+                },
+            )));
+        }
         Ok(Some(self.syntax.type_references.insert(
             TypeReferenceNode::Generic {
                 base_name: application.name,
@@ -218,7 +476,7 @@ impl Solver<'_, '_> {
         )))
     }
 
-    fn application_integer(
+    pub(super) fn application_integer(
         &self,
         reference: TypeReferenceHandle,
         binders: bool,
@@ -414,6 +672,53 @@ impl Solver<'_, '_> {
                 "has a constructor constant outside its declared carrier",
                 span,
             ));
+        }
+        Ok(())
+    }
+
+    /// Domain applications have no closed argument identity yet; compare two
+    /// closed occurrences by selected declaration and each index argument.
+    /// This is equality, not matching: binders never bind here.
+    pub(super) fn require_equal_application_structure(
+        &self,
+        expected: TypeReferenceHandle,
+        actual: TypeReferenceHandle,
+        span: SourceSpan,
+    ) -> Result<(), Diagnostic> {
+        let undecidable = || {
+            self.type_structure_error(
+                "cannot decide an open or unsupported element type; supply explicit arguments",
+                span,
+            )
+        };
+        let (Ok(expected), Ok(actual)) = (
+            self.application(expected, false, span),
+            self.application(actual, false, span),
+        ) else {
+            return Err(undecidable());
+        };
+        if expected.declaration != actual.declaration {
+            return Err(self.type_structure_error("has conflicting element types", span));
+        }
+        for ((expected, actual), parameter) in expected
+            .arguments
+            .into_iter()
+            .zip(actual.arguments)
+            .zip(expected.parameters)
+        {
+            match parameter.kind {
+                TypeParameterKind::Type => {
+                    self.require_equal_type_structure(expected, actual, span)?;
+                }
+                TypeParameterKind::Const { .. } => {
+                    let expected = self.application_integer(expected, false, span)?;
+                    let actual = self.application_integer(actual, false, span)?;
+                    if expected != actual || expected.is_none() {
+                        return Err(undecidable());
+                    }
+                }
+                _ => return Err(undecidable()),
+            }
         }
         Ok(())
     }

@@ -14,6 +14,19 @@ const BUILD_SCOPE_TOPOLOGY_BUILD: &str =
     include_str!("../../../../tests/fixtures/packages/build-scope-topology/topology/build.omg");
 const BUILD_SCOPE_TOPOLOGY_POLICIES: &str =
     include_str!("../../../../tests/fixtures/packages/build-scope-topology/topology/policies.omg");
+const BUILD_SCOPE_TOPOLOGY_COMPOSE: &str =
+    include_str!("../../../../tests/fixtures/packages/build-scope-topology/topology/compose.omg");
+const BUILD_SCOPE_TOPOLOGY_DIGEST: &str =
+    include_str!("../../../../tests/fixtures/packages/build-scope-topology/topology/digest.omg");
+const BUILD_SCOPE_INPUT_REQUEST: &[u8] = include_bytes!(
+    "../../../../tests/fixtures/packages/build-scope-topology/root/inputs/request.bin"
+);
+const BUILD_SCOPE_INPUT_COMPONENTS: &[u8] = include_bytes!(
+    "../../../../tests/fixtures/packages/build-scope-topology/root/inputs/components.bin"
+);
+const BUILD_SCOPE_INPUT_BINDINGS: &[u8] = include_bytes!(
+    "../../../../tests/fixtures/packages/build-scope-topology/root/inputs/bindings.bin"
+);
 
 /// The root declares `topology` only in the build scope; the topology
 /// package sits beside the root exactly as the authored `../topology` edge
@@ -21,10 +34,28 @@ const BUILD_SCOPE_TOPOLOGY_POLICIES: &str =
 fn build_scope_fixture() -> Fixture {
     let fixture = Fixture::new();
     fs::create_dir(fixture.path("topology")).unwrap();
+    fs::create_dir(fixture.path("root/inputs")).unwrap();
     fixture.write("root/build.omg", BUILD_SCOPE_ROOT_BUILD);
     fixture.write("root/main.omg", BUILD_SCOPE_ROOT_MAIN);
     fixture.write("topology/build.omg", BUILD_SCOPE_TOPOLOGY_BUILD);
     fixture.write("topology/policies.omg", BUILD_SCOPE_TOPOLOGY_POLICIES);
+    fixture.write("topology/compose.omg", BUILD_SCOPE_TOPOLOGY_COMPOSE);
+    fixture.write("topology/digest.omg", BUILD_SCOPE_TOPOLOGY_DIGEST);
+    fs::write(
+        fixture.path("root/inputs/request.bin"),
+        BUILD_SCOPE_INPUT_REQUEST,
+    )
+    .unwrap();
+    fs::write(
+        fixture.path("root/inputs/components.bin"),
+        BUILD_SCOPE_INPUT_COMPONENTS,
+    )
+    .unwrap();
+    fs::write(
+        fixture.path("root/inputs/bindings.bin"),
+        BUILD_SCOPE_INPUT_BINDINGS,
+    )
+    .unwrap();
     fixture
 }
 

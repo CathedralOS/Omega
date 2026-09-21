@@ -83,6 +83,7 @@ pub(super) fn nominal_affine_module() -> TerminalModule {
                 entry: block_id(1),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
@@ -118,6 +119,7 @@ pub(super) fn nominal_affine_module() -> TerminalModule {
                 entry: block_id(2),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: Vec::new(),
@@ -256,6 +258,7 @@ pub(super) fn ordered_one_executable_nominal_affine_module() -> TerminalModule {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: helper.id,
             structural_arguments: Vec::new(),
@@ -371,6 +374,7 @@ pub(super) fn ordered_two_distinct_executable_nominal_affine_module() -> Termina
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: helper.id,
             structural_arguments: Vec::new(),
@@ -407,6 +411,7 @@ pub(super) fn ordered_shared_executable_nominal_affine_module() -> TerminalModul
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: helper.id,
             structural_arguments: Vec::new(),
@@ -472,6 +477,7 @@ pub(super) fn executable_nominal_affine_module() -> TerminalModule {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: machine_id(3),
             structural_arguments: Vec::new(),
@@ -498,6 +504,7 @@ pub(super) fn executable_nominal_affine_module() -> TerminalModule {
         entry: block_id(3),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: Vec::new(),
@@ -526,6 +533,7 @@ pub(super) fn two_helper_nominal_affine_module() -> TerminalModule {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: machine_id(4),
             structural_arguments: Vec::new(),
@@ -552,6 +560,7 @@ pub(super) fn two_helper_nominal_affine_module() -> TerminalModule {
         entry: block_id(4),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(4),
             parameters: Vec::new(),
@@ -580,6 +589,7 @@ pub(super) fn three_helper_nominal_affine_module() -> TerminalModule {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: machine_id(5),
             structural_arguments: Vec::new(),
@@ -661,6 +671,7 @@ pub(super) fn partial_affine_field_module() -> TerminalModule {
         entry: block_id(1),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
@@ -670,6 +681,7 @@ pub(super) fn partial_affine_field_module() -> TerminalModule {
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     arguments: Vec::new(),
                     callee: machine_id(2),
                     structural_arguments: vec![StructuralArgument {
@@ -727,6 +739,7 @@ pub(super) fn partial_affine_field_module() -> TerminalModule {
         entry: block_id(2),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),

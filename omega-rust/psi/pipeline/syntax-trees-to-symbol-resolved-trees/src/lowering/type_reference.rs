@@ -21,11 +21,15 @@ pub(crate) fn lower_type_reference_handle(
     syntax_trees: &SyntaxTrees,
     type_reference: syntax::types::TypeReferenceHandle,
 ) -> Result<TypeReference, Diagnostic> {
-    crate::preparation::generic_data::validate_materialized_type_equations(
-        syntax_trees,
-        type_reference,
-        lowerer.constant_selection.as_ref(),
-    )?;
+    // Provisional and probe drives lower references before generic synthesis;
+    // a surviving generic application is only an obligation on the final pass.
+    if !lowerer.structural_type_equations_pending {
+        crate::preparation::generic_data::validate_materialized_type_equations(
+            syntax_trees,
+            type_reference,
+            lowerer.constant_selection.as_ref(),
+        )?;
+    }
     if let Some(normalization) = syntax_trees
         .type_references
         .const_argument_normalization(type_reference)

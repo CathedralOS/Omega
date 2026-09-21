@@ -24,6 +24,7 @@ use super::CodecError;
 use super::machine_wire::{
     decode_declaration, decode_declarations, encode_declaration, encode_declarations,
 };
+use super::proof_term_wire::{decode_proof_formals, encode_proof_formals};
 use super::structural_result_wire::{decode_operation_result, encode_operation_result};
 use super::structural_signature_wire::{
     decode_structural_parameters, encode_structural_parameters,
@@ -79,6 +80,7 @@ pub(crate) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
         "block erased scalar formals",
         &block.erased_scalar_formals,
     )?;
+    encode_proof_formals(writer, &block.erased_proof_formals)?;
     encode_structural_parameters(writer, &block.structural_parameters)?;
     writer.len("operations", block.operations.len())?;
     for operation in &block.operations {
@@ -272,6 +274,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             callee,
             arguments,
             erased_arguments,
+            erased_proof_arguments,
             requirement_obligations,
             crash_continuations,
         } => call_operations::encode_call(
@@ -279,6 +282,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             callee,
             arguments,
             erased_arguments,
+            erased_proof_arguments.clone(),
             requirement_obligations,
             crash_continuations,
         )?,
@@ -286,6 +290,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             callee,
             arguments,
             erased_arguments,
+            erased_proof_arguments,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
@@ -295,6 +300,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             callee,
             arguments,
             erased_arguments,
+            erased_proof_arguments.clone(),
             structural_arguments,
             claim_transfers,
             requirement_obligations,
@@ -304,6 +310,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             callee,
             arguments,
             erased_arguments,
+            erased_proof_arguments,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
@@ -313,6 +320,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             callee,
             arguments,
             erased_arguments,
+            erased_proof_arguments.clone(),
             structural_arguments,
             claim_transfers,
             requirement_obligations,
@@ -384,6 +392,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             callee,
             arguments,
             erased_arguments,
+            erased_proof_arguments,
             structural_arguments,
             claim_transfers,
             returned_claim_transfers,
@@ -394,6 +403,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             callee,
             arguments,
             erased_arguments,
+            erased_proof_arguments.clone(),
             structural_arguments,
             claim_transfers,
             returned_claim_transfers,
@@ -571,6 +581,7 @@ pub(crate) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
     let id = reader.id("BlockId")?;
     let parameters = decode_declarations(reader)?;
     let erased_scalar_formals = decode_declarations(reader)?;
+    let erased_proof_formals = decode_proof_formals(reader)?;
     let structural_parameters = decode_structural_parameters(reader)?;
     let operation_count = reader.count()?;
     let mut operations = Vec::new();
@@ -582,6 +593,7 @@ pub(crate) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
         id,
         parameters,
         erased_scalar_formals,
+        erased_proof_formals,
         structural_parameters,
         operations,
         terminator,
@@ -824,6 +836,7 @@ mod tests {
     fn jump_block(residual_affine_discards: Vec<terminal_psi::StructuralAffineDiscard>) -> Block {
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id(1),
             parameters: Vec::new(),
@@ -834,6 +847,7 @@ mod tests {
                 target: id(3),
                 arguments: vec![id(4)],
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 trivial_affine_discards: vec![id(5)],
                 residual_affine_discards,
             },
@@ -932,6 +946,7 @@ mod tests {
     fn structural_call_block() -> Block {
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
@@ -973,6 +988,7 @@ mod tests {
     fn write_only_primitive_store_uses_exact_stable_wire_fields() {
         let block = Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
@@ -1023,6 +1039,7 @@ mod tests {
     fn structural_scalar_field_operations_use_exact_stable_wire_fields() {
         let store = Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
@@ -1086,6 +1103,7 @@ mod tests {
         let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
         let read = Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(7),
             parameters: Vec::new(),
@@ -1169,6 +1187,7 @@ mod tests {
         for (operation, tag) in operations.into_iter().zip([59, 60]) {
             let block = Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: id::<BlockId>(1),
                 parameters: Vec::new(),
@@ -1232,6 +1251,7 @@ mod tests {
         {
             let block = Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: id(1),
                 parameters: Vec::new(),
                 structural_parameters: Vec::new(),
@@ -1273,6 +1293,7 @@ mod tests {
         ];
         let block = Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id(1),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -1332,6 +1353,7 @@ mod tests {
     fn byte_field_store_roundtrips_every_identity_and_rejects_truncation() {
         let block = Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
@@ -1372,6 +1394,7 @@ mod tests {
     fn byte_sequence_length_wire_binds_exact_source_and_result() {
         let block = Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
@@ -1429,6 +1452,7 @@ mod tests {
     fn byte_sequence_subslice_wire_binds_each_operand_and_structural_result() {
         let block = Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
@@ -1488,6 +1512,7 @@ mod tests {
     fn byte_sequence_write_wire_binds_all_operands_and_unit_result() {
         let block = Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
@@ -1540,6 +1565,7 @@ mod tests {
     fn byte_sequence_read_wire_binds_all_operands() {
         let block = Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
@@ -1591,6 +1617,7 @@ mod tests {
     fn structural_scalar_call_round_trips_scalar_arguments() {
         let block = Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
@@ -1604,6 +1631,7 @@ mod tests {
                 }),
                 kind: OperationKind::CallStructuralScalar {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     callee: id::<MachineId>(4),
                     arguments: vec![id::<ValueId>(5)],
                     structural_arguments: vec![StructuralArgument {
@@ -1637,6 +1665,7 @@ mod tests {
     fn scalar_call_erased_lane_round_trips_and_rejects_pre_change_bytes() {
         let mut block = Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
@@ -1650,6 +1679,7 @@ mod tests {
                 }),
                 kind: OperationKind::CallStructuralScalar {
                     erased_arguments: vec![ScalarTerm::boolean(true)],
+                    erased_proof_arguments: Vec::new(),
                     callee: id::<MachineId>(4),
                     arguments: vec![id::<ValueId>(5)],
                     structural_arguments: vec![StructuralArgument {

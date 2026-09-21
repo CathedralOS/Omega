@@ -246,9 +246,6 @@ pub(super) fn surface(instruction: &SelectedInstruction) -> usize {
 
 /// Why the run-level relocation audit refused a window — one kind per
 /// crossed contract so a caller can keep reporting its own typed errors.
-/// Dead until a relocation family migrates — module registration and the
-/// roster live under the catalog owner's claim.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum RunRelocationRejection {
     /// No acyclic path joins the run block to the destination block, or
@@ -284,9 +281,7 @@ pub(super) enum RunRelocationRejection {
 /// positions, every crossed edge plain and free of transport conflicts,
 /// and no boundary settlement inside the moved span or a crossed block.
 /// Hazards between the run's own members are not re-checked: the members
-/// keep their relative order. Dead until a family migrates — see
-/// [`RunRelocationRejection`].
-#[allow(dead_code)]
+/// keep their relative order.
 pub(super) fn admit_run_relocation(
     function: &SelectedFunction,
     members: &[&SelectedInstruction],
@@ -343,10 +338,12 @@ pub(super) fn admit_run_relocation(
     for settlement in &function.boundary_settlements {
         let index = settlement.instruction_index as usize;
         let refused = if settlement.block == run_block && run_block == destination_block {
-            // In-block: the window's span runs from the earlier of the
-            // run's start and the landing index through the later of the
-            // run's end and the landing index, endpoints included.
-            index >= crossing.run_start.min(crossing.landing_index)
+            // In-block: the window's span runs from just after the earlier
+            // of the run's start and the landing index through the later of
+            // the run's end and the landing index. The earlier endpoint
+            // itself observes an unchanged prefix — a settlement at it sees
+            // only positions before the window, identical on either order.
+            index > crossing.run_start.min(crossing.landing_index)
                 && index <= crossing.run_end.max(crossing.landing_index)
         } else if settlement.block == run_block {
             // Cross-block: the run vacates from `run_start` on, so any
@@ -358,10 +355,15 @@ pub(super) fn admit_run_relocation(
             index > crossing.landing_index
         } else {
             // An intermediate block's whole body is crossed — any
-            // settlement in it observes a changed executed prefix.
-            crossing.positions.iter().any(|(block_index, positions)| {
-                !positions.is_empty() && function.blocks[*block_index].id == settlement.block
-            })
+            // settlement in it observes a changed executed prefix. The
+            // block key decides rather than its position list: an
+            // empty-bodied intermediate records no ordinals, yet a
+            // settlement at index 0 still trades which side of that
+            // point the member executes on.
+            crossing
+                .positions
+                .iter()
+                .any(|(block_index, _)| function.blocks[*block_index].id == settlement.block)
         };
         if refused {
             return Err(RunRelocationRejection::Settlement);
@@ -372,20 +374,23 @@ pub(super) fn admit_run_relocation(
 
 #[cfg(test)]
 mod tests {
-    use register_model::{RegisterClassId, RegisterConstraintFamily, RegisterConstraintKey};
+    use register_model::{
+        RegisterClassId, RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess,
+    };
     use selected_instructions::{
-        SelectedBlock, SelectedBlockOrigin, SelectedBoundarySettlement,
-        SelectedBoundarySettlementPayload, SelectedFunction, SelectedInstructionId,
-        SelectedInstructionKind, SelectedMemoryAccess, SelectedMemoryAccessOrigin,
-        SelectedMemoryAccessRole, SelectedOperand, SelectedSuccessorRole, SelectedTerminator,
-        SelectedValueBinding, SelectedValueTransport,
+        SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
+        SelectedBoundarySettlementPayload, SelectedFunction, SelectedInstruction,
+        SelectedInstructionId, SelectedInstructionKind, SelectedMemoryAccess,
+        SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedOperand,
+        SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding, SelectedValueTransport,
+        VirtualRegisterId,
     };
     use semantic_vocabulary::{
         BlockId, BoundaryMachineId, EdgeId, MachineId, OperationId, PlaceId, ValueId,
     };
 
-    use super::*;
-    use crate::rewrites::block_edges::crossed_window;
+    use super::{RunRelocationRejection, admit_run_relocation};
+    use crate::rewrites::block_edges::{CrossingDirection, crossed_window};
 
     const BLOCK_A: SelectedBlockId = SelectedBlockId(0);
     const BLOCK_B: SelectedBlockId = SelectedBlockId(1);
@@ -487,7 +492,8 @@ mod tests {
     }
 
     fn admit(function: &SelectedFunction) -> Result<(), RunRelocationRejection> {
-        let crossing = crossed_window(function, 0, 0, 1, 1, 1, 64).unwrap();
+        let crossing =
+            crossed_window(function, 0, 0, 1, 1, 1, CrossingDirection::Forward, 64).unwrap();
         let members: Vec<&SelectedInstruction> =
             function.blocks[0].instructions[0..=1].iter().collect();
         admit_run_relocation(function, &members, &crossing)
@@ -626,7 +632,8 @@ mod tests {
     fn an_unreachable_destination_refuses() {
         let mut function = function(RegisterOperandAccess::Def, RegisterOperandAccess::Def);
         function.blocks[1].id = SelectedBlockId(9); // sever the edge target
-        let crossing = crossed_window(&function, 0, 0, 1, 1, 1, 64).unwrap();
+        let crossing =
+            crossed_window(&function, 0, 0, 1, 1, 1, CrossingDirection::Forward, 64).unwrap();
         let members: Vec<&SelectedInstruction> =
             function.blocks[0].instructions[0..=1].iter().collect();
         assert_eq!(

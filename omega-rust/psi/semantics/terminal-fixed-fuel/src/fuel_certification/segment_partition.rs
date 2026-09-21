@@ -4,9 +4,12 @@ use super::outcome_bounds::{
     NaturalGeometry, NaturalGraphNode, OutcomeBounds, boundary_call_candidates,
     compose_cleanup_outcomes, dynamic_call_targets, maximum_machine_outcomes, maximum_optional,
     natural_component_geometry, operation_callees, terminator_cleanup_machines,
+    terminator_edge_targets, unbounded_cycle_report,
 };
 use crate::{FixedFuelError, FixedSegmentFuelCertificate};
-use semantic_vocabulary::{BlockId, BoundaryMachineId, EdgeId, MachineId, OperationId};
+use semantic_vocabulary::{
+    BlockId, BoundaryMachineId, EdgeId, IntegerValue, MachineId, OperationId,
+};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_codec::{TerminalPsiIdentity, terminal_psi_identity};
 use terminal_fuel::TerminalFuelSchedule;
@@ -255,7 +258,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
             return Ok(*bound);
         }
         if !walk.active_blocks.insert(current) {
-            return Err(FixedFuelError::ControlCycle(current));
+            return Err(unbounded_cycle_report(self.machine, current));
         }
         let machine = self.machine;
         let machines = &self.subject.machines;
@@ -412,11 +415,18 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
     }
 
     /// Maximum charge over walks that commit `end_edge` in a verified
-    /// `Natural`-ranked machine, computed on the condensed graph the ranking
-    /// makes acyclic: an ordinary block composes exactly as the acyclic walk
-    /// charges it, while a component interior contributes its charged
-    /// component bound — the rank carrier's type maximum plus one member
-    /// visits — whether the endpoint commits inside it or after an exit.
+    /// `Natural`-ranked machine. When the endpoint rides the start block's
+    /// own terminator the segment is one traversal of that block and shares
+    /// the acyclic walk's charge — a safe-point catalog row is per-traversal
+    /// evidence, not a license to bill the enclosing cycle. Otherwise the
+    /// bound is computed on the condensed graph the ranking makes acyclic: an
+    /// ordinary block composes exactly as the acyclic walk charges it, while
+    /// a component interior bounds committing walks by the longest member
+    /// path that can still reach the endpoint when the component's other
+    /// internal edges cannot cycle, and by the re-enterable members at the
+    /// rank carrier's visit ceiling plus the once-only members charged once
+    /// when they can — whether the endpoint commits on a member or beyond
+    /// an exit.
     fn natural_segment_bound(
         &self,
         start_block: BlockId,
@@ -425,6 +435,38 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
         memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
         active_machines: &mut BTreeSet<MachineId>,
     ) -> Result<u64, FixedFuelError> {
+        let start = self
+            .blocks
+            .get(&start_block)
+            .copied()
+            .ok_or(FixedFuelError::UnknownBlock(start_block))?;
+        if start.terminator.edges().any(|edge| edge == end_edge) {
+            // An endpoint carried by the start block's own terminator is one
+            // traversal of that block: operations, worst admitted callee
+            // returns, the terminator edge, and the committed edge's ordered
+            // cleanup — exactly the charge the acyclic walk composes. The
+            // component's rank-multiplied bound belongs to whole-entry
+            // composition and to walks that continue past this terminator;
+            // a covered backedge or a loop-exit edge on the start terminator
+            // is an ordinary per-traversal row, not authority to charge every
+            // member visit the cycle could take. Taking the acyclic path here
+            // also keeps the catalog derivable when the rank carrier's type
+            // maximum itself overflows the whole-component bound.
+            let mut walk = SegmentWalk {
+                end_edge,
+                memoized_machines,
+                active_machines,
+                active_blocks: BTreeSet::new(),
+                settled: BTreeMap::new(),
+                first_dead_end: None,
+            };
+            return match self.block_to_edge_bound(start_block, &mut walk)? {
+                Some(units) => Ok(units),
+                None => Err(walk
+                    .first_dead_end
+                    .unwrap_or(FixedFuelError::NoTerminalPath(self.machine.id))),
+            };
+        }
         let geometry = natural_component_geometry(
             self.machine,
             components,
@@ -458,8 +500,8 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
 
     /// Maximum charge from condensed `node` until `end_edge` commits, or
     /// `None` when no walk through the node takes that edge — the segment
-    /// read of the same condensed DAG `natural_condensed_bound` bounds for
-    /// the entry certificate.
+    /// read of the same condensed DAG `natural_condensed_bound_returned`
+    /// bounds for the entry certificate's returned outcome.
     fn node_to_edge_bound(
         &self,
         node: NaturalGraphNode,
@@ -599,14 +641,27 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
             .transpose()
     }
 
-    /// A component's charge to the endpoint: every interior walk is bounded
-    /// by the component's charged bound — the rank carrier's type maximum
-    /// plus one member visits — so walks committing `end_edge` on a member
-    /// terminator bound at that charge plus the committing edge's ordered
-    /// cleanup work. When no member terminator carries the endpoint, the
-    /// bound is the component charge plus the worst exit's own continuation:
-    /// a component cannot be re-entered once left, and a walk that leaves
-    /// through another terminal edge is covered by that edge's own segment.
+    /// A component's charge to the endpoint. A member takes a terminator
+    /// edge only by completing its own traversal, so a member whose visit
+    /// is a dead end — an all-crash call, say — can neither carry the
+    /// endpoint nor leave through an exit; its edges contribute nothing
+    /// and the recorded dead end stands in for the walks that die inside
+    /// it. Walks committing `end_edge` on
+    /// a member terminator cannot re-enter the component once they leave it,
+    /// so when the members that can still reach a committing traversal form
+    /// an acyclic interior, every such walk is one pass bounded by its
+    /// longest member-visit sum; otherwise the surviving cycles bound only
+    /// the members that can still be re-entered — the rank carrier's type
+    /// maximum plus one visits each — while members left off every cycle
+    /// are crossed at most once, plus the committing edge's ordered cleanup
+    /// work. When no member terminator carries the endpoint, the walk must
+    /// leave the component through a member exit before it can commit, so
+    /// the same split bounds the interior over the members that can still
+    /// reach an exit — charged exactly like the acyclic walk, once for a
+    /// member left off every surviving cycle and at the rank ceiling for one
+    /// still re-enterable — plus the worst exit's own continuation. A
+    /// component cannot be re-entered once left, and a walk that ends on
+    /// another terminal edge is covered by that edge's own segment.
     fn component_node_to_edge_bound(
         &self,
         index: usize,
@@ -617,11 +672,6 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
         let component = components
             .get(index)
             .ok_or(FixedFuelError::InvalidRankedScc(self.machine.id))?;
-        let units = geometry
-            .component_units
-            .get(index)
-            .copied()
-            .ok_or(FixedFuelError::InvalidRankedScc(self.machine.id))?;
         let mut committing_cleanup = None;
         let mut exits = Vec::new();
         for rank in &component.ranks {
@@ -630,6 +680,23 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
                 .get(&rank.block)
                 .copied()
                 .ok_or(FixedFuelError::UnknownBlock(rank.block))?;
+            // A member takes a terminator edge only by completing its own
+            // traversal: when the visit is a dead end — an all-crash call,
+            // say — the member can neither commit the endpoint nor leave
+            // through an exit, so its edges contribute nothing and the
+            // recorded dead end stands in for the walk that died.
+            if self
+                .block_charge_units(
+                    block,
+                    rank.block,
+                    walk.memoized_machines,
+                    walk.active_machines,
+                    &mut walk.first_dead_end,
+                )?
+                .is_none()
+            {
+                continue;
+            }
             if block.terminator.edges().any(|edge| edge == walk.end_edge) {
                 let cleanup = compose_cleanup_outcomes(
                     terminator_cleanup_machines(&block.terminator),
@@ -656,10 +723,16 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
             }
         }
         if let Some(cleanup) = committing_cleanup {
-            return units
-                .checked_add(u128::from(cleanup))
-                .map(Some)
-                .ok_or(FixedFuelError::BoundOverflow);
+            let (committing, adjacency, reaching) =
+                self.interior_reach(component, index, geometry, walk.end_edge)?;
+            if let Some(bound) =
+                self.interior_committing_bound(&committing, &adjacency, &reaching, walk)?
+            {
+                return Ok(Some(bound));
+            }
+            return self
+                .cyclic_interior_bound(component, &adjacency, &reaching, cleanup, walk)
+                .map(Some);
         }
         if exits.is_empty() {
             // Walks that never leave the component end on a member's terminal
@@ -681,6 +754,11 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
             }
             return Ok(None);
         }
+        // The endpoint commits beyond the component, so a committing walk
+        // leaves through one of the exit edges and can never return. When no
+        // exit target can commit, the component is a dead end exactly as the
+        // old whole-component charge read it — continuation is resolved
+        // first so that failure keeps its reporting shape.
         let mut continuation = None;
         for target in exits {
             continuation = maximum_u128(
@@ -688,9 +766,351 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
                 self.node_to_edge_bound(geometry.node_for(target), components, geometry, walk)?,
             );
         }
-        continuation
-            .map(|tail| units.checked_add(tail).ok_or(FixedFuelError::BoundOverflow))
-            .transpose()
+        let Some(tail) = continuation else {
+            return Ok(None);
+        };
+        // Only members that can still reach an exit participate; the same
+        // split the committing path uses bounds the interior over them.
+        let (adjacency, reaching) =
+            self.exit_reach(component, index, geometry, walk.end_edge, walk)?;
+        let interior = self.split_interior_units(component, &adjacency, &reaching, walk)?;
+        interior
+            .checked_add(tail)
+            .map(Some)
+            .ok_or(FixedFuelError::BoundOverflow)
+    }
+
+    /// The member subgraph a committing walk can still traverse: the
+    /// component's internal adjacency minus the endpoint edge, the members
+    /// whose terminators carry that edge, and the members that can still
+    /// reach a committing member through what remains. Once a walk leaves
+    /// the reaching set it can never return, so it can never commit the
+    /// endpoint — both interior bounds are computed over this subgraph.
+    fn interior_reach(
+        &self,
+        component: &TerminalNaturalCycle,
+        index: usize,
+        geometry: &NaturalGeometry,
+        end_edge: EdgeId,
+    ) -> Result<
+        (
+            BTreeSet<BlockId>,
+            BTreeMap<BlockId, Vec<BlockId>>,
+            BTreeSet<BlockId>,
+        ),
+        FixedFuelError,
+    > {
+        let mut committing = BTreeSet::new();
+        for rank in &component.ranks {
+            let block = self
+                .blocks
+                .get(&rank.block)
+                .copied()
+                .ok_or(FixedFuelError::UnknownBlock(rank.block))?;
+            if block.terminator.edges().any(|edge| edge == end_edge) {
+                committing.insert(rank.block);
+            }
+        }
+        let adjacency = self.interior_adjacency(component, index, geometry, end_edge)?;
+        let reaching = Self::reverse_reaching(&adjacency, &committing);
+        Ok((committing, adjacency, reaching))
+    }
+
+    /// The member subgraph an exiting walk can still traverse: the
+    /// component's internal adjacency and the members that can still reach
+    /// an exit-taking member — one whose terminator carries a non-member
+    /// successor — through it. Once a walk leaves the reaching set it can
+    /// never take an exit, so it can never commit the endpoint beyond the
+    /// component; the exit path's interior bound is computed over this
+    /// subgraph. `end_edge` stays excluded for symmetry even though no
+    /// member terminator carries it on this path.
+    fn exit_reach(
+        &self,
+        component: &TerminalNaturalCycle,
+        index: usize,
+        geometry: &NaturalGeometry,
+        end_edge: EdgeId,
+        walk: &mut NaturalSegmentWalk<'_>,
+    ) -> Result<(BTreeMap<BlockId, Vec<BlockId>>, BTreeSet<BlockId>), FixedFuelError> {
+        let mut exiting = BTreeSet::new();
+        for rank in &component.ranks {
+            let block = self
+                .blocks
+                .get(&rank.block)
+                .copied()
+                .ok_or(FixedFuelError::UnknownBlock(rank.block))?;
+            // An exit edge belongs to a committing walk only when the
+            // member carrying it can complete its own traversal — the same
+            // rule the exit collection in `component_node_to_edge_bound`
+            // applies before charging the exit's continuation.
+            if super::outcome_bounds::terminator_targets(&block.terminator)
+                .iter()
+                .any(|target| geometry.member_of.get(target) != Some(&index))
+                && self
+                    .block_charge_units(
+                        block,
+                        rank.block,
+                        walk.memoized_machines,
+                        walk.active_machines,
+                        &mut walk.first_dead_end,
+                    )?
+                    .is_some()
+            {
+                exiting.insert(rank.block);
+            }
+        }
+        let adjacency = self.interior_adjacency(component, index, geometry, end_edge)?;
+        let reaching = Self::reverse_reaching(&adjacency, &exiting);
+        Ok((adjacency, reaching))
+    }
+
+    /// The component's internal adjacency for an interior bound: every
+    /// member's successor edges that stay inside the component, minus
+    /// `exclude`. The committing case drops the endpoint edge so a surviving
+    /// cycle is real.
+    fn interior_adjacency(
+        &self,
+        component: &TerminalNaturalCycle,
+        index: usize,
+        geometry: &NaturalGeometry,
+        exclude: EdgeId,
+    ) -> Result<BTreeMap<BlockId, Vec<BlockId>>, FixedFuelError> {
+        let mut adjacency: BTreeMap<BlockId, Vec<BlockId>> = BTreeMap::new();
+        for rank in &component.ranks {
+            let block = self
+                .blocks
+                .get(&rank.block)
+                .copied()
+                .ok_or(FixedFuelError::UnknownBlock(rank.block))?;
+            adjacency.insert(
+                rank.block,
+                terminator_edge_targets(&block.terminator)
+                    .into_iter()
+                    .filter(|(edge, target)| {
+                        *edge != exclude && geometry.member_of.get(target) == Some(&index)
+                    })
+                    .map(|(_, target)| target)
+                    .collect(),
+            );
+        }
+        Ok(adjacency)
+    }
+
+    /// Members that can still reach `frontier` through `adjacency` — the
+    /// reverse reachability the interior bounds share.
+    fn reverse_reaching(
+        adjacency: &BTreeMap<BlockId, Vec<BlockId>>,
+        frontier: &BTreeSet<BlockId>,
+    ) -> BTreeSet<BlockId> {
+        let mut reaching: BTreeSet<BlockId> = frontier.iter().copied().collect();
+        let mut pending: Vec<BlockId> = frontier.iter().copied().collect();
+        while let Some(member) = pending.pop() {
+            for (predecessor, targets) in adjacency {
+                if targets.contains(&member) && reaching.insert(*predecessor) {
+                    pending.push(*predecessor);
+                }
+            }
+        }
+        reaching
+    }
+
+    /// Tighter interior bound when the endpoint commits on a member
+    /// terminator. A walk that commits `end_edge` stays inside the
+    /// component's other internal edges until the committing traversal —
+    /// the component cannot be re-entered once left, and leaving through
+    /// another terminal edge belongs to that edge's own segment — so when
+    /// the member subgraph that can still reach a committing member is
+    /// acyclic, every committing walk is one simple path through it and the
+    /// bound is its longest member-visit sum, charged exactly like the
+    /// acyclic walk, rather than the rank-multiplied whole-component
+    /// charge. `None` when that subgraph retains a cycle (rank-bounded
+    /// revisits remain possible and `cyclic_interior_bound` applies) or no
+    /// member path reaches a committing traversal.
+    fn interior_committing_bound(
+        &self,
+        committing: &BTreeSet<BlockId>,
+        adjacency: &BTreeMap<BlockId, Vec<BlockId>>,
+        reaching: &BTreeSet<BlockId>,
+        walk: &mut NaturalSegmentWalk<'_>,
+    ) -> Result<Option<u128>, FixedFuelError> {
+        // Topological order over the reaching subgraph. A leftover member
+        // means a cycle survives there, so rank-bounded revisits remain
+        // possible and the cyclic-interior bound applies instead.
+        let mut indegree: BTreeMap<BlockId, usize> = BTreeMap::new();
+        for &member in reaching {
+            indegree.entry(member).or_insert(0);
+            for target in adjacency.get(&member).into_iter().flatten() {
+                if reaching.contains(target) {
+                    *indegree.entry(*target).or_insert(0) += 1;
+                }
+            }
+        }
+        let mut frontier: Vec<BlockId> = indegree
+            .iter()
+            .filter(|(_, degree)| **degree == 0)
+            .map(|(&member, _)| member)
+            .collect();
+        let mut order = Vec::with_capacity(reaching.len());
+        while let Some(member) = frontier.pop() {
+            order.push(member);
+            for target in adjacency.get(&member).into_iter().flatten() {
+                if let Some(degree) = indegree.get_mut(target) {
+                    *degree -= 1;
+                    if *degree == 0 {
+                        frontier.push(*target);
+                    }
+                }
+            }
+        }
+        if order.len() != reaching.len() {
+            return Ok(None);
+        }
+        // Longest committing path over the DAG, sinks first. A member whose
+        // own charge fails (an all-crash call, say) admits no committing
+        // walk through it, exactly as the acyclic walk reads the same
+        // block. The bound is the maximum over every member's charge to the
+        // endpoint; a segment start or entry edge selects among them, so
+        // the whole set covers both callers conservatively.
+        let mut dist: BTreeMap<BlockId, u128> = BTreeMap::new();
+        for &member in order.iter().rev() {
+            let block = self
+                .blocks
+                .get(&member)
+                .copied()
+                .ok_or(FixedFuelError::UnknownBlock(member))?;
+            let Some(units) = self.block_charge_units(
+                block,
+                member,
+                walk.memoized_machines,
+                walk.active_machines,
+                &mut walk.first_dead_end,
+            )?
+            else {
+                continue;
+            };
+            let mut best = None;
+            if committing.contains(&member) {
+                best = Some(u128::from(
+                    compose_cleanup_outcomes(
+                        terminator_cleanup_machines(&block.terminator),
+                        OutcomeBounds {
+                            returned: Some(units),
+                            crashed: None,
+                        },
+                        &self.subject.machines,
+                        &self.subject.dynamic_call_targets,
+                        &self.subject.provider_candidates,
+                        TerminalFuelSchedule::CURRENT,
+                        walk.memoized_machines,
+                        walk.active_machines,
+                    )?
+                    .maximum()
+                    .ok_or(FixedFuelError::NoTerminalPath(self.machine.id))?,
+                ));
+            }
+            for target in adjacency.get(&member).into_iter().flatten() {
+                if let Some(tail) = dist.get(target) {
+                    best = maximum_u128(best, Some(u128::from(units) + tail));
+                }
+            }
+            if let Some(bound) = best {
+                dist.insert(member, bound);
+            }
+        }
+        Ok(dist.values().copied().max())
+    }
+
+    /// Interior bound when the endpoint exclusion leaves a cycle in the
+    /// reaching subgraph. The committing edge's ordered cleanup composes on
+    /// top of the member split `split_interior_units` computes.
+    fn cyclic_interior_bound(
+        &self,
+        component: &TerminalNaturalCycle,
+        adjacency: &BTreeMap<BlockId, Vec<BlockId>>,
+        reaching: &BTreeSet<BlockId>,
+        cleanup: u64,
+        walk: &mut NaturalSegmentWalk<'_>,
+    ) -> Result<u128, FixedFuelError> {
+        self.split_interior_units(component, adjacency, reaching, walk)?
+            .checked_add(u128::from(cleanup))
+            .ok_or(FixedFuelError::BoundOverflow)
+    }
+
+    /// The interior member split both component bounds share. A member that
+    /// can still be re-entered through the surviving internal edges may be
+    /// visited up to the rank carrier's type maximum plus one times before
+    /// the walk leaves the component — the same per-member visit ceiling the
+    /// whole-component charge uses — while a member left off every surviving
+    /// cycle is crossed at most once, since the walk cannot return to it.
+    /// The bound is therefore the rank-multiplied sum over the re-enterable
+    /// members plus the once-only members charged once, rather than the
+    /// rank-multiplied sum over every member. A member whose own charge
+    /// fails (an all-crash call, say) admits no traversal that leaves the
+    /// component and contributes nothing, exactly as the acyclic walk reads
+    /// it.
+    fn split_interior_units(
+        &self,
+        component: &TerminalNaturalCycle,
+        adjacency: &BTreeMap<BlockId, Vec<BlockId>>,
+        reaching: &BTreeSet<BlockId>,
+        walk: &mut NaturalSegmentWalk<'_>,
+    ) -> Result<u128, FixedFuelError> {
+        let IntegerValue::Unsigned(rank_maximum) = component.rank_type.maximum_value() else {
+            return Err(FixedFuelError::InvalidRankedScc(self.machine.id));
+        };
+        let mut reenterable_units = 0_u128;
+        let mut once_units = 0_u128;
+        for &member in reaching {
+            // The member stays re-enterable when one of its surviving
+            // successors reaches it again — an internal cycle the
+            // adjacency left intact.
+            let mut reenterable = false;
+            let mut pending: Vec<BlockId> = adjacency
+                .get(&member)
+                .into_iter()
+                .flatten()
+                .copied()
+                .collect();
+            let mut seen = BTreeSet::new();
+            while let Some(next) = pending.pop() {
+                if next == member {
+                    reenterable = true;
+                    break;
+                }
+                if seen.insert(next) {
+                    pending.extend(adjacency.get(&next).into_iter().flatten().copied());
+                }
+            }
+            let block = self
+                .blocks
+                .get(&member)
+                .copied()
+                .ok_or(FixedFuelError::UnknownBlock(member))?;
+            let Some(units) = self.block_charge_units(
+                block,
+                member,
+                walk.memoized_machines,
+                walk.active_machines,
+                &mut walk.first_dead_end,
+            )?
+            else {
+                continue;
+            };
+            if reenterable {
+                reenterable_units = reenterable_units
+                    .checked_add(u128::from(units))
+                    .ok_or(FixedFuelError::BoundOverflow)?;
+            } else {
+                once_units = once_units
+                    .checked_add(u128::from(units))
+                    .ok_or(FixedFuelError::BoundOverflow)?;
+            }
+        }
+        rank_maximum
+            .checked_add(1)
+            .and_then(|visits| visits.checked_mul(reenterable_units))
+            .and_then(|bound| bound.checked_add(once_units))
+            .ok_or(FixedFuelError::BoundOverflow)
     }
 }
 
