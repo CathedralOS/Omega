@@ -9590,7 +9590,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **CANARY-CORE-NAME-COLLISION** — mined candidate; verify scope then implement.
 - **CANARY-DUPLICATE-OVERLOAD-DECLARATIONS** — mined candidate; verify scope then implement.
 - **C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES** — mined candidate; verify scope then implement.
-- **C2L-UNATTRIBUTED-FAILURE-TAIL** — mined candidate; verify scope then implement.
+- **C2L-UNATTRIBUTED-FAILURE-TAIL.** Scope verified at `f43b4e8869c` —
+  the tail is measured, and it is empty. The fresh member-by-member
+  `checked-trees-to-lowered-psi` census at `d936717fd2`
+  (`wiki/drafts/c2l_failure_census_d936717f.md`, landed `54e321bdf00`)
+  records 2199 members / 24 failures, every one inside an already-owned
+  `known_baseline_failures.md` family: missing transitive machine plans
+  (16), unit-plan omissions (3), scalar-return custody (4 — since
+  re-spelled onto admitted surfaces at `f43b4e8869c`), the ranked
+  safe-point fixed-fuel bound (1), and the proof-search blowup (1).
+  Verdict text: "the unattributed tail is still empty." No independent
+  slice exists — a census that finds unattributed members is the next
+  dispatch's input, and producing it again is a fresh measurement, not a
+  residual.
 - **CANARY-ACQUIRES-THROUGH-HELPER-RETURN** — mined candidate; scope verified, real residual — the canary exists and is rostered (`tests/omega/pass/capabilities/acquires_through_helper_return`, in `tests/canary_suite.rs` + `tests/fixture_rosters/reports_and_capabilities.rs`), but the rostered fixture is red on `1fc01bb690`: `pass_canaries_compile` filtered to it fails at native-artifact Terminal production — `InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: "`Main::main` has no admitted body (local construction stopped at signature)" }`. The remaining leg is the checked/lowering gap that stops `Main::main`'s local construction at the signature (authority-propagating helper-return shape reaches no admitted body), not a missing corpus member. Fixture path is under a live same-item claim (Devin / cathr-acquires-helper-return).
 - **CANARY-CORE-NAME-COLLISION** — mined candidate; verify scope then implement.
 - **CANARY-DUPLICATE-OVERLOAD-DECLARATIONS.** Resolved — the
