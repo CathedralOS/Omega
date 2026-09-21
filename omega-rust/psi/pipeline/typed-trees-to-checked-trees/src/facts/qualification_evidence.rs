@@ -54,6 +54,11 @@ pub(crate) fn boundary_qualification_authorization(
         return None;
     }
     let domain = domain_definition(program, membership.domain_symbol)?;
+    if membership.authored_domain_selection.is_none()
+        || membership.domain_arguments.len() != domain.type_parameters.len()
+    {
+        return None;
+    }
     if !domain.establishment_routes.iter().any(|route| {
         matches!(
             route,
