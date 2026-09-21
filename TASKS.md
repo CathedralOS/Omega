@@ -1189,620 +1189,211 @@ syntax and other terminal services are not prerequisites.
   a generic missing-plan diagnostic does not identify arithmetic policy.
   Never silently weaken one policy into another.
 
-- **PROOF-KERNEL-CORE.** Finish the common mathematical term/declaration model
-  and independent checker in Psi under the
-  [selected foundation](wiki/spec/proofs/foundation.md) and its
-  [W-based profile](wiki/spec/proofs/inductive_profile.md). Customer: library
-  theorems about arbitrary types/predicates and dependent witnesses, not another
-  extension to the bounded `Proposition` enum. Source elaboration and
-  certificate consumers use this model rather than invent parallel truths;
-  search stays outside the checker.
-
-  `proof-admission/src/mathematical_core/` implements the pinned reference
-  core with its strict layer, typed function eta, `Two`, `Id`, `W`,
-  universe-polymorphic declarations with exact assumption closure, and the
-  derived indexed and set-quotient schemes as ordinary checked declarations.
-  [Kernel metatheory](wiki/spec/proofs/kernel_metatheory.md) argues the
-  combined rules at paper level (not mechanized) and lists the witnessing
-  tests and measured receipts. `accept_certificate` denotes each bounded
-  `ProofNode` certificate into the core and records `Judged` or `Refused` in
-  `MathematicalCoreDecision`. This does not deliver the customer: every
-  kernel theorem and scheme is a Rust-built term (`scheme_dsl.rs`),
-  `terminal-codec`'s `encode_mathematical_certificate` and
-  `decode_mathematical_certificate` have no caller outside tests, and the only
-  source customers cover scalar `==` symmetry/transitivity, fixed-literal
-  discreteness, subtraction rank decrease, its no-underflow obligation and
-  guarded addition bounds and nested Boolean result contracts
-  (`compiler/tests/proof_kernel_canaries.rs`, `kernel_discreteness.rs`,
-  `kernel_subtract_order.rs`, `kernel_add_bound.rs` and `kernel_equality_transport.rs`),
-  not general dependent theorems.
+- **PROOF-KERNEL-CORE.** Finish independently checked mathematical proofs
+  under the [foundation](wiki/spec/proofs/foundation.md) and
+  [W-based profile](wiki/spec/proofs/inductive_profile.md). Owner:
+  `proof-admission/src/mathematical_core/`; source integration belongs to
+  PROOF-CONTRACT-MIGRATION. The core and derived schemes exist as Rust-built
+  terms. [Combined metatheory](wiki/spec/proofs/kernel_metatheory.md) is
+  argued at paper level, not mechanized; helper judgments do not establish
+  source coverage or a complete verified profile.
 
   Remaining work:
 
-  - Give the bounded arithmetic families kernel meaning, so each is a
-    certificate producer whose output the kernel checks or an explicitly
-    justified checked rule (see Flag). Integer carrier, order and equality
-    declarations are landed in `mathematical_core/bounded_denotation.rs`:
-    `Int`, `IntLt`/`IntLe` and open `Int`-valued term constants are interned
-    assumptions with exact statements. Closed mathematical terms intern
-    by exact evaluated value; fixed scalar magnitudes have shared signed
-    binary definitions, while larger values retain opaque exact-value
-    constants. The order/equality rules
-    cite one fixed roster (`eq_le`, `lt_le`, `le_trans`/`lt_trans`/
-    `lt_le_trans`/`le_lt_trans`, `lt`/`le_subst_left`/`_right`) while
-    `Id` symmetry/transitivity and value-equation transport use `J`;
-    the `Equal`↔`IntegerMathEqual` citation crossing shares one
-    denotation. The separate integer-order substitution rule still cites its
-    fixed laws. Boolean values, negation and equality use `Two` and `caseTwo`,
-    exposing their operands to the same multi-equation transport as exact
-    addition/subtraction. A reflexive expanded result uses `refl`, not an
-    assumed implication for that program.
-    Discreteness derives adjacent literal order from five fixed numeral laws
-    and composes it with the inclusive premise. Exact scalar subtraction
-    applies fixed zero and antitonicity laws; evaluated differences retain
-    canonical numeral identity and use binary order. The correlated unsigned
-    subtraction witness derives its zero lower bound from fixed self-zero
-    and non-strict antitonicity laws. Contradictory closed premises use fixed
-    irreflexivity and checked empty elimination. These laws remain explicit
-    assumptions. Mathematical subtraction shares that operation. Open addition
-    also retains its operands; correlated lower and upper bounds use fixed
-    addition monotonicity and subtraction cancellation whenever the sum and
-    difference stay unreduced, including exact SSA subtraction definitions and
-    carrier-endpoint equalities; conclusions whose endpoints both evaluate are
-    decided on their canonical constants — strict order by the binary numeral
-    laws, equality by `refl`, and a false relation by empty elimination
-    through a checked false premise — so a closed right addend no longer
-    forces an instance axiom. An open sum over a closed difference
-    substitutes a checked numeral-operation equation `add n r = e` —
-    interned once per evaluated operand triple — for the applicative
-    cancellation step. Correlated subtraction lower and upper bounds —
-    `min ≤ l − r` from `e + r ≤ l` and `l − r ≤ max` from `l ≤ e + r` —
-    use two fixed `add`/`sub` adjunction laws; a value root substitutes
-    through its cited definition, a closed sum's numeral substitutes the
-    checked `add e r = n` equation in reverse, and a landed endpoint
-    substitutes through its cited literal equality. Exact-add definition
-    bounds cite a semantic `out = l + r` equality beside the two operand
-    bounds: a fixed two-sided monotonicity law combines the operand
-    evidence into a bound on the applicative sum, the cited definition
-    transports it onto `out`, and a checked `add lb rb = k` numeral
-    equation lands the conclusion's literal; each operand's endpoint
-    re-shapes its evidence — an oriented `≤` stands, an `Equal`
-    transports through `eq_le`, a literal addend uses `refl`, and a
-    `Truth` bound over an open addend cites an interned per-operand
-    carrier-membership assumption `IntLe min' op'`/`IntLe op' max'`.
-    The direct `IntegerAffineBound` add form drops the citation: its
-    conjunction premise projects each operand bound through `Σ`
-    elimination onto the same endpoint machinery, and its conclusion
-    names the `add` application itself, so two-sided monotonicity and
-    the checked endpoint-sum equation land the bound on `add l r` —
-    an endpoint sum outside the representable numeral range keeps the
-    explicit instance assumption. The direct subtract form reuses it
-    with the antitone flip: the right operand's endpoint follows the
-    direction opposite the conclusion's, a fixed
-    `a ≤ b → d ≤ c → sub a c ≤ sub b d` law combines the operands, and
-    a checked `sub lb rb = k` numeral equation lands the literal —
-    including the `(Exact, Carrier)` boundary cases and negative bounds
-    over unsigned carriers. An already admitted
-    open expression stays opaque
-    if composing a child would introduce a resource refusal. The remaining
-    fixed-integer scalar operations — multiply, divide, remainder, bitwise,
-    shifts, casts and the value-level integer comparisons — denote one
-    uninterpreted `Π Int.Π Int.Int` (or `Π Int.Π Int.Two`) function per
-    constructor and machine type, applied to the denoted operands, so
-    equality transport's `J` rewrites reach inside `x * s`: the guarded
-    remainder `w % (x * s)` under the arm fact `x * t >= 1` and entry
-    `s == t` derives its nonzero divisor through identity elimination in
-    `compiler/tests/kernel_equality_transport.rs` instead of an admitted
-    rule instance. Still to do:
-    the cast-bound, correlated-forbidden-root and correlated-multiply bound
-    witnesses, nested
-    canonical identity reversal, and Boolean identities requiring case analysis
-    rather than structural correspondence. The uninterpreted operations
-    carry no arithmetic laws; unsupported arithmetic derivations, including
-    `x + 0 = x`, still assume their conclusions.
-  - Check indexed-scheme applications produced from source declarations, per
-    [declaration correspondence](wiki/spec/proofs/inductive_profile.md#declaration-correspondence-and-strict-logic):
-    exact parameters, indices, payloads, case constraints and recursive uses.
-    The vector, mutual, nested, derivation and level-instantiation families in
-    `proof-admission/tests/indexed_*.rs` are hand-built terms. Negative
-    recursion, bad universes and illegal strict elimination reject at the
-    source declaration; source invalidity, unsupported valid encoding and
-    producer defects stay separate errors. No kernel test covers negative
-    recursion: `W A B` cannot state it, so the control needs an elaborated
-    source declaration.
-  - Make the kernel changes PROOF-CONTRACT-MIGRATION's elaborator forces, and
-    no others. `signature.rs::Declaration` carries position only and each
-    `MathematicalCertificate` carries its whole signature; source names and
-    `boundary let` trust identities are the elaborator's to attach, and exact
-    closure must still survive import and serialization. A new rule family
-    arrives with the denotation that lets acceptance re-decide it and a
-    source-level customer, not on its own. No second primitive indexed or
-    strict-inductive checker, and no untyped wrapper-deletion shortcut for eta.
+  - Replace bounded denotation's per-instance `rule_axiom` fallbacks with
+    checked derivations or explicitly justified checked rules, driven by real
+    source obligations. Remaining cases include cast bounds, correlated
+    forbidden roots/multiply bounds, nested canonical identity reversal and
+    Boolean identities needing case analysis. Preserve numeric policy and
+    exact operands. Unsupported arithmetic or construction-budget fallback
+    must not be reported as independently proved merely because the kernel
+    checks a term assuming its conclusion. Existing fixed integer laws also
+    remain explicit assumptions, not a consistency proof.
+  - Check source-produced indexed-scheme applications against exact
+    parameters, indices, payloads, case constraints and recursive uses.
+    The hand-built `indexed_*.rs` tests are useful controls, not a source
+    encoding. Reject negative recursion at elaboration and distinguish an
+    invalid declaration from unsupported valid encoding or producer failure.
+    Complete the profile's required scheme/correspondence justification;
+    structural round trips alone do not prove induction or computation.
+  - Supply only kernel additions demanded by that source path. Preserve exact
+    assumption closure through declaration types/statements, imports and wire
+    encoding, independently of unfolding and erasure. Do not introduce a
+    parallel primitive-indexed/strict checker or untyped eta rewriting.
 
-  Acceptance: the foundation's
-  [migration examples](wiki/spec/proofs/foundation.md#migration-acceptance),
-  each with its invalid control, reach a source-free kernel judgment from
-  Omega source through PROOF-CONTRACT-MIGRATION: a universe-polymorphic theorem
-  over arbitrary predicates with dependent pairs, identity transport and
-  induction; strict same-statement conversion with relevant witnesses kept
-  distinct; malformed universes, capture-changing substitution and illegal
-  elimination rejecting; exact assumption closure through declaration
-  types/statements without relying on unfolding. Measure term size, retained
-  storage and checking cost on those source-produced terms in the application
-  checker; do not claim feasibility from empty receipts or compiler-authored
-  success flags. Structural round trips do not establish meaning, and no
-  verified-profile claim precedes these controls.
+  Acceptance: the [migration examples](wiki/spec/proofs/foundation.md#migration-acceptance)
+  reach source-free kernel judgments from Omega source: a universe-polymorphic
+  theorem over arbitrary predicates with dependent pairs, identity transport
+  and induction; strict same-statement conversion without identifying relevant
+  witnesses; malformed universes, capture-changing substitution and illegal
+  elimination reject. Retain `compiler/tests/kernel_equality_transport.rs`
+  and its false-source, changed-operand and changed-equality-endpoint controls.
+  Measure term size, retained storage and checking cost on source-produced
+  evidence in the application checker. PCC-CANONICAL-SEMANTIC-LEDGER owns
+  trusted-row soundness; PROOF-CERTIFICATION-BRIDGE owns loop correspondence.
+  Any demonstrated need to change the selected calculus goes to
+  `OWNER_QUESTIONS.md`, not an implementation shortcut.
 
-  Flag: the bounded denotation still reaches `Judged` on part of the
-  arithmetic families by assuming each conclusion. `bounded_denotation.rs`
-  denotes the integer order and equality rules through a fixed roster of
-  named `Π` laws over `Int` (`integer_law`), `J`-derives `Id` symmetry and
-  transitivity on the denoted crossing, and interns closed mathematical
-  terms by exact evaluated value. Subtraction order, the correlated
-  unsigned subtraction lower bound, correlated addition bounds with
-  open right addends, correlated subtraction bounds and exact-add
-  definition bounds use fixed
-  arithmetic laws. Remaining bound-witness forms,
-  nested canonical identity reversal, Boolean identities needing case
-  analysis, and construction-budget fallback still
-  use per-instance `rule_axiom`s. Addition and subtraction retain their operands;
-  other open arithmetic denotes uninterpreted per-operation functions. Fixed
-  laws still require exact
-  assumption admission and do not establish arithmetic consistency.
+- **PROOF-CONTRACT-MIGRATION.** Deliver general mathematics from Omega
+  source through Terminal evidence and independent checking, using
+  [machine contracts and trait bundles](wiki/spec/proofs/contracts.md#machines-and-bundles)
+  and the selected [mathematical bindings](wiki/spec/proofs/mathematical_bindings.md).
+  Owners: Psi syntax/resolution/typing, contract checking, Terminal evidence
+  and codec, and `source/library/core/`; use PROOF-KERNEL-CORE's terms.
 
-  Resume transport coverage with `cargo nextest run --release -p compiler
-  --test kernel_equality_transport --no-fail-fast --no-tests fail` on macOS
-  ARM64 (witnessed on base `7216c52a2f` plus this implementation). The nested
-  Boolean source reaches a decoded, independently reconstructed
-  result obligation and a kernel-checked mathematical wire without an instance
-  assumption for its conclusion; missing equations, substituted executable
-  operands, a changed J endpoint and the false source twin reject. The next
-  transport work must retain a real source obligation needing one of the
-  remaining cases above, not add another standalone theorem builder.
-
-  PCC-CANONICAL-SEMANTIC-LEDGER owns the soundness status of trusted checker
-  rows and PROOF-CERTIFICATION-BRIDGE owns loop correspondence. Reopen W only
-  through `OWNER_QUESTIONS.md` on demonstrated requirements, cost or audit
-  failure. General source punctuation is not a kernel blocker.
-
-  Re-verified at `661a4d50c0af` (zergling-168, linux x86-64): the kernel
-  is green at tip — `cargo nextest run -p proof-admission --lib
-  --no-fail-fast` 295/295 PASS (9s). Anchors unchanged:
-  `mathematical_core/` carries the strict layer, typed eta, `Two`,
-  `Id`, `W`, `bounded_denotation.rs` and `scheme_dsl.rs` as recorded;
-  `terminal-codec`'s `encode_mathematical_certificate` /
-  `decode_mathematical_certificate` still have no caller outside tests
-  (only `tests/{bounded_certificate,arithmetic_import,theorem_certificate,
-  mathematical_certificate}.rs` and the `kernel_*` canary tests reach
-  them). Prior same-item claim (~09:49Z) has drained; no live claim on
-  `proof-admission` at this stamp. Frontier unchanged — source-elaborated
-  general dependent theorems remain PROOF-CONTRACT-MIGRATION's gate.
-
-- **PROOF-CONTRACT-MIGRATION.** Migrate the proof surface to
-  [ordinary machine contracts and trait bundles](wiki/spec/proofs/contracts.md#machines-and-bundles)
-  and implement the selected
-  [mathematical bindings](wiki/spec/proofs/mathematical_bindings.md),
-  elaborating to `PROOF-KERNEL-CORE`'s terms, not a second general logical
-  representation. Owners: Psi syntax/resolution/typing, contract proof
-  semantics, Terminal evidence/codec/replay, and core mathematical traits.
-  Only Rust-built kernel legs of cases 3-5 exist, in `proof-admission`, and
-  `terminal-codec`'s mathematical certificate wire has no production caller.
-  Top-level `let`/`boundary let` declarations with binders, dependent arrows
-  and prefix applications now parse
-  (`tokens-to-syntax-trees/src/declarations/let_definition.rs`), resolve, and
-  type into the typed-tree mirror
-  (`typed-trees/src/typed_trees/evidence/mathematical.rs`) — arrow- and
-  application-typed telescope parameters, curried applications, bindered
-  `boundary let`s and call bodies are all pinned by shape-retention tests
-  (`lowerer/tests/mathematical_declarations.rs`) — and elaborate to
-  `CheckedMathematicalDeclaration` records in
-  `typed-trees-to-checked-trees/src/proof/mathematical_declarations.rs`:
-  binder carriers classify `core::Level`/`core::Type` by authored name,
-  arrows and applications render their nested-Pi identities, and
-  `boundary let` records its named-assumption absence, and each record now
-  also elaborates to a `mathematical_core::signature::Declaration` list the
-  kernel itself re-decides
-  (`typed-trees-to-checked-trees/src/proof/mathematical_signature.rs`):
-  `core::Level` binders become universe parameters, bare and unapplied
-  `core::Type`/`core::Strict` occurrences generalize fresh ones in authored
-  order, other resolved carriers intern as `Type 0` assumptions in the
-  shared signature prefix, telescopes and arrows fold to `Pi`/`Lambda`
-  spines over de Bruijn scope, `core::Squash` forms the proposition, and a
-  transparent definition body must inhabit its declared result or the
-  program fails with that declaration's own kernel diagnostic. Binder
-  property bounds and `Machine`/`Proposition` binder kinds already refuse
-  loudly in `mathematical_signature.rs::plan_binder`.
-  `checking.rs` now admits programs carrying them: the checked records land
-  on `ProofFacts::mathematical_declarations`, and every
-  `checked-trees-to-lowered-psi` entrance refuses them with a named
-  `PROOF-CONTRACT-MIGRATION` diagnostic (fail canary
-  `proofs/mathematical_declaration_lowering_rejected`) until a Terminal
-  evidence encoding exists — broader machine-valued body denotation,
-  applied carriers, and that encoding are pending legs. No
-  `core::Level`, `Type`, `Strict` or `Squash` declaration exists, and the
-  dedicated `proposition` declaration with its named-witness call lanes
-  (`typed-trees-to-checked-trees/src/proof/proof_output_calls.rs`) still
-  carries `core/int.omg` and 37 files under `tests/`.
+  Top-level mathematical `let`/`boundary let` parse, resolve and receive
+  bounded kernel-signature checking. The production frontier is
+  `checked-trees-to-lowered-psi/src/proofs/mathematical_declarations.rs`:
+  it rejects every declaration-bearing program because Terminal evidence
+  does not carry the checked signature. The mathematical certificate codec
+  exists but is not connected to that producer.
 
   Remaining work:
 
-  - Parse, resolve and type of the top-level `let`/`boundary let` grammar —
-    closed parameterized declarations, dependent function types, curried
-    prefix application, parameter binders and named assumptions — has landed
-    structurally; checked elaboration into `CheckedMathematicalDeclaration`
-    has landed (binder classification, nested-Pi and application identities,
-    named assumptions). Kernel-term elaboration has landed for the admitted
-    grammar. Remaining here: extend machine-valued body denotation beyond
-    the admitted bounded vocabulary, replace authored-name carrier
-    classification with symbol identity once the fixed `core::*`
-    declarations exist, and encode the checked signature into Terminal
-    evidence so the lowering consumer stops refusing
-    (`terminal-codec`'s certificate wire exists but has no production
-    caller). Preserve ordinary local bindings, complete
-    machine calls and executable callback selection. Add no quantifier
-    keywords, and do not substitute declaration enumeration or an
-    optional-returning decider for mathematical quantification.
-  - Replace formula declarations and hidden-witness calls with ordinary
-    contracts and named witness/law bundles, preserving exact substitution,
-    result/path availability, erasure, validity and transitive assumptions
-    across trait calls and artifacts. Do not widen the old selected-witness or
-    trait-named-witness surfaces independently; retain useful checking rules,
-    not mandatory wrapper syntax.
-  - Elaborate values and computation under
-    [executable demand](wiki/spec/proofs/mathematical_bindings.md#assumptions-and-executable-demand),
-    enforced consistently at source use, evaluation and lowering. Conversion
-    never executes an effect, and a result-bearing axiom is an explicit
-    checked declaration, not a missing-provider slot or a domain qualifier.
-  - Preserve [call preconditions](wiki/spec/language/machines.md#call-preconditions)
-    during mathematical application and theorem citation, including logical
-    evidence supplied through binders; never restore a proof-only exemption.
-    Induction also needs its exact decreasing edge. **OPERATOR-MACHINE-SUPPLY**
-    owns the shared call-checker repair and the `core/nat.omg` migration.
-  - Migrate core relations, quotients, samples and tests, remove obsolete
-    parser/carrier/codec routes, and reject retired spellings. Two other
-    owners assign encodings here: the replacement proof rows of
-    `omega-rust/omega/packages/review/evidence/EVIDENCE_SCHEMA.md`, and
-    QUOTIENT-THEOREM-LIFT's congruence-only `lift` wire payload.
+  - Connect the checked signature to Terminal evidence and receiver checking;
+    extend machine-valued body denotation and applied carriers as required by
+    the controls below. Replace authored-name sort classification in
+    `typed-trees-to-checked-trees/src/proof/mathematical_{declarations,signature}.rs`
+    with canonical symbol identity and supply the fixed `core::Level`,
+    `Type`, `Strict` and `Squash` declarations.
+  - Replace the surviving `proposition`/hidden-witness routes, including
+    `proof_output_calls.rs` and their core/test consumers, with ordinary
+    contracts and witness/law bundles. Preserve exact substitutions,
+    path/result availability, witness identity, validity and assumption closure.
+    Remove the retired parser/carrier/codec paths rather than widening them.
+  - Implement mathematical term application and theorem-only logical
+    hypotheses without changing executable callback selection, ordinary local
+    bindings or complete machine calls. Add no quantifier keywords or
+    declaration-catalog substitute for arbitrary mathematical terms.
+    Trait requirements also need mathematical argument substitution:
+    `typed-trees`' `TraitRequirement` currently carries only lifetime and type
+    arguments, not predicate/function terms.
+    Calls and recursive citations still owe exact preconditions and descent;
+    OPERATOR-MACHINE-SUPPLY owns the shared call repair and Nat migration.
+  - Enforce [executable demand](wiki/spec/proofs/mathematical_bindings.md#assumptions-and-executable-demand)
+    at source use, evaluation and lowering: an axiom is not a missing provider,
+    and choice-dependent control cannot execute just because its branches
+    contain constants. Preserve assumption closure even when proof use erases.
+  - Migrate core relations, quotients and examples. Include the replacement
+    proof rows assigned by
+    `omega-rust/omega/packages/review/evidence/EVIDENCE_SCHEMA.md` and
+    QUOTIENT-THEOREM-LIFT's congruence-only lift payload.
 
-  Acceptance: actual proof scripts and false twins pass through source,
-  Terminal serialization and independent replay, under the
-  [publication contract](wiki/spec/proofs/publication.md), for all five cases:
+  Acceptance is source → Terminal serialization → independent checking under
+  the [publication contract](wiki/spec/proofs/publication.md), with false
+  twins for each case:
 
-  1. Composition of two witness/law bundles preserves exact substitutions and
-     distinct witnesses.
-  2. A higher-order theorem over arbitrary mathematical predicates or
-     functions passes every
-     [delivery control](wiki/spec/proofs/mathematical_bindings.md#delivery-controls),
-     its machine-shaped hypothesis supplied from derived Π-term evidence and
-     not only a named proof declaration.
-  3. Nonconstructive existence uses an explicit axiom and supplies no
-     executable witness without checked realization, including an erased
-     theorem that mentions the chosen value; squashed existence derived from
-     another squashed witness needs no choice assumption. Constrained records
-     are established at construction with exact evidence dependencies, and
-     relevant dependent witness bundles stay distinct from strict predicate
-     gating.
-  4. Accepting and denying policies distinguish the same theorem, with exact
-     transitive assumptions surviving import, erasure, serialization and replay.
-  5. A Cauchy/quotient proof uses the
+  1. Two composed witness/law bundles preserve substitutions and distinct
+     relevant witnesses.
+  2. A higher-order theorem over arbitrary predicates/functions passes the
+     [delivery controls](wiki/spec/proofs/mathematical_bindings.md#delivery-controls),
+     including derived Π-term evidence for a machine-shaped logical hypothesis.
+  3. Nonconstructive existence permits an erased proof reference but not
+     unjustified executable extraction or branching. Squash-to-strict reasoning
+     needs no choice. Gated record construction proves its coupling; relevant
+     dependent pairs remain distinct from strict predicate gating.
+  4. Accepting and denying policies distinguish the same theorem using its
+     exact transitive closure through statements/types, import, erasure and wire.
+  5. Cauchy/quotient reasoning uses the
      [set-quotient interface](wiki/spec/proofs/quotients.md#set-quotient-foundation)
-     and its derived items with no hidden extensionality or kernel reduction.
-     A quotient-refusing policy accepts the quotient-free closure of the
-     representative operations and congruence and rejects the
-     assumption-bearing quotient proof. That control depends on transitive
-     closure through helper statements/types; existing Rat comments do not
-     establish it.
+     without hidden extensionality or new reduction. A quotient-refusing policy
+     accepts representative operations and congruence with quotient-free
+     closure, and rejects the assumption-bearing quotient theorem. Rat's
+     implementation comments do not establish that separation.
 
-  Candidate naming syntax is not a prerequisite. These controls do not
-  establish full mathematical coverage.
+- **PROOF-CERTIFICATION-BRIDGE.** Check functional guarantees against generated
+  loops, independently of termination, under the
+  [publication contract](wiki/spec/proofs/publication.md). Owners:
+  `typed-trees-to-checked-trees/src/checks/contracts/exits/cyclic_headers.rs`,
+  `checked-trees-to-lowered-psi/src/proofs/scalar_block_invariants/cyclic_guarantees.rs`,
+  and their independent Terminal verifier.
 
-  Claim evidence (~20:5xZ, Zergling-181): two same-item claims are live —
-  swarm-w9-proof-contract-migration (proof dir,
-  `typed-trees-to-checked-trees/src/proof`, expires ~21:52Z) and
-  Zergling-39 (`source/library/core`, expires ~03:56Z) — and both the
-  enumerated pending legs (machine-valued body denotation, authored-name →
-  symbol-identity classification, checked-signature Terminal encoding)
-  name surfaces inside those claims. No independent bounded slice exists
-  outside them; do not re-mine.
+  The single-state free-loop order claim has a native positive and wrong-step
+  control. Arithmetic accumulation (`result == acc + remaining`) checks at
+  source but lacks a Terminal proof of
+  `(acc + 1) + (remaining - 1) == acc + remaining`; dropping the unproved
+  header proposal leaves `OperationProofUnavailable`. The attached
+  `proof_inductive_gauss_sum` and `proof_inductive_climbing_sum` fixtures are
+  still checked-only and also need STATE-LOCAL-VALUE-FRONTIER's ordinary
+  value-returning cyclic execution.
 
-- **PROOF-CERTIFICATION-BRIDGE.** A functional claim about a ranked loop must
-  be checked against the generated loop, not inherited from termination, under
-  the [publication contract](wiki/spec/proofs/publication.md): a ranked
-  `Natural` component whose accumulator update is wrong fails its post-loop
-  `ensures` or scalar block invariant while its unchanged control-cycle
-  certificate still verifies. That holds today for order claims on one form.
-  A single-state free machine re-entered by named backedges proves
-  `ensures result <= previous` at the source
-  (`typed-trees-to-checked-trees/src/checks/contracts/exits/cyclic_headers.rs`),
-  lowers with a strengthened header invariant
-  (`checked-trees-to-lowered-psi/src/proofs/scalar_block_invariants/cyclic_guarantees.rs`),
-  executes natively, and its wrong-step twin rejects
-  (`pass/proofs/runtime_ranked_accumulator_guarantee_exit`,
-  `fail/proofs/ranked_accumulator_guarantee_wrong_step_twin`). The free-loop
-  restatement of an arithmetic accumulation claim now passes checked
-  semantics end to end: a free `climb(remaining, acc)` over
-  `u64[0..=1000]` formals with `ensures result == acc + remaining` and
-  `terminates by remaining -> Nat::Descending` checks, because the ranking
-  reads positivity through a held `when` conjunction (`remaining > 0 &&
-  acc < 1000` supplies `remaining > 0`), the entailment induction reads a
-  tail call naming the machine as a self-re-entry — resolution binds the
-  machine symbol as the canonical coordinate for a free machine's own
-  entry, while the gate compared only the entry state's symbol — and the
-  header transport proposes the conserved `acc + remaining` conjunct that
-  discharges the exit. The declared entry ranges are the arrival
-  certificates: they make the contract's `acc + remaining` provably in
-  range and, once the `acc >= 1000` early-return arm refutes, give the
-  backedge's `acc + 1` a dominating bound. Its wrong-step twin
-  `fail/proofs/accumulator_guarantee_wrong_step_twin` forwards `acc`
-  unchanged and fails the preserved-sum claim with no provable arrival, the
-  unestablished twin `accumulator_guarantee_unestablished_twin` is
-  disproved by constant arithmetic on the transition arm, the unbounded
-  twin `accumulator_guarantee_unbounded_formals` drops the declared ranges
-  and rejects on the exact-arithmetic obligation, and the unchanged
-  `Nat::Descending` certificate still answers the cycle question. The
-  header transport additionally admits residue-domain (`u64 in Wrapping`)
-  binders under `==` — an integer identity descends to Z/2^w — while
-  residue order and disequality claims stay outside the proposition
-  language; the residue reading is pinned by
-  `src/tests/contracts/cyclic_header_invariants.rs`. The authored fixtures
-  `proofs/proof_inductive_gauss_sum` and `proofs/proof_inductive_climbing_sum`
-  remain in `CHECKED_ONLY_PASS_CANARIES`, and their step-false twins refute
-  the wrong update in Psi validation only.
+  Carry the source derivation as checked facts that lowering certifies and the
+  receiver checks, instead of independently searching for the same invariant
+  in both stages. Extend this route to multi-state carried values and
+  storage-changing self transitions. PROOF-KERNEL-CORE owns the open-term
+  arithmetic derivation; share licensed normalization with
+  PCC-CANONICAL-SEMANTIC-LEDGER. Do not invent an arithmetic axiom for each loop,
+  discard exact overflow obligations, or infer residue order/disequality from
+  the existing Wrapping equality support.
 
+  Acceptance: an arithmetic accumulation fixture or faithful free-loop
+  restatement runs natively; the wrong-update twin fails preservation while
+  its unchanged cycle certificate still answers the same termination question.
+  Missing arrival evidence and an unestablished guarantee reject. Retain
+  `terminal-verifier/tests/ranked_scc/`, `ranked_value_guarantees`,
+  `compiler/tests/pcc_publication.rs` and architecture layering controls.
+
+- **PCC-CANONICAL-SEMANTIC-LEDGER.** Replace trusted fusion of artifact
+  traversal and proof search with a total canonical-ledger generator and an
+  untrusted certificate producer under the
+  [verification contract](wiki/spec/terminal-psi/verification.md#canonical-semantic-ledger).
+  Owner: `terminal-verifier`, with `terminal-codec` and `proof-admission`.
+
+  The existing `trusted_surface.rs` inventory mechanically covers dispatch,
+  reconstructed facts, dependencies, implementation sources and soundness
+  statuses. Reuse it; coverage and a `Proved` label are not themselves proofs.
   Remaining work:
 
-  - Open-term integer equality at the Terminal kernel. The checked claim
-    above does not yet run: the conserved-sum header invariant's backedge
-    arrival is `Equal((acc + 1) + (remaining - 1), acc + remaining)` as
-    Terminal value terms, and no `ProofRule`/`PrimitiveJudgment` discharges
-    a ring identity over open values — `scalar_block_invariants` drops the
-    unprovable proposal, then the `ContractEnsures` obligation has no
-    transport (`OperationProofUnavailable`). The producers and the judgment
-    check live in `proof-admission` and `terminal-psi`, fenced this wave by
-    **PROOF-KERNEL-CORE** and **WRITE-ONLY-BORROW**. The same judgment would
-    serve the fixtures' `sum + rank = initial` claims; routing quotient and
-    ring-law evidence through `verify_normalization`
-    (`proof-admission/src/admission/normalization.rs`) stays shared with
-    **PCC-CANONICAL-SEMANTIC-LEDGER**.
-  - A generated loop that carries the claim on the attached route. Both
-    fixtures are `&mut self` machines with no scalar graph; they stop in the
-    attached Unit closure at `call statement shape: call count without a
-    statement sequence`
-    (`typed-trees-to-checked-trees/src/execution/unit/control/checked_machine.rs`),
-    so the attached value-returning cyclic route still waits on
-    **STATE-LOCAL-VALUE-FRONTIER**'s ordinary evaluation. The free-loop
-    restatement checks above; its native run awaits the kernel judgment.
-  - Header-invariant proposal beyond its widened reach: immutable
-    fixed-integer parameters in the Exact or Wrapping domain under `==`,
-    one state, the returned value. A loop-carried value in a second state,
-    a `self` transition that changes storage, and residue order or
-    disequality claims are still not proposed.
+  - Move search out of verification, including the 4096-step search in
+    `validation/crash/entry_requirements.rs`. Producers supply certificates;
+    receivers reconstruct questions and check the supplied route.
+  - Discharge `ExplicitlyTrusted` reconstruction, normalization, scope,
+    invalidation and call/cycle-composition rows with checked evidence and
+    exact dependencies. Preserve `PROVED_ENTRIES`, dispatch/fact coverage,
+    source-closure and unfinished-dependency checks; prove prerequisites
+    rather than hiding trusted composition behind a proved leaf.
+  - Define the generator over canonical Terminal bytes, not a producer-decoded
+    AST accepted by assertion. The common kernel and selected inductive
+    profile's unfinished soundness/encoding obligations remain dependencies,
+    not permission to assume generator success.
 
-  Re-verified at `992aa33c27` (linux x86-64): the recorded fences are still
-  live — PROOF-KERNEL-CORE holds `proof-admission/src/mathematical_core`
-  (~09:00Z) for the open-term judgment leg, STATE-LOCAL-VALUE-FRONTIER
-  holds the attached-route `typed-trees-to-checked-trees` execution
-  surfaces (~02:17Z), and PCC-CANONICAL-SEMANTIC-LEDGER holds the
-  terminal-verifier reconstruction and shared `verify_normalization`
-  route (~06:20Z); the earlier WRITE-ONLY-BORROW fence on this row has
-  expired but leg 1 stays gated by the kernel-core claim. The
-  header-proposal widening leg remains open engineering under this row —
-  multi-state loop-carried values, storage-changing self transitions,
-  and residue order/disequality reach — not a bounded swarm slice.
+  Acceptance: a theorem-dependent program verifies after source and producer
+  state are removed, under accepting and rejecting assumption policies.
+  Wrong goals, profiles, scopes, premises, missing obligations and omitted
+  transitive assumptions reject; normalization and erasure cannot hide
+  dependencies. Use `terminal-verifier/tests/trusted_surface.rs` and codec
+  trust-graph controls alongside the connected certificate case. This is not
+  native refinement or bootstrap proof discharge; GAMMA-DERIVATION-CHECKER
+  remains independently owned by `TASKS_BOOTSTRAP.md`.
 
-  Acceptance: an arithmetic accumulation claim over a generated loop (the two
-  fixtures, or a free-loop restatement of their sums) executes natively, and
-  its wrong-update twin fails the functional claim on the preservation
-  obligation while the unchanged cycle certificate still answers the identical
-  cycle question. Dropping an arrival certificate rejects, and a guarantee the
-  loop does not establish stays unproved. Keep the existing controls:
-  terminal-verifier `tests/ranked_scc.rs` and
-  `tests/ranked_scc/scalar_block_invariants.rs`, `checked-trees-to-lowered-psi`
-  `tests::ranked_value_guarantees`, `compiler/tests/pcc_publication.rs`, and
-  `tests/architecture/layering.rs`.
+- **PROOF-RELEVANCE-MIGRATION.** Complete carrier-independent erased arguments
+  under [explicit erased bindings](wiki/spec/proofs/contracts.md#explicit-erased-bindings).
+  Static scalar and proof-only argument lanes exist. Two implementation gaps
+  remain: `validation/src/proof_contracts/relevance/shape_admission.rs`
+  rejects erased runtime-record/enum formals, and
+  `typed-trees-to-checked-trees/src/checks/contracts/dynamic_erased_lane.rs`
+  rejects erased formals on dynamic requirements because their dispatch plans
+  carry no proof actuals. These refusals diagnose missing support; they do not
+  complete the specified feature.
 
-  Flag: the transported-guarantee header invariant is searched twice. The
-  source prover (`cyclic_headers.rs`, which calls itself "the source analog")
-  and the Terminal producer (`cyclic_guarantees.rs`) each propose and prove the
-  same conjunct independently, with different reach: the source side returns
-  `None` unless the machine has exactly one state. One derivation at any cyclic
-  header, recorded by checking as a fact that lowering certifies and the
-  verifier still replays, would remove the second search and the single-state
-  restriction.
+  Carry the exact erased subjects/actuals through static and dynamic call plans,
+  Terminal contracts and independent call composition without adding runtime
+  storage, ABI arguments or execution. Preserve witness identity, scope,
+  multiplicity and assumptions. Reuse the existing erased scalar/proof-term
+  routes; the exploratory dynamic-lane draft is not a new language prerequisite.
+  Erased-field custody/cleanup belongs to
+  CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.
 
-- **PCC-CANONICAL-SEMANTIC-LEDGER.** Replace trusted Rust fusion of artifact
-  traversal and proof search with a small total canonical-ledger generator plus
-  an untrusted certificate producer. The verifier reconstructs goals and only
-  checks the supplied route, under the
-  [canonical semantic ledger](wiki/spec/terminal-psi/verification.md#canonical-semantic-ledger).
-  The [trusted-surface inventory](wiki/spec/terminal-psi/verification.md#trusted-surface-inventory)
-  exists in `terminal-verifier/src/trusted_surface.rs` with mechanical
-  dispatch and source coverage (`tests/trusted_surface.rs`). It establishes
-  coverage, not soundness: four reconstruction rows are `Proved` by
-  generation-time certificates (`fact:boolean-polarity-implications`,
-  `fact:successor-path-transport`, `fact:branch-condition-transport`,
-  `fact:header-invariant-members`), every other row is `ExplicitlyTrusted`,
-  and the codec's trust-graph descriptor still names the Rust decoder and
-  verifier as trusted judgments. Dependency edges are closed mechanically:
-  a duplicate edge or a claim-bearing row naming an `Unfinished` row fails
-  (`UnfinishedDependency`, `DuplicateDependency`). The proved set is recorded
-  in `PROVED_ENTRIES` and closed by `check_proved_set`: a row marked `Proved`
-  outside the recorded set fails, and a recorded row that regresses or
-  disappears fails, so a soundness status change can never hide inside an
-  ordinary entry edit (`the_recorded_proved_set_matches_the_marked_rows`).
-  The codec implementation surface is
-  inventoried like the verifier and representation closures:
-  `terminal-codec/build.rs` folds every Rust source under its `src/` into
-  `terminal-codec/source-closure`, bound alongside `terminal-codec/Cargo.toml`
-  (whose `[lib]`/`[[test]]`/`autotests` declarations fix the compiled surface)
-  to the canonical-bytes root and the decoder node so an unbound codec source
-  cannot change unobserved. A crate-directory sweep fails on any production
-  `.rs` outside `src/`, `build.rs`, or the declared `tests/` target, and the
-  module-path and include tokens that could compile a file the closure never
-  committed are banned
-  (`sections::trust_graph::tests::{codec_source_closure_retains_every_source_exactly,codec_inventory_covers_the_whole_crate_directory,codec_sources_never_escape_the_closure_root}`).
-
-  Remaining work:
-
-  - Move proof search out of verification. The verifier still searches, for
-    example 4096 steps in
-    `terminal-verifier/src/validation/crash/entry_requirements.rs`; the
-    producer must supply that certificate and the verifier only check it.
-  - Convert the `ExplicitlyTrusted` reconstruction, normalization, scope, write
-    invalidation and call/cycle composition rows to `Proved`, each with checked
-    evidence and explicit dependencies. A proved row cannot hide an unproved
-    composition row, and an `Unfinished` row establishes no independent claim.
-  - Define the generator as a total definition over canonical Terminal bytes,
-    not over an AST decoded by a separately trusted producer. Application
-    interpretation uses the common kernel and the selected
-    [inductive profile](wiki/spec/proofs/inductive_profile.md); its unfinished
-    soundness and encoding proofs are dependencies, not permission to trust
-    success.
-
-  Acceptance: a theorem-dependent program obligation verifies after producer
-  and source state are deleted, under one accepting and one rejecting
-  assumption policy. Wrong goals, wrong profile identities and omitted
-  transitive assumptions reject. A mathematical theorem alone does not
-  establish native refinement. Bootstrap discharge belongs to
-  `GAMMA-DERIVATION-CHECKER` in `TASKS_BOOTSTRAP.md`; it is not a prerequisite
-  and must not force general mathematics into the Gamma checker.
-
-  Frontier (z105 audit, origin/main `dcfb595098`): all three legs remain open
-  and each is its own multi-session leg, not a bounded slice — moving proof
-  search out of verification (the named `entry_requirements.rs` 4096-step
-  search still runs verifier-side); `ExplicitlyTrusted`→`Proved` conversions
-  each need a bespoke total certifying procedure replayed by proof-admission
-  (the four landed rows' shape: `boolean_polarity::implications` fixes the
-  derivation shape and checker rejection fails generation closed); the total
-  canonical-byte generator waits on the inductive profile's unfinished
-  soundness/encoding proofs, which are dependencies, not permission to trust
-  success. The ledger file itself is under RC-REPOSITORY-BASELINE-GREEN's
-  glob-leg-2 claim (`trusted_surface.rs`, expires 23:46Z); PROOF-KERNEL-CORE
-  claims `semantics/proof` core files (21:39Z) and PROOF-QUANTIFIER-AUTOMATION
-  claims `lemmas.rs` (22:37Z). A minimal next slice would be one
-  `ExplicitlyTrusted`→`Proved` conversion on the thinnest dependency row
-  (`fact:scalar-carrier-bounds` depends only on `primitive:integer-carrier-bound`),
-  sequenced after the baseline-green leg releases the ledger.
-
-  Re-verified at `138ed79a677` (linux x86-64): the named minimal slice has
-  landed — `fact:scalar-carrier-bounds` is now `Proved` with recorded
-  evidence (`reconstruction.rs`: the `declared_carrier_bounds` fixed-shape
-  certificate, interval invariant cited as assumption zero, conjunct-index
-  elimination, proof-admission re-deciding before roster join) and is
-  registered in `PROVED_ENTRIES` (trusted_surface.rs:254) alongside the four
-  prior rows. `trusted_surface` 15/15 PASS, digests current. The ledger file
-  is unfenced tonight; proof-admission core still sits under
-  PROOF-KERNEL-CORE (09:49Z) and two verifier validation files under
-  REGISTERED-CALLBACK-LIFETIME (14:37Z) / DYNAMIC-UNIT-CALL-GRAPH-AND-
-  REACH-EDGES (15:49Z). The remaining legs are unchanged in shape — verifier
-  proof-search extraction, the ~33 remaining `ExplicitlyTrusted`
-  reconstruction rows (thinnest next: `fact:integer-structural-field-read-
-  range`, depending only on the now-Proved carrier-bounds row), and the
-  total canonical-byte generator still gated on the inductive profile's
-  unfinished proofs.
-
-  Re-verified at `d25250eb22e` (linux x86-64): the named thinnest row has
-  landed — `fact:integer-structural-field-read-range` is now `Proved`. The
-  row emits no fact of its own shape: `operation_facts.rs` routes the read's
-  interval bounds through `declared_carrier_bounds` — the
-  `fact:scalar-carrier-bounds` certifying procedure — and now joins the
-  roster only when that fixed-shape `ConjunctionElimination` certificate is
-  accepted by proof-admission's checker; a rejected certificate emits nothing
-  rather than joining trusted. Registered in `PROVED_ENTRIES`
-  (trusted_surface.rs) and the recorded `operation_facts.rs` site digest is
-  refreshed. `terminal-verifier` 851/851 PASS. ~32 `ExplicitlyTrusted`
-  reconstruction rows remain; the next-thinnest is now whichever row still
-  depends only on Proved dependencies.
-
-- **PROOF-RELEVANCE-MIGRATION.** Finish `[erased]` noninterference and
-  erased-stripped layout under
-  [explicit erased bindings](wiki/spec/proofs/contracts.md#explicit-erased-bindings).
-  An erased binding stays in semantic and proof identity and contributes no
-  runtime storage, tag, ABI transfer or execution; runtime use and
-  layout-dependent erasure reject. Data fields, case payload fields, signature
-  and state parameters and `let` locals carry the marker through checking:
-  `validation/src/proof_contracts/relevance/` rejects runtime reads and
-  receivers, layout and the checked calling plan strip erased positions, and
-  Terminal lowering rebuilds the stripped scalar and structural namespaces from
-  the typed relevance, so an erased parameter that no contract names executes
-  natively. No Terminal contract can name an erased binding:
-  `checked-trees-to-lowered-psi/src/proofs/crash_routes/scalar_terms.rs`
-  rejects it with "crash predicate value position is outside the selected
-  scalar namespace".
-
-  Landed: erased formals carry a proof-only scalar term lane end to end.
-  `terminal-psi` contracts publish `erased_scalar_formals`; Call-family
-  operations and Jump/Conditional successors carry `erased_arguments` lanes
-  inside the contract commitment; the codec encodes them unconditionally so
-  pre-change bytes reject; the checker records erased actuals under
-  `ErasedUnitCallArgument` and erased transition actuals under
-  `TransitionArgument` keyed by authored position; lowering binds the lane from
-  the caller's erased namespace; and `terminal-verifier` substitutes each
-  erased actual into the callee's `requires` at call sites and edges
-  (`call_composition.rs`), rejecting missing, substituted or out-of-closure
-  rows. Composed-route state contracts carry `requires`, and selection admits
-  a borrowed receiver on a call bearing requirement obligations (obligations
-  are provenance-only downstream).
-
-  Remaining work:
-
-  - Done: erased non-primitive parameters. `e2728569622f` ("route erased
-    proof-only formals through call plans and terminal-psi") landed the
-    contract term lane: `MachineContract::erased_proof_formals` carries
-    proof-only typed formals (e.g. `Nat`) in dense authored order after the
-    scalar erased roster, call/successor operations supply one `ProofTerm`
-    per roster row, and `shape_admission`'s
-    `validate_erased_runtime_scalar_formals` now admits proof-only mentions
-    (the diagnostic still refuses an erased runtime-carrier formal that is
-    neither scalar nor proof-only; `fail/relevance/erased_nonscalar_parameter`
-    keeps pinning that surface). Re-verified at `bc772bf7cd7e` on linux
-    x86-64: canary_suite `layouts_and_pending::
-    erased_proof_only_typed_parameter_stays_out_of_the_scalar_signature`
-    PASSes including the native execution leg (`keep(70, Nat::Zero{})`
-    compiles natively and exits 70). Residual: the canary's own header
-    comment still describes the superseded "intentionally rejected"
-    spelling; roster re-homing crosses the fenced suite-roster lanes.
-  - Done: the internal-calls lane carries requires-bearing and
-    erased-formal callees — composed-control internal targets publish
-    `erased_scalar_formals` and `requires`, emission resolves erased
-    actuals and allocates one obligation per published row, and the
-    published roster stays in canonical order (authored clauses merge
-    ahead of the derived parameter-range tail; merged propositions are
-    sorted and deduplicated at every publication site).
-  - Done: a `&dyn` call to a requirement declaring an erased formal now
-    explicitly refuses its erased lane — check-time diagnostic naming the
-    requirement and formal (`checks/contracts/dynamic_erased_lane.rs`,
-    covering direct bindings and descriptor fields stored in records;
-    `fail/relevance/dynamic_erased_formal_lane` pins the surface).
-    Carrying the lane through the descriptor would need a proof-actual
-    channel on `CheckedDynamicScalarCallPlan` and emitted vtable rows —
-    a larger slice than the refusal.
-  - Done: erased `self`, `const` and `mut` bindings now refuse by name at
-    check time. `strips_erased_parameter` already refused them a calling
-    plan, but the omission surfaced only as an unadmitted plan downstream;
-    `relevance/shape_admission.rs::validate_erased_binding_qualifiers`
-    diagnoses the qualifier on signature parameters (machines and trait
-    requirements), `let mut` locals, and reference formals, pinned by
-    `fail/relevance/erased_mutable_parameter`. `self [erased]` is not
-    expressible in the grammar (receivers take no binding properties); a
-    `&mut x [erased]` formal fails as `mut`. Keep the refusal unless the
-    specification gives the combination a meaning.
-
-  Acceptance now holds for the erased-term lane:
-  `pass/relevance/erased_parameter_proof_only` (exits 70) and
-  `erased_parameter_named_transition_forward` run natively; a violating erased
-  actual, an actual outside the admitted closure, a missing or substituted
-  erased-argument row, and pre-change codec bytes reject in source-free
-  verification; the `fail/relevance/` runtime-read and receiver controls keep
-  rejecting. An internal-call callee with `requires` admits and discharges:
-  `composed_unit_internal_calls` covers the carried lane, obligation arity,
-  violating and missing erased actuals, and a two-erased witness pinning the
-  second formal's ordinal. New acceptance: an erased non-primitive formal
-  reaches the contract term lane, and a dynamic call carries or explicitly
-  refuses its erased lane.
-
-  Erased-field cleanup belongs to
-  **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP**.
+  Acceptance: an erased record/enum formal and a dynamic trait call using
+  erased evidence check and execute with stripped runtime signatures.
+  Replace `fail/relevance/erased_nonscalar_parameter` and
+  `dynamic_erased_formal_lane`'s implementation-limit expectations with
+  positive coverage. Missing, substituted, out-of-scope or violating proof
+  actuals still reject after serialization. Retain the static
+  `erased_parameter_proof_only`, `erased_parameter_named_transition_forward`
+  and `composed_unit_internal_calls` controls, plus runtime-read, receiver and
+  layout-dependent-erasure rejection. Do not relax semantically invalid
+  qualifier combinations merely to remove an implementation fence.
 
 ## P4 - ABI, borrowing, and callbacks
 
@@ -7784,33 +7375,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   skip_call_selection` green; `omega --check` on
   `samples/cli/proofs/math_proofs/main.omg` compiles. No residual slice.
   covered — resolved; fix landed via BENCHMARK-PROOF-SUBJECT-CHECKED-CALL-SELECTION
-- **MATH-PROOFS-CALL-SELECTION-OCCURRENCE.** Resolved —
-  covered-alias of the checked-call-selection blockage that
-  failed `math_proofs`, landed on sibling
-  BENCHMARK-PROOF-SUBJECT-CHECKED-CALL-SELECTION (verified
-  `1f7301b710`): contract-position calls naming no declaration
-  (`Bag(items)`/`Bag(before)` atoms) deliberately get no Call
-  occurrence from the resolver
-  (`contract_clause_calls_naming_no_declaration_skip_call_`
-  `selection`), so `collect_checked_proof_view_call_selections`
-  now walks each fact's root subtree as a group, inherits the
-  clause's authored exposure, and reports unbound receiverless
-  calls carrying no Call-kind occurrence — checked finalization
-  mints one finalized ProofView ledger row per exact
-  (span, exposure) call site as the expression's occurrence.
-  Witnesses: `undeclared_contract_view_calls_finalize_as_`
-  `proof_view_intrinsics` green; typed-trees-to-checked-trees
-  5038/5038; `omega --check` compiles
-  `samples/cli/proofs/math_proofs`. Verified at `e7c0099cb2b`:
-  no live same-item claim; the contract-migration residual
-  (mathematical trait parameters) sits with
-  PROOF-CONTRACT-MIGRATION per the MATHEMATICAL-* sibling rows.
-  Re-verified at `3dac85e5ccce`: both named witnesses green
-  (`contract_clause_calls_naming_no_declaration_skip_call_selection`
-  in syntax-trees-to-symbol-resolved-trees,
-  `undeclared_contract_view_calls_finalize_as_proof_view_intrinsics`
-  in typed-trees-to-checked-trees — 2/2 nextest PASS).
-  No independent slice under this name.
 - **BENCHMARK-PROOF-SUBJECT-SELECTION.** Mined candidate; scope verified at
   `1a772e4ae1`, owned — re-mines the proof-subject leg of the benchmarks
   frontier (wiki/drafts/benchmarks.md 'no measurable subject'): the only
@@ -8464,8 +8028,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   TR3-TR8's selected runtime exists.
 - **CHECKED-CALL-SELECTION-OCCURRENCE-MATH-PROOFS.** Resolved — sibling
   stub of PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's resolved row (the
-  resolved verdict at `1fc01bb690` is already cited verbatim on
-  MATH-PROOFS-CALL-SELECTION-OCCURRENCE :8189):
+  resolved verdict is recorded at `1fc01bb690`):
   `validation/src/proof_contracts/contract_entailment/specification_calls.rs`
   checks selected concrete calls before fact intake and attributes the
   callee's selected precondition to the call's exact subject;
@@ -10326,22 +9889,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   evidence into the bounded comparison harness — fenced to
   MATCHING-LOGIC-BOUNDED-SLICE (`tools/matching-logic-slice/`, live claim);
   no encoding-to-checker translation is admitted authority.
-- **MATH-PROOFS-CALL-SELECTION-OCCURRENCE.** Mined candidate — scope
-  verified, covered. The name re-covers two already-owned surfaces: the
-  math-proofs checked-call-selection/occurrence leg, resolved with
-  CHECKED-CALL-SELECTION-OCCURRENCE-MATH-PROOFS at `1fc01bb690`
-  (specification_calls.rs attributes the selected precondition to the
-  call's exact subject; `proofs/case_call_wrong_subject` /
-  `case_citation_wrong_result` reject, `case_call_premises` compiles),
-  and the broader contract-proof + mathematical-traits surface that is
-  PROOF-CONTRACT-MIGRATION's connected implementation (its
-  `MATH-FOUNDATION-BINDINGS` bindings leg and `PROOF-KERNEL-CORE`
-  substrate are live-claimed at verification time `ac4e4eee9b`).
-  `samples/cli/proofs/math_proofs` is fenced by
-  PROOF-SAMPLES-CHECKED-CALL-SELECTION. No independent slice exists
-  here. Sibling stubs on the same surfaces:
-  MATH-PROOFS-DECLARATION-SELECTION, PROOF-SUBJECT-CALL-SELECTION,
-  PROOF-SUBJECT-CHECKED-CALL-SELECTION, CHECKED-CALL-SELECTION-OCCURRENCE-MATH-PROOFS.
 - **MODULE-CONSTANT-COMPUTED-CARRIER** — mined candidate; verify scope then implement.
 - **NAMED-TRAIT-OPERATORS.** Scope verified, resolved (re-verified at `b9635834f39c`) — named trait operator requirements are implemented end to end on `main` per the chapter 14 contract: the trait owns the fixed token binding (`machine < compare` requirements resolve through `authored_selections/operator_targets.rs` + `monomorphization/selected_operator_providers.rs`), token uses consume exactly one proof-static selected conformance (never an ambient visible candidate), multiple applicable selected binders reject, and bindings are unique per normalized operand telescope — all pinned by `tests/operators/trait_operator_bindings.rs` (7 tests incl. `trait_operator_use_consumes_only_the_selected_conformance_application`, `trait_operator_use_rejects_multiple_selected_conformance_binders`, `visible_conformance_does_not_supply_an_unbound_trait_operator`, `trait_operator_bindings_are_unique_per_normalized_operand_telescope`). Sibling stubs on the same surface: GEOMETRY-NAMED-TRAIT-OPERATORS, SQUALR-NAMED-TRAIT-OPERATORS (app-lane delegate).
 - **NAMESPACE-AWARE-NORMALIZATION** — mined candidate; verify scope then implement.
@@ -10433,49 +9980,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Re-witnessed at `72fc66d6c3267`: `run_metrics.py validate` → 3/3
   records conform to `omega-matching-logic-comparison/1`,
   `tools/tests/test_matching_logic_metrics.py` → 16/16.
-- **MATHEMATICAL-PREDICATE-PARAMETERS.** Mined candidate — scope verified
-  at `bbcff399ed`, re-mine of TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS's
-  adjudicated surface (chapter 14's recorded gap: a trait requirement
-  expressing an arbitrary nondecidable validity condition routes through a
-  [mathematical predicate parameter](wiki/spec/proofs/mathematical_bindings.md),
-  "checking that general route remains implementation work"). That route is
-  PROOF-CONTRACT-MIGRATION's connected implementation — contract proof
-  semantics and core mathematical traits elaborating to PROOF-KERNEL-CORE's
-  term model — and every implementing surface is live-fenced at
-  verification time: PROOF-CONTRACT-MIGRATION itself (Jarod/zergling-86,
-  exp ~07:14Z) holds `t2c/src/proof/proof_output_calls.rs` and
-  `tests/omega/pass/proofs`, and the bindings leg MATH-FOUNDATION-BINDINGS
-  (exp ~00:09Z) holds `proof/mathematical_signature{,.rs}` and
-  `proof/mathematical_declarations{,.rs}`. The "static constructor
-  matching" leg that MODULE-CONSTANT-COMPUTED-CARRIER's row attributes to
-  this item is the same contract-migration surface (predicate parameters
-  are how trait requirements declare such conditions). No independent
-  slice exists. Sibling re-mines verified same-way:
-  MATHEMATICAL-FOUNDATIONS-REAL, MATH-PROOFS-CALL-SELECTION-OCCURRENCE,
-  MATH-PROOFS-DECLARATION-SELECTION.
-  Re-verified at `69cde2eb782` (z181, MATH-PROOFS-DECLARATION-SELECTION
-  re-dispatch): adjudication stands — the name re-mines the declaration-
-  selection leg of the same contract-migration surface; PROOF-KERNEL-CORE
-  still claim-fences the kernel substrate (z177 ~09:49Z registry), while
-  the PROOF-CONTRACT-MIGRATION and MATH-FOUNDATION-BINDINGS fences have
-  drained. No independent slice exists under this name.
-- **MATH-PROOFS-DECLARATION-SELECTION.** — mined candidate; scope verified,
-  resolved — eighth re-mine of the adjudicated
-  TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS surface (chapter 14's recorded gap:
-  predicate parameters on trait requirements; PROOF-CONTRACT-MIGRATION owns).
-  This leg names binding a requirement's predicate parameter
-  (`P: A -> core::Strict<v>`) to a selected mathematical declaration. The
-  substrate is landed and green at `90df29812c00` — s2t lowering into
-  `typed_trees::mathematical`, t2c `proof/mathematical_declarations.rs`
-  records, `proof/mathematical_signature.rs` kernel signature checking and
-  applications (`nextest -p typed-trees-to-checked-trees -E
-  'test(~mathematical)'` → 68/68). The selection leg is absent by
-  construction: `TraitRequirement` carries only `lifetime_arguments` +
-  `arguments: HandleSpan<TypeReferenceHandle>` — no mathematical parameter
-  slot — so it is the canonical item's design surface, not a bounded slice.
-  All fences prior rows named (PROOF-CONTRACT-MIGRATION, PROOF-KERNEL-CORE,
-  MATH-FOUNDATION-BINDINGS) have drained. Record:
-  `wiki/drafts/math_proofs_declaration_selection.md`.
 - **NAMED-TRAIT-OPERATORS.** — mined candidate; scope verified, resolved — named trait operator requirements are implemented end to end on `main` per the chapter 14 contract: the trait owns the fixed token binding (`machine < compare` requirements resolve through `authored_selections/operator_targets.rs` + `monomorphization/selected_operator_providers.rs`), token uses consume exactly one proof-static selected conformance (never an ambient visible candidate), multiple applicable selected binders reject, and bindings are unique per normalized operand telescope — all pinned by `tests/operators/trait_operator_bindings.rs` (7 tests incl. `trait_operator_use_consumes_only_the_selected_conformance_application`, `trait_operator_use_rejects_multiple_selected_conformance_binders`, `visible_conformance_does_not_supply_an_unbound_trait_operator`, `trait_operator_bindings_are_unique_per_normalized_operand_telescope`). Sibling stubs on the same surface: GEOMETRY-NAMED-TRAIT-OPERATORS, SQUALR-NAMED-TRAIT-OPERATORS (app-lane delegate).
 - **NATIVE-DIFF-CUSTODY-EXPECTATION-RETARGET.** Resolved — duplicate of the
   already-adjudicated custody-expectation slice. The stub re-mines the
@@ -10600,19 +10104,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   tracking the item. Stubs with no same-named row, and non-bare
   "mined candidate; scope verified" mini-rows, are untouched.
 
-- **NEW-GCE-CYCLIC-CONTROLS-SPEC-STATUS.** Inserted row, slice landed
-  (planner-scoped to `wiki/spec/terminal-psi/verification.md`) — appended
-  the cyclic-controls status paragraph to "General proof integration
-  status": the spec's cyclic rules (acyclic-only merge tokens, checked
-  invariant establishment for cyclic reconvergence, unproved cyclic
-  arrivals blocking primitive-read equality, the scalar block-predicate
-  rule's existing cyclic cuts) are now stated with their implementation
-  status — bounded families implemented in source (`exits/cyclic_headers`,
-  `cyclic_guarantees::strengthen`, cyclic call fixtures) while the general
-  cyclic execution composition stays an open ledger leg under
-  GENERAL-CYCLIC-EXECUTION; no proved general cyclic composition theorem
-  is claimed. Prose-only spec edit; consistency reviewed, no code path
-  touched.
 - **NEW-LSC-MULTI-SOURCE-LIFETIME-LEAVES.** Inserted row, scope verified at `b868b9ee8f27` (planner-scoped to `typed-trees-to-checked-trees/src/borrow/view_link.rs`) — the multi-source lifetime-leaf machinery is already implemented in that file: `structural_view_return_source` enumerates input leaves via `carried_lifetimes`, an elided output requires exactly one leaf across the frontier (`ElidedMultipleInputs` at `matching.len() != 1`, covering one parameter carrying several unnamed sources), an explicit output lifetime emits one `ViewReturnFieldSource` per matching leaf. **SUPERSEDED — this row was inserted after its own blocker was already gone.** `9106b1ca03725` ("psi: explicit result lifetime unions same-lifetime inputs as view sources") landed the multi-source leg inside `view_link.rs`: an explicit result lifetime now links *every* input carrying the name and emits one `ViewReturnFieldSource` per matching leaf across inputs (`view_link.rs:256-285`, comment at :257-259). `LifetimeMatchesMultipleInputs` and its diagnostic have zero hits in any `.rs` file; the only multi-match rejection left is `ElidedMultipleInputs`, guarded by `output.lifetime.is_none() && matching.len() != 1` (:246-248). The sibling row at :12926 already calls the variant retired. No slice remains here. No live fence covers the file; the cross-file leg needs its own dispatch with `elision.rs` + `loans.rs` in scope.
 - **NEW-NATIVE-DIFF-IGNORED-OPERAND-PROBE-INTENT.** Inserted row, scope
   verified (planner-scoped to `tests/native-differential/tests/real_fs.rs`)
@@ -10688,8 +10179,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **LOWERED-BOUNDARY-BYTE-BUFFER-FAILURES** — mined candidate; verify scope then implement.
 - **MATCHING-LOGIC-SLICE-COMPARISON** — mined candidate; verify scope then implement.
 - **MATCHING-LOGIC-VERTICAL-SLICE-COMPARISON** — mined candidate; verify scope then implement.
-- **MATH-FOUNDATION-BINDINGS** — mined candidate; verify scope then implement.
-- **MATHEMATICAL-FOUNDATIONS-REAL** — mined candidate; verify scope then implement.
 - **MODEL-FREE-CANDIDATE-SEARCH** — mined candidate; verify scope then implement.
 - **MODULE-CONSTANT-BUILTIN-CARRIER** — mined candidate; verify scope then implement.
 - **MULTI-TARGET-BATCH-MANIFEST** — mined candidate; verify scope then implement.
@@ -11547,7 +11036,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   "forwarding and fresh construction remain distinct origins" control.
   Related but separate surfaces: premise origins for constructed results are
   TPR6's progress surface, and static constructor matching is
-  MATHEMATICAL-PREDICATE-PARAMETERS's remaining work — neither is this row's
+  PROOF-CONTRACT-MIGRATION's remaining work — neither is this row's
   seam.
 - **PROOF-VALUE-SOURCE-CORRESPONDENCE.** — mined candidate; verify scope then implement.
 - **PROOFS-SUBJECT-CHECKED-CALL-SELECTION.** — mined candidate; scope verified, covered — named sibling stub of PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's resolved row, which owns this surface: a checked/specification call cited as a proof subject must attribute the callee's selected precondition to the call's exact subject. Implemented on `origin/main` at `1fc01bb690` (`validation/src/proof_contracts/contract_entailment/specification_calls.rs` checks selected concrete calls before fact intake; caller-terms attribution diagnostic in `typed-trees-to-checked-trees/src/checks/operators/requires.rs`); re-verified green at `f1675418b1` on the singular-variant row (`proofs/case_call_wrong_subject` rejects `empty_only(other)` when only `known in Tree::Empty` is established, `case_citation_wrong_result` pins the result side, pass twin `proofs/case_call_premises` compiles). Remaining owners stay the parent item's own list (abstract signatures, domain predicates, postcondition transport of case membership, induction). No independent slice exists here. Re-verified at `d74f2145b9` (linux x86-64): `OMEGA_PASS_CANARY_FILTER=proofs/case_call_premises` pass_canaries_compile 1/1 green; `OMEGA_FAIL_CANARY_FILTER=proofs/case_call_wrong_subject,proofs/case_citation_wrong_result` fail_canaries_reject 1/1 green. Re-verified at `ff2f489bbff` (linux x86-64): pass_canaries_compile + fail_canaries_reject under the same filters both green. Re-verified at `832c55e69b` (linux x86-64): same filtered pair still 2/2 green — no independent slice exists here. Re-verified at `836bb681a26` (linux x86-64) (z153): same filtered pair still 2/2 green — `OMEGA_FAIL_CANARY_FILTER=proofs/case_call_wrong_subject,proofs/case_citation_wrong_result` rejects with the recorded fragments and `OMEGA_PASS_CANARY_FILTER=proofs/case_call_premises` compiles; no independent slice exists here.
@@ -13860,19 +13349,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SQUALR-DEBUG-ASSERTIONS (~16:25Z registry). Operative blocker
   unchanged: acceptance needs a Windows-host `tools/verify.py native`
   run and no Windows host exists in this lane.
-- **NEW-PRM-DYNAMIC-ERASED-LANE-DESIGN.** Scope verified at
-  `2dbccb9bd6`; design deliverable already landed — the exploratory draft
-  `wiki/drafts/dynamic_erased_lane_channel.md` (4c29987622) lays out the
-  three-leg channel for proof-actual erased lanes on dynamic scalar calls
-  (checked representation, terminal emission + vtable roster publication,
-  verifier reconstruction) with invariants, out-of-scope, evidence-to-move
-  and open questions. Re-audited this pass: every anchor intact —
-  `check_dynamic_erased_formal_lane` refusal + `fail/relevance/
-  dynamic_erased_formal_lane` pin, static `erased_arguments` lanes on
-  Call-family operations, roster-arity emission enforcement. The served
-  board clause stays open until the three legs land and the canary flips
-  (execution legs are not this item's scope — planner-assigned deliverable
-  was the draft alone). Stamp recorded in the draft header.
 
 
 
@@ -14187,9 +13663,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Re-witnessed at `8f58b6676b0` (linux x86-64): the same filtered trio run
   passes 3/3 — no drift since the `b868b9ee8f` re-witness; adjudication
   unchanged (TERMINATION-RANKING-CHECKS lane owns the family).
-- **TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS.** — scope verified 2026-09-20:
-  belongs to its live CTTL-FAILURE-ATTRIBUTION claim or the
-  KNOWN-BASELINE-FAILURES-REFRESH items.
 - **TERMINATION-RANK-RANGE-FIELDS.** Resolved — alias of the landed
   T2C-RANK-RANGE-FIELD-ENDPOINTS surface, which already names this stub as
   covering the same work: rank-range endpoints expressed as field chains.
@@ -14205,29 +13678,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   computed_field_limits. Re-verified green at `bbffdafe0498` (z116,
   linux x86-64): same command, same 49/49. No independent slice remains.
   covered — alias of landed T2C-RANK-RANGE-FIELD-ENDPOINTS
-- **TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS.** Scope verified 2026-09-20;
-  re-verified at `3533f7d0e86`:
-  belongs to the KNOWN-BASELINE-FAILURES-REFRESH items.
-  Re-witnessed at `b868b9ee8f` (linux x86-64, z161): `cargo nextest run
-  -p typed-trees-to-checked-trees --lib -E 'test(~field_endpoint_formation_never_uses_final_cancellation)
-  | test(~field_endpoints_require_defined_intermediates) |
-  test(~constant_rank_endpoints_preserve_landing)'` — 3/3 pass; the
-  trio still stands resolved and the draft row still awaits its refresh
-  item.
-- **TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS.** — scope verified 2026-09-20:
-  re-mines [chapter 14](wiki/language_guide/chapter_14_traits.md)'s recorded
-  gap that a trait requirement expressing an arbitrary nondecidable validity
-  condition uses a
-  [mathematical predicate parameter](wiki/spec/proofs/mathematical_bindings.md)
-  and "checking that general route remains implementation work". That route
-  is **PROOF-CONTRACT-MIGRATION**'s connected implementation (the migration
-  item explicitly owns contract proof semantics and core mathematical traits,
-  elaborating to PROOF-KERNEL-CORE's term model rather than a second logical
-  representation); its kernel substrate stays under a live PROOF-KERNEL-CORE
-  claim (until 06:47Z) and its bindings leg under MATH-FOUNDATION-BINDINGS
-  (until 00:09Z) at verification time. No independent slice exists here. Sibling re-mines of the same
-  surface: MATHEMATICAL-PREDICATE-PARAMETERS, MATHEMATICAL-FOUNDATIONS-REAL,
-  MATH-PROOFS-CALL-SELECTION-OCCURRENCE, MATH-PROOFS-DECLARATION-SELECTION.
 - **TRANSLATION-VALIDATION.** — verified `fcef01c59a`: duplicate pointer to the
   live `**TRANSLATION-VALIDATION.**` item in TASKS_OPTIMIZER.md, which now
   carries the verified frontier. Scope findings: `CallDynamic*` and the
