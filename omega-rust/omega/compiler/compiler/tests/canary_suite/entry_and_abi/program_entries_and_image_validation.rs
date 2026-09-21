@@ -567,8 +567,12 @@ fn production_check_accepts_entry_agnostic_semantic_corpus() {
     .expect("check-only compilation must not require or infer a runtime entry");
 
     assert!(!report.wrote_output());
-    assert!(build_dir.join("05_capability_manifest.json").is_file());
-    assert!(build_dir.join("05_machine_contracts.json").is_file());
+    // The numbered observation dumps this pin once named were removed
+    // renderers; a check-only stop now writes no build directory at all.
+    assert!(
+        !build_dir.exists(),
+        "check-only compilation writes no artifact files: {build_dir:?}"
+    );
     let _ = fs::remove_dir_all(scratch);
 }
 
@@ -626,8 +630,9 @@ fn catalog_checked_assembly_is_validated_against_final_image_bytes() {
 #[test]
 fn immediate_port_io_rejects_without_provider_custody() {
     // A direct-root `out` is a privileged port effect with no selected
-    // provider requirement to settle under; the closure review rejects before
-    // any final-image evidence can be emitted.
+    // provider requirement to settle under; the host-led terminal-authority
+    // closure review refuses it before any final-image evidence can be
+    // emitted.
     let canary = pass_canary(fixture_roster::INLINE_ASM_ASM_PORT_OUT_FINAL_VALIDATION);
     let diagnostics = compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
@@ -637,10 +642,14 @@ fn immediate_port_io_rejects_without_provider_custody() {
     })
     .expect_err("direct-root port writes have no provider custody to settle under");
     assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("no selected provider requirement custody")),
-        "direct-root privileged port effects must reject at the custody review:\n{diagnostics:#?}"
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains(
+                "native artifact terminal-authority closure review failed: \
+                 root-reachable checked physical operation has no selected \
+                 provider requirement custody"
+            )),
+        "direct-root privileged port effects must refuse at the host-led terminal-authority closure review:\n{diagnostics:#?}"
     );
 }
 
