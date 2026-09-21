@@ -1,8 +1,9 @@
 # SELECTED-OPTIMIZATION-CATALOG-ROUTE — scope verification (2026-09-20, `c431bc8138`)
 
-Mined stub at `TASKS.md:9927`, already scope-verified at `d8041919ad` —
+Mined stub at `TASKS.md:9927` (now the annotated row at `TASKS.md:11202`),
+already scope-verified at `d8041919ad` —
 sixth stub on the SELECTED-REWRITE-CATALOG cluster. Re-verified at
-`c431bc8138`: the verdict stands.
+`c431bc8138` and again at `dccdfd1fd1`: the verdict stands.
 
 ## Cluster state
 
@@ -28,6 +29,15 @@ sixth stub on the SELECTED-REWRITE-CATALOG cluster. Re-verified at
 | item-level: SELECTED-REWRITE-CATALOG-DISPOSITION,
   PIPELINE-REWRITE-ORPHANS, REWRITE-VALIDATOR-INDEPENDENCE |
   zergling-182 |
+
+Re-verified `dccdfd1fd1` (~00:40Z+1d): the fence set rotated but still
+covers every implementing surface — `selected_optimization.rs` and
+`rewrites/{mod.rs,module_catalog.rs}` sit under
+PIPELINE-REWRITE-CATALOG-WIRING (Zergling-154, 08:00Z), item claims on
+SELECTED-REWRITE-CATALOG-ROUTE (Jarod, 04:11Z) and
+SELECTED-REWRITE-CATALOG-WIRING/PIPELINE-REWRITE-ORPHANS/
+REWRITE-VALIDATOR-INDEPENDENCE (zergling-182, 01:57–05:01Z) remain live,
+and `rewrites/module_catalog.rs` still counts 41 `Orphaned` rows.
 
 ## Outcome
 
