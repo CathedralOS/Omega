@@ -8697,6 +8697,51 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   **ENTRY-CONTENT-ROOTS**' receiver-lifecycle leg lands; the shared-borrow
   negative control still pins that stop.
 
+||||||| parent of b734798f7a6b (TASKS: BASELINE-CHECKED-LOWERED-PSI-CLUSTERS — marker repair + scope verified, covered by c2l attribution rows)
+- **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS** — mined candidate; verify scope then implement.
+- **BASELINE-SERVICE-CARRIER-FAILURES.** Partially advanced at
+  `62c502f9f6` — the bare `Service<R>`-carrier family of
+  `known_baseline_failures.md`'s c2l attribution: 33 tests spelled
+  `console: Console` / `runtime: TaskRuntime` / `output: Output` in value
+  position and rejected under `validate_no_bare_boundary_trait_values`
+  (32f5182254). Done (this slice): `tests/unit_plan_omissions.rs`'s 4 bare
+  `runtime: TaskRuntime` spellings migrated to `&'s mut TaskRuntime`
+  receivers on `Main<'s>`/`Carrier<'s>` per the 0e1977994b raw-pipeline
+  recipe. The 3 carrier-semantic members now pass source checking and stop
+  at `signature`-phase local construction, joining the missing-transitive-
+  machine-plan family (GENERAL-CYCLIC-EXECUTION / UEFI-OS-HANDOFF fences)
+  until ENTRY-CONTENT-ROOTS' receiver-lifecycle leg lands; the `&TaskRuntime`
+  shared-borrow negative control still pins the same stop. Remaining
+  (fenced): `checked-trees-to-lowered-psi/src/tests/{attached_unit_cases,
+  composed_operand_catalogs{,/dynamic_unit}, composed_unit_nested_control,
+  dynamic_composed_unit, indexed_primitive_storage,
+  structural_control_cases}.rs` (21 bare spellings) sit inside
+  PROOF-CERTIFICATION-BRIDGE's `src/tests` claim (expires ~2026-09-21T00:51Z)
+  — same migration applies there when the fence settles.
+- **BASELINE-T2C-BOUNDARY-BYTE-BUFFER-REPAIR** — mined candidate; verify scope then implement.
+- **BASELINE-T2C-PROVIDER-ATTACHMENT-AND-RESULTS** — mined candidate; verify scope then implement.
+- **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS.** Mined candidate — scope verified, covered — re-mines the checked-trees-to-lowered-psi failure-cluster surface of `wiki/drafts/known_baseline_failures.md` §checked-trees-to-lowered-psi. The cluster ledger is maintained by CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION (fresh member-by-member reading recorded at `6ef64f6dd6`: 2152 run, 2093 passed, 59 failed, 1 SIGTERM blowup), and every cluster family is already owned by a named row — bare `Service<R>` fixture spellings → ENTRY-CONTENT-ROOTS + BASELINE-SERVICE-CARRIER-FAILURES, missing transitive machine plans → GENERAL-CYCLIC-EXECUTION + UEFI-OS-HANDOFF, site_guard crash-namespace + scalar-return custody → WRITE-ONLY-BORROW + C2L-BASELINE/RESIDUAL-FAILURE-ATTRIBUTION, the proof-search blowup → PROOF-SEARCH-MEASUREMENT, crash-member byte entries → resolved under LOWERED-CRASH-MEMBER-BYTE-ENTRIES (48/48 green). No independent slice exists here. Re-verified at `7241e022270d`: live fences on the surface include STRUCTURAL-UNIT-LOWERING (`src/unit`, 09:16Z), C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES (10:35Z), PROOF-CERTIFICATION-BRIDGE (`src/tests`, 10:52Z), RC-GATE-STABILITY-REPAIR (tests/nominal_affine_source, 12:15Z). Sibling stubs on the same surface: BASELINE-SERVICE-CARRIER-FAILURES, BASELINE-T2C-BOUNDARY-BYTE-BUFFER-REPAIR, BASELINE-T2C-PROVIDER-ATTACHMENT-AND-RESULTS, LOWERED-PSI-BASELINE-TAIL, LOWERED-CRASH-MEMBER-BYTE-ENTRIES, KNOWN-BASELINE-FAILURES-REFRESH.
+- **BASELINE-SERVICE-CARRIER-FAILURES.** Partially advanced at
+  `62c502f9f6` — the bare `Service<R>`-carrier family of
+  `known_baseline_failures.md`'s c2l attribution: 33 tests spelled
+  `console: Console` / `runtime: TaskRuntime` / `output: Output` in value
+  position and rejected under `validate_no_bare_boundary_trait_values`
+  (32f5182254). Done (this slice): `tests/unit_plan_omissions.rs`'s 4 bare
+  `runtime: TaskRuntime` spellings migrated to `&'s mut TaskRuntime`
+  receivers on `Main<'s>`/`Carrier<'s>` per the 0e1977994b raw-pipeline
+  recipe. The 3 carrier-semantic members now pass source checking and stop
+  at `signature`-phase local construction, joining the missing-transitive-
+  machine-plan family (GENERAL-CYCLIC-EXECUTION / UEFI-OS-HANDOFF fences)
+  until ENTRY-CONTENT-ROOTS' receiver-lifecycle leg lands; the `&TaskRuntime`
+  shared-borrow negative control still pins the same stop. Remaining
+  (fenced): `checked-trees-to-lowered-psi/src/tests/{attached_unit_cases,
+  composed_operand_catalogs{,/dynamic_unit}, composed_unit_nested_control,
+  dynamic_composed_unit, indexed_primitive_storage,
+  structural_control_cases}.rs` (21 bare spellings) sit inside
+  PROOF-CERTIFICATION-BRIDGE's `src/tests` claim (expires ~2026-09-21T00:51Z)
+  — same migration applies there when the fence settles.
+- **BASELINE-T2C-BOUNDARY-BYTE-BUFFER-REPAIR** — mined candidate; verify scope then implement.
+- **BASELINE-T2C-PROVIDER-ATTACHMENT-AND-RESULTS** — mined candidate; verify scope then implement.
 - **BASELINE-VERIFIER-CLEANUP-DIAGNOSTIC-ORDER.** Resolved — names the
   baseline row's verifier cleanup-order surface
   (wiki/drafts/known_baseline_failures.md terminal-verifier section),
