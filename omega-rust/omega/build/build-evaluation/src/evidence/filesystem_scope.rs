@@ -807,7 +807,7 @@ fn captured_inventory(input: &CapturedBuildSourceInput) -> BuildCapturedSourceIn
 
 #[cfg(test)]
 mod tests {
-    use super::BuildMachineFilesystemScope;
+    use super::{BuildMachineFilesystemScope, overlap_key};
     use build_output::{CapturedBuildSourceInput, CapturedSourceEntry};
     use build_time_evaluation::BuildMachineFilesystemAccess;
     use checked_interpreter::{
@@ -1498,6 +1498,45 @@ mod tests {
         .ensure_write_roots()
         .expect_err("a write root spelled through a link is not the directory admission checked");
         assert!(diagnostics[0].to_string().contains("symbolic link"));
+
+        fs::remove_dir_all(session_root).expect("remove session root");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_root_establishment_rejects_a_host_alias_on_an_ancestor() {
+        let session_root = temporary_staging_root("write-root-ancestor-alias");
+        fs::create_dir(&session_root).expect("create session root");
+        let redirect_target = session_root.join("redirected-elsewhere");
+        fs::create_dir(&redirect_target).expect("create redirect target");
+        let ancestor = session_root.join("build");
+        let build_dir = ancestor.join("inner");
+
+        let scope = BuildMachineFilesystemScope::for_root(
+            &session_root.join("source/main.omg"),
+            build_dir.clone(),
+            None,
+        );
+        // The key admission computed while the not-yet-created ancestor was
+        // still a real component spelling.
+        let admitted_build_dir_key = overlap_key(&build_dir);
+
+        // A host alias planted on the ancestor inside the window redirects
+        // the spelling; the leaf materializes through it as a real
+        // directory, so a symlink check on the write root alone sees nothing.
+        std::os::unix::fs::symlink(&redirect_target, &ancestor)
+            .expect("plant the host alias on the ancestor");
+        fs::create_dir(redirect_target.join("inner"))
+            .expect("materialize the leaf through the alias");
+
+        let diagnostics = scope
+            .ensure_established_write_root(&admitted_build_dir_key)
+            .expect_err("a symlinked ancestor redirects output writes outside the fenced root");
+        assert!(
+            diagnostics[0]
+                .to_string()
+                .contains("different directory than admission checked")
+        );
 
         fs::remove_dir_all(session_root).expect("remove session root");
     }
