@@ -8,7 +8,10 @@ use calling_conventions::{CallSignature, ValueShape};
 use omega_native_differential_test::admit_native_provider;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{BoundaryMachineId, StructuralPlaceKind};
+use source::{SourceMap, SourceOrigin};
 use source_files_to_tokens::Lexer;
+use std::path::PathBuf;
+use std::sync::Arc;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use target::NativeTarget;
@@ -20,7 +23,9 @@ use terminal_psi_to_abstract_operations::{
     build_verified_psi_optimization_unit, lower_artifact, lower_artifact_for_optimization,
 };
 use terminal_verifier::ProofBundle;
-use tokens_to_syntax_trees::parse_syntax_trees;
+use tokens_to_syntax_trees::{
+    parse_syntax_trees_into_with_id, parse_syntax_trees_with_id,
+};
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 fn straight_line_console_source(write_count: usize, exit_status: i32) -> String {
@@ -29,14 +34,14 @@ fn straight_line_console_source(write_count: usize, exit_status: i32) -> String 
         .collect::<String>();
     format!(
         r#"
-    boundary trait Console {{
+    pub boundary trait Console {{
         machine write_line(text: &[u8])
         reaches Console;
         machine exit_process(return_code: i32)
         reaches Console;
     }}
 
-    data Main {{ console: Console; }}
+    data Main {{ console: Service<Console>; }}
     machine Main::main(&mut self)
     reaches Console
     {{
@@ -48,14 +53,14 @@ fn straight_line_console_source(write_count: usize, exit_status: i32) -> String 
 
 fn canonical_console_source() -> &'static str {
     r#"
-    boundary trait Console {
+    pub boundary trait Console {
         machine write_line(text: &[u8])
         reaches Console;
         machine exit_process(return_code: i32)
         reaches Console;
     }
 
-    data Main { console: Console; }
+    data Main { console: Service<Console>; }
     machine Main::main(&mut self)
     reaches Console
     {
@@ -103,10 +108,42 @@ fn project_source(source: &str) -> (Vec<u8>, Vec<u8>) {
     project_source_entry(source, "Main::main")
 }
 
+// `Service<R>` fixtures resolve the intrinsic carrier through the bundled
+// toolchain service source, resident under `SourceOrigin::Toolchain` — the same
+// seeding typed-trees' `parse_typed_trees_with_core_service` performs.
+const CORE_SERVICE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../source/library/core/service.omg"
+));
+
 fn project_source_entry(source: &str, entry: &str) -> (Vec<u8>, Vec<u8>) {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize O1 source");
-    let syntax = parse_syntax_trees(&tokens).expect("parse O1 source");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve O1 source");
+    let mut sources = SourceMap::default();
+    let service_source_id = sources
+        .add_with_metadata(
+            PathBuf::from("source/library/core/service.omg"),
+            CORE_SERVICE.to_owned(),
+            PathBuf::from("source/library/core"),
+            None,
+            SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let user_source_id = sources
+        .add(PathBuf::from("tests/main.omg"), source.to_owned())
+        .source_id;
+    let service_tokens = Lexer::new(CORE_SERVICE)
+        .tokenize()
+        .expect("tokenize service.omg");
+    let mut syntax =
+        parse_syntax_trees_with_id(service_source_id, &service_tokens).expect("parse service.omg");
+    let user_tokens = Lexer::new(source).tokenize().expect("tokenize O1 source");
+    parse_syntax_trees_into_with_id(&mut syntax, user_source_id, &user_tokens)
+        .expect("parse O1 source");
+    let resolved = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve O1 source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type O1 source");
     let checked = lower_typed_trees(typed).expect("check O1 source");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
