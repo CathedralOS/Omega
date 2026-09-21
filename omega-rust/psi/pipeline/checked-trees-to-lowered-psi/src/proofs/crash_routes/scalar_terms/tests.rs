@@ -14,11 +14,11 @@ use super::{
 use crate::proofs::{CheckedIntegerComparisonKind, PrimitiveType, integer_scalar_type};
 use crate::terminal_identities::value_id;
 use checked_trees::CheckedIeeeFloatComparisonKind;
-use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
+use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, IntegerType, PropositionError};
 
 fn declared_value(identity: usize, scalar_type: ScalarType) -> ValueDeclaration {
     ValueDeclaration {
-        id: value_id(identity),
+        id: value_id(identity as u64),
         scalar_type,
         qualifications: Default::default(),
     }
@@ -113,7 +113,8 @@ fn integer_comparisons_lower_to_typed_terms() {
     for (kind, expect) in [
         (
             CheckedIntegerComparisonKind::Equal,
-            ScalarTerm::integer_equal,
+            ScalarTerm::integer_equal
+                as fn(IntegerType, ScalarTerm, ScalarTerm) -> Result<ScalarTerm, PropositionError>,
         ),
         (
             CheckedIntegerComparisonKind::LessThan,
