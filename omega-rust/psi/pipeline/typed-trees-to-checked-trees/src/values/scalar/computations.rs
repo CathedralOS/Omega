@@ -866,13 +866,11 @@ impl Builder<'_, '_> {
                 {
                     return None;
                 }
-                let target_machine = self.program.machines().iter().find(|machine| {
-                    self.program
-                        .machine_states(machine)
-                        .first()
-                        .is_some_and(|state| state.symbol == call.target_symbol)
-                })?;
-                let target_state = self.program.machine_states(target_machine).first()?;
+                let (target_machine, target_state) =
+                    crate::semantic_calls::find_machine_by_entry_state(
+                        self.program,
+                        call.target_symbol,
+                    )?;
                 let has_runtime_receiver =
                     !self
                         .program

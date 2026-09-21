@@ -371,12 +371,7 @@ pub(crate) fn lower_direct_call_binding_arguments(
     if call.receiver.is_valid() || !call.machine_arguments.is_empty() {
         return None;
     }
-    program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .first()
-            .is_some_and(|entry| entry.symbol == call.target_symbol)
-    })?;
+    crate::semantic_calls::find_machine_by_entry_state(program, call.target_symbol)?;
     let target_parameters =
         crate::semantic_calls::call_target_parameters(program, call.target_symbol)?;
     if target_parameters.iter().any(|parameter| {

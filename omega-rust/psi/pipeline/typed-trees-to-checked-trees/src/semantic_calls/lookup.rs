@@ -103,6 +103,24 @@ pub(crate) fn find_machine_head(
         .then_some((machine, state))
 }
 
+/// The machine whose entry state `state_symbol` names, with that state. The
+/// scalar call-lowering gates spell a call's target as the entry state
+/// itself: `find_machine_head` also admits the machine's own symbol, which
+/// is wider than those sites resolve, so they keep this narrower lookup
+/// rather than silently growing their admission.
+pub(crate) fn find_machine_by_entry_state(
+    program: &typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
+    program.machines().iter().find_map(|machine| {
+        program
+            .machine_states(machine)
+            .first()
+            .filter(|entry| entry.symbol == state_symbol)
+            .map(|entry| (machine, entry))
+    })
+}
+
 /// The machine `symbol` names, either directly or through its retained
 /// parent: a call target or member reference may spell the machine itself or
 /// one of its member declarations, and the owning machine answers for both.
@@ -205,7 +223,8 @@ mod tests {
     use crate::semantic_calls::call_target_parameters;
     use crate::semantic_calls::call_target_type_parameters;
     use crate::semantic_calls::{
-        find_machine, find_machine_head, find_state, find_state_in_machine,
+        find_machine, find_machine_by_entry_state, find_machine_head, find_state,
+        find_state_in_machine,
     };
     use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
     use typed_trees::{machine::Machine, state::State};
@@ -341,6 +360,42 @@ mod tests {
         assert!(find_machine_head(&program, empty_symbol).is_none());
         assert!(find_machine_head(&program, SymbolHandle::invalid()).is_none());
         assert!(find_machine_head(&program, SymbolHandle::from_arena_index(99)).is_none());
+    }
+
+    #[test]
+    fn entry_state_lookup_admits_only_the_entry_state_spelling() {
+        // find_machine_by_entry_state is narrower than find_machine_head: the
+        // machine's own symbol and its later states resolve nothing, matching
+        // the scalar call-lowering gates that spell targets as entry states.
+        let mut program = typed_trees::TypedTrees::default();
+        let machine_symbol = SymbolHandle::from_arena_index(40);
+        let entry_symbol = SymbolHandle::from_arena_index(41);
+        let later_symbol = SymbolHandle::from_arena_index(42);
+        let mut machine = Machine {
+            symbol: machine_symbol,
+            ..Machine::default()
+        };
+        for state_symbol in [entry_symbol, later_symbol] {
+            program.push_machine_state(
+                &mut machine,
+                State {
+                    symbol: state_symbol,
+                    ..State::default()
+                },
+            );
+        }
+        program.push_machine(machine);
+
+        let (machine, entry) =
+            find_machine_by_entry_state(&program, entry_symbol).expect("entry state");
+        assert_eq!(machine.symbol, machine_symbol);
+        assert_eq!(entry.symbol, entry_symbol);
+        assert!(find_machine_by_entry_state(&program, machine_symbol).is_none());
+        assert!(find_machine_by_entry_state(&program, later_symbol).is_none());
+        assert!(find_machine_by_entry_state(&program, SymbolHandle::invalid()).is_none());
+        assert!(
+            find_machine_by_entry_state(&program, SymbolHandle::from_arena_index(99)).is_none()
+        );
     }
 
     #[test]
