@@ -19000,7 +19000,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 
 - **PIPELINE-ORPHAN-ENTRANCE-RESIDUE.** (split-of:STAGE-ENTRANCE-ORPHAN-AUDIT)
   Retire or wire the public stage entrances the executed stage-entrance orphan
-  sweep named. **Re-verified at `a9286683d0` against the whole repository, and
+  sweep named.
+
+  **Four more demoted 2026-09-21.**
+  `abstract-operations-to-abstract-operations` re-exported four proposal and
+  validation helpers with zero references anywhere outside its own crate:
+  `propose_field_value_specializations`,
+  `propose_case_membership_specializations`,
+  `propose_state_argument_specializations` and
+  `validate_state_argument_specialization`. All four are now `pub(crate)`, which
+  is this row's "demote" disposition and the same one
+  `lower_to_target_operations_and_native_callbacks` took at `f6bb8e6c2eb4c`.
+  They need no `PLUMBING_REEXPORTS` entry precisely because demotion removes
+  them from the public surface rather than excusing them on it. Their `apply_*`
+  siblings stay public — those do have consumers. Workspace check clean,
+  1130/1130 across `omega-architecture-test` and the crate.
+
+  Caution for the next sweep: verify caller counts with word boundaries.
+  `validate_state_argument_specialization` looks externally referenced under a
+  substring grep, but the two hits are
+  `validate_state_argument_specialization_candidate` in
+  optimization-unit-semantics — a different function. **Re-verified at `a9286683d0` against the whole repository, and
   the list shrank to one.** Both the original sweep and this row's first
   revision searched only `omega-rust/`, which misses the `tests/` tree at the
   repository root — a separate crate tree that consumes these crates. Any

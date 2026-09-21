@@ -56,16 +56,19 @@ pub(crate) use analyses::{
 pub use field_value_specialization::{
     AppliedFieldValueSpecialization, FieldValueSpecializationCandidate,
     FieldValueSpecializationError, ResolvedFieldValue, ValidatedFieldValueSpecialization,
-    apply_field_value_specialization, propose_field_value_specializations,
-    validate_field_value_specialization,
+    apply_field_value_specialization, validate_field_value_specialization,
 };
+// Proposal helpers have no consumer outside this crate; they are internal
+// plumbing, not stage entrances.
+pub(crate) use field_value_specialization::propose_field_value_specializations;
 pub use pass_manager::*;
 pub use ranked_rewrites::*;
+pub(crate) use representation_specialization::propose_case_membership_specializations;
 pub use representation_specialization::{
     AppliedCaseMembershipSpecialization, CaseMembershipSpecializationCandidate,
     CaseMembershipSpecializationError, ResolvedCaseMembership,
     ValidatedCaseMembershipSpecialization, apply_case_membership_specialization,
-    propose_case_membership_specializations, validate_case_membership_specialization,
+    validate_case_membership_specialization,
 };
 pub use rules::registry::{
     OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
@@ -117,6 +120,8 @@ pub use rules::{
 pub use state_specialization::{
     AppliedStateArgumentSpecialization, SpecializedStateEdge, StateArgumentSpecializationCandidate,
     StateArgumentSpecializationError, ValidatedStateArgumentSpecialization,
-    apply_state_argument_specialization, propose_state_argument_specializations,
-    validate_state_argument_specialization,
+    apply_state_argument_specialization,
+};
+pub(crate) use state_specialization::{
+    propose_state_argument_specializations, validate_state_argument_specialization,
 };
