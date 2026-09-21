@@ -4595,6 +4595,28 @@ Owners include
   conformance or private-type access or hiding admissions. Public ordinary
   requirements still permit valid downstream conformers. Resource capacity and
   classification-specific boundary-route restrictions remain unchanged.
+  Re-measured at `94e764a6da` (linux x86-64): the source-checking minting
+  leg is landed and green — `QualificationEvidenceOrigin::
+  AuthorizedRouteEstablishment` (language-semantics semantic_domains:199,
+  minted in facts/qualification_evidence.rs:218,223); `nextest -p
+  typed-trees-to-checked-trees -E 'test(~qualification_evidence)'` 17/17
+  incl. exact-machine authorization/rejection, normalized-route-record
+  consumption, requirement-identity retention, exclusive-boundary
+  establishment. The artifact roundtrip has zero downstream consumers:
+  no QualificationEvidence references in checked-trees-to-lowered-psi,
+  lowered-psi-to-terminal-psi, terminal-codec, terminal-semantics, or
+  terminal-verifier — the encoding site, codec section, and verifier
+  replay all remain unbuilt, and the surviving surfaces are live-fenced
+  (c2l unit under STRUCTURAL-UNIT-LOWERING; c2l scalar_contracts.rs under
+  RC-REPOSITORY; l2t boundary_operator_custody under
+  FILESYSTEM-RELEASE-CONTRACT; terminal-verifier frontier under
+  OWNED-SUCCESSOR-DISCARD-ORDER; terminal-verifier provider_result +
+  terminal-interpreter under REGISTERED-CALLBACK-LIFETIME;
+  terminal-codec artifact custody tests under
+  CUSTODY-MATRIX-HARNESS-MIGRATION). The chain is indivisible for a
+  bounded slice — codec without verifier replay is a dead field, and the
+  section boundary is a terminal-semantics decision. Record:
+  `wiki/drafts/domain_issuer_routes.md`.
 
 - **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Finish receiver admission under
   [artifact production versus receiver admission](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission)
