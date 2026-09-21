@@ -9544,7 +9544,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `compile_exact_macos_entry`, no roots binds needed). Remaining
   entry-selection correctness is CANARY-EXACT-ENTRY-SELECTION's live
   claim (owner 'Devin / canary-exact-entry-selection', expires
-  2026-09-20T21:52Z).
+  2026-09-20T21:52Z). Re-verified at `832c55e69b7` (z203 leg):
+  a fresh audit of every `tests/omega/pass` directory named
+  `*division*`/`*divide*`/`*modulo*` shows 23/24 carry `build.omg`
+  with four hosted-target binds each; the sole gap remains the
+  known bespoke-entry `arithmetic/saturating_divide_native`
+  compile-only fixture. **Material drift:** the sibling claim
+  recorded above has drained — CANARY-EXACT-ENTRY-SELECTION
+  holds no live claim at this revision, so the residual
+  entry-selection correctness leg is now unfenced.
 - **DUPLICATE-NAMED-MACHINE-OVERLOAD.** — implemented on
   `zergling/z197-duplicate-named-machine-overload`: member calls through an
   attached result-overload family (`self.helper.pick()` with same-named
