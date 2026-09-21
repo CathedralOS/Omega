@@ -366,3 +366,10 @@ operation-level crash site has no admitted observation-profile row — its
 Terminal encoding stays unsettled behind the
 `terminal-operation-level-trap-crash-site` question. The leg is tracked under
 `ARITHMETIC-POLICY-REALIZATION` on [TASKS.md](../../../TASKS.md).
+
+Audited at `d650f2e45ac`: the frontier above matches the realized/refused
+split pinned in `integer_policy_realization.rs` — boolean-to-integer,
+unsigned saturating narrowing, and unsigned-to-unsigned wrapping compose;
+Trapping conversion retains `IntegerTrappingCast` and refuses at expression
+lowering; signed or mixed-sign saturating and modular conversions keep the
+no-value-fact boundary.
