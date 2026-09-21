@@ -1,8 +1,9 @@
 # Optimizer source-organization audit
 
-[mod.rs](mod.rs) runs the inventory, entrance, catalog, and
-retired-path checks; entrance rows additionally pin each stage's declared
-consumers so a produced route cannot become an orphan output. The [implementation overview](../../../omega-rust/optimization.md)
+[mod.rs](mod.rs) runs the inventory, entrance, catalog,
+pipeline-crate sweep, and retired-path checks; entrance rows additionally pin
+each stage's declared consumers so a produced route cannot become an orphan
+output. The [implementation overview](../../../omega-rust/optimization.md)
 identifies stage owners; this directory owns the enforceable navigation rules.
 
 ## Navigation contract
@@ -35,6 +36,11 @@ semantic descent. A moved root must be updated explicitly, not silently removed
 from audit scope. Keep the guard's own domain inventories navigable, and preserve
 producer/replay layering checks when moving source. Do not duplicate the current
 path inventory or catalog rows in prose.
+
+[pipeline_crates.rs](pipeline_crates.rs) sweeps
+`omega-rust/omega/pipeline/`: every crate there carries a governed root or an
+explicit pin in `CRATES_WITHOUT_OPTIMIZER_SURFACES`, so a new or renamed crate
+cannot silently escape audit jurisdiction.
 
 From the repository root, run the focused check on Windows or macOS:
 
