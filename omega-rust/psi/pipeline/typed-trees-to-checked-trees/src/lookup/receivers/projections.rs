@@ -183,11 +183,7 @@ pub(super) fn expression(
             else {
                 return Ok(None);
             };
-            let Some(machine) = program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == program.symbols.get(state.symbol).parent)
-            else {
+            let Some(machine) = crate::semantic_calls::find_machine(program, state.symbol) else {
                 return Ok(None);
             };
             if !validation::place_has_builtin_coordinates(program, machine, Some(state), handle) {

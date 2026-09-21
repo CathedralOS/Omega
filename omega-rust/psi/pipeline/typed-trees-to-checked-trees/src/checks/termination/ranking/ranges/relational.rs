@@ -329,11 +329,12 @@ fn preserved_entry_prefix<'program>(
             // requirement, and admitted declarations resolve a signature
             // state whose empty body summary would claim an exclusive
             // argument write never happened.
-            let callee_machine = program.symbols.get(call.target_symbol).parent;
-            let checked_body_callee = program.machines().iter().any(|candidate| {
-                (candidate.symbol == call.target_symbol || candidate.symbol == callee_machine)
-                    && candidate.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-            });
+            let checked_body_callee =
+                crate::semantic_calls::find_machine(program, call.target_symbol).is_some_and(
+                    |candidate| {
+                        candidate.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+                    },
+                );
             let preserved = checked_body_callee
                 && program
                     .statement_table
@@ -400,13 +401,8 @@ fn call_tree_initializer_preserves_entry<'program>(
     protected: &[&str],
 ) -> bool {
     let checked_body_callee = |call: &typed_trees::expression::TableCallExpression| {
-        if !call.target_symbol.is_valid() {
-            return false;
-        }
-        let callee_machine = program.symbols.get(call.target_symbol).parent;
-        program.machines().iter().any(|candidate| {
-            (candidate.symbol == call.target_symbol || candidate.symbol == callee_machine)
-                && candidate.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+        crate::semantic_calls::find_machine(program, call.target_symbol).is_some_and(|candidate| {
+            candidate.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
         })
     };
     pure_guard_or_calls(
