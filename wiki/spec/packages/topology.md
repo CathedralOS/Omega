@@ -641,26 +641,24 @@ not close it.
 This records current implementation evidence against the required cases; it is
 a status annotation, not a contract amendment.
 
-Re-verified on linux x86-64 at `8f58b6676b00a`: `cargo nextest run -p
-topology-plan` is 100/103 green. Three cited pins are currently red on
-upstream identity-encoding drift, not semantic regressions — the
+Re-verified on linux x86-64 at `bb192d7ea9ebd` (earlier readings:
+`8f58b6676b00a`, `53817f8759e5`): `cargo nextest run -p topology-plan` is
+103/106 green with 1 skipped. Three cited pins are currently red on upstream
+identity-encoding drift, not semantic regressions — the
 `payment.request`/`payment.plan` golden bytes
 (`golden_fixtures_decode_and_verify`, `encode_is_byte_exact_and_canonical`)
 and the committed `build-scope-topology` inputs
 (`the_package_composes_and_a_source_free_consumer_verifies`) embed component
-identities whose upstream derivation moved (the same family was re-recorded
-at `92d628b2e8763` and `96bcff6facdbd`). Until the fixtures are re-recorded,
-the canonical-wire and cross-machine replay claims below rest on
-`noncanonical_and_duplicate_entries_reject` and the green composition legs,
-not the golden pins.
-
-Field note (review c3e3bfec3542..53817f8759e5): `ba9712417c` re-recorded
-`payment.request`/`payment.plan` (both golden pins green again), but the
-committed `build-scope-topology/root/inputs/request.bin` was not regenerated
-— `the_package_composes_and_a_source_free_consumer_verifies` is still red
-(104/105 at `53817f8759e5`, linux x86-64). Re-record with
-`TOPOLOGY_REGENERATE_INPUTS=1` (`composition_build.rs` ~:213) and drop the
-two "currently red" caveats below.
+identities whose upstream derivation keeps moving: fixtures were re-recorded
+at `92d628b2e8763`/`96bcff6facdbd` and again at `ba9712417c` (the golden
+pins went green, but `build-scope-topology/root/inputs/request.bin` was left
+stale), and the derivation has since moved once more, so all three are red
+together again. Until both sets are re-recorded —
+`TOPOLOGY_REGENERATE_INPUTS=1` for the committed inputs
+(`composition_build.rs` ~:216) and `TOPOLOGY_REGENERATE_GOLDEN=1` for the
+golden bytes (`codec.rs` ~:175) — the canonical-wire and cross-machine
+replay claims below rest on `noncanonical_and_duplicate_entries_reject` and
+the green composition legs, not the golden pins.
 
 Covered by `omega-rust/omega/packages/topology` tests
 (`cargo nextest run -p topology-plan`, linux x86-64):
