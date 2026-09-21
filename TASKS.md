@@ -9278,6 +9278,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   surface: OCREQ-ENTRY-BINDING, OCREQ-REQUEST-BINDING,
   CHAIN-MANIFEST-OCREQ-BINDING, CHAIN-OCREQ-ENTRY-BINDING,
   D-OCREQ-ENTRY-BINDING.
+  Re-verified at `e7c0099cb2`: the request-entry binding is unchanged
+  (`OMEGA_REQUEST_ENTRY_SIZE=4115`/`SHA256=0d612813…`,
+  `OMEGA_REQUEST_FIXTURE_*=132`/`ab2e980a…`,
+  `OMEGA_EXECUTABLE_OCREQ_ENTRY_*`=19253/`9573d734…`) while the packed
+  closure and outcome entry rebased under `28bb320201` (OCOUT V1 tables
+  wired into D's outcome projections; manifest SHA rotated). Witness
+  re-run on this host: `sh tests/bootstrap/omega-request/run.sh
+  --identity` PASSes — 622,933-byte receipt request, 565,909-byte
+  customer (was 563,268 at the prior verification, matching the outcome
+  rebase), 45-byte expected observation; execution legs still
+  seed-host-gated. The executing surface is now more densely fenced:
+  OMEGA-D-REQUEST-ADMISSION (Zergling-128) holds `tools/bootstrap/omega`,
+  `tests/bootstrap/omega-request`, `omega-parser`, `omega-identity.sh`,
+  `omega-executable`, and `source-closure.py`, and
+  CHAIN-MANIFEST-OCREQ-ENTRY-BINDING holds the binding draft.
 - **OMEGA-C.** Verified `8a37f82686`: the canonical item is
   `TASKS_BOOTSTRAP.md` P4's OMEGA-C — "the sole self-host edge": compile
   the exact Omega-written closure rooted at `source/omega/{build.omg,
