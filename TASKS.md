@@ -8769,6 +8769,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   bearing cache/TLB ops (`invlpg`, `clflush`) still refuse until a modeled
   memory-operand contract exists; atomics, mode transitions and AArch64
   system ops stay unrecognized per the same axis paragraph.
+
+  WITNESSED at `7a62e962b2a7` (macOS arm64; the E0061 that blocked the suite
+  landed as `a1e8298497f3`). `cargo nextest run -p compiler --test canary_suite
+  -E 'test(/inline_asm/)'` is **8 passed / 5 failed** of 13. All eight
+  checked-semantics and authority-contract legs pass, including
+  `cache_maintenance_reaches_checked_semantics` and
+  `pipeline_directives_reach_checked_semantics`, so this row's landed catalog
+  slice is green where it owns the outcome. The five reds are the x86
+  byte-emission legs — `x86_asm_{fences,msr,interrupt_control,control_registers,
+  flags}_*` — and none is a catalog defect: each pins an explicit
+  `target_name: linux_x86_64` cross-compile to a native artifact and fails
+  before emission with `Lowering(InvalidUnitMachinePlan { machine:
+  "Main::main", reason: "attached Unit closure is missing a checked transitive
+  machine plan", omission: "`Main::main` has no admitted body (local
+  construction stopped at statement sequence: call: call operation, statement
+  0)" })`. asm statements therefore pass checking and stop at the lowering
+  wall. That omission is the same family CANARY-ACQUIRES-THROUGH-HELPER-RETURN
+  records (its variant stops at signature rather than at statement 0) and the
+  same wall four `terminal_psi_runnable` legs hit in the macos_arm64 native
+  differential row; it is not host-specific — the target is named explicitly.
+  Closing these five needs the asm-statement lowering arm, not more catalog
+  members.
 - **ASM-MEMORY-AND-TRANSFER-CONTRACTS.** Mined candidate — landed the first
   contracted memory-transfer family: the operand-provenance model is the typed
   Omega place itself. The catalog gains `AsmInstructionShape::MemoryTransfer`
