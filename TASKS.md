@@ -7943,7 +7943,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   cyclic-custody surfaces are fenced under REGISTERED-CALLBACK-LIFETIME and
   CONSERVATION-CONTRACT. Still no landable slice from this row.
 - **BACKEND-STARTUP-ENTRY-MECHANICS.** — mined candidate; verify scope then implement.
-- **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS.** — mined candidate; verify scope then implement.
+- **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS.** — mined candidate; resolved as drained: the same-name row below carries the triage (57-failure census at bd6cddcb59, closed by attribution into `wiki/drafts/known_baseline_failures.md`); residual ledger refreshed at `e7c0099cb2b7` (2206 run / 2183 pass / 23 fail, member→family mapping current). Repairs stay with the owning lanes named there; no slice under this stub.
 - **BACKEND-RUNTIME-STARTUP-MECHANICS** — mined candidate; scope verified,
   covered — sibling alias on the settled STARTUP-ENTRY-MECHANICS-OWNERSHIP
   surface recorded on the resolved ENTRY-MECHANICS-RUNTIME-CONSOLIDATION
