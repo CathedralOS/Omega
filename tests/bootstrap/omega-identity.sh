@@ -58,7 +58,7 @@ echo "materialize: packed compiler is exactly the bound member bytes"
 for OMEGA_PACKED_CUSTOMER in \
   "omega-parser $OMEGA_PATH_OMEGA_PARSER_ENTRY 566377 ed3cd51c8bbfff315eeeada926cd131d419179fa090f4a80fafda7d782512693" \
   "omega-outcome $OMEGA_PATH_OMEGA_OUTCOME_ENTRY 581426 c0fc0f0abc69130b8e7549db419c0fda7be2fbbea92ef5ffc52a00adf64a0435" \
-  "omega-request $OMEGA_PATH_OMEGA_REQUEST_ENTRY 565909 804093474370a707a29982b05a2eb38bfb899f74beca2053803843054dcb8df6" \
+  "omega-request $OMEGA_PATH_OMEGA_REQUEST_ENTRY 565906 0a6e19a1260bec3b56e1d08b01c66be4b3e2dda7f8d45ef22edde09b4f62edfb" \
   "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/main.epsilon 563551 fe6429f9607ac796ff4e0eacc4a93308775555982279ffec9d454e10b4262523" \
   "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/main_ocreq.epsilon 581043 a0db24def35174efb5bd19815f569bc97b34365eb35c4958a62422f36d2ad6d8" \
   "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls.epsilon 565425 19723460df970ba0b93b7bfcab8552cca4f6a1ac308ecc747b624db449fa19d4" \
