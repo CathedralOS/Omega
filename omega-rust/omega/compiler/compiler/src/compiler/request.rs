@@ -287,8 +287,9 @@ impl CompileRequest {
                             "native production needs an exact target profile: none was \
                              named and this host has no catalogued Omega deployment \
                              profile (name one of linux_arm64, linux_x86_64, \
-                             macos_arm64, windows_x86_64, uefi_x86_64, \
-                             cross_platform_cli, or local_unchecked)",
+                             macos_arm64, macos_x86_64, windows_x86_64, \
+                             uefi_x86_64, cross_platform_cli, or \
+                             local_unchecked)",
                         ));
                         continue;
                     }
