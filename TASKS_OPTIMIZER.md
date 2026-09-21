@@ -892,9 +892,14 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   independently under the evidence-matrix legs. The fused incoming edge is an
   unconditional `Jump` successor or one arm of a `Conditional` predecessor —
   a fused conditional arm leaves its sibling byte-exact, and both arms of one
-  predecessor may specialize in a single candidate. It still declines every
-  machine holding a cyclic component and does not cover non-Boolean state
-  arguments or result specialization.
+  predecessor may specialize in a single candidate. The state argument itself
+  may be Boolean (the condition reads the parameter directly) or an integer
+  the condition reads through an in-block `parameter CMP literal` comparison
+  — equality, less-than, or less-or-equal, evaluated under the operand type's
+  own `IntegerType::compare`, with every other node in the block a pure
+  scalar constant. It still declines every machine holding a cyclic
+  component and does not cover result specialization or state arguments
+  beyond those two condition shapes.
   Acceptance: a source-produced state machine selects the rule by exact name
   through `optimize_abstract_operations`, publishes, and replays
   independently. Forged or stale edge provenance, a dispatch whose every

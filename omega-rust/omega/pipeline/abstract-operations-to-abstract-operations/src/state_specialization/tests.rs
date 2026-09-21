@@ -249,6 +249,31 @@ const ALL_CONSTANT_CONDITIONAL_SOURCE: &str = r#"
 const CYCLIC_SOURCE: &str = r#"
     data Root {}
 
+    machine Root::icyc(idx: u64, mode: u32 in Wrapping, remaining: u32 [0..=5])
+    {
+        transition idx {
+            0 -> iwarm(mode, remaining)
+            _ -> ichoose(idx, mode, remaining)
+        }
+        state iwarm(m: u32 in Wrapping, r: u32 [0..=5]) {
+            let z: u64 = 0;
+            transition { _ -> ichoose(z, m, r) }
+        }
+        state ichoose(i: u64, m: u32 in Wrapping, r: u32 [0..=5]) {
+            transition i {
+                0 -> ispin(i, m, r)
+                _ -> iright(m)
+            }
+        }
+        state ispin(k: u64, s: u32 in Wrapping, pending: u32 [0..=5]) {
+            transition pending > 0 {
+                true -> icyc(k, s, pending - 1)
+                _ -> iright(s)
+            }
+        }
+        state iright(x: u32 in Wrapping) {}
+    }
+
     machine Root::scan(flag: bool, mode: u32 in Wrapping, remaining: u32 [0..=5])
     {
         transition flag {
@@ -271,7 +296,9 @@ const CYCLIC_SOURCE: &str = r#"
                 _ -> right(s)
             }
         }
-        state right(x: u32 in Wrapping) {}
+        state right(x: u32 in Wrapping) {
+            Root::icyc(0, x, 5);
+        }
     }
 "#;
 
@@ -898,8 +925,15 @@ fn component_machine_declines_specialization() {
         "no dispatch inside frozen territory specializes"
     );
     let unit = session.unit();
-    let machine = unit.functions[0].machine;
-    let (dispatch, _) = parameter_dispatch(unit, machine).expect("dispatch state exists");
+    // `scan` is the machine carrying the single-node Boolean dispatch.
+    let (machine, dispatch) = unit
+        .functions
+        .iter()
+        .find_map(|function| {
+            parameter_dispatch(unit, function.machine)
+                .map(|(dispatch, _)| (function.machine, dispatch))
+        })
+        .expect("scan's dispatch state exists");
     let candidate = StateArgumentSpecializationCandidate {
         identity: optimization_core::OptimizationCandidateIdentity::from_canonical_bytes(
             b"forged-cyclic-candidate",
@@ -912,6 +946,32 @@ fn component_machine_declines_specialization() {
     };
     assert_eq!(
         validate_state_argument_specialization(&session, &candidate).err(),
+        Some(StateArgumentSpecializationError::UnknownDispatch)
+    );
+
+    // The freeze covers the integer family too: `icyc`'s `i == 0` dispatch
+    // sits inside the second cyclic machine, so it neither proposes nor
+    // validates even though `iwarm` supplies a proven literal.
+    let integer_machine = unit
+        .functions
+        .iter()
+        .map(|function| function.machine)
+        .find(|candidate| *candidate != machine)
+        .expect("second cyclic machine");
+    let (integer_dispatch, _) =
+        integer_dispatch(unit, integer_machine).expect("integer dispatch exists");
+    let forged = StateArgumentSpecializationCandidate {
+        identity: optimization_core::OptimizationCandidateIdentity::from_canonical_bytes(
+            b"forged-icyc-candidate",
+        ),
+        input: unit.identity,
+        output: unit.identity,
+        machine: integer_machine,
+        dispatch: integer_dispatch,
+        specializations: Vec::new(),
+    };
+    assert_eq!(
+        validate_state_argument_specialization(&session, &forged).err(),
         Some(StateArgumentSpecializationError::UnknownDispatch)
     );
 }
@@ -1112,6 +1172,619 @@ fn transformed_replay_rejects_forged_fused_edge_custody() {
     );
 }
 
+/// An integer literal-match dispatch: `choose` reads its own u64 parameter
+/// `i` through an in-block `i == 0` comparison — `transition i { 0 -> left,
+/// _ -> right }` lowers to `[IntegerConstant, IntegerEqual, Conditional]`
+/// inside one block. `warm` binds `i` to a proven `0`, so its jump edge
+/// resolves the `when_true` arm; the entry's `_` arm keeps the still-variable
+/// machine parameter and the dispatch reachable.
+const INT_MATCH_TAKEN_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::run(idx: u64, mode: u32 in Wrapping)
+    {
+        transition idx {
+            0 -> warm(mode)
+            _ -> choose(idx, mode)
+        }
+        state warm(m: u32 in Wrapping) {
+            let z: u64 = 0;
+            transition { _ -> choose(z, m) }
+        }
+        state choose(i: u64, m: u32 in Wrapping) {
+            transition i {
+                0 -> left(m)
+                _ -> right(m)
+            }
+        }
+        state left(x: u32 in Wrapping) {}
+        state right(x: u32 in Wrapping) {}
+    }
+"#;
+
+/// The same integer dispatch shape, but `warm` binds `i` to a proven `5`:
+/// `5 == 0` fails, so the incoming edge resolves the `when_false` arm — the
+/// rejected literal arm is what "non-Boolean argument" means here: the state
+/// value selects the arm, not the literal itself.
+const INT_MATCH_REJECTED_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::run(idx: u64, mode: u32 in Wrapping)
+    {
+        transition idx {
+            0 -> warm(mode)
+            _ -> choose(idx, mode)
+        }
+        state warm(m: u32 in Wrapping) {
+            let z: u64 = 5;
+            transition { _ -> choose(z, m) }
+        }
+        state choose(i: u64, m: u32 in Wrapping) {
+            transition i {
+                0 -> left(m)
+                _ -> right(m)
+            }
+        }
+        state left(x: u32 in Wrapping) {}
+        state right(x: u32 in Wrapping) {}
+    }
+"#;
+
+/// Both jump edges entering the integer dispatch supply proven integers
+/// (`0` and `5`), so fusing every incoming edge would orphan the dispatch
+/// state; the family declines the site entirely.
+const INT_MATCH_ALL_CONSTANT_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::run(idx: u64, mode: u32 in Wrapping)
+    {
+        transition idx {
+            0 -> warm(mode)
+            _ -> chill(mode)
+        }
+        state warm(m: u32 in Wrapping) {
+            let z: u64 = 0;
+            transition { _ -> choose(z, m) }
+        }
+        state chill(m: u32 in Wrapping) {
+            let z: u64 = 5;
+            transition { _ -> choose(z, m) }
+        }
+        state choose(i: u64, m: u32 in Wrapping) {
+            transition i {
+                0 -> left(m)
+                _ -> right(m)
+            }
+        }
+        state left(x: u32 in Wrapping) {}
+        state right(x: u32 in Wrapping) {}
+    }
+"#;
+
+/// The same integer dispatch shape with no constant-supplied argument: every
+/// edge binds the still-variable machine parameter, so nothing may
+/// specialize.
+const INT_MATCH_VARIABLE_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::run(idx: u64, mode: u32 in Wrapping)
+    {
+        transition idx {
+            0 -> relay(idx, mode)
+            _ -> choose(idx, mode)
+        }
+        state relay(i: u64, m: u32 in Wrapping) {
+            transition { _ -> choose(i, m) }
+        }
+        state choose(i: u64, m: u32 in Wrapping) {
+            transition i {
+                0 -> left(m)
+                _ -> right(m)
+            }
+        }
+        state left(x: u32 in Wrapping) {}
+        state right(x: u32 in Wrapping) {}
+    }
+"#;
+
+/// A computed-comparison dispatch: `choose` reads `i` through an in-block
+/// `i < 4` — the transition subject lowers to `[IntegerConstant(4),
+/// IntegerLessThan(i, 4), Conditional]` with the parameter on the left.
+/// `warm` binds `i` to a proven `3`, satisfying the bound, so its jump edge
+/// resolves the `when_true` arm.
+const INT_LESS_THAN_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::run(idx: u64, mode: u32 in Wrapping)
+    {
+        transition idx {
+            0 -> warm(mode)
+            _ -> choose(idx, mode)
+        }
+        state warm(m: u32 in Wrapping) {
+            let z: u64 = 3;
+            transition { _ -> choose(z, m) }
+        }
+        state choose(i: u64, m: u32 in Wrapping) {
+            transition i < 4 { true -> left(m) _ -> right(m) }
+        }
+        state left(x: u32 in Wrapping) {}
+        state right(x: u32 in Wrapping) {}
+    }
+"#;
+
+/// The literal-on-left operand order: `choose` reads `i` through `4 <= i`,
+/// lowering to `[IntegerConstant(4), IntegerLessOrEqual(4, i), Conditional]`.
+/// `warm` binds `i` to a proven `3`, so `4 <= 3` fails and the edge resolves
+/// the `when_false` arm — operand order is honored by the comparison's own
+/// `IntegerType::compare`, not by assuming the parameter sits on the left.
+const INT_LITERAL_LEFT_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::run(idx: u64, mode: u32 in Wrapping)
+    {
+        transition idx {
+            0 -> warm(mode)
+            _ -> choose(idx, mode)
+        }
+        state warm(m: u32 in Wrapping) {
+            let z: u64 = 3;
+            transition { _ -> choose(z, m) }
+        }
+        state choose(i: u64, m: u32 in Wrapping) {
+            transition 4 <= i { true -> left(m) _ -> right(m) }
+        }
+        state left(x: u32 in Wrapping) {}
+        state right(x: u32 in Wrapping) {}
+    }
+"#;
+
+#[test]
+fn integer_literal_match_specializes_the_taken_arm() {
+    let session = lowered_session(INT_MATCH_TAKEN_SOURCE, "integer taken specialization");
+    let unit = session.unit().clone();
+    let machine = unit.functions[0].machine;
+    let (dispatch, parameter) = integer_dispatch(&unit, machine).expect("integer dispatch exists");
+    let incoming_edge =
+        jump_edge_to(&unit, machine, dispatch).expect("unconditional incoming edge");
+
+    let candidates = propose_state_argument_specializations(&session, 4).expect("proposal runs");
+    let [candidate] = candidates.as_slice() else {
+        panic!("exactly one specialization candidate")
+    };
+    assert_eq!(candidate.machine(), machine);
+    assert_eq!(candidate.dispatch(), dispatch);
+    let [row] = candidate.specializations() else {
+        panic!("one specialized incoming edge")
+    };
+    assert_eq!(row.incoming_edge(), incoming_edge.psi_edge);
+    assert_eq!(row.parameter(), parameter);
+    assert_eq!(row.argument(), bound_argument(incoming_edge, parameter));
+    // `i := 0` satisfies `i == 0`, so the when_true arm is taken.
+    assert!(row.constant());
+    let (taken_edge, rejected_edge, resolved_target) =
+        dispatch_arms(&unit, machine, dispatch, row.constant());
+    assert_eq!(row.taken_edge(), taken_edge.psi_edge);
+    assert_eq!(row.rejected_edge(), rejected_edge.psi_edge);
+    assert_eq!(row.resolved_target(), taken_edge.target);
+    let predecessor = edge_owner(&unit, machine, incoming_edge.psi_edge);
+    assert_eq!(row.predecessor(), predecessor);
+
+    let validated =
+        validate_state_argument_specialization(&session, candidate).expect("independent replay");
+    let applied = apply_state_argument_specialization(session, validated).expect("apply");
+    let next = applied.session();
+    let output_function = next
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine retained");
+
+    // The fused edge keeps its own Psi identity, targets the resolved arm's
+    // block directly, and carries both source edges' custody in order.
+    let fused = output_function
+        .blocks
+        .iter()
+        .find(|block| block.id == predecessor.block)
+        .and_then(|block| {
+            block.nodes[usize::try_from(predecessor.node).expect("index")]
+                .successors
+                .first()
+        })
+        .expect("fused edge exists");
+    assert_eq!(fused.psi_edge, incoming_edge.psi_edge);
+    assert_eq!(fused.target, taken_edge.target);
+    assert_eq!(
+        fused.provenance,
+        vec![
+            PsiProvenance::Edge(incoming_edge.psi_edge),
+            PsiProvenance::Edge(taken_edge.psi_edge),
+        ]
+    );
+    // The resolved arm's parameter binding is composed through the incoming
+    // edge: the dispatch parameter never reaches the successor.
+    let resolved_block = output_function
+        .blocks
+        .iter()
+        .find(|block| block.id == resolved_target)
+        .expect("resolved target retained");
+    assert_eq!(fused.bindings.len(), resolved_block.parameters.len());
+    assert!(
+        fused
+            .bindings
+            .iter()
+            .all(|binding| binding.argument != parameter),
+        "the state argument itself is consumed by the specialization"
+    );
+
+    // The dispatch state and both its arm edges survive unchanged for the
+    // remaining incoming path.
+    let output_dispatch = output_function
+        .blocks
+        .iter()
+        .find(|block| block.id == dispatch)
+        .expect("dispatch state retained");
+    let input_dispatch = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .and_then(|function| function.blocks.iter().find(|block| block.id == dispatch))
+        .expect("input dispatch state");
+    assert_eq!(output_dispatch, input_dispatch);
+    let remaining_incoming = output_function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .flat_map(|node| &node.successors)
+        .filter(|edge| edge.target == dispatch)
+        .count();
+    assert_eq!(remaining_incoming, 1);
+
+    // The fused revision revalidates independently and reaches a fixed point.
+    assert!(
+        VerifiedPsiOptimizationSession::from_transformed(
+            applied.session().input().clone(),
+            applied.session().unit().clone(),
+        )
+        .is_ok(),
+        "the applied fused revision revalidates independently"
+    );
+    assert!(
+        propose_state_argument_specializations(applied.session(), 4)
+            .expect("fixed-point proposal runs")
+            .is_empty(),
+        "the specialization reaches a fixed point"
+    );
+}
+
+#[test]
+fn integer_literal_match_specializes_the_rejected_arm() {
+    let session = lowered_session(INT_MATCH_REJECTED_SOURCE, "integer rejected specialization");
+    let unit = session.unit().clone();
+    let machine = unit.functions[0].machine;
+    let (dispatch, parameter) = integer_dispatch(&unit, machine).expect("integer dispatch exists");
+    let incoming_edge =
+        jump_edge_to(&unit, machine, dispatch).expect("unconditional incoming edge");
+
+    let candidates = propose_state_argument_specializations(&session, 4).expect("proposal runs");
+    let [candidate] = candidates.as_slice() else {
+        panic!("exactly one specialization candidate")
+    };
+    let [row] = candidate.specializations() else {
+        panic!("one specialized incoming edge")
+    };
+    assert_eq!(row.incoming_edge(), incoming_edge.psi_edge);
+    assert_eq!(row.parameter(), parameter);
+    // `i := 5` fails `i == 0`, so the when_false arm is taken.
+    assert!(!row.constant());
+    let (taken_edge, rejected_edge, _) = dispatch_arms(&unit, machine, dispatch, row.constant());
+    assert_eq!(row.taken_edge(), taken_edge.psi_edge);
+    assert_eq!(row.rejected_edge(), rejected_edge.psi_edge);
+
+    let validated =
+        validate_state_argument_specialization(&session, candidate).expect("independent replay");
+    let applied = apply_state_argument_specialization(session, validated).expect("apply");
+    let output_function = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine retained");
+    let predecessor = edge_owner(&unit, machine, incoming_edge.psi_edge);
+    let fused = output_function
+        .blocks
+        .iter()
+        .find(|block| block.id == predecessor.block)
+        .and_then(|block| {
+            block.nodes[usize::try_from(predecessor.node).expect("index")]
+                .successors
+                .first()
+        })
+        .expect("fused edge exists");
+    assert_eq!(fused.target, taken_edge.target);
+    assert_eq!(
+        fused.provenance,
+        vec![
+            PsiProvenance::Edge(incoming_edge.psi_edge),
+            PsiProvenance::Edge(taken_edge.psi_edge),
+        ]
+    );
+}
+
+#[test]
+fn integer_less_than_dispatch_specializes() {
+    let session = lowered_session(INT_LESS_THAN_SOURCE, "integer less-than specialization");
+    let unit = session.unit().clone();
+    let machine = unit.functions[0].machine;
+    let (dispatch, parameter) = integer_dispatch(&unit, machine).expect("integer dispatch exists");
+    let incoming_edge =
+        jump_edge_to(&unit, machine, dispatch).expect("unconditional incoming edge");
+
+    let candidates = propose_state_argument_specializations(&session, 4).expect("proposal runs");
+    let [candidate] = candidates.as_slice() else {
+        panic!("exactly one specialization candidate")
+    };
+    let [row] = candidate.specializations() else {
+        panic!("one specialized incoming edge")
+    };
+    assert_eq!(row.incoming_edge(), incoming_edge.psi_edge);
+    assert_eq!(row.parameter(), parameter);
+    // `i := 3` satisfies `i < 4`, so the when_true arm is taken.
+    assert!(row.constant());
+    let (taken_edge, rejected_edge, resolved_target) =
+        dispatch_arms(&unit, machine, dispatch, row.constant());
+    assert_eq!(row.taken_edge(), taken_edge.psi_edge);
+    assert_eq!(row.rejected_edge(), rejected_edge.psi_edge);
+    assert_eq!(row.resolved_target(), resolved_target);
+
+    let validated =
+        validate_state_argument_specialization(&session, candidate).expect("independent replay");
+    let applied = apply_state_argument_specialization(session, validated).expect("apply");
+    let predecessor = edge_owner(&unit, machine, incoming_edge.psi_edge);
+    let fused = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .and_then(|function| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == predecessor.block)
+        })
+        .and_then(|block| {
+            block.nodes[usize::try_from(predecessor.node).expect("index")]
+                .successors
+                .first()
+        })
+        .expect("fused edge exists");
+    assert_eq!(fused.target, taken_edge.target);
+    assert_eq!(
+        fused.provenance,
+        vec![
+            PsiProvenance::Edge(incoming_edge.psi_edge),
+            PsiProvenance::Edge(taken_edge.psi_edge),
+        ]
+    );
+}
+
+#[test]
+fn integer_literal_left_less_or_equal_specializes() {
+    let session = lowered_session(INT_LITERAL_LEFT_SOURCE, "literal-left specialization");
+    let unit = session.unit().clone();
+    let machine = unit.functions[0].machine;
+    let (dispatch, parameter) = integer_dispatch(&unit, machine).expect("integer dispatch exists");
+    let incoming_edge =
+        jump_edge_to(&unit, machine, dispatch).expect("unconditional incoming edge");
+
+    let candidates = propose_state_argument_specializations(&session, 4).expect("proposal runs");
+    let [candidate] = candidates.as_slice() else {
+        panic!("exactly one specialization candidate")
+    };
+    let [row] = candidate.specializations() else {
+        panic!("one specialized incoming edge")
+    };
+    assert_eq!(row.incoming_edge(), incoming_edge.psi_edge);
+    assert_eq!(row.parameter(), parameter);
+    // `4 <= 3` fails, so the when_false arm is taken — the parameter sat on
+    // the comparison's right and the literal bound on its left.
+    assert!(!row.constant());
+    let (taken_edge, rejected_edge, _) = dispatch_arms(&unit, machine, dispatch, row.constant());
+    assert_eq!(row.taken_edge(), taken_edge.psi_edge);
+    assert_eq!(row.rejected_edge(), rejected_edge.psi_edge);
+
+    let validated =
+        validate_state_argument_specialization(&session, candidate).expect("independent replay");
+    let applied = apply_state_argument_specialization(session, validated).expect("apply");
+    let predecessor = edge_owner(&unit, machine, incoming_edge.psi_edge);
+    let fused = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .and_then(|function| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == predecessor.block)
+        })
+        .and_then(|block| {
+            block.nodes[usize::try_from(predecessor.node).expect("index")]
+                .successors
+                .first()
+        })
+        .expect("fused edge exists");
+    assert_eq!(fused.target, taken_edge.target);
+}
+
+/// An unsupported condition shape: `i != 4` lowers to
+/// `[IntegerConstant, IntegerEqual, BooleanNot, Conditional]` — the
+/// comparison does not produce the condition (the `BooleanNot` sits between),
+/// so the block is not a `parameter CMP literal` dispatch and the site
+/// declines even though a proven literal flows in.
+const INT_NOT_EQUAL_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::run(idx: u64, mode: u32 in Wrapping)
+    {
+        transition idx {
+            0 -> warm(mode)
+            _ -> choose(idx, mode)
+        }
+        state warm(m: u32 in Wrapping) {
+            let z: u64 = 3;
+            transition { _ -> choose(z, m) }
+        }
+        state choose(i: u64, m: u32 in Wrapping) {
+            transition i != 4 { true -> left(m) _ -> right(m) }
+        }
+        state left(x: u32 in Wrapping) {}
+        state right(x: u32 in Wrapping) {}
+    }
+"#;
+
+#[test]
+fn integer_not_equal_dispatch_declines() {
+    let session = lowered_session(INT_NOT_EQUAL_SOURCE, "not-equal decline");
+    assert!(
+        propose_state_argument_specializations(&session, 4)
+            .expect("proposal runs")
+            .is_empty(),
+        "the condition is a BooleanNot of the comparison, not the comparison itself"
+    );
+}
+
+#[test]
+fn integer_dispatch_variable_argument_yields_no_candidate() {
+    let session = lowered_session(INT_MATCH_VARIABLE_SOURCE, "integer variable decline");
+    assert!(
+        propose_state_argument_specializations(&session, 4)
+            .expect("proposal runs")
+            .is_empty()
+    );
+}
+
+#[test]
+fn all_constant_integer_edges_decline_to_orphan_the_dispatch() {
+    let session = lowered_session(
+        INT_MATCH_ALL_CONSTANT_SOURCE,
+        "integer all-constant decline",
+    );
+    assert!(
+        propose_state_argument_specializations(&session, 4)
+            .expect("proposal runs")
+            .is_empty(),
+        "fusing every constant-supplied incoming edge would orphan the dispatch state"
+    );
+    let unit = session.unit();
+    let machine = unit.functions[0].machine;
+    let (dispatch, _) = integer_dispatch(unit, machine).expect("integer dispatch exists");
+    let candidate = StateArgumentSpecializationCandidate {
+        identity: optimization_core::OptimizationCandidateIdentity::from_canonical_bytes(
+            b"forged-orphan-candidate",
+        ),
+        input: unit.identity,
+        output: unit.identity,
+        machine,
+        dispatch,
+        specializations: Vec::new(),
+    };
+    assert_eq!(
+        validate_state_argument_specialization(&session, &candidate).err(),
+        Some(StateArgumentSpecializationError::AlreadySpecialized)
+    );
+}
+
+#[test]
+fn replay_rejects_forged_integer_arm_rows() {
+    let session = lowered_session(INT_MATCH_TAKEN_SOURCE, "integer taken specialization");
+    let candidates = propose_state_argument_specializations(&session, 4).expect("proposal runs");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one specialization candidate")
+    };
+
+    // A forged constant verdict — `i := 0` really does satisfy `i == 0`, so
+    // flipping the resolved arm cannot replay.
+    let mut forged = candidate.clone();
+    forged.specializations[0].constant = !forged.specializations[0].constant;
+    assert_eq!(
+        validate_state_argument_specialization(&session, &forged).err(),
+        Some(StateArgumentSpecializationError::CandidateMismatch)
+    );
+
+    // A forged resolved arm edge.
+    let mut forged = candidate.clone();
+    forged.specializations[0].taken_edge = forged.specializations[0].rejected_edge;
+    assert_eq!(
+        validate_state_argument_specialization(&session, &forged).err(),
+        Some(StateArgumentSpecializationError::CandidateMismatch)
+    );
+
+    // A forged supplying edge.
+    let mut forged = candidate.clone();
+    forged.specializations[0].incoming_edge = forged.specializations[0].rejected_edge;
+    assert_eq!(
+        validate_state_argument_specialization(&session, &forged).err(),
+        Some(StateArgumentSpecializationError::CandidateMismatch)
+    );
+
+    // The untampered candidate still validates.
+    assert!(
+        validate_state_argument_specialization(&session, candidate).is_ok(),
+        "the exact candidate still validates"
+    );
+}
+
+/// The integer-comparison dispatch block and the own scalar parameter its
+/// condition compares against a literal.
+fn integer_dispatch(unit: &PsiOptimizationUnit, machine: MachineId) -> Option<(BlockId, ValueId)> {
+    let function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)?;
+    function.blocks.iter().find_map(|block| {
+        let (last, prefix) = block.nodes.split_last()?;
+        let AbstractOperation::Conditional { condition, .. } = &last.operation else {
+            return None;
+        };
+        prefix.iter().find_map(|node| {
+            let (result, left, right) = match &node.operation {
+                AbstractOperation::IntegerEqual {
+                    result,
+                    left,
+                    right,
+                    ..
+                }
+                | AbstractOperation::IntegerLessThan {
+                    result,
+                    left,
+                    right,
+                    ..
+                }
+                | AbstractOperation::IntegerLessOrEqual {
+                    result,
+                    left,
+                    right,
+                    ..
+                } => (*result, *left, *right),
+                _ => return None,
+            };
+            if result != *condition {
+                return None;
+            }
+            block
+                .parameters
+                .iter()
+                .find(|parameter| parameter.value == left || parameter.value == right)
+                .map(|parameter| (block.id, parameter.value))
+        })
+    })
+}
+
 /// The single-node parameter dispatch block and its condition parameter.
 fn parameter_dispatch(
     unit: &PsiOptimizationUnit,
@@ -1182,9 +1855,7 @@ fn dispatch_arms(
         .iter()
         .find(|block| block.id == dispatch)
         .expect("dispatch exists");
-    let [node] = block.nodes.as_slice() else {
-        panic!("dispatch is a single-node block")
-    };
+    let node = block.nodes.last().expect("dispatch terminator node");
     let AbstractOperation::Conditional {
         when_true,
         when_false,
