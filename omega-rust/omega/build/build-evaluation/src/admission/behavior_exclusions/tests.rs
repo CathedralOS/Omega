@@ -541,6 +541,119 @@ fn dynamic_call_is_insufficient_evidence_not_prohibition() {
 }
 
 #[test]
+fn parameter_dispatch_crash_contract_counts_excluded_causes() {
+    // The requirement's retained crash contract bounds the unenumerated
+    // parameter target: an excluded cause in it is a prohibited site.
+    let parameter_entry = unit_machine(
+        1,
+        vec![Block {
+            operations: vec![unit_operation(
+                1,
+                OperationKind::CallDynamicParameterUnit {
+                    parameter_ordinal: 0,
+                    requirement_slot: 0,
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: vec![CrashRouteBucket {
+                        cause: CrashCause::Trap,
+                        alternatives: vec![CrashRouteGuard::Truth],
+                    }],
+                },
+            )],
+            ..return_unit_block(1)
+        }],
+    );
+    let module = terminal_module(vec![parameter_entry], Vec::new());
+    let report =
+        establish_behavior_exclusions(&module, &entries(), &trap_exclusions(), &empty_plans());
+    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Prohibited);
+    assert_eq!(
+        report.prohibited,
+        vec![ProhibitedBehavior {
+            exclusion: BehaviorExclusion::CrashCause(CrashCause::Trap),
+            entry: machine_id(1),
+            machine: machine_id(1),
+            site: ProhibitedSite::DynamicCall {
+                block: block_id(1),
+                operation: operation_id(1),
+            },
+        }]
+    );
+    assert!(report.gaps.is_empty());
+}
+
+#[test]
+fn parameter_dispatch_crash_contract_suffices_for_crash_only_exclusions() {
+    // A non-empty contract lacking the excluded cause decides the site for a
+    // crash-only exclusion set — the closed bucket list attests absence.
+    let parameter_entry = unit_machine(
+        1,
+        vec![Block {
+            operations: vec![unit_operation(
+                1,
+                OperationKind::CallDynamicParameterScalar {
+                    parameter_ordinal: 0,
+                    requirement_slot: 0,
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: vec![CrashRouteBucket {
+                        cause: CrashCause::Abort,
+                        alternatives: vec![CrashRouteGuard::Truth],
+                    }],
+                },
+            )],
+            ..return_unit_block(1)
+        }],
+    );
+    let module = terminal_module(vec![parameter_entry], Vec::new());
+    let report =
+        establish_behavior_exclusions(&module, &entries(), &trap_exclusions(), &empty_plans());
+    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Satisfied);
+    assert_eq!(report, BehaviorExclusionReport::default());
+}
+
+#[test]
+fn parameter_dispatch_contract_keeps_service_reach_a_gap() {
+    // The crash contract cannot enumerate the parameter target's service
+    // reach, so a service exclusion remains missing evidence — and a
+    // prohibited crash site still wins the verdict.
+    let console = service_id(1);
+    let parameter_entry = unit_machine(
+        1,
+        vec![Block {
+            operations: vec![unit_operation(
+                1,
+                OperationKind::CallDynamicParameterUnit {
+                    parameter_ordinal: 0,
+                    requirement_slot: 0,
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: vec![CrashRouteBucket {
+                        cause: CrashCause::Abort,
+                        alternatives: vec![CrashRouteGuard::Truth],
+                    }],
+                },
+            )],
+            ..return_unit_block(1)
+        }],
+    );
+    let module = terminal_module(vec![parameter_entry], Vec::new());
+    let exclusions = BehaviorExclusions::from_selections([BehaviorExclusion::Service(console)]);
+    let report = establish_behavior_exclusions(&module, &entries(), &exclusions, &empty_plans());
+    assert_eq!(
+        report.verdict(),
+        BehaviorExclusionVerdict::InsufficientEvidence
+    );
+    assert_eq!(
+        report.gaps,
+        vec![EvidenceGap {
+            entry: machine_id(1),
+            machine: machine_id(1),
+            block: Some(block_id(1)),
+            operation: Some(operation_id(1)),
+            kind: EvidenceGapKind::DynamicCall,
+        }]
+    );
+}
+
+#[test]
 fn exclusions_are_a_canonical_union() {
     let left = BehaviorExclusions::from_selections([
         BehaviorExclusion::Service(service_id(2)),
