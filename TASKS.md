@@ -2927,6 +2927,40 @@ Owners include
   incompatible by-value exchanges and replacements reject before execution.
   Equal size/alignment or a compact fingerprint never establishes agreement.
 
+  Re-verified 2026-09-20 at `e7c0099cb2` (Devin/z117): the "no native
+  artifact carries the selected application" and "no by-value crossing is
+  transported" claims have aged past the code. Artifact custody is landed —
+  `native-artifact/src/native_artifact/boundary_applications.rs` requires
+  exact boundary-application coverage against the Terminal module's
+  operations, and installation-record format 99 rows carry the requirement
+  identity, shape root, application-report fingerprint and the 256-bit
+  `selected_application_commitment`
+  (`image-emission/src/installation_record/codec/opaque_application_codec.rs`,
+  round-tripped and image-validated in
+  `tests/artifacts/installation_records.rs`); boundary-plan admission
+  rederives the commitment and rejects conformance/lifecycle/copy-disposition
+  drift (`calling_policy_plans/opaque_representations.rs`). Plan-level
+  transport is landed — the materialized signature computes argument, result
+  and nested-path movements per opaque use
+  (`opaque_result_rejoins_its_exact_result_placement`,
+  `nested_opaque_path_ignores_an_identically_shaped_ordinary_field`,
+  `repeated_opaque_values_rejoin_distinct_equal_layout_occurrences`,
+  `distinct_opaque_values_with_equal_layout_retain_distinct_nominal_markers`,
+  `opaque_movement_retains_native_ordinal_after_direct_callback_insertion`,
+  `opaque_by_value_custody_binds_the_selected_application_commitment`; 21/21
+  green under `cargo nextest run -p compiler --test calling_policy_plans
+  opaque` on linux x86-64). Still open: a by-value opaque carrier executed
+  end-to-end in emitted code (no pass canary crosses one today —
+  `proofs/boundary_data_opaque_contract` names an opaque carrier in a
+  contract only); replacement stays COMPONENT-SUBSTRATE-owned (claimed);
+  cleanup-owning carriers still reject
+  (`carrier_closure_rejects_direct_and_nested_nominal_cleanup`, 6/6
+  `opaque_representation_lifecycle` green) — `CheckedSemanticCopy` and the
+  `representation_schema_version` coordinate exist but no non-`Inert`
+  lifecycle relationship is admitted yet; and the sealed `Ptr<T>`/`Real`/
+  `EfiSystemTable` acceptance targets remain with the UEFI/physical-entry
+  owners (UEFI-PHYSICAL-SEMANTIC-ENTRY claimed).
+
 - **WRITE-ONLY-BORROW.** Finish `&write T` under
   [write-only authority](wiki/spec/terminal-psi/structural_access.md#write-only-authority)
   through calls/results, dynamic dispatch, cleanup and native execution.
