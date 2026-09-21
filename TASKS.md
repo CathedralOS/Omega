@@ -13177,6 +13177,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   exists. Sibling stubs on the same clauses: RUST-PRODUCER-OMISSION,
   RUST-PRODUCER-RETIREMENT-GATE, RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL,
   RUST-COMPILER-RELEASE-RECORD.
+  Re-verified at `72fc66d6c3` ([z70 ledger](wiki/drafts/rust_release_record_z70.md)):
+  `tools/release/records/` still absent (zero committed records);
+  TASKS_BOOTSTRAP.md:76 gate verbatim; the CONTRACT.md comparator quote
+  has aged into different wording (policy preserved); production surface
+  now double-fenced (RC-HOST-RUNNER-LANES, RC-RELEASE-RECORD).
 
 - **SAMPLES-COMPILE-MULTI-HOST.** Verified scope — the per-host gate already
   exists as `compiler`'s `samples_compile` suite
