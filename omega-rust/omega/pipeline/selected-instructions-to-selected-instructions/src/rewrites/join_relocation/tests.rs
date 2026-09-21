@@ -1,7 +1,7 @@
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::{EffectLink, ValueDefinitionSite};
 use register_environment::baseline_target_register_environment;
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
+use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
     SelectedBoundarySettlementPayload, SelectedCallContract, SelectedFunction, SelectedInstruction,
@@ -27,40 +27,7 @@ use super::{
     JoinRelocationError, JoinRelocationReceipt, ValidatedJoinRelocation,
     relocate_selected_instruction_out_of_join, validate_join_relocation,
 };
-fn budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
-}
-
-fn instruction(
-    id: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    row: &RegisterInstructionConstraint,
-    registers: &[VirtualRegisterId],
-) -> SelectedInstruction {
-    SelectedInstruction {
-        id,
-        kind,
-        constraint: row.key,
-        operands: row
-            .operands
-            .iter()
-            .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
-    }
-}
+use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 
 const LEAD: SelectedInstructionId = SelectedInstructionId(2);
 const LATE: SelectedInstructionId = SelectedInstructionId(3);
@@ -2208,10 +2175,10 @@ fn measured_validation_step_boundary() {
     // `Jump` (1 use + 1 definition): 4+3+4+3 = 14 steps.
     let steps: u64 = 14 /* whole plan */ + 14 /* this function's blocks */ + 4 /* edges */
         + 4 /* path walk edge bound */ + 12 /* crossed positions */ + 14 /* crossed edges */;
-    let exact = OptimizationWorkBudget::new(1, 1, steps, 1, 1).unwrap();
+    let exact = measured_step_budget(steps);
     relocate_selected_instruction_out_of_join(&source, 0, MOVING, TRAIL, &environment, exact)
         .unwrap();
-    let starved = OptimizationWorkBudget::new(1, 1, steps - 1, 1, 1).unwrap();
+    let starved = measured_step_budget(steps - 1);
     assert_eq!(
         relocate_selected_instruction_out_of_join(
             &source,
@@ -2225,10 +2192,10 @@ fn measured_validation_step_boundary() {
         JoinRelocationError::WorkBudgetExceeded
     );
     // Landing at `LATE` crosses one more surface pair — the head middle.
-    let exact = OptimizationWorkBudget::new(1, 1, steps + 2, 1, 1).unwrap();
+    let exact = measured_step_budget(steps + 2);
     relocate_selected_instruction_out_of_join(&source, 0, MOVING, LATE, &environment, exact)
         .unwrap();
-    let starved = OptimizationWorkBudget::new(1, 1, steps + 1, 1, 1).unwrap();
+    let starved = measured_step_budget(steps + 1);
     assert_eq!(
         relocate_selected_instruction_out_of_join(&source, 0, MOVING, LATE, &environment, starved,)
             .unwrap_err(),

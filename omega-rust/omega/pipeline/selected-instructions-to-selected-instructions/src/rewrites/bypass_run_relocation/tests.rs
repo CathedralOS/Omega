@@ -1,7 +1,7 @@
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::{EffectLink, ValueDefinitionSite};
 use register_environment::baseline_target_register_environment;
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
+use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
     SelectedBoundarySettlementPayload, SelectedCallContract, SelectedFunction, SelectedInstruction,
@@ -27,40 +27,7 @@ use super::{
     BypassRunRelocationError, BypassRunRelocationReceipt, ValidatedBypassRunRelocation,
     relocate_selected_run_through_bypass, validate_bypass_run_relocation,
 };
-fn budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
-}
-
-fn instruction(
-    id: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    row: &RegisterInstructionConstraint,
-    registers: &[VirtualRegisterId],
-) -> SelectedInstruction {
-    SelectedInstruction {
-        id,
-        kind,
-        constraint: row.key,
-        operands: row
-            .operands
-            .iter()
-            .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
-    }
-}
+use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 
 const LEAD: SelectedInstructionId = SelectedInstructionId(2);
 const RUN_A: SelectedInstructionId = SelectedInstructionId(3);
@@ -2236,10 +2203,10 @@ fn measured_validation_step_boundary() {
     // steps, so two members price 22.
     let steps: u64 = 12 /* whole plan */ + 12 /* this function's blocks */ + 3 /* edges */
         + 4 /* path walk edge bound */ + 12 /* crossed positions */ + 22 /* crossed edges */;
-    let exact = OptimizationWorkBudget::new(1, 1, steps, 1, 1).unwrap();
+    let exact = measured_step_budget(steps);
     relocate_selected_run_through_bypass(&source, 0, RUN_A, RUN_B, HEAD, &environment, exact)
         .unwrap();
-    let starved = OptimizationWorkBudget::new(1, 1, steps - 1, 1, 1).unwrap();
+    let starved = measured_step_budget(steps - 1);
     assert_eq!(
         relocate_selected_run_through_bypass(
             &source,
@@ -2255,10 +2222,10 @@ fn measured_validation_step_boundary() {
     );
     // Landing at `MID` crosses one more surface pair per member — the
     // join head.
-    let exact = OptimizationWorkBudget::new(1, 1, steps + 4, 1, 1).unwrap();
+    let exact = measured_step_budget(steps + 4);
     relocate_selected_run_through_bypass(&source, 0, RUN_A, RUN_B, MID, &environment, exact)
         .unwrap();
-    let starved = OptimizationWorkBudget::new(1, 1, steps + 3, 1, 1).unwrap();
+    let starved = measured_step_budget(steps + 3);
     assert_eq!(
         relocate_selected_run_through_bypass(&source, 0, RUN_A, RUN_B, MID, &environment, starved,)
             .unwrap_err(),

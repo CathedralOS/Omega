@@ -1,7 +1,7 @@
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::{EffectLink, ValueDefinitionSite};
 use register_environment::baseline_target_register_environment;
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
+use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
     SelectedBoundarySettlementPayload, SelectedCallContract, SelectedFunction, SelectedInstruction,
@@ -27,41 +27,7 @@ use super::{
     InflowRelocationError, InflowRelocationReceipt, ValidatedInflowRelocation,
     relocate_selected_instruction_onto_inflow, validate_inflow_relocation,
 };
-
-fn budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
-}
-
-fn instruction(
-    id: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    row: &RegisterInstructionConstraint,
-    registers: &[VirtualRegisterId],
-) -> SelectedInstruction {
-    SelectedInstruction {
-        id,
-        kind,
-        constraint: row.key,
-        operands: row
-            .operands
-            .iter()
-            .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
-    }
-}
+use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 
 const LEAD: SelectedInstructionId = SelectedInstructionId(2);
 const TRAIL: SelectedInstructionId = SelectedInstructionId(3);
@@ -2379,10 +2345,10 @@ fn measured_validation_step_boundary() {
     // jumps 2, the branch 3, and the return 9 — (2+3)+(2+2)+(2+2)+(4+9) =
     // 26 — times one written member register plus one: 26*2 = 52.
     let steps: u64 = 14 + 14 + 4 + 4 + 4 + 3 + 52;
-    let exact = OptimizationWorkBudget::new(1, 1, steps, 1, 1).unwrap();
+    let exact = measured_step_budget(steps);
     relocate_selected_instruction_onto_inflow(&source, 0, MOVING, T_TAIL, &environment, exact)
         .unwrap();
-    let starved = OptimizationWorkBudget::new(1, 1, steps - 1, 1, 1).unwrap();
+    let starved = measured_step_budget(steps - 1);
     assert_eq!(
         relocate_selected_instruction_onto_inflow(
             &source,
@@ -2399,10 +2365,10 @@ fn measured_validation_step_boundary() {
     // crossed positions pair the member against `T_HEAD`, `T_TAIL`, and
     // `HEAD` — 2+2+2 = 6 — and the same one edge pairs 3.
     let steps_head: u64 = 14 + 14 + 4 + 4 + 6 + 3 + 52;
-    let exact = OptimizationWorkBudget::new(1, 1, steps_head, 1, 1).unwrap();
+    let exact = measured_step_budget(steps_head);
     relocate_selected_instruction_onto_inflow(&source, 0, MOVING, T_HEAD, &environment, exact)
         .unwrap();
-    let starved = OptimizationWorkBudget::new(1, 1, steps_head - 1, 1, 1).unwrap();
+    let starved = measured_step_budget(steps_head - 1);
     assert_eq!(
         relocate_selected_instruction_onto_inflow(
             &source,

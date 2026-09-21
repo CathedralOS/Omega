@@ -1,14 +1,13 @@
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::{EffectLink, ValueDefinitionSite};
 use register_environment::baseline_target_register_environment;
-use register_model::RegisterInstructionConstraint;
 use selected_instructions::{
     LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
     SelectedBoundarySettlement, SelectedBoundarySettlementPayload, SelectedCallContract,
-    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionPlan, SelectedMemoryAccess, SelectedMemoryAccessOrigin,
-    SelectedMemoryAccessRole, SelectedOperand, SelectedSuccessor, SelectedSuccessorRole,
-    SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedFunction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
+    SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedSuccessor,
+    SelectedSuccessorRole, SelectedTerminator, VirtualRegister, VirtualRegisterId,
+    VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
@@ -27,41 +26,7 @@ use super::{
     validate_commuting_member_run_interchange,
 };
 use crate::ValidatedSelectedAnalysis;
-
-fn budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
-}
-
-fn instruction(
-    id: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    row: &RegisterInstructionConstraint,
-    registers: &[VirtualRegisterId],
-) -> SelectedInstruction {
-    SelectedInstruction {
-        id,
-        kind,
-        constraint: row.key,
-        operands: row
-            .operands
-            .iter()
-            .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
-    }
-}
+use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 
 const MEMBER: SelectedInstructionId = SelectedInstructionId(2);
 const MAT_A: SelectedInstructionId = SelectedInstructionId(3);
@@ -1225,7 +1190,7 @@ fn admission_reports_its_own_reasons() {
         .unwrap_err(),
         CommutingMemberRunInterchangeError::SourceMismatch
     );
-    let tight = OptimizationWorkBudget::new(1, 1, 1, 1, 1).unwrap();
+    let tight = measured_step_budget(1);
     assert_eq!(
         interchange_selected_commuting_member_and_run(
             &source,
@@ -1481,7 +1446,7 @@ fn measured_validation_step_boundary_admits_and_rejects() {
         // 68.
         (later_block, 68u64),
     ] {
-        let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
+        let exact = measured_step_budget(exact_steps);
         let result = interchange_selected_commuting_member_and_run(
             &source,
             0,
@@ -1503,7 +1468,7 @@ fn measured_validation_step_boundary_admits_and_rejects() {
             result.transformed().clone(),
         )
         .unwrap();
-        let starved = OptimizationWorkBudget::new(1, 1, exact_steps - 1, 1, 1).unwrap();
+        let starved = measured_step_budget(exact_steps - 1);
         assert_eq!(
             interchange_selected_commuting_member_and_run(
                 &source,
