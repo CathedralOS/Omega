@@ -18373,6 +18373,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (~07:31Z), which does not carry the sequence leg. The disposition work
   itself belongs to the canonical item — this stub folds; no independent
   slice exists under this name.
+||||||| parent of 888cbf09e50e (board: UNSEQUENCED-SPILL-FAMILY-DISPOSITION folds into STAGES-DISPOSITION)
+- **UNSEQUENCED-SPILL-FAMILY-DISPOSITION** — mined candidate; verify scope then implement.
+- **UNSEQUENCED-SPILL-STAGE-DISPOSITION** — mined candidate; verify scope then implement.
+- **UNSEQUENCED-SPILL-FAMILY-DISPOSITION.** Mined candidate; scope
+  verified at `f6bb8e6c2eb4` — sixth mined stub for the same
+  `unsequenced_spill_stages/` directory; named verbatim as a sibling on
+  UNSEQUENCED-SPILL-STAGE-TRIAGE's resolved row (:10736). "Disposition"
+  is that item's sequence-or-delete of the 18 staged spill families; the
+  verified scope, family inventory, dependency chain and the
+  `stack_slot_coloring`/`runtime_spill/slot.rs` duplicate-owner pair are
+  recorded on UNSEQUENCED-SPILL-STAGES-DISPOSITION (this file). Folds into
+  that item; no independent slice. At verification the territory stays
+  fenced: `unsequenced_spill_stages` held wholesale by
+  POC-SPILL-FAMILY-SEQUENCING (exp 06:53Z), the native-differential
+  `pipeline_ownership` consumers by BASELINE-NATIVE-DIFF-PIPELINE-
+  OWNERSHIP (exp 07:31Z), and the stage's `lib.rs` re-exports overlap
+  DURABLE-CODEC-RELOCATION's claim.
+- **UNSEQUENCED-SPILL-STAGE-DISPOSITION** — mined candidate; verify scope then implement.
 - **UNSEQUENCED-SPILL-STAGE-TRIAGE.** Mined candidate — resolved at
   `0f5ae41e7d`: one of the four mined duplicates the
   UNSEQUENCED-SPILL-STAGES-DISPOSITION row (~this file, line 10032) names
