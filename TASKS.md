@@ -6909,7 +6909,27 @@ Omega-side / native:
   An unrelated upstream regression witnessed on that row's base also
   applies: `derive_fused_program_entry_establishments` rejects
   `Service<R>`-fielded ProgramEntry receivers — a Service-carrier custody
-  item, not this one.
+  item, not this one. Re-measured at `94e764a6da` (linux x86-64): leg (a)
+  now landed on main (`2a6e06f1c496`) — `unit.rs` dispatches
+  `AbstractOperation::NearestIeeeFloatFusedMultiplyAdd` into
+  `unit/ieee_float.rs::validate` with exact `IeeeFloatImmediate` custody;
+  `nextest -p target-operations-to-selected-instructions
+  -E 'test(~ieee_float)'` 5/5 green incl.
+  `fused_multiply_add_replays_exact_constant_sources` +
+  `fused_multiply_add_rejects_any_operand_drift`. Legs (b)/(c) still
+  fenced: `object_emission.rs:34` transport-stop message pinned PASS
+  (64.5s), `optimization_stage.rs:27` "optimized nearest-FMA custody"
+  still returns, and no `FusedMultiplyAdd`/`VFMADD`/`x86_scalar_fma`
+  references exist in s2s/s2rh/machine-emission src. Live claim map:
+  `legalization/`+`control_flow/sources.rs` under
+  X86-FMA-PROVIDER-TRANSPORT (Jarod, canonical owner); the
+  object_emission/program_entry/native_realization surfaces under
+  UEFI-PHYSICAL-SEMANTIC-ENTRY; `selection/construction` under
+  CALLBACK-PRIVATE-MATERIALIZATION; `s2rh/unsequenced_spill_stages` under
+  POC-SPILL-FAMILY-SEQUENCING. `optimization_stage.rs` is the only
+  unfenced residual file but its fence is only removable once the
+  transport it gates exists. Record:
+  `wiki/drafts/float_fma_native_transport.md`.
 
 Proof/evidence:
 
@@ -11504,6 +11524,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   verbatim on `print_number` (`self.out requires [u8; N]::Utf8`). Ledger:
   wiki/drafts/rc_representative_programs_closure_0f75a0.md.
 - **RC-REPRESENTATIVE-PROGRAMS-GATE.** — mined candidate; verify scope then implement.
+- **RC-REPRESENTATIVE-PROGRAMS-GATE.** — mined candidate; scope verified, gate is RED on the available host. Same matrix row as resolved sibling RC-REPRESENTATIVE-PROGRAMS-GREEN (`samples_compile` on every required host). Measured at `94e764a6da` on linux x86-64 (cargo, no mbx): `cargo nextest run -p compiler --test samples_compile --no-fail-fast` — observed through 21/33 finished at ~92min with 12 authored-entry/documented-exit aggregates still running and accumulating the same families. Recorded failures: `basics`/`caesar_cipher`/`format_number`/`print_squares`/`stdin`/`collection`/`algorithm`/`interpreter`/`gui` authored-entry aggregates + `fletcher_checksum_checks_its_slice_iteration` + `named_integer_conversion_samples_reach_checked_trees` — three families exactly as the sibling row records (windows_x86_64 `WindowsProcessEntry::enter` schema rejection on every sample; ProgramEntry rejoin "0 Terminal attachment identities — unit plan omitted at local construction at `statement sequence: call: call operation`" / `structural field store: record literal field` / "unavailable callee" on the linux_x86_64, linux_arm64, macos_arm64 legs; print_number `[u8; N]::Utf8` default-domain proof) plus a fourth surfaced by the gui aggregate: macos_arm64 legs fail "selected ProgramEntry Service field `Main::<field>` requires a selected Fused provider for boundary `Clock|Input|Gui|FilesystemHost`". Passing legs observed: dutch_flag, euclid_gcd, cli_mvp, generic_counter, recursive_slice, native_acceptance pair, sample_entry_exceptions, standard_sample_discovery. macOS/Windows/QEMU legs unavailable on this host per protocol. Record: `wiki/drafts/rc_representative_programs_gate.md`.
 - **RC-REPRESENTATIVE-PROGRAMS-GREEN.** — mined candidate; scope verified, gate is RED on the available host. The gate (`wiki/drafts/rust_compiler_completion.md`): `mbx nextest run -p compiler --test samples_compile --no-fail-fast` on every required host — every maintained sample reaches checked semantics, host-entry samples reach their native product, deterministic oracles pass. Measured at `d8041919ad` on linux x86-64 (cargo, no mbx): red — the authored-entry-binding legs fail on the known residuals, `windows_x86_64` entry selection rejects the std `targets/windows_x86_64/entry.omg` against the `named-callable(WindowsProcessEntry::enter)` schema (basics, fletcher_checksum, caesar_cipher, format_number legs), the other three targets fail with "selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one" (fletcher_checksum), and `named_integer_conversion_samples_reach_checked_trees` fails on `cli/basics/print_number` — "cannot prove default-domain field requirement for return from Main::main: self.out requires [u8; N]::Utf8". Passing legs observed before the red ones: dutch_flag, euclid_gcd (service-call entry plan retained), cli_mvp (both lines + EOF + enter), generic_counter. The failure families are the named ProgramEntry-rejoin / hosted-entry residuals on this board (ENTRY-CONTENT-ROOTS lane) plus the print_number domain-field leg; macOS/Windows/QEMU legs unavailable on this host per protocol. Sibling re-mines of the same matrix row: RC-REPRESENTATIVE-PROGRAMS-CLOSURE, -GATE, -PER-HOST (:8966-8969).
   Re-measured at `edc77c21480` on linux x86-64 (`cargo nextest run
   -p compiler --test samples_compile --no-fail-fast`): still red —
