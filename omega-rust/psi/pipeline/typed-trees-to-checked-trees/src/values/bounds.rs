@@ -182,6 +182,22 @@ fn integer(
                 },
             )
         }
+        Expression::IntegerSaturatingCast {
+            primitive_type,
+            operand,
+        } => {
+            // The clamp is monotone: each endpoint of the operand range
+            // saturates at the target carrier bounds independently.
+            let (_, bounds) = integer(operand, source)?;
+            let carrier = primitive_range(*primitive_type)?;
+            (
+                *primitive_type,
+                IntegerRange {
+                    minimum: bounds.minimum.max(carrier.minimum.clone()),
+                    maximum: bounds.maximum.min(carrier.maximum.clone()),
+                },
+            )
+        }
         Expression::IntegerTrappingCast {
             primitive_type,
             operand,

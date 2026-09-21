@@ -9,9 +9,13 @@ use super::{
 };
 use semantic_vocabulary::ScalarQualificationSetId;
 use terminal_psi::{
-    ScalarDomainDeclaration, ScalarFloatRange, ScalarIntegerRange, ScalarQualificationCatalog,
-    ScalarQualificationCoercion, ScalarQualificationSet,
+    ScalarDomainDeclaration, ScalarDomainEstablishmentRoute, ScalarFloatRange, ScalarIntegerRange,
+    ScalarQualificationCatalog, ScalarQualificationCoercion, ScalarQualificationSet,
 };
+
+const ROUTE_CHECKED_REQUIREMENT: u8 = 0;
+const ROUTE_BOUNDARY_REQUIREMENT: u8 = 1;
+const ROUTE_EXACT_MACHINE: u8 = 2;
 
 pub(crate) fn encode(
     writer: &mut Writer,
@@ -23,6 +27,30 @@ pub(crate) fn encode(
         writer.id(domain.semantic_domain);
         writer.string("scalar domain identity", &domain.identity)?;
         encode_scalar_type(writer, domain.carrier);
+        writer.len(
+            "scalar domain establishment routes",
+            domain.establishment_routes.len(),
+        )?;
+        for route in &domain.establishment_routes {
+            match route {
+                ScalarDomainEstablishmentRoute::CheckedRequirement {
+                    requirement_identity,
+                } => {
+                    writer.u8(ROUTE_CHECKED_REQUIREMENT);
+                    writer.string("establishment requirement", requirement_identity)?;
+                }
+                ScalarDomainEstablishmentRoute::BoundaryRequirement {
+                    requirement_identity,
+                } => {
+                    writer.u8(ROUTE_BOUNDARY_REQUIREMENT);
+                    writer.string("establishment requirement", requirement_identity)?;
+                }
+                ScalarDomainEstablishmentRoute::ExactMachine { machine_identity } => {
+                    writer.u8(ROUTE_EXACT_MACHINE);
+                    writer.string("establishment machine", machine_identity)?;
+                }
+            }
+        }
     }
     writer.len("scalar qualification sets", catalog.sets.len())?;
     for set in &catalog.sets {
@@ -76,6 +104,25 @@ pub(crate) fn decode(reader: &mut Reader<'_>) -> Result<ScalarQualificationCatal
                 semantic_domain: reader.id("DomainSemanticId")?,
                 identity: reader.string("scalar domain identity")?,
                 carrier: decode_scalar_type(reader)?,
+                establishment_routes: decode_counted(reader, |reader| match reader.u8()? {
+                    ROUTE_CHECKED_REQUIREMENT => {
+                        Ok(ScalarDomainEstablishmentRoute::CheckedRequirement {
+                            requirement_identity: reader.string("establishment requirement")?,
+                        })
+                    }
+                    ROUTE_BOUNDARY_REQUIREMENT => {
+                        Ok(ScalarDomainEstablishmentRoute::BoundaryRequirement {
+                            requirement_identity: reader.string("establishment requirement")?,
+                        })
+                    }
+                    ROUTE_EXACT_MACHINE => Ok(ScalarDomainEstablishmentRoute::ExactMachine {
+                        machine_identity: reader.string("establishment machine")?,
+                    }),
+                    tag => Err(CodecError::InvalidTag(
+                        "ScalarDomainEstablishmentRoute",
+                        tag,
+                    )),
+                })?,
             })
         })?,
         sets: decode_counted(reader, |reader| {
@@ -121,6 +168,24 @@ pub(crate) fn validate(catalog: &ScalarQualificationCatalog) -> Result<(), Codec
         .any(|pair| pair[0].id >= pair[1].id)
     {
         return Err(CodecError::NonCanonicalOrder("scalar domains"));
+    }
+    for domain in &catalog.domains {
+        if domain
+            .establishment_routes
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        {
+            return Err(CodecError::NonCanonicalOrder(
+                "scalar domain establishment routes",
+            ));
+        }
+        if domain
+            .establishment_routes
+            .iter()
+            .any(|route| route.identity().is_empty())
+        {
+            return Err(CodecError::NonCanonicalEncoding);
+        }
     }
     if catalog.sets.windows(2).any(|pair| pair[0].id >= pair[1].id) {
         return Err(CodecError::NonCanonicalOrder("scalar qualification sets"));

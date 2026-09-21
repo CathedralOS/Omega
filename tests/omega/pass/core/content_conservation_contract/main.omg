@@ -1,3 +1,7 @@
+// An established owned input is partitioned through an invoked boundary
+// requirement: `forward` hands `whole` to the authored `separate` theorem, and
+// the caller retains both residual claims in `SplitResult`.
+
 use omega::language::core::content;
 
 data ByteUnit {}
@@ -19,7 +23,7 @@ data SplitResult {
     right: Region in Owned;
 }
 
-trait RegionSplit {
+boundary trait RegionSplit {
     machine split(whole: Region in Owned) -> SplitResult
     ensures
         Owned::content(old(&whole))
@@ -27,6 +31,12 @@ trait RegionSplit {
             Owned::content(&result.left),
             Owned::content(&result.right),
         );
+}
+
+machine forward(partition: &RegionSplit, whole: Region in Owned) -> SplitResult
+reaches RegionSplit
+{
+    partition.split(whole)
 }
 
 data Main {}

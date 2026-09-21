@@ -97,12 +97,14 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
             blocks: vec![
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: edge_id(1),
                         target: block_id(2),
@@ -113,6 +115,7 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: vec![ValueDeclaration {
@@ -130,6 +133,7 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
             ],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: contract_id(1),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

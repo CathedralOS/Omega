@@ -569,6 +569,7 @@ impl ScalarBindings {
             CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
             | CheckedScalarExpression::IntegerWiden { operand, .. }
             | CheckedScalarExpression::IntegerWrappingCast { operand, .. }
+            | CheckedScalarExpression::IntegerSaturatingCast { operand, .. }
             | CheckedScalarExpression::IntegerExactCast { operand, .. } => self.scalar(operand)?,
             CheckedScalarExpression::IntegerTrappingCast { .. } => {
                 return Err(LoweringError::Unsupported(
@@ -606,7 +607,8 @@ impl ScalarBindings {
                 self.boolean(left)?;
                 self.boolean(right)?;
             }
-            CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+            CheckedBooleanExpression::IntegerComparison { left, right, .. }
+            | CheckedBooleanExpression::ScalarIeeeFloatComparison { left, right, .. } => {
                 self.scalar(left)?;
                 self.scalar(right)?;
             }

@@ -154,11 +154,13 @@ fn scalar_loan_module(multiplicity: StructuralMultiplicity) -> TerminalModule {
         target: id(JOIN_BLOCK),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         residual_affine_discards: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: vec![shared_parameter(VIEW, 0, SCALAR_TYPE)],
         id: id(JOIN_BLOCK),
         parameters: Vec::new(),
@@ -205,6 +207,7 @@ fn scalar_call_module() -> TerminalModule {
     let join = &mut module.machines[0].blocks[1];
     join.operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(902),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -215,6 +218,7 @@ fn scalar_call_module() -> TerminalModule {
             callee: id(CALLEE),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
                 place: id(VIEW),
                 path: Vec::new(),
@@ -258,11 +262,13 @@ fn scalar_call_module() -> TerminalModule {
         entry: id(CALLEE_BLOCK),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id(CALLEE_BLOCK),
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id(910),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -282,6 +288,7 @@ fn scalar_call_module() -> TerminalModule {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id(911),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -414,6 +421,7 @@ fn primitive_shared_loan_keeps_the_root_pinned_and_the_leaf_unread_in_block() {
     });
     module.machines[0].blocks[1].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(903),
         result: OperationResult::Unit,
         kind: OperationKind::StructuralScalarFieldStore {
@@ -440,6 +448,7 @@ fn primitive_shared_loan_keeps_the_root_pinned_and_the_leaf_unread_in_block() {
     let mut module = scalar_loan_module(StructuralMultiplicity::Unrestricted);
     module.machines[0].blocks[1].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(903),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

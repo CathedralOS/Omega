@@ -50,6 +50,7 @@ fn block_reader(scalar_type: ScalarType, multiplicity: StructuralMultiplicity) -
         target: body.id,
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: vec![StructuralArgument {
             place: machine.structural_parameters[0].place,
             path: Vec::new(),
@@ -93,6 +94,7 @@ fn bounded_block_reader(multiplicity: StructuralMultiplicity) -> TerminalModule 
     );
     module.machines[0].blocks[1].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(5),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -406,6 +408,7 @@ fn owned_backedge_rejoins_the_rebound_frontier_and_cannot_reuse_invocation_custo
     let owned = machine.blocks[1].structural_parameters[0].place;
     let exit = Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: id::<BlockId>(4),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -414,6 +417,7 @@ fn owned_backedge_rejoins_the_rebound_frontier_and_cannot_reuse_invocation_custo
     };
     machine.blocks[1].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id::<OperationId>(5),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -429,6 +433,7 @@ fn owned_backedge_rejoins_the_rebound_frontier_and_cannot_reuse_invocation_custo
             target: header,
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
                 place: owned,
                 path: Vec::new(),
@@ -441,6 +446,7 @@ fn owned_backedge_rejoins_the_rebound_frontier_and_cannot_reuse_invocation_custo
             target: exit.id,
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -484,10 +490,12 @@ fn ordinary_calls_consume_the_block_owner_without_invalidating_prior_scalar_snap
     let place = body.structural_parameters[0].place;
     body.operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id::<OperationId>(5),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: consumer.id,
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
@@ -601,6 +609,7 @@ fn owned_block_field_reads_reject_after_a_selected_discard() {
             target: continuation.id,
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: vec![place],
             residual_affine_discards: Vec::new(),
@@ -651,6 +660,7 @@ fn owned_block_field_reads_reject_the_old_descriptor_after_successor_transfer() 
             target: continuation.id,
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
                 place: previous_place,
                 path: Vec::new(),

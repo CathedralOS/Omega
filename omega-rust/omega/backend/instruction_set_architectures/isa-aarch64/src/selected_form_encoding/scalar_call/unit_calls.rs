@@ -1,10 +1,10 @@
 //! Unit call templates preserve arity and never manufacture a result operand.
 use super::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineId, NativeTarget,
-    SelectedInstructionKind, aarch64_physical_register_model, aarch64_register_constraint_catalog,
-    aarch64_selected_abi, encode_aarch64_selected_scalar_call_template, expected_effects,
-    expected_operand_views, validate_aarch64_selected_scalar_call_template,
+    SelectedInstructionKind, aarch64_selected_abi, encode_aarch64_selected_scalar_call_template,
+    expected_effects, expected_operand_views, validate_aarch64_selected_scalar_call_template,
 };
+use crate::{aarch64_physical_register_model, aarch64_register_constraint_catalog};
 use register_model::{RegisterOperandAccess, validate_physical_register_model};
 
 #[test]

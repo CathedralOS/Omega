@@ -364,10 +364,7 @@ fn contract_owner_environment(
 ) -> Option<TypeEnvironment> {
     match owner {
         ContractProofFactOwner::Machine { machine_symbol } => {
-            let machine = program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == machine_symbol)?;
+            let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
             let entry = program.machine_states(machine).first();
             Some(machine_environment(program, machine, entry))
         }
@@ -375,10 +372,7 @@ fn contract_owner_environment(
             machine_symbol,
             state_symbol,
         } => {
-            let machine = program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == machine_symbol)?;
+            let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
             let state = program
                 .machine_states(machine)
                 .iter()
@@ -494,10 +488,7 @@ fn proof_fact_value_contains_expression(
     match fact {
         typed_trees::domain::ProofFact::Expression(root) => {
             crate::authored_selections::member_targets::expression_contains(
-                program,
-                *root,
-                expression,
-                &mut Vec::new(),
+                program, *root, expression,
             )
         }
         typed_trees::domain::ProofFact::Membership(membership) => {
@@ -505,7 +496,6 @@ fn proof_fact_value_contains_expression(
                 program,
                 membership.value,
                 expression,
-                &mut Vec::new(),
             )
         }
         typed_trees::domain::ProofFact::Proposition(application) => program
@@ -514,10 +504,7 @@ fn proof_fact_value_contains_expression(
             .iter()
             .any(|root| {
                 crate::authored_selections::member_targets::expression_contains(
-                    program,
-                    *root,
-                    expression,
-                    &mut Vec::new(),
+                    program, *root, expression,
                 )
             }),
     }
@@ -569,10 +556,7 @@ fn collect_measure_environments(
             .iter()
             .any(|root| {
                 crate::authored_selections::member_targets::expression_contains(
-                    program,
-                    *root,
-                    expression,
-                    &mut Vec::new(),
+                    program, *root, expression,
                 )
             })
         {
@@ -607,18 +591,12 @@ fn collect_proposition_environments(
                 .iter()
                 .any(|root| {
                     crate::authored_selections::member_targets::expression_contains(
-                        program,
-                        *root,
-                        expression,
-                        &mut Vec::new(),
+                        program, *root, expression,
                     )
                 }),
             PropositionFormula::BooleanExpression(root) => {
                 crate::authored_selections::member_targets::expression_contains(
-                    program,
-                    *root,
-                    expression,
-                    &mut Vec::new(),
+                    program, *root, expression,
                 )
             }
         };
@@ -646,19 +624,12 @@ fn collect_ranking_environments(
             .chain(custody.rank_range);
         if !roots.into_iter().any(|root| {
             crate::authored_selections::member_targets::expression_contains(
-                program,
-                root,
-                expression,
-                &mut Vec::new(),
+                program, root, expression,
             )
         }) {
             continue;
         }
-        let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == custody.machine)
-        else {
+        let Some(machine) = crate::lookup::machine_by_symbol(program, custody.machine) else {
             continue;
         };
         environments.push(machine_environment(
@@ -833,15 +804,9 @@ fn type_reference_contains_expression(
                             minimum, maximum, ..
                         } => {
                             crate::authored_selections::member_targets::expression_contains(
-                                program,
-                                *minimum,
-                                expression,
-                                &mut Vec::new(),
+                                program, *minimum, expression,
                             ) || crate::authored_selections::member_targets::expression_contains(
-                                program,
-                                *maximum,
-                                expression,
-                                &mut Vec::new(),
+                                program, *maximum, expression,
                             )
                         }
                         TypeConstraintNode::Domain(domain) => {
@@ -869,10 +834,7 @@ fn type_reference_contains_expression(
             }),
         TypeReferenceNode::ConstExpression(root) => {
             crate::authored_selections::member_targets::expression_contains(
-                program,
-                *root,
-                expression,
-                &mut Vec::new(),
+                program, *root, expression,
             )
         }
         TypeReferenceNode::DynamicTrait { .. }

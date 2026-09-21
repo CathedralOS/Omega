@@ -1,7 +1,7 @@
 # Finite Beta encoding theory diagnostics
 
 Run `sh tests/gamma/beta-encoding-theory/run.sh` from the repository root on
-macOS arm64 or Windows x64 Git Bash, with Python 3 available as `python3`.
+macOS arm64 or Linux x86-64, or Windows x64 Git Bash, with Python 3 available as `python3`.
 The same command applies on both hosts; PowerShell is not required.
 Missing Python explicitly skips; unsupported hosts fail with status 2.
 The gate prints the executing host. A result on one host does not establish
@@ -56,6 +56,14 @@ production only: the certificate has to be produced through the selected
 chain and checked under the exact profile. See
 [PROFILE.md](../../../bootstrap/proofs/beta_encoding/PROFILE.md) for the
 measured figures.
+
+`sh tests/gamma/beta-encoding-theory/run.sh --produce-request PATH`
+materializes the certificate artifact itself: the same host-side
+production plus the recorded extent/digest pin, then an atomic write of
+the complete 135,485,028-byte framed request to PATH. The file is the
+untrusted derivation input the
+[check gate](../beta-encoding-check) frames for the evaluator — producing
+it grants no admission.
 
 `sh tests/gamma/beta-encoding-theory/run.sh --mutations` selects the
 [mutation-control leg](mutations.py) and, like the default gate, needs a

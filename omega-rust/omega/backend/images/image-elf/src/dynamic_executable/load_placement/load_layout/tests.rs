@@ -229,15 +229,15 @@ fn special_headers_alias_sections_and_file_only_metadata_stays_outside_loads() {
     assert!(
         layout.section_header_table_file_offset() >= shstrtab.file_offset() + shstrtab.byte_size()
     );
-    assert_eq!(layout.section_header_table_byte_size(), 13 * 64);
+    assert_eq!(layout.section_header_table_byte_size(), 14 * 64);
 }
 
 #[test]
-fn exact_twenty_three_fixups_are_resolved_without_mutating_template_bytes() {
+fn exact_twenty_five_fixups_are_resolved_without_mutating_template_bytes() {
     let layout = plan_elf_dynamic_load_layout(relative(TargetProfile::LinuxArm64)).unwrap();
     let template = layout.relative().payloads().section_headers().contents();
-    assert_eq!(layout.section_header_resolutions().len(), 23);
-    assert_eq!(template.placement_fixups.len(), 23);
+    assert_eq!(layout.section_header_resolutions().len(), 25);
+    assert_eq!(template.placement_fixups.len(), 25);
     for (fixup, resolution) in template
         .placement_fixups
         .iter()

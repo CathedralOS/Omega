@@ -135,6 +135,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
             blocks: vec![
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: preheader,
                     parameters: Vec::new(),
@@ -145,12 +146,14 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                         target: header,
                         arguments: vec![initial],
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         residual_affine_discards: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: header,
                     parameters: vec![ValueDeclaration {
@@ -161,6 +164,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: id(1, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -173,6 +177,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: id(2, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -193,6 +198,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                             target: decrement,
                             arguments: Vec::new(),
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
@@ -201,18 +207,21 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                             target: done,
                             arguments: Vec::new(),
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                     },
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: decrement,
                     parameters: Vec::new(),
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: id(3, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -225,6 +234,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: id(4, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -244,12 +254,14 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                         target: header,
                         arguments: vec![next],
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         residual_affine_discards: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: done,
                     parameters: Vec::new(),
@@ -262,6 +274,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
             ],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: id(1, ContractId::new),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -288,6 +301,7 @@ fn unranked_scalar_cycle() -> TerminalModule {
     machine.blocks = vec![
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: entry,
             parameters: Vec::new(),
@@ -300,6 +314,7 @@ fn unranked_scalar_cycle() -> TerminalModule {
                     target: entry,
                     arguments: Vec::new(),
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
@@ -308,12 +323,14 @@ fn unranked_scalar_cycle() -> TerminalModule {
                     target: done,
                     arguments: Vec::new(),
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
             },
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: done,
             parameters: Vec::new(),
@@ -339,6 +356,7 @@ fn unranked_effectful_unit_cycle() -> TerminalModule {
     module.machines[0].published_service_ceiling.push(service);
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(5, OperationId::new),
         result: OperationResult::Unit,
         kind: OperationKind::PortWrite {
@@ -642,6 +660,7 @@ fn ranked_countdown_with_borrowed_subslice_needs_ordinary_evidence() {
     machine.blocks[2].operations.extend([
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(5, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -652,8 +671,10 @@ fn ranked_countdown_with_borrowed_subslice_needs_ordinary_evidence() {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(6, OperationId::new),
             result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: destination,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -885,6 +906,7 @@ fn ranked_countdown_admits_extra_pure_scalar_work() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(20, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

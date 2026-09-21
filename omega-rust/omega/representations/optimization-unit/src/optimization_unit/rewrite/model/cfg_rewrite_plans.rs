@@ -1,6 +1,7 @@
 use super::super::{
-    BlockId, EdgeId, MachineId, OwnershipFrontierFactIdentity, OwnershipFrontierSite, ScalarType,
-    ValueId,
+    BlockId, CanonicalStructuralPathSegment, EdgeId, IntegerValue, MachineId, OperationId,
+    OwnershipFrontierFactIdentity, OwnershipFrontierSite, PlaceId, ScalarType, StructuralCaseId,
+    StructuralFieldId, ValueId,
 };
 use super::foundations::NodeLocation;
 
@@ -114,11 +115,12 @@ pub struct UnreachablePrivateMachinesRewrite {
 }
 
 /// One exact constant-bound state-argument route through a shared dispatch
-/// state. The row records the unconditional incoming edge being fused
-/// (`incoming_edge` owned by `predecessor`), the dispatch `parameter` that edge
-/// binds to the proven-`constant` `argument`, and the dispatch arm edges the
-/// constant resolves (`taken_edge` toward `resolved_target`; `rejected_edge`
-/// remains on every other incoming path).
+/// state. The row records the incoming edge being fused (`incoming_edge`
+/// owned by `predecessor` — an unconditional jump's successor or one arm of
+/// a conditional predecessor), the dispatch `parameter` that edge binds to
+/// the proven-`constant` `argument`, and the dispatch arm edges the constant
+/// resolves (`taken_edge` toward `resolved_target`; `rejected_edge` remains
+/// on every other incoming path).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SpecializedStateEdgeRow {
     pub incoming_edge: EdgeId,
@@ -132,7 +134,8 @@ pub struct SpecializedStateEdgeRow {
 }
 
 /// Specialize every constant-supplied incoming edge of one parameter-dispatch
-/// `Conditional` block. Each listed edge is retargeted onto its resolved arm
+/// `Conditional` block. Each listed edge — an unconditional jump successor or
+/// one conditional predecessor arm — is retargeted onto its resolved arm
 /// while the dispatch state stays reachable for every other incoming path, so
 /// the rewrite never removes the dispatch block itself. Rows are canonical in
 /// `incoming_edge` order.
@@ -141,4 +144,89 @@ pub struct StateArgumentSpecializationRewrite {
     pub machine: MachineId,
     pub dispatch: BlockId,
     pub edges: Vec<SpecializedStateEdgeRow>,
+}
+
+/// One `StructuralCaseMembership` observation folded to a `BooleanConstant`
+/// at the same node. The row records the observation's site (`site`), the
+/// source custody identity the folded constant retains (`psi_operation`), the
+/// Boolean value it still defines (`result`), the place it observed
+/// (`source`), the case it asked about (`observed_case`), the case the unit
+/// proves at the observed position (`proven_case`), and the folded verdict
+/// (`outcome`, always `proven_case == observed_case`). `producer` names the
+/// `EstablishScalarCase` operation whose result place the empty-path
+/// observation reads; a roster-proven row — at the place's root type or at a
+/// resolved nested position — carries `None`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FoldedCaseMembershipRow {
+    pub site: NodeLocation,
+    pub psi_operation: OperationId,
+    pub result: ValueId,
+    pub source: PlaceId,
+    pub producer: Option<OperationId>,
+    pub observed_case: StructuralCaseId,
+    pub proven_case: StructuralCaseId,
+    pub outcome: bool,
+}
+
+/// Fold every proven `StructuralCaseMembership` observing `place` in
+/// `machine` to its proven Boolean verdict at the same node. Each folded node
+/// keeps its operation custody identity, result value, successors,
+/// definitions, uses, ownership events, and fuel settlement; only the
+/// operation and the recomputed unit identity differ. `producer` is the
+/// place's `EstablishScalarCase` root-case witness when one exists — rows
+/// still carry their own basis, so a roster-only candidate holds `None`.
+/// Rows are canonical in `site` order.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CaseMembershipSpecializationRewrite {
+    pub machine: MachineId,
+    pub place: PlaceId,
+    pub producer: Option<OperationId>,
+    pub memberships: Vec<FoldedCaseMembershipRow>,
+}
+
+/// The scalar value a folded field observation is proven to hold: either a
+/// proven Boolean or a proven integer literal. The read's own result type
+/// decides which alternative is meaningful — replay rejects a `Boolean` fold
+/// claimed for an integer read and vice versa.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FoldedFieldValue {
+    Boolean(bool),
+    Integer(IntegerValue),
+}
+
+/// One folded scalar field observation: a `BooleanStructuralField` or
+/// `IntegerStructuralField` read whose stored value the unit proves, carried
+/// with the exact site, custody identity, observed place, canonical path,
+/// field, proof witness, and folded value. `producer` is the establishing
+/// operation the row's proof draws on — `Some` for an `EstablishRecord`
+/// basis at an empty path or an `EstablishScalarCase` basis at a lone
+/// `Case` path, `None` when the field's declared `BoundedInteger` bound
+/// closes over exactly one value independently of how the place arrived.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FoldedFieldValueRow {
+    pub site: NodeLocation,
+    pub psi_operation: OperationId,
+    pub result: ValueId,
+    pub source: PlaceId,
+    pub path: Vec<CanonicalStructuralPathSegment>,
+    pub field: StructuralFieldId,
+    pub producer: Option<OperationId>,
+    pub value: FoldedFieldValue,
+}
+
+/// Fold every proven scalar field read observing `place` in `machine` to a
+/// `BooleanConstant`/`IntegerConstant` carrying the proven stored value at
+/// the same node. Each folded node keeps its operation custody identity,
+/// result value, successors, definitions, uses, ownership events, and fuel
+/// settlement; only the operation and the recomputed unit identity differ.
+/// `producer` is the place's establishing operation-result witness — an
+/// `EstablishRecord` or `EstablishScalarCase` — when one exists; rows still
+/// carry their own basis, so a bound-only candidate may hold `None`. Rows
+/// are canonical in `site` order.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FieldValueSpecializationRewrite {
+    pub machine: MachineId,
+    pub place: PlaceId,
+    pub producer: Option<OperationId>,
+    pub reads: Vec<FoldedFieldValueRow>,
 }

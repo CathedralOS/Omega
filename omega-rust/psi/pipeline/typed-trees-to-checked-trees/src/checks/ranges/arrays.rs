@@ -47,6 +47,36 @@ pub(in crate::checks) fn fixed_array_type_length(
     }
 }
 
+/// The const-parameter identity of a fixed array's symbolic extent
+/// (`items: [u8; N]` inside a generic body) — the binder the index obligation
+/// must be discharged against. `ConstCall` survivors are not a binder (the
+/// orchestration const-eval pass owns their substitution) and literals resolve
+/// on the concrete lane, so neither names a symbolic bound.
+pub(in crate::checks) fn fixed_array_type_symbolic_extent(
+    program: &typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<(SymbolHandle, typed_trees::name::Identifier)> {
+    if bounded_byte_type_capacity(program, type_reference).is_some() {
+        return None;
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::FixedArray { length, .. } => match length {
+            FixedArrayLength::ConstParameter { symbol, name } => Some((*symbol, name.clone())),
+            FixedArrayLength::Literal(_) | FixedArrayLength::ConstCall { .. } => None,
+        },
+        TypeReferenceNode::Reference { referee, .. }
+        | TypeReferenceNode::Constrained {
+            base_type: referee, ..
+        } => fixed_array_type_symbolic_extent(program, *referee),
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::Generic { .. }
+        | TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::Unit => None,
+    }
+}
+
 pub(super) fn bounded_byte_type_capacity(
     program: &typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
