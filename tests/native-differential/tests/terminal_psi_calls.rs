@@ -83,7 +83,7 @@ fn scalar_i32_call_has_exact_exportable_terminal_bytes() {
 
     if std::env::var_os("OMEGA_UPDATE_TERMINAL_FIXTURES").is_some() {
         let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../../../tests/fixtures/terminal-psi/scalar-call.hex");
+            .join("../fixtures/terminal-psi/scalar-call.hex");
         std::fs::write(fixture, wrapped_hex(&semantic)).expect("refresh scalar call fixture");
     } else {
         assert_eq!(
