@@ -15,6 +15,7 @@ pub mod logical_spill_operations;
 pub mod post_allocation_manifest;
 pub mod preservation;
 pub mod recovery;
+pub mod stack_slot_coloring;
 pub mod storage;
 pub mod view;
 
@@ -27,6 +28,7 @@ pub use logical_spill_operations::*;
 pub use post_allocation_manifest::*;
 pub use preservation::*;
 pub use recovery::*;
+pub use stack_slot_coloring::*;
 pub use storage::*;
 pub use view::AllocatedProgramRef;
 

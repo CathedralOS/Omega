@@ -47,7 +47,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/mod.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/model.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/identity.rs",
+            "omega-rust/omega/representations/register-homes/src/register_homes/stack_slot_coloring/identity.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/compute/mod.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/compute/intervals.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/compute/first_fit.rs",
@@ -57,10 +57,10 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/validate/replay.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/validate/work.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/validate/receipt.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/codec/mod.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/codec/encoding.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/codec/decoding.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/codec/cursor.rs",
+            "omega-rust/omega/representations/register-homes/src/register_homes/stack_slot_coloring/codec/mod.rs",
+            "omega-rust/omega/representations/register-homes/src/register_homes/stack_slot_coloring/codec/encoding.rs",
+            "omega-rust/omega/representations/register-homes/src/register_homes/stack_slot_coloring/codec/decoding.rs",
+            "omega-rust/omega/representations/register-homes/src/register_homes/stack_slot_coloring/codec/cursor.rs",
         ],
     },
     SemanticLadder {
