@@ -8734,7 +8734,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   TASKS_BOOTSTRAP.md's OFFLINE-REBUILD paragraph belongs to that row's
   owner; sibling re-mine names on this surface: BETA-SEED-EXEC-HOST-REFUSAL,
   BETA-SEED-REFUSAL-ON-UNSUPPORTED-HOST, BOOTSTRAP-CHAIN-NATIVE-EXECUTION.
-- **BETA-PE-SEED-REFUSAL** — mined candidate; verify scope then implement.
+- **BETA-PE-SEED-REFUSAL.** Resolved — scope verified and the leg is landed;
+  the name mines the Beta gates' refusal when `seed_env.sh` selects the PE32+
+  container (`alpha_x64_windows.exe`, the non-Linux/non-macOS fallback) on a
+  host that cannot exec it. Verified on linux x86-64 at `3dac85e5cc` under a
+  shimmed `FreeBSD-x86_64` uname: `seed_env.sh` selects `alpha_x64_windows.exe`
+  with `ALPHA_SEED_EXECUTABLE=0`, and every seed-executing gate refuses exit 2
+  with its own stanza — `tests/beta/compiler/{reconstruction,
+  compiler-diamond, register-address-regression, word-prefix}.sh` and
+  `tools/bootstrap/beta/build.sh` each print "<gate>: requires macOS arm64,
+  Linux x86-64, or Windows x64". Positive leg confirmed on the real host:
+  `word-prefix.sh` ran the materialized Beta compiler through the audited
+  `alpha_x64_linux` seed, 736 controls green, exit 0. This is the same landed
+  host-degradation design the resolved siblings record
+  (BETA-SEED-EXEC-HOST-REFUSAL, BETA-SEED-REFUSAL-ON-UNSUPPORTED-HOST,
+  BETA-RECONSTRUCTION-REFUSAL); the prior same-item fence on
+  `tests/beta/compiler` + `tools/bootstrap/beta` (w9-ffival, exp 22:13Z)
+  drained. No implementable slice remains.
 - **BETA-SEED-EXEC-HOST-REFUSAL.** Resolved — re-mine of the landed Beta seed-refusal surface. The refusal leg exists: `tests/beta/compiler/reconstruction.sh`, `tests/beta/compiler/compiler-diamond.sh`, and `tools/bootstrap/beta/build.sh` each refuse exit 2 on hosts that cannot exec the selected container ("refuse rather than crash"), per the same landed host-degradation design recorded on sibling BETA-SEED-REFUSAL-ON-UNSUPPORTED-HOST (BETA-RECONSTRUCTION-REFUSAL). On Linux x86-64 the audited `alpha_x64_linux` seed IS executable, so the gates run their positive legs (`reconstruction.sh` re-ran green at tip — byte-identical Beta→Alpha tape). The refusal-on-unsupported-host side is host-gated by definition; no implementable slice remains here. Cluster: BETA-COMPILER-SEED-REFUSAL is the other alias stub; BETA-PE-SEED-REFUSAL owns the live `tests/beta/compiler` + `tools/bootstrap/beta` fence (exp 22:13Z).
 - **BOOTSTRAP-EPSILON-EVALUATOR.** — mined candidate; scope verified,
   covered. The name mines the chain's Delta-authored Epsilon evaluator
