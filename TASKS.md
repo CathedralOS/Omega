@@ -9100,6 +9100,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   2026-09-21T01:24Z), and `tests/epsilon` by DELTA-COMPILER (expires
   2026-09-20T21:48Z).
 - **OMEGA-D-REQUEST-TABLE-COMPLETION.** — mined candidate; scope verified, implemented + gate-covered — re-mines the request-table leg of OMEGA-D (TASKS_BOOTSTRAP.md). On `main`, `bootstrap/5_omega/request_and_utf8.epsilon` (827 lines) parses the complete OCREQ V1 subject/invocation surface per `wiki/spec/build/compiler_request.md`: envelope identity, declared extents, package rows (name/lineage/revision/tree/content/member/role + snapshot rows incl. executable/content/target payloads), ordered edge rows (requester/scope/alias/target), root row and role, and invocation product/target/admissions — with first-missing-byte refusal coordinates. Exercised end to end by `tests/bootstrap/omega-request` (sealed OCREQ V1 request through the Gamma→Delta→Epsilon→D chain, exact OCOUT outcome frame). No separable slice: outcome-side tables are fenced by OMEGA-D-REQUEST-V1-TABLES (live claim on `bootstrap/5_omega/outcome.epsilon` + `tests/bootstrap/omega-outcome`), and the request spec file sits under the live OMEGA-D claim.
+  Re-witnessed at `d7a48d7af0`: `request_and_utf8.epsilon` still 827 lines and
+  `sh tests/bootstrap/omega-request/run.sh --identity` green on linux x86-64
+  (622,933-byte receipt request, 565,909-byte customer SHA-256
+  `804093474370…dcb8df6` bound identities verified); execution legs still
+  need a seed host. Live fences confirmed: OMEGA-D-REQUEST-ADMISSION holds
+  `request_and_utf8.epsilon` + `omega_compiler.epsilon.sources` (exp 06:30Z),
+  `representations.epsilon` (06:38Z), `omega-identity.sh`/`omega-executable`
+  (06:46Z) and `source-closure.py` (08:06Z).
 - **OMEGA-D-REQUEST-V1-TABLES.** Mined candidate; scope verified at
   `8a37f82686`: re-mine of the OMEGA-D EREQ v1 request clause — the
   request/outcome table surface of the first full Omega compiler in
