@@ -9654,6 +9654,64 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   both occupants. In-window establishment coverage inside `build-output`
   remains the sibling detector item's slice (its claim holds that dir).
 - **BUILD-DIRECTORY-HOST-ALIAS-RACE-ISOLATION.** — mined candidate.
+||||||| parent of 67f9459ac74d4 (board: BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE slice landed at 56ab3db3ea)
+- **BUILD-DIR-ALIAS-RACE-DETECTION** — mined candidate; verify scope then implement.
+  Verified scope: re-mines the race-window residual the landed
+  BUILD-DIR-HOST-ALIAS-COLLISIONS work (commits `f0f902d6ef`,
+  `164abfbbdb`; the row itself was swept-resolved at `091f5ba75c`)
+  already assigns to
+  **BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION** — an alias created
+  between admission's `overlap_key` check and the first write (e.g. a
+  symlink planted inside the window) is invisible to the spelling-level
+  fence in `build-evaluation/src/evidence/filesystem_scope.rs`. The
+  implementing surfaces are under live claims: request/options admission
+  (BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION, expires 22:14Z),
+  `filesystem_scope.rs` (BUILD-DIRECTORY-ALIAS-COLLISION, 23:07Z),
+  `build-output` (BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE, 23:09Z) and
+  `filesystem_scope/preparation.rs` (FILESYSTEM-SNAPSHOT-ISOLATION,
+  22:28Z). Sibling re-mine names: BUILD-DIRECTORY-ALIAS-COLLISION,
+  BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE,
+  BUILD-DIRECTORY-HOST-ALIAS-RACE-ISOLATION, HOST-ALIAS-BUILD-DIR-DETECTION,
+  REQUEST-BUILD-DIRECTORY-HOST-ALIAS-COVERAGE.
+- **BUILD-DIRECTORY-ALIAS-COLLISION** — mined candidate; verify scope then implement.
+- **BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE** — mined candidate; verify scope then implement.
+- **BUILD-DIRECTORY-HOST-ALIAS-RACE-ISOLATION** — mined candidate.
+- **BUILD-DIR-ALIAS-RACE-DETECTION** — mined candidate; verify scope then implement.
+  Verified scope: re-mines the race-window residual the landed
+  BUILD-DIR-HOST-ALIAS-COLLISIONS work (commits `f0f902d6ef`,
+  `164abfbbdb`; the row itself was swept-resolved at `091f5ba75c`)
+  already assigns to
+  **BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION** — an alias created
+  between admission's `overlap_key` check and the first write (e.g. a
+  symlink planted inside the window) is invisible to the spelling-level
+  fence in `build-evaluation/src/evidence/filesystem_scope.rs`. The
+  implementing surfaces are under live claims: request/options admission
+  (BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION, expires 22:14Z),
+  `filesystem_scope.rs` (BUILD-DIRECTORY-ALIAS-COLLISION, 23:07Z),
+  `build-output` (BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE, 23:09Z) and
+  `filesystem_scope/preparation.rs` (FILESYSTEM-SNAPSHOT-ISOLATION,
+  22:28Z). Sibling re-mine names: BUILD-DIRECTORY-ALIAS-COLLISION,
+  BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE,
+  BUILD-DIRECTORY-HOST-ALIAS-RACE-ISOLATION, HOST-ALIAS-BUILD-DIR-DETECTION,
+  REQUEST-BUILD-DIRECTORY-HOST-ALIAS-COVERAGE.
+- **BUILD-DIRECTORY-ALIAS-COLLISION** — mined candidate; verify scope then implement.
+- **BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE** — mined candidate; verify scope then implement.
+  Slice landed on this branch (`56ab3db3ea11`, replay of the authored
+  `d3628cf56cbf`): the captured-snapshot backing's write-time leaf
+  re-inspection now pins the in-window host-alias rejection —
+  `captured_snapshot_rejects_content_planted_after_admission` (regular-file
+  occupant refuses, failure release leaves bytes intact),
+  `captured_snapshot_rejects_a_symlink_planted_after_admission` (link refused
+  and removed without touching its target), and
+  `named_input_snapshot_rejects_a_symlink_planted_after_admission` (the
+  derived `<snapshot>.input-N` backing, a spelling the root fences never
+  see) in `build-evaluation/src/evidence/filesystem_scope.rs`. Witness on
+  linux x86-64 at `56ab3db3ea11`: `cargo nextest run -p build-evaluation
+  --lib` 95/95 PASS; `cargo fmt -p build-evaluation --check` and
+  `cargo clippy -p build-evaluation --all-targets` clean. The remaining
+  leg — in-window establishment coverage inside `build-output` — belongs
+  to the sibling detector item's request/options admission lane.
+- **BUILD-DIRECTORY-HOST-ALIAS-RACE-ISOLATION** — mined candidate.
   Verified scope: re-mines the same race-window residual assigned to
   **BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION** (see
   **BUILD-DIR-ALIAS-RACE-DETECTION**'s record and sibling
