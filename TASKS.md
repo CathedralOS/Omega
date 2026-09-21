@@ -10825,6 +10825,47 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `cross_package_visibility` tests pass with zero loan-origin diagnostics;
   detail in `wiki/drafts/cross_package_dynamic_loan_origin.md`. No
   independent slice remains.
+||||||| parent of c4411d953287 (board: DYNAMIC-CALL-OCCURRENCE-SPANS marker repair + path refresh)
+- **DYNAMIC-CALL-OCCURRENCE-SPANS** — mined candidate; scope verified,
+  resolved — landed at `95019d341a9` ("omega: dynamic-call occurrences bind
+  dispatch parents and span custody"): every surviving `CallDynamic*`
+  produces a coverage occurrence joining the emitted call instruction's
+  span, dispatch-parent identity, and role
+  (`native-artifact/src/physical/operator_applications.rs`
+  `derive_dynamic_call_span` covers direct, stored, forwarded-parameter and
+  forwarded-descriptor calls with single-record rejoin, non-empty/non-
+  relocated span, and exact-relocation checks). Witness green at
+  `28a3cc7fea`: `dynamic_call_occurrence_binds_its_dispatch_role_and_
+  parent_identity`. Cross-references that cited this item's fence are now
+  historical: TRANSLATION-VALIDATION and TV-INTRINSIC-SPAN-ARMS rows (this
+  file) describe CallDynamic* occurrences as absent — they predate the
+  landing; occurrence-replay residual for the remaining families stays on
+  **TV-OPERATOR-APPLICATIONS-REPLAY** per those rows. Sibling stubs naming
+  the same surface: DYNAMIC-CALL-PHYSICAL-EVIDENCE,
+  DYNAMIC-DISPATCH-ROW-MAPS.
+- **DYNAMIC-DISPATCH-ROW-MAPS** — mined candidate; verify scope then implement.
+- **DYNAMIC-RETURN-LOAN-ORIGIN** — mined candidate; verify scope then implement.
+- **DYNAMIC-CALL-OCCURRENCE-SPANS.** Scope verified, resolved — landed at
+  `95019d341a9` ("omega: dynamic-call occurrences bind
+  dispatch parents and span custody"): every surviving `CallDynamic*`
+  produces a coverage occurrence joining the emitted call instruction's
+  span, dispatch-parent identity, and role
+  (`derive_dynamic_call_span` — now under
+  `omega/backend/artifacts/native-artifact/src/physical/derivation/`
+  after the crate's relocation — covers direct, stored, forwarded-parameter
+  and forwarded-descriptor calls with single-record rejoin,
+  non-empty/non-relocated span, and exact-relocation checks).
+  Witness green at `28a3cc7fea`:
+  `dynamic_call_occurrence_binds_its_dispatch_role_and_
+  parent_identity`. Cross-references that cited this item's fence are now
+  historical: TRANSLATION-VALIDATION and TV-INTRINSIC-SPAN-ARMS rows (this
+  file) describe CallDynamic* occurrences as absent — they predate the
+  landing; occurrence-replay residual for the remaining families stays on
+  **TV-OPERATOR-APPLICATIONS-REPLAY** per those rows. Sibling stubs naming
+  the same surface: DYNAMIC-CALL-PHYSICAL-EVIDENCE,
+  DYNAMIC-DISPATCH-ROW-MAPS.
+- **DYNAMIC-DISPATCH-ROW-MAPS** — mined candidate; verify scope then implement.
+- **DYNAMIC-RETURN-LOAN-ORIGIN** — mined candidate; verify scope then implement.
 - **EDGE-CLEANUP-DIAGNOSTIC-ORDER.** Resolved — sibling alias of the
   terminal-verifier cleanup-order row recorded under
   **EDGE-CLEANUP-ERROR-PRECEDENCE**: edge validation consumes owned
