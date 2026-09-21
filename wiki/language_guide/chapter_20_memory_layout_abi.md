@@ -272,7 +272,7 @@ Helpers can accept just the operation they need:
 
 ```omega
 machine send_byte<T, Write: T satisfies Writable<u8>>(
-    transmit: T,
+    transmit: &mut T,
     byte: u8
 )
 {

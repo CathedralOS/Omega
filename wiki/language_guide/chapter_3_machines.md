@@ -186,11 +186,12 @@ compile-time overload selection over erased qualification, not runtime return
 type inspection:
 
 ```omega
-boundary machine I32::from_f64(value: f64) -> i32
-    requires finite_in_i32_interval(value);
+boundary operator I32::from_f64(value: f64) -> i32
+requires
+    value == value && value > -2147483649.0 && value < 2147483648.0;
 
-boundary machine I32::from_f64(value: f64) -> i32 in Trapping;
-boundary machine I32::from_f64(value: f64) -> i32 in Saturating;
+boundary operator I32::from_f64(value: f64) -> i32 in Trapping;
+boundary operator I32::from_f64(value: f64) -> i32 in Saturating;
 ```
 
 The expected result type supplies the requested dispatch set. With no usable
