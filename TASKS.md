@@ -4925,6 +4925,13 @@ Owners include
   REALIZATION, RUNTIME-VALUE-GENERICS hold no paths at this check), so
   their surfaces are technically open — but every leg here still edits the
   fenced shared matcher, so no slice is independently landable regardless.
+  Re-verified at `771d0469a1c` (z203 leg): the controlling constraint is
+  unchanged — STRUCTURAL-GENERIC-INFERENCE (Zergling-136) still holds
+  `preparation/type_equations/` + `machine_equations.rs` live to ~09:58Z.
+  New fences since `7241e022270d`: NEW-RBRA-PASS-RECAST-GENERICS now holds
+  `tests/omega/pass/{recast,generics}` (~15:22Z) where this item's
+  migration customers live, and CONST-GENERIC-EXTENT-RANGE-DISCHARGE
+  holds its wiki draft (~14:03Z).
 
 - **FINITE-GENERIC-DISPATCH.** Implement the
   [finite specialization contract](wiki/spec/language/generics.md#finite-specialization-boundary)
