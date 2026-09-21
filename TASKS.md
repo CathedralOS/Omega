@@ -10886,14 +10886,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   shared driver upstream at 7328a8bda9), and
   `compilation-report/src/pcc/native_evidence/custody_tests.rs` (107 legs,
   one inventory over the section wire; `EvidenceVerdict` spells malformed
-  versus replay-rejected). Remaining handwritten sets, by size:
+  versus replay-rejected), and
+  `terminal-codec/tests/artifact/optimization_execution_custody.rs` (the
+  single-matrix file migrated to `mutation-matrix`'s shared driver: the
+  `OptimizationExecutionCustodyFieldForTest` inventory declares the eight
+  authored content-field legs — three roster legs, three input-side identity
+  legs, two output-side identity legs — over a foreign donor record, with the
+  manifest replay as the named checker and the produced-output
+  `validate_output` binding plus canonical round-trip carried as the joined
+  per-leg assertion; wire-only axes — framing, vocabulary markers, codec
+  lies, truncations, the identity-stage construction law — stay authored
+  below the matrix). The Psi-firewall note below is stale twice over: the
+  harness was already relocated to the `mutation-matrix` foundation crate
+  upstream, and `terminal-codec` already carries it as a dev-dependency —
+  `trust_graph_custody.rs` was migrated the same way. Remaining handwritten
+  sets, by size:
   `component-publication/src/tests.rs` (9 matrices, 3,140 lines),
   `executable-installation/src/executable_installation/tests.rs` (48, 2,614),
   `packages/topology/tests/custody_substitution.rs` (4, 2,179), and the
-  `terminal-codec/tests/artifact/*_custody.rs` single-matrix files; the
-  last group is a Psi crate, so it cannot take `optimization-core` (an Omega
-  representation) as a dev-dependency without crossing the firewall and
-  needs the harness relocated to a shared foundation crate first.
+  `terminal-codec/tests/artifact/*_custody.rs` single-matrix files (14 left
+  after `optimization_execution_custody.rs`).
 
   Coordination, checked 2026-09-20: none of the three remaining sets is
   independently claimable. `component-publication` sits inside
@@ -10902,7 +10914,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   **TOPOLOGY-PLAN-VERIFICATION**, each under a live claim on the whole
   directory. The migration is therefore a request to those holders rather
   than a slice anyone can take; claiming this item alone yields no editable
-  path.
+  path. Re-checked 2026-09-21 (~13:4xZ): the directory fences have drained —
+  `topology/tests/custody_substitution.rs`, `component-publication`'s
+  `tests.rs`, `executable-installation`'s `tests.rs`, and the terminal-codec
+  `*_custody.rs` files are all unclaimed, so the remaining sets are now
+  independently sliceable by the next holder of this item.
 - **CUSTODY-MUTATION-COVERAGE.** — mined candidate; scope verified at
   `ded56393da` (linux x86-64, claim 6f8aad97 until 05:23Z): the stub
   re-mines the optimizer-board item of the same name
