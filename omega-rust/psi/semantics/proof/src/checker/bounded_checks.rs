@@ -326,10 +326,10 @@ pub(crate) fn check_bounded_initializer(
     }
 }
 
-pub(crate) fn check_bounded_state_return(
-    proof_plan: &ProofPlan,
+pub(crate) fn check_bounded_state_return<'program>(
+    proof_plan: &ProofPlan<'program>,
     obligation: &BoundedStateReturnObligation,
-    context: &AssignmentRangeContext<'_>,
+    context: &AssignmentRangeContext<'program>,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
     measurements: &mut ProofPlanMeasurements,
@@ -341,11 +341,13 @@ pub(crate) fn check_bounded_state_return(
         integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
     {
         // The certificate route covers the declared-or-literal legs the
-        // arrival machinery would reach anyway; arrival bounds, contract
-        // refinement and malformed obligations stay uncovered.
+        // arrival machinery would reach anyway, the arrival bound itself,
+        // and the Requires-contract refinement; malformed obligations and
+        // the operand-level folds stay uncovered.
         match state_return_integer_verdict(
             proof_plan,
             obligation,
+            context,
             &target_range,
             seed,
             measurements,
@@ -569,8 +571,8 @@ pub(crate) fn check_bounded_transition_argument(
     {
         // The certificate route covers the anonymous, literal and declared
         // legs in the same order the ordinary derivation tries them, then the
-        // guard-narrowed legs (direct and `place +- K` refold); point
-        // exclusions and the arrival rescue stay on the uncovered path.
+        // guard-narrowed legs (direct and `place +- K` refold) and the
+        // arrival rescue; point exclusions stay on the uncovered path.
         match bounded_integer_value_verdict(
             proof_plan,
             obligation.argument,
