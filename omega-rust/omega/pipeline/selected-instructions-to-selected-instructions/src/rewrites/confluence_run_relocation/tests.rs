@@ -1,7 +1,7 @@
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::{EffectLink, ValueDefinitionSite};
 use register_environment::baseline_target_register_environment;
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
+use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
     SelectedBoundarySettlementPayload, SelectedCallContract, SelectedFunction, SelectedInstruction,
@@ -27,41 +27,7 @@ use super::{
     ConfluenceRunRelocationError, ConfluenceRunRelocationReceipt, ValidatedConfluenceRunRelocation,
     relocate_selected_run_into_confluence, validate_confluence_run_relocation,
 };
-
-fn budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
-}
-
-fn instruction(
-    id: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    row: &RegisterInstructionConstraint,
-    registers: &[VirtualRegisterId],
-) -> SelectedInstruction {
-    SelectedInstruction {
-        id,
-        kind,
-        constraint: row.key,
-        operands: row
-            .operands
-            .iter()
-            .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
-    }
-}
+use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 
 const LEAD: SelectedInstructionId = SelectedInstructionId(2);
 const TRAIL: SelectedInstructionId = SelectedInstructionId(3);
@@ -2379,10 +2345,10 @@ fn measured_validation_step_boundary() {
     // (3+9) = 27 — times two written member registers plus one:
     // 27*3 = 81.
     let steps: u64 = 15 + 15 + 1 + 10 + 81;
-    let exact = OptimizationWorkBudget::new(1, 1, steps, 1, 1).unwrap();
+    let exact = measured_step_budget(steps);
     relocate_selected_run_into_confluence(&source, 0, RUN_A, RUN_B, HEAD, &environment, exact)
         .unwrap();
-    let starved = OptimizationWorkBudget::new(1, 1, steps - 1, 1, 1).unwrap();
+    let starved = measured_step_budget(steps - 1);
     assert_eq!(
         relocate_selected_run_into_confluence(
             &source,
@@ -2400,10 +2366,10 @@ fn measured_validation_step_boundary() {
     // pairs against `T_TAIL`, `HEAD`, `MID`, `TAIL`, and the `Jump`
     // terminator's edge — (2+2+2+2+3) per member = 22.
     let steps_end: u64 = 15 + 15 + 1 + 22 + 81;
-    let exact = OptimizationWorkBudget::new(1, 1, steps_end, 1, 1).unwrap();
+    let exact = measured_step_budget(steps_end);
     relocate_selected_run_into_confluence(&source, 0, RUN_A, RUN_B, RET, &environment, exact)
         .unwrap();
-    let starved = OptimizationWorkBudget::new(1, 1, steps_end - 1, 1, 1).unwrap();
+    let starved = measured_step_budget(steps_end - 1);
     assert_eq!(
         relocate_selected_run_into_confluence(
             &source,
