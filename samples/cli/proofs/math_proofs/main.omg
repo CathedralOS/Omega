@@ -4,6 +4,8 @@
 // today. The sample is compile-checked only.
 // Math proofs: a theorem ladder as Omega proof machines.
 //
+use omega::language::core::seq;
+
 // Every machine below has an empty body. Per Chapter 10, that makes the
 // contract a proof claim: requires + built-in math rules must entail ensures.
 // Each rung is annotated with the entailment-engine increment it needs and
@@ -123,8 +125,8 @@ ensures
 
 // Proof views: Bag (multiset) equality carried from requires to ensures.
 // Lean analog: transporting `(items : Multiset) = before` via `exact h`.
-// Pending ordinary core multiset data and slice extraction (Chapter 10).
-// Bag is not a compiler intrinsic; these calls need an imported definition.
+// Bag is not a compiler intrinsic; `core::seq` ships it as the sorted
+// canonical representative over a slice (Chapter 10).
 machine bag_equality_carries(before: &[u64], items: &[u64])
 requires
     Bag(items) == Bag(before)
