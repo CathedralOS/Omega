@@ -182,7 +182,12 @@ fn recorded_element_extent(
     }
 }
 
-pub(in crate::checks::contracts) fn prove_domain_at_place(
+/// Whether a carried membership fact on `subject` (a declared constraint or
+/// established contract evidence) already implies `domain`. This is the
+/// evidence arm of [`prove_domain_at_place`]: routed provenance and prior
+/// `ensures`/`in`-constrained declarations answer membership questions that
+/// predicate discharge cannot reach.
+fn carried_domain_membership_at_place(
     program: &TypedTrees,
     semantic: &FactPlan,
     contexts: &[FactContextHandle],
@@ -218,7 +223,18 @@ pub(in crate::checks::contracts) fn prove_domain_at_place(
                             )
                     })
             })
-    }) || prove_domain_by_extent_enumeration(program, semantic, contexts, subject, domain)
+    })
+}
+
+pub(in crate::checks::contracts) fn prove_domain_at_place(
+    program: &TypedTrees,
+    semantic: &FactPlan,
+    contexts: &[FactContextHandle],
+    subject: &CanonicalPlace,
+    domain: SymbolHandle,
+) -> bool {
+    carried_domain_membership_at_place(program, semantic, contexts, subject, domain)
+        || prove_domain_by_extent_enumeration(program, semantic, contexts, subject, domain)
         || AssignedValues {
             program,
             semantic,
@@ -345,11 +361,46 @@ impl AssignedValues<'_> {
             }
             ProofFact::Membership(membership) => self
                 .relative_subject(subject, membership.value, type_symbol)
-                .is_some_and(|nested| self.domain(&nested, membership.domain_symbol, active)),
+                .is_some_and(|nested| {
+                    carried_domain_membership_at_place(
+                        self.program,
+                        self.semantic,
+                        self.contexts,
+                        &nested,
+                        membership.domain_symbol,
+                    ) || self.domain(&nested, membership.domain_symbol, active)
+                }),
             ProofFact::Proposition(_) => false,
         });
         active.pop();
         proved
+    }
+
+    /// The place's installed nominal tag, when a live assignment fact has
+    /// decided it. `let x = T::C{...}` mints one; nothing else does.
+    fn installed_case(&self, subject: &CanonicalPlace) -> Option<SymbolHandle> {
+        self.contexts.iter().find_map(|context| {
+            self.semantic
+                .context_view(self.semantic.contexts.get(*context))
+                .facts()
+                .find_map(|fact| {
+                    let FactPayload::AssignedCase { variant } = fact.payload else {
+                        return None;
+                    };
+                    let FactPlace::Place(place) = fact.place else {
+                        return None;
+                    };
+                    let candidate = canonical_place_from_semantic_place(
+                        self.program,
+                        self.semantic,
+                        self.semantic.places.get(place),
+                    )?;
+                    (normalized_event_place_root(self.program, candidate.root)
+                        == normalized_event_place_root(self.program, subject.root)
+                        && candidate.segments == subject.segments)
+                        .then_some(variant)
+                })
+        })
     }
 
     fn boolean(
@@ -358,6 +409,17 @@ impl AssignedValues<'_> {
         type_symbol: Option<SymbolHandle>,
         expression: ExpressionHandle,
     ) -> Option<bool> {
+        // `self in T::C` (and the `self == T::C` equality it lowers to) names
+        // a nominal tag, not a scalar comparison: the assigned case at the
+        // subject's place decides it.
+        if let Some((member, case)) =
+            crate::proof::exact_outcome_case_test(self.program, expression)
+            && let Some(selected) = self.relative_subject(subject, member, type_symbol)
+        {
+            return self
+                .installed_case(&selected)
+                .map(|variant| variant == case);
+        }
         let value = scalars::evaluate_with_comparisons(
             self.program,
             expression,

@@ -17,9 +17,9 @@ use super::{
     x86_64_arrival_frame_bytes, x86_64_arrival_pushes_error_code,
 };
 use crate::{
-    EntryControl, EntryStack, MachineRegime, MachineRegister, MachineState, MachineStateSet,
-    PlanDiagnostic, Preemption, ProviderExitRealization, RegisterSet, StateFootprintEvidence,
-    ValidatedBoundaryEntryPlan, ValueLocation,
+    EntryControl, EntryStack, IndirectPointerLocation, MachineRegime, MachineRegister,
+    MachineState, MachineStateSet, PlanDiagnostic, Preemption, ProviderExitRealization,
+    RegisterSet, StateFootprintEvidence, ValidatedBoundaryEntryPlan, ValueLocation,
 };
 
 /// Where the normalized frame's error-code word comes from for one arrival
@@ -37,9 +37,11 @@ pub enum X86_64ErrorCodeDisposition {
 /// The frame the stub reserves below the save area to stage the member call.
 ///
 /// `outgoing_stack_bytes` is the 8-aligned extent of the boundary plan's
-/// outgoing stack-argument locations; `reserved_bytes` adds the 8-byte slot
-/// that holds the pre-normalization stack pointer and rounds up to the
-/// 16-byte alignment the stub's `and rsp, -16` normalization establishes.
+/// outgoing stack-argument locations, including indirect parameters' pointer
+/// slots and the caller-owned copy area their pointers name; `reserved_bytes`
+/// adds the 8-byte slot that holds the pre-normalization stack pointer and
+/// rounds up to the 16-byte alignment the stub's `and rsp, -16` normalization
+/// establishes.
 /// Both are derived from the admitted boundary plan here so the emitted
 /// bytes and the composed stack demand read one contract-owned number.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -210,14 +212,41 @@ pub fn derive_x86_64_entry_exit_stub(
     let mut outgoing_stack_end = 0_u64;
     for parameter in &plan.call.parameters {
         for location in &parameter.locations {
-            if let ValueLocation::Stack {
-                stack_byte_offset,
-                byte_size,
-                ..
-            } = location
-            {
-                outgoing_stack_end =
-                    outgoing_stack_end.max(u64::from(*stack_byte_offset) + u64::from(*byte_size));
+            match location {
+                ValueLocation::Stack {
+                    stack_byte_offset,
+                    byte_size,
+                    ..
+                } => {
+                    outgoing_stack_end = outgoing_stack_end
+                        .max(u64::from(*stack_byte_offset) + u64::from(*byte_size));
+                }
+                ValueLocation::Indirect {
+                    pointer,
+                    copy_stack_byte_offset,
+                    byte_size,
+                    ..
+                } => {
+                    // An indirect parameter occupies the outgoing area twice:
+                    // the pointer word at its own stack slot when the ABI
+                    // places it there, and the caller-owned copy that pointer
+                    // names. Both extents live in the same staged area the
+                    // member call reads.
+                    if let IndirectPointerLocation::Stack {
+                        stack_byte_offset, ..
+                    } = pointer
+                    {
+                        outgoing_stack_end =
+                            outgoing_stack_end.max(u64::from(*stack_byte_offset) + 8);
+                    }
+                    if let Some(copy_stack_byte_offset) = copy_stack_byte_offset {
+                        outgoing_stack_end = outgoing_stack_end.max(
+                            u64::from(*copy_stack_byte_offset)
+                                + u64::from(*byte_size).next_multiple_of(8),
+                        );
+                    }
+                }
+                ValueLocation::Register { .. } => {}
             }
         }
     }

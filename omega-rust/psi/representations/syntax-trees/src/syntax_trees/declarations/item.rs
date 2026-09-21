@@ -864,6 +864,29 @@ pub struct TraitDefinition {
     pub parents: HandleSpan<crate::types::TypeReferenceHandle>,
     pub requires: HandleSpan<Identifier>,
     pub machines: HandleSpan<StateSignatureHandle>,
+    /// The `= Base` head of a transparent trait refinement
+    /// (`pub trait LocalLogger = Logger`). A refinement is a structural bound
+    /// over an existing base conformance, never a new nominal conformance
+    /// target; `None` marks an ordinary trait.
+    pub refines: Option<crate::types::TypeReferenceHandle>,
+    /// `machine Base::requirement` narrowing clauses authored inside a
+    /// refinement body. Each signature retains only operational axes
+    /// (`reaches`, `suspends`, `blocks`, `terminates`); the parser rejects
+    /// parameters, results, bodies, contract clauses, and `requires` members.
+    /// `requirement` carries the authored member name for resolution against
+    /// the base trait.
+    pub refinement_clauses: Vec<TraitRefinementClause>,
+}
+
+/// One `machine *` or `machine Base::requirement` narrowing clause inside a
+/// transparent trait refinement.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TraitRefinementClause {
+    /// The authored base requirement name (`None` for the `machine *`
+    /// wildcard). The qualifier, when present, must name the base trait.
+    pub requirement: Option<Identifier>,
+    /// Operational axes only; the parser rejects every other signature part.
+    pub signature: StateSignature,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

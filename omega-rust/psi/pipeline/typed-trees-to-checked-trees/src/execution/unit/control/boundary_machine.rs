@@ -5,8 +5,9 @@ use crate::execution::terminal_unit::{
     CheckFacts, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
     CheckedStructuralScalarParameterPlan, CheckedUnitStructuralDomainRequirementPlan,
     CheckedUnitStructuralParameterPlan, ShapeCollector, SymbolHandle, TypedTrees,
-    boundary_domain_requirements, exact_compiler_intrinsic_boundary_requirement, is_reference,
-    is_unit, machine_binders, parameter_qualifications, projected_parameter_qualifications,
+    boundary_domain_requirements, exact_compiler_intrinsic_boundary_requirement,
+    fold_authorized_result_domains, is_reference, is_unit, machine_binders,
+    mutable_plain_nonlinear_referent, parameter_qualifications, projected_parameter_qualifications,
     shared_plain_affine_referent, signature_contracts_are_exact_parameter_qualifications,
     state_flow, structural_access_for_type_reference, structural_scalar_signature,
     type_graph_requires_nominal_drop,
@@ -128,8 +129,11 @@ pub(crate) fn build_static_boundary_requirements(
             // worker while it waits; its envelope is folded into the
             // contract commitment below, exactly as an attached `boundary
             // machine` declaration that blocks is planned above.
-            if !signature_contracts_are_exact_parameter_qualifications(program, signature)
-                || signature.suspends
+            if !signature_contracts_are_exact_parameter_qualifications(
+                program,
+                definition.symbol,
+                signature,
+            ) || signature.suspends
             {
                 continue;
             }
@@ -151,6 +155,17 @@ pub(crate) fn build_static_boundary_requirements(
             };
             let Some(result) =
                 boundary_result_plan(program, shapes, signature.return_type, &[], &substitutions)
+                    .and_then(|result| {
+                        fold_authorized_result_domains(
+                            program,
+                            shapes,
+                            definition.symbol,
+                            signature,
+                            signature.return_type,
+                            &[],
+                            result,
+                        )
+                    })
             else {
                 continue;
             };
@@ -217,7 +232,8 @@ pub(crate) fn build_static_boundary_requirements(
                     && byte_sequence_carrier(program, parameter_type, &[])
                         != Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
                     && !(qualifications.is_empty()
-                        && shared_plain_affine_referent(program, parameter_type).is_some())
+                        && (shared_plain_affine_referent(program, parameter_type).is_some()
+                            || mutable_plain_nonlinear_referent(program, parameter_type).is_some()))
                 {
                     supported = false;
                     break;

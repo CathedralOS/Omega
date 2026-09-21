@@ -1,0 +1,1 @@
+declared instance `Resident<SlotPlacement, Slot>` has no establishment: `as` mints an instance of domain family `Resident` on custody-marked carrier `Extent`

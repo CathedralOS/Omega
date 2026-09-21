@@ -312,15 +312,22 @@ static FACT_SCALAR_CARRIER_BOUNDS: TrustedSurfaceEntry = TrustedSurfaceEntry {
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
     premises: "a successor parameter, payload copy, or field read of a fixed integer or bounded-integer type",
-    conclusion: "LessOrEqual propositions bounding the value by its type's exact minimum and maximum",
-    dependencies: &["primitive:integer-carrier-bound"],
+    conclusion: "LessOrEqual propositions bounding the value by its declared interval's exact minimum and maximum, each emitted only after its fixed-shape elimination certificate is accepted: the declared interval invariant is assumption zero and the bound is eliminated at its conjunct index",
+    dependencies: &[
+        "formation:structural-scalar-fields",
+        "rule:assumption",
+        "rule:conjunction-elimination",
+        "formation:mathematical-core",
+    ],
     implementation: &[
         PATH_FACTS_DISCRETE,
         PATH_FACTS,
         TERMINATOR_FACTS,
         OPERATION_FACTS,
     ],
-    soundness: TRUSTED,
+    soundness: SoundnessStatus::Proved {
+        evidence: "declared_carrier_bounds emits each declared-interval bound under a fixed-shape certificate — the declaration's interval invariant (the conjunction of its minimum and maximum bounds) cited as assumption zero, the bound eliminated at its conjunct index — and proof-admission's certificate checker re-decides the certificate before the fact may join the roster; only an accepted certificate marks the emission under this entry — a rejected certificate leaves the emission under the calling row's licensed premise introductions and never fails the module",
+    },
 };
 
 static FACT_RECORD_ESTABLISHMENT: TrustedSurfaceEntry = TrustedSurfaceEntry {
@@ -407,7 +414,9 @@ static FACT_INTEGER_FIELD_READ_RANGE: TrustedSurfaceEntry = TrustedSurfaceEntry 
         OPERATION_FACTS,
         "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_scalar_fields.rs",
     ],
-    soundness: TRUSTED,
+    soundness: SoundnessStatus::Proved {
+        evidence: "the row emits no fact of its own shape: each bound it contributes is produced by `declared_carrier_bounds` — the `fact:scalar-carrier-bounds` certifying procedure — and joins the roster only when that fixed-shape `ConjunctionElimination` certificate (declared interval invariant as assumption zero, bound eliminated at its conjunct index) is accepted by proof-admission's checker; a rejected certificate emits nothing rather than joining trusted",
+    },
 };
 
 static FACT_FIELD_STORE_LEAF_EQUATION: TrustedSurfaceEntry = TrustedSurfaceEntry {
@@ -547,7 +556,7 @@ static FACT_BRANCH_CONDITION_TRANSPORT: TrustedSurfaceEntry = TrustedSurfaceEntr
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
     premises: "a conditional's Boolean condition, the selected arm's polarity, and the reconstructed axiom roster's own value equations",
-    conclusion: "the selected arm's denotation-recognized condition fact, emitted only after its certificate is accepted: the arm's truth premise is assumption zero, every roster equation headed by an SSA value is a cited semantic axiom in newest-first order, and the emitted fact is exactly what that premise transports to",
+    conclusion: "the selected arm's denotation-recognized condition fact, emitted only after its certificate is accepted: the arm's truth premise is assumption zero, the SSA-value roster equations reachable from the premise and conclusion through the cited equations' own value identities are the cited semantic axioms in newest-first order — the whole roster stays cited whenever a walked term cannot be completely visited, since unreachable rows cannot influence the checked relation — and the emitted fact is exactly what that premise transports to",
     dependencies: &[
         "fact:branch-condition",
         "rule:value-equality-transport",

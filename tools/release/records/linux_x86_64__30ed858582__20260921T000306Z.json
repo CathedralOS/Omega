@@ -1,0 +1,113 @@
+{
+  "schema": "omega-release-record/1",
+  "recorded_utc": "2026-09-21T00:03:06Z",
+  "commit": "30ed8585821d99129c134a9809b67dbb06f38ac8",
+  "toolchain": {
+    "channel": "nightly-2026-09-04",
+    "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+    "runner": "/home/ubuntu/.cargo/bin/cargo"
+  },
+  "host": {
+    "os": "linux",
+    "machine": "x86_64",
+    "python": "3.10.12"
+  },
+  "target": "linux_x86_64",
+  "emulator": null,
+  "gates": [
+    {
+      "name": "RC-PORTABLE-PSI",
+      "capability": "One process publishes a complete source-free Terminal Psi envelope and exits; a second process reconstructs, verifies, and interprets it using newly supplied authority.",
+      "status": "pass",
+      "commands": [
+        {
+          "command": "mbx nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail -E 'test(=portable_terminal_reload::portable_terminal_product_reloads_across_process_boundary)'",
+          "argv": [
+            "/home/ubuntu/.cargo/bin/cargo",
+            "nextest",
+            "run",
+            "-p",
+            "compiler",
+            "--test",
+            "canary_suite",
+            "--no-fail-fast",
+            "--no-tests",
+            "fail",
+            "-E",
+            "test(=portable_terminal_reload::portable_terminal_product_reloads_across_process_boundary)"
+          ],
+          "exit": 0,
+          "elapsed_ms": 33161.24510300142,
+          "skipped_tests": 1432,
+          "skipped_names": [],
+          "output_tail": "   Compiling compiler v0.1.0 (/home/ubuntu/repos/Omega/omega-rust/omega/compiler/compiler)\nwarning: unused import: `compile_rooted_canary_for_target`\n --> omega-rust/omega/compiler/compiler/tests/canary_suite/time_hosts_and_indexed_storage.rs:4:5\n  |\n4 |     compile_rooted_canary_for_target, compile_single_file_hosted_main, executable_name,\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: constant `SHARED_RECEIVER_PLAIN_FIELD_WRITE` is never used\n  --> omega-rust/omega/compiler/compiler/tests/canary_suite/../fixture_rosters/atomics_and_target_canaries.rs:14:11\n   |\n14 | pub const SHARED_RECEIVER_PLAIN_FIELD_WRITE: &str = \"atomics/shared_receiver_plain_field_write\";\n   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n   |\n   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default\n\nwarning: `compiler` (test \"canary_suite\") generated 2 warnings (run `cargo fix --test \"canary_suite\" -p compiler` to apply 1 suggestion)\n    Finished `test` profile [unoptimized] target(s) in 6.84s\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n Nextest run ID b2dbe980-0a57-4b1b-a172-5a3d557d2831 with nextest profile: default\n    Starting 1 test across 1 binary (1432 tests skipped)\n        PASS [  26.160s] (1/1) compiler::canary_suite portable_terminal_reload::portable_terminal_product_reloads_across_process_boundary\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n     Summary [  26.161s] 1 test run: 1 passed, 1432 skipped\n"
+        }
+      ]
+    }
+  ],
+  "platform_runs": [
+    {
+      "runner": "Linux x86-64",
+      "target": "linux_x86_64",
+      "status": "recorded",
+      "emulator": null,
+      "observation": {
+        "command": "cargo nextest run -p omega-native-differential-test --test hosted_receiver -E 'test(~hosted_receiver_checked_entry)'",
+        "argv": [
+          "cargo",
+          "nextest",
+          "run",
+          "-p",
+          "omega-native-differential-test",
+          "--test",
+          "hosted_receiver",
+          "-E",
+          "test(~hosted_receiver_checked_entry)"
+        ],
+        "exit": 0,
+        "elapsed_ms": 86188.6177119959,
+        "skipped_tests": 0,
+        "skipped_names": [],
+        "output_tail": "    Finished `test` profile [unoptimized] target(s) in 0.06s\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n Nextest run ID 24e706a4-5833-4c63-a7d7-544974c9914c with nextest profile: default\n    Starting 2 tests across 1 binary\n        PASS [   1.522s] (1/2) omega-native-differential-test::hosted_receiver hosted_receiver_checked_entry_rejects_bare_interface_field\n        SLOW [> 60.000s] (\u2500\u2500\u2500) omega-native-differential-test::hosted_receiver hosted_receiver_checked_entry_provisions_and_executes_on_linux_x86_64\n        PASS [  85.941s] (2/2) omega-native-differential-test::hosted_receiver hosted_receiver_checked_entry_provisions_and_executes_on_linux_x86_64\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n     Summary [  85.941s] 2 tests run: 2 passed (1 slow), 0 skipped\n"
+      }
+    },
+    {
+      "runner": "Linux AArch64",
+      "target": "linux_arm64",
+      "status": "open",
+      "emulator": null,
+      "observation": null
+    },
+    {
+      "runner": "macOS AArch64",
+      "target": "macos_arm64",
+      "status": "open",
+      "emulator": null,
+      "observation": null
+    },
+    {
+      "runner": "Windows x86-64",
+      "target": "windows_x86_64",
+      "status": "open",
+      "emulator": null,
+      "observation": null
+    }
+  ],
+  "expected_skips": [],
+  "unlisted_skips": [],
+  "closure": {
+    "status": "open",
+    "open_rows": [
+      "RC-REPOSITORY",
+      "RC-SOURCE-SEMANTICS",
+      "RC-PCC-REPLAY",
+      "RC-BUILD-AND-PACKAGES",
+      "RC-NATIVE-MATRIX",
+      "RC-DIAGNOSTICS",
+      "RC-REPRESENTATIVE-PROGRAMS",
+      "linux_arm64",
+      "macos_arm64",
+      "windows_x86_64"
+    ]
+  }
+}

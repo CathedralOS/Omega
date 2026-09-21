@@ -1,1 +1,1 @@
-shapes must agree on size
+the shapes must agree on size (§5b rule 1) -- source `i64` is 8 bytes, target `f32` is 4 bytes

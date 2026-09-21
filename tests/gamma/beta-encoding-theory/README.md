@@ -1,7 +1,7 @@
 # Finite Beta encoding theory diagnostics
 
 Run `sh tests/gamma/beta-encoding-theory/run.sh` from the repository root on
-macOS arm64 or Windows x64 Git Bash, with Python 3 available as `python3`.
+macOS arm64 or Linux x86-64, or Windows x64 Git Bash, with Python 3 available as `python3`.
 The same command applies on both hosts; PowerShell is not required.
 Missing Python explicitly skips; unsupported hosts fail with status 2.
 The gate prints the executing host. A result on one host does not establish
@@ -57,6 +57,31 @@ chain and checked under the exact profile. See
 [PROFILE.md](../../../bootstrap/proofs/beta_encoding/PROFILE.md) for the
 measured figures.
 
+`sh tests/gamma/beta-encoding-theory/run.sh --produce-request PATH`
+materializes the certificate artifact itself: the same host-side
+production plus the recorded extent/digest pin, then an atomic write of
+the complete 135,485,028-byte framed request to PATH. The file is the
+untrusted derivation input the
+[check gate](../beta-encoding-check) frames for the evaluator — producing
+it grants no admission.
+
+`sh tests/gamma/beta-encoding-theory/run.sh --mutations` selects the
+[mutation-control leg](mutations.py) and, like the default gate, needs a
+native evaluator host. It rebuilds the complete full-subject certificate
+with the checked-in stepper, then requires the checker to publish exact
+owned rejections for corruptions across the
+[ACCEPTANCE.md](../../../bootstrap/proofs/beta_encoding/ACCEPTANCE.md)
+taxonomy: a positive unmutated control, theory clause-body identity,
+source- and tape-side instance roots, an unknown rule tag, clause ordinal
+range and case errors, a swapped substitution environment, wrong and
+self-referential premises, a term arity count, the owner/witness partition
+joint, claimed endpoints, both final-root selections, and two rows
+following a valid prefix. Expected diagnostics carry the coordinate and
+code conventions from
+[CHECKING.md](../../../bootstrap/proofs/checker/CHECKING.md). On any host
+with python3, `python3 mutations.py --self-test` reproduces the
+certificate and verifies vector construction without asserting verdicts.
+
 The shell entry resolves bootstrap roles, materializes both complete source
 closures, and invokes `materialize_gamma_evaluator` for the selected
 Beta-authored evaluator. All test logic uses Python's standard library.
@@ -66,13 +91,18 @@ materialized `evaluator`, use
 (or `python -B` on Windows when that names Python 3). The Python runner does
 not reconstruct or replace the evaluator. Both entrypoints propagate failures.
 
-The [producer entry](main.gamma) calls ordinary Gamma
+The bound [producer entry](main.gamma) — 211 bytes, SHA-256
+`35577d248b7745f3a6f4d2615e81bb8aae40cb8608d5fbda0be55978b544b373`, recorded
+in `tools/bootstrap/proofs/sources_env.sh` and checked by
+`require_beta_encoding_producer_entry_identity` before it packs on the bound
+member bytes — calls ordinary Gamma
 [`beta_encoding_theory`](../../../bootstrap/proofs/beta_encoding/theory/theory.gamma)
 only for empty input. Its marked application result publishes bytes without a
 scalar terminator. Three nonempty inputs require status 1 and empty stdout and
 stderr. The exact producer composition is pinned in [source.tsv](source.tsv).
-The unmodified checking entry and its identity are reused from
-[derivation-checking](../derivation-checking/README.md).
+The unmodified checking entry and its bound identity are reused from
+[derivation-checking](../derivation-checking/README.md), checked here by
+`require_derivation_checking_entry_identity` before packing.
 
 The emitted complete GTH1 section contains the full error-valued Beta encoder
 theory. Its byte

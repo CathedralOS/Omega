@@ -1,6 +1,5 @@
 //! Materializing a 64-bit immediate by the shortest MOVN and MOVK sequence.
 
-use crate::aarch64_physical_register_model;
 use crate::selected_form_encoding::decoding::{
     decode_movn_materialization, decode_words, footprint,
 };
@@ -74,7 +73,7 @@ fn validate_materialization_destination(
     physical: &ValidatedPhysicalRegisterModel,
     destination: RegisterViewId,
 ) -> Result<u8, Aarch64SelectedFormEncodingError> {
-    if physical.model() != &aarch64_physical_register_model() {
+    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
         return Err(Aarch64SelectedFormEncodingError::NonCanonicalPhysicalModel);
     }
     resolve_registers(physical, &[destination])?

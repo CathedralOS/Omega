@@ -1,6 +1,6 @@
 """Actual full-checker proof tables, never injected comparison state."""
 
-from proof_wire import NAT, ZERO, checked, clause, failure, function, proof_row, record, theory, vector
+from proof_wire import NAT, ZERO, checked, clause, function, record, theory, vector
 
 
 def cases():
@@ -16,17 +16,22 @@ def cases():
                  definitions=definitions, repetitions=1, timeout=600)
     count = 163839
     rows = (first,) + (reflexivity,) * (count - 1)
-    # Before final comparisons, P+1 +6 +3(P-1) =4P+4 =655360.
-    coordinate = proof_row(rows[:-1], definitions, owners) + 8
-    assert coordinate == 2621604
-    yield vector("adjacent_final_root_comparison", failure(coordinate, 4, 2, 655360, 655361),
+    # Before final comparisons, P+1 +6 +3(P-1) =4P+4 =655360; the final root
+    # comparison adds four, inside the 67,108,864-unit provision.
+    yield vector("adjacent_final_root_comparison", checked(count, 655364),
                  rows, owners, definitions=definitions, repetitions=1, timeout=600)
     count = 262143
-    # Setup consumes 262144; 131072 Ref rows consume the remaining 393216.
-    coordinate = proof_row((reflexivity,) * 131072) + 4
-    assert coordinate == 2097268
+    # Setup consumes 262144 and each Ref row three more; all rows now complete
+    # inside the 67,108,864-unit provision.
     yield vector("proof_index_and_rows_share_work",
-                 failure(coordinate, 4, 2, 655360, 655361), (reflexivity,) * count,
+                 checked(count, 1048577), (reflexivity,) * count,
+                 repetitions=1, timeout=600)
+    count = 655360
+    # The 130 MiB request extent admits a fresh table whose count+1 index
+    # reservation alone requests 655361 units; under the selected bound it
+    # completes like the other all-Ref tables at 4P+5 = 2621445 units.
+    yield vector("fresh_proof_index_reservation",
+                 checked(count, 2621445), (reflexivity,) * count,
                  repetitions=1, timeout=600)
     count = 32768
     rows = (reflexivity,) + tuple(record(2, 1, 1, previous) for previous in range(1, count))

@@ -42,6 +42,14 @@ fn optional_inference_drops_an_entry_range_that_does_not_survive_the_backedge() 
         ScalarTerm::value(parameter.id, parameter.scalar_type),
         ScalarTerm::integer(integer, IntegerValue::Unsigned(4)).unwrap(),
     )];
+    // The rewritten contract publishes a single upper bound, not the retained
+    // inclusive `[minimum, maximum]` pair, so it no longer carries the authored
+    // entry range.
+    lowered
+        .semantic_module
+        .scalar_qualifications
+        .integer_entry_ranges
+        .clear();
     let original = lowered.semantic_module.clone();
     crate::proofs::scalar_block_invariants::retain_provable(&mut lowered).unwrap();
     assert_eq!(lowered.semantic_module, original);
@@ -200,6 +208,17 @@ fn relaxed_arrival_rejects_when_only_a_guarded_premise_could_close_it() {
             conclusion: Box::new(Proposition::LessOrEqual(s_term(), integer_bound(0))),
         },
     ];
+    // The rewritten contract narrows `x` to `<= 4`, so its retained entry
+    // range must publish the same `[0, 4]` interval; `s` still spans `[0, 8]`.
+    for range in &mut lowered
+        .semantic_module
+        .scalar_qualifications
+        .integer_entry_ranges
+    {
+        if range.parameter == x.id {
+            range.maximum = IntegerValue::Unsigned(4);
+        }
+    }
     crate::proofs::scalar_block_invariants::retain_provable(&mut lowered).unwrap();
     assert!(
         lowered.semantic_module.scalar_block_invariants.is_empty(),

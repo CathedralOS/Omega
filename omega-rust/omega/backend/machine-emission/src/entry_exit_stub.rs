@@ -32,7 +32,7 @@
 //! it into the ISA crate then is a mechanical move.
 
 use calling_conventions::{
-    InstalledEntryFactIdentity, MachineRegister, Preemption, RegisterSet,
+    IndirectPointerLocation, InstalledEntryFactIdentity, MachineRegister, Preemption, RegisterSet,
     ValidatedBoundaryEntryPlan, ValidatedX86_64DeriverStub, ValueLocation,
     X86_64ErrorCodeDisposition, X86_64GateKind,
 };
@@ -154,8 +154,10 @@ pub enum X86_64DeriverStubEmissionError {
         expected: u64,
         found: usize,
     },
-    /// A location form this emission does not stage yet: indirect copies,
-    /// non-GPR destinations, or a register piece wider than a GPR.
+    /// A location form this emission does not stage: a borrowed-reference
+    /// member (its pointer names caller storage a stub-synthesized call has
+    /// no caller side to draw from), a non-GPR destination, or a register
+    /// piece wider than a GPR.
     UnsupportedParameterLocation { parameter: usize },
     /// A location's value byte range leaves the supplied operand.
     ParameterOperandOutOfRange { parameter: usize },
@@ -330,6 +332,17 @@ struct StackOperand {
     byte_width: u8,
 }
 
+/// One indirect parameter's pointer materialization: after the operand's
+/// value bytes are staged into the caller-owned copy area, `lea` computes the
+/// copy's runtime address and the pointer lands in its declared register or
+/// stack slot. Computing at staging time — after the frame reservation —
+/// names the same `rsp`-relative address the member dereferences.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PointerStage {
+    copy_stack_byte_offset: u32,
+    pointer: IndirectPointerLocation,
+}
+
 /// The byte-level shape the encoder commits to. The anchor layout means the
 /// member call observes `rsp` 16-aligned regardless of the entry-time stack
 /// alignment the interrupted context left behind.
@@ -349,6 +362,7 @@ struct StubEncodingPlan {
     reserved_frame_bytes: u64,
     stack_operands: Vec<StackOperand>,
     register_operands: Vec<(MachineRegister, u64)>,
+    pointer_stages: Vec<PointerStage>,
 }
 
 impl StubEncodingPlan {
@@ -359,6 +373,14 @@ impl StubEncodingPlan {
     fn footprint(&self) -> X86_64DeriverStubEmissionFootprint {
         let mut transient = vec![MachineRegister::X86Rax];
         transient.extend(self.register_operands.iter().map(|(register, _)| *register));
+        transient.extend(
+            self.pointer_stages
+                .iter()
+                .filter_map(|stage| match stage.pointer {
+                    IndirectPointerLocation::Register(register) => Some(register),
+                    IndirectPointerLocation::Stack { .. } => None,
+                }),
+        );
         X86_64DeriverStubEmissionFootprint {
             saved_registers: RegisterSet::new(self.saved_registers.iter().copied()),
             transient_writes: RegisterSet::new(transient),
@@ -429,6 +451,7 @@ fn project_encoding_plan(
 
     let mut stack_operands = Vec::new();
     let mut register_operands = Vec::new();
+    let mut pointer_stages = Vec::new();
     for (parameter, (placement, operand)) in call
         .parameters
         .iter()
@@ -504,22 +527,87 @@ fn project_encoding_plan(
                         remaining -= width;
                     }
                 }
-                ValueLocation::Indirect { .. } => {
-                    return Err(
-                        X86_64DeriverStubEmissionError::UnsupportedParameterLocation { parameter },
-                    );
+                ValueLocation::Indirect {
+                    pointer,
+                    copy_stack_byte_offset,
+                    byte_size,
+                    ..
+                } => {
+                    let Some(copy_stack_byte_offset) = copy_stack_byte_offset else {
+                        // A borrowed-reference member names storage its
+                        // caller owns; a stub-synthesized call has no caller
+                        // side to draw that pointer from.
+                        return Err(
+                            X86_64DeriverStubEmissionError::UnsupportedParameterLocation {
+                                parameter,
+                            },
+                        );
+                    };
+                    // Stage the operand's value bytes into the caller-owned
+                    // copy area the contract reserved, then materialize the
+                    // copy's runtime address into the pointer location.
+                    let mut consumed = 0_u32;
+                    let mut remaining = u32::from(byte_size);
+                    while remaining > 0 {
+                        let width = if remaining >= 8 {
+                            8_u32
+                        } else if remaining >= 4 {
+                            4
+                        } else if remaining >= 2 {
+                            2
+                        } else {
+                            1
+                        };
+                        let value_offset = u16::try_from(consumed).map_err(|_| {
+                            X86_64DeriverStubEmissionError::ParameterOperandOutOfRange { parameter }
+                        })?;
+                        let word = operand_word(operand, value_offset, width as u16, parameter)?;
+                        let outgoing_byte_offset = copy_stack_byte_offset
+                            .checked_add(consumed)
+                            .ok_or(X86_64DeriverStubEmissionError::StagingRangeOverflow)?;
+                        stack_operands.push(StackOperand {
+                            outgoing_byte_offset,
+                            word,
+                            byte_width: width as u8,
+                        });
+                        consumed += width;
+                        remaining -= width;
+                    }
+                    if let IndirectPointerLocation::Register(register) = pointer
+                        && (gpr_code(register).is_none() || register == MachineRegister::X86Rsp)
+                    {
+                        return Err(
+                            X86_64DeriverStubEmissionError::UnsupportedParameterLocation {
+                                parameter,
+                            },
+                        );
+                    }
+                    pointer_stages.push(PointerStage {
+                        copy_stack_byte_offset,
+                        pointer,
+                    });
                 }
             }
         }
     }
 
-    // Every staged stack operand must fit inside the contract's declared
-    // outgoing stack-argument area: both derivations read the same
-    // fingerprint-pinned boundary plan, so a wider staged extent means the
-    // plan drifted rather than a free mismatch.
+    // Every staged stack operand and every stack-resident pointer slot must
+    // fit inside the contract's declared outgoing stack-argument area: both
+    // derivations read the same fingerprint-pinned boundary plan, so a wider
+    // staged extent means the plan drifted rather than a free mismatch.
     let argument_end = stack_operands
         .iter()
         .map(|operand| u64::from(operand.outgoing_byte_offset) + u64::from(operand.byte_width))
+        .chain(
+            pointer_stages
+                .iter()
+                .filter_map(|stage| match stage.pointer {
+                    IndirectPointerLocation::Stack {
+                        stack_byte_offset, ..
+                    } => Some(u64::from(stack_byte_offset) + 8),
+                    IndirectPointerLocation::Register(_) => None,
+                }),
+        )
         .max()
         .unwrap_or(0);
     if argument_end > stub.stub().member_call_frame.outgoing_stack_bytes {
@@ -533,6 +621,7 @@ fn project_encoding_plan(
         reserved_frame_bytes: stub.stub().member_call_frame.reserved_bytes,
         stack_operands,
         register_operands,
+        pointer_stages,
     };
     if plan.reserved_frame_bytes > i32::MAX as u64 {
         return Err(X86_64DeriverStubEmissionError::StagingRangeOverflow);
@@ -617,6 +706,25 @@ fn encode_stub(plan: &StubEncodingPlan) -> Result<EncodedStub, X86_64DeriverStub
     }
     for (register, word) in &plan.register_operands {
         append_movabs(&mut bytes, *register, *word);
+    }
+    for stage in &plan.pointer_stages {
+        match stage.pointer {
+            IndirectPointerLocation::Stack {
+                stack_byte_offset, ..
+            } => {
+                // lea rax, [rsp+copy]; mov [rsp+slot], rax — stack pointer
+                // slots stage through the scratch register.
+                append_lea_rsp(&mut bytes, 0, u64::from(stage.copy_stack_byte_offset))?;
+                append_store_rsp(&mut bytes, u64::from(stack_byte_offset), 8)?;
+            }
+            IndirectPointerLocation::Register(register) => {
+                append_lea_rsp(
+                    &mut bytes,
+                    gpr_code(register).expect("projected GPR"),
+                    u64::from(stage.copy_stack_byte_offset),
+                )?;
+            }
+        }
     }
     let call_opcode_offset = u16::try_from(bytes.len())
         .map_err(|_| X86_64DeriverStubEmissionError::StagingRangeOverflow)?;
@@ -754,6 +862,28 @@ fn append_load_rsp(bytes: &mut Vec<u8>, disp: u64) -> Result<(), X86_64DeriverSt
     Ok(())
 }
 
+/// `lea r64, [rsp+disp]` — rex.w(+r) 8d /r, SIB-addressed rsp; REX.R extends
+/// the destination field for r8-r15.
+fn append_lea_rsp(
+    bytes: &mut Vec<u8>,
+    code: u8,
+    disp: u64,
+) -> Result<(), X86_64DeriverStubEmissionError> {
+    bytes.push(if code >= 8 { 0x4c } else { 0x48 });
+    bytes.push(0x8d);
+    let [modrm, sib, _] =
+        rsp_disp32_modrm(code, disp).ok_or(X86_64DeriverStubEmissionError::StagingRangeOverflow)?;
+    bytes.extend([modrm, sib]);
+    if disp == 0 {
+        // disp0 form carries no displacement field
+    } else if disp <= 127 {
+        bytes.push(disp as u8);
+    } else {
+        bytes.extend_from_slice(&(disp as u32).to_le_bytes());
+    }
+    Ok(())
+}
+
 fn append_sub_rsp(bytes: &mut Vec<u8>, amount: u64) -> Result<(), X86_64DeriverStubEmissionError> {
     if amount == 0 {
         return Ok(());
@@ -829,6 +959,10 @@ struct DecodedStub {
     anchor_offset: u64,
     stack_operands: Vec<(u32, u64, u8)>,
     register_operands: Vec<(u8, u64)>,
+    /// Indirect pointer stages as (stack pointer-slot offset, copy offset)
+    /// or (register code, copy offset), in emission order.
+    pointer_stores: Vec<(u64, u64)>,
+    pointer_registers: Vec<(u8, u64)>,
     member_call_field_offset: u64,
 }
 
@@ -865,6 +999,30 @@ fn decoded_expectation(plan: &StubEncodingPlan, encoded: &EncodedStub) -> Decode
             .register_operands
             .iter()
             .map(|(register, word)| (gpr_code(*register).expect("projected GPR"), *word))
+            .collect(),
+        pointer_stores: plan
+            .pointer_stages
+            .iter()
+            .filter_map(|stage| match stage.pointer {
+                IndirectPointerLocation::Stack {
+                    stack_byte_offset, ..
+                } => Some((
+                    u64::from(stack_byte_offset),
+                    u64::from(stage.copy_stack_byte_offset),
+                )),
+                IndirectPointerLocation::Register(_) => None,
+            })
+            .collect(),
+        pointer_registers: plan
+            .pointer_stages
+            .iter()
+            .filter_map(|stage| match stage.pointer {
+                IndirectPointerLocation::Register(register) => Some((
+                    gpr_code(register).expect("projected GPR"),
+                    u64::from(stage.copy_stack_byte_offset),
+                )),
+                IndirectPointerLocation::Stack { .. } => None,
+            })
             .collect(),
         member_call_field_offset: u64::from(encoded.relocation_offset),
     }
@@ -909,17 +1067,36 @@ fn decode_stub(bytes: &[u8]) -> Result<DecodedStub, X86_64DeriverStubEmissionErr
     let anchor_offset = cursor.rsp_store()?;
     let mut stack_operands = Vec::new();
     let mut register_operands = Vec::new();
+    let mut pointer_stores = Vec::new();
+    let mut pointer_registers = Vec::new();
     loop {
         if cursor.peek(&[0xe8]) {
             break;
         }
         // movabs: REX.W (+REX.B for r8-r15), opcode 0xb8+low, imm64.
+        // lea: REX.W (+REX.R for r8-r15 destinations), opcode 0x8d.
         let extension = match cursor.byte()? {
             0x48 => 0,
-            0x49 => 8,
+            0x49 | 0x4c => 8,
             _ => return Err(X86_64DeriverStubEmissionError::MalformedEmission),
         };
         let opcode = cursor.byte()?;
+        if opcode == 0x8d {
+            // lea reg, [rsp+copy] — the copy's runtime address materializes
+            // into the pointer's register, or through rax into its stack slot.
+            let (field, copy_offset) = cursor.rsp_access()?;
+            let destination = extension + field;
+            if cursor.take(&[0x48, 0x89]) {
+                let (store_field, pointer_offset) = cursor.rsp_access()?;
+                if destination != 0 || store_field != 0 {
+                    return Err(X86_64DeriverStubEmissionError::MalformedEmission);
+                }
+                pointer_stores.push((pointer_offset, copy_offset));
+            } else {
+                pointer_registers.push((destination, copy_offset));
+            }
+            continue;
+        }
         if !(0xb8..=0xbf).contains(&opcode) {
             return Err(X86_64DeriverStubEmissionError::MalformedEmission);
         }
@@ -1000,6 +1177,8 @@ fn decode_stub(bytes: &[u8]) -> Result<DecodedStub, X86_64DeriverStubEmissionErr
         anchor_offset,
         stack_operands,
         register_operands,
+        pointer_stores,
+        pointer_registers,
         member_call_field_offset: call_offset as u64 + 1,
     })
 }
@@ -1702,6 +1881,195 @@ mod tests {
         assert_eq!(
             emit_x86_64_deriver_entry_exit_stub(&stub, &boundary, &member_call(0x2a)).map(|_| ()),
             Err(X86_64DeriverStubEmissionError::DivergentArrivalContexts)
+        );
+    }
+
+    /// A Microsoft-x64 boundary carries parameters over the direct-value
+    /// ceiling through a caller-owned copy area plus a pointer slot —
+    /// registers for the first four parameter slots, a stack slot beyond.
+    fn indirect_boundary(shapes: &[calling_conventions::ValueShape]) -> ValidatedBoundaryEntryPlan {
+        let signature = CallSignature {
+            parameters: shapes.to_vec(),
+            result: None,
+        };
+        let ordinary =
+            evaluate_ordinary_boundary_entry_plan(CallingPolicy::MicrosoftX64, &signature)
+                .expect("ordinary boundary");
+        let mut call = ordinary.plan().call.clone();
+        call.ordinary_clobbers = gpr_clobbers();
+        call.entry_control = EntryControl::InterruptReturn;
+        let saved_state = MachineStateSet::new([
+            MachineState::GeneralRegisters,
+            MachineState::Flags,
+            MachineState::InstructionPointer,
+            MachineState::StackPointer,
+        ]);
+        validate_boundary_entry_plan(
+            BoundaryEntryPlan {
+                call,
+                state: StatePlan {
+                    initial_regime: MachineRegime::X86Long64,
+                    interrupted_state: interrupted_state(),
+                    saved_state,
+                    restored_state: saved_state,
+                    permitted_transitive_use: MachineStateSet::new([
+                        MachineState::GeneralRegisters,
+                        MachineState::Flags,
+                    ]),
+                    stack: EntryStack::Dedicated { class: 11 },
+                    preemption: Preemption::Masked,
+                },
+            },
+            &signature,
+        )
+        .expect("interrupt-return boundary")
+    }
+
+    /// The expected `lea r64, [rsp+disp]` byte body for a pointer stage —
+    /// mirrors the emitter's displacement selection so the byte assertion
+    /// reads the plan's declared offsets rather than a hard-coded layout.
+    fn lea_rsp_pattern(code: u8, disp: u32) -> Vec<u8> {
+        let mut pattern = vec![if code >= 8 { 0x4c } else { 0x48 }, 0x8d];
+        if disp == 0 {
+            pattern.extend([(code << 3) | 0x04, 0x24]);
+        } else if disp <= 127 {
+            pattern.extend([0x40 | (code << 3) | 0x04, 0x24, disp as u8]);
+        } else {
+            pattern.extend([0x80 | (code << 3) | 0x04, 0x24]);
+            pattern.extend(disp.to_le_bytes());
+        }
+        pattern
+    }
+
+    #[test]
+    fn indirect_parameter_stages_copy_bytes_and_register_pointer() {
+        let boundary = indirect_boundary(&[calling_conventions::ValueShape::integer(24, 8)]);
+        let stub = stub(
+            0,
+            X86_64GateKind::Trap,
+            X86_64ArrivalMechanism::Exception,
+            &boundary,
+        );
+        let operand: Vec<u8> = (0..24).map(|byte| 0xa0 + byte).collect();
+        let call = X86_64DeriverStubMemberCall {
+            member: MachineId::new(0x9a).expect("machine id"),
+            parameter_operands: vec![operand.clone()],
+        };
+        let emission = emit_x86_64_deriver_entry_exit_stub(&stub, &boundary, &call)
+            .expect("emission")
+            .emission()
+            .clone();
+        validate_x86_64_deriver_entry_exit_stub(&stub, &boundary, &call, &emission)
+            .expect("replay");
+        // The ABI declares the pointer in rcx and reserves the copy inside
+        // the outgoing frame; `lea rcx, [rsp+copy]` materializes its runtime
+        // address after the frame reservation.
+        let calling_conventions::ValueLocation::Indirect {
+            pointer: calling_conventions::IndirectPointerLocation::Register(pointer),
+            copy_stack_byte_offset: Some(copy),
+            ..
+        } = boundary.plan().call.parameters[0].locations[0]
+        else {
+            panic!("expected an indirect register-pointer location");
+        };
+        assert_eq!(pointer, MachineRegister::X86Rcx);
+        let lea = lea_rsp_pattern(1, copy);
+        assert!(
+            emission.bytes.windows(lea.len()).any(|w| *w == lea[..]),
+            "missing lea rcx, [rsp+{copy}]"
+        );
+        // The operand's bytes were staged verbatim into the copy area — its
+        // first word materializes as a `movabs rax, imm` store pair.
+        let first_word = u64::from_le_bytes(operand[..8].try_into().expect("eight bytes"));
+        assert!(
+            emission
+                .bytes
+                .windows(10)
+                .any(|w| { w[..2] == [0x48, 0xb8] && w[2..10] == first_word.to_le_bytes() }),
+            "missing copy staging of the operand's first word"
+        );
+        assert!(
+            emission
+                .footprint
+                .transient_writes
+                .contains(MachineRegister::X86Rcx)
+        );
+    }
+
+    #[test]
+    fn indirect_parameter_stages_copy_bytes_and_stack_pointer() {
+        let shape = calling_conventions::ValueShape::integer(24, 8);
+        let boundary = indirect_boundary(&[shape; 5]);
+        let stub = stub(
+            0,
+            X86_64GateKind::Trap,
+            X86_64ArrivalMechanism::Exception,
+            &boundary,
+        );
+        let operand: Vec<u8> = (0..24).map(|byte| 0x40 + byte).collect();
+        let call = X86_64DeriverStubMemberCall {
+            member: MachineId::new(0x9a).expect("machine id"),
+            parameter_operands: vec![operand; 5],
+        };
+        let emission = emit_x86_64_deriver_entry_exit_stub(&stub, &boundary, &call)
+            .expect("emission")
+            .emission()
+            .clone();
+        validate_x86_64_deriver_entry_exit_stub(&stub, &boundary, &call, &emission)
+            .expect("replay");
+        // The fifth parameter's pointer lives in its stack-argument slot:
+        // `lea rax, [rsp+copy]` then `mov [rsp+slot], rax`.
+        let calling_conventions::ValueLocation::Indirect {
+            pointer:
+                calling_conventions::IndirectPointerLocation::Stack {
+                    stack_byte_offset, ..
+                },
+            copy_stack_byte_offset: Some(copy),
+            ..
+        } = boundary.plan().call.parameters[4].locations[0]
+        else {
+            panic!("expected an indirect stack-pointer location");
+        };
+        for pattern in [lea_rsp_pattern(0, copy), {
+            let mut store = vec![0x48, 0x89];
+            store.extend(if stack_byte_offset <= 127 {
+                vec![0x44, 0x24, stack_byte_offset as u8]
+            } else {
+                let mut tail = vec![0x84, 0x24];
+                tail.extend(stack_byte_offset.to_le_bytes());
+                tail
+            });
+            store
+        }] {
+            assert!(
+                emission
+                    .bytes
+                    .windows(pattern.len())
+                    .any(|w| *w == pattern[..]),
+                "missing staged pointer sequence {pattern:02x?}"
+            );
+        }
+    }
+
+    #[test]
+    fn borrowed_reference_pointer_still_rejects() {
+        // A borrowed-reference member names storage its caller owns; the
+        // stub has no caller side to draw that pointer from.
+        let boundary =
+            indirect_boundary(&[calling_conventions::ValueShape::borrowed_reference(24, 8)]);
+        let stub = stub(
+            0,
+            X86_64GateKind::Trap,
+            X86_64ArrivalMechanism::Exception,
+            &boundary,
+        );
+        let call = X86_64DeriverStubMemberCall {
+            member: MachineId::new(0x9a).expect("machine id"),
+            parameter_operands: vec![(0..24).collect()],
+        };
+        assert_eq!(
+            emit_x86_64_deriver_entry_exit_stub(&stub, &boundary, &call).map(|_| ()),
+            Err(X86_64DeriverStubEmissionError::UnsupportedParameterLocation { parameter: 0 })
         );
     }
 }

@@ -233,6 +233,16 @@ pub(super) fn reconstruct_validated_terminal_obligations(
 ) -> Result<ReconstructedTerminalObligationSet, ModuleError> {
     let mut obligations = Vec::new();
     let machines = module_machine_index(module);
+    // Module-level float-meaning equalities are established proof facts —
+    // contract clauses cite them as `Atom` propositions, so each citable row
+    // joins the exit axioms its owning machine's ensures may discharge
+    // through.
+    let float_meaning_axioms = float_meaning_equality_axioms(module)?;
+    let with_float_meaning_axioms = |base: &Vec<Proposition>| {
+        let mut axioms = base.clone();
+        axioms.extend(float_meaning_axioms.iter().cloned());
+        axioms
+    };
     for machine in &module.machines {
         let semantics = reconstruct_machine_semantics(module, machine, &machines)?;
         let observations = entry_storage_observations(machine);
@@ -267,7 +277,7 @@ pub(super) fn reconstruct_validated_terminal_obligations(
                         class: proof_admission::ObligationClass::Derivable,
                     },
                     requirements: requirements.clone(),
-                    semantic_axioms: semantics.exit_axioms.clone(),
+                    semantic_axioms: with_float_meaning_axioms(&semantics.exit_axioms),
                     canonical_certificate: false,
                 }
             },
@@ -300,7 +310,7 @@ pub(super) fn reconstruct_validated_terminal_obligations(
                                     class: proof_admission::ObligationClass::Derivable,
                                 },
                                 requirements: requirements.clone(),
-                                semantic_axioms: exit_axioms.clone(),
+                                semantic_axioms: with_float_meaning_axioms(exit_axioms),
                                 canonical_certificate: false,
                             })
                     }),
@@ -578,4 +588,49 @@ fn reconstruct_machine_semantics_with_crash_facts(
             .map(|(guard, exits)| (guard, machine_flow::guaranteed_exit_facts(exits)))
             .collect(),
     })
+}
+
+/// The proof-only float-meaning equalities a contract clause may cite as
+/// established module facts. A row is citable only when its operands prove
+/// equal — a reflexive row discharges directly, and a row whose operands
+/// each reconstruct a literal meaning discharges when those meanings agree.
+/// Transitional or direct-source rows and literal mismatches receive no
+/// axiom, so a forged equality claim stays unprovable.
+fn float_meaning_equality_axioms(module: &TerminalModule) -> Result<Vec<Proposition>, ModuleError> {
+    let mut axioms = Vec::new();
+    for (index, equality) in module.float_meaning_equalities.iter().enumerate() {
+        let literal_meaning = |value: terminal_psi::ProofValueId| {
+            let Some(projection) = module
+                .float_meaning_projections
+                .get(usize::try_from(value.0).unwrap_or(usize::MAX))
+            else {
+                return Ok(None);
+            };
+            crate::verification::reconstruct_float_meaning_projection(
+                &module.float_meaning_projections,
+                projection,
+            )
+            .map(|reconstructed| reconstructed.literal_meaning)
+            .map_err(|error| ModuleError::InvalidFloatMeaningProjection {
+                index: u32::try_from(index).expect("validated equality roster position fits u32"),
+                error,
+            })
+        };
+        let provable = equality.left == equality.right
+            || match (
+                literal_meaning(equality.left)?,
+                literal_meaning(equality.right)?,
+            ) {
+                (Some(left), Some(right)) => left == right,
+                _ => false,
+            };
+        if provable {
+            axioms.push(Proposition::Atom(
+                terminal_psi::float_meaning_equality_proposition_id(
+                    u32::try_from(index).expect("validated equality roster position fits u32"),
+                ),
+            ));
+        }
+    }
+    Ok(axioms)
 }

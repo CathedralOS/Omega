@@ -618,7 +618,8 @@ fn runtime_sleep_exit_canary_runs() {
 #[test]
 fn runtime_write_no_newline_exit_canary_runs() {
     // `write` (Stdout, no trailing newline) vs `write_line`. The differential oracle
-    // checks the exact stdout ("ABC\n"); this run-test just confirms it exits 70.
+    // checks the exact stdout ("ABC\n"); this run-test asserts that same byte-exact
+    // contract natively alongside the expected exit 70.
     let canary = pass_canary(fixture_roster::RUNTIME_WRITE_NO_NEWLINE_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-write-no-newline-{}", std::process::id()));
@@ -626,11 +627,26 @@ fn runtime_write_no_newline_exit_canary_runs() {
 
     let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("write-no-newline canary should compile");
-    assert_native_exit_code(
-        &compilation,
-        70,
-        "write-without-newline canary",
-        "write followed by write_line should reach the expected exit",
+    let executable = compilation
+        .checked_native_executable_path()
+        .unwrap_or_else(|| {
+            panic!("write-no-newline canary lost its exact executable publication receipt")
+        });
+    let output = Command::new(executable)
+        .output()
+        .unwrap_or_else(|error| panic!("write-no-newline canary should run: {error}"));
+    assert_eq!(
+        output.stdout,
+        b"ABC\n",
+        "write followed by write_line must emit exactly ABC\\n natively; stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "write followed by write_line should reach the expected exit; got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
     );
 
     let _ = fs::remove_dir_all(&build_dir);

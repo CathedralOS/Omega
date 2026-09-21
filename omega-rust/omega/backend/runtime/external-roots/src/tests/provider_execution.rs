@@ -1,6 +1,6 @@
 use super::{
     boundary, candidate, candidate_for_code, entry_id, entry_writer, installed_code,
-    provider_execution, root_id, writer_site,
+    installed_code_with_fill_and_installation_identity, provider_execution, root_id, writer_site,
 };
 use crate::{
     OpaqueProviderExitAssurance, ProviderExecution, ProviderExecutionId, ProviderPlanId,
@@ -216,4 +216,38 @@ fn prepared_writer_execution_replays_structure_before_destination_consumption() 
         .context
         .validate_for_destination(&code, writer_site(0x8000), 16)
         .expect("repaired opaque context supports outward replay");
+}
+
+#[test]
+fn provider_execution_rejects_a_foreign_installed_occurrence() {
+    let entry = entry_id(1001);
+    let code = installed_code(1, entry);
+    let validated =
+        validate_external_root(candidate_for_code(entry, &code), &boundary()).expect("root plan");
+    let execution = provider_execution(&validated);
+    let writer = entry_writer(entry);
+    let selected_plan = execution.provider_plan();
+
+    // A second installation of the same artifact: identical entry roster and
+    // artifact identity but a different installed-code occurrence.
+    let sibling_occurrence =
+        installed_code_with_fill_and_installation_identity(1, entry, 0xcc, 301);
+    let error = execution
+        .prepare_post_handoff_entry_writer(
+            selected_plan,
+            &sibling_occurrence,
+            &writer,
+            16,
+            writer_site(0x8000),
+        )
+        .expect_err("a foreign installed occurrence must not satisfy the retained binding");
+    assert!(error.0.contains("installed code"));
+
+    let prepared = execution
+        .prepare_post_handoff_entry_writer(selected_plan, &code, &writer, 16, writer_site(0x8000))
+        .expect("exact writer preparation");
+    let error = prepared
+        .validate_execution(&sibling_occurrence)
+        .expect_err("execution replay on a foreign occurrence must reject");
+    assert!(error.0.contains("exact installed artifact"));
 }

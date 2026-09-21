@@ -8,16 +8,16 @@ reconstructed Terminal evidence.
 ## Integer embeddings
 
 Anonymous landing and builtin `Int` arithmetic are separate from embedding.
-[integer_landing.rs](src/literals/integer_landing.rs) evaluates builtin anonymous
+[integer_landing.rs](src/value_custody/literals/integer_landing.rs) evaluates builtin anonymous
 trees as exact rationals and checks fixed-integer integrality and carrier bounds
 at the destination. It does not evaluate arbitrary named values, calls, casts,
 or target observations. Its caller retains operator-selection evidence.
-[Destination discovery](src/literals/integer_landing/destinations.rs) retains
+[Destination discovery](src/value_custody/literals/integer_landing/destinations.rs) retains
 the first fractional source occurrence and emits warnings after successful
 validation, including for supported proof-`Int` peers. This is not complete
 warning-suppression or reporting support.
 
-[Arithmetic entailment](src/contract_entailment/arithmetic_judgment.rs) evaluates
+[Arithmetic entailment](src/proof_contracts/contract_entailment/arithmetic_judgment.rs) evaluates
 closed builtin proof-integer quotient/remainder with unbounded `div_rem`.
 For an exact nonzero constant divisor (including one fixed by contract facts),
 quotient intervals retain available one-sided dividend bounds and reverse their
@@ -27,9 +27,9 @@ otherwise they keep conservative dividend-sign/magnitude bounds. These are
 source entailment algorithms, not additional mathematical laws or evidence of
 independent symbolic quotient/remainder replay in Terminal Psi.
 
-[proof_embeddings.rs](src/proof_embeddings.rs) recognizes the compiler-installed
+[proof_embeddings.rs](src/proof_contracts/proof_embeddings.rs) recognizes the compiler-installed
 `embed`, not same-spelled package calls. Its
-[call adapter](src/proof_embeddings/calls.rs) requires exact checked root entry
+[call adapter](src/proof_contracts/proof_embeddings/calls.rs) requires exact checked root entry
 and telescope with matching declared arguments or representable integer/Boolean
 literals. Preconditions, unresolved specialization, and computed arguments
 needing caller-context type/range derivation remain unsupported there.
@@ -50,7 +50,7 @@ images. Producer search depth and preferences do not add proof rules.
 
 ## Float meaning
 
-[float_projection_invocations.rs](src/float_projection_invocations.rs) validates
+[float_projection_invocations.rs](src/proof_contracts/float_projection_invocations.rs) validates
 exact source projection operations. The checked
 [proof-row producer](../../pipeline/typed-trees-to-checked-trees/src/proof/float_meaning.rs)
 retains direct machine parameters, reserved machine results, and direct

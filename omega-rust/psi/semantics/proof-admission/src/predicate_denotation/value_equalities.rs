@@ -46,7 +46,8 @@ impl<'input> ValueEqualities<'input> {
         match &mut transported {
             Proposition::Equal(left, right)
             | Proposition::LessThan(left, right)
-            | Proposition::LessOrEqual(left, right) => {
+            | Proposition::LessOrEqual(left, right)
+            | Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
                 *left = self.scalar(left, budget, depth + 1, &mut Vec::new())?;
                 *right = self.scalar(right, budget, depth + 1, &mut Vec::new())?;
             }

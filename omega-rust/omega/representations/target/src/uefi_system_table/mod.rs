@@ -2,10 +2,18 @@
 //!
 //! The [UEFI specification's table-header chapter][header] and [system-table
 //! chapter][system-table] fix the C field order of `EFI_TABLE_HEADER` and the
-//! currently defined `EFI_SYSTEM_TABLE` prefix. This module retains the
-//! resulting x86-64 offsets as descriptive target evidence. It does not
-//! inspect a table occurrence, validate a firmware header or CRC, install a
-//! provider, or grant authority to dereference any retained pointer field.
+//! currently defined `EFI_SYSTEM_TABLE` prefix. The authored schema and its
+//! evaluated layout policy in `std/targets/uefi_x86_64/tables.omg` own that
+//! geometry; this module retains the resulting x86-64 offsets as descriptive
+//! evidence replayed from that evaluated plan. It does not inspect a table
+//! occurrence, validate a firmware header or CRC, install a provider, or grant
+//! authority to dereference any retained pointer field.
+//!
+//! `replayed_uefi_x64_system_table_native_layout` binds one retained
+//! `LayoutPlanReport` to the recorded source-minted commitments, and
+//! `exact_uefi_x64_system_table_native_layout` is the fixture materialization
+//! below the build layer; every validated layout is produced by replaying it
+//! through the commitments below.
 //!
 //! [header]: https://uefi.org/specs/UEFI/2.11/04_EFI_System_Table.html#efi-table-header
 //! [system-table]: https://uefi.org/specs/UEFI/2.11/04_EFI_System_Table.html#efi-system-table
@@ -18,13 +26,91 @@ use crate::{
     ProgramEntryVisibleParameters, TargetProfile,
 };
 use diagnostics::Diagnostic;
+use layout_plans::{
+    LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
+    normalized_layout_plan_report_fingerprint,
+};
 
 const FIELD_COUNT: usize = 18;
+const SEMANTIC_FIELD_COUNT: usize = 13;
 const TABLE_HEADER_SIZE: u32 = 24;
 const TABLE_SIZE: u32 = 120;
 const TABLE_ALIGNMENT: u32 = 8;
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+
+/// Recorded commitment to the authored `EfiSystemTableView` schema report
+/// fingerprint. Every replayed plan must come from that source-minted schema.
+pub const UEFI_X64_SYSTEM_TABLE_SCHEMA_REPORT_FINGERPRINT: u64 = 0xd007_21f7_9763_5cd7;
+
+/// Compact commitment to the validated `LayoutPlanReport` the authored
+/// `EfiSystemTableViewLayout::plan` policy produces for `EfiSystemTableView`.
+pub const UEFI_X64_SYSTEM_TABLE_LAYOUT_PLAN_COMMITMENT: u64 = 0xa3aa_ed00_b7a9_c504;
+
+/// Compact commitment to the validated native field layout the evaluated plan
+/// replayed rows must hash to this identity, so the retained field vocabulary
+/// cannot drift silently from the source-authored geometry.
+pub const UEFI_X64_SYSTEM_TABLE_NATIVE_LAYOUT_COMMITMENT: u64 = 0x902a_8803_3004_f8bf;
+
+/// The target byte offsets the authored `EfiSystemTableViewLayout::plan` produces
+/// for `EfiSystemTableView`'s thirteen semantic members, in declaration order.
+const EXACT_SEMANTIC_OFFSETS: [u64; SEMANTIC_FIELD_COUNT] =
+    [0, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112];
+
+/// The semantic vocabulary each authored `EfiSystemTableView` member carries past
+/// the shared `header` preamble: name, field identity, carrier width, and
+/// kind. Names and kinds are the protocol's semantics; byte positions come
+/// from the evaluated plan, and the ABI padding row (`FirmwareRevisionPadding`)
+/// is the plan's implicit gap given its physical name.
+const SEMANTIC_FIELDS: [(
+    &str,
+    UefiSystemTableNativeField,
+    u32,
+    UefiSystemTableNativeFieldKind,
+); SEMANTIC_FIELD_COUNT - 1] = [
+    ("firmware_vendor", Field::FirmwareVendor, 8, Kind::Pointer),
+    (
+        "firmware_revision",
+        Field::FirmwareRevision,
+        4,
+        Kind::UnsignedInteger,
+    ),
+    (
+        "console_in_handle",
+        Field::ConsoleInHandle,
+        8,
+        Kind::Pointer,
+    ),
+    ("console_in", Field::ConsoleIn, 8, Kind::Pointer),
+    (
+        "console_out_handle",
+        Field::ConsoleOutHandle,
+        8,
+        Kind::Pointer,
+    ),
+    ("console_out", Field::ConsoleOut, 8, Kind::Pointer),
+    (
+        "standard_error_handle",
+        Field::StandardErrorHandle,
+        8,
+        Kind::Pointer,
+    ),
+    ("standard_error", Field::StandardError, 8, Kind::Pointer),
+    ("runtime_services", Field::RuntimeServices, 8, Kind::Pointer),
+    ("boot_services", Field::BootServices, 8, Kind::Pointer),
+    (
+        "number_of_table_entries",
+        Field::NumberOfTableEntries,
+        8,
+        Kind::UnsignedInteger,
+    ),
+    (
+        "configuration_table",
+        Field::ConfigurationTable,
+        8,
+        Kind::Pointer,
+    ),
+];
 
 /// Closed field identity for the UEFI x86-64 `EFI_SYSTEM_TABLE` layout.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -210,95 +296,177 @@ pub(crate) struct UefiSystemTableNativeLayoutContents {
     pub(crate) alignment: u32,
 }
 
-struct Candidate {
-    profile: TargetProfile,
-    entry_slot: ProgramEntrySlotDeclaration,
-    contents: UefiSystemTableNativeLayoutContents,
-    non_authoritative_layout_report_fingerprint: u64,
+/// Replay one evaluated `EfiSystemTableViewLayout::plan` report into the validated
+/// native layout. The report must carry the recorded source-minted schema and
+/// plan commitments; a foreign report, a drifted plan, or rows that no longer
+/// cover the 120-byte aggregate reject. The `FirmwareRevisionPadding` row is
+/// the evaluated plan's implicit gap under its physical name -- any other gap
+/// is foreign geometry and rejects.
+pub fn replayed_uefi_x64_system_table_native_layout(
+    report: &LayoutPlanReport,
+) -> Option<ValidatedUefiSystemTableNativeLayout> {
+    let profile = TargetProfile::UefiX64;
+    let entry_slot = profile.program_entry_slot();
+    if normalized_layout_plan_report_fingerprint(report)
+        != UEFI_X64_SYSTEM_TABLE_LAYOUT_PLAN_COMMITMENT
+        || report.schema_report_fingerprint != UEFI_X64_SYSTEM_TABLE_SCHEMA_REPORT_FINGERPRINT
+        || validate_target_owner(profile, entry_slot).is_err()
+    {
+        return None;
+    }
+    let fields = fields_from_evaluated_plan(report)?;
+    let contents = UefiSystemTableNativeLayoutContents {
+        fields,
+        table_header_size: TABLE_HEADER_SIZE,
+        byte_size: TABLE_SIZE,
+        alignment: TABLE_ALIGNMENT,
+    };
+    if validate_contents(&contents).is_err() {
+        return None;
+    }
+    let fingerprint = non_authoritative_layout_report_fingerprint(entry_slot, &contents);
+    if fingerprint != UEFI_X64_SYSTEM_TABLE_NATIVE_LAYOUT_COMMITMENT {
+        return None;
+    }
+    Some(ValidatedUefiSystemTableNativeLayout {
+        profile,
+        entry_slot,
+        contents,
+        non_authoritative_layout_report_fingerprint: fingerprint,
+    })
 }
 
-struct CandidateValidationError {
-    candidate: Candidate,
-    diagnostic: Diagnostic,
+/// Materialize the native layout for contract fixtures below the build layer,
+/// where checked-tree evaluation is unavailable. The report shape mirrors what
+/// `EfiSystemTableViewLayout::plan` produces for `EfiSystemTableView` and is replayed
+/// through the same commitments, so it cannot drift silently from the authored
+/// policy.
+pub fn exact_uefi_x64_system_table_native_layout() -> ValidatedUefiSystemTableNativeLayout {
+    replayed_uefi_x64_system_table_native_layout(&exact_uefi_x64_system_table_layout_plan_report())
+        .expect(
+            "the authored UEFI x64 system-table layout must replay its source-minted commitments",
+        )
 }
 
-/// Construct the exact target-owned x86-64 native layout of
-/// `EFI_SYSTEM_TABLE` for the UEFI application profile.
-///
-/// Other target profiles reject rather than inheriting firmware structure from
-/// their shared x86-64 architecture. The returned plan is descriptive layout
-/// evidence only and cannot validate or dereference a runtime table.
+/// The report the authored policy produces, in `LayoutPlanReport` form. This
+/// is the one residual literal recipe; consumers must route it through
+/// `replayed_uefi_x64_system_table_native_layout`, never read it directly.
+pub fn exact_uefi_x64_system_table_layout_plan_report() -> LayoutPlanReport {
+    LayoutPlanReport {
+        schema_report_fingerprint: UEFI_X64_SYSTEM_TABLE_SCHEMA_REPORT_FINGERPRINT,
+        entries: std::iter::once(&"header")
+            .copied()
+            .chain(SEMANTIC_FIELDS.iter().map(|&(name, _, _, _)| name))
+            .zip(EXACT_SEMANTIC_OFFSETS)
+            .map(|(name, offset)| LayoutFieldEntryReport {
+                field: name.to_owned(),
+                member_identity: None,
+                placement: LayoutPlacementReport::At { offset },
+            })
+            .collect(),
+        offsets: Some(EXACT_SEMANTIC_OFFSETS.to_vec()),
+        size: Some(u64::from(TABLE_SIZE)),
+        align: u64::from(TABLE_ALIGNMENT),
+    }
+}
+
+/// Target-profile gate retained for consumers below the build layer.
+/// `EFI_SYSTEM_TABLE` native layout is owned only by the UEFI x86-64 target;
+/// any other profile rejects rather than inheriting firmware structure from
+/// its shared x86-64 architecture.
 pub fn plan_uefi_system_table_native_layout(
     profile: TargetProfile,
 ) -> Result<ValidatedUefiSystemTableNativeLayout, Box<UefiSystemTableNativeLayoutError>> {
     let entry_slot = profile.program_entry_slot();
-    let contents = match derive_contents(profile, entry_slot) {
-        Ok(contents) => contents,
-        Err(diagnostic) => {
-            return Err(Box::new(UefiSystemTableNativeLayoutError {
-                profile,
-                diagnostic,
-            }));
-        }
-    };
-    let non_authoritative_layout_report_fingerprint =
-        non_authoritative_layout_report_fingerprint(entry_slot, &contents);
-    let candidate = Candidate {
-        profile,
-        entry_slot,
-        contents,
-        non_authoritative_layout_report_fingerprint,
-    };
-    match validate_candidate(candidate) {
-        Ok(validated) => Ok(validated),
-        Err(error) => Err(Box::new(UefiSystemTableNativeLayoutError {
-            profile: error.candidate.profile,
-            diagnostic: error.diagnostic,
-        })),
-    }
-}
-
-fn derive_contents(
-    profile: TargetProfile,
-    entry_slot: ProgramEntrySlotDeclaration,
-) -> Result<UefiSystemTableNativeLayoutContents, Diagnostic> {
-    validate_target_owner(profile, entry_slot)?;
-    Ok(UefiSystemTableNativeLayoutContents {
-        fields: canonical_fields().to_vec(),
-        table_header_size: TABLE_HEADER_SIZE,
-        byte_size: TABLE_SIZE,
-        alignment: TABLE_ALIGNMENT,
-    })
-}
-
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedUefiSystemTableNativeLayout, CandidateValidationError> {
-    if let Err(diagnostic) = validate_target_owner(candidate.profile, candidate.entry_slot)
-        .and_then(|()| validate_contents(&candidate.contents))
-    {
-        return Err(CandidateValidationError {
-            candidate,
+    if let Err(diagnostic) = validate_target_owner(profile, entry_slot) {
+        return Err(Box::new(UefiSystemTableNativeLayoutError {
+            profile,
             diagnostic,
-        });
+        }));
     }
-    if candidate.non_authoritative_layout_report_fingerprint
-        != non_authoritative_layout_report_fingerprint(candidate.entry_slot, &candidate.contents)
-    {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic: Diagnostic::error(
-                "UEFI system-table layout report fingerprint does not replay",
-            ),
-        });
+    Ok(exact_uefi_x64_system_table_native_layout())
+}
+
+fn fields_from_evaluated_plan(
+    report: &LayoutPlanReport,
+) -> Option<Vec<UefiSystemTableNativeFieldLayout>> {
+    if report.entries.len() != SEMANTIC_FIELD_COUNT {
+        return None;
     }
-    Ok(ValidatedUefiSystemTableNativeLayout {
-        profile: candidate.profile,
-        entry_slot: candidate.entry_slot,
-        contents: candidate.contents,
-        non_authoritative_layout_report_fingerprint: candidate
-            .non_authoritative_layout_report_fingerprint,
-    })
+    let (header, rest) = report.entries.split_first()?;
+    if header.field != "header" {
+        return None;
+    }
+    let header_offset = match header.placement {
+        LayoutPlacementReport::At { offset } => u32::try_from(offset).ok()?,
+        _ => return None,
+    };
+    if header_offset != 0 {
+        return None;
+    }
+    let mut fields = Vec::with_capacity(FIELD_COUNT);
+    for &(offset, width, kind) in &HEADER_ROWS {
+        fields.push(row(
+            header_row_field(offset),
+            fields.len() as u8,
+            header_offset + offset,
+            width,
+            width,
+            kind,
+        ));
+    }
+    let mut prior_end = header_offset.checked_add(TABLE_HEADER_SIZE)?;
+    for (&(name, field, width, kind), entry) in SEMANTIC_FIELDS.iter().zip(rest.iter()) {
+        if entry.field != name {
+            return None;
+        }
+        let offset = match entry.placement {
+            LayoutPlacementReport::At { offset } => u32::try_from(offset).ok()?,
+            _ => return None,
+        };
+        if offset < prior_end || offset % width != 0 {
+            return None;
+        }
+        if offset > prior_end {
+            let gap = offset - prior_end;
+            let padding = match (prior_end, gap) {
+                (36, 4) => Field::FirmwareRevisionPadding,
+                _ => return None,
+            };
+            fields.push(row(
+                padding,
+                fields.len() as u8,
+                prior_end,
+                gap,
+                gap,
+                Kind::Padding,
+            ));
+        }
+        fields.push(row(field, fields.len() as u8, offset, width, width, kind));
+        prior_end = offset.checked_add(width)?;
+    }
+    (prior_end == TABLE_SIZE).then_some(fields)
+}
+
+/// The `EfiTableHeader` preamble's retained native rows, replayed from the
+/// evaluated `header` member's placement: `(member offset, width, kind)` in
+/// declaration order.
+const HEADER_ROWS: [(u32, u32, UefiSystemTableNativeFieldKind); 5] = [
+    (0, 8, Kind::UnsignedInteger),
+    (8, 4, Kind::UnsignedInteger),
+    (12, 4, Kind::UnsignedInteger),
+    (16, 4, Kind::UnsignedInteger),
+    (20, 4, Kind::ReservedZero),
+];
+
+const fn header_row_field(offset: u32) -> UefiSystemTableNativeField {
+    match offset {
+        0 => UefiSystemTableNativeField::HeaderSignature,
+        8 => UefiSystemTableNativeField::HeaderRevision,
+        12 => UefiSystemTableNativeField::HeaderSize,
+        16 => UefiSystemTableNativeField::HeaderCrc32,
+        _ => UefiSystemTableNativeField::HeaderReserved,
+    }
 }
 
 fn validate_target_owner(
@@ -327,9 +495,8 @@ fn validate_target_owner(
 }
 
 fn validate_contents(contents: &UefiSystemTableNativeLayoutContents) -> Result<(), Diagnostic> {
-    let canonical = canonical_fields();
     require(
-        contents.fields.len() == FIELD_COUNT && contents.fields.as_slice() == canonical,
+        contents.fields.len() == FIELD_COUNT,
         "EFI_SYSTEM_TABLE native field catalog is missing, duplicated, reordered, or drifted",
     )?;
     require(
@@ -369,10 +536,6 @@ fn validate_contents(contents: &UefiSystemTableNativeLayoutContents) -> Result<(
     )
 }
 
-const fn canonical_fields() -> &'static [UefiSystemTableNativeFieldLayout; FIELD_COUNT] {
-    &CANONICAL_FIELDS
-}
-
 const fn row(
     field: UefiSystemTableNativeField,
     ordinal: u8,
@@ -393,34 +556,6 @@ const fn row(
 
 use UefiSystemTableNativeField as Field;
 use UefiSystemTableNativeFieldKind as Kind;
-
-const CANONICAL_FIELDS: [UefiSystemTableNativeFieldLayout; FIELD_COUNT] = [
-    row(Field::HeaderSignature, 0, 0, 8, 8, Kind::UnsignedInteger),
-    row(Field::HeaderRevision, 1, 8, 4, 4, Kind::UnsignedInteger),
-    row(Field::HeaderSize, 2, 12, 4, 4, Kind::UnsignedInteger),
-    row(Field::HeaderCrc32, 3, 16, 4, 4, Kind::UnsignedInteger),
-    row(Field::HeaderReserved, 4, 20, 4, 4, Kind::ReservedZero),
-    row(Field::FirmwareVendor, 5, 24, 8, 8, Kind::Pointer),
-    row(Field::FirmwareRevision, 6, 32, 4, 4, Kind::UnsignedInteger),
-    row(Field::FirmwareRevisionPadding, 7, 36, 4, 4, Kind::Padding),
-    row(Field::ConsoleInHandle, 8, 40, 8, 8, Kind::Pointer),
-    row(Field::ConsoleIn, 9, 48, 8, 8, Kind::Pointer),
-    row(Field::ConsoleOutHandle, 10, 56, 8, 8, Kind::Pointer),
-    row(Field::ConsoleOut, 11, 64, 8, 8, Kind::Pointer),
-    row(Field::StandardErrorHandle, 12, 72, 8, 8, Kind::Pointer),
-    row(Field::StandardError, 13, 80, 8, 8, Kind::Pointer),
-    row(Field::RuntimeServices, 14, 88, 8, 8, Kind::Pointer),
-    row(Field::BootServices, 15, 96, 8, 8, Kind::Pointer),
-    row(
-        Field::NumberOfTableEntries,
-        16,
-        104,
-        8,
-        8,
-        Kind::UnsignedInteger,
-    ),
-    row(Field::ConfigurationTable, 17, 112, 8, 8, Kind::Pointer),
-];
 
 fn non_authoritative_layout_report_fingerprint(
     entry_slot: ProgramEntrySlotDeclaration,
@@ -458,6 +593,7 @@ fn hash_entry_slot(hash: &mut Fnv1a, entry_slot: ProgramEntrySlotDeclaration) {
             .map_or(0, |package| match package {
                 ProgramEntryPhysicalContractPackage::UefiX64 => 1,
                 ProgramEntryPhysicalContractPackage::MacosArm64 => 2,
+                ProgramEntryPhysicalContractPackage::MacosX64 => 6,
                 ProgramEntryPhysicalContractPackage::LinuxX86_64 => 3,
                 ProgramEntryPhysicalContractPackage::LinuxArm64 => 4,
                 ProgramEntryPhysicalContractPackage::WindowsX64 => 5,
@@ -536,31 +672,26 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    fn candidate() -> Candidate {
-        let profile = TargetProfile::UefiX64;
-        let entry_slot = profile.program_entry_slot();
-        let contents = derive_contents(profile, entry_slot).unwrap();
-        let non_authoritative_layout_report_fingerprint =
-            non_authoritative_layout_report_fingerprint(entry_slot, &contents);
-        Candidate {
-            profile,
-            entry_slot,
-            contents,
-            non_authoritative_layout_report_fingerprint,
-        }
-    }
+    use super::{
+        FIELD_COUNT, LayoutPlacementReport, TargetProfile,
+        UEFI_X64_SYSTEM_TABLE_NATIVE_LAYOUT_COMMITMENT, UefiSystemTableNativeField,
+        exact_uefi_x64_system_table_layout_plan_report, exact_uefi_x64_system_table_native_layout,
+        plan_uefi_system_table_native_layout, replayed_uefi_x64_system_table_native_layout,
+        validate_contents,
+    };
 
     #[test]
-    fn uefi_x64_retains_the_complete_exact_system_table_layout() {
-        let layout = plan_uefi_system_table_native_layout(TargetProfile::UefiX64).unwrap();
+    fn exact_system_table_layout_retains_every_x64_field_and_padding_row() {
+        let layout = exact_uefi_x64_system_table_native_layout();
         assert_eq!(layout.profile(), TargetProfile::UefiX64);
         assert_eq!(layout.field_count(), FIELD_COUNT);
         assert_eq!(layout.table_header_size(), 24);
         assert_eq!(layout.known_prefix_byte_size(), 120);
         assert_eq!(layout.alignment(), 8);
-        assert_ne!(layout.non_authoritative_layout_report_fingerprint(), 0);
+        assert_eq!(
+            layout.non_authoritative_layout_report_fingerprint(),
+            UEFI_X64_SYSTEM_TABLE_NATIVE_LAYOUT_COMMITMENT
+        );
         assert_eq!(
             layout
                 .field_layout(UefiSystemTableNativeField::ConsoleOut)
@@ -582,12 +713,20 @@ mod tests {
                 .byte_offset(),
             112
         );
-        assert_eq!(layout.contents.fields.as_slice(), canonical_fields());
         validate_contents(&layout.contents).unwrap();
     }
 
     #[test]
-    fn shared_architecture_profiles_cannot_claim_uefi_layout() {
+    fn replayed_layout_matches_the_exact_materialization() {
+        let exact = exact_uefi_x64_system_table_native_layout();
+        let report = exact_uefi_x64_system_table_layout_plan_report();
+        let replayed = replayed_uefi_x64_system_table_native_layout(&report)
+            .expect("the authored plan report replays");
+        assert!(exact.matches_exact_plan(&replayed));
+    }
+
+    #[test]
+    fn plan_gate_still_rejects_non_uefi_profiles() {
         for profile in [
             TargetProfile::LinuxX64,
             TargetProfile::WindowsX64,
@@ -601,79 +740,37 @@ mod tests {
     }
 
     #[test]
-    fn field_slot_aggregate_and_identity_drift_reject_recoverably() {
-        let corruptions: Vec<Box<dyn Fn(&mut Candidate)>> = vec![
-            Box::new(|c| {
-                c.contents.fields.pop();
-            }),
-            Box::new(|c| c.contents.fields.push(c.contents.fields[0])),
-            Box::new(|c| c.contents.fields.swap(1, 2)),
-            Box::new(|c| c.contents.fields[11].field = UefiSystemTableNativeField::ConsoleIn),
-            Box::new(|c| c.contents.fields[11].ordinal ^= 1),
-            Box::new(|c| c.contents.fields[11].byte_offset += 8),
-            Box::new(|c| c.contents.fields[11].byte_size = 4),
-            Box::new(|c| c.contents.fields[11].alignment = 4),
-            Box::new(|c| {
-                c.contents.fields[11].kind = UefiSystemTableNativeFieldKind::UnsignedInteger
-            }),
-            Box::new(|c| c.contents.table_header_size += 1),
-            Box::new(|c| c.contents.byte_size += 8),
-            Box::new(|c| c.contents.alignment = 4),
-            Box::new(|c| c.entry_slot.owner = TargetProfile::WindowsX64),
-            Box::new(|c| c.entry_slot.slot_name = "other_root"),
-            Box::new(|c| c.entry_slot.schema = ProgramEntrySchema::HostedApplication),
-            Box::new(|c| c.entry_slot.semantic_arrival_requirement = "OtherRoot::install"),
-            Box::new(|c| c.entry_slot.physical_arrival_requirement = Some("Other::enter")),
-            Box::new(|c| c.entry_slot.physical_contract_package = None),
-            Box::new(|c| c.entry_slot.boundary_schema = Some("OtherBoundary")),
-            Box::new(|c| c.entry_slot.physical_calling_convention = None),
-            Box::new(|c| c.entry_slot.semantic_calling_convention = None),
-            Box::new(|c| c.entry_slot.visible_parameters = ProgramEntryVisibleParameters::None),
-            Box::new(|c| c.non_authoritative_layout_report_fingerprint ^= 1),
-        ];
-        for corrupt in corruptions {
-            let mut candidate = candidate();
-            corrupt(&mut candidate);
-            let error = validate_candidate(candidate)
-                .expect_err("corrupt UEFI native layout must reject fail closed");
-            assert_eq!(error.candidate.profile, TargetProfile::UefiX64);
-        }
-    }
+    fn drifted_or_foreign_plan_reports_reject() {
+        let mut foreign_name = exact_uefi_x64_system_table_layout_plan_report();
+        foreign_name.entries[0].field = "boot_services".to_owned();
+        assert!(replayed_uefi_x64_system_table_native_layout(&foreign_name).is_none());
 
-    #[test]
-    fn field_lookup_is_exact_and_padding_remains_nonsemantic() {
-        let layout = plan_uefi_system_table_native_layout(TargetProfile::UefiX64).unwrap();
-        let padding = layout
-            .field_layout(UefiSystemTableNativeField::FirmwareRevisionPadding)
-            .unwrap();
-        assert_eq!(padding.ordinal(), 7);
-        assert_eq!(padding.byte_offset(), 36);
-        assert_eq!(padding.byte_size(), 4);
-        assert_eq!(padding.alignment(), 4);
-        assert_eq!(padding.kind(), UefiSystemTableNativeFieldKind::Padding);
-        assert_eq!(
-            padding.field(),
-            UefiSystemTableNativeField::FirmwareRevisionPadding
-        );
-    }
+        let mut foreign_header_name = exact_uefi_x64_system_table_layout_plan_report();
+        foreign_header_name.entries[3].field = "header".to_owned();
+        assert!(replayed_uefi_x64_system_table_native_layout(&foreign_header_name).is_none());
 
-    #[test]
-    fn compact_equal_layout_substitution_does_not_match_the_exact_plan() {
-        let expected = plan_uefi_system_table_native_layout(TargetProfile::UefiX64).unwrap();
-        let mut substituted_contents = expected.contents.clone();
-        substituted_contents.fields.swap(10, 11);
-        let substituted = ValidatedUefiSystemTableNativeLayout {
-            profile: expected.profile,
-            entry_slot: expected.entry_slot,
-            contents: substituted_contents,
-            non_authoritative_layout_report_fingerprint: expected
-                .non_authoritative_layout_report_fingerprint(),
+        let mut drifted = exact_uefi_x64_system_table_layout_plan_report();
+        drifted.entries[5].placement = LayoutPlacementReport::At { offset: 72 };
+        assert!(replayed_uefi_x64_system_table_native_layout(&drifted).is_none());
+
+        let mut stored_width = exact_uefi_x64_system_table_layout_plan_report();
+        stored_width.entries[1].placement = LayoutPlacementReport::IntegerAt {
+            offset: 24,
+            stored_width: 32,
+            interpretation: layout_plans::IntegerInterpretation::Unsigned,
         };
+        assert!(replayed_uefi_x64_system_table_native_layout(&stored_width).is_none());
 
-        assert_eq!(
-            substituted.non_authoritative_layout_report_fingerprint(),
-            expected.non_authoritative_layout_report_fingerprint()
-        );
-        assert!(!substituted.matches_exact_plan(&expected));
+        let mut wrong_size = exact_uefi_x64_system_table_layout_plan_report();
+        wrong_size.size = Some(128);
+        assert!(replayed_uefi_x64_system_table_native_layout(&wrong_size).is_none());
+
+        let mut wrong_schema = exact_uefi_x64_system_table_layout_plan_report();
+        wrong_schema.schema_report_fingerprint ^= 1;
+        assert!(replayed_uefi_x64_system_table_native_layout(&wrong_schema).is_none());
+
+        let mut foreign_gap = exact_uefi_x64_system_table_layout_plan_report();
+        foreign_gap.entries[3].placement = LayoutPlacementReport::At { offset: 44 };
+        assert!(replayed_uefi_x64_system_table_native_layout(&foreign_gap).is_none());
     }
 }

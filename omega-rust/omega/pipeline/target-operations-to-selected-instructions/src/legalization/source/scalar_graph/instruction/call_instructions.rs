@@ -7,7 +7,9 @@ use super::super::{
 };
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
+use legalized_operations::LegalizedDynamicParameterCall;
 use semantic_vocabulary::OperationId;
+use target_operations::TargetUnitScalarHomeRequirement;
 
 pub(super) fn project_call_structural(
     node: &optimization_unit::OptimizationNode,
@@ -135,6 +137,15 @@ pub(super) fn project_normalized_foreign_call(
     if *psi_operation != operation || *row_boundary != *boundary {
         return Err(Error::SourceCustodyMismatch);
     }
+    // The retained callback roster row is the sole carrier of binder/demand
+    // custody for a private callback parameter; the exact join fails closed
+    // when a materialized call consumed no retained row.
+    let callback = scalar_graph_input::normalized_foreign::native_callback_at(
+        native,
+        operation,
+        &binding.boundary_entry_plan,
+    )?
+    .cloned();
     Ok(LegalizedScalarInstructionKind::NormalizedForeignCall(
         legalized_operations::LegalizedNormalizedForeignCall {
             boundary: *boundary,
@@ -143,6 +154,7 @@ pub(super) fn project_normalized_foreign_call(
             scalar_arguments: scalar_arguments.clone(),
             structural_arguments: structural_arguments.clone(),
             result_home: *result_home,
+            callback,
         },
     ))
 }
@@ -260,4 +272,95 @@ pub(super) fn project_call(
         })
     };
     Ok(kind)
+}
+
+/// One indirect requirement invocation through the function's own borrowed
+/// descriptor parameter. The retained contract is recomputed from the
+/// signature roster, the dispatch row, and the target ABI — the stored target
+/// operation is never read back here, and its own replay checks equality.
+pub(super) fn project_dynamic_parameter_call(
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    native: &TargetOperationPlan,
+) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+    let invalid = || Error::SourceCustodyMismatch;
+    let (
+        psi_operation,
+        dynamic_dispatch,
+        expected_result,
+        result_home,
+        requirement_obligations,
+        crash_continuations,
+    ) = match &node.operation {
+        AbstractOperation::CallDynamicParameterScalar {
+            psi_operation,
+            result,
+            dynamic_dispatch,
+            requirement_obligations,
+            crash_continuations,
+        } => {
+            let shape = scalar_graph_input::scalar_shape(result.scalar_type).ok_or_else(invalid)?;
+            (
+                *psi_operation,
+                dynamic_dispatch,
+                Some(result.scalar_type),
+                Some(TargetUnitScalarHomeRequirement {
+                    defining_operation: *psi_operation,
+                    source_value: result.value,
+                    scalar_type: result.scalar_type,
+                    shape,
+                }),
+                requirement_obligations,
+                crash_continuations,
+            )
+        }
+        AbstractOperation::CallDynamicParameterUnit {
+            psi_operation,
+            dynamic_dispatch,
+            requirement_obligations,
+            crash_continuations,
+        } => (
+            *psi_operation,
+            dynamic_dispatch,
+            None,
+            None,
+            requirement_obligations,
+            crash_continuations,
+        ),
+        _ => unreachable!("dispatched project_dynamic_parameter_call"),
+    };
+    let function = native
+        .functions
+        .iter()
+        .find(|function| function.machine == optimized.machine)
+        .ok_or_else(invalid)?;
+    let contract = scalar_graph_input::indirect_calls::parameter_call_contract(
+        &function.graph.dynamic_parameters,
+        optimized.machine,
+        psi_operation,
+        dynamic_dispatch,
+        expected_result,
+        native.target,
+    )?;
+    if contract
+        .dispatch_call_plan
+        .result
+        .as_ref()
+        .map(|placement| placement.shape)
+        != result_home.map(|home| home.shape)
+    {
+        return Err(invalid());
+    }
+    Ok(LegalizedScalarInstructionKind::DynamicParameterCall(
+        LegalizedDynamicParameterCall {
+            dynamic_dispatch: dynamic_dispatch.clone(),
+            parameter_abi: contract.parameter_abi,
+            requirement: contract.requirement,
+            dispatch_call_plan: contract.dispatch_call_plan,
+            table_slot_byte_offset: contract.table_slot_byte_offset,
+            result_home,
+            requirement_obligations: requirement_obligations.clone(),
+            crash_continuations: crash_continuations.clone(),
+        },
+    ))
 }

@@ -1,7 +1,8 @@
 use super::CompileOutcomes;
 use crate::{
-    CompileOptions, CompileRequest, CompileTargetOutcome, ExplicitTargetSet,
-    RequestedCompileProduct, TargetCompileConfiguration, admit_checked_compilation, compile,
+    BatchChildCommitment, BatchChildOutcome, CompileOptions, CompileRequest, CompileTargetOutcome,
+    ExplicitTargetSet, RequestedCompileProduct, TargetCompileConfiguration,
+    admit_checked_compilation, compile,
 };
 use std::fs;
 use std::path::Path;
@@ -111,6 +112,85 @@ fn checked_admission_and_compilation_do_not_write_debug_dumps() {
         .unwrap();
     assert_eq!(report.trust_admission_settlement(), &expected);
     assert!(!fixture.root.join("build").exists());
+}
+
+#[test]
+fn timings_request_carries_the_recorded_stage_ladder_to_the_report() {
+    let fixture = MultiTargetFixture::new(
+        "machine main() { }",
+        r#"machine build(builder: &mut Build) { builder.application("timings"); }"#,
+    );
+    let report = compile(fixture.request().with_timings(true))
+        .and_then(CompileOutcomes::into_single_report)
+        .unwrap();
+    assert!(!report.timings().is_empty());
+    assert!(
+        report
+            .timings()
+            .iter()
+            .all(|timing| timing.phase.contains(" -> "))
+    );
+    let quiet = compile(fixture.request())
+        .and_then(CompileOutcomes::into_single_report)
+        .unwrap();
+    assert!(quiet.timings().is_empty());
+}
+
+/// Flag every file under `root` that is not an authored source, the published
+/// executable, or a member of the content-addressed `completed/` output set.
+fn collect_unexpected_publications(
+    root: &Path,
+    directory: &Path,
+    executable: &Path,
+    unexpected: &mut Vec<std::path::PathBuf>,
+) {
+    for entry in fs::read_dir(directory).expect("walk compiler output directory") {
+        let path = entry.expect("read directory entry").path();
+        if path.is_dir() {
+            collect_unexpected_publications(root, &path, executable, unexpected);
+            continue;
+        }
+        let relative = path.strip_prefix(root).expect("walked path under root");
+        let authored = matches!(relative.to_str(), Some("main.omg") | Some("build.omg"));
+        if !authored && path != executable && !relative.starts_with("build/completed") {
+            unexpected.push(path);
+        }
+    }
+}
+
+#[test]
+fn native_publication_writes_only_declared_products() {
+    let fixture = MultiTargetFixture::new(
+        "data Main { }\nmachine Main::main(&mut self) { }\n",
+        r#"machine build(builder: &mut Build) {
+    builder.application("no-observation-products");
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+}
+"#,
+    );
+    let report = compile(
+        fixture
+            .request()
+            .with_requested_product(RequestedCompileProduct::NativeArtifact),
+    )
+    .and_then(CompileOutcomes::into_single_report)
+    .expect("native artifact compile");
+    assert!(!fixture.root.join("build").exists());
+    let build_dir = fixture.root.join("build");
+    let report = report
+        .publish_retained_native_artifact(&build_dir)
+        .and_then(|report| report.publish_completed_build_outputs(&build_dir))
+        .expect("native publication");
+    let executable = report
+        .checked_native_executable_path()
+        .expect("published executable custody")
+        .to_path_buf();
+    let mut unexpected = Vec::new();
+    collect_unexpected_publications(&fixture.root, &fixture.root, &executable, &mut unexpected);
+    assert!(unexpected.is_empty(), "unexpected files: {unexpected:?}");
 }
 
 #[test]
@@ -387,6 +467,96 @@ fn shared_source_failure_is_retained_for_every_exact_target() {
         .diagnostics()
         .expect("Windows child should retain shared parse failure");
     assert_eq!(linux, windows);
+}
+
+#[test]
+fn batch_manifest_binds_the_explicit_set_and_child_commitments() {
+    let fixture = MultiTargetFixture::new(
+        "const ANSWER: u32 = 42;\n",
+        r#"machine build(builder: &mut Build) {
+    builder.application("batch-manifest-set");
+}
+"#,
+    );
+    let targets = ExplicitTargetSet::from_caller_names(["windows_x64", "linux_arm64", "linux_x64"])
+        .expect("explicit target set should canonicalize");
+    let batch = fixture.request().with_target_configurations(
+        targets
+            .profiles()
+            .iter()
+            .map(|&profile| fixture.target_configuration(profile))
+            .collect(),
+    );
+    let outcomes = compile(batch).expect("batch request should admit");
+    let manifest = outcomes.batch_manifest();
+    assert_eq!(manifest.rows().len(), 3);
+    assert_eq!(
+        manifest
+            .rows()
+            .iter()
+            .map(|row| row.target())
+            .collect::<Vec<_>>(),
+        [
+            Some(target::TargetProfile::LinuxArm64),
+            Some(target::TargetProfile::LinuxX64),
+            Some(target::TargetProfile::WindowsX64),
+        ],
+    );
+    for row in manifest.rows() {
+        assert_eq!(
+            row.outcome(),
+            &BatchChildOutcome::Succeeded {
+                commitment: BatchChildCommitment::Checked,
+            },
+        );
+    }
+    assert!(manifest.validate());
+
+    let targets = ExplicitTargetSet::from_caller_names(["linux_x64", "linux_arm64"])
+        .expect("smaller set should canonicalize");
+    let smaller = fixture.request().with_target_configurations(
+        targets
+            .profiles()
+            .iter()
+            .map(|&profile| fixture.target_configuration(profile))
+            .collect(),
+    );
+    let smaller = compile(smaller).expect("smaller batch request should admit");
+    assert_eq!(smaller.batch_manifest().rows().len(), 2);
+    assert_ne!(
+        manifest.identity(),
+        smaller.batch_manifest().identity(),
+        "the manifest binds the explicit set, not a generic batch"
+    );
+}
+
+#[test]
+fn batch_manifest_binds_rejected_children() {
+    use diagnostics::Diagnostic;
+    let outcomes = CompileOutcomes::new(vec![
+        CompileTargetOutcome::new(
+            Some(target::TargetProfile::LinuxX64),
+            Ok(crate::CompileReport::check_only("root.omg".into(), 1).unwrap()),
+        ),
+        CompileTargetOutcome::new(
+            Some(target::TargetProfile::UefiX64),
+            Err(vec![Diagnostic::error("uefi_x86_64 unavailable")]),
+        ),
+    ])
+    .expect("mixed outcomes still bind a manifest");
+    let manifest = outcomes.batch_manifest();
+    assert_eq!(manifest.rows().len(), 2);
+    assert_eq!(
+        manifest.rows()[0].outcome(),
+        &BatchChildOutcome::Succeeded {
+            commitment: BatchChildCommitment::Checked,
+        },
+    );
+    let BatchChildOutcome::Rejected { diagnostics_digest } = manifest.rows()[1].outcome() else {
+        panic!("the failing child must carry a rejected outcome, not a bare flag")
+    };
+    assert_ne!(*diagnostics_digest, [0; 32]);
+    assert!(manifest.validate());
 }
 
 #[test]

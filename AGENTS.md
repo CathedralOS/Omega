@@ -35,7 +35,10 @@ use Cargo without asking for permission. Nextest does not run doctests;
 use `mbx test --doc` when doctest coverage is needed.
 
 Keep using `cargo fmt` and `cargo clean` directly; `mbx clean` has different
-semantics. The examples below assume `mbx` is available.
+semantics. For whole-workspace formatting use `python tools/fmt.py` instead of
+`cargo fmt --all`: cargo-fmt batches all targets into one rustfmt command line,
+and at this workspace's size that exceeds the Windows command-line limit.
+The examples below assume `mbx` is available.
 
 ### Validation scope
 
@@ -65,7 +68,7 @@ must be resolved before landing. Do not repeat broad suites to attribute one tes
 Use these gates when establishing or refreshing a full checkout baseline:
 
 ```bash
-cargo fmt --all -- --check
+python tools/fmt.py --check
 mbx clippy --workspace --all-targets -- -D warnings
 mbx nextest run -p omega-architecture-test --all-targets --no-fail-fast
 mbx nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail -E 'test(=surface_and_targets::retired_domain_when_surface_is_absent_from_authored_corpus)'
@@ -139,6 +142,7 @@ are parsed in `omega-rust/omega/src/cli/arguments/`. Full surface:
 
 ```text
 omega [--check] [--offline] [--accept-admissions] [--timings]
+      [--report-file <path>]
       [--build-input <path>]... [--optional-build-input <path>]...
       [--build-dir <dir>] [--target <name>] [--disable-optimization <ExactName>]... <root.omg>
 omega run [--both] [--keep] [--target <name>] <root.omg>
@@ -157,8 +161,10 @@ Git pins. It does not refresh selectors or sandbox later program execution.
 
 Compilation emits requested products and diagnostics, not debug dumps.
 `--timings` prints command-stage durations and total elapsed time to stderr;
-normal invocations do not collect optional timing measurements. There is no
-`--output-only` switch or report-file mode. Required proof and installation
+normal invocations do not collect optional timing measurements.
+`--report-file <path>` writes the produced compile report (product, target,
+summary, and publication lines) as a plain-text observation file; there is no
+`--output-only` switch. Required proof and installation
 records remain governed by the requested product. See the
 [compiler product contract](omega-rust/omega/compiler/compiler/README.md#product-boundaries-and-observations).
 
@@ -496,7 +502,10 @@ release notes. Completed limitations are deleted, not retained as status.
 An open item's evidence states the current frontier once: recording a newer
 observation deletes the dated paragraph it supersedes. Numbered or
 revision-stamped landing ledgers are changelogs — Git names each landed
-revision; the board keeps only what the next session needs to resume. Cite
+revision; the board keeps only what the next session needs to resume. A stamp
+lands inside its own row, appended after that row's last sentence — never
+spliced mid-sentence into other prose and never left as an orphan paragraph
+detached from its bullet. Cite
 revisions as published on `main` — landing rewrites worktree SHAs, so a
 prerebase reference is unverifiable — and prefer symbol and test names over
 line numbers, which drift.

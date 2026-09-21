@@ -1,0 +1,13 @@
+// FAIL canary: an absent borrowed field cannot be extracted a second time.
+// The first move opens the restoration window; the second `let` reads the
+// same absent place, so the repeated extraction rejects at the second move.
+data Inventory { slots: i32; }
+data Main { inventory: Inventory; }
+
+machine Main::twice(&mut self) -> i32 {
+    let first: Inventory = self.inventory;
+    let second: Inventory = self.inventory;
+    self.inventory = move first;
+    self.inventory = move second;
+    0
+}

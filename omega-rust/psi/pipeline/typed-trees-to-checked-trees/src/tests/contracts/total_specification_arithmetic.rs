@@ -34,6 +34,49 @@ fn direct_trapping_arithmetic_is_illegal_in_machine_contracts() {
 }
 
 #[test]
+fn direct_trapping_shifts_are_illegal_in_machine_contracts() {
+    // A shift's selected domain is its LEFT operand's policy — the value being
+    // carried — so `left: u32 in Trapping` makes `left << count` and
+    // `left >> count` Trapping propositions, which cannot form. Runtime `let`
+    // bindings exercise only the carrier annotation; this pins the
+    // contract-term leg the shift branch of `selected_domain` implements.
+    let rejected = r#"
+        machine shift(left: u32 in Trapping, count: u32) -> bool
+        requires
+            (left << count) >= 1
+        ensures
+            (left >> count) <= left
+        {
+            true
+        }
+    "#;
+
+    let diagnostics = checked(rejected).expect_err("Trapping shifts cannot form a proposition");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("direct Trapping arithmetic `<<`")
+            && diagnostic.message.contains("requires contract")
+    }));
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("direct Trapping arithmetic `>>`")
+            && diagnostic.message.contains("ensures contract")
+    }));
+
+    let accepted = r#"
+        machine shift(left: u32 in Wrapping, count: u32) -> bool
+        requires
+            (left << count) >= 1
+        {
+            true
+        }
+    "#;
+    checked(accepted).expect("a Wrapping shift defines every count and stays a total term");
+}
+
+#[test]
 fn trapping_policy_conversion_is_illegal_in_a_contract() {
     let source = r#"
         machine convert(value: i32) -> bool

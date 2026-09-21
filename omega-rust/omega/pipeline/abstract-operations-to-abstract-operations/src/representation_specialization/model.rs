@@ -213,11 +213,11 @@ impl std::error::Error for CaseMembershipSpecializationError {}
 /// validation both recompute this plan; the candidate is accepted only when
 /// its claimed rows equal the replayed plan exactly.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct CaseMembershipPlan {
-    pub(super) machine: MachineId,
-    pub(super) place: PlaceId,
-    pub(super) producer: Option<OperationId>,
-    pub(super) memberships: Vec<ResolvedCaseMembership>,
+pub(crate) struct CaseMembershipPlan {
+    pub(crate) machine: MachineId,
+    pub(crate) place: PlaceId,
+    pub(crate) producer: Option<OperationId>,
+    pub(crate) memberships: Vec<ResolvedCaseMembership>,
 }
 
 pub(super) fn candidate_identity(

@@ -34,6 +34,20 @@ fn parse_match_expression_handle<'tokens, 'source>(
         } else {
             let (pattern, rest) =
                 parse_expression_handle_without_struct_literals(syntax_trees, input)?;
+            // A `{` following a pattern name is the record/case destructure
+            // spelling that `transition` dispatch owns. Name the boundary
+            // instead of failing the arm on a missing `->`.
+            if rest.at_punctuation(PunctuationKind::LeftBrace)
+                && matches!(
+                    syntax_trees.expressions.expression(pattern),
+                    ExpressionNode::Name(_)
+                )
+            {
+                return Err(rest.error_here(
+                    "record and domain destructure patterns belong to `transition` \
+                     dispatch; `match` arms admit value and wildcard patterns",
+                ));
+            }
             (syntax_trees::expression::MatchPattern::Value(pattern), rest)
         };
         let rest = rest.take_punctuation(PunctuationKind::Arrow, "->")?;

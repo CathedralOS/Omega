@@ -1339,3 +1339,421 @@ impl RetainedTerminalArtifact {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{TerminalIntegerComparisonOccurrenceProposal, integer_comparisons};
+    use lowered_psi::{
+        LoweredSelectedIntegerComparisonOperandOrder as OperandOrder,
+        LoweredSelectedIntegerComparisonOperation as Emitted,
+    };
+    use semantic_vocabulary::{
+        BlockId, ContractId, EdgeId, IntegerCarrier, IntegerSign, IntegerType, MachineId,
+        OperationId, ScalarType, ValueId,
+    };
+    use terminal_psi::{
+        Block, MachineContract, Operation, OperationKind, OperationResult, TerminalMachine,
+        TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    };
+
+    fn integer_type() -> IntegerType {
+        IntegerType::new(IntegerSign::Signed, 32).unwrap()
+    }
+
+    fn declaration(id: u64, scalar_type: ScalarType) -> ValueDeclaration {
+        ValueDeclaration {
+            qualifications: Default::default(),
+            id: ValueId::new(id).unwrap(),
+            scalar_type,
+        }
+    }
+
+    fn integer(scalar_type_id: u64) -> ValueDeclaration {
+        declaration(scalar_type_id, ScalarType::Integer(integer_type()))
+    }
+
+    /// One machine whose entry block runs `operations` and returns the value
+    /// bound by `ValueId::new(6)`. The validator only walks machines, blocks
+    /// and operations; the surrounding rosters stay empty.
+    fn comparison_module(operations: Vec<Operation>) -> TerminalModule {
+        let machine = MachineId::new(1).unwrap();
+        TerminalModule {
+            scalar_qualifications: Default::default(),
+            scalar_block_invariants: Vec::new(),
+            operation_crash_contracts: Vec::new(),
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: machine,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            root_service_reach: Default::default(),
+            placed_view_inputs: Vec::new(),
+            reborrow_root_handoffs: Vec::new(),
+            reborrow_restored_call_uses: Vec::new(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            float_meaning_projections: Vec::new(),
+            float_meaning_equalities: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
+            proof_output_calls: Vec::new(),
+            proof_recursive_components: Vec::new(),
+            closed_conformance_applications: Vec::new(),
+            dynamic_dispatch: Default::default(),
+            suspension_call_plan_count: 0,
+            suspension_call_sites: Vec::new(),
+            suspension_call_plans: Vec::new(),
+            quotient_correspondences: Vec::new(),
+            machines: vec![TerminalMachine {
+                closed_reach_application: None,
+                declared_service_reach: Vec::new(),
+                id: machine,
+                attachment: None,
+                parameters: vec![integer(3), integer(4)],
+                structural_parameters: Vec::new(),
+                ranked_scc: None,
+                result: TerminalMachineResult::Scalar(declaration(8, ScalarType::Boolean)),
+                structural_places: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: BlockId::new(2).unwrap(),
+                blocks: vec![Block {
+                    erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
+                    id: BlockId::new(2).unwrap(),
+                    parameters: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    operations,
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(7).unwrap(),
+                        value: ValueId::new(6).unwrap(),
+                        cleanup_actions: Vec::new(),
+                    },
+                }],
+                contract: MachineContract {
+                    erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
+                    id: ContractId::new(9).unwrap(),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
+                },
+            }],
+        }
+    }
+
+    fn integer_equal() -> Operation {
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: OperationId::new(5).unwrap(),
+            result: OperationResult::Scalar(declaration(6, ScalarType::Boolean)),
+            kind: OperationKind::IntegerEqual {
+                left: ValueId::new(3).unwrap(),
+                right: ValueId::new(4).unwrap(),
+            },
+        }
+    }
+
+    fn plan(name: &str) -> effects::provider_plan::ProviderPlan {
+        effects::provider_plan::ProviderPlan {
+            name: name.to_owned(),
+            ..Default::default()
+        }
+    }
+
+    fn occurrence(
+        plan: &effects::provider_plan::ProviderPlan,
+    ) -> TerminalIntegerComparisonOccurrenceProposal {
+        TerminalIntegerComparisonOccurrenceProposal {
+            terminal_machine: MachineId::new(1).unwrap(),
+            terminal_operation: OperationId::new(5).unwrap(),
+            provider_plan_index: 0,
+            provider_plan_commitment: plan.identity_digest(),
+            comparison: Emitted::Equal,
+            operand_order: OperandOrder::Authored,
+            negated: false,
+            integer_type: integer_type(),
+        }
+    }
+
+    #[test]
+    fn roster_accepts_one_exact_occurrence() {
+        let plan = plan("provider");
+        let module = comparison_module(vec![integer_equal()]);
+        TerminalIntegerComparisonOccurrenceProposal::validate_roster(
+            &module,
+            std::slice::from_ref(&plan),
+            &[occurrence(&plan)],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn roster_rejects_repeated_occurrence() {
+        let plan = plan("provider");
+        let module = comparison_module(vec![integer_equal()]);
+        let occurrence = occurrence(&plan);
+        assert_eq!(
+            TerminalIntegerComparisonOccurrenceProposal::validate_roster(
+                &module,
+                &[plan],
+                &[occurrence, occurrence],
+            ),
+            Err("Terminal proposal repeats an integer comparison occurrence")
+        );
+    }
+
+    #[test]
+    fn roster_rejects_occurrence_naming_an_absent_plan() {
+        let plan = plan("provider");
+        let module = comparison_module(vec![integer_equal()]);
+        let mut occurrence = occurrence(&plan);
+        occurrence.provider_plan_index = 1;
+        assert_eq!(
+            TerminalIntegerComparisonOccurrenceProposal::validate_roster(
+                &module,
+                &[plan],
+                &[occurrence],
+            ),
+            Err("Terminal integer comparison names an absent selected plan")
+        );
+    }
+
+    #[test]
+    fn roster_rejects_a_changed_plan_commitment() {
+        let selected = plan("provider");
+        let drifted = plan("other-provider");
+        let module = comparison_module(vec![integer_equal()]);
+        let mut occurrence = occurrence(&drifted);
+        occurrence.provider_plan_index = 0;
+        assert_eq!(
+            TerminalIntegerComparisonOccurrenceProposal::validate_roster(
+                &module,
+                &[selected],
+                &[occurrence],
+            ),
+            Err("Terminal integer comparison changed its exact selected plan")
+        );
+    }
+
+    #[test]
+    fn roster_rejects_an_occurrence_naming_a_non_comparison_operation() {
+        let plan = plan("provider");
+        let widen = Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: OperationId::new(8).unwrap(),
+            result: OperationResult::Scalar(integer(10)),
+            kind: OperationKind::IntegerWiden {
+                operand: ValueId::new(3).unwrap(),
+            },
+        };
+        let module = comparison_module(vec![integer_equal(), widen]);
+        let mut occurrence = occurrence(&plan);
+        occurrence.terminal_operation = OperationId::new(8).unwrap();
+        assert_eq!(
+            TerminalIntegerComparisonOccurrenceProposal::validate_roster(
+                &module,
+                &[plan],
+                &[occurrence],
+            ),
+            Err("Terminal integer comparison does not name one exact operation")
+        );
+    }
+
+    #[test]
+    fn roster_rejects_operation_kind_drift() {
+        let plan = plan("provider");
+        let module = comparison_module(vec![integer_equal()]);
+        let mut occurrence = occurrence(&plan);
+        occurrence.comparison = Emitted::LessOrEqual;
+        assert_eq!(
+            TerminalIntegerComparisonOccurrenceProposal::validate_roster(
+                &module,
+                &[plan],
+                &[occurrence],
+            ),
+            Err("Terminal integer comparison changed operation kind")
+        );
+    }
+
+    #[test]
+    fn negated_occurrence_requires_exactly_one_authored_not() {
+        let plan = plan("provider");
+        let authored_not = Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: OperationId::new(8).unwrap(),
+            result: OperationResult::Scalar(declaration(10, ScalarType::Boolean)),
+            kind: OperationKind::BooleanNot {
+                operand: ValueId::new(6).unwrap(),
+            },
+        };
+        let mut occurrence = occurrence(&plan);
+        occurrence.negated = true;
+        let module = comparison_module(vec![integer_equal(), authored_not]);
+        TerminalIntegerComparisonOccurrenceProposal::validate_roster(
+            &module,
+            std::slice::from_ref(&plan),
+            &[occurrence],
+        )
+        .unwrap();
+
+        let module = comparison_module(vec![integer_equal()]);
+        assert_eq!(
+            TerminalIntegerComparisonOccurrenceProposal::validate_roster(
+                &module,
+                std::slice::from_ref(&plan),
+                &[occurrence],
+            ),
+            Err("Terminal integer comparison changed its authored negation")
+        );
+    }
+
+    #[test]
+    fn roster_rejects_operand_type_drift() {
+        let plan = plan("provider");
+        let module = comparison_module(vec![integer_equal()]);
+        let mut occurrence = occurrence(&plan);
+        occurrence.integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        assert_eq!(
+            TerminalIntegerComparisonOccurrenceProposal::validate_roster(
+                &module,
+                &[plan],
+                &[occurrence],
+            ),
+            Err("Terminal integer comparison changed operand type or identity")
+        );
+    }
+
+    #[test]
+    fn swapped_occurrence_still_addresses_both_operands() {
+        let plan = plan("provider");
+        let module = comparison_module(vec![integer_equal()]);
+        let mut occurrence = occurrence(&plan);
+        occurrence.comparison = Emitted::LessThan;
+        occurrence.operand_order = OperandOrder::Swapped;
+        assert_eq!(
+            TerminalIntegerComparisonOccurrenceProposal::validate_roster(
+                &module,
+                std::slice::from_ref(&plan),
+                &[occurrence],
+            ),
+            Err("Terminal integer comparison changed operation kind")
+        );
+
+        let less_than = Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: OperationId::new(5).unwrap(),
+            result: OperationResult::Scalar(declaration(6, ScalarType::Boolean)),
+            kind: OperationKind::IntegerLessThan {
+                left: ValueId::new(4).unwrap(),
+                right: ValueId::new(3).unwrap(),
+            },
+        };
+        let module = comparison_module(vec![less_than]);
+        TerminalIntegerComparisonOccurrenceProposal::validate_roster(
+            &module,
+            std::slice::from_ref(&plan),
+            &[occurrence],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn authored_operation_recovers_the_admitted_roster() {
+        use effects::CompilerPrimitiveIntegerComparisonOperation as Operation;
+        let authored = |comparison, operand_order, negated| {
+            TerminalIntegerComparisonOccurrenceProposal {
+                terminal_machine: MachineId::new(1).unwrap(),
+                terminal_operation: OperationId::new(5).unwrap(),
+                provider_plan_index: 0,
+                provider_plan_commitment: plan("provider").identity_digest(),
+                comparison,
+                operand_order,
+                negated,
+                integer_type: integer_type(),
+            }
+            .authored_operation()
+        };
+        assert_eq!(
+            authored(Emitted::Equal, OperandOrder::Authored, false),
+            Some(Operation::Equal)
+        );
+        assert_eq!(
+            authored(Emitted::Equal, OperandOrder::Authored, true),
+            Some(Operation::NotEqual)
+        );
+        assert_eq!(
+            authored(Emitted::LessThan, OperandOrder::Authored, false),
+            Some(Operation::Less)
+        );
+        assert_eq!(
+            authored(Emitted::LessOrEqual, OperandOrder::Authored, false),
+            Some(Operation::LessOrEqual)
+        );
+        assert_eq!(
+            authored(Emitted::LessThan, OperandOrder::Swapped, false),
+            Some(Operation::Greater)
+        );
+        assert_eq!(
+            authored(Emitted::LessOrEqual, OperandOrder::Swapped, false),
+            Some(Operation::GreaterOrEqual)
+        );
+        // Outside the admitted emission roster there is no authored meaning.
+        assert_eq!(authored(Emitted::Equal, OperandOrder::Swapped, false), None);
+        assert_eq!(
+            authored(Emitted::LessThan, OperandOrder::Authored, true),
+            None
+        );
+    }
+
+    #[test]
+    fn execution_identity_fails_closed_outside_fixed_width_integer_carriers() {
+        let identity = |integer_type| {
+            TerminalIntegerComparisonOccurrenceProposal {
+                terminal_machine: MachineId::new(1).unwrap(),
+                terminal_operation: OperationId::new(5).unwrap(),
+                provider_plan_index: 0,
+                provider_plan_commitment: plan("provider").identity_digest(),
+                comparison: Emitted::Equal,
+                operand_order: OperandOrder::Authored,
+                negated: false,
+                integer_type,
+            }
+            .execution_identity()
+        };
+        assert_eq!(
+            identity(integer_type()),
+            Some(
+                effects::CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
+                    operation: effects::CompilerPrimitiveIntegerComparisonOperation::Equal,
+                    integer_type: effects::CompilerNumericType::I32,
+                }
+            )
+        );
+        assert_eq!(identity(IntegerType::address(64).unwrap()), None);
+        assert_eq!(
+            IntegerType::new(IntegerSign::Signed, 32).unwrap().carrier(),
+            IntegerCarrier::Fixed
+        );
+    }
+
+    #[test]
+    fn non_selected_operations_need_no_occurrence() {
+        // A builtin comparison never acquires a selected-provider row: an
+        // empty roster over a module that emits integer comparisons is a
+        // roster-valid producer claim; completeness against the checked
+        // scope is enforced by final admission, not this check.
+        let module = comparison_module(vec![integer_equal()]);
+        integer_comparisons::validate_integer_comparison_occurrences(&module, &[], &[]).unwrap();
+    }
+}

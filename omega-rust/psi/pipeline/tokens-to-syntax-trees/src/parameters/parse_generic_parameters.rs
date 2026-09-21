@@ -27,6 +27,13 @@ pub(crate) enum GenericParameterSyntax {
     /// provider declaration where a dynamic envelope can still refuse them.
     RequirementSignature,
     MachineDeclaration,
+    /// A `data` declaration header. Like `StaticBinders` it admits static
+    /// machine symbols (N7 proof-data families), and it additionally admits
+    /// runtime-capable `Value` binders so a field can qualify on a stored or
+    /// erased input value. Downstream stages still own the construction-time
+    /// obligation and erased-versus-executable index decision; the binder
+    /// only gains a parse surface here.
+    DataDeclaration,
     /// A top-level `let`/`boundary let` mathematical declaration
     /// (PROOF-CONTRACT-MIGRATION). `Value` binders are admitted because the
     /// settled binder spellings `u: core::Level` and `A: core::Type<u>` are
@@ -56,6 +63,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
         GenericParameterSyntax::RequirementSignature
             | GenericParameterSyntax::MachineDeclaration
             | GenericParameterSyntax::MathematicalDefinition
+            | GenericParameterSyntax::DataDeclaration
     );
     if !input.at_punctuation(PunctuationKind::Less) {
         return Ok((ParsedGenericParameters::default(), input));
@@ -247,7 +255,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
             && input.at_contextual("satisfies")
         {
             return Err(input.error_here(format!(
-                "a `satisfies` conformance binder is not admitted on a requirement signature; `{}: <type>` already declares a runtime value binder",
+                "a `satisfies` conformance binder is not admitted in this parameter list; `{}: <type>` already declares a runtime value binder",
                 name.as_str()
             )));
         }

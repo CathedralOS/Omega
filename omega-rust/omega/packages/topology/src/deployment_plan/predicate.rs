@@ -476,7 +476,9 @@ pub fn canonical_policy_order(calls: &mut [PolicyCall]) {
 
 #[cfg(test)]
 mod tests {
-    use super::{NormalizedGraph, PolicyEvaluation, check_outcome, evaluate_policy};
+    use super::{
+        CertificateRejection, NormalizedGraph, PolicyEvaluation, check_outcome, evaluate_policy,
+    };
     use crate::deployment_plan::*;
 
     fn identity(byte: u8) -> Identity {
@@ -676,5 +678,162 @@ mod tests {
             panic!("decides")
         };
         assert!(matches!(outcome, PolicyOutcome::Satisfied { .. }));
+    }
+
+    fn external(name: &str, exports: &[u32]) -> PlanInstance {
+        let mut instance = instance(name, &[], exports);
+        instance.role = InstanceRole::ExternalParticipant;
+        instance
+    }
+
+    /// A multiplexed adapter (`mux`) mediating clients' access to a broadly
+    /// connected external participant (`net`). `wrapped` routes both client
+    /// imports through `mux`; `unwrapped` additionally binds `batch` straight
+    /// to `net` — the adapter's broad authority escapes its mediation
+    /// boundary.
+    fn mediated_graph(unwrapped: bool) -> NormalizedGraph {
+        let mut batch = instance("batch", &[1], &[]);
+        if unwrapped {
+            batch.endpoints.push(Endpoint {
+                slot: 2,
+                direction: EndpointDirection::Import,
+                contract: identity(0xC0),
+            });
+        }
+        let instances = vec![
+            instance("api", &[1], &[]),
+            batch,
+            instance("mux", &[1], &[1]),
+            external("net", &[1]),
+        ];
+        let mut bindings = vec![
+            Binding {
+                import: EndpointKey {
+                    instance: 0,
+                    slot: 1,
+                },
+                export: EndpointKey {
+                    instance: 2,
+                    slot: 1,
+                },
+                transport: identity(0x77),
+            },
+            Binding {
+                import: EndpointKey {
+                    instance: 1,
+                    slot: 1,
+                },
+                export: EndpointKey {
+                    instance: 2,
+                    slot: 1,
+                },
+                transport: identity(0x77),
+            },
+            Binding {
+                import: EndpointKey {
+                    instance: 2,
+                    slot: 1,
+                },
+                export: EndpointKey {
+                    instance: 3,
+                    slot: 1,
+                },
+                transport: identity(0x78),
+            },
+        ];
+        if unwrapped {
+            bindings.push(Binding {
+                import: EndpointKey {
+                    instance: 1,
+                    slot: 2,
+                },
+                export: EndpointKey {
+                    instance: 3,
+                    slot: 1,
+                },
+                transport: identity(0x78),
+            });
+        }
+        NormalizedGraph::new(instances, bindings).unwrap()
+    }
+
+    #[test]
+    fn broad_transport_is_admissible_only_inside_the_wrapper() {
+        // Wrapped: every client path to the broad participant is pinned
+        // through the mediation adapter — the spec's wrapped broad-transport
+        // control is the `only_via` policy over a checked boundary instance.
+        let graph = mediated_graph(false);
+        let call = PolicyCall::only_via(
+            selector(&["api", "batch"]),
+            selector(&["net"]),
+            selector(&["mux"]),
+        );
+        let PolicyEvaluation::Decided(outcome @ PolicyOutcome::Satisfied { .. }) =
+            evaluate_policy(&graph, &call)
+        else {
+            panic!("wrapped transport must satisfy only_via")
+        };
+        check_outcome(&graph, &call, &outcome).expect("certificate checks");
+
+        // Unwrapped: `batch` binds the broad transport directly, bypassing
+        // the adapter — the predicate reports the concrete wrap-breaking
+        // path, and the wrapped certificate cannot be replayed against this
+        // graph.
+        let unwrapped = mediated_graph(true);
+        let PolicyEvaluation::Decided(PolicyOutcome::Violated {
+            violation: Violation::Bypass { path },
+        }) = evaluate_policy(&unwrapped, &call)
+        else {
+            panic!("unwrapped broad binding must violate")
+        };
+        let names: Vec<&str> = path
+            .iter()
+            .map(|index| unwrapped.instances()[*index as usize].name.as_str())
+            .collect();
+        assert_eq!(names, ["batch", "net"]);
+        check_outcome(
+            &unwrapped,
+            &call,
+            &PolicyOutcome::Violated {
+                violation: Violation::Bypass { path },
+            },
+        )
+        .expect("violation witness checks");
+
+        let wrapped_reachable = match &outcome {
+            PolicyOutcome::Satisfied {
+                certificate: Certificate::OnlyVia { reachable, .. },
+            } => reachable.clone(),
+            _ => unreachable!(),
+        };
+        let forged = PolicyOutcome::Satisfied {
+            certificate: Certificate::OnlyVia {
+                path: vec![
+                    unwrapped
+                        .index_of(&InstanceName::new("batch").unwrap())
+                        .unwrap(),
+                    unwrapped
+                        .index_of(&InstanceName::new("mux").unwrap())
+                        .unwrap(),
+                    unwrapped
+                        .index_of(&InstanceName::new("net").unwrap())
+                        .unwrap(),
+                ],
+                reachable: wrapped_reachable,
+            },
+        };
+        let batch_index = unwrapped
+            .index_of(&InstanceName::new("batch").unwrap())
+            .unwrap();
+        let net_index = unwrapped
+            .index_of(&InstanceName::new("net").unwrap())
+            .unwrap();
+        assert_eq!(
+            check_outcome(&unwrapped, &call, &forged),
+            Err(CertificateRejection::NotClosed {
+                from: batch_index,
+                to: net_index,
+            })
+        );
     }
 }

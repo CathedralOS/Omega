@@ -86,10 +86,8 @@ pub(crate) fn generate_dynamic_family_specializations(
                 continue;
             }
         };
-        let Some(realization) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == family.realization_machine)
+        let Some(realization) =
+            crate::lookup::machine_by_symbol(program, family.realization_machine)
         else {
             diagnostics.push(Diagnostic::error(
                 "selected boundary family demand names no realization machine template",
@@ -230,10 +228,8 @@ fn collect_selection_demands(
                 // still settle.
                 continue;
             };
-            let Some(realization) = program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == row.realization_machine)
+            let Some(realization) =
+                crate::lookup::machine_by_symbol(program, row.realization_machine)
             else {
                 diagnostics.push(Diagnostic::error(format!(
                     "dynamic conformance row `{}::{}` has no exact realization machine",

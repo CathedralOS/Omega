@@ -82,6 +82,7 @@ fn fixture(access: StructuralAccess) -> (TerminalModule, ProofBundle) {
     machine.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(1),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -94,6 +95,7 @@ fn fixture(access: StructuralAccess) -> (TerminalModule, ProofBundle) {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(2),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishByteSequenceLiteral {
@@ -103,6 +105,7 @@ fn fixture(access: StructuralAccess) -> (TerminalModule, ProofBundle) {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(3),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -113,6 +116,7 @@ fn fixture(access: StructuralAccess) -> (TerminalModule, ProofBundle) {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(4),
             result: OperationResult::Unit,
             kind: OperationKind::StructuralByteSequenceFieldStore {
@@ -275,6 +279,7 @@ fn second_literal_cannot_supply_another_sources_length() {
         2,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(5),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishByteSequenceLiteral {
@@ -346,6 +351,7 @@ fn owned_source_and_qualified_destination_are_not_silently_accepted() {
     assert!(validate_module(&module).is_err());
     module.machines[0].structural_parameters[1].access = StructuralAccess::SharedBorrow;
     module.structural_domains.push(StructuralDomainDeclaration {
+        establishment_routes: Vec::new(),
         id: id(1),
         semantic_domain: id(1),
         identity: "test::QualifiedBuffer".into(),
@@ -371,11 +377,13 @@ fn cross_block_literal_requires_dominating_establishment() {
         target: id(901),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         residual_affine_discards: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(901),
         parameters: Vec::new(),
@@ -405,6 +413,7 @@ fn cross_block_literal_requires_dominating_establishment() {
             target: id(902),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
         when_false: SuccessorEdge {
@@ -413,11 +422,13 @@ fn cross_block_literal_requires_dominating_establishment() {
             target: id(901),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
     };
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(902),
         parameters: Vec::new(),
@@ -428,6 +439,7 @@ fn cross_block_literal_requires_dominating_establishment() {
             target: id(901),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             residual_affine_discards: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
