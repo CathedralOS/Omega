@@ -1790,644 +1790,230 @@ syntax and other terminal services are not prerequisites.
 ## Parallel language and compiler lanes
 
 - **BORROWED-STORAGE-RESTORATION.** (split-of:OMEGA-PRODUCT-COMPILER-SOURCE)
-  Connect ordinary source move-out/replace operations to the existing
-  [borrowed-storage invariant window](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows)
-  lowering and native route. The next delivery is
-  `pass/ownership/move_keyword_field_assignment` reaching verified Terminal
-  operations; another emitter-only test does not connect its missing producer.
-  This also enables the product parser's ownership pattern and, where needed,
-  the allocator strategy used by **BUMP-ALLOCATOR-CANARY**.
+  Complete consuming-transform/replacement execution under
+  [borrowed-storage invariant windows](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows)
+  and [Terminal restoration](wiki/spec/terminal-psi/ownership.md#borrowed-storage-restoration).
+  The guide move-out/restore body already produces checked Move/Store rows and
+  verified Terminal operations, including reference-local aliases. Reuse
+  `execution/unit/borrowed_windows.rs`, emission's `BorrowedWindowLedger`
+  and Omega's `lowering/machine/operation/borrowed_windows.rs`.
 
-  The checker and checked interpreter already handle consuming a field through
-  an exclusive borrow and restoring it. Terminal verification, codec and
-  interpretation also handle the move/store pair, and
-  `terminal-psi-to-abstract-operations/src/lowering/machine/operation/borrowed_windows.rs`
-  carries both operations. Reuse those owners.
+  Replace the producer's leading move-local/restore-only recognizer with
+  ordinary operation sequencing and explicit place/value custody. Connect
+  consuming calls and replacement values, disjoint sibling work and multi-block
+  joins. Independently reconstruct equal open-place frontiers and closure at
+  required exits, retaining evaluation order, nested/live-arm agreement,
+  contained loans and outcome obligations. Whole-root, indexed, referent,
+  scalar-field and nominal-drop fences stay until their evidence exists.
 
-  Remaining work:
+  Complete target/native realization without replacing caller storage by a
+  staged copy. Promote `ownership/move_keyword_field_assignment` from
+  checked-only when its full-product route succeeds. Reobserve that command's
+  current failure rather than retaining the retired entry-multiplicity blocker.
+  The product parser and **BUMP-ALLOCATOR-CANARY** consume this mechanism.
 
-  - Done — `MoveStructuralField`/`StoreStructuralField` rows land in
-    `CheckedUnitEffectOperationPlan`; `execution/unit/borrowed_windows.rs`
-    produces them from a leading `let local = root.field` move-out prefix plus
-    `root.field = move local` restore stores on `&mut` parameter storage, and
-    ordinary emission routes them through `BorrowedWindowLedger` (closure at
-    the state exit). The guide body now plans and verifies; the flipped pin
-    `emission::borrowed_window::tests::the_guide_canary_body_routes_move_out_and_restore_through_the_ledger`
-    witnesses `Main::main` emitting the verified Move/Store operation pair.
-  - Consume those rows through
-    `checked-trees-to-lowered-psi/src/emission/borrowed_window.rs`'s existing
-    `BorrowedWindowLedger::emit_move`/`emit_store`. Require closure at
-    non-crash exits and equal open-place frontiers at joins. Preserve its
-    exact type/path checks; unsupported whole-root, indexed, referent and
-    scalar-field routes reject. Done for single-state bodies — joins and
-    multi-block frontiers still need a producer that emits them.
-  - Promote the guide fixture from checked-only to the active lowering roster
-    once connected, then bind ordinary ProgramEntry roots and complete target
-    lowering/native realization. The fixture stays checked-only for now: the
-    active roster runs native-artifact production, which requires the exact
-    selected ProgramEntry leg owned by **EXACT-PROGRAM-ENTRY-MULTIPLICITY**.
-    The source, Terminal and abstract halves are not evidence that the native
-    consumer exists.
-  - Preserve arm agreement: each live arm must restore the same places, nested
-    agreement composes, dead arms owe nothing, and source evaluation order
-    determines when the hole opens. Transition-edge moves and conditional
-    extraction without that agreement stay rejected. Add missing
-    contained-loan and recoverable-failure controls; retain the checker and
-    checked-interpreter `borrowed_restoration` suites and
-    `fail/ownership/borrowed_storage_boundary_call`.
+  Acceptance: a consuming transform then replacement executes with
+  caller-visible updated contents and exact-once custody in Terminal
+  interpretation and supported native targets, including sibling work, repair
+  on both branches and contained-loan transport. Missing repair, early return,
+  stale reads, overlapping loans, wrong-place repair, repeated extraction and
+  whole-owner cleanup reject; tampered artifacts fail independent replay.
+  Cover recoverable failure, suspension/resume/cancellation and crash/process-exit
+  abandonment without invented rollback or survivor guarantees. Preserve the
+  checker/interpreter `borrowed_restoration` suites, ledger controls and
+  `fail/ownership/borrowed_storage_boundary_call`.
 
-  Acceptance: a consuming transform followed by replacement executes with
-  caller-visible updated contents and exact-once custody in the Terminal
-  interpreter and supported native targets, beside disjoint sibling work,
-  repair on both branches and contained-loan transport. Missing repair,
-  early return, stale reads, overlapping borrows, wrong-place replacement,
-  repeated extraction and whole-owner cleanup reject; tampered Terminal
-  evidence fails independent replay. Cover recoverable failure,
-  suspension/resume/cancellation custody and crash/process-exit abandonment
-  without invented rollback or survivor guarantees. Do not add an adjacent
-  move/assignment recognizer, weaken nominal-drop restrictions, or delete
-  rejection gates before their required evidence exists.
-
-- **MATCH-SELECTIVE-LOWERING.** Complete the [value-dispatch
-  contract](wiki/spec/language/patterns.md) for owned/nonnumeric results with
-  parameter/projected/borrowed/linear custody, structural/case/domain patterns
-  and coverage. Owned selection already transports interleaved live owners,
-  authored state joins, projected affine children, whole state parameters,
-  chained selection results, fresh structural call products and linear sources
-  (a whole place, one projected child, or a whole carrier's claim frontier).
-  Shared-borrow joins carry record and linear-record referents over named local
-  or parameter roots with field and literal fixed-index segments, and plan a
-  primitive-referent carrier. Do not rebuild those slices. Owners:
-  `validation/src/value_custody/expression_types/{match_dispatch,result_type}.rs`,
-  checked scalar computation/result continuations, Terminal production and
-  canonical package-review contract/index projection. Preserve a
-  once-evaluated subject, ordered first match, branch-local execution, exact
-  result owners, exact origins and actual death edges; do not flatten
-  conditional ownership into a statement-wide move roster.
+- **MATCH-SELECTIVE-LOWERING.** Complete
+  [value dispatch](wiki/spec/language/patterns.md) for owned/borrowed/linear
+  results, structural/case/domain patterns and coverage. Owners: validation's
+  `value_custody/expression_types/{match_dispatch,result_type}.rs`, checked
+  value continuations, Terminal production and package-review contract/index
+  projection. Preserve once-only subject evaluation, authored first-match
+  order, selected-arm-only execution, exact result/loan origins and death edges.
 
   Remaining work:
 
-  - Owned arms that forward or move existing affine custody through a call,
-    receiver-bearing and subject calls still need their exact residual
-    transport; they reject today. Record arms whose fields move existing
-    affine children now check: each projected field leaf joins the transfer
-    roster under its arm and source root carrying its own declared member
-    type, overlapping moved paths on one arm reject as double consumption,
-    and the lowering receipt verifies each projected leaf's claim frontier
-    against its leaf type rather than the result type. What remains is leaf
-    emission — `RecordFieldValue::Structural` arguments must carry an empty
-    `path`, so leaf fields need per-arm extraction into whole places (edge
-    arguments to block parameters to `EstablishRecord`), which sits in
-    `src/unit`/`src/emission`;
-    `owned_match_record_arm_children_check_but_await_leaf_emission` pins the
-    boundary. Owned indexed leaves share that boundary: the admission gate's
-    projected-child rule now follows `constant_integer_value`, so
-    `items[0 + 1]` joins and checks exactly like `items[1]` — the
-    `match_dispatch` admission tests and the checker's
-    `value_dispatch::constant_index_projection` pin the join and the kept
-    rejection of indexes without a fixed ordinal, while
-    `folded_index_projection` (`tests/value_dispatch/owned_results`) pins both
-    spellings stopping at the same scalar-control-plan gap. On 2026-09-19
-    (Linux x86-64, base ac1efde2f7) the scoped runs are
-    `cargo nextest run -p validation --lib
-    value_custody::expression_types::match_dispatch`,
-    `-p typed-trees-to-checked-trees --lib value_dispatch`, and
-    `-p checked-trees-to-lowered-psi --test suite value_dispatch`, all
-    passing; leaf emission still must transport the `FixedIndex` path to
-    close it.
-  - Claim-bearing bodies do not lower. The checker joins a whole affine root
-    with linear children by naming each frontier claim, but lowering stops at
-    "machine has no source-independent checked scalar control plan" for a
-    machine whose body holds claim-bearing custody
-    (`tests/value_dispatch/owned_results/linear_child_carriers.rs` pins it).
-  - Borrowed-result consumers. A `&Payload` selection forwards its joined
-    place to a call and executes, and an established `&Payload` join lowers
-    even unread. A direct `let view: &T = &place` outside a match now
-    establishes the shared-borrow carrier directly and executes
-    (`established_reference_local_call_forwards_the_direct_borrow`,
-    b7d932c341). The primitive consumer lane is admitted: a `&u64` callee
-    body plans a source-independent `PrimitiveScalarRead`, a `&u64` formal
-    forwards the exact entry place end to end, and `read(view)` retains an
-    established `&u64` view as a whole `PrimitiveScalar` `SharedBorrow`
-    argument (2e4ee8f08b). Primitive joins now verify and interpret
-    (8657ed47f7, 1a17b2938d); do not reopen the retired
-    `InvalidBlockStructuralParameter` gap. A focused macOS ARM64 probe at
-    a10fbe20d0 using `PRIMITIVE_CALL_SOURCE` from
-    `checked-trees-to-lowered-psi/tests/value_dispatch/borrowed_results.rs`
-    interpreted both arms as 1/4, but native lowering rejected
-    `UnsupportedStructuralBlockParameters` (machine 1, block 12).
-    Next acceptance is native execution of both projected-field arms.
-    `terminal-psi-to-abstract-operations/src/lowering/block_bindings.rs`
-    only accepts byte-sequence borrowed block parameters, and
-    `abstract-operations-to-target-operations/src/lowering/control_flow/transfers.rs`
-    additionally requires empty argument paths and equal whole-source types.
-    Coordinate the latter with WRITE-ONLY-BORROW's shared lowering scope;
-    removing only the first gate cannot close the customer.
-  - Remaining borrowed joins are separate questions, not a wider carrier:
-    exclusive (`&mut`) arms have affine custody of their own, and case-bearing
-    referents stay outside the record-shaped frontier. Dynamic indexes, ranges,
-    case members and computed roots in a borrowed target stay rejected.
-  - Borrowed subject. Indexed affine tag observation reaches checked trees
-    without copying the element (`typed-trees-to-checked-trees`
-    `tests::multiplicity::borrowed_case_payloads`). Retain the once-captured
-    borrowed subject and exact source-state loan closure when producing and
-    replaying successor plans; checker acceptance is not Terminal lifecycle
-    publication. `SAMPLE-CORPUS`' `dutch_flag` native command still stops at the
-    missing transitive `Main::main` plan; preserve its exit-70 oracle and
-    explicit copyable swap values.
-  - Result types. Selected-operator and named operator `-> T` results now
-    instantiate to the exact operand reference the first bare-`T` parameter
-    position bound, at every expression owner (state, parameter telescope,
-    domain predicate); composite returns (`Pair<T>`), dependent predicates
-    (a result postcondition bounded by `left` or an indexed domain), unbound
-    result parameters and ambiguous selections
-    remain unresolved rather than fabricating identity. A bound owned result
-    (`T` := `Payload`) now enters the same branch-custody join as a declared
-    `-> Payload`: both `match` arms are judged instead of the generic arm
-    slipping through untyped — `result_type::tests` and the checker's
-    `value_dispatch::semantic_results` pin admitted scalar joins and the
-    bound/unbound owned split. Still needed: instantiated shells for composite
-    and constrained results, and exact static arguments for indexed
-    predicate/theorem and package membership applications. Qualified
-    callable-entry signatures, predicate/routed membership and erasure require
-    real transport rather than payload-only projection; input predicates are
-    not arithmetic result facts. **OPERATOR-MACHINE-SUPPLY** owns declared
-    operator execution; **CRASH-CONTRACT** owns crash-qualified equality;
-    numeric landing is in **STATE-LOCAL-VALUE-FRONTIER**.
+  - Carry existing affine custody through branch-local calls/receivers and
+    effectful subjects; emit projected record fields and fixed-index leaves
+    through per-arm extraction and exact successor places. Resume from
+    `value_dispatch/owned_results/{call_product_arms,folded_index_projection,linear_child_carriers}.rs`:
+    checking record-child joins or literal/folded index equivalence does not
+    supply leaf emission or claim-bearing body plans.
+  - Complete native shared-reference joins. Direct borrowed locals and
+    primitive shared joins already lower, verify and interpret. Omega's
+    `block_bindings.rs` still limits borrowed block parameters to byte views;
+    target `control_flow/transfers.rs` rejects projected borrowed edges,
+    although projected owned edges now have a route. Repair both consumers,
+    coordinating with **WRITE-ONLY-BORROW**, and observe both arms of
+    `borrowed_results::PRIMITIVE_CALL_SOURCE` natively.
+  - Complete exclusive and case-bearing borrowed joins under their own custody,
+    and borrowed-subject successor lifecycle publication. Dynamic indexes,
+    ranges, case members and computed borrowed roots need real place/loan
+    evidence, not a wider unchecked carrier. Retain exact source-state loan
+    closure; checking a borrowed tag does not publish its lifecycle.
+  - Instantiate composite/constrained result shells and exact static arguments
+    for indexed predicates/theorems and package memberships. Bare bound
+    operator `-> T` results already retain the operand's exact type; unresolved
+    dependent shells must not export declaration-local identities.
+    Qualifications, routed membership, callable signatures and erasure need
+    actual transport. **OPERATOR-MACHINE-SUPPLY** owns operation execution,
+    **CRASH-CONTRACT** crash-qualified equality, and
+    **STATE-LOCAL-VALUE-FRONTIER** numeric landing and sequencing.
 
-  Acceptance: `checked-trees-to-lowered-psi --test suite` (`value_dispatch::`),
-  `omega-native-differential-test --test scalar_case_results`, corresponding
-  checker/interpreter controls, and the
-  [float Match native customer](omega-rust/omega/compiler/compiler/float_realization.md#operation-and-control-custody)
-  preserve effects, skipped trapping arms, overlapping patterns, complete
-  coverage and independent replay. Keep `match_anonymous_result_landing` and
-  `numeric_operand_destinations` as source probes. Wrong qualifications,
-  ownership, selected result types and incompatible arms must reject before an
-  outer bare-carrier cast; source validity alone is not native completion.
+  Generalize checked place/loan establishment across matches, locals and calls;
+  do not expand an arm-expression roster or flatten branch ownership into a
+  statement-wide move list. The old direct-borrow-local refusal is not a
+  remaining limitation.
 
-  Flag: admission here grows one source shape at a time. `is_record_value` in
-  `typed-trees-to-checked-trees/src/values/scalar/computations/structural_values.rs`
-  accepts a fixed list of arm expression kinds and admits
-  `ExpressionNode::Borrow` only beneath a `Match`, which is why the direct
-  borrowed local above cannot lower while the same borrow as a match arm can.
-  The shared-borrow carrier rule is restated in three places that must widen
-  together: validation's `selected_shared_borrow_place`, the checked
-  `shared_record_reference` and lowering's `shared_borrow_record_referent`. The
-  general mechanism is one checked place/loan establishment for a borrowed or
-  owned source in any position, consumed alike by match joins, `let` and calls,
-  which lowering and the verifier replay instead of re-canonicalizing the
-  authored target.
+  Acceptance: close the `checked-trees-to-lowered-psi --test suite value_dispatch`
+  gaps and native `scalar_case_results` /
+  [float Match customers](omega-rust/omega/compiler/compiler/float_realization.md#operation-and-control-custody).
+  Preserve effects, skipped trapping arms, overlapping patterns, full coverage,
+  and independent replay. Retain `match_anonymous_result_landing`,
+  `numeric_operand_destinations`, and `dutch_flag`'s native exit-70 oracle with
+  explicit copyable swaps. Wrong qualifications, ownership, result types and
+  incompatible arms reject before an outer bare-carrier cast. Checking or
+  interpretation alone does not close native execution.
 
-- **OPERATOR-MACHINE-SUPPLY.** Implement the
-  [machine token-binding and executable-supply contract](wiki/spec/language/expressions.md#executable-supply)
-  from Psi parsing through native call realization, and remove the separate
-  `operator` introducer instead of keeping two permanent source forms. A fixed
-  token after `machine` already reaches every declaration representation.
-  Resolution rejects duplicate owner-local shapes and operand tuples without a
-  semantic home (`lowering/machine/token_bindings.rs` in symbol resolution),
-  and since `9913f44891` the duplicate check spans both introducers: every
-  spelling-bearing `operator` definition — root, `boundary operator`/`boundary
-  machine` slots, and domain-homed members — joins the machine set's
-  token/owner/shape space, alpha-normalized by each binder's first-occurrence
-  position so `combine<T,U>(T,U)` and `combine<A,B>(B,A)` collide at the
-  second declaration instead of surfacing as use-site ambiguity. Use sites select
-  by operand type, and the checked stage rewrites each resolved binary or
-  indexed use into an ordinary call on the declaration's entry state
-  (`typed-trees-to-checked-trees/src/operators/token_bound_machine_calls.rs`),
-  normalizing `[..]` endpoints first: an omitted start supplies literal zero
-  to an integer start parameter and an inclusive end supplies its `end + 1`
-  form gated on an integer end operand, while open-ended uses still reject.
-  Token-bearing `boundary machine` signatures lower to the existing boundary
-  slot, bare bodyless signatures are admitted only by exact catalog custody,
-  and a bodyless nonboundary machine rejects at its declaration. That does not
-  establish the contract: the introducer still parses, 208 `operator`
-  declarations remain in `.omg` sources, only binary and indexed positions
-  have body supply, both pass canaries are checked-only, and the three
-  settled rules below are not enforced.
+- **OPERATOR-MACHINE-SUPPLY.** Complete
+  [declaration-owned executable supply](wiki/spec/language/expressions.md#executable-supply),
+  [call preconditions](wiki/spec/language/machines.md#call-preconditions), and
+  [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
+  through independent Terminal replay and native execution, then retire the
+  separate `operator` introducer.
 
   Remaining work:
 
-  - [Call preconditions](wiki/spec/language/machines.md#call-preconditions).
-    Finish mathematical term formation beyond concrete machine/state contracts.
-    `validation/src/proof_contracts/contract_entailment/specification_calls.rs`
-    checks their selected concrete calls before fact intake, rejects circular
-    requirement dependencies, and uses positive constructor or exact arithmetic
-    evidence. `proofs/contract_call_missing_premise` rejects a contract-only
-    reflexive call; `mathematical_call_premises` accepts its premise-bearing twin
-    and imports core cancellation and `sub_le`. Ordinary statement calls retain
-    the exact-site `call_requirements.rs` judgment and separate induction descent.
-    Remaining owners: abstract signatures, domain/default-domain predicates,
-    explicit static callable/evidence substitution, conditional/induction and
-    general postcondition transport of case-membership guarantees, and
-    nominal/propositional premises.
-    `proofs/case_call_premises` covers concrete and symbolic tag premises,
-    completed concrete-call guarantees, matching and named-state forwarding;
-    `case_call_wrong_subject` and `case_citation_wrong_result` reject different
-    subjects. Concrete citations use exact target/result bindings and discharge
-    their own premises before later calls consume a tag. Extending this to
-    abstract callable contracts or induction must preserve that ordering,
-    independently establish descent, and never import private strengthening.
-    Tag predicates retain exact classifier identities without field equations.
-    Structural receiver-call premises and projections outside denotational call
-    admission still fail closed; receiver-call opacity cannot substitute arguments. Constructor normalization
-    still needs unsupported float/array
-    leaves and established qualified defaults; supported Boolean/integer and
-    nested data fields must keep complete value rosters, separate from case
-    classifiers. Extend formation only with exact selected identity and complete
-    substitution across shared consumers; never use unrefuted as proved.
-    `opaque_receiver_call_cannot_hide_a_changed_requirement_argument` must retain
-    wrong-argument rejection beside an accepted exact-argument twin.
-    Finish Terminal transport of call-containing scalar requirements. Reuse
+  - Carry call-containing scalar requirements into Terminal without dropping
+    premises. Resume from
     `contract_application_terms::runtime_body_calls_execute_with_checked_premises`:
-    its Boolean `caller(value)` invokes `restricted(saved, value)` under
-    `observe(left) == observe(right)`. Checked execution observes both results,
-    but `TerminalProductionRequest::new(&checked, "caller").produce_artifact()`
-    rejects with `scalar contract contains an unsupported clause` on macOS
-    AArch64. The checked contract's missing predicate reaches
-    `checked-trees-to-lowered-psi/src/scalar_graph/scalar_contracts.rs::covered_requires`.
-    Acceptance is the same program's canonical reload, independent verification,
-    interpretation and native execution without dropping its requirement.
-    Runtime transport beyond builtin Boolean/integer equality still needs
-    citation and induction evidence; nested operands need actual premise
-    checking, not a separate lowering refusal counted as coverage.
-    These are implementation dependencies, not unanswered language design. Then migrate
-    `core/nat.omg`'s `Nat::{subtract,less_or_equal}` from `operator` plus
-    `satisfies` pairs to declaration-owned bodies; `Nat::saturating_sub` stays
-    the separate total operation. Controls:
-    `proofs/nat_exact_subtraction_requires_order` and a named-call twin reject
-    absent order even when the result is only mentioned in a proof term,
-    discarded or erased; equal operands and predecessor at one accept; a
-    decreasing recursive call with an unmet premise and a premise-satisfied
-    call without descent both fail; a runtime-representable contracted machine
-    owes the same obligations in runtime, admitted evaluation and proof use.
-  - [Licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization).
-    `validation/src/value_custody/type_references/open_index_expressions.rs`
-    still finds its operation through `resolve_satisfied_checked_operator`,
-    and the structural judgment's algebra-evidence join consumes the result.
-    Require the caller's explicit conformance instead: commutativity for
-    reordering, associativity for reassociation, each other rewrite its own
-    law. Reuse conformance binders, operation selection and checked law slots;
-    add no `using` clause, per-expression binder or index-operation registry.
-    Migrate the four `IndexAlgebra::plus` fixtures
-    (`generics/open_index_local_fact`,
-    `generics/open_computed_quantity_result`,
-    `fail/generics/open_index_unestablished_equality`,
-    `fail/generics/open_index_unlicensed_algebra`) to trait requirements and
-    named conformances, not to an operator injected into bare `u64`.
-    Controls: missing selection, an unproved law or another operation's
-    evidence rejects; commutativity alone does not reassociate; a
-    noncommutative operation stays usable without rewrites; the constant-three
-    operation shows AC implies neither zero identity nor integer addition.
-  - Body supply outside binary expressions. `token_bound_machine_calls.rs`
-    binds attached `[]` uses and closed `[..]` uses (`start..end`, `..end`,
-    `start..=end`, `..=end`) under the spec's range normalization, but
-    match-arm equality selections still reject, open-ended `start..`/`..`
-    uses still reject because the omitted endpoint is the collection's
-    length -- which a declared `[..]` telescope cannot form -- and a token
-    use inside a build machine fails closed. Indexing uses
-    [ordinary receiver borrowing](wiki/spec/language/expressions.md#indexing-and-ranges):
-    route attached `[]`/`[..]` through the loan formation named method calls
-    use. Re-author the recorded failure
-    `tests/multiplicity/borrowed_observations.rs::indexed_operand_access_preserves_shared_collection_and_owned_index`
-    ([baseline note](wiki/drafts/known_baseline_failures.md)) with an attached
-    receiver and a separate ordinary-parameter control; do not restore
-    wildcard operand re-seeding. Controls: `buffer[index]` and its named
-    attached call agree on once-only evaluation, a shared collection loan and
-    an owned index moved once; computed and borrowed results, mutable receiver
-    authority, returned-loan lifetimes, bounds rejection, conflicting borrows
-    and ambiguous adapted candidates are covered; ordinary parameters gain no
-    receiver adaptation.
-  - Closed-family ownership across packages. The current check is owner-local
-    within one program. A free binding needs its home typed (which declared
-    operand type owns the family), and only that home's owning package may
-    publish it; an unauthorized declaration rejects at its declaration, not at
-    a use.
-  - Native execution. `expressions/declared_operator_match_result` and
-    `expressions/token_bound_machine_operand_selection` stay in
-    `CHECKED_ONLY_PASS_CANARIES` because native admission rejects borrowed and
-    by-value local data arguments to a free machine, independently of token
-    supply (**STATE-LOCAL-VALUE-FRONTIER**); by-value operands in a match arm
-    also wait on **MATCH-SELECTIVE-LOWERING**'s owned-match custody join. Keep
-    the selected-call join in `values/scalar/computations.rs` (checked stage)
-    and `scalar_graph/scalar_computations/source_custody.rs` (lowered Psi)
-    compositional.
-  - Introducer retirement. `operator` parses in
-    `tokens-to-syntax-trees/src/declarations/{parse_declaration,operator,domain,trait_definition}.rs`,
-    and trait and domain bodies accept a token only through it. The
-    token-binding law already spans both forms (`9913f44891`), so what remains
-    is the source migration plus erasing the `operator` representation. 171 of
-    the 208
-    declarations are tokenless `boundary operator` rows (124 in
-    `core/float_operations.omg`, 29 generic rows in
-    `core/{slice,vec,array,fixed_vec,ptr}.omg`, 18 in `tests/omega`); they
-    move to `boundary requirement` through **TOP-LEVEL-BOUNDARY-REQUIREMENTS**,
-    which executes only public nongeneric receiver-free requirements today.
-    The two fused-multiply-add rows already use the requirement-side intrinsic
-    bridge (`provider-planning/src/compiler_intrinsics/requirement_view.rs`).
-    The two `Nat` and four `IndexAlgebra` declarations follow the first two
-    bullets. The other 31, all in `tests/omega` (`operators/` overload and
-    duplicate controls, `generics/closed_indexed_quantity`,
-    `termination/custom_ranking_*`,
-    `termination/computed_measure_authored_operator`,
-    `terminal_psi/structural_scalar_trait_operator`), take declaration-owned
-    bodies or trait `machine <token>` requirements, as do about 360
-    declarations embedded in 95 Rust test files. Then invert
-    `typed_trees::operator::SpelledOperator` to wrap machine signatures;
-    provider planning, build-time `machine_execution/selected_operators.rs`,
-    evidence `capture/callables/boundary_operators.rs` and result-domain
-    overload dispatch read `OperatorDefinition` today. Preserve exact semantic
-    identities or reject stale schema artifacts explicitly.
+    checked interpretation covers `restricted(saved, value)` under
+    `observe(left) == observe(right)`, but the test stops before Terminal.
+    Re-witness the recorded `scalar contract contains an unsupported clause`
+    at `scalar_contracts::covered_requires`; require canonical reload,
+    independent verification, interpretation and native agreement.
+  - Extend call-premise formation across remaining contract owners and
+    substitutions: abstract signature declarations, domain/default predicates,
+    static callable/evidence arguments, receiver/projection terms and
+    citation/induction case guarantees. Abstract **callee** attribution already
+    exists in `specification_calls.rs::RequirementOwner::Signature`; that does
+    not validate every call occurring **inside** an abstract contract.
+    Establish premises before result formation or guarantee intake, including
+    erased/discarded uses; recursion separately requires descent. Preserve
+    exact subject/argument identity, complete constructor values versus tag-only
+    evidence, and public-contract boundaries. Unsupported evidence is not proof.
+  - Complete selected token-body supply outside the admitted expression routes,
+    including open-ended ranges and match-pattern equality. Reproduce the
+    build-machine refusal before assigning its repair. Reuse ordinary calls,
+    attached receiver loans and once-only operand evaluation; no separate
+    operator interpreter or fallback arithmetic. These refusals are
+    implementation boundaries, not new semantic prohibitions.
+  - Finish per-law normalization coverage atop the explicit selected-conformance
+    route in `open_index_expressions.rs`. It currently records an algebra only
+    when both commutativity and associativity slots exist; reordering must need
+    only its commutativity law, while reassociation needs associativity.
+    Preserve missing/ambiguous selection, wrong-operation and unproved-law
+    controls. Noncommutative operations remain usable without rewrites; AC
+    grants neither zero identity nor integer-addition meaning.
+  - Execute `expressions/declared_operator_match_result` and
+    `expressions/token_bound_machine_operand_selection` natively; both remain
+    checked-only. Coordinate local-data argument custody with
+    **STATE-LOCAL-VALUE-FRONTIER** and owned selective execution with
+    **MATCH-SELECTIVE-LOWERING**, retaining the checked/lowered selected-call joins.
+  - Migrate library/corpus/embedded-test declarations and remove the old parser
+    and representation consumers. Use the
+    [retirement inventory](wiki/drafts/operator_introducer_retirement_inventory.md)
+    for navigation, not as a current census. Tokenless boundary rows depend on
+    **TOP-LEVEL-BOUNDARY-REQUIREMENTS**, including generic requirements.
+    Trait/domain token signatures need ordinary `machine` grammar: the trait
+    parser still reads token spelling only after `operator`. Rejoin
+    `SpelledOperator`, provider planning, selected build-time execution,
+    package evidence and result-domain dispatch to the surviving declarations.
+    Preserve semantic identities or explicitly reject stale schemas.
+    Nat declaration-owned bodies, closed-family package ownership and attached
+    index receiver adaptation already exist.
 
-  Acceptance: wrapped 250 + 10 yields 260u64 in the selected true Match arm,
-  the false arm yields 1 without invoking the operator, the named call returns
-  260, and checked interpretation, independent Terminal replay and native
-  execution agree. Cover token and named calls, generic and stateful bodies,
-  once-only ordered operands, private helpers behind a public declaration,
-  qualifiers and ordinary contract rejection. Missing body,
-  bodyless-plus-satisfier, foreign primitive-family injection, duplicate owner
-  shapes and forged compiler primitive identity reject. An unrelated import or
-  visible conformance cannot change selection or cause a collision. Selected
-  operation, law and call/loan identities survive generic substitution and
-  replay. Unsupported paths fail closed, never falling back to builtin
-  arithmetic or matching a compiler primitive by leaf name.
-
-  Trait conformance selection, target-default or overridden float provider
-  execution (**FLOAT-PROVIDERS**) and canonical compiler float-meaning
-  evaluation keep their separate supply routes.
-
-  Re-verified at `53817f8759e` (linux x86-64): two bullets landed on
-  main — indexing/body-supply rides the attached-receiver loan
-  (`7ec7ee32e8` + `b845a7afd7`; the recorded
-  `indexed_operand_access_preserves_shared_collection_and_owned_index`
-  failure is marked resolved in `known_baseline_failures.md`, and the
-  match-arm-equality/open-ended/build-machine rejections are the
-  contract's intended closed behavior, not a gap), and closed-family
-  cross-package ownership rejects at declaration (`7c01b4c12a`,
-  `symbol_package_identity` in `token_bindings.rs`). Every residual leg
-  is fenced or upstream-gated: call preconditions route through
-  `validation/src/proof_contracts/contract_entailment/specification_calls.rs`
-  (PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION ~16:19Z) and
-  `checked-trees-to-lowered-psi/src/scalar_graph/scalar_contracts.rs`
-  (RC-REPOSITORY ~14:39Z); licensed normalization's four
-  `IndexAlgebra::plus` fixtures sit under `tests/omega/pass/generics`
-  (NEW-RBRA-PASS-RECAST-GENERICS ~15:22Z) — the
-  `open_index_expressions.rs` rewrite cannot land without them without
-  breaking the fixtures it replaces; native execution waits on
-  STATE-LOCAL-VALUE-FRONTIER (~15:45Z) and MATCH-SELECTIVE-LOWERING;
-  introducer retirement's 171 `boundary operator` rows wait on
-  TOP-LEVEL-BOUNDARY-REQUIREMENTS, the `Nat` pair on the
-  call-preconditions bullet, `IndexAlgebra` on the normalization bullet,
-  and the corpus leg is partially fenced
-  (`tokens-to-syntax-trees/src/declarations/data.rs` under
-  NEW-RVG-DATA-VALUE-BINDER-PARSE ~16:59Z; `tests/omega/fail/termination`
-  under NEW-RBRA-FAIL-TERMINATION ~16:42Z). No unfenced independent
-  slice; no code change.
-- **NEW-ENTRY-RECEIVER-ELIGIBILITY-REJECTION-WITNESS.** Resolved —
-  minted name for a rejection-witness pin over `terminal-production`'s
-  `receiver_eligibility::derive`; the surface already carries it.
-  Verified at `90df29812c` on linux x86-64: the module's 16-test
-  `#[cfg(test)] mod tests` (:527) witnesses every rejection family —
-  free entry with no `self` receiver, `&self`/by-value non-exclusive
-  accesses, domain-predicate and zero-validity failures across
-  record/array/sum/byte carriers, retained-vs-erased projection
-  corruption, entry attachment cleared, structural-identity mismatch,
-  duplicate structural-type declarations, erased fields with
-  fused-service establishment, nominal cleanup and nonzero gates, and
-  unrelated-cleanup non-binding — via module corruptions asserting
-  `derive(...) == None` or `receiver_eligibility() == None`. No
-  unwitnessed branch remains under this name.
-- **NEW-RVG-STALE-CALL-GUARD-SOURCE-CHECK.** Resolved — minted name for the
-  stale-call-guard source-check leg of RUNTIME-VALUE-GENERICS, already
-  landed at `725798149efe` ("checks: retire stale guard premises at the
-  source contract check"): `incoming_guard_proves_requires` in the scoped
-  `checks/contracts/calls.rs` now requires the caller state to preserve
-  every field the requirement names plus every unqualified operand name
-  the instantiated label spells (`caller_state_preserves_label_names`),
-  so a stale guard + `limit = 0` rejects at `check_source` before the
-  artifact gate (`runtime_bound_stale_call_guard_rejects_publication`;
-  13/13 `runtime_bound_*` PASS at `b53c7ea260`, folded under
-  the prior ledger cleanup). Re-verified at `891eb5c584` on linux
-  x86-64: both functions intact at `calls.rs:513`/`:~590`. No slice
-  remains under this name.
-- **NEW-CPMS-PACKAGE-MODE-SIGNAL-DESIGN.** Resolved — the dispatched name's
-  scoped deliverable already landed: `bddf64b16a25` ("wiki: canary
-  package-mode signal design for NEW-CPMS-PACKAGE-SIGNAL-DESIGN") wrote
-  `wiki/drafts/canary_package_mode_signal.md`, the design record for
-  CANARY-PACKAGE-MODE-SIGNAL — parsed `DependencyRow` +
-  canonical-path resolution replaces the `fixture_declares_ordinary_std`
-  substring probe, a roster `PACKAGE_MODE` marker covers the zero-edge
-  package opt-in, and the acceptance mapping covers the
-  `quotient_define_managed_compile` exception deletion plus the
-  escaping-path refusal. Re-verified at `4b0569d183` on linux x86-64: the
-  draft is intact and its implementation legs still name live surfaces
-  (`canary_suite.rs` substring probe at :3410, the roster rosters,
-  `repository_build_declarations.rs` exception). No slice remains under
-  this name; the implementation legs it lists belong to the parent
-  CANARY-PACKAGE-MODE-SIGNAL row.
-- **NEW-OMS-OPERATOR-INTRODUCER-INVENTORY.** — mined candidate;
-  scope verified, slice landed 2026-09-21 (z181): the inventory of
-  the `operator` introducer's retirement surface is committed at
-  `wiki/drafts/operator_introducer_retirement_inventory.md` — 212
-  `operator`-introduced declarations at `82741ec439` (157 library +
-  18 test boundary rows; 37 plain test rows; zero library plain
-  rows), the parse/representation/resolution/checking/supply-mode
-  surfaces to retire, per-bucket migration routing, and the removal
-  order. The migration legs themselves stay with
-  OPERATOR-MACHINE-SUPPLY (TOP-LEVEL-BOUNDARY-REQUIREMENTS generic
-  requirements gate the 29 generic rows).
-- **NEW-OMS-SPECIFICATION-CALL-CONSTRUCTOR-LEAVES.** Mined candidate;
-  slice landed — pin leg on the specification-call surface. A requirement
-  citation whose operand is a constructor leaf is judged by its case:
-  `take_empty(Tree::Empty)` proves `value in Tree::Empty` (the leaf IS
-  the established subject) while `take_empty(Tree::Node { child: k })`
-  rejects at each citation even with `k` established — the constructed
-  value's case, not its field's, decides. Two pins added beside the
-  existing subject-attribution pair in
-  `specification_calls/tests.rs`: matching constructor leaf proves, wrong
-  constructor leaf rejects with the exact requires diagnostic at both
-  occurrences. `cargo nextest run -p validation --lib -E
-  'test(/specification_calls/)'`: 4/4 PASS on linux x86-64; `cargo fmt`
-  clean. Worked unclaimed — no claimable marker for this name and the
-  file tree carries no live fence.
-- **NEW-OSSB-SEMANTIC-BINDINGS-LEDGER-REFRESH.** Minted name — scope
-  verified, resolved: the ledger at
-  `omega-rust/omega/build/package-compilation/semantic_bindings.md` was
-  re-checked line-by-line against `src/semantic_bindings.rs` at
-  `2dbfecd98e` (linux x86-64) and carries no drift — all nine
-  `AcceptedSemanticBindingRole` members are named with the correct
-  `new`/`new_service` split (the two exit roles take a selected provider
-  plan digest; the filesystem service and six program-entry roles take
-  none), the program-entry row's omitted calling-plan fields match
-  `accepted_service_schema_digest` clearing
-  `calling_plan_report_fingerprint`/`calling_plan_commitment`, and the
-  prose counts still hold — the filesystem cohort table names 50 methods
-  across the six `PortableFilesystemAuthorityFacet` facets drawn from the
-  14 `TerminalAuthorityClass` variants. The .rs fence recorded on
-  OPTIONAL-STDLIB-SEMANTIC-BINDINGS does not cover this .md; nothing to
-  land.
-- **MODULE-NAMESPACE-RESOLUTION.** Finish the
-  [module/name contract](wiki/spec/language/modules.md) in
+  Acceptance: the selected true-arm wrapped `250 + 10` and named call produce
+  `260u64`; the false arm produces `1` without invoking the operation. Checked
+  execution, reloaded/independently verified Terminal and native execution agree.
+  Cover generic/stateful bodies, private helpers behind public declarations,
+  qualifiers, ordered once-only operands, receiver/result loans and ordinary
+  contract rejection. Missing body, bodyless-plus-satisfier supply, duplicate
+  owner shapes, foreign primitive-family injection and forged primitive identity
+  reject; unrelated imports/conformances cannot alter selection or collide.
+  Call premises apply in runtime, admitted compile-time evaluation and proof
+  term formation alike. Nat named/token calls require order even in
+  erased/discarded proof terms;
+  equal operands and predecessor at one accept, while missing premises and
+  missing recursive descent reject independently. Operation, conformance/law
+  and call/loan identities survive substitution and replay. Trait-selected
+  supply, **FLOAT-PROVIDERS** and canonical compiler primitives keep their
+  separate routes.
+- **MODULE-NAMESPACE-RESOLUTION.** Carry the exact selections required by the
+  [module/name contract](wiki/spec/language/modules.md) through checking,
+  constant evaluation and source-independent artifacts. Owners:
   `syntax-trees-to-symbol-resolved-trees/src/preparation/`
-  (`module_normalization.rs`, `generic_data/`) and
-  `build-time-evaluation/src/const_evaluation/const_initializers.rs`. The
-  [source pipeline map](omega-rust/psi/pipeline/README.md#resolution-and-closed-instance-normalization)
-  owns the landed probes. `module_normalization.rs` no longer fences any
-  module-owned form: constant attachments, specialized foreign templates,
-  open-template indices, trait defaults, operator homes and qualified case
-  membership in domain facts pass normalization and resolution
-  (`tests/module_namespace_residuals.rs` in that crate). The remaining
-  operator/case-fact forms mostly assert only resolution success;
-  their selected declarations still need following through typing, checking
-  and Terminal.
-
-  Constant scalar rejection now carries its selected arithmetic policy: the
-  scalar constant evaluator reports an overflowing, dividing-by-zero or
-  bad-shift operation as e.g. "Exact integer constant operation overflows,
-  divides by zero, or has an invalid shift count" — the policy is part of the
-  retained selected-operation evidence, so `module_machine_indices`
-  (`comparisons::`, `value_dispatch::`, `computed_declarations::`) and
-  `module_domain_indices` controls assert the named policy, and anonymous
-  Match and comparison paths keep their all-arm obligations.
+  (`module_normalization.rs`, `generic_data/`), validation's
+  `proof_contracts/domains.rs`, and build-time evaluation's
+  `const_evaluation/const_initializers/`. Module normalization and
+  predicate-domain local-initializer checking already exist; resolution-only
+  tests do not establish downstream execution.
 
   Remaining work:
 
-  - (new-scope) Enforce predicate-domain establishment on local initializers;
-    selecting the right domain/carrier is not proof of membership. On unchanged
-    `4dc78c119be9` (macOS ARM64), ordinary `compile_to_checked` incorrectly accepts
-    `data Choice [copy] { case Empty; case Some(value: u32); }`
-    with `domain Choice::NonEmpty requires self in Choice::Some;` and
-    `machine read() -> u32 { let value: Choice in Choice::NonEmpty = Choice::Empty; value.value }`.
-    `typed-trees-to-checked-trees/src/checks/contracts/writes.rs` checks local
-    initializer qualification only when `domain_requires_provenance` is true;
-    predicate-only annotations can supply their own unproved facts. Require the
-    initializer's obligations before admitting destination facts, retaining
-    valid case construction and rejecting `Empty`, stale facts and wrong owners.
-    The foreign qualified variant has the same source-checking gap. Runtime
-    qualified-record/case helpers also stop at the missing checked scalar control
-    plan in Terminal production; neither gap is closed by the native constant
-    helper control `scalar_case_results::package_membership::foreign_domain_constant_helpers_execute_after_source_removal`.
-    `module_machine_indices::domain_carriers` checks exact carrier selection,
-    retained formal predicates and cross-package owner rejection, not proof
-    that a caller establishes those predicates.
-  - Unmanaged source maps still have no portable package commitment for
-    equal module/domain paths across distinct roots. Keep the independent
-    collision rejection in `validation/src/proof_contracts/domains.rs` until
-    source acquisition supplies exact ownership; do not substitute host paths
-    or source-order numbers for package identity. Managed package/scope keys
-    already pass through indexed families, cast selection and Terminal.
-    Runtime field reads from a qualified `Holder<T>` local still need a
-    source-independent checked scalar control plan in **TR3-TR8** and
-    **STATE-LOCAL-VALUE-FRONTIER**. The
-    `module_machine_indices::indexed_domains::generic_carrier_qualified_fields_keep_their_owner_after_specialization`
-    regression retains that checked-source customer alongside the source-free
-    constant-record route; do not treat constant projection as runtime storage.
-  - Carry exact lexical/package selection for remaining generic type-scoped
-    constant attachment heads, indexed domain constraints, operator homes and
-    declared-domain case facts through typed and checked trees and Terminal
-    artifacts, with per-use exposure under
-    specialization and owner-local imports, and add same-leaf, private and
-    transitive-exposure controls for each.
+  - Finish typed/checked/Terminal transport for generic type-scoped constant
+    attachments, indexed constraints, operator homes and declared-domain case
+    facts. Preserve exact lexical/package selection through specialization,
+    same-leaf competitors, file-local imports and private/transitive exposure.
+    `module_namespace_residuals` contains resolver-only operator/case tests;
+    extend those customers through their remaining consumers rather than adding
+    another namespace recognizer.
+  - Supply portable package identity for unmanaged roots before permitting
+    equal module/domain paths across them. Keep `domains.rs`'s independent
+    collision rejection until then; host paths and source-order numbers are
+    not portable identity.
   - Complete declaration evaluation, including unused initializers:
-    specialized provider applications, target-dependent declarations, and
-    authored NaN identity bits, which need explicit representation through
-    ordinary typed floating provider applications. Record-carried constrained
-    constants bind `self` through their scalar-decodable fields, so closed
-    `self.<field>` predicates discharge at declaration site
-    (`module_namespace_residuals::constrained_record_const_discharges_field_domain_facts`
-    holds the discharge, refutation and unprojectable-projection controls).
-    Array-carried constrained constants bind `self` through their
-    scalar-decodable elements, so closed `self[<index>]` membership and
-    comparison facts discharge the same way
-    (`module_namespace_residuals::constrained_array_const_discharges_element_domain_facts`
-    holds the discharge, refutation, out-of-bounds-index and
-    non-scalar-element controls). Variant-carried constrained
-    constants bind `self` through the selected case's scalar-decodable
-    payload fields, so closed `self.<field>` predicates discharge against
-    the literal's case
-    (`module_namespace_residuals::constrained_variant_const_discharges_case_payload_domain_facts`
-    holds the discharge, refutation, unselected-case and
-    non-scalar-payload controls). Constrained constants
-    still fence whole-aggregate `self` operands, fields and elements
-    without a scalar leaf, open applications, non-domain
-    constraints and unprovable facts. Carrier-polymorphic scalar constants
-    discharge carrier-independent closed predicates; carrier-property bounds
-    and operations on abstract `self` still need typed application evidence.
-    Routed constraints still require establishment evidence. Alias-owned carrier
-    bounds and index tuples need checked application evidence retained across
-    expansion; compiler-owned alias atoms need their typed evidence. Neither
-    follows from empty predicate replay (`generic_data/const_evaluation/facts.rs`).
-    Reuse typed expression evaluation, not untyped fact folding that erases
-    operand widths and selected-operation custody.
-  - Extend concrete failure discharge in `const_initializers/invocations.rs`
-    beyond ordinary scalar invocations, lossless fixed-integer widening and
-    proven-index projections through pristine constructed locals.
-    Preserve `machine_initializers::computed_table_selector_discharge_reaches_source_free_native_execution`
-    and its failure controls: computed indices reuse checked scalar operations
-    and facts at the original projection, including saved rows and later selector
-    mutation. Partial/value-changing casts, indices without an exact live value,
-    call-produced values and other origins the concrete probe cannot decide still widen
-    conservatively; they need checked evidence
-    (`typed-trees-to-checked-trees/src/facts/crash_entry_values.rs`, shared
-    with **CRASH-CONTRACT**), not successful interpretation or provider-body
-    inspection. Beyond total fixed-integer widening, argument conversions and
-    undirected signed disequality still need live premise transport through the
-    ordinary call checker in `typed-trees-to-checked-trees/src/checks/contracts/`.
-    Keep `machine_initializers::widened_helper_preconditions_reach_native_execution_after_source_removal`
-    and `widened_runtime_call_preconditions_execute_after_source_removal` as the
-    source-free interpreter/native widening controls; conversion checking must
-    not reinterpret wrapping operand computations or resurrect invalidated facts.
-    Preserve `module_machine_indices::machine_initializers::widened_constant_helper_executes_natively_after_source_removal`,
-    `indexed_constant_helper_discharge_reaches_source_free_execution`, and
-    `constant_helper_preconditions_reach_native_execution_after_source_removal`,
-    including nested array aliases and zero, wrapping-to-zero, mutated-operand,
-    unselected-constructor-crash and false-precondition rejection controls.
-  - `const_generic_expressions/value/match_dispatch.rs` proves nonconstant
-    divisor integrality beyond singleton sign intervals, nonzero proofs
-    through retained lattice gaps, and per-operand fractional warnings for
-    independent dispatch operands through rational bounds, not arm
-    enumeration or evaluation of skipped subjects (`match_tests.rs`
-    `nonconstant_divisor_lattices_prove_all_arm_integrality`,
-    `exact_operand_points_discharge_divisors_beyond_lattice_gaps` and
-    `independent_dispatch_operands_retain_each_exact_fractional_warning`
-    cover them). Correlated result facts are deliberately not reconstructed
-    from branch selection, so no residual dispatch obligation remains.
-    Preserve exact selected operators (**OPERATOR-MACHINE-SUPPLY**) and
-    proof arguments.
+    specialized provider/target applications, authored NaN identity bits, and
+    constrained constants beyond scalar-decodable record/array/case leaves.
+    Whole-aggregate subjects, open applications, carrier-property constraints
+    on abstract `self`, alias-owned bounds/index tuples and compiler-owned
+    alias atoms need exact typed application evidence. Routed constraints still
+    require establishment. Reuse typed evaluation and retain selected operator
+    meaning and widths; empty predicate replay or a computed payload is not
+    qualification evidence (`generic_data/const_evaluation/facts.rs`).
+  - Extend checked invocation admission beyond canonical scalar snapshots and
+    its established lossless-widening/proven-index routes. Value-changing casts,
+    call-produced projection subjects and other undecidable origins must keep
+    conservative crash ceilings until checked evidence discharges them.
+    Coordinate `facts/crash_entry_values.rs` and ordinary call-premise transport
+    with **CRASH-CONTRACT** and **OPERATOR-MACHINE-SUPPLY**; successful
+    interpretation or provider-body inspection is not admission evidence.
+    Ordinary call checking still needs live-premise transport for argument
+    conversions beyond lossless widening and undirected signed disequality.
 
-  General array-value execution (dynamic selectors, borrowed projections and
-  slices, array-producing cycles, boundary and indirect results) is a
-  dependency owned by **STATE-LOCAL-VALUE-FRONTIER** and Omega's
-  `abstract-operations-to-target-operations` aggregate-result lowering
-  (`lowering/control_flow/aggregate_results.rs`), not a namespace fallback. A
-  selected aggregate home cannot stand for an unevaluated value.
+  Runtime qualified-record reads and general array-value execution belong to
+  **STATE-LOCAL-VALUE-FRONTIER** / **TR3-TR8** and target
+  `lowering/control_flow/aggregate_results.rs`. The
+  `generic_carrier_qualified_fields_keep_their_owner_after_specialization`
+  test distinguishes its checked runtime `Holder<T>` customer from the
+  source-free constant projection that already works. Do not substitute an
+  aggregate's selected home for its unevaluated contents.
 
-  Acceptance: `compiler --test module_machine_indices` (`nominal::`,
-  `value_dispatch::`, `constant_attachments::`, source-free `machine_initializers::`),
-  `terminal-psi-to-abstract-operations --test scalar_array_construction` and
-  `omega-native-differential-test --test scalar_array_results` exercise exact
-  source selection through independent artifacts and matching-host execution.
-  `omega-native-differential-test --test scalar_case_results floating_constants`
-  additionally checks exact floating helper results through source-free
-  publication and matching-host execution, including signed zero.
-  Its `generic_constants::nested_generic_record_tables_execute_after_source_removal`
-  control preserves mixed field/index projections over closed record tables;
-  this does not establish dynamic indexing or runtime aggregate storage.
-  `compiler --test constant_float_tables` covers exact floating array and
-  record-table projections, transitive copies, source-free four-target
-  publication and matching-host execution; floating generic indices and
-  invalid unused initializers must still reject.
-  Preserve the `qualified_declarations`, `qualified_constants`,
-  `match_constant_indices`, `nominal_constant_bodies` and
-  `module_array_constant_indices` customers. Under
-  [file-local imports](wiki/spec/language/modules.md#import-scope-and-exposure),
-  same-leaf competitors, private/transitive exposure, invalid unused
-  initializers and unproved indexing reject. Keep
-  `fail/modules/{runtime_aggregate_index,runtime_fixed_array_index}` until
-  their materialization obligations are met. Sibling re-mine names:
-  RESOLVER-SCOPE-CANDIDATE-FILTERING (retired alias at `a8993c14af` — the
-  source-scoped candidate narrowing it names already exists in
-  `symbols/lookup.rs`: `prefer_module_local_domain`,
-  `source_reference_can_see_symbol`; re-verified live at `d8041919ad`).
+  Acceptance: source-free publication, independent verification and matching-host
+  execution in `compiler --test module_machine_indices` (especially
+  `nominal`, `constant_attachments`, `value_dispatch`, `machine_initializers`),
+  `compiler --test constant_float_tables`,
+  `terminal-psi-to-abstract-operations --test scalar_array_construction`, and
+  native-differential `scalar_array_results` / `scalar_case_results`.
+  Preserve exact floating bits including signed zero, mixed field/index
+  projections, selected arithmetic policies, and all-arm obligations without
+  evaluating skipped subjects. Keep zero/wrapping-to-zero, stale operand,
+  wrong-owner, false-precondition, invalid-unused-initializer and unproved-index
+  rejection, including `predicate_domain_initializer_*`. The
+  `qualified_declarations`, `qualified_constants`, `match_constant_indices`,
+  `nominal_constant_bodies` and `module_array_constant_indices` customers
+  remain; runtime-index fail fixtures change only when their materialization
+  obligations are met.
 
 - **RUNTIME-VALUE-GENERICS.** Implement the settled
   [runtime-capable versus const binder contract](wiki/spec/language/generics.md#value-binders-and-const-requirements)
@@ -5660,7 +5246,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   GEOMETRY-WINDOWS-VALIDATION ~13:53Z, SQUALR-SEED-PARITY ~15:14Z,
   SQUALR-DEBUG-ASSERTIONS ~16:25Z, SEED-PARITY-ASSERTIONS ~11:09Z.
   Windows leg still host-gated; no independent slice exists.
-- **SQUALR-NAMED-TRAIT-OPERATORS.** Named trait operators. Landed (`samples/apps/squalr`): `NormalizedRegion` ports upstream's `Ord`/`PartialOrd` — `NormalizedRegion::TotalOrder` is a `satisfies Order::before` conformance (the named-trait surface a trait-selected sort binds), all four fixed-token operators (`machine <`/`<=`/`>`/`>=`) are declared comparing `base_address` alone, and `base_address_order(&self, other)` is the callable spelling exercised natively in squalr-tests' `ordering` state (strict order both directions, base-tie order-equal while `equals` still distinguishes sizes). Compiler edge recorded: token operators need owned operands and by-value data arguments do not cross the selected ProgramEntry boundary ("rejoins 0 Terminal attachment identities"), so the `<`/`<=`/`>`/`>=` bindings are declared but unreachable from application code today. `Hash` deferred until a hash-keyed region collection is ported.
+- **SQUALR-NAMED-TRAIT-OPERATORS.** Exercise `NormalizedRegion`'s declared
+  `<`, `<=`, `>` and `>=` bindings from application code in
+  `samples/apps/squalr`, preserving base-address ordering, equal-base ordering
+  equivalence and size-sensitive `equals`. Compare token results with
+  `base_address_order` and retain explicit `Order` conformance selection.
+  Reproduce the current native customer failure before assigning compiler
+  repairs; the old ProgramEntry diagnostic is not a current observation.
+  **OPERATOR-MACHINE-SUPPLY** owns supply/grammar, with ordinary data-call
+  custody under **STATE-LOCAL-VALUE-FRONTIER**. Acceptance: Squalr's native
+  `ordering` verification executes the token comparisons and named-call
+  controls against the current submodule revision. Hash support awaits a
+  hash-keyed collection customer, not this task.
 - **SQUALR-REGION-ALIGNMENT-EXPANSION.** Region alignment expansion.
 - **SQUALR-SEED-PARITY.** Resolved — merged alias of SQUALR-GEOMETRY-PARITY's "finish the mapped Rust behavior still absent from the seed" clause, adjudicated at `a3ab15b7611`. The submodule's TASKS.md carries no seed-parity item; the phrase mines the GEOMETRY-PARITY residual list, whose enumerated gaps are each already a sibling row: alignment string parsing (SQUALR-ALIGNMENT-STRING-PARSING), clone/serialization (SQUALR-CLONE-SERIALIZATION-PARITY), region alignment/expansion (SQUALR-REGION-ALIGNMENT-EXPANSION), named trait operators (SQUALR-NAMED-TRAIT-OPERATORS), Rust debug-only assertions (SQUALR-GEOMETRY-PARITY), and the Windows validation leg plus the std-pin `32f5182254` upgrade (both recorded open inside SQUALR-GEOMETRY-PARITY's verified-scope audit). The implementing surface `samples/apps/squalr` stays with the port's own lane; no independent slice exists under this name. Re-verified at `59610bf809`: the submodule board still carries no seed-parity row, and the surface stays fenced — `samples/apps/squalr` under SQUALR-TARGETS-AND-THROUGHPUT (21:39Z) plus a same-item sibling claim `Jarod / swarm-w9-squalr-seed-parity` (02:08Z). Folded record (the prior ledger cleanup): the Zergling-126 ledger at `7241e02227` independently confirmed via a shallow clone of CathedralOS/Squalr-Omega `main` that the submodule board carries exactly four rows — GEOMETRY-PARITY, SUPPLIED-BYTES-SCAN, CLI-COMMANDS, TARGETS-AND-THROUGHPUT — no seed-parity item; live fences then were SQUALR-NAMED-TRAIT-OPERATORS (10:24Z) and SQUALR-CLI-COMMANDS (15:14Z). At fold time the `samples/apps/squalr` dir fence has rotated to SQUALR-DEBUG-ASSERTIONS (~16:25Z) and the draft itself stayed claimed under SQUALR-SEED-PARITY (~15:14Z).
 - **SQUALR-TARGETS-AND-THROUGHPUT.** Targets and throughput. Scope
@@ -8102,7 +7699,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Sibling stubs on the same parity-gaps sentence:
   GEOMETRY-ALIGNMENT-PARSING, GEOMETRY-ALIGNMENT-STRING-PARSING (the
   "alignment string parsing" gap), GEOMETRY-CLONE-SERIALIZATION,
-  GEOMETRY-DEBUG-ASSERTIONS, GEOMETRY-NAMED-TRAIT-OPERATORS.
+  GEOMETRY-DEBUG-ASSERTIONS, SQUALR-NAMED-TRAIT-OPERATORS.
 - **GEOMETRY-ALIGNMENT-STRING-PARSING.** Scope verified at `2a07fef5a85`
   — re-mines the "alignment string parsing" parity gap on
   GEOMETRY-PARITY's sentence (:7790): a `&mut self` machine taking a
@@ -8116,7 +7713,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SQUALR-REGION-ALIGNMENT-EXPANSION per :6535). No independent slice
   exists. Sibling stubs on the same sentence: GEOMETRY-ALIGNMENT-PARSING,
   GEOMETRY-CLONE-SERIALIZATION, GEOMETRY-DEBUG-ASSERTIONS,
-  GEOMETRY-NAMED-TRAIT-OPERATORS, SQUALR-ALIGNMENT-STRING-PARSING.
+  SQUALR-NAMED-TRAIT-OPERATORS, SQUALR-ALIGNMENT-STRING-PARSING.
 - **GEOMETRY-ALIGNMENT-STRING-PARSING.** Mined candidate — scope
   verified, covered. Bare re-mine of SQUALR-ALIGNMENT-STRING-PARSING:
   the "alignment string parsing" parity gap inside the Squalr app's
@@ -8159,7 +7756,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   under a live item claim (zergling-176, exp 11:43Z). No independent
   slice exists here; sibling stubs on the same parity-gaps sentence:
   GEOMETRY-ALIGNMENT-PARSING, GEOMETRY-CLONE-SERIALIZATION,
-  GEOMETRY-NAMED-TRAIT-OPERATORS.
+  SQUALR-NAMED-TRAIT-OPERATORS.
   Re-verified at `32a6a7fa33` (linux x86-64): adjudication unchanged —
   the surface is still an edit inside the `samples/apps/squalr`
   submodule (pin now `ef6682f7`, rotated from the `5b0307c` recorded
@@ -8861,9 +8458,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   evidence into the bounded comparison harness — fenced to
   MATCHING-LOGIC-BOUNDED-SLICE (`tools/matching-logic-slice/`, live claim);
   no encoding-to-checker translation is admitted authority.
-- **MODULE-CONSTANT-COMPUTED-CARRIER** — mined candidate; verify scope then implement.
-- **NAMED-TRAIT-OPERATORS.** Scope verified, resolved (re-verified at `b9635834f39c`) — named trait operator requirements are implemented end to end on `main` per the chapter 14 contract: the trait owns the fixed token binding (`machine < compare` requirements resolve through `authored_selections/operator_targets.rs` + `monomorphization/selected_operator_providers.rs`), token uses consume exactly one proof-static selected conformance (never an ambient visible candidate), multiple applicable selected binders reject, and bindings are unique per normalized operand telescope — all pinned by `tests/operators/trait_operator_bindings.rs` (7 tests incl. `trait_operator_use_consumes_only_the_selected_conformance_application`, `trait_operator_use_rejects_multiple_selected_conformance_binders`, `visible_conformance_does_not_supply_an_unbound_trait_operator`, `trait_operator_bindings_are_unique_per_normalized_operand_telescope`). Sibling stubs on the same surface: GEOMETRY-NAMED-TRAIT-OPERATORS, SQUALR-NAMED-TRAIT-OPERATORS (app-lane delegate).
-- **NAMESPACE-AWARE-NORMALIZATION** — mined candidate; verify scope then implement.
 - **NATIVE-DIFF-FRONTEND-DROP-ORDER.** Resolved — the frontend drop-order
   expectations lane is landed and green in
   `tests/native-differential/tests/frontend_drop_expectations.rs`'s
@@ -8952,7 +8546,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Re-witnessed at `72fc66d6c3267`: `run_metrics.py validate` → 3/3
   records conform to `omega-matching-logic-comparison/1`,
   `tools/tests/test_matching_logic_metrics.py` → 16/16.
-- **NAMED-TRAIT-OPERATORS.** — mined candidate; scope verified, resolved — named trait operator requirements are implemented end to end on `main` per the chapter 14 contract: the trait owns the fixed token binding (`machine < compare` requirements resolve through `authored_selections/operator_targets.rs` + `monomorphization/selected_operator_providers.rs`), token uses consume exactly one proof-static selected conformance (never an ambient visible candidate), multiple applicable selected binders reject, and bindings are unique per normalized operand telescope — all pinned by `tests/operators/trait_operator_bindings.rs` (7 tests incl. `trait_operator_use_consumes_only_the_selected_conformance_application`, `trait_operator_use_rejects_multiple_selected_conformance_binders`, `visible_conformance_does_not_supply_an_unbound_trait_operator`, `trait_operator_bindings_are_unique_per_normalized_operand_telescope`). Sibling stubs on the same surface: GEOMETRY-NAMED-TRAIT-OPERATORS, SQUALR-NAMED-TRAIT-OPERATORS (app-lane delegate).
 - **NATIVE-DIFF-CUSTODY-EXPECTATION-RETARGET.** Resolved — duplicate of the
   already-adjudicated custody-expectation slice. The stub re-mines the
   custody-gate expectation surface left by the landed custody ordering:
@@ -9136,7 +8729,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (`x86_rel8_selected` rejects `Architecture::Aarch64` as `UnsupportedTarget`
   in catalog.rs, and `hosted_sequences.rs` emits the out-of-range
   diagnostic). Dispatch it here — already resolved.
-- **GEOMETRY-NAMED-TRAIT-OPERATORS** — mined candidate; verify scope then implement.
 - **GEOMETRY-REGION-ALIGNMENT-EXPANSION** — mined candidate; verify scope then implement.
 - **HOSTED-BUILTIN-SETTLEMENT-EXPANSION** — mined candidate; verify scope then implement.
 - **HOSTED-PLATFORM-RUN-MATRIX** — resolved as already landed; mines the landed BENCHMARK-HOST-ROW-MATRIX row (ee30bfcf1865). `benchmark.py matrix` renders the hosted-platform run matrix: `HOST_LEGS` enumerates every catalogued `TargetProfile` host leg — linux_arm64, linux_x86_64, macos_arm64, macos_x86_64 (structurally blocked pending native realization), windows_x86_64 (peak-RSS leg explicit-unavailable, no os.wait4), uefi_x86_64 (runtime leg unavailable pending QEMU/hardware), plus cross_platform_cli, local_unchecked, and alpha_bootstrap — and `matrix_rows` emits one measured row per committed record plus one explicit row per uncovered leg, so no host leg is implied. `tools/tests/test_benchmark.py` pins TargetProfile drift (21 tests pass); `wiki/drafts/benchmarks.md` renders the matrix. Residual record-row authorship belongs to the fenced tools/benchmark owners, not this stub.
@@ -10172,8 +9764,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RECURSIVE-ARGUMENT-OVERLOAD-DEDUP.** Mined candidate — resolved as an alias of RECURSIVE-ARGUMENT-OVERLOAD-DECL-DEDUP: the name re-mines the same `calls/statement_call_recursive_{argument,overload}_compile` dedup surface that row carries (Peano/peano_add rename at `e5912f303a` ended the `core/nat.omg` collision; negative half pinned by `duplicate_overload_and_visibility_admissions_reject`). Re-witnessed at `9e3edc7be9a3` on Linux x86-64: `OMEGA_PASS_CANARY_FILTER=statement_call_recursive_argument_compile,statement_call_recursive_overload_compile cargo nextest run -p compiler --test canary_suite entry_and_abi::pass_canary_coverage::pass_canaries_compile` → pass (94.6s), and `OMEGA_FAIL_CANARY_FILTER=duplicate_named_machine_overload_rejected,recursive_argument_imported_name_collision_rejected ... surface_and_targets::duplicate_overload_and_visibility_admissions_reject` → pass. No independent slice exists.
 - **REGION-ALIGNMENT-EXPANSION.** — mined candidate; verify scope then implement.
   covered — port landed in the squalr submodule pin (`ef6682f75f48`); app-lane residual is SQUALR-REGION-ALIGNMENT-EXPANSION's
-- **RESOLVER-SCOPE-CANDIDATE-FILTERING.** — mined candidate; scope verified, resolved — the name is a retired alias (annotated at `a8993c14af`, cited under its parent row's sibling re-mine list) for the landed source-scoped candidate narrowing in symbol lookup. Re-verified at `3a1304c93e`: `prefer_module_local_domain` still narrows a candidate list to the reference's own module when a same-module candidate exists (`syntax-trees-to-symbol-resolved-trees/src/symbols/lookup.rs:39`), and `source_reference_can_see_symbol` still gates candidate visibility from the reference's provenance span (`foundation/symbols/src/table.rs:864`, consulted at `table.rs:686`, `:795` and `table/modules.rs:551` for scope-candidate filtering). No independent slice exists.
-  covered — retired alias; source-scoped candidate narrowing landed (`table.rs`)
 - **RECURSIVE-ARGUMENT-OVERLOAD-DECL-DEDUP** — mined candidate; scope verified, resolved — same re-mine of the `calls/statement_call_recursive_{argument,overload}_compile` dedup surface the resolved sibling rows carry: `e5912f303a` renamed the argument fixture's local `Nat`/`add` to `Peano`/`peano_add` ending the `core/nat.omg` collision, both pass canaries re-witnessed green on linux x86-64 at `a1daf35f2e` (`OMEGA_PASS_CANARY_FILTER=statement_call_recursive_argument_compile,statement_call_recursive_overload_compile cargo nextest run -p compiler --test canary_suite entry_and_abi::pass_canary_coverage::pass_canaries_compile`, 74s), and the dedup's negative half stays pinned by `surface_and_targets::duplicate_overload_and_visibility_admissions_reject` covering `duplicate_named_machine_overload_rejected` + `recursive_argument_imported_name_collision_rejected`. No independent slice exists; this closes the name-surface sibling set the resolved rows name.
 - **REGION-ALIGNMENT-EXPANSION** — mined candidate; covered — alias stub of the
   landed SQUALR-REGION-ALIGNMENT-EXPANSION port (sibling
@@ -10667,64 +10257,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   remains under this name.
   covered — alias of settled SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL; ancestry_contract 2/2
 
-- **SELECTIVE-ARITHMETIC-EXPANSION.** Resolved 2026-09-20 at `a3ab15b761`,
-  re-verified at `12ecbe98f8` (owner files `match_dispatch.rs` +
-  `result_type.rs` present; 8 `expressions/match_*` canaries on disk):
-  this mined stub re-covers open work already owned by
-  **MATCH-SELECTIVE-LOWERING** (live claim through 2026-09-20T22:31Z on the
-  `expression_types` owners below). Its
-  mining source is
-  [chapter 6](wiki/language_guide/chapter_6_pattern_matching_dispatch.md)'s
-  note that the parser's arithmetic-shaped `match` expansion does not
-  implement general selective evaluation; the
-  [source processing note](omega-rust/psi/pipeline/README.md#lexing-and-parsing)
-  records the gap (Boolean/integer subjects, Boolean/integer/float results,
-  structural/domain/payload patterns as explicit limitations). Every leg of
-  that expansion — owned/nonnumeric results, structural/case/domain patterns,
-  and parameter/projected/borrowed custody — is an enumerated remaining-work
-  row of MATCH-SELECTIVE-LOWERING, whose named owners are
-  `validation/src/value_custody/expression_types/{match_dispatch,result_type}.rs`,
-  the checked scalar continuations, and Terminal production. No independent
-  slice exists here: expanding the arithmetic-shaped subset is the owner
-  item's work and must not proceed through a parallel claim on the same
-  files. Sibling re-mines of the same surface: SELECTIVE-EVALUATION-EXPANSION,
-  SELECTIVE-EVALUATION-PARSER, SELECTIVE-EVALUATION-SOURCE-EXPANSION.
-- **SELECTIVE-EVALUATION-PARSER.** Resolved 2026-09-21 — named sibling
-  re-mine of the selective-evaluation parser surface settled on
-  **SELECTIVE-ARITHMETIC-EXPANSION**'s row above, which lists this stub
-  verbatim among its sibling re-mines. Every expansion leg is owned by
-  **MATCH-SELECTIVE-LOWERING** under a live claim on
-  `validation/src/value_custody/expression_types/{match_dispatch,result_type}.rs`
-  (~07:39Z at this check); no independent slice exists under this name.
-  Re-verified at `12ea4941eb` (linux x86-64): the adjudication stands
-  and the recorded fence has drained — MATCH-SELECTIVE-LOWERING no
-  longer appears in the claims registry (its ~07:39Z lease on
-  `match_dispatch.rs`/`result_type.rs` expired), so the surface is
-  owned-but-unclaimed rather than live-fenced; the parser expansion
-  legs still belong to that owner item.
-  Re-verified at `796814691e4` (linux x86-64, ~10:05Z): adjudication
-  unchanged — owner files `match_dispatch.rs`/`result_type.rs` still
-  present; MATCH-SELECTIVE-LOWERING still absent from the claims
-  registry, and the RC-REPOSITORY path fence previously covering
-  `result_type.rs`/`reference_values.rs` no longer lists the
-  `value_custody/expression_types` owners (live RC-REPOSITORY claim
-  ~14:39Z covers other surfaces). Surface stays owned-but-unclaimed;
-  no independent slice under this name.
-  covered — sibling re-mine settled on SELECTIVE-ARITHMETIC-EXPANSION; parser surface landed
-- **SELECTIVE-EVALUATION-EXPANSION.** Resolved 2026-09-21 — named sibling
-  re-mine of the selective-evaluation parser surface settled on
-  **SELECTIVE-ARITHMETIC-EXPANSION**'s row above, which lists this stub
-  verbatim among its sibling re-mines. Every expansion leg
-  (owned/nonnumeric results, structural/case/domain patterns,
-  parameter/projected/borrowed custody) is owned by
-  **MATCH-SELECTIVE-LOWERING**; its named owner files
-  `validation/src/value_custody/expression_types/{match_dispatch,result_type}.rs`
-  are present, and `result_type.rs` (with `reference_values.rs`) sits
-  under RC-REPOSITORY-CLOSURE's live path fence (~17:31Z at this
-  check). Re-verified at `c924529921`: no independent slice exists under
-  this name.
-  covered — sibling re-mine settled on SELECTIVE-ARITHMETIC-EXPANSION; producer legs owned by MATCH-SELECTIVE-LOWERING
-- **SELECTIVE-EVALUATION-SOURCE-EXPANSION.** — mined candidate; verify scope then implement.
 - **SHARED-MAPPING-REVOCATION.** Mined candidate — resolved on
   `origin/main`: re-mines the shared-custody mapping revocation surface in
   `psi/foundation/extents/src/mapping/mod.rs`, landed at `12e35ef7fdc`
@@ -11046,23 +10578,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ALIGNMENT-STRING-PARSING, GEOMETRY-ALIGNMENT-PARSING,
   GEOMETRY-ALIGNMENT-STRING-PARSING, SQUALR-ALIGNMENT-STRING-PARSING.
 - **SQUALR-SUPPLIED-BYTES-SCAN.** — mined candidate; verify scope then implement.
-- **SQUALR-SEED-OPERATOR-PARITY.** Mined candidate — scope verified,
-  resolved — covered re-mine of the GEOMETRY-PARITY "named trait operators"
-  residual. The canonical trait-operator contract is already implemented
-  end to end on `main` per resolved sibling NAMED-TRAIT-OPERATORS (chapter
-  14: fixed token bindings resolve through
-  `authored_selections/operator_targets.rs` +
-  `monomorphization/selected_operator_providers.rs`, token uses consume
-  exactly the proof-static selected conformance, multiple applicable
-  binders reject, bindings unique per normalized operand telescope — pinned
-  by `tests/operators/trait_operator_bindings.rs`, 7 tests). The app-lane
-  delegate SQUALR-NAMED-TRAIT-OPERATORS owns the seed-port leg and is
-  itself claimed and live this wave; the implementing surface
-  `samples/apps/squalr` stays wholesale-fenced under
-  SQUALR-WINDOWS-GEOMETRY-VALIDATION (~05:49Z). Same adjudication as
-  resolved SQUALR-SEED-PARITY (`a3ab15b7611`) — no independent slice
-  exists under this name. Adjacent sibling stub SQUALR-SEED-REGION-OPERATIONS
-  mines the neighboring region residual.
 - **SQUALR-SEED-REGION-OPERATIONS** — mined candidate; verify scope then implement.
 - **SQUALR-GEOMETRY-WINDOWS-VALIDATION.** Resolved 2026-09-21 — minted
   alias of the same Windows leg of the app repo's GEOMETRY-PARITY gate,
