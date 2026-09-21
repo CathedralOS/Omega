@@ -230,6 +230,36 @@ fn an_imported_arithmetic_derivation_re_verifies_with_its_exact_axiom_closure() 
 }
 
 #[test]
+fn the_imported_arithmetic_derivation_has_a_measured_size_and_step_cost() {
+    // The evidence row the interchange design asks for: certificate size
+    // and checking cost, pinned exactly so drift in either is visible.
+    let mut arena = TermArena::new();
+    let certificate = import_certificate(&mut arena);
+    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+    assert_eq!(bytes.len(), 716usize, "encoded certificate size (bytes)");
+
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
+    verify_mathematical_certificate(&mut decoded.arena, &decoded.certificate, &mut budget)
+        .expect("re-verify under the default budget");
+    let used = DEFAULT_CONVERSION_STEPS - budget.remaining();
+    assert_eq!(used, 6u32, "conversion steps consumed by re-verification");
+
+    // The measured bound binds: one step short of the exact cost rejects
+    // on StepCeiling, and the exact cost is enough.
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    let mut short = Budget::new(used - 1);
+    assert!(matches!(
+        verify_mathematical_certificate(&mut decoded.arena, &decoded.certificate, &mut short),
+        Err(CoreError::StepCeiling)
+    ));
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    let mut exact = Budget::new(used);
+    verify_mathematical_certificate(&mut decoded.arena, &decoded.certificate, &mut exact)
+        .expect("the measured budget exactly suffices");
+}
+
+#[test]
 fn an_imported_arithmetic_axiom_alone_carries_only_the_cited_rows() {
     // `addZero n` proves `add n zero = n` directly — the closure must
     // name exactly the cited axiom and its statement's vocabulary,
