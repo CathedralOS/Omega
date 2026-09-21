@@ -8923,6 +8923,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   exact-symbol selection leg by PROGRAM-ENTRY-SELECTION-EXACTNESS
   (residual implemented on `zergling/z161-program-entry-selection-exactness`).
   No slice exists under this name at `fbf36233c9`.
+- **COMPILER-EXECUTABLE-PUBLICATION-OPERATION.** — mined candidate;
+  scope verified, resolved — the same surface the sibling
+  EXECUTABLE-PUBLICATION-OPERATION row above already marks covered:
+  `omega/src/compilation/publication.rs` is the product-owned route
+  (`publish_compilation` → `CompileReport::publish_retained_native_
+  artifact`, dispatched at `compilation/mod.rs:279`) — it validates
+  the retained artifact + manifest, self-checks a requested PCC pair
+  pre-install, and commits one staged tree + atomic rename via
+  `executable_publication.rs`. Re-verified at `6f9a1f637e` (z181):
+  anchors unchanged; no same-item claim live.
+
 - **EXECUTABLE-PUBLICATION-OPERATION.** — mined candidate; scope verified, resolved — same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on `origin/main`): `omega/src/compilation/publication.rs` (`publish_compilation`/`publish_native_artifact`) is the product-owned route calling `CompileReport::publish_retained_native_artifact`, which validates the retained artifact and manifest, refuses non-local output filenames, requires compiler-text/function validation evidence, self-checks a requested PCC pair pre-install, and commits one staged tree + atomic rename through `executable_publication.rs` — a failed publish leaves no half-written executable or stale sidecar. `output_kind` gating matches the spec's report/entry-bridge rule. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION, EXECUTABLE-PUBLICATION-JOIN, EXECUTABLE-PUBLICATION-STAGE, EXECUTABLE-PUBLICATION-STEP.
 - **FAULT-INJECTED-TARGET-READER.** Mined candidate — resolved as
   covered: the surface this claim name has fenced is the image-emission
