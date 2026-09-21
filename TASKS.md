@@ -10052,6 +10052,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (external-roots, 03:56Z). clippy/arch/libtests not re-run; the
   a9fa1a4fe6 attribution stands and its residual is sibling-fenced.
   Gate stays open until the fenced repairs land.
+  Re-measured at `94e764a6da6` (2026-09-21 ~04:10Z): **fmt and check are
+  now GREEN** — `cargo fmt --all -- --check` clean (the 19 drifted files
+  including all sixteen fenced rows are repaired) and `cargo check
+  --workspace --all-targets` passes end-to-end with only warnings (the
+  `ComponentEraJournal` import break is gone; residual `dead_code`/
+  `unused_import` warnings in canary_suite, package-evidence,
+  package-manager suite, terminal_psi_conditional). clippy `--workspace
+  --all-targets -D warnings` still RED on exactly two lints, both in
+  `validation` and both already fenced to
+  RC-REPOSITORY-CLOSURE/clippy-lint-repair (exp ~08:02Z): needless_return
+  at `value_custody/expression_types/reference_values.rs:337` and
+  clone_on_copy at `proof_contracts/contract_entailment/scoped_arithmetic/tests/domain_self.rs:178`.
+  `omega-architecture-test --all-targets` RED 574/576 —
+  `glob_self_imports_never_grow_per_crate` (one file:
+  `validation/src/value_custody/expression_types/result_type.rs` —
+  MATCH-SELECTIVE-LOWERING fence) and
+  `every_declared_custody_field_inventory_drives_a_substitution_matrix`
+  (image-emission `installation_function_nested_custody.rs` +
+  compilation-report `custody_tests.rs` inventories —
+  CUSTODY-MATRIX-HARNESS-MIGRATION lane). `nextest --workspace --lib`
+  not re-run; prior host-dependent reading stands. Still 3/5 commands
+  green — remaining redness is wholly claim-fenced.
 - **RC-REPRESENTATIVE-PROGRAMS-CLOSURE.** Mined candidate; scope verified,
   gate is OPEN (red on the available host). This stub re-mines the
   representative-programs matrix row — the closure condition of the same
