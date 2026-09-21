@@ -494,7 +494,9 @@ Service<R> family). The current failure set attributes to six families:
   plan family below, stopping at `signature`-phase local construction; the
   shared-borrow negative control still pins that stop.
 
-- Missing checked transitive machine plan (16 tests).
+- Missing checked transitive machine plan (16 tests in this crate, but the
+  cluster is wider than this section records — see the cross-suite note at the
+  end of this entry).
   `provider_attachment_source` ×6 stop at `signature` and
   `unit_state_graph::provider_attachments` ×9 plus
   `guarded_scalar_returns_source::stored_returned_cases_support_borrowed_refined_getters`
@@ -508,8 +510,34 @@ Service<R> family). The current failure set attributes to six families:
   checking (already migrated in 0e1977994b) and stop while admitting the
   attached closure's bodies. Fences: `execution/unit/{control,state_graph,composed_control}`
   is under GENERAL-CYCLIC-EXECUTION and `execution/unit/{mod.rs,candidate_closure,calls}`
-  plus `checked-trees-to-lowered-psi/src/unit` under UEFI-OS-HANDOFF. This is
-  the continuing "provider attachment and results" group from the 9d0d864656
+  plus `checked-trees-to-lowered-psi/src/unit` under UEFI-OS-HANDOFF.
+
+  **Cross-suite span, measured 2026-09-21 on macOS arm64 once
+  `cargo check --workspace` came back green.** The same refusal accounts for at
+  least 17 failures across three suites, not 16 in one:
+
+  - `checked-trees-to-lowered-psi` — 8 more than this section lists, in
+    `retention::conformance_applications::tests` ×3 and
+    `tests::composed_operand_catalogs` ×5. These were not measurable before:
+    the crate's test target could not build while the `StructuralTypeShape::ElementView`
+    consumer legs were outstanding, so they are newly visible rather than new.
+  - `compiler --test canary_suite -E 'test(/inline_asm/)'` — 5 of 13 legs, all
+    the `x86_asm_*` byte-emission ones. Each pins an explicit
+    `target_name: linux_x86_64` cross-compile, so this is not host-dependent.
+  - the native-differential suite — 4 `terminal_psi_runnable` legs.
+
+  A **third** omission phase appears alongside the two recorded above
+  (`signature` and `state graph: state signature: ...`): the asm legs stop at
+  `statement sequence: call: call operation, statement 0`, i.e. `asm` statements
+  pass checking and stop at the lowering wall. Closing those five needs the
+  asm-statement lowering arm, not more catalog members.
+
+  Ownership is unchanged and this is engineering, not a design question: the
+  producing surfaces carry live fences (GENERAL-CYCLIC-EXECUTION,
+  UEFI-OS-HANDOFF), and the board's own attribution row calls this "a distinct
+  Unit-plan admission gate, not the check diagnostic".
+
+  This is the continuing "provider attachment and results" group from the 9d0d864656
   reading.
 - Crash predicate outside the selected scalar namespace (3 tests).
   `exact_affine_sibling_source::landed_affine_sibling_custody_crosses_source_codec_and_independent_verification`,
