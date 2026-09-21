@@ -253,7 +253,12 @@ fn relational_operator_requires_need_facts_available_to_both_operands() {
 }
 
 #[test]
-fn reference_operator_parameters_need_captured_and_live_invocation_facts() {
+fn reference_operator_parameters_use_exact_referent_custody() {
+    // The `value` operand is a `&i32` whose referent resolves exactly, so its
+    // clause transports the facts live on that storage at invocation. Clearing
+    // the operand's captured snapshot no longer revokes the precondition —
+    // custody, not capture liveness, is its evidence — while clearing the
+    // invocation-live facts still fails.
     let checked = check(
         "boundary operator == Reference::equal(left: &i32, right: i32) -> bool requires left >= 0;
          machine compare(value: &i32, pattern: i32) -> bool requires value >= 0 { value == pattern }",
@@ -266,30 +271,29 @@ fn reference_operator_parameters_need_captured_and_live_invocation_facts() {
         .iter()
         .next()
         .unwrap();
-    for clear_capture in [true, false] {
-        let mut facts = checked.facts.clone();
-        if clear_capture {
-            facts
-                .flow
-                .control
-                .operator_operands
-                .get_mut(invocation.operands.start())
-                .constraints = HandleSpan::empty();
-        } else {
-            facts
-                .flow
-                .control
-                .operator_invocations
-                .get_mut(invocation_handle)
-                .requires_constraints = HandleSpan::empty();
-        }
-        let diagnostics = crate::checks::check_checked_facts(&checked.typed, &facts)
-            .expect_err("reference facts must hold at capture and remain live at invocation");
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("requires")),
-            "{diagnostics:#?}"
-        );
-    }
+    let mut facts = checked.facts.clone();
+    facts
+        .flow
+        .control
+        .operator_operands
+        .get_mut(invocation.operands.start())
+        .constraints = HandleSpan::empty();
+    crate::checks::check_checked_facts(&checked.typed, &facts)
+        .expect("referent custody transports the invocation-live fact");
+
+    let mut facts = checked.facts.clone();
+    facts
+        .flow
+        .control
+        .operator_invocations
+        .get_mut(invocation_handle)
+        .requires_constraints = HandleSpan::empty();
+    let diagnostics = crate::checks::check_checked_facts(&checked.typed, &facts)
+        .expect_err("the referent fact must remain live at invocation");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("requires")),
+        "{diagnostics:#?}"
+    );
 }
