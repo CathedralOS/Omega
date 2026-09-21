@@ -12837,6 +12837,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   and PLACED-ACCESS-NATIVE-OPS's claimed cross-stage intent).
 - **PRIME-COUNTER-BENCHMARK-ROW.** — mined candidate; verify scope then implement.
 - **PRIVATE-PIPE-RUNTIME-ENFORCEMENT.** — mined candidate; scope verified, platform-gated residual — re-mines the runtime-enforcement leg of TOPOLOGY-PRIVATE-PIPE-INSTALLATION. The platform-neutral enforcement is landed on the unix leg: private channels are bound by kernel-attested pipe tokens (inode + direction, probed via `fcntl`/`fstat`), each binding registers an operation/payload schema (`topology_installation/operation_schema.rs`), an ungranted endpoint or substituted mapping refuses, schema violations close the binding, and peer failure EOFs the channel (`a_three_process_installation_mediated_over_real_private_channels` + `tests/process_confinement.rs`, `cargo nextest run -p topology-plan`). The remaining legs are the Windows and macOS providers — unrun, host-gated (Windows needs inheritable handle passing behind `StdPipeEnd`; macOS needs a signed/adhoc member image) — no linux-runnable work remains. Re-verified at `832c55e69b` (z102): `tests/installation.rs` still pins `a_three_process_installation_mediated_over_real_private_channels`, the parent TOPOLOGY-PRIVATE-PIPE-INSTALLATION stays item-claimed (z182, ~09:52Z), and a verbatim duplicate stub of this same row (~:11996) is removed. No linux-runnable slice.
+  Re-witnessed at `53817f8759e` (zergling-132, linux x86-64): the unix
+  enforcement pins stay green — `cargo nextest run -p topology-plan -E
+  'test(~a_three_process_installation_mediated)'` 1/1 PASS and
+  `--test process_confinement` 4/4 PASS (mismatched-executable refusal,
+  garbage-frame close, exact assigned ends + flow frames, peer-failure
+  EOF). Fence refresh: parent TOPOLOGY-PRIVATE-PIPE-INSTALLATION item
+  claim still live (~09:52Z); TOPOLOGY-PLAN-VERIFICATION holds
+  tests/fixtures (~09:51Z). Windows/macOS provider legs remain
+  host-gated — no linux-runnable slice.
 - **PRIVATE-PRODUCER-EVIDENCE-LOAN-ORIGIN.** Mined candidate; scope verified —
   resolved re-mine of the same cross-package dynamic loan-origin cluster
   closed by SHARED-RECEIVER-LOAN-ORIGIN at `e76d715c8e`: the stub's surface
