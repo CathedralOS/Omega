@@ -11996,6 +11996,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   executable-route leg is a bullet of UEFI-PHYSICAL-SEMANTIC-ENTRY — and
   `native-realization/src/optimized_semantic_wrapper_object` is under a
   live PIPELINE-WRAPPER-OBJECT-ORPHAN claim at verification time.
+  Re-verified at `832c55e69b7` (zergling-182, linux x86-64): unchanged —
+  `object/composition.rs:27` still rejects any child with
+  `relocation_record_count != 0` and
+  `resolve_x86_64_semantic_unit_wrapper_private_continuation` still resolves
+  the wrapper's own continuation internally (:42). The recorded fence has
+  rolled: `native-realization/src/optimized_semantic_wrapper_{encoding,
+  object}` now sits under SEMANTIC-WRAPPER-OWNERSHIP's live claim
+  (~15:54Z), with UEFI-PHYSICAL-SEMANTIC-ENTRY (~08:44Z) and the item-only
+  OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION claim also live.
   Sibling re-mines of the same surface: SEMANTIC-WRAPPER-OBJECT-OWNERSHIP,
   SEMANTIC-WRAPPER-OWNERSHIP, SEMANTIC-WRAPPER-OWNER-RELOCATION,
   SEMANTIC-WRAPPER-OWNER-RESOLUTION, SEMANTIC-WRAPPER-COORDINATOR-RESIDUE,
