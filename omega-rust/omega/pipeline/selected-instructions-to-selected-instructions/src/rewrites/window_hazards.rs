@@ -176,6 +176,40 @@ fn unaccounted_kind(instruction: &SelectedInstruction) -> bool {
     )
 }
 
+/// Whether an instruction's effect is pure register and condition-state
+/// work that adds no observable execution on arrivals it never ran on.
+/// `schedulable` already cleared barrier kinds, call contracts, and
+/// unaccounted memory-capable kinds, but a row-less load or private-slot
+/// `Store64` still performs a memory access: sinking it would add the
+/// access — and any fault or slot write it carried — to every traversal
+/// entering the relocation's landing through the other inflows. The same
+/// holds for kinds whose target encoding may architecturally fault: their
+/// proof obligations establish definedness for the source operation, but
+/// this audit runs at the selected level where the encoded trap behavior
+/// is the honest bound — an execution that could fault must still run
+/// only on the paths that ran it before.
+pub(super) fn speculatable(instruction: &SelectedInstruction) -> bool {
+    use SelectedInstructionKind::*;
+    !matches!(
+        instruction.kind,
+        CopyBytes
+            | LoadPacked { .. }
+            | StorePacked { .. }
+            | Store { .. }
+            | Load8Indexed
+            | Load64 { .. }
+            | Load8 { .. }
+            | Load16 { .. }
+            | Load32 { .. }
+            | Store64 { .. }
+            | ExactDivideU64 { .. }
+            | ExactDivideI64 { .. }
+            | ExactRemainderI64 { .. }
+            | SaturatingDivide { .. }
+            | SaturatingRemainder { .. }
+    )
+}
+
 /// Whether the roster accounts for the instruction's memory reach. Rows
 /// name the instruction by identity, so the relocation retains them
 /// unchanged.
