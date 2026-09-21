@@ -10248,12 +10248,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   scoped_lookup_maps` re-witnessed 2/2 PASS on Linux x86-64
   (`every_name_keyed_lookup_map_file_is_cataloged`,
   `every_cataloged_file_still_observes_a_name_keyed_map`). The
+  adjudication is unchanged — no independent slice exists.
   Re-verified at `f72122f71e` (z181): `tests/architecture/scoped_lookup_
   maps.rs` gate and `wiki/drafts/lookup_map_justification.md` census
   both present at base; no same-item claim live (the
-  LOOKUP-MAP-MEASUREMENT-AUDIT sibling claim drained ~08:36Z).
-
-  adjudication is unchanged — no independent slice exists.
+  LOOKUP-MAP-MEASUREMENT-AUDIT sibling claim drained ~08:36Z). Field
+  note (review f72ba17fce6d..7241e022270d): this stamp had been spliced
+  mid-sentence into the paragraph above — z181's second such splice
+  (see BENCHMARK-ROW-RESUMPTION); append stamps after the row's last
+  sentence.
 - **LOWERED-CRASH-MEMBER-BYTE-ENTRIES.** — mined candidate; scope verified, family repaired. The stub names the crash-member byte-entry group of checked-trees-to-lowered-psi (`tests/crash_member_source/byte_entries.rs`); `wiki/drafts/known_baseline_failures.md`'s own re-reading at d8d48fe4ff already records crash-member byte entries green alongside boundary byte buffers and the ordered-boolean row, and the whole `crash_member_source` suite re-verifies green at this revision (`cargo nextest run -p checked-trees-to-lowered-psi --test suite crash_member_source`: 48/48, linux x86-64). Re-witnessed again at `d6a0625f6b`: 48/48 pass in 61.3s (the `unsupported_mixed_aggregate_equality_shapes_remain_fenced` member is a 60.7s slow pin, not a failure). The live residual families in that crate are already owned: bare boundary-trait fixture spellings by ENTRY-CONTENT-ROOTS, scalar-return custody / provider attachment / attached-unit sets by C2L-BASELINE-FAILURE-ATTRIBUTION and C2L-RESIDUAL-FAILURE-ATTRIBUTION, and the proof-search blowup by PROOF-SEARCH-MEASUREMENT. No independent slice remains on this row.
 - **LOWERED-OPERATION-PROOF-MACHINE-CALLS.** — mined candidate; scope verified, route already exercised. The stub names operation proofs on lowered machine-call operations and proof-output call custody in checked-trees-to-lowered-psi. Both are implemented and green at e76d715c8e (verified base 6ef64f6dd6): `proofs/operation_proofs.rs::finalize_operation_proofs` discharges call obligations (the previously red `unit_scalar_result_source::boundary_wrappers::ordered_boolean_guarantees::ordered_boolean_call_computations_preserve_normal_guarantees` machine_calls row now passes — the group reads 28/28 green), `proofs/evidence_lowering/proof_output_calls.rs::lower_proof_output_calls` keeps runtime-value bindings on their ordinary scalar Call operation, `terminal-verifier/validation/evidence/proof_output_calls.rs` cross-checks `runtime_call.operation` against the caller's operations, and `proof_recursion.rs::proof_machine_dependency_closure` covers proof machine call reachability (6/6 green). Pins: `evidence_identity_source` suite 22/22 green (cargo nextest, linux x86-64) including `runtime_value_proof_output_links_one_scalar_call_and_executes_once`. The live residuals in this crate are already owned: bare `Service<R>` fixture spellings by ENTRY-CONTENT-ROOTS, transitive machine plans by GENERAL-CYCLIC-EXECUTION/UEFI-OS-HANDOFF, site_guard crash namespace and scalar-return custody by WRITE-ONLY-BORROW integer-entry-ranges, `established by` qualification by BOUNDARY-ISSUANCE, and the proof-search blowup by PROOF-SEARCH-MEASUREMENT. No independent slice remains on this row.
   that no longer declare such a map. The one-shot census it encodes —
@@ -12534,7 +12537,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   that 7b259409073 run — read the draft, not this row, for current
   counts; the six sibling RC-NATIVE-MATRIX-* stubs still read as
   unverified and should be folded into RC-NATIVE-MATRIX-LINUX-X86-64.
-  drift repaired.) Re-checked at `f72122f71e4` (swarm-w9-ffival): claim probe exit 2 — the linux_x86_64 draft is live-fenced to the canonical owner RC-NATIVE-MATRIX-LINUX-X86-64 (devin-swarm-rnmx, ~11:30Z Sep 21); the recorded run at 7b259409073 (22 pass / 16 fail, pipeline_ownership drift repaired upstream) is the current record.
+  Re-checked at `f72122f71e4` (swarm-w9-ffival): claim probe exit 2 — the linux_x86_64 draft is live-fenced to the canonical owner RC-NATIVE-MATRIX-LINUX-X86-64 (devin-swarm-rnmx, ~11:30Z Sep 21); the recorded run at 7b259409073 (22 pass / 16 fail, pipeline_ownership drift repaired upstream) is the current record.
 - **RC-NATIVE-MATRIX-HOSTS** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-LINUX-ARM64** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-LINUX-X64** — mined candidate; verify scope then implement.
@@ -13132,9 +13135,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   they are also the legs **OFFLINE-REBUILD**'s blank-host reconstruction
   eventually needs on each seed host.
 
-  Remaining: (1) add the refusal stanza to the seventeen unguarded legs
-  above — currently fenced by the DELTA-COMPILER claim on `tests/delta` +
-  `tests/epsilon` and the BETA-PE-SEED-REFUSAL claim on `tests/beta/compiler`;
+  Remaining: (1) **done except where noted — re-measured 2026-09-21 at
+  `f72122f71e`.** Sixteen of the seventeen legs listed above already call
+  `require_seed_execution_host`; the fences that blocked them (DELTA-COMPILER
+  on `tests/delta` + `tests/epsilon`, BETA-PE-SEED-REFUSAL on
+  `tests/beta/compiler`) have all drained. The sole outlier was
+  `tests/epsilon/interpreted-omega-experiment/run.sh`, guarded beside this
+  note, which makes the count 20/20 across every seed-executing gate under
+  `tests/{alpha,beta,delta,epsilon,bootstrap}`. Its unguarded behaviour was
+  measured on macOS arm64 before the fix: the gate materialized the
+  evaluator, executed it, and exited 1 with the opaque
+  `evaluator slice returned -9 with 0 bytes and SHA-256 e3b0c44298…`
+  (SIGKILL, empty-string digest) instead of refusing. With the guard a
+  non-seed host now gets the sibling stanza and exit 2. Two corrections to
+  the text above: the stanza reads `requires macOS arm64, Linux x86-64, or
+  Windows x64` — Linux x86-64 was admitted by
+  ALPHA-SEED-CONTAINER-NATIVE-VALIDATION, so the row's two-host wording is
+  stale — and the guard passes rather than refuses on macOS arm64, so it does
+  not by itself make the seed-execution legs runnable on a memory-limited
+  host (this 16 GB machine still SIGKILLs the seed);
   (2) run each seed-executing leg on Windows x64 and record the per-host
   result — every Windows leg stays outstanding until a Windows host validates
   it; no leg may report an unexecuted host result as passing.
