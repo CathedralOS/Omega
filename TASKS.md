@@ -9006,6 +9006,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   re-mine names are listed on the WRAPPER-OBJECT-OWNERSHIP row;
   OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION and
   OPTIMIZED-WRAPPER-OBJECT-RELOCATION name the same surface.
+- **OPTIMIZED-WRAPPER-DISPOSITION.** Mined candidate — bare re-mine of
+  the adjacent OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION row (verified
+  `8ccd793fa8`): the keep/move/delete disposition of the
+  `optimized_semantic_wrapper_{encoding,object}` modules, enumerated as
+  a PIPELINE-OWNER-CONSOLIDATION bullet with the move leg deferred to
+  DURABLE-CODEC-RELOCATION/REPRESENTATION-OWNERSHIP and first-caller
+  admission to UEFI-PHYSICAL-SEMANTIC-ENTRY. Re-verified at
+  `0f75a052f099d`: both modules still sit unrelocated under
+  `omega/compiler/native-realization/src/` (the crate moved from
+  `backend/` — the disposition itself is unchanged) and both entrances
+  keep lib.rs re-export only, no caller outside their own tests. The
+  sibling surface claim OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION is live
+  (zergling-182 ~06:52Z); surrounding native-realization surfaces stay
+  fenced to TWO-AXIS-TERMINAL-AUTHORITY-REVIEW (~04:54Z),
+  BUILD-EXCLUSION-REALIZATION (~07:37Z), FILESYSTEM-RELEASE-CONTRACT
+  (~12:03Z). No independent slice.
 - **OPTIMIZER-RULE-AXIS-GATE.** Scope verified — re-mine of the optimizer
   board's PER-RULE-COVERAGE axis gate (TASKS_OPTIMIZER.md, "every inventory
   row and every rewrite reachable from a stage exercises each axis through
