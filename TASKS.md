@@ -7992,7 +7992,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (BENCHMARK-COMPARISON-OCCURRENCE-GATE, 22:09Z). A new observation product
   would first need a concrete authorized design. Sibling re-mine name:
   COMPILER-OBSERVATION-OUTPUTS.
-- **COMPILER-PASS-PROFILE-INSTRUMENTATION** — mined candidate; verify scope then implement.
+- **COMPILER-PASS-PROFILE-INSTRUMENTATION.** — mined candidate; scope verified,
+  covered — z142's verification draft
+  (`wiki/drafts/compiler_pass_profile_instrumentation_z142.md`) already
+  adjudicated this stub as a re-mine of sibling COMPILER-PASS-PROFILE-TIMINGS'
+  remaining legs, and every enumerated leg is now landed: `c115576398` carries
+  the recorded stage-timings ladder into `CompileReport::timings` and wires
+  `--timings` → `collect_timings` → `CompileTimings::enabled()` (checking.rs),
+  while `cli/compilation.rs` prints `outcome.timings.phases()` +
+  `report.timings()` rows plus `total elapsed` on stderr, pinned by
+  `timings_are_opt_in_stderr_output_without_debug_files` (omega/tests/
+  command_line.rs — re-verified green on this host). The only open residual is
+  the per-Psi-stage decomposition, a Psi-owned timing-carrier design decision
+  that belongs to the parent COMPILER-PASS-PROFILE-TIMINGS row
+  (psi_does_not_depend_on_omega forbids the dependency route).
 - **COMPILER-PASS-PROFILE-TIMINGS** — advanced: the omega-side product legs now record into the `CompileTimings` accumulator the checked record carries. `CheckedCompilation::timings_mut` exposes it; `produce_retained_terminal_artifact` records `terminal-production`, `terminal-verification` and `native-realization-proposal` rows via take/put-back; the direct route carries `terminal-production` on `ProgramEntryTerminalArtifact::stage_timings` (merged back in `prepare_native_product`), and `NativeInputReuse` records `native-input-preparation` on cache miss. Enable+report legs landed (this wave): `CompileRequest::with_timings` reaches `PreparedCheckedSource::prepare`, which builds an `enabled` accumulator when asked; `CompileReport::timings()` carries each target's recorded ladder (`compiler -> tooling` dep edge `artifacts` is downward-legal per `workspace_layering_is_respected`), and `--timings` prints the report's stage rows after the command-level rows. Remaining leg: decompose the coarse boundary rows into per-stage rows — finer in-Psi rows need a Psi-owned timing carrier because `terminal-production` cannot depend on `artifacts` under `psi_does_not_depend_on_omega`; the prepared-project route (`PreparedLocalProjectNativeRequest`/`check_prepared_local_project`) also does not yet thread the flag. Witnessed on linux x86-64 at the pre-`c17b63d7592` green base (main is red there on `crossed_window`'s missing `CrossingDirection` arg — unrelated sibling landing): `timings_request_carries_the_recorded_stage_ladder_to_the_report` + `checked_admission_and_compilation_do_not_write_debug_dumps` pass; `compilation-report` + `assembled-syntax-to-checked-compilation` lib 93/93; `omega --lib` 16/16; architecture layering filter 14/14.
 - **COMPILER-PASS-PROFILING** — mined candidate; verify scope then implement.
 - **COMPOSABLE-PAIR-DESCRIPTORS.** Compose selected-lowering pair-rule descriptors over independent axes instead of enumerated products. Landed: `PairMachineEffects` is now a struct of three axis enums — `PairNonUnitSurface` (isolated vs indexed-pointer-read fold), `PairFaultDischarge` (isolated vs discharged-by-literal vs discharged-by-obligation), `PairUnitDefRelation` (covered vs retired-when-dead vs operand-swapped) — with admission computed as the conjunction of per-axis gates and the eight prior variants expressed as named consts over the product (`literal_fold/pair_rule.rs`); the obligation gate now derives the obligation from the consumer kind's declared field instead of a variant-coupled kind list. Remaining: `PairOperandShape`'s twelve-variant product (literal position × result kind × auxiliary/scratch tail) and `PairUnitEffects`'s bound-consumer pairs (`BoundConsumerOperands`, `BoundEarlyClobberConsumerOperands`).
