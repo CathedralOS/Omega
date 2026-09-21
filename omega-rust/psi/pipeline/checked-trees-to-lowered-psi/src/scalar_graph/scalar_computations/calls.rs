@@ -30,37 +30,59 @@ enum Operand {
     },
 }
 
-/// A `LocalInitializer` call whose retained actuals all kept pure scalar plans
-/// owns one `CallArgument` row per operand beside its computation root. Both
-/// channels describe the same authored actual: the row must exist, rejoin
-/// source custody, and agree with the computed operand value.
+/// A `Call` computation operand rejoins its retained actual through the role
+/// spelling the checker emitted for the call's authored statement:
+/// `CallArgument` keyed by the local binding, `UnitCallArgument` keyed by the
+/// authored call occurrence, or both at once. Whichever spelling is present is
+/// load-bearing custody — its binding and expression rows must rejoin uniquely
+/// and agree with the computed operand — and at least one must be present.
 fn consume_pure_call_argument(
     checked: &CheckedTrees,
     bindings: &storage::ScalarBindings,
     state: symbols::SymbolHandle,
     statement: u32,
     binding_ordinal: u32,
+    call_ordinal: u32,
     argument_ordinal: u32,
     operand: &checked_trees::CheckedScalarExpression,
 ) -> Result<(), LoweringError> {
-    let retained = bindings.expression_at(
-        checked,
-        state,
-        statement,
+    let operand_expression = bindings.expression(operand)?;
+    let plans = &checked.facts.values.scalar_expressions;
+    let mut retained = false;
+    for role in [
         CheckedScalarExpressionRole::CallArgument {
             binding_ordinal,
             argument_ordinal,
         },
-    )?;
-    if retained != bindings.expression(operand)? {
-        return unsupported("computed call operand disagrees with its retained pure argument");
+        CheckedScalarExpressionRole::UnitCallArgument {
+            call_ordinal,
+            argument_ordinal,
+        },
+    ] {
+        let present = plans.source_bindings.iter().any(|(_, binding)| {
+            binding.state == state && binding.statement_ordinal == statement && binding.role == role
+        }) || plans.expressions.iter().any(|expression| {
+            expression.state == state
+                && expression.statement_ordinal == statement
+                && expression.role == role
+        });
+        if !present {
+            continue;
+        }
+        if bindings.expression_at(checked, state, statement, role)? != operand_expression {
+            return unsupported("computed call operand disagrees with its retained pure argument");
+        }
+        retained = true;
+    }
+    if !retained {
+        return unsupported("computed call operand lost its retained pure argument");
     }
     Ok(())
 }
 
-/// The same custody on the continuation path: `CallArgument` rows exist only
-/// when every retained actual produced a pure scalar plan, so a single
-/// computed operand means this call legitimately owns none.
+/// The same custody on the continuation path: an operand row exists only when
+/// its retained actual produced a pure scalar plan, so a computation operand
+/// that is not a completed `Value` legitimately owns none.
 pub(crate) fn consume_pure_call_arguments(
     checked: &CheckedTrees,
     bindings: &storage::ScalarBindings,
@@ -74,6 +96,7 @@ pub(crate) fn consume_pure_call_arguments(
         return unsupported("scalar computation has no live root");
     }
     let CheckedScalarComputationKind::Call {
+        call_ordinal,
         arguments,
         structural_arguments,
         ..
@@ -115,6 +138,7 @@ pub(crate) fn consume_pure_call_arguments(
             state,
             statement,
             binding_ordinal,
+            *call_ordinal,
             argument_ordinal,
             operand,
         )?;
@@ -194,6 +218,7 @@ pub(crate) fn lower_inline_call(
                 state,
                 statement,
                 binding_ordinal,
+                call_ordinal,
                 argument_ordinal,
                 value,
             )?;
@@ -241,6 +266,7 @@ pub(crate) fn lower_inline_call(
         arguments,
         Vec::new(),
         ScalarCallCrashScope::CallerValues,
+        crate::scalar_graph::scalar_contracts::caller_erased_proof_roster(checked, machine, state)?,
     )
     .map(Some)
 }
@@ -439,6 +465,11 @@ impl Expansion<'_> {
             parameters_for_actuals(call_types, input_types.len()),
             structural_arguments,
             ScalarCallCrashScope::Arguments,
+            crate::scalar_graph::scalar_contracts::caller_erased_proof_roster(
+                self.checked,
+                self.machine,
+                site.state,
+            )?,
         )?;
         if self.calls.contains(&call.source_coordinate) {
             return unsupported("scalar computation repeats a call occurrence");
@@ -465,6 +496,7 @@ impl Expansion<'_> {
                         structural_parameters: Vec::new(),
                         parameter_types: leaf_types.clone(),
                         erased_formal_types: Vec::new(),
+                        erased_proof_formals: Vec::new(),
                         bindings: Vec::new(),
                         structural_effects: vec![LoweredScalarEffect::EstablishScalarArray(
                             LoweredScalarArrayConstruction {
@@ -478,6 +510,7 @@ impl Expansion<'_> {
                             target: continuation,
                             arguments: super::parameters(prefix),
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                         },
                     });
@@ -500,6 +533,7 @@ impl Expansion<'_> {
                     let constructor = self.push(LoweredScalarBranchState {
                         parameter_types: field_types,
                         erased_formal_types: Vec::new(),
+                        erased_proof_formals: Vec::new(),
                         structural_parameters: Vec::new(),
                         bindings: Vec::new(),
                         structural_effects: vec![LoweredScalarEffect::EstablishScalarCase(
@@ -516,6 +550,7 @@ impl Expansion<'_> {
                             target: continuation,
                             arguments: super::parameters(prefix),
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                         },
                     });

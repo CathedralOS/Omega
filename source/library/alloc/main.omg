@@ -1,0 +1,16 @@
+// alloc — package-level bump allocator over one qualified `Extent`
+// (wiki/spec/resources/allocation.md, TASKS.md BUMP-ALLOCATOR-CANARY).
+//
+// The package owns only the allocation strategy: `bump.omg` carries the
+// qualified-extent partition contract (`ExtentPartition`), the bump policy
+// (`Bump`/`Issued`/`Attempt`), the tail-ward `release` and full-return
+// `reset`, and the `BumpVec` reservation container with its finite
+// `RetiredSlot`. The compiler owns no allocator semantics here: every
+// extent the strategy touches is `Extent in Granted & Vacant`, and custody
+// is conserved through the boundary's authored `separate`/`embed` laws.
+// Establishing residents still waits on the placed-access operations the
+// strategy's `Vacant` requirements pin.
+//
+// The durable depend-edge consumer is
+// `tests/omega/pass/memory/bump_allocator_canary`.
+use bump;

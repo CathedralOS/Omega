@@ -757,7 +757,15 @@ fn walk_state_write_prefix_inner(
                     }) {
                         return None;
                     }
-                    wire_codecs::known_wire_codec_call_written_paths(program, nested_call)
+                    wire_codecs::known_wire_codec_call_written_paths(
+                        program,
+                        machine,
+                        nested_call,
+                        parameters,
+                        &isolated_local_roots,
+                        &local_alias_origins,
+                        &divergent_alias_origins,
+                    )
                 } else {
                     let argument_types = super::call_targets::call_argument_types(
                         program,

@@ -1,4 +1,5 @@
 use super::model::{ReviewOnlyRootPolicyDecision, ReviewOnlyRootPolicyDisposition};
+use crate::review::timings;
 use crate::review::{
     ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflictFingerprint,
     ReviewOnlyCapabilityConflictSet,
@@ -150,6 +151,7 @@ pub fn resolve_review_only_root_policy_decisions(
     conflicts: &ReviewOnlyCapabilityConflictSet,
     decisions: &[ReviewOnlyRootPolicyDecision],
 ) -> Result<ReviewOnlyRootPolicyResolution, ReviewOnlyRootPolicyResolutionError> {
+    let _stage = timings::stage("policy_resolution");
     let Some(first_package) = conflicts.packages().first() else {
         return Err(ReviewOnlyRootPolicyResolutionError::NoBlockingConflicts);
     };

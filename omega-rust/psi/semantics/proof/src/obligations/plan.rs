@@ -11,7 +11,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, FloatLiteral};
 use typed_trees::name::Identifier;
 use typed_trees::statement::TransitionGuardNode;
-use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
+use typed_trees::types::{PrimitiveType, TypeConstraintNode, TypeReferenceHandle};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProofPlan<'program> {
@@ -166,46 +166,58 @@ impl ProofConstraint {
         maximum: ExpressionHandle,
         end_inclusive: bool,
     ) -> Option<Self> {
-        // Endpoint evaluation keeps its selected arithmetic. Only the completed
-        // upper value is converted to an inclusive proof-integer bound.
-        let integer_bound = validation::closed_integer_range_bound(program, minimum);
-        if let (Some(minimum), Some(maximum)) = (
-            integer_bound.as_ref(),
-            validation::closed_integer_range_maximum(program, maximum, end_inclusive),
+        // A floating carrier's authored endpoints are float bounds even when
+        // both spellings read as exact integers: anonymous `0.0`/`100.0`
+        // literals evaluate integrally, so the integer read alone would mint
+        // an integer window no float value could satisfy. The float bound
+        // reader already converts integer-spelled endpoints at the declared
+        // carrier, so no integer constraint is ever honest evidence here.
+        if !matches!(
+            program.primitive_type_reference(base_type),
+            Some(PrimitiveType::F32 | PrimitiveType::F64)
         ) {
-            return Some(Self::IntegerRange {
-                minimum: minimum.clone(),
-                maximum,
-            });
-        }
-        // Symbolic proof atoms retain inclusive offsets, not executable
-        // subtraction. Validation fences an unrepresentable offset first.
-        if let Some(minimum) = integer_bound.as_ref().and_then(BigInt::to_i64)
-            && let Some(symbolic) = typed_trees::dependent_ranges::symbolic_range_maximum(
-                &program.expression_table,
-                maximum,
-                end_inclusive,
-            )
-        {
-            return Some(Self::IntegerRangeSymbolicMax {
-                minimum,
-                max_field: symbolic.field,
-                max_offset: symbolic.offset,
-            });
-        }
-        // R1 sibling-length maximum (`[0..items.len]` -> len - 1).
-        if let Some(minimum) = integer_bound.as_ref().and_then(BigInt::to_i64)
-            && let Some(sibling) = typed_trees::dependent_ranges::sibling_range_maximum(
-                &program.expression_table,
-                maximum,
-                end_inclusive,
-            )
-        {
-            return Some(Self::IntegerRangeSiblingLenMax {
-                minimum,
-                sibling: sibling.sibling,
-                max_offset: sibling.offset,
-            });
+            // Endpoint evaluation keeps its selected arithmetic. Only the
+            // completed upper value is converted to an inclusive
+            // proof-integer bound.
+            let integer_bound = validation::closed_integer_range_bound(program, minimum);
+            if let (Some(minimum), Some(maximum)) = (
+                integer_bound.as_ref(),
+                validation::closed_integer_range_maximum(program, maximum, end_inclusive),
+            ) {
+                return Some(Self::IntegerRange {
+                    minimum: minimum.clone(),
+                    maximum,
+                });
+            }
+            // Symbolic proof atoms retain inclusive offsets, not executable
+            // subtraction. Validation fences an unrepresentable offset first.
+            if let Some(minimum) = integer_bound.as_ref().and_then(BigInt::to_i64)
+                && let Some(symbolic) = typed_trees::dependent_ranges::symbolic_range_maximum(
+                    &program.expression_table,
+                    maximum,
+                    end_inclusive,
+                )
+            {
+                return Some(Self::IntegerRangeSymbolicMax {
+                    minimum,
+                    max_field: symbolic.field,
+                    max_offset: symbolic.offset,
+                });
+            }
+            // R1 sibling-length maximum (`[0..items.len]` -> len - 1).
+            if let Some(minimum) = integer_bound.as_ref().and_then(BigInt::to_i64)
+                && let Some(sibling) = typed_trees::dependent_ranges::sibling_range_maximum(
+                    &program.expression_table,
+                    maximum,
+                    end_inclusive,
+                )
+            {
+                return Some(Self::IntegerRangeSiblingLenMax {
+                    minimum,
+                    sibling: sibling.sibling,
+                    max_offset: sibling.offset,
+                });
+            }
         }
 
         Some(Self::FloatRange {

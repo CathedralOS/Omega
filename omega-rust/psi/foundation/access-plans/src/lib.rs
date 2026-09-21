@@ -44,6 +44,11 @@ pub use placements::owned_atomic_resident_custody::{
     OwnedAtomicResidentRetirementError, OwnedAtomicResidentViewEstablishmentError,
     adopt_owned_atomic,
 };
+pub use placements::owned_external_correspondence::{
+    EstablishedOwnedExternalPlacement, OwnedCorrespondedExternalAdmission,
+    OwnedExternalAdoptionError, OwnedExternalRetirementError, OwnedExternalViewEstablishmentError,
+    adopt_owned_external,
+};
 pub use placements::owned_placement_lifecycle::{
     DormantOwnedResident, EstablishedOwnedPlacement, OwnedPlacementAdmission,
     OwnedPlacementRejection, OwnedResidentRetirementError, OwnedResidentViewEstablishmentError,

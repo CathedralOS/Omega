@@ -12,6 +12,7 @@ use terminal_psi::{
 fn length(operation: u64, value: u64, source: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(operation, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -30,6 +31,7 @@ fn successor(edge: u64, target: u64, view: Option<u64>) -> SuccessorEdge {
         target: id(target, BlockId::new),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: view
             .into_iter()
             .map(|place| StructuralArgument {
@@ -78,6 +80,7 @@ fn current_observations() -> TerminalModule {
     let machine = &mut module.machines[0];
     machine.blocks[1].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(32, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -116,6 +119,7 @@ fn current_observations() -> TerminalModule {
     };
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: id(5, BlockId::new),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -125,6 +129,7 @@ fn current_observations() -> TerminalModule {
             target: id(3, BlockId::new),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             residual_affine_discards: Vec::new(),
             trivial_affine_discards: Vec::new(),
@@ -203,6 +208,7 @@ fn target_local_descriptor() -> TerminalModule {
         length(10, 10, 1),
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(40, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -215,6 +221,7 @@ fn target_local_descriptor() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(41, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -229,6 +236,7 @@ fn target_local_descriptor() -> TerminalModule {
         length(13, 13, 3),
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(42, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

@@ -21,7 +21,7 @@ expected result is [42](expected.txt).
 ([main.epsilon](main.epsilon)) reachable for refusal coverage:
 `python3 gate.py "$OUTPUT_DIR" "$OMEGA_PATH_EPSILON_EXECUTION_DRIVER" --diagnostic`.
 
-From the repository root on macOS arm64, or Windows x64 with Git Bash:
+From the repository root on macOS arm64, Linux x86-64, or Windows x64 with Git Bash:
 
 ```sh
 sh tests/bootstrap/omega-executable/run.sh
@@ -168,17 +168,17 @@ top of the bound member closure, never part of the manifested members.
 
 | Entry | Bytes | SHA-256 | Packed customer bytes | Packed customer SHA-256 |
 | --- | ---: | --- | ---: | --- |
-| `main.epsilon` | 1,757 | `c0af3126f13c8c511d04f224e630f60f3316c0f9fa6e310e72f66779c7c3ce9e` | 569,036 | `a35ab2ddddca0f5692f303a069c5400f08b86148be8b797c952e8742a693fffc` |
-| `main_ocreq.epsilon` | 19,253 | `9573d73423c2ed3e586b0298ae333733d8828c958a38f1859e1baff3d5ac4a9d` | 586,532 | `6bc40bdf882e3a3c6242028f81f4fcd29ddfda3207886f993c5d1367b0a19e5f` |
-| `controls.epsilon` | 3,631 | `78995d1f7975bbd7b8d82230b557f43bb263addb5be3deb2b9bf56cb03efa0a9` | 570,910 | `813a649ed9c64921b404690444b7fcae82aa764242d6a6636453f53304d72c33` |
-| `controls_b.epsilon` | 3,084 | `261d1529b50ab7b36c9dd228a0df7a4250d46d2913dcd85897ee8b911e98dbc3` | 570,363 | `9839a4556b90f82ac4ff7dd969b42b910dccf72b5afb0453aafb070dc5488bf6` |
-| `controls_c.epsilon` | 2,824 | `0dbc7da705e7da63a7589b49a25677037dcd43c31c3266f31511986b3eba54ae` | 570,103 | `8ebb23ec5ab1f4dbe2180ef70251d967b1e47e51768e3aab3f1b3f2aff7cb7a7` |
-| `controls_d.epsilon` | 2,850 | `916218b57476fe59f22a2d493b6529502e3ac3a4fda856d4e16b9a156a0f57c9` | 570,129 | `b0558766da24c13106a7084df7b092a950e7f16034cc4a41fa9922416b1c804c` |
-| `controls_e.epsilon` | 2,797 | `83ce536dacd5efb9238d7f5869ed5d6269c6481a24b4cdd0b7d3985777c150bc` | 570,076 | `cfb3c47f576c2936cdbe7f3fbf11c6077239b6d7ae4039f577d834b84d44a9bf` |
-| `controls_f.epsilon` | 4,425 | `fbc7ed2868f9e70833fdfc36c927238c8fd11184e5127e372d732c8ab6ebff0e` | 571,704 | `a58347d569295cff0f1c0dad0e01d5390792e030e940837ff0395116a5ea70a2` |
-| `controls_g.epsilon` | 3,127 | `3c94d2e5430226dbeb20b311d5336f57ab11c8fd49ace137e44785fcbac6ecb9` | 570,406 | `9ba61363a847c1a7ffb717f87cff26b09759bce99a37419f09e38a4e7b9dc2b2` |
-| `controls_h.epsilon` | 3,193 | `b48c672f09c8263d9d352fdb37af66a82c3083df38dabd533a93e0573e9e5c0e` | 570,472 | `19034eb61e2660152ba7836c5882e77110794187a1a5df6f056522b9673d7cad` |
-| `controls_i.epsilon` | 4,461 | `406e2bc4353983ebc81d6daa215a9b42f72b85056bc5f3263e1917e7e01efb94` | 571,740 | `f59c7735f23bd7bd8bb8fee4c9adfc83a2e2e925f4ae65ad0f2ace3e43ecbdc9` |
+| `main.epsilon` | 1,757 | `c0af3126f13c8c511d04f224e630f60f3316c0f9fa6e310e72f66779c7c3ce9e` | 571,677 | `3fc101fd95c3e7474b3fe2ccef26e905ad26e144b042e6fbffd6a0aeb0b05ff7` |
+| `main_ocreq.epsilon` | 19,249 | `5d5d0b8ed0146b055ffdbb6d680bb902a0e350c80b13577bf148879c6c753943` | 589,169 | `bb0df0b84735b0a32c27838a187619934cce5d37fa1105033db75137c2791419` |
+| `controls.epsilon` | 3,631 | `78995d1f7975bbd7b8d82230b557f43bb263addb5be3deb2b9bf56cb03efa0a9` | 573,551 | `fcbcda4189d01931ba3e296235d7680257a075136cf3994565161414d455d039` |
+| `controls_b.epsilon` | 3,084 | `261d1529b50ab7b36c9dd228a0df7a4250d46d2913dcd85897ee8b911e98dbc3` | 573,004 | `452b1864345a935ab7bce378ba6646b37477e6c08e531961d44cb491ca383032` |
+| `controls_c.epsilon` | 2,824 | `0dbc7da705e7da63a7589b49a25677037dcd43c31c3266f31511986b3eba54ae` | 572,744 | `5b8b21e7d7e91ce63f7b71cfd1d7122d43ba2d0f6d4184975956b77cf87bcbca` |
+| `controls_d.epsilon` | 2,850 | `916218b57476fe59f22a2d493b6529502e3ac3a4fda856d4e16b9a156a0f57c9` | 572,770 | `e9df055b44309313841e736e5d7631d57ac5587e6573c3f17da74aeea5ab4dc7` |
+| `controls_e.epsilon` | 2,797 | `83ce536dacd5efb9238d7f5869ed5d6269c6481a24b4cdd0b7d3985777c150bc` | 572,717 | `c12b0fedda175dfa5106bb9c8e38f001c148097d5e27b81ea00bb327cf2b91bb` |
+| `controls_f.epsilon` | 4,425 | `fbc7ed2868f9e70833fdfc36c927238c8fd11184e5127e372d732c8ab6ebff0e` | 574,345 | `1738a54b1a3d19bf97fdfc3e9bd9d66294426fd0c7bf78e538ff2d1e3784c7cd` |
+| `controls_g.epsilon` | 3,127 | `3c94d2e5430226dbeb20b311d5336f57ab11c8fd49ace137e44785fcbac6ecb9` | 573,047 | `5bf917e743d3d4a9c3a8846f58ede2b0cd865b4dd5219ad5afb20a24055014e9` |
+| `controls_h.epsilon` | 3,193 | `b48c672f09c8263d9d352fdb37af66a82c3083df38dabd533a93e0573e9e5c0e` | 573,113 | `0c6f6b9bb9d71aaf680b83c8b7220cec44162751adb2d0454df2820395783858` |
+| `controls_i.epsilon` | 4,461 | `406e2bc4353983ebc81d6daa215a9b42f72b85056bc5f3263e1917e7e01efb94` | 574,381 | `f0fbc43cc70e2221f0166fe7df1c407d317bc1244f8ba5db4033a4d9cb32a7fc` |
 
 `tools/bootstrap/omega/compiler_env.sh` checks every entry identity before
 each packing and `tests/bootstrap/omega-identity.sh` covers the refusals and

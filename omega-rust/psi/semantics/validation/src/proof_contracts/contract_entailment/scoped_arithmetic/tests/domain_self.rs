@@ -175,7 +175,7 @@ fn domain_self_rejects_invalid_stale_resolved_and_nonself_occurrences() {
         fixture.goal,
     ];
     for role in 0..5 {
-        let mut path = path.clone();
+        let mut path = path;
         let symbol = SymbolHandle::from_arena_index(211);
         match role {
             0 => path.symbol = symbol,

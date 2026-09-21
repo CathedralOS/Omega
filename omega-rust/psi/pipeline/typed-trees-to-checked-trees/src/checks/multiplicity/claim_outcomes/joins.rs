@@ -583,10 +583,7 @@ fn excluded_input_at_call(
     else {
         return None;
     };
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == establishment.machine_symbol)?;
+    let machine = crate::lookup::machine_by_symbol(program, establishment.machine_symbol)?;
     let frames = validation::CallFrameResolver::new(program)?;
     let borrowed_state = borrow
         .states

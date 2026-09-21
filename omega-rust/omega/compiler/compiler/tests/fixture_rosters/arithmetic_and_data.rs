@@ -138,6 +138,8 @@ pub const EQUATABLE_STRING_FIELD_EQUALITY_EXIT: &str =
 pub const EQUATABLE_STRING_NOT_EQUALS_EXIT: &str = "traits/equatable_string_not_equals_exit";
 pub const EQUATABLE_STRING_EQUALITY_GUARD_EXIT: &str =
     "traits/equatable_string_equality_guard_exit";
+pub const EQUATABLE_QUALIFIED_FIELD_REFERENCE_EXIT: &str =
+    "traits/equatable_qualified_field_reference_exit";
 pub const RUNTIME_DEEP_NESTED_FIELD_EXIT: &str = "data/runtime_deep_nested_field_exit";
 pub const RUNTIME_STRUCT_VALUE_COPY_EXIT: &str = "data/runtime_struct_value_copy_exit";
 pub const RUNTIME_WHOLE_STRUCT_MUTATION_COPY_EXIT: &str =
@@ -261,6 +263,7 @@ pub const PASS_CANARIES: &[&str] = &[
     EQUATABLE_STRING_FIELD_EQUALITY_EXIT,
     EQUATABLE_STRING_NOT_EQUALS_EXIT,
     EQUATABLE_STRING_EQUALITY_GUARD_EXIT,
+    EQUATABLE_QUALIFIED_FIELD_REFERENCE_EXIT,
     RUNTIME_DEEP_NESTED_FIELD_EXIT,
     RUNTIME_STRUCT_VALUE_COPY_EXIT,
     RUNTIME_WHOLE_STRUCT_MUTATION_COPY_EXIT,

@@ -1,6 +1,6 @@
 //! Meaningful optimizer-entrance and semantic-ladder audit entrance.
 //!
-//! The audit proceeds from the six rule-owning stages, through domain-grouped
+//! The audit proceeds from the rule-owning stages, through domain-grouped
 //! executable joins and semantic ladders, to stage-specific protocol custody.
 
 mod domains;

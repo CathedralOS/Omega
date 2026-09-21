@@ -12,10 +12,7 @@ pub(super) fn plan(
     graph: &CheckedScalarMachineGraph,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Option<CheckedStructuralRankedSccPlan>> {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == graph.machine)?;
+    let machine = crate::lookup::machine_by_symbol(program, graph.machine)?;
     if machine.termination_plan.implementation_witness.is_none() {
         return Some(None);
     }
@@ -60,7 +57,22 @@ pub(super) fn plan(
                 parameter.source_position == edge.target_rank_parameter_position
                     && parameter.primitive_type == component.rank_primitive_type
             })?;
-        if edge.target_rank_parameter_position >= successor.argument_count {
+        // The edge names authored formal positions, while the successor's
+        // `argument_count` counts authored actuals — an ambient borrowed `self`
+        // owns a formal position but no actual, so bound the coordinate against
+        // the target state's authored parameter count instead.
+        let target_state = program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == edge.target_state)?;
+        let target_parameters = program.state_parameters(target_state);
+        if successor.argument_count as usize
+            != target_parameters
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .count()
+            || edge.target_rank_parameter_position as usize >= target_parameters.len()
+        {
             return None;
         }
         edges.push(CheckedStructuralRankedSccEdgePlan {

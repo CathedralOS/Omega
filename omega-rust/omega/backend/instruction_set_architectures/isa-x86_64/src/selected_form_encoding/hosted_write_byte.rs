@@ -70,7 +70,7 @@ fn request(
 ) -> Result<u8, X86_64SelectedFormEncodingError> {
     // Hosted boundary storage is committed caller frame space: its
     // displacement is always a nonnegative offset below the incoming args.
-    if physical.model() != &crate::x86_64_physical_register_model()
+    if physical.identity() != crate::canonical_x86_64_physical_register_model_identity()
         || !matches!(
             kind,
             SelectedInstructionKind::HostedWriteByteI32 {

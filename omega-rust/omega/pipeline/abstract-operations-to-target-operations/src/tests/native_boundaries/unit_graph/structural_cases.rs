@@ -103,6 +103,7 @@ fn fixture() -> AbstractOperationPlan {
         AbstractOperation::BoundaryCall {
             psi_operation: operation(2),
             result: AbstractBoundaryResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: source,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Affine,

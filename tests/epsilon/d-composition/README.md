@@ -23,7 +23,7 @@ design, so every expected observation below is the same byte string the
 diagnostic gate pins. This covers the resource/entry-conformance leg of D
 composition that the diagnostic transport does not reach.
 
-Run from the repository root on macOS arm64, or Windows x64 in Git Bash:
+Run from the repository root on macOS arm64 or Linux x86-64, or Windows x64 in Git Bash:
 
 ```sh
 sh tests/epsilon/d-composition/run.sh
@@ -61,7 +61,7 @@ host running concurrent bootstrap work; these are host measurements, not
 bounds.
 
 The seventh customer is the complete-D composition: the whole bound
-567,279-byte packed D closure (`6930d7c3…`) plus this gate's own
+569,920-byte packed D closure (`f5f051fb…`) plus this gate's own
 [`main.epsilon`](main.epsilon), which reads the sealed stdin section through
 `Console.read_byte`, calls D's actual `OmegaScalarCompiler::compile` on the
 [`program.omg`](program.omg) source (`machine answer() -> u8 { 42 }`,

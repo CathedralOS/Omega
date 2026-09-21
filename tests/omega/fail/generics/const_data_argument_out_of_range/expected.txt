@@ -1,1 +1,1 @@
-does not fit `u8`
+const argument `300` for `TinyBuffer::N` does not fit `u8`

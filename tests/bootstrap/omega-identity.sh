@@ -56,20 +56,20 @@ echo "materialize: packed compiler is exactly the bound member bytes"
 # entry is the customer byte sequence its gate consumes; each is bound at
 # its recorded identity.
 for OMEGA_PACKED_CUSTOMER in \
-  "omega-parser $OMEGA_PATH_OMEGA_PARSER_ENTRY 571862 6fc61965b51b34b61b4db6b485bc32220835255ca58956729d45d2a5b8b90a87" \
-  "omega-outcome $OMEGA_PATH_OMEGA_OUTCOME_ENTRY 585509 b1ebd3cdad47140dfad9ea3efe955891e66fdf623d85226473ba615ccd9404db" \
-  "omega-request $OMEGA_PATH_OMEGA_REQUEST_ENTRY 571394 571d738bbc140cfff0de150f281aabd2fe7d048860320ee14def7cc7025762fa" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/main.epsilon 569036 a35ab2ddddca0f5692f303a069c5400f08b86148be8b797c952e8742a693fffc" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/main_ocreq.epsilon 586532 6bc40bdf882e3a3c6242028f81f4fcd29ddfda3207886f993c5d1367b0a19e5f" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls.epsilon 570910 813a649ed9c64921b404690444b7fcae82aa764242d6a6636453f53304d72c33" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_b.epsilon 570363 9839a4556b90f82ac4ff7dd969b42b910dccf72b5afb0453aafb070dc5488bf6" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_c.epsilon 570103 8ebb23ec5ab1f4dbe2180ef70251d967b1e47e51768e3aab3f1b3f2aff7cb7a7" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_d.epsilon 570129 b0558766da24c13106a7084df7b092a950e7f16034cc4a41fa9922416b1c804c" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_e.epsilon 570076 cfb3c47f576c2936cdbe7f3fbf11c6077239b6d7ae4039f577d834b84d44a9bf" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_f.epsilon 571704 a58347d569295cff0f1c0dad0e01d5390792e030e940837ff0395116a5ea70a2" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_g.epsilon 570406 9ba61363a847c1a7ffb717f87cff26b09759bce99a37419f09e38a4e7b9dc2b2" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_h.epsilon 570472 19034eb61e2660152ba7836c5882e77110794187a1a5df6f056522b9673d7cad" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_i.epsilon 571740 f59c7735f23bd7bd8bb8fee4c9adfc83a2e2e925f4ae65ad0f2ace3e43ecbdc9"
+  "omega-parser $OMEGA_PATH_OMEGA_PARSER_ENTRY 574503 bb0926635a8f6442c2a8b40e8ad015a5db7f2eea914062892d50ee6905104726" \
+  "omega-outcome $OMEGA_PATH_OMEGA_OUTCOME_ENTRY 589552 69aa773f4e006e9a737643cb0f97033c471176aed7dd31429e9cc205a4496e70" \
+  "omega-request $OMEGA_PATH_OMEGA_REQUEST_ENTRY 574035 9ee93e13f56ed6937be21e0a24c9469d817a5498806dc0c4c03089e6c98a4bfc" \
+  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/main.epsilon 571677 3fc101fd95c3e7474b3fe2ccef26e905ad26e144b042e6fbffd6a0aeb0b05ff7" \
+  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/main_ocreq.epsilon 589169 bb0df0b84735b0a32c27838a187619934cce5d37fa1105033db75137c2791419" \
+  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls.epsilon 573551 fcbcda4189d01931ba3e296235d7680257a075136cf3994565161414d455d039" \
+  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_b.epsilon 573004 452b1864345a935ab7bce378ba6646b37477e6c08e531961d44cb491ca383032" \
+  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_c.epsilon 572744 5b8b21e7d7e91ce63f7b71cfd1d7122d43ba2d0f6d4184975956b77cf87bcbca" \
+  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_d.epsilon 572770 e9df055b44309313841e736e5d7631d57ac5587e6573c3f17da74aeea5ab4dc7" \
+  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_e.epsilon 572717 c12b0fedda175dfa5106bb9c8e38f001c148097d5e27b81ea00bb327cf2b91bb" \
+  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_f.epsilon 574345 1738a54b1a3d19bf97fdfc3e9bd9d66294426fd0c7bf78e538ff2d1e3784c7cd" \
+  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_g.epsilon 573047 5bf917e743d3d4a9c3a8846f58ede2b0cd865b4dd5219ad5afb20a24055014e9" \
+  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_h.epsilon 573113 0c6f6b9bb9d71aaf680b83c8b7220cec44162751adb2d0454df2820395783858" \
+  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_i.epsilon 574381 f0fbc43cc70e2221f0166fe7df1c407d317bc1244f8ba5db4033a4d9cb32a7fc"
 do
   set -- $OMEGA_PACKED_CUSTOMER
   cat "$TMP/compiler.epsilon" "$2" > "$TMP/customer.epsilon"
@@ -214,7 +214,7 @@ echo "executable entries: a one-byte change or truncation is refused with its re
 
 for needle in \
   "$OMEGA_COMPILER_MANIFEST_SHA256" "$OMEGA_COMPILER_PACKED_SHA256" \
-  "567,279"
+  "569,920"
 do
   grep -q "$needle" "$OMEGA_REPO_ROOT/bootstrap/5_omega/README.md" ||
     fail "bootstrap/5_omega/README.md lacks bound record $needle"
