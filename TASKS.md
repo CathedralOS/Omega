@@ -7554,6 +7554,76 @@ Baseline-failure repairs (source: `wiki/drafts/known_baseline_failures.md`):
   TASKS_OPTIMIZER.md). Sections already fully leafed (t2c, pass canaries,
   pipeline_ownership, checked-interpreter, package-evidence, host notes) were left
   unchanged. Every section now names a leaf or is explicitly environmental.
+||||||| parent of 24b4061ae1d7a (board: DYNAMIC-RECEIVER-LOAN-ORIGIN resolved — loan-origin cluster closed at e76d715c8e, re-verified 21/21 green)
+- **BASELINE-NATIVE-DIFF-TERMINAL-PSI-SOURCE.** Three unrepaired failures in the `terminal_psi_source` native-differential lane.
+- **BASELINE-EXTERNAL-ROOTS-FIXED-FUEL-CEILINGS.** (new-scope) Unrepaired
+  failure in `external-roots`:
+  `stack_and_fuel::fixed_fuel::tests::installed_natural_cycle_safe_point_catalog_binds_to_one_occurrence`
+  expects the ranked fixture's five segment ceilings to bind as
+  `[1, 3, 3, 3, 1]` and observes `[1, 25769803776, 25769803776, 25769803776, 1]`
+  (macOS AArch64, `cargo nextest run -p external-roots` 248 run / 247 passed
+  at origin/main d4a908ec95 plus the 0e7dbf60de build repair). 25769803776
+  is 6·2^32: `7591b2607c` ("terminal-fixed-fuel: bound segments through
+  ranked cyclic components", whose body records its local tests as still
+  pending) now charges a `TerminalRankedScc::Natural` component as
+  rank-max-plus-one member visits, and the fixture's rank carrier is `u32`,
+  so the component bound is taken over the carrier range rather than the
+  countdown the external-roots binding expects. The failure was
+  unobservable while `external-roots` did not build (20bd592af1 removed the
+  journal types 2d8c5136cc consumed); the fuel crate's own suite is green
+  (`cargo nextest run -p terminal-fixed-fuel` 60/60). Owner: the
+  terminal-fixed-fuel ranked-segment lane (**PSIIR** resource-analysis leg)
+  decides whether a ranked component's segment ceiling is the carrier-wide
+  bound or the verified countdown; the external-roots expectation follows
+  that decision. Repair is one of the two files
+  (`terminal-fixed-fuel/src/fuel_certification/{outcome_bounds,segment_partition}.rs`
+  or `external-roots/src/stack_and_fuel/fixed_fuel/tests.rs`), not both.
+- **BASELINE-NATIVE-DIFF-PIPELINE-OWNERSHIP.** Unrepaired failure in the `pipeline_ownership` native-differential lane. Current red state is a
+  compile-broken test target at `62c502f9f6` (linux x86-64,
+  `cargo nextest run -p omega-native-differential-test --test
+  pipeline_ownership` exits 101 before running): four callers pass
+  `selected.optimized_target()`/`x86.optimized_target()` —
+  `&ValidatedOptimizedTargetOperations` — where
+  `validate_optimized_selection_custody` takes
+  `&Arc<ValidatedOptimizedTargetOperations>` (the
+  `optimized_target_owner()` accessor already yields that Arc; call sites
+  at `stages/realization/structural_units/structural_return.rs:33`,
+  `stages/selection/custody.rs:62`, `validation.rs:400,409` carry the
+  pre-change spelling), and `fixtures/ordinary_graph_controls.rs:32`
+  matches `LegalizedScalarTerminator` without the `Crash { .. }` arm the
+  variant added. Both repairs are confined to
+  `tests/native-differential/tests/pipeline_ownership{,.rs}`, which is
+  live-fenced to STRUCTURAL-UNIT-CALL-GRAPH-JOINS (exp 20:13Z) — no
+  unclaimed slice exists this wave; the repair ownership stays with that
+  claim's holder and the lane's underlying red legs are enumerated below.
+
+Language/semantic gaps:
+
+- **FUZZ-CLUSTER-ZERO-BYTE-ARRAY.** Resolved — the empty fixed byte array is a first-class value: `[u8; 0]` admits at check in locals, constants, parameters, returns, record fields, and nested arrays, constructed exactly by `[]` or `""` (`pass/collections/zero_length_byte_array_admission`, `zero_length_byte_array_is_admitted_at_check`). The use-site fences are pinned: no provable index (`x[0]` → "cannot prove index `0` is within length 0"), and fixed-array literals must supply exactly 0 elements/bytes (`fail/data/zero_length_byte_array_{index_rejected,literal_arity_rejected}` and `zero_length_byte_literal_length_rejected`, driven by `zero_length_byte_array_use_fences_reject_at_check`). Non-scalar-leaf `[T; 0]` stays fenced by `InvalidStructuralArrayLength` in the terminal verifier (settled by BASELINE-VERIFIER-ZERO-BYTE-ARRAY-FENCE); a native-route corpus pin for it belongs to the ACTIVE_FAIL roster. Verified: `cargo nextest run -p compiler --test canary_suite` scoped to the two new tests — 2/2 green on linux x86-64 at
+`ff596a06e6`; re-verified 3/3 zero_length canaries (admission, use-fence
+rejection, native-route `InvalidStructuralArrayLength` pin) green at
+`50cd9a2769`.
+- **CROSS-PACKAGE-DYNAMIC-EVIDENCE-LOAN-ORIGIN.** Resolved — the umbrella
+  row for the cross-package dynamic-evidence loan-origin cluster closed
+  by SHARED-RECEIVER-LOAN-ORIGIN (resolved at `e76d715c8e`). The
+  recorded failure
+  `cross_package_visibility::public_dynamic_return_may_carry_private_
+  producer_selected_evidence` ("state `code` requires an exact retained
+  loan origin for its shared receiver") passes after the
+  retained-lineage/borrow-evidence family landed; re-verified on this
+  host: all 21 `cross_package_visibility` tests pass at `dcfb595098`
+  (linux x86-64) with zero loan-origin diagnostics. No independent
+  slice remains. Sibling stubs on the same surface:
+  PACKAGE-CROSS-VISIBILITY-LOAN-ORIGIN (resolved),
+  PACKAGE-DYNAMIC-RETURN-LOAN-ORIGIN, DYNAMIC-RECEIVER-LOAN-ORIGIN
+  (resolved — receiver loan-origin checks live in
+  `checks/borrows/calls/receiver.rs` and cover shared and dynamic
+  receivers alike; the dynamic-return witness passes with zero
+  loan-origin diagnostics, re-verified green on the same 21/21
+  `cross_package_visibility` run at `2a07fef5a853` (z148). Its earlier
+  `checks/borrows/` fence expired unlanded; the directory is now held
+  by BORROW-PROOF-CONVERGENCE, exp 06:46Z).
+
 
 - **NEW-RBRA-PASS-TERMINATION.** Inserted row, scope verified at `891eb5c584`
   (planner-scoped to `tests/omega/pass/termination`) — no pending work on the
@@ -7868,7 +7938,7 @@ Optimizer lane (source: `TASKS_OPTIMIZER.md` + `learned_optimization_policy.md`)
   native side overlap `abstract-operations-to-target-operations/src/lowering/control_flow`
   and `execution/unit/receiver_calls` held by sibling claims). Sibling re-mines
   of this surface: RANKED-PROJECTED-RECEIVER-COMPOSITION. Re-verified at 42ac67775f: TASKS_OPTIMIZER.md still carries the optimizer half and termination.md still lists ranked projected-receiver callees as missing past whole-entry-only admission. `terminal-psi-to-abstract-operations/src/artifact_admission/native.rs` still retains only whole-artifact `AcceptedControlCycle` rosters — no per-callee call/return composition has landed. Re-verified again at `9b75533b9c`: same state on all three facts (TASKS_OPTIMIZER.md:308, termination.md §Ranked callees on projected receivers, whole-artifact rosters at `omega/pipeline/terminal-psi-to-abstract-operations/src/artifact_admission/native.rs`); the native-side surface stays fenced — `lowering/control_flow` under STRUCTURAL-UNIT-CALL-GRAPH-JOINS (20:13Z).
-- **WORKLOAD-CORPUS-AND-MULTIVERSIONING.** Resolved — authorization gate verified on `5b839c31ab`: source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation ("any future investigation belongs to the Omega-written product compiler and needs its own concrete justification") and `wiki/spec/build/optimizations.md` forbids trainer-side machinery (a trainer, training corpus pipeline, model evaluator, or inference path) in the Rust reference compiler — the premature trainer was already removed at `55ba7f6ab3`. The versioned workload surface that exists today is BENCHMARKS' `tools/benchmark` records; specialization-variant identity is already answered by the doc's "Identity of specialized variants" section (slot identity unchanged under component publication, body identity distinct, deduplication exact, replacement ordinary inside the frozen envelope, the specialization decision identity-bound in the recorded composition inputs) — residual impact question sits with SPECIALIZED-VARIANT-IDENTITY-IMPACT. Reopens only with OMEGA-PRODUCT-COMPILER-SOURCE plus a concrete justification. Same gate already recorded on sibling rows: WORKLOAD-CORPUS, WORKLOAD-MULTIVERSIONING, GRAPH-COST-EVIDENCE-CORPUS, OPTIMIZATION-WORKLOAD-CORPUS.
+- **WORKLOAD-CORPUS-AND-MULTIVERSIONING.** Resolved — authorization gate verified on `5b839c31ab`: source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation ("any future investigation belongs to the Omega-written product compiler and needs its own concrete justification") and `wiki/spec/build/optimizations.md` forbids trainer-side machinery (a trainer, training corpus pipeline, model evaluator, or inference path) in the Rust reference compiler — the premature trainer was already removed at `55ba7f6ab3`. The versioned workload surface that exists today is BENCHMARKS' `tools/benchmark` records; specialization-variant identity is already answered by the doc's "Identity of specialized variants" section (slot identity unchanged under component publication, body identity distinct, deduplication exact, replacement ordinary inside the frozen envelope, the specialization decision identity-bound in the recorded composition inputs) — residual impact question sits with SPECIALIZED-VARIANT-IDENTITY-IMPACT. Reopens only with OMEGA-PRODUCT-COMPILER-SOURCE plus a concrete justification. Same gate already recorded on sibling rows: WORKLOAD-CORPUS, WORKLOAD-MULTIVERSIONING, GRAPH-COST-EVIDENCE-CORPUS, OPTIMIZATION-WORKLOAD-CORPUS. Re-verified at `3a34702d3441` on Linux x86-64: source doc unchanged since `f3be428d4ae` (line 8 gate sentence and "Identity of specialized variants" section intact) and `wiki/spec/build/optimizations.md:207` still forbids trainer-side machinery.
 - **SPECIALIZED-VARIANT-IDENTITY-IMPACT.** Identity impact of specialized
   variants — resolved as an answered analysis question.
   `wiki/drafts/specialized_variant_identity_impact.md` records the verdict and
@@ -8484,6 +8554,51 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   is live in the registry; resolution unchanged — host-gated on Windows
   x64 for the PE leg.
 - **ALPHA-WINDOWS-CONFORMANCE** — mined candidate; verify scope then implement.
+||||||| parent of 00f36e8cfa2b (board: annotate ALPHA-WINDOWS-CONFORMANCE host-gated re-mine)
+  Its only implementing surface is the `samples/apps/squalr` submodule,
+  held under sibling claims (SQUALR-TARGETS-AND-THROUGHPUT,
+  SQUALR-CLONE-SERIALIZATION, SQUALR-REGION-ALIGNMENT-EXPANSION); the
+  residual set_alignment call-site gate is a compiler entry-mechanics
+  item tracked under GEOMETRY-PARITY, not this row. Sibling re-mine
+  stubs on the same surface: GEOMETRY-ALIGNMENT-PARSING,
+  GEOMETRY-ALIGNMENT-STRING-PARSING, SQUALR-ALIGNMENT-STRING-PARSING.
+  Re-verified at `6a3ba61f744` (z148): the submodule stays wholesale-fenced —
+  `samples/apps/squalr` under GEOMETRY-ALIGNMENT-REGIONS (exp 01:18Z) and
+  SQUALR-WINDOWS-GEOMETRY-VALIDATION (exp 05:49Z) — and the sibling stub
+  GEOMETRY-ALIGNMENT-STRING-PARSING is under a live same-surface claim.
+  Second dispatch re-verified at `b8d336adcf21` (z148): fences unchanged —
+  squalr dir still wholesale-fenced, sibling claim renewed to 08:49Z.
+- **ALPHA-SEED-WINDOWS-X64-EXECUTION** — mined candidate; verify scope then implement.
+- **ALPHA-WINDOWS-CONFORMANCE** — mined candidate; verify scope then implement.
+  Its only implementing surface is the `samples/apps/squalr` submodule,
+  held under sibling claims (SQUALR-TARGETS-AND-THROUGHPUT,
+  SQUALR-CLONE-SERIALIZATION, SQUALR-REGION-ALIGNMENT-EXPANSION); the
+  residual set_alignment call-site gate is a compiler entry-mechanics
+  item tracked under GEOMETRY-PARITY, not this row. Sibling re-mine
+  stubs on the same surface: GEOMETRY-ALIGNMENT-PARSING,
+  GEOMETRY-ALIGNMENT-STRING-PARSING, SQUALR-ALIGNMENT-STRING-PARSING.
+- **ALPHA-SEED-WINDOWS-X64-EXECUTION** — mined candidate; verify scope then implement.
+- **ALPHA-WINDOWS-CONFORMANCE** — mined candidate; scope verified at
+  `66f9426258`, host-gated re-mine: the name re-covers the Windows x64 leg
+  already owned by **ALPHA-WINDOWS-CONFORMANCE-HOST** (resolved-with-
+  remainder row ~line 6524) — per DEVICE-EXTENT-ACCESS's ledger this item
+  owns the Windows edge legs (`tests/bootstrap/alpha-beta-edge.sh` +
+  `tests/alpha/reference/diamond-py.sh`), whose remaining acceptance is
+  seed execution on a Windows x64 host (Git Bash + Python 3), plus the
+  `tests/alpha/io-registers.hex` run exiting 0 with stdout `ABCDEF` for
+  input `AB`. The committed seed `bootstrap/0_alpha/alpha_x64_windows.exe`
+  (PE32+ x86-64, hole offset 5120) is already bound, selected, and
+  structurally validated host-free: `tools/bootstrap/alpha/seed_env.sh`
+  pins its size/SHA-256/hole and sets `ALPHA_SEED_EXECUTABLE=1` under
+  `MINGW*-x86_64|MSYS*-x86_64`; `tests/alpha/container.sh` re-verified
+  green on linux x86-64 at `66f9426258` (valid pe, pristine + stamped
+  hole contracts, bound identities for all three committed seeds).
+  Nothing executable remains on a Linux host — the only residual is
+  running the seed on Windows x64, which stays with the owning rows; the
+  `tests/alpha` + `tests/bootstrap/alpha-beta-edge.sh` surfaces are also
+  under a live BOOTSTRAP-SEED-EXECUTION-HOSTS claim this wave. No
+  independent slice. Sibling re-mine: ALPHA-WINDOWS-SEED-EXECUTION.
+
 - **ARTIFACT-AUTHORITY-CHECKS** — mined candidate; verify scope then implement.
 - **ASM-CATALOG-FAMILY-EXPANSION** — mined candidate; verify scope then
   implement. Landed slice: the pipeline-directive family — `serialize`
@@ -12266,14 +12381,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **LIFETIME-MULTI-SOURCE-AND-OUTLIVES.** Mined candidate — scope verified,
   two legs — re-mines the [lifetimes](wiki/spec/language/lifetimes.md)
   returned-view frontier and the [conformances](wiki/spec/language/conformances.md)
-  application-matching boundary. Multi-source leg:
+  application-matching boundary. Multi-source leg (landed at `9106b1ca037`
+  upstream and `2d0de49fe8a8` on the z148 lane):
   `typed-trees-to-checked-trees/src/borrow/view_link.rs` maps an explicit
-  result lifetime to one input parameter plus its complete matching
-  structural leaves; reusing one lifetime on multiple input parameters
-  currently rejects and is not a general multiple-source relation
-  (README#lifetime-source-correspondence). Implementing it means every
-  parameter carrying the selected lifetime contributes its leaves as
-  possible sources, each supporting the returned access. Outlives leg:
+  result lifetime to EVERY input parameter carrying it — direct reference
+  parameters and structurally carried leaves alike — each contributing its
+  matching leaves as possible sources of the returned view and each required
+  to supply the result's access (`IncompatibleSourceAccess` still rejects a
+  restricted sibling). The shared resolver feeds the declaration check and
+  the loan attributor unchanged: multi-source signatures resolve to
+  `ViewReturnSource::Fields` with one field per (result leaf x matching input
+  leaf), and the existing per-field loan path tracks each contributing
+  source, so writing any candidate while the view is live rejects
+  (`borrow/` multi_source_* canaries on the z148 lane). Elision stays
+  single-source: unannotated multiple candidates still reject as
+  `ElidedMultipleInputs`. Outlives leg:
+
   general authored outlives bounds have no surface — lifetimes.md spells
   binders only, conformances.md states whole-conformance applications do
   not gain outlives/variance/subtyping and introducing them requires
@@ -12286,6 +12409,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   DYNAMIC-RECEIVER-LOAN-ORIGIN 01:47Z expired unworked). Sibling rows
   LIFETIME-SOURCE-CORRESPONDENCE and GENERIC-RETURNED-VIEW-LIFETIMES record
   the same clause family and the same residual pair.
+||||||| parent of 2d0de49fe8a83 (borrow: explicit result lifetime links every matching input as a possible source)
+  binders only, conformances.md states whole-conformance applications do
+  not gain outlives/variance/subtyping and introducing them requires
+  revisiting the application-matching rule; there is no authored syntax or
+  semantics to implement, so that leg waits on a spec decision, not a
+  checker gap. Dispatch note (`669925b8b9`): the multi-source surface is
+  fenced — `view_link.rs`, `view_link/`, `loans.rs` under
+  GENERIC-RETURNED-VIEW-LIFETIMES (22:27Z) and `checks/borrows/` under
+  DYNAMIC-RECEIVER-LOAN-ORIGIN (01:47Z); sibling row
+  LIFETIME-SOURCE-CORRESPONDENCE is the same clause family and is itself
+  claimed (01:51Z).
+  The two stale reject-expectation pins the earlier residual named
+  (`carrier_result_ambiguous_inputs_and_access_escalation_reject`,
+  `direct_result_rejects_ambiguity_between_owned_and_direct_inputs`) and
+  the retired `LifetimeMatchesMultipleInputs` variant plus its elision
+  diagnostic arm are drained on both lanes (upstream `9106b1ca037`,
+  z148 `2d0de49fe8a8`).
 - **LIFETIME-SOURCE-CORRESPONDENCE.** Scope verified on `8ccd793fa8` — re-mine
   of the same clause family as sibling GENERIC-RETURNED-VIEW-LIFETIMES
   (annotated dispatch above). `borrow/view_link.rs` ("Lifetimes stage 2")
@@ -14160,7 +14300,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   signed zero/subnormal/infinity and forged-root drift rejection covered.
   Witness green at `cdee121ee9`:
   `public_float_constants_retain_landed_identity_and_exact_import_owner`
-  (package_compilation_inputs). Sibling stubs on this surface:
+  (package_compilation_inputs). Re-verified at `4946c28bd44` (z148): the
+  same witness is green. Sibling stubs on this surface:
   PACKAGE-INPUTS-COMPUTED-CONSTANT-LEAF, COMPUTED-CONSTANT-LEAF-CARRIER,
   PACKAGE-INPUTS-PSI-FAILURES.
 - **PLACE-ACCESS-GEOMETRY.** Resolved — scope verified, already landed. The stub
@@ -17627,6 +17768,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   wholesale fence still stands (GEOMETRY-ALIGNMENT-REGIONS exp 01:18Z +
   SQUALR-WINDOWS-GEOMETRY-VALIDATION exp 05:49Z), so the disposition is
   unchanged — covered; the stub re-mines the residual list of owning parent
+||||||| parent of 193f8659e02e4 (board: SQUALR-GEOMETRY-PARITY-GAPS resolved — re-mine of SQUALR-GEOMETRY-PARITY residual list, fenced at 74537d6125c)
+- **SQUALR-DEBUG-ASSERTIONS** — mined candidate; verify scope then implement.
+- **SQUALR-ENGINE-CRATE-SOURCES** — mined candidate; verify scope then implement.
+- **SQUALR-GEOMETRY-DEBUG-ASSERTIONS** — mined candidate; verify scope then implement.
+- **SQUALR-GEOMETRY-PARITY-GAPS** — mined candidate; verify scope then implement.
+- **SQUALR-GEOMETRY-PARITY-REMAINDER** — mined candidate; scope verified at
+  `10d93dd448`, covered — re-mines the residual list of owning parent  Earlier z148
+  verification at `74537d6125c` folded the same stub the same way —
+  each enumerated gap mapped to a live-claimed sibling row, the parent's
+  residuals fenced or host-gated, no linux_x86_64 slice outside a
+  claimed fence.
+
   **SQUALR-GEOMETRY-PARITY** (TASKS.md:6235), which now carries two audits:
   the z105 verified-scope audit (12/12 geometry checks PASS on macOS ARM64
   at app `4b1f7a6` / std `87d8b227`; every enumerated gap maps to a sibling
@@ -18819,6 +18972,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   here. Sibling stubs on the same clause: WINDOWS-FILE-TIME-UNSIGNED-RESPELL,
   WINDOWS-SET-FILE-TIME-CARRIER, WINDOWS-SET-FILE-TIME-UNSIGNED-RESPELL.
 - **WINDOWS-FILE-TIME-UNSIGNED-RESPELL.** — mined candidate; scope verified,
+  dispatch (~10:19Z). Still no implementation slice exists to claim.
+  Earlier same-day verification at `e5bbe53956f` (z148) reached the same
+  gate: `CompositionCrossActivationEdges::NotRetained` still publishes
+  (composition_model/mod.rs:118-226) and the spec deferral text was
+  unchanged (concurrency.md:138).
 - **WHOLE-COMPOSITION-EXTRACTION.** Scope verified — authorization gate recorded. Same deferred whole-composition surface as the resolved concurrency stubs (CONCURRENT-PROTOCOL-EXTRACTION, CONCURRENT-PROTOCOL-WHOLE-COMPOSITION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION) and the adjacent WHOLE-COMPOSITION-INTERACTION-EXTRACTION row: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it." Verified live at 2e1db3ba3e: `task-plans/src/composition_model` already extracts the sealed intra-activation model (`compose_composition_model` + `replay_composition_model`), `CompositionCrossActivationEdges`/`CompositionPriorities` publish `NotRetained` because the settled plan vocabulary retains no inter-activation relations. Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines; the upstream inter-activation vocabulary belongs to the WAIT-WAKE-SUBSTRATE surface. No implementation slice exists to claim.
 - **WHOLE-COMPOSITION-INTERACTION-EXTRACTION** — mined candidate; scope verified, authorization gate recorded. This stub's subject is the inter-activation leg of the deferred whole-composition extraction: `omega-rust/omega/representations/task-plans/src/composition_model` already extracts the sealed model (`compose_composition_model` + `replay_composition_model`), and its `CompositionCrossActivationEdges` — joins, channel handoffs, and other cross-activation waits-for relations — publishes `NotRetained` because the settled plan vocabulary retains only intra-activation `canonical_suspension_crossings`. Re-mines the gated surface of CONCURRENT-PROTOCOL-EXTRACTION / CONCURRENT-PROTOCOL-WHOLE-COMPOSITION / CONCURRENT-WHOLE-COMPOSITION-EXTRACTION (see the concurrency stubs above): `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it." No join/channel/handoff field exists in `TaskActivationPlanSet` — activation requires such a customer plus upstream inter-activation vocabulary (the WAIT-WAKE-SUBSTRATE surface). No implementation slice exists to claim. Sibling stub on the same gated surface: WHOLE-COMPOSITION-EXTRACTION.
 - **WINDOWS-ALPHA-CONFORMANCE-LEG.** Mined candidate; scope verified
