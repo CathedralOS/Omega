@@ -95,11 +95,13 @@ fn integer_equality_axiom_proves_the_return_contract() {
             entry: BlockId::new(40).expect("block"),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(40).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(40).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -116,6 +118,7 @@ fn integer_equality_axiom_proves_the_return_contract() {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(40).expect("contract"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -311,11 +314,13 @@ fn integer_ordering_axioms_prove_return_contracts() {
                 entry: BlockId::new(50).expect("block"),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: BlockId::new(50).expect("block"),
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(50).expect("operation"),
                         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -332,6 +337,7 @@ fn integer_ordering_axioms_prove_return_contracts() {
                 }],
                 contract: MachineContract {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: ContractId::new(50).expect("contract"),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
@@ -519,11 +525,13 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
                 entry: BlockId::new(60).expect("block"),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: BlockId::new(60).expect("block"),
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(60).expect("operation"),
                         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -540,6 +548,7 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
                 }],
                 contract: MachineContract {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: ContractId::new(60).expect("contract"),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
@@ -670,11 +679,13 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
             entry: BlockId::new(65).expect("block"),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(65).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(65).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -691,6 +702,7 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(65).expect("contract"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -807,11 +819,13 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
             entry: BlockId::new(68).expect("block"),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(68).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(68).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -828,6 +842,7 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(68).expect("contract"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -972,6 +987,7 @@ fn preserves_address_carrier_identity() {
             entry: BlockId::new(168).expect("block"),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(168).expect("block"),
                 parameters: Vec::new(),
@@ -984,6 +1000,7 @@ fn preserves_address_carrier_identity() {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(168).expect("contract"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -1061,11 +1078,13 @@ fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligatio
             entry: BlockId::new(170).expect("block"),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(170).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(170).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -1085,6 +1104,7 @@ fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligatio
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(170).expect("contract"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -1205,11 +1225,13 @@ fn exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
             entry: BlockId::new(180).expect("block"),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(180).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(180).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -1230,6 +1252,7 @@ fn exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(180).expect("contract"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -1319,11 +1342,13 @@ fn exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
             entry: BlockId::new(190).expect("block"),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(190).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(190).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -1344,6 +1369,7 @@ fn exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(190).expect("contract"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -1421,11 +1447,13 @@ fn exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
             entry: BlockId::new(194).expect("block"),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(194).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(194).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(declaration(computed)),
                     kind: OperationKind::ExactIntegerAdd {
@@ -1442,6 +1470,7 @@ fn exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(194).expect("contract"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

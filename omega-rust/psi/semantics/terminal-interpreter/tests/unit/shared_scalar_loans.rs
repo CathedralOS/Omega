@@ -141,22 +141,26 @@ fn shared_scalar_call_module() -> TerminalModule {
         target: block_id(JOIN_BLOCK),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         residual_affine_discards: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: vec![shared_parameter(VIEW, 0, SCALAR_TYPE)],
         id: block_id(JOIN_BLOCK),
         parameters: Vec::new(),
         operations: vec![Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(902),
             result: OperationResult::Scalar(scalar_declaration(CALL_VALUE)),
             kind: OperationKind::CallStructuralScalar {
                 callee: machine_id(CALLEE),
                 arguments: Vec::new(),
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {
                     place: place_id(VIEW),
                     path: Vec::new(),
@@ -197,11 +201,13 @@ fn shared_scalar_call_module() -> TerminalModule {
         entry: block_id(CALLEE_BLOCK),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(CALLEE_BLOCK),
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(910),
                 result: OperationResult::Scalar(scalar_declaration(READ_VALUE)),
                 kind: OperationKind::PrimitiveScalarRead {

@@ -245,8 +245,9 @@ fn total_direct_define_projects_one_deterministic_recoverable_review_row() {
         "ordinary executable validation must remain fail closed"
     );
     assert!(
-        typed_trees_to_checked_trees::lower_typed_trees(program.clone()).is_err(),
-        "ordinary checked lowering must not admit the proof-only request"
+        typed_trees_to_checked_trees::lower_typed_trees(program.clone()).is_ok(),
+        "checked lowering admits the proof-only request; the published \
+         correspondence gate holds the execution refusal"
     );
 
     let first =

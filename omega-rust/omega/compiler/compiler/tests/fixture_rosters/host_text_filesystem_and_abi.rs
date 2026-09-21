@@ -3,6 +3,7 @@
 pub const RUNTIME_STDIN_COMMAND_BRANCH_EXIT: &str = "text/runtime_stdin_command_branch_exit";
 pub const WINDOWS_WRAPPER_DARK_METHODS_EXIT: &str = "filesystem/windows_wrapper_dark_methods_exit";
 pub const WINDOWS_WRAPPER_RESULTS_EXIT: &str = "filesystem/windows_wrapper_results_exit";
+pub const NATIVE_WRAPPER_WRITE_ALL_RESULT: &str = "filesystem/native_wrapper_write_all_result";
 pub const RUNTIME_LOCAL_HOST_RESULT_DISPATCH_EXIT: &str =
     "filesystem/runtime_local_host_result_dispatch_exit";
 pub const WINDOWS_RAW_ROUNDTRIP_EXIT: &str = "filesystem/windows_raw_roundtrip_exit";

@@ -286,18 +286,22 @@ computation plans; do not describe a source classifier as finished execution.
 
 ## Guarded primitive-reference operand
 
-This customer passes source checking and publishes a ranked Terminal artifact.
-Save it as `main.omg` and run `omega --check --target macos_arm64 main.omg`:
+The existing regression passes source checking and publishes a ranked Terminal
+artifact using legacy scalar range annotations. The example below expresses its
+bounds as a machine contract under the accepted language; it is a migration
+target, not a newly tested replacement. `REMOVE-BRACKETED-RANGE-ANNOTATIONS` on
+the [board](../../../../TASKS.md) tracks the fixture/compiler migration.
 
 ```omega
 machine reset(value: &mut u64) -> u64 { value = 0; 0 }
 
 data Limits {
     limit: u64;
-    divisor: u64 [3..=5];
+    divisor: u64;
 }
 
-machine walk(remaining: u64 [0..=5], limits: Limits, marker: u64)
+machine walk(remaining: u64, limits: Limits, marker: u64)
+requires remaining <= 5 && limits.divisor >= 3 && limits.divisor <= 5;
 terminates by remaining -> Nat::Descending in 0..(limits.limit % limits.divisor + 6);
 -> u64 {
     let mut scratch: u64 = 0;
@@ -317,10 +321,11 @@ The source-to-artifact/runtime regression is:
 cargo nextest run -p checked-trees-to-lowered-psi --test owned_scalar_cycles --no-fail-fast
 ```
 
+On the legacy fixture,
 `omega inspect-terminal --machine walk --target macos_arm64 main.omg` reports
 the verified Natural component and `fixed_fuel status=unknown`: the existing
 fixed-work deriver does not close this graph. The
-[inspection command](../../../omega/src/command/inspect_terminal/README.md)
+[inspection command](../../../omega/tests/inspect_terminal.rs)
 keeps proof checking mandatory and fixed-work evidence separate; termination
 alone cannot supply a work ceiling. Here the `Limits` field reads occur only
 in erased ranking expressions; this customer does not require runtime field

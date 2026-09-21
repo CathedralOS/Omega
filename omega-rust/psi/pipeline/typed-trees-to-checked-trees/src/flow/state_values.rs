@@ -15,7 +15,7 @@ use symbols::SymbolHandle;
 use typed_trees::statement::{TransitionExit, TransitionTargetNode};
 
 mod arguments;
-mod fields;
+pub(super) mod fields;
 pub(in crate::flow) mod qualifications;
 pub(super) use arguments::capture_argument;
 
@@ -73,6 +73,10 @@ fn join(
 ) {
     let state = incoming.state;
     let mut changed = false;
+    // The widening thresholds are program-pure: fetch the context's memoized
+    // set before borrowing the row so the arena scan runs at most once per
+    // flow build, not once per rejoin.
+    let thresholds = ctx.integer_literal_thresholds_at(program);
     if let Some(previous) = ctx
         .state_value_inputs
         .iter_mut()
@@ -84,6 +88,7 @@ fn join(
             &mut previous.fields,
             &incoming.fields,
             source,
+            thresholds.as_slice(),
         );
         changed |= qualifications::meet(&mut previous.qualifications, &incoming.qualifications);
         for (parameter, value) in &mut previous.values {

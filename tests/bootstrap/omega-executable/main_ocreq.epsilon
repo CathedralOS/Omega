@@ -11,13 +11,16 @@
 // Admitted slice of the route: product `alpha_bootstrap_tape`, target
 // profile `alpha_bootstrap`, empty admissions (the contract assigns no
 // kinds), the root package an application whose snapshot supplies exactly
-// one `*.omg` regular file — the gate's canonical single-source shape.
+// one `*.omg` regular file - the gate's canonical single-source shape.
 // A shape-valid request outside this slice refuses as malformed_request at
 // the first out-of-slice coordinate: the assigned Reject codes name every
 // request refusal this route can publish, and unassigned coverage stays
 // unassigned rather than inventing wire numbers. The 32-byte subject
 // commitment is shape-checked here; its SHA-256 binding belongs to the
-// contract's commitment phase, not this shape pass.
+// contract's commitment phase, not this shape pass. The selected entry name
+// is `main`, the machine `alpha_bootstrap::ProgramEntry` binds in
+// source/omega/build.omg - the route's target supplies the entry contract,
+// not an adapter-supplied spelling.
 
 boundary trait Console {
     machine exit_process(return_code: i32) -> never;
@@ -400,7 +403,7 @@ machine Main::main(&mut self) {
     state compile() {
         self.compiler.compile(
             self.request.as_slice[self.source_start..self.source_end],
-            "answer");
+            "main");
         transition self.compiler.status {
             OmegaScalarCompilationStatus::Complete -> publish(0)
             OmegaScalarCompilationStatus::Reject -> compiler_reject()

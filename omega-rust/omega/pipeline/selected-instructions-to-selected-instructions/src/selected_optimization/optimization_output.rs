@@ -1,10 +1,11 @@
 //! Optimizer module role: stage output. Current selected program with separate replay inputs.
 
 use crate::{
-    OptimizedAllocationLegalityCustodyError, OptimizedLiteralFoldCustodyError,
-    OptimizedLiveRangeCustodyError, OptimizedLivenessCustodyError, OwnedSelectedProgram,
-    StagedOptimizedLiveRanges, StagedSelectedLoweringOptimizationRun,
-    validate_optimized_live_range_custody, validate_selected_lowering_optimization_custody,
+    AllocationRecoveryRuleCatalogError, OptimizedAllocationLegalityCustodyError,
+    OptimizedLiteralFoldCustodyError, OptimizedLiveRangeCustodyError,
+    OptimizedLivenessCustodyError, OwnedSelectedProgram, StagedOptimizedLiveRanges,
+    StagedSelectedLoweringOptimizationRun, validate_optimized_live_range_custody,
+    validate_selected_lowering_optimization_custody,
 };
 
 /// Only replay and custody assembly distinguish how the current program was obtained.
@@ -52,10 +53,13 @@ impl SelectedInstructionOptimizationEvidence {
             Self::Identity(ranges) => {
                 validate_optimized_live_range_custody(ranges.liveness_stage(), ranges.ranges())
                     .map_err(SelectedInstructionOptimizationError::LiveRanges)?;
-                if !ranges
-                    .selections()
-                    .for_phase(optimization_core::OptimizationExecutionPhase::SelectedLowering)
-                    .is_empty()
+                // Identity output admits only selections under executor-less
+                // catalog slices; a selection under any phase the entrance
+                // executes without its rewrite run is a missing execution.
+                // The executed set comes from the same catalog admission
+                // `optimize_analyzed_selected_instructions` reads.
+                if super::executed_slice_phases()
+                    .any(|phase| !ranges.selections().for_phase(phase).is_empty())
                 {
                     return Err(SelectedInstructionOptimizationError::MissingExecution);
                 }
@@ -78,6 +82,7 @@ pub enum SelectedInstructionOptimizationError {
     LiveRanges(OptimizedLiveRangeCustodyError),
     Legality(OptimizedAllocationLegalityCustodyError),
     Rewrite(OptimizedLiteralFoldCustodyError),
+    RecoveryCatalog(AllocationRecoveryRuleCatalogError),
     UnsupportedComposition,
     CurrentProgramMismatch,
     MissingExecution,

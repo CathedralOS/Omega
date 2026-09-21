@@ -126,6 +126,9 @@ pub(super) fn validate_graph(program: &TypedTrees, root: ExpressionHandle) -> Re
                 pending.push((binary.right, false));
                 pending.push((binary.left, false));
             }
+            ExpressionNode::Member(member) => {
+                pending.push((super::member_field_value(program, member)?, false));
+            }
             ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) | ExpressionNode::Float(_) => {}
             _ => return Err("unsupported node in exact scalar constant expression".into()),
         }

@@ -88,8 +88,9 @@ use super::StoreMutationMotionError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
 use crate::rewrites::place_storage::{
-    SubjectExtent, SubjectStorage, constant_index, extent_interferes, local_slot_is_place_storage,
-    local_store_shape, packed_store_row_shape, place_store_row_shape,
+    SubjectStorage, constant_index, extent_intersects, extent_reached_by,
+    local_slot_is_place_storage, local_store_shape, packed_store_row_shape,
+    place_store_row_shape, slot_is_subject_storage, staging_slot,
     structural_place_declarations,
 };
 use crate::rewrites::window_hazards::{coupled, is_barrier};
@@ -128,39 +129,33 @@ struct Moved {
     /// a byte-sequence store whose index resolved — its moved byte is the
     /// collapsed `byte_offset` then.
     sequence_index: Option<semantic_vocabulary::ValueId>,
-    storage: MovedStorage,
-}
-
-/// Which storage holds the moved bytes. `Place` is the place's own storage —
-/// the referent bytes every place-named roster route decides. `Staging` is
-/// one staging slot's own bytes: a `Structural` slot the place's declaration
-/// does not charge to the slot's operation stages bytes that name the place
-/// under slot coordinates no place-named row can reach, so only the rows
-/// naming that very slot — a `WriteLocal` rewriting them or an
-/// `AddressLocal` exposing them — decide the walk.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum MovedStorage {
-    Place,
-    Staging(LocalStorageSlotId),
+    storage: SubjectStorage,
 }
 
 impl Moved {
-    /// The moved bytes as the shared subject extent — `dynamic` when the
-    /// sequence index deciding the written byte's position is unresolved.
-    fn subject_extent(&self) -> SubjectExtent {
-        SubjectExtent {
-            byte_offset: self.byte_offset,
-            byte_count: self.byte_count,
-            dynamic: self.sequence_index.is_some(),
-        }
+    /// Exact rows intersect when their half-open byte intervals share a byte.
+    /// A dynamic moved extent is unbounded upward from `byte_offset`, so the
+    /// exact row interferes once its own extent reaches that offset — only a
+    /// row ending at or below it is provably disjoint.
+    fn intersects(&self, access: &SelectedMemoryAccess) -> bool {
+        extent_intersects(
+            self.byte_offset,
+            self.byte_count,
+            self.sequence_index.is_some(),
+            access,
+        )
     }
 
-    /// The storage the moved bytes occupy as the shared subject storage.
-    fn subject_storage(&self) -> SubjectStorage {
-        match self.storage {
-            MovedStorage::Place => SubjectStorage::Place(self.place),
-            MovedStorage::Staging(slot) => SubjectStorage::Staging(slot),
-        }
+    /// Whether `access` can reach the moved extent — the shared
+    /// dynamic-reach and resolved-landing decision in `place_storage`.
+    fn reached_by(&self, access: &SelectedMemoryAccess, function: &SelectedFunction) -> bool {
+        extent_reached_by(
+            self.byte_offset,
+            self.byte_count,
+            self.sequence_index.is_some(),
+            access,
+            function,
+        )
     }
 }
 
@@ -286,7 +281,7 @@ pub(super) fn admit<'source>(
         byte_offset: write.byte_offset,
         byte_count: write.byte_count,
         sequence_index,
-        storage: staging.map_or(MovedStorage::Place, MovedStorage::Staging),
+        storage: staging.map_or(SubjectStorage::Place, SubjectStorage::Staging),
     };
     // A byte-sequence moved store whose own `index` resolves through the
     // carrier audit — sole `InstructionResult` carrier, clean
@@ -587,29 +582,29 @@ fn interferes(
     structural_places: &[StructuralPlaceDeclaration],
     function: &SelectedFunction,
 ) -> bool {
-    extent_interferes(
-        moved.subject_extent(),
-        moved.subject_storage(),
-        access,
-        structural_places,
-        function,
-    )
-}
-
-/// The staging slot a `WriteLocal` row names when the slot is not the row
-/// place's own storage: a `Structural` slot staging bytes that name `place`.
-/// The row's place must be the place the slot stages — a `WriteLocal`
-/// claiming a different place than the slot's staged name is no coherent
-/// staging row — and the caller's `local_slot_is_place_storage` check has
-/// already ruled out the producer-home reading, so the slot's bytes are
-/// staging coordinates only.
-fn staging_slot(slot: LocalStorageSlotId, place: PlaceId) -> Option<LocalStorageSlotId> {
-    if matches!(slot, LocalStorageSlotId::Structural { .. })
-        && slot.structural_place() == Some(place)
-    {
-        Some(slot)
-    } else {
-        None
+    match access.role {
+        SelectedMemoryAccessRole::ReadPlace | SelectedMemoryAccessRole::WritePlace => {
+            matches!(moved.storage, SubjectStorage::Place)
+                && access.place == moved.place
+                && moved.intersects(access)
+        }
+        SelectedMemoryAccessRole::ReadByteSpan { .. }
+        | SelectedMemoryAccessRole::ReadByteSequence { .. }
+        | SelectedMemoryAccessRole::WriteByteSpan { .. }
+        | SelectedMemoryAccessRole::WriteByteSequence { .. } => {
+            matches!(moved.storage, SubjectStorage::Place)
+                && access.place == moved.place
+                && moved.reached_by(access, function)
+        }
+        SelectedMemoryAccessRole::WriteLocal { slot } => {
+            slot_is_subject_storage(slot, moved.storage, moved.place, structural_places)
+                && moved.intersects(access)
+        }
+        SelectedMemoryAccessRole::AddressLocal { slot } => {
+            slot_is_subject_storage(slot, moved.storage, moved.place, structural_places)
+        }
+        SelectedMemoryAccessRole::WriteOutgoing { .. }
+        | SelectedMemoryAccessRole::AddressOutgoing { .. } => false,
     }
 }
 
@@ -680,6 +675,8 @@ fn unaccounted_kind(instruction: &SelectedInstruction) -> bool {
             | ExactRemainderU64 { .. }
             | WrappingRemainderI64 { .. }
             | WrappingDivideI64 { .. }
+            | ExactDivideI64 { .. }
+            | ExactRemainderI64 { .. }
             | SaturatingAdd { .. }
             | SaturatingSubtract { .. }
             | SaturatingDivide { .. }
@@ -798,8 +795,8 @@ fn edge_stops(successor: &SelectedSuccessor, moved: &Moved, carried: &Carried) -
             } => (argument, destination),
         };
         let touches = match moved.storage {
-            MovedStorage::Place => destination.structural_place() == Some(moved.place),
-            MovedStorage::Staging(slot) => destination == slot,
+            SubjectStorage::Place => destination.structural_place() == Some(moved.place),
+            SubjectStorage::Staging(slot) => destination == slot,
         };
         if touches || writes(&argument) {
             return true;
@@ -807,10 +804,10 @@ fn edge_stops(successor: &SelectedSuccessor, moved: &Moved, carried: &Carried) -
     }
     if let Some(case) = &successor.structural_case {
         let slot_touches = match moved.storage {
-            MovedStorage::Place => case.slot.structural_place() == Some(moved.place),
-            MovedStorage::Staging(slot) => case.slot == slot,
+            SubjectStorage::Place => case.slot.structural_place() == Some(moved.place),
+            SubjectStorage::Staging(slot) => case.slot == slot,
         };
-        let discard_touches = matches!(moved.storage, MovedStorage::Place)
+        let discard_touches = matches!(moved.storage, SubjectStorage::Place)
             && case.trivial_affine_discards.contains(&moved.place);
         if slot_touches || discard_touches {
             return true;

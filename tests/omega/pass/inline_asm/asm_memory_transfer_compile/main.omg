@@ -1,0 +1,18 @@
+// COMPILE CANARY: the contracted AArch64 unordered memory transfers
+// `ldr`/`str` spell their memory operand as a typed Omega place, so the
+// access lowers to the same checked assignment the place's own provenance,
+// permission and exact-type contract carries. Bracketed `[address]` raw
+// addresses keep refusing; ordered, width-suffixed and unscaled spellings are
+// separate contracts.
+
+data Main {
+    value: u64;
+    buffer: [u64; 4];
+}
+
+machine Main::main(&mut self) {
+    asm {
+        str self.value, self.buffer[0];
+        ldr self.value, self.buffer[0]
+    }
+}

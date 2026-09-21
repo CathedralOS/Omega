@@ -743,6 +743,21 @@ pub fn admit_build_program(
             },
         ));
     }
+    // Granular privileged-service grants (wiki/spec/build/permissions.md
+    // #privileged-services): every flag is false until the root build machine
+    // assigns it, so a hosted image admits no mediated privileged class.
+    if has_exact_toolchain_build_facet(typed, "PrivilegedServices") {
+        build_fields.push((
+            "privileged_services".to_owned(),
+            BuildTimeValue::Struct {
+                type_name: "PrivilegedServices".to_owned(),
+                fields: vec![
+                    ("port_io".to_owned(), BuildTimeValue::Bool(false)),
+                    ("interrupt_table".to_owned(), BuildTimeValue::Bool(false)),
+                ],
+            },
+        ));
+    }
     if has_exact_toolchain_build_facet(typed, "BuildSource")
         && has_exact_toolchain_build_facet(typed, "BuildOutput")
     {

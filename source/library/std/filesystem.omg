@@ -32,6 +32,7 @@ use omega::language::core::numeric_conversion;
 // pre-resolution target filter keeps exactly one target's copies live.
 use targets::windows_x86_64::filesystem_impl;
 use targets::macos_arm64::filesystem_impl;
+use targets::macos_x86_64::filesystem_impl;
 use targets::linux_x86_64::filesystem_impl;
 use targets::linux_arm64::filesystem_impl;
 use omega::language::core::service;
@@ -148,12 +149,17 @@ pub data TryLockResult {
     case Acquired;
 }
 
-// How to open an existing file (Rust `std::fs::OpenOptions`). A ZII-default
-// `OpenOptions` (all false) opens read-only. These flags cover EXISTING-file
-// opens (read / write / read+write / append / truncate); the creating flags
-// (`create`/`create_new` = O_CREAT/O_EXCL) need `open`'s variadic `mode`
-// argument, which is not yet marshalled on arm64 — use `create` for the common
-// create-and-truncate case until that lands (see TASKS_FS.md step 7-open).
+// How to open a file (Rust `std::fs::OpenOptions`). A ZII-default
+// `OpenOptions` (all false) opens read-only. Both the existing-file flags
+// (read / write / read+write / append / truncate) and the creating flags
+// (`create`/`create_new` = O_CREAT/O_EXCL) are covered: creating opens route
+// through the fixed three-argument `open_create` seam, so they never need
+// `open`'s variadic `mode` slot. What remains restricted on arm64 is the mode
+// value itself — the darwin arm64 encoder marshals the trailing mode on the
+// stack and requires a compile-time immediate, so every creating open here
+// passes the literal 438 (0o666, trimmed by the umask) and a caller-supplied
+// runtime mode is not expressible there. See the fuller note at
+// `Filesystem::create`.
 pub data OpenOptions [copy] {
     read: bool;
     write: bool;

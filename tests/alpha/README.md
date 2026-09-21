@@ -9,6 +9,7 @@ audited VM implementations and normative semantics remain in `bootstrap/0_alpha/
 | `container.sh`, `container.py` | Validates both audited seed containers as native executables on every host: bound identity for the non-host seed too, PE32+/Mach-O structure, hole offset equal to the tape section's raw extent, and the stamped-artifact contract. | Delete only when an identity or provenance gate covers the same native-container contract. |
 | `bounds.py` | Hand-encoded bounds cases shared by native and reference checks. | Delete when stronger conformance controls subsume these exact/adjacent observations. |
 | `io-registers.hex` | Shared raw-tape regression for host scratch/register isolation. | Delete when stronger I/O conformance checks subsume its full-word and operand controls. |
+| `parity.sh` | On Linux x86-64, runs the conformance opcode battery plus the diamond edge corpus through both the committed `alpha_x64_linux` container and the independent reference, failing on any exit-code or stdout disagreement. | Delete when the reference interpreter is deleted, or when host-seed agreement coverage reaches the Linux container another way. |
 | `reference/` | Independent VM differential checks. | Delete when checked native correspondence subsumes the diagnostic. |
 | `tape-assembly/` | Off-chain assembler reconstruction, differential, grammar, and example tests. | Delete with the tool or when stronger checked coverage subsumes every relation. |
 

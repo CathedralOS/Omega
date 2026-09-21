@@ -1,14 +1,12 @@
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::{EffectLink, ValueDefinitionSite};
 use register_environment::baseline_target_register_environment;
-use register_model::RegisterInstructionConstraint;
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
-    SelectedBoundarySettlementPayload, SelectedCallContract, SelectedFunction, SelectedInstruction,
+    SelectedBoundarySettlementPayload, SelectedCallContract, SelectedFunction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedMemoryAccess,
-    SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedOperand, SelectedSuccessor,
-    SelectedSuccessorRole, SelectedTerminator, VirtualRegister, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedSuccessor, SelectedSuccessorRole,
+    SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
@@ -26,41 +24,7 @@ use super::{
     relocate_selected_instruction, validate_local_relocation,
 };
 use crate::ValidatedSelectedAnalysis;
-
-fn budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
-}
-
-fn instruction(
-    id: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    row: &RegisterInstructionConstraint,
-    registers: &[VirtualRegisterId],
-) -> SelectedInstruction {
-    SelectedInstruction {
-        id,
-        kind,
-        constraint: row.key,
-        operands: row
-            .operands
-            .iter()
-            .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
-    }
-}
+use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 
 const MAT_A: SelectedInstructionId = SelectedInstructionId(2);
 const MAT_B: SelectedInstructionId = SelectedInstructionId(3);
@@ -1267,7 +1231,7 @@ fn measured_validation_step_boundary_admits_and_rejects() {
         // row) = 10.
         (roster_actor, MAT_A, MAT_B, 10u64),
     ] {
-        let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
+        let exact = measured_step_budget(exact_steps);
         let result =
             relocate_selected_instruction(&source, 0, member, destination, &environment, exact)
                 .unwrap();
@@ -1281,7 +1245,7 @@ fn measured_validation_step_boundary_admits_and_rejects() {
             result.transformed().clone(),
         )
         .unwrap();
-        let starved = OptimizationWorkBudget::new(1, 1, exact_steps - 1, 1, 1).unwrap();
+        let starved = measured_step_budget(exact_steps - 1);
         assert_eq!(
             relocate_selected_instruction(&source, 0, member, destination, &environment, starved)
                 .unwrap_err(),
@@ -1646,7 +1610,7 @@ fn windowed_measured_validation_step_boundary_admits_and_rejects() {
     // (1 block + 7 instructions) + (1 operand per window materialization
     // over a four-instruction window) = 12.
     let exact_steps = 12u64;
-    let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
+    let exact = measured_step_budget(exact_steps);
     let result =
         relocate_selected_instruction(&source, 0, MAT_A, MAT_B, &environment, exact).unwrap();
     validate_local_relocation(
@@ -1659,7 +1623,7 @@ fn windowed_measured_validation_step_boundary_admits_and_rejects() {
         result.transformed().clone(),
     )
     .unwrap();
-    let starved = OptimizationWorkBudget::new(1, 1, exact_steps - 1, 1, 1).unwrap();
+    let starved = measured_step_budget(exact_steps - 1);
     assert_eq!(
         relocate_selected_instruction(&source, 0, MAT_A, MAT_B, &environment, starved).unwrap_err(),
         LocalRelocationError::WorkBudgetExceeded
@@ -1677,4 +1641,119 @@ fn windowed_measured_validation_step_boundary_admits_and_rejects() {
         .unwrap_err(),
         LocalRelocationError::WorkBudgetExceeded
     );
+}
+
+/// The validator cannot consult the producer's admission: each forged
+/// proposal below is handed to `validate_local_relocation` directly, so
+/// every rejection comes from the validator's own window audit.
+mod independence_tests {
+    use super::{
+        LocalRelocationError, MAT_A, MAT_B, NativeTarget, SUM, SelectedInstructionPlan,
+        ValidatedLocalRelocation, baseline_target_register_environment, budget, fixture,
+        validate_local_relocation,
+    };
+
+    /// Move the member at `member_index` onto `destination_index` inside a
+    /// source fixture's plan — the edit a producer emitting that
+    /// relocation would publish — without asking admission whether the
+    /// window is legal.
+    fn forged(
+        source: &ValidatedLocalRelocation,
+        member_index: usize,
+        destination_index: usize,
+    ) -> SelectedInstructionPlan {
+        let mut proposed = source.transformed().clone();
+        let instructions = &mut proposed.functions[0].blocks[0].instructions;
+        let moved = instructions.remove(member_index);
+        instructions.insert(destination_index, moved);
+        proposed
+    }
+
+    /// A forged rotation of a window the validator's own audit admits
+    /// validates: the adjacent materializations carry no hazards, no
+    /// roster rows, and no barriers, so the audit derives the move and
+    /// the content comparison accepts it.
+    #[test]
+    fn forged_rotation_of_a_legal_window_validates() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        validate_local_relocation(
+            &source,
+            0,
+            MAT_A,
+            MAT_B,
+            &environment,
+            budget(),
+            forged(&source, 0, 1),
+        )
+        .unwrap();
+    }
+
+    /// A producer that admitted a hazard-coupled window anyway would
+    /// publish the sum moved ahead of the `MAT_B` materialization that
+    /// defines its operand — the validator's own legality audit refuses
+    /// with `UnsupportedPair`, not a replay mismatch, because it
+    /// reconstructs the window's hazards instead of trusting the
+    /// producer's admission record.
+    #[test]
+    fn forged_move_past_a_coupled_hazard_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        assert_eq!(
+            validate_local_relocation(
+                &source,
+                0,
+                SUM,
+                MAT_B,
+                &environment,
+                budget(),
+                forged(&source, 2, 1),
+            )
+            .unwrap_err(),
+            LocalRelocationError::UnsupportedPair
+        );
+    }
+
+    /// A producer that landed the member somewhere other than the named
+    /// destination's index publishes a window whose content is not the
+    /// admitted rotation: the member two slots down instead of adjacent
+    /// fails the content comparison with `ReplayMismatch`.
+    #[test]
+    fn forged_member_off_the_derived_position_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        assert_eq!(
+            validate_local_relocation(
+                &source,
+                0,
+                MAT_A,
+                MAT_B,
+                &environment,
+                budget(),
+                forged(&source, 0, 2),
+            )
+            .unwrap_err(),
+            LocalRelocationError::ReplayMismatch
+        );
+    }
+
+    /// A forged proposal that leaves the named pair unmoved is a proposal
+    /// for a different (absent) rewrite: no position carries the member at
+    /// the destination's index with the destination adjacent, so the
+    /// window content comparison rejects it.
+    #[test]
+    fn forged_unmoved_window_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        let proposed = source.transformed().clone();
+        assert_eq!(
+            validate_local_relocation(&source, 0, MAT_A, MAT_B, &environment, budget(), proposed,)
+                .unwrap_err(),
+            LocalRelocationError::ReplayMismatch
+        );
+    }
 }

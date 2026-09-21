@@ -26,6 +26,7 @@ fn scalar(identity: u64) -> ValueDeclaration {
 fn operation(identity: u64, result: u64, kind: OperationKind) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(identity).unwrap(),
         result: OperationResult::Scalar(scalar(result)),
         kind,
@@ -52,6 +53,7 @@ fn call(
         result,
         OperationKind::CallStructuralScalar {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee,
             arguments: arguments.iter().copied().map(value).collect(),
             structural_arguments: vec![StructuralArgument {
@@ -149,6 +151,7 @@ pub(super) fn conditional() -> TerminalModule {
         ),
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(127).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -163,6 +166,7 @@ pub(super) fn conditional() -> TerminalModule {
     ];
     let successor = |edge, block| SuccessorEdge {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target: BlockId::new(block).unwrap(),
         arguments: Vec::new(),
@@ -177,6 +181,7 @@ pub(super) fn conditional() -> TerminalModule {
     caller.blocks.extend([
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: BlockId::new(132).unwrap(),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -197,6 +202,7 @@ pub(super) fn conditional() -> TerminalModule {
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: BlockId::new(142).unwrap(),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -219,6 +225,7 @@ pub(super) fn conditional() -> TerminalModule {
 fn successor(edge: u64, block: u64) -> SuccessorEdge {
     SuccessorEdge {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target: BlockId::new(block).unwrap(),
         arguments: Vec::new(),
@@ -230,6 +237,7 @@ fn successor(edge: u64, block: u64) -> SuccessorEdge {
 fn empty_block(identity: u64) -> Block {
     Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: BlockId::new(identity).unwrap(),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -241,6 +249,7 @@ fn empty_block(identity: u64) -> Block {
 fn bounded_operand(identity: u64, operand: ValueId, maximum: ValueId) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(identity).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

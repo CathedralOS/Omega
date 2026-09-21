@@ -24,6 +24,7 @@ fn dead_literal_elimination_preserves_repeated_array_leaves_and_construction() {
     let constructor = O::EstablishScalarArray {
         psi_operation: id(6, OperationId::new),
         result: StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: id(7, PlaceId::new),
             structural_type: array_type,
             multiplicity: StructuralMultiplicity::Unrestricted,

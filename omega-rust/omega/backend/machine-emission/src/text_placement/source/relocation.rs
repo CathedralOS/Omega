@@ -165,6 +165,8 @@ pub(in crate::text_placement) fn prove_none(
                 | MachineAlternativeFamily::WrappingSubtractI64
                 | MachineAlternativeFamily::WrappingMultiplyI64
                 | MachineAlternativeFamily::WrappingDivideI64
+                | MachineAlternativeFamily::ExactDivideI64
+                | MachineAlternativeFamily::ExactRemainderI64
                 | MachineAlternativeFamily::BitwiseOrI64
                 | MachineAlternativeFamily::BitwiseNotI64
                 | MachineAlternativeFamily::WrappingShiftLeftI64

@@ -456,6 +456,7 @@ fn canonical_identity_binds_every_retained_field_class() {
     mutations.push(("module structural type", unit));
     let mut unit = baseline.clone();
     unit.structural_domains = Arc::from(vec![terminal_psi::StructuralDomainDeclaration {
+        establishment_routes: Vec::new(),
         id: id(112, StructuralDomainId::new),
         semantic_domain: id(113, DomainSemanticId::new),
         identity: "identity-test-structural-domain".into(),

@@ -17,31 +17,53 @@ data Main {
     inclusive: TinyBytes<u64[0..=256]>;
     exclusive: TinyBytes<u64[0..257]>;
     explicit: TinyBytes<u64[0..=256], 256>;
+    kept: Bytes<256>;
+    exact: Bytes<256, u64 in AtMost<256> >;
 }
 
 machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
 machine larger(value: u64[0..=256]) -> u64 { upper_bound<512>(value) }
 
-// The same equation also constructs an omitted Length from a supplied
-// Capacity. Its field remains runtime data with that exact qualification.
+// The constructed direction is a domain-index equation instead of a range
+// shell: `Length == u64::AtMost<Capacity>` builds the omitted Length
+// application from the supplied Capacity, and the domain's own index is the
+// authored capacity argument. Its field remains runtime data with that
+// exact qualification; an established domain value enters through an
+// explicit `as` mint, and field construction requires routed establishment
+// (see the invalid-initializer canary legs).
+domain<const Bound: u64> u64::AtMost<Bound>
+    requires self <= Bound;
+
 data Bytes<const Capacity: u64, Length [copy]> [copy]
 where
-    Length == u64[0..=Capacity]
+    Length == u64::AtMost<Capacity>
 {
     storage: [u8; Capacity];
     length: Length;
 }
 
-machine preserve_constructed(value: Bytes<256>) -> Bytes<256, u64[0..=256]> { value }
+machine preserve_constructed(value: Bytes<256>) -> u64 {
+    let kept: Bytes<256, u64 in AtMost<256> > = value;
+    kept.length as u64
+}
+
+// A declared domain index is also an ordinary call-time binder: the supplied
+// member's own index selects N. The call edge carries the authored requires
+// premise, so it is checked but not build-time admissible.
+machine domain_index<const N: u64>(value: u64 in AtMost<N>) -> u64 { N }
+
+machine constructed_index(value: u64 in AtMost<256>) -> u64 {
+    domain_index<256>(value)
+}
 
 machine constructed_value(value: u64[0..=256]) -> u64 {
-    let bytes: Bytes<256> = Bytes { length: value };
-    bytes.length
+    let established: u64 in AtMost<256> = value as u64 in AtMost<256>;
+    established as u64
 }
 
 machine constructed_capacity(value: u64[0..=256]) -> u64 {
-    let bytes: Bytes<256> = Bytes { length: value };
-    upper_bound(bytes.length)
+    let established: u64 in AtMost<256> = value as u64 in AtMost<256>;
+    upper_bound(established as u64[0..=256])
 }
 
 machine Main::main(&mut self) {

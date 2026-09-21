@@ -46,10 +46,12 @@ fn repeated_calls_retain_one_code_graph_and_resume_each_paid_prefix_once() {
     caller.blocks.get_mut(&caller.entry).unwrap().operations = (1..=2)
         .map(|ordinal| terminal_psi::Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(ordinal).unwrap(),
             result: terminal_psi::OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: callee_id,
                 arguments: Vec::new(),
                 structural_arguments: Vec::new(),
@@ -164,6 +166,7 @@ fn execution() -> TerminalExecution {
                         entry,
                         Block {
                             erased_scalar_formals: Vec::new(),
+                            erased_proof_formals: Vec::new(),
                             id: entry,
                             parameters: Vec::new(),
                             structural_parameters: Vec::new(),
@@ -477,6 +480,7 @@ fn structural_result_entry_uses_prepared_field_loan_and_preserves_writeback_on_r
         .begin_structural_result_call(
             callee_id,
             StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: place(5),
                 structural_type: token_type,
                 multiplicity: StructuralMultiplicity::Affine,

@@ -105,6 +105,9 @@ pub(crate) fn structural_shape(
             StructuralTypeShape::ByteSequence(_) => Err(
                 LoweringError::UnsupportedStructuralByteSequence(structural_type),
             ),
+            // A borrowed element view is a base+extent descriptor, the same
+            // two-word carrier as `ByteSequence::BorrowedView`.
+            StructuralTypeShape::ElementView { .. } => Ok(ValueShape::integer(16, 8)),
             StructuralTypeShape::Record { fields } => {
                 let mut byte_size = 0_u32;
                 let mut alignment = 1_u16;

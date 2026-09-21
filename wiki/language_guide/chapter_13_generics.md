@@ -64,9 +64,15 @@ Value binders distinguish two staging contracts:
 
 `const` is a requirement, not an optimization hint. Without it, known arguments
 may still specialize. With it, a declaration can require fixed layout or static
-instruction operands without supplying a runtime fallback. Runtime-capable
-binder support remains implementation work; these examples specify the intended
-contract rather than currently executable source.
+instruction operands without supplying a runtime fallback. Runtime-capable binders are
+implemented for machine signatures: `machine f<Count: u32>(...)` compiles to one
+body carrying `Count` as an ordinary argument, with its `requires` bound proved
+at the call site. They are not implemented for data declarations, so the
+`Index<Limit: u32>` example below still specifies the intended contract rather
+than currently executable source, and layout-determining positions such as array
+extents continue to reject. The slice-length bound shown in the next example is
+likewise not what the landed canaries exercise — those bound a scalar
+parameter.
 
 ```omega
 machine prefix_count<Count: u32>(items: &[u8]) -> u32
@@ -81,8 +87,15 @@ requires
 `prefix_count<count>(items)` is also eligible once the caller proves the bound.
 The latter can compile to one body with an ordinary Count argument, not one
 machine per observed count. A plain parameter would suffice for this example;
-generic indices also connect dependent types and results, such as
-`data Index<Limit: u32> { value: u32 [0..Limit]; }`.
+generic indices also connect dependent types and results:
+
+```omega
+data Index<Limit: u32>
+where value < Limit,
+{
+    value: u32;
+}
+```
 
 An index binds the exact supplied value, not its variable name. Reassigning
 `count` later does not retag an earlier indexed object. To use an object indexed
@@ -124,9 +137,16 @@ results need a common representation or an explicit finite sum/eligible owner;
 no implicit boxing or variable-layout return is introduced. The
 [specialization contract](../spec/language/generics.md#finite-specialization-boundary)
 and [dynamic-family contract](../spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
-define the rules. This is intended support, not implemented generic virtual calls.
+define the rules.
 
-## Type Equality And Range Matching
+Generic virtual calls of this shape are implemented, not merely intended:
+`tests/omega/pass/traits/dyn_finite_family_dispatch` erases a receiver to
+`&dyn Shape` and calls `erased.code<16>()` and `erased.code<32>()`, each
+resolving to its own generated row. The limit is narrower than "no generic
+virtual calls": the only legal binder tuple is one complete roster tuple of
+closed static values, so a width chosen at runtime has no dispatch.
+
+## Type Equality And Indexed-Domain Matching
 
 Exact type comparisons use ordinary Boolean connectives:
 
@@ -143,34 +163,48 @@ value-comparison implementation. Generic bodies must cover all admitted cases.
 A type equation can also recover a declared generic binder from known structure:
 
 ```omega
+domain<const Capacity: u64> u64::AtMost<Capacity>
+    requires self <= Capacity;
+
 data TinyBytes<Length, const Capacity: u64>
 where
-    Length == u64[0..=Capacity]
+    Length == u64::AtMost<Capacity>
 {
     storage: [u8; Capacity];
     length: Length;
 }
 ```
 
-`TinyBytes<u64[0..=256]>` infers Capacity as 256. The array extent is static;
+`TinyBytes<u64::AtMost<256>>` infers Capacity as 256. The array extent is static;
 only the live length varies at runtime. This uses no dummy Length value or
 compiler bound-query intrinsic. A general vector still needs its own element
 initialization/disposition rules. Placement must fit the complete stack/storage
 plan; choosing capacity explicitly does not guarantee available backing.
 
-The matching rules normalize `u64[0..257]` and `u64[0..=256]` to the same
-integer interval. They extract declared endpoints, not a tight bound discovered
-from runtime flow facts or arbitrary domain predicates. Empty domains remain
-legal, but missing or ambiguous endpoint information cannot select an arbitrary
-capacity. Repeated binders must agree; explicit arguments cannot be overwritten.
+Matching reads the exact domain declaration and its explicit index, not the
+predicate's maximum or a tighter bound discovered from runtime flow facts.
+Closed const arguments use canonical value identity, so `AtMost<128 + 128>`
+and `AtMost<256>` select the same index after valid static evaluation. This does
+not identify distinct domains merely because their predicates describe equal
+sets. Empty domains remain legal; they cannot supply an unspecified capacity.
+Repeated binders must agree, and explicit arguments cannot be overwritten.
 Aliases use their defined expansion, and named domains retain their identities.
 
-Given `upper_bound<const N: u64>(value: u64[0..=N])`, an actual declared
-`u64[0..=256]` selects N = 256 when omitted. Explicit N = 512 can still pass
-ordinary value compatibility. A type equation such as TinyBytes' is stronger:
-it requires exact equality, not a larger containing interval. Selection and
-proof of call legality are separate. A zero-argument `upper_bound<N>()` merely
-returns an already bound N; an unconstrained `upper_bound()` cannot infer it.
+For example:
+
+```omega
+machine upper_bound<const N: u64>(value: u64::AtMost<N>) -> u64 {
+    N
+}
+```
+
+An actual declared `u64::AtMost<256>` selects N = 256 when omitted. Explicit
+N = 512 does not introduce implicit variance between the distinct applications.
+An explicit qualification to `u64::AtMost<512>` must establish that domain's
+predicate before supplying it instead. TinyBytes likewise requires exact type
+equality, not merely a proof that its length fits some larger capacity. Selection
+and proof of call legality are separate. A zero-argument `upper_bound<N>()`
+merely returns an already bound N; an unconstrained `upper_bound()` cannot infer it.
 
 These are settled source rules with incomplete implementation. See
 [structural inference](../spec/language/generics.md#structural-type-equations-and-inference).

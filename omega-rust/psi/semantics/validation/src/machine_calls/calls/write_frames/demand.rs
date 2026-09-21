@@ -339,7 +339,12 @@ impl<'program> CallFrameResolver<'program> {
                             }
                             return super::wire_codecs::known_wire_codec_call_written_paths(
                                 self.program,
+                                current_machine,
                                 call,
+                                prefix.parameters,
+                                prefix.isolated_locals,
+                                prefix.aliases,
+                                prefix.divergent,
                             );
                         }
                         let receiver = self
@@ -855,6 +860,10 @@ pub(super) fn collect_expression_call_written_paths(
                 return Some(());
             }
             let exact_receiver = receiver_members.is_some();
+            // A computed call or match receiver has no member spelling, but a
+            // proven divergent candidate set plus its declared referent data
+            // may still resolve the callee by type. Everything else without a
+            // resolvable target keeps failing closed.
             if !exact_receiver
                 && super::machine_state_by_symbol(program, call.target_symbol).is_none()
                 && super::boundary_calls::requirement_signature_by_target(
@@ -862,16 +871,21 @@ pub(super) fn collect_expression_call_written_paths(
                     call.target_symbol,
                 )
                 .is_none()
+                && !matches!(
+                    program.expression_table.expression(call.receiver),
+                    ExpressionNode::Call(_) | ExpressionNode::Match(_)
+                )
             {
                 return None;
             }
-            let (receiver_members, receiver_origin) = super::receiver_frame_origin(
-                program,
-                current_machine,
-                call.receiver,
-                symbols,
-                inference,
-            )?;
+            let (receiver_members, receiver_origins, receiver_data_name) =
+                super::receiver_frame_origins(
+                    program,
+                    current_machine,
+                    call.receiver,
+                    symbols,
+                    inference,
+                )?;
             if !exact_receiver
                 && !super::call_trees::receiver_expression_preserves_origin(
                     program,
@@ -915,7 +929,8 @@ pub(super) fn collect_expression_call_written_paths(
                 call.target_symbol,
                 call.target.as_str(),
                 &receiver_members,
-                receiver_origin.as_ref(),
+                &receiver_origins,
+                receiver_data_name.as_deref(),
                 arguments,
                 current_machine,
                 machine_symbols,
@@ -941,6 +956,8 @@ pub(super) fn collect_expression_call_written_paths(
                 )
             })
             .or_else(|| {
+                // Requirement receivers resolve by their single chain or
+                // origin; a divergent candidate set names neither.
                 super::boundary_calls::known_requirement_call_written_paths_for_parts(
                     program,
                     current_machine,
@@ -948,7 +965,9 @@ pub(super) fn collect_expression_call_written_paths(
                     symbols,
                     &receiver_members,
                     call.target.as_str(),
-                    receiver_origin.as_ref(),
+                    (receiver_origins.len() == 1)
+                        .then(|| receiver_origins.first())
+                        .flatten(),
                     CallerWriteSite::Expression(expression),
                     arguments,
                     inference,

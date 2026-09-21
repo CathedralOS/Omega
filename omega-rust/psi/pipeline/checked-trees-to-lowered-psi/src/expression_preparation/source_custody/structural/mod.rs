@@ -31,6 +31,7 @@ pub(crate) fn validate(
         result,
         value,
         calls,
+        operand_source: operand_position,
         discard_result_on_return,
     } = operation
     else {
@@ -75,6 +76,67 @@ pub(crate) fn validate(
                 return unsupported("structural return has ambiguous source destinations");
             }
             (expression, source.return_type)
+        }
+        Some(StatementNode::Call(call)) => {
+            // A construction nested in the statement's call is an argument
+            // operand: its authored destination is the argument expression at
+            // the recorded formal position, not the whole call.
+            let Some(checked_trees::CheckedArrayConstructionSource::CallArgument {
+                parameter_position,
+                ..
+            }) = operand_position
+            else {
+                return unsupported("structural construction lost its authored destination");
+            };
+            let arguments = checked.statement_table.expression_handles(call.arguments);
+            let parameters = crate::emission::call_source_custody::authored::target_signature(
+                checked,
+                machine,
+                call.target_symbol,
+            )?
+            .parameters;
+            // The receiver has its own span unless it is authored as an
+            // explicit argument, so the formal position maps into the
+            // argument span only after implicit-self formals are skipped.
+            let explicit_self = arguments.len()
+                > parameters
+                    .iter()
+                    .filter(|parameter| !parameter.is_self)
+                    .count();
+            let Some(index) = usize::try_from(*parameter_position)
+                .ok()
+                .filter(|position| {
+                    parameters
+                        .get(*position)
+                        .is_some_and(|parameter| !parameter.is_self || explicit_self)
+                })
+                .and_then(|position| {
+                    position.checked_sub(if explicit_self {
+                        0
+                    } else {
+                        parameters
+                            .iter()
+                            .take(position)
+                            .filter(|parameter| parameter.is_self)
+                            .count()
+                    })
+                })
+            else {
+                return unsupported("structural construction lost its authored destination");
+            };
+            let argument = arguments
+                .get(index)
+                .copied()
+                .filter(|argument| *argument == retained_expression);
+            let Some(argument) = argument else {
+                return unsupported("structural construction lost its authored destination");
+            };
+            let root = plans
+                .root_for_expression(state, result.statement_index, argument)
+                .ok_or(LoweringError::Unsupported(
+                    "structural construction lost its authored destination",
+                ))?;
+            (argument, root.type_reference)
         }
         _ => return unsupported("structural construction lost its authored destination"),
     };
@@ -183,6 +245,11 @@ pub(crate) fn validate(
             return unsupported("structural construction exchanged authored value occurrences");
         }
         match node.kind.clone() {
+            // Terminal Psi carries no runtime-length view descriptor, so a
+            // borrowed `&[T]` view rejects here instead of losing its extent.
+            CheckedStructuralValueKind::BorrowedSliceView { .. } => {
+                return unsupported("borrowed slice view has no Terminal descriptor");
+            }
             CheckedStructuralValueKind::Place(argument) => {
                 if let Some(receipt) = selection {
                     if projected_leaf.is_some() {

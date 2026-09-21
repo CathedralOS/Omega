@@ -15,11 +15,16 @@ use semantic_vocabulary::{
 };
 use symbols::SymbolHandle;
 use terminal_psi::{
-    Block, BoundaryMachineDeclaration, CrashCause, CrashRouteBucket, CrashRouteGuard,
-    MachineContract, Operation, OperationKind, OperationResult, ProviderCandidateConformance,
-    ProviderRefinement, ProviderSignature, TerminalIndirectDynamicDispatch, TerminalMachine,
-    TerminalMachineResult, TerminalModule, TerminalParameterDynamicDispatch, Terminator,
-    VocabularyMarker,
+    Block, BoundaryMachineDeclaration, ClosedConformanceApplication,
+    ClosedConformanceApplicationCommitment, ClosedConformanceCallableResult,
+    ClosedConformanceRealizationCallable, ClosedConformanceRow, CrashCause, CrashRouteBucket,
+    CrashRouteGuard, MachineContract, Operation, OperationKind, OperationResult,
+    ProviderCandidateConformance, ProviderRefinement, ProviderSignature, StructuralAccess,
+    StructuralArgument, TerminalDynamicConformanceSelection, TerminalDynamicDescriptorArgument,
+    TerminalDynamicDescriptorParameter, TerminalDynamicDescriptorSource,
+    TerminalDynamicRequirement, TerminalIndirectDynamicDispatch, TerminalMachine,
+    TerminalMachineResult, TerminalModule, TerminalParameterDynamicDispatch,
+    TerminalReboundDynamicDescriptor, Terminator, VocabularyMarker,
 };
 
 fn machine_id(raw: u64) -> MachineId {
@@ -53,6 +58,7 @@ fn service_id(raw: u64) -> ServiceId {
 fn empty_contract(raw: u64) -> MachineContract {
     MachineContract {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: contract_id(raw),
         crash_routes: Vec::new(),
         requires: Vec::new(),
@@ -64,6 +70,7 @@ fn empty_contract(raw: u64) -> MachineContract {
 fn return_unit_block(raw: u64) -> Block {
     Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: block_id(raw),
         structural_parameters: Vec::new(),
         parameters: Vec::new(),
@@ -101,6 +108,7 @@ fn unit_machine(raw: u64, blocks: Vec<Block>) -> TerminalMachine {
 fn unit_operation(raw: u64, kind: OperationKind) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(raw),
         result: OperationResult::Unit,
         kind,
@@ -110,6 +118,7 @@ fn unit_operation(raw: u64, kind: OperationKind) -> Operation {
 fn call_unit(callee: MachineId) -> OperationKind {
     OperationKind::CallUnit {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         callee,
         arguments: Vec::new(),
         structural_arguments: Vec::new(),
@@ -871,6 +880,275 @@ fn parameter_dispatch_remains_insufficient_evidence() {
         BehaviorExclusionVerdict::InsufficientEvidence
     );
     assert_eq!(report.gaps[0].kind, EvidenceGapKind::DynamicCall);
+}
+
+/// The descriptor interface one worker parameter declares: a single
+/// `test::Dynamic::run` requirement in slot zero.
+fn dynamic_parameter(machine: MachineId) -> TerminalDynamicDescriptorParameter {
+    TerminalDynamicDescriptorParameter {
+        owner: machine,
+        ordinal: 0,
+        source_position: 0,
+        trait_identity: "test::Dynamic".to_owned(),
+        access: StructuralAccess::SharedBorrow,
+        requirements: vec![TerminalDynamicRequirement {
+            slot: 0,
+            declaring_trait_identity: "test::Dynamic".to_owned(),
+            public_requirement_identity: "test::Dynamic::run".to_owned(),
+            family_tuple: Vec::new(),
+            result: ClosedConformanceCallableResult::Unit,
+        }],
+    }
+}
+
+/// One retained conformance application whose single row realizes
+/// `test::Dynamic::run` through `realization`.
+fn dynamic_conformance_application(
+    realization: MachineId,
+    commitment_byte: u8,
+) -> ClosedConformanceApplication {
+    ClosedConformanceApplication {
+        owner: machine_id(900),
+        declaration_identity: format!("test::application_{commitment_byte}"),
+        telescope: Vec::new(),
+        subject_identity: None,
+        trait_identity: "test::Dynamic".to_owned(),
+        trait_lifetime_arguments: Vec::new(),
+        trait_arguments: Vec::new(),
+        realization_callables: vec![ClosedConformanceRealizationCallable {
+            source_callable_identity: "test::Selected::run".to_owned(),
+            machine: realization,
+            result: ClosedConformanceCallableResult::Unit,
+        }],
+        rows: vec![ClosedConformanceRow {
+            declaring_trait_identity: "test::Dynamic".to_owned(),
+            public_requirement_identity: "test::Dynamic::run".to_owned(),
+            family_tuple: Vec::new(),
+            requirement_identity: "test::Dynamic::run".to_owned(),
+            realization_identity: "test::Selected::run".to_owned(),
+            realization_callable_identity: Some("test::Selected::run".to_owned()),
+        }],
+        report_fingerprint: 0,
+        commitment: ClosedConformanceApplicationCommitment::from_digest([commitment_byte; 32]),
+    }
+}
+
+/// One caller-local dynamic selection bound to the application's commitment.
+fn dynamic_selection(owner: MachineId, commitment_byte: u8) -> TerminalDynamicConformanceSelection {
+    TerminalDynamicConformanceSelection {
+        owner,
+        ordinal: 0,
+        source: StructuralArgument {
+            place: place_id(7000 + commitment_byte as u64),
+            path: Vec::new(),
+            access: StructuralAccess::SharedBorrow,
+        },
+        conformance_application_report_fingerprint: 0,
+        conformance_application_commitment: ClosedConformanceApplicationCommitment::from_digest(
+            [commitment_byte; 32],
+        ),
+    }
+}
+
+fn parameter_dispatch_worker(raw: u64) -> TerminalMachine {
+    unit_machine(
+        raw,
+        vec![Block {
+            operations: vec![unit_operation(
+                raw,
+                OperationKind::CallDynamicParameterUnit {
+                    parameter_ordinal: 0,
+                    requirement_slot: 0,
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            )],
+            ..return_unit_block(raw)
+        }],
+    )
+}
+
+/// entry(1) -> call worker(2) with selection `commitment_byte`; worker
+/// dispatches its existential parameter to the selected realization.
+fn selection_fed_parameter_module(
+    realization: TerminalMachine,
+    commitment_byte: u8,
+) -> TerminalModule {
+    let entry = unit_machine(
+        1,
+        vec![Block {
+            operations: vec![unit_operation(1, call_unit(machine_id(2)))],
+            ..return_unit_block(1)
+        }],
+    );
+    let realization_id = realization.id;
+    let mut module = terminal_module(
+        vec![entry, parameter_dispatch_worker(2), realization],
+        Vec::new(),
+    );
+    module.dynamic_dispatch.parameters = vec![dynamic_parameter(machine_id(2))];
+    module.dynamic_dispatch.selections = vec![dynamic_selection(machine_id(1), commitment_byte)];
+    module.dynamic_dispatch.arguments = vec![TerminalDynamicDescriptorArgument {
+        owner: machine_id(1),
+        operation: operation_id(1),
+        parameter_ordinal: 0,
+        source: TerminalDynamicDescriptorSource::Selection { ordinal: 0 },
+    }];
+    module.closed_conformance_applications = vec![dynamic_conformance_application(
+        realization_id,
+        commitment_byte,
+    )];
+    module
+}
+
+#[test]
+fn parameter_dispatch_joins_the_caller_supplied_selection() {
+    // The selected realization traps: the exact supplied body joins the walk
+    // and the site is witnessed prohibited, not merely gapped.
+    let module = selection_fed_parameter_module(trapping_machine(3), 7);
+    let report =
+        establish_behavior_exclusions(&module, &entries(), &trap_exclusions(), &empty_plans());
+    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Prohibited);
+    assert_eq!(report.prohibited[0].machine, machine_id(3));
+    assert!(report.gaps.is_empty(), "{:?}", report.gaps);
+
+    // A silent realization satisfies the same dispatch.
+    let module = selection_fed_parameter_module(unit_machine(3, vec![return_unit_block(3)]), 7);
+    let report =
+        establish_behavior_exclusions(&module, &entries(), &trap_exclusions(), &empty_plans());
+    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Satisfied);
+    assert_eq!(report, BehaviorExclusionReport::default());
+}
+
+#[test]
+fn parameter_dispatch_missing_descriptor_row_stays_a_gap() {
+    // The worker declares the parameter and the entry calls it, but no
+    // catalog argument supplies the descriptor: missing evidence, not a
+    // proven-empty target set.
+    let entry = unit_machine(
+        1,
+        vec![Block {
+            operations: vec![unit_operation(1, call_unit(machine_id(2)))],
+            ..return_unit_block(1)
+        }],
+    );
+    let mut module = terminal_module(vec![entry, parameter_dispatch_worker(2)], Vec::new());
+    module.dynamic_dispatch.parameters = vec![dynamic_parameter(machine_id(2))];
+    let report =
+        establish_behavior_exclusions(&module, &entries(), &trap_exclusions(), &empty_plans());
+    assert_eq!(
+        report.verdict(),
+        BehaviorExclusionVerdict::InsufficientEvidence
+    );
+    assert_eq!(report.gaps[0].kind, EvidenceGapKind::DynamicCall);
+}
+
+#[test]
+fn parameter_dispatch_follows_a_forwarded_parameter() {
+    // entry(1) -> call forwarder(2) passing selection; forwarder forwards
+    // its own parameter 0 to worker(3); worker dispatches the parameter.
+    // The forwarded chain rejoins the selection's exact realization (4).
+    let entry = unit_machine(
+        1,
+        vec![Block {
+            operations: vec![unit_operation(1, call_unit(machine_id(2)))],
+            ..return_unit_block(1)
+        }],
+    );
+    let forwarder = unit_machine(
+        2,
+        vec![Block {
+            operations: vec![unit_operation(2, call_unit(machine_id(3)))],
+            ..return_unit_block(2)
+        }],
+    );
+    let mut module = terminal_module(
+        vec![
+            entry,
+            forwarder,
+            parameter_dispatch_worker(3),
+            trapping_machine(4),
+        ],
+        Vec::new(),
+    );
+    module.dynamic_dispatch.parameters = vec![
+        dynamic_parameter(machine_id(2)),
+        dynamic_parameter(machine_id(3)),
+    ];
+    module.dynamic_dispatch.selections = vec![dynamic_selection(machine_id(1), 9)];
+    module.dynamic_dispatch.arguments = vec![
+        TerminalDynamicDescriptorArgument {
+            owner: machine_id(1),
+            operation: operation_id(1),
+            parameter_ordinal: 0,
+            source: TerminalDynamicDescriptorSource::Selection { ordinal: 0 },
+        },
+        TerminalDynamicDescriptorArgument {
+            owner: machine_id(2),
+            operation: operation_id(2),
+            parameter_ordinal: 0,
+            source: TerminalDynamicDescriptorSource::Parameter { ordinal: 0 },
+        },
+    ];
+    module.closed_conformance_applications =
+        vec![dynamic_conformance_application(machine_id(4), 9)];
+    let report =
+        establish_behavior_exclusions(&module, &entries(), &trap_exclusions(), &empty_plans());
+    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Prohibited);
+    assert_eq!(report.prohibited[0].machine, machine_id(4));
+    assert!(report.gaps.is_empty(), "{:?}", report.gaps);
+}
+
+#[test]
+fn parameter_dispatch_covers_a_rebound_descriptor() {
+    // The caller dispatches through a rebound descriptor: both the initial
+    // and rebound selections are admitted bodies, so the trap in the
+    // rebound realization is witnessed.
+    let entry = unit_machine(
+        1,
+        vec![Block {
+            operations: vec![unit_operation(1, call_unit(machine_id(2)))],
+            ..return_unit_block(1)
+        }],
+    );
+    let mut module = terminal_module(
+        vec![
+            entry,
+            parameter_dispatch_worker(2),
+            unit_machine(3, vec![return_unit_block(3)]),
+            trapping_machine(4),
+        ],
+        Vec::new(),
+    );
+    module.dynamic_dispatch.parameters = vec![dynamic_parameter(machine_id(2))];
+    module.dynamic_dispatch.selections = vec![
+        dynamic_selection(machine_id(1), 11),
+        TerminalDynamicConformanceSelection {
+            ordinal: 1,
+            ..dynamic_selection(machine_id(1), 12)
+        },
+    ];
+    module.dynamic_dispatch.rebound_descriptors = vec![TerminalReboundDynamicDescriptor {
+        owner: machine_id(1),
+        ordinal: 0,
+        initial_selection_ordinal: 0,
+        rebound_selection_ordinal: 1,
+    }];
+    module.dynamic_dispatch.arguments = vec![TerminalDynamicDescriptorArgument {
+        owner: machine_id(1),
+        operation: operation_id(1),
+        parameter_ordinal: 0,
+        source: TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal: 0 },
+    }];
+    module.closed_conformance_applications = vec![
+        dynamic_conformance_application(machine_id(3), 11),
+        dynamic_conformance_application(machine_id(4), 12),
+    ];
+    let report =
+        establish_behavior_exclusions(&module, &entries(), &trap_exclusions(), &empty_plans());
+    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Prohibited);
+    assert_eq!(report.prohibited[0].machine, machine_id(4));
+    assert!(report.gaps.is_empty(), "{:?}", report.gaps);
 }
 
 #[test]

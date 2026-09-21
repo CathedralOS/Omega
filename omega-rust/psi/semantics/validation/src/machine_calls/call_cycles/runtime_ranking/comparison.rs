@@ -14,6 +14,7 @@ pub(super) enum Comparison {
 
 pub(super) fn argument_comparison(
     program: &TypedTrees,
+    machine: SymbolHandle,
     rank: &RankProjection,
     argument: ExpressionHandle,
     guards: &[(ExpressionHandle, bool)],
@@ -59,7 +60,7 @@ pub(super) fn argument_comparison(
         if strict {
             continue;
         }
-        strict = component_comparison(program, rank, value, *field, guards, &role)?
+        strict = component_comparison(program, machine, rank, value, *field, guards, &role)?
             == Comparison::Strict;
     }
     Some(if strict {
@@ -91,6 +92,7 @@ fn site_role(
 
 fn component_comparison(
     program: &TypedTrees,
+    machine: SymbolHandle,
     rank: &RankProjection,
     value: ExpressionHandle,
     field: SymbolHandle,
@@ -111,22 +113,31 @@ fn component_comparison(
     {
         return None;
     }
-    let amount = integer(program, binary.right)?;
+    let amount = integer(program, machine, binary.right)?;
     (amount > 0
         && guards.iter().any(|(guard, truth)| {
-            guard_proves_lower_bound(program, rank, *guard, *truth, field, amount, role)
+            guard_proves_lower_bound(program, machine, rank, *guard, *truth, field, amount, role)
         }))
     .then_some(Comparison::Strict)
 }
 
-fn integer(program: &TypedTrees, expression: ExpressionHandle) -> Option<i64> {
-    match program
-        .expression_table
-        .expression(unwrapped(program, expression))
-    {
-        ExpressionNode::Integer(literal) => literal.value_i64(),
-        _ => None,
+/// A step amount or bound is the closed integer its spelling already
+/// evaluates to under the owning machine's operator selection: a literal, or
+/// any constant arithmetic tree. A value that does not fold closed reads as
+/// no amount, not an approximated one.
+fn integer(
+    program: &TypedTrees,
+    machine: SymbolHandle,
+    expression: ExpressionHandle,
+) -> Option<i64> {
+    let expression = unwrapped(program, expression);
+    if let ExpressionNode::Integer(literal) = program.expression_table.expression(expression) {
+        return literal.value_i64();
     }
+    program
+        .closed_integer_value_in(expression, machine)?
+        .value
+        .to_i64()
 }
 
 /// Facts come from the current arm or an earlier failed dispatch guard, all
@@ -134,6 +145,7 @@ fn integer(program: &TypedTrees, expression: ExpressionHandle) -> Option<i64> {
 /// from another state/caller contribute to this lower-bound proof.
 fn guard_proves_lower_bound(
     program: &TypedTrees,
+    machine: SymbolHandle,
     rank: &RankProjection,
     guard: ExpressionHandle,
     truth: bool,
@@ -161,6 +173,7 @@ fn guard_proves_lower_bound(
             {
                 return guard_proves_lower_bound(
                     program,
+                    machine,
                     rank,
                     condition,
                     truth == (*value == (binary.operator == BinaryOperator::Equal)),
@@ -174,8 +187,25 @@ fn guard_proves_lower_bound(
     if (binary.operator == BinaryOperator::And && truth)
         || (binary.operator == BinaryOperator::Or && !truth)
     {
-        return guard_proves_lower_bound(program, rank, binary.left, truth, field, minimum, role)
-            || guard_proves_lower_bound(program, rank, binary.right, truth, field, minimum, role);
+        return guard_proves_lower_bound(
+            program,
+            machine,
+            rank,
+            binary.left,
+            truth,
+            field,
+            minimum,
+            role,
+        ) || guard_proves_lower_bound(
+            program,
+            machine,
+            rank,
+            binary.right,
+            truth,
+            field,
+            minimum,
+            role,
+        );
     }
     let operator = if truth {
         binary.operator
@@ -191,7 +221,7 @@ fn guard_proves_lower_bound(
         }
     };
     let (operator, bound) = if rank.is_component(program, binary.left, field, role) {
-        (operator, integer(program, binary.right))
+        (operator, integer(program, machine, binary.right))
     } else if rank.is_component(program, binary.right, field, role) {
         let operator = match operator {
             BinaryOperator::Less => BinaryOperator::Greater,
@@ -202,7 +232,7 @@ fn guard_proves_lower_bound(
             BinaryOperator::NotEqual => BinaryOperator::NotEqual,
             _ => return false,
         };
-        (operator, integer(program, binary.left))
+        (operator, integer(program, machine, binary.left))
     } else {
         return false;
     };

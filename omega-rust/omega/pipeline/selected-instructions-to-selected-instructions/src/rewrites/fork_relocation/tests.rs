@@ -1,7 +1,7 @@
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::{EffectLink, ValueDefinitionSite};
 use register_environment::baseline_target_register_environment;
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
+use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
     SelectedBoundarySettlementPayload, SelectedCallContract, SelectedFunction, SelectedInstruction,
@@ -27,40 +27,7 @@ use super::{
     ForkRelocationError, ForkRelocationReceipt, ValidatedForkRelocation,
     relocate_selected_instruction_into_arm, validate_fork_relocation,
 };
-fn budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
-}
-
-fn instruction(
-    id: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    row: &RegisterInstructionConstraint,
-    registers: &[VirtualRegisterId],
-) -> SelectedInstruction {
-    SelectedInstruction {
-        id,
-        kind,
-        constraint: row.key,
-        operands: row
-            .operands
-            .iter()
-            .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
-    }
-}
+use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 
 const LEAD: SelectedInstructionId = SelectedInstructionId(2);
 const MOVING: SelectedInstructionId = SelectedInstructionId(3);
@@ -1878,20 +1845,20 @@ fn measured_validation_step_boundary() {
     // the branch 3, and the return 9 — (3+3)+(2+2)+(2+2)+(3+9) = 26 —
     // times one written member register plus one: 26*2 = 52.
     let steps: u64 = 14 + 14 + 6 + 52;
-    let exact = OptimizationWorkBudget::new(1, 1, steps, 1, 1).unwrap();
+    let exact = measured_step_budget(steps);
     relocate_selected_instruction_into_arm(&source, 0, MOVING, T_HEAD, &environment, exact)
         .unwrap();
-    let starved = OptimizationWorkBudget::new(1, 1, steps - 1, 1, 1).unwrap();
+    let starved = measured_step_budget(steps - 1);
     assert_eq!(
         relocate_selected_instruction_into_arm(&source, 0, MOVING, T_HEAD, &environment, starved,)
             .unwrap_err(),
         ForkRelocationError::WorkBudgetExceeded
     );
     // Landing one position deeper crosses the arm head's surface pair.
-    let exact = OptimizationWorkBudget::new(1, 1, steps + 2, 1, 1).unwrap();
+    let exact = measured_step_budget(steps + 2);
     relocate_selected_instruction_into_arm(&source, 0, MOVING, T_TAIL, &environment, exact)
         .unwrap();
-    let starved = OptimizationWorkBudget::new(1, 1, steps + 1, 1, 1).unwrap();
+    let starved = measured_step_budget(steps + 1);
     assert_eq!(
         relocate_selected_instruction_into_arm(&source, 0, MOVING, T_TAIL, &environment, starved,)
             .unwrap_err(),
@@ -1974,4 +1941,234 @@ fn fork_relocation_is_deterministic_and_re_admitted() {
             .collect::<Vec<_>>(),
         vec![HEAD, TAIL, MID]
     );
+}
+
+/// Independence of the validator's own audit from the producer's
+/// admission: every proposal below is built by editing the selected plan
+/// directly — no producer admission runs — so a rejection can only come
+/// from the validator's own reconstruction of the legality or the
+/// restore-by-content comparison.
+mod independence_tests {
+    use super::{
+        BLOCK_T, BlockId, F_TAIL, ForkRelocationError, MID, MOVING, NativeTarget, PlaceId, R_FTAIL,
+        R_MOVE, R_TRAIL, SelectedInstructionKind, SelectedInstructionPlan,
+        SelectedMemoryAccessRole, SelectedTerminator, T_HEAD, TRAIL, ValidatedForkRelocation,
+        access, baseline_target_register_environment, budget, fixture, instruction, mutated,
+        settlement, validate_fork_relocation,
+    };
+
+    /// The edit a producer emitting `MOVING`'s fork relocation would
+    /// publish: the member leaves the branch block's body and lands on
+    /// `T_HEAD`'s index in the landing arm. Built by editing the source
+    /// plan directly — no admission runs.
+    fn forged(source: &ValidatedForkRelocation) -> SelectedInstructionPlan {
+        let mut proposed = source.transformed().clone();
+        let function = &mut proposed.functions[0];
+        let moved = function.blocks[0].instructions.remove(1);
+        function.blocks[1].instructions.insert(0, moved);
+        proposed
+    }
+
+    /// A forged landing of the legal pair validates on the validator's
+    /// own audit: the reconstruction derives the branch block, the
+    /// landing arm, and the landing index from the source, and the
+    /// content restore reproduces the source bit-for-bit.
+    #[test]
+    fn forged_landing_of_a_legal_pair_validates() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        validate_fork_relocation(
+            &source,
+            0,
+            MOVING,
+            T_HEAD,
+            &environment,
+            budget(),
+            forged(&source),
+        )
+        .unwrap();
+    }
+
+    /// A producer that admitted the pair with the member's write feeding
+    /// a crossed tail position would still publish this edit. The
+    /// validator's own audit refuses with `UnsupportedPair`, not a replay
+    /// mismatch, because it reconstructs the window coupling instead of
+    /// trusting the producer's admission record.
+    #[test]
+    fn forged_sink_past_a_coupled_tail_rejects_on_the_audit() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, environment| {
+            let copy = environment
+                .constraint(environment.selected_keys().copy_i64)
+                .unwrap()
+                .clone();
+            function.blocks[0].instructions[2] = instruction(
+                TRAIL,
+                SelectedInstructionKind::CopyI64,
+                &copy,
+                &[R_MOVE, R_TRAIL],
+            );
+        });
+        assert_eq!(
+            validate_fork_relocation(
+                &source,
+                0,
+                MOVING,
+                T_HEAD,
+                &environment,
+                budget(),
+                forged(&source),
+            )
+            .unwrap_err(),
+            ForkRelocationError::UnsupportedPair
+        );
+    }
+
+    /// A producer that admitted a roster-carrying member would still
+    /// publish this edit: the member's access ran on every traversal and
+    /// would run only on the landing path after the move. The validator's
+    /// own audit refuses with `UnsupportedInstruction`.
+    #[test]
+    fn forged_sink_of_a_roster_carrying_member_rejects_on_the_audit() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, _| {
+            function.memory_accesses.push(access(
+                MOVING,
+                PlaceId::new(7).unwrap(),
+                SelectedMemoryAccessRole::ReadPlace,
+            ));
+        });
+        assert_eq!(
+            validate_fork_relocation(
+                &source,
+                0,
+                MOVING,
+                T_HEAD,
+                &environment,
+                budget(),
+                forged(&source),
+            )
+            .unwrap_err(),
+            ForkRelocationError::UnsupportedInstruction
+        );
+    }
+
+    /// A producer that admitted the pair with a settlement observing the
+    /// member inside the arm's executed prefix would still publish this
+    /// edit. The validator's own audit refuses with `UnsupportedPair`
+    /// because it reconstructs the settlement window itself.
+    #[test]
+    fn forged_sink_past_an_arm_settlement_rejects_on_the_audit() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, _| {
+            function
+                .boundary_settlements
+                .push(settlement(BLOCK_T, 1, 41));
+        });
+        assert_eq!(
+            validate_fork_relocation(
+                &source,
+                0,
+                MOVING,
+                T_HEAD,
+                &environment,
+                budget(),
+                forged(&source),
+            )
+            .unwrap_err(),
+            ForkRelocationError::UnsupportedPair
+        );
+    }
+
+    /// A producer that admitted the pair with the member's write still
+    /// live on the skipped path would still publish this edit. The
+    /// validator's own dead-path audit refuses with `UnsupportedPair`:
+    /// `F_TAIL` reads `R_MOVE` on a traversal the member no longer
+    /// executes on.
+    #[test]
+    fn forged_sink_whose_write_survives_the_skipped_path_rejects_on_the_audit() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, environment| {
+            let copy = environment
+                .constraint(environment.selected_keys().copy_i64)
+                .unwrap()
+                .clone();
+            function.blocks[2].instructions[1] = instruction(
+                F_TAIL,
+                SelectedInstructionKind::CopyI64,
+                &copy,
+                &[R_MOVE, R_FTAIL],
+            );
+        });
+        assert_eq!(
+            validate_fork_relocation(
+                &source,
+                0,
+                MOVING,
+                T_HEAD,
+                &environment,
+                budget(),
+                forged(&source),
+            )
+            .unwrap_err(),
+            ForkRelocationError::UnsupportedPair
+        );
+    }
+
+    /// A producer that admitted the pair while a second predecessor also
+    /// reached the arm would still publish this edit — the arm's stream
+    /// would gain a member that never ran on that path. The validator's
+    /// own predecessor count refuses with `UnsupportedPair`.
+    #[test]
+    fn forged_sink_into_a_shared_arm_rejects_on_the_audit() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, _| {
+            let successor = match &mut function.blocks[2].terminator {
+                SelectedTerminator::Jump { successor, .. } => successor,
+                _ => unreachable!(),
+            };
+            successor.block = BLOCK_T;
+            successor.source_target = BlockId::new(2).unwrap();
+        });
+        assert_eq!(
+            validate_fork_relocation(
+                &source,
+                0,
+                MOVING,
+                T_HEAD,
+                &environment,
+                budget(),
+                forged(&source),
+            )
+            .unwrap_err(),
+            ForkRelocationError::UnsupportedPair
+        );
+    }
+
+    /// A forged proposal carrying an unrelated mutation — here a third
+    /// roster row — fails the restore-by-content comparison even though
+    /// the member's move itself is shaped correctly.
+    #[test]
+    fn forged_unrelated_roster_edit_rejects_as_replay() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        let mut proposed = forged(&source);
+        proposed.functions[0].memory_accesses.push(access(
+            MID,
+            PlaceId::new(7).unwrap(),
+            SelectedMemoryAccessRole::ReadPlace,
+        ));
+        assert_eq!(
+            validate_fork_relocation(&source, 0, MOVING, T_HEAD, &environment, budget(), proposed,)
+                .unwrap_err(),
+            ForkRelocationError::ReplayMismatch
+        );
+    }
 }

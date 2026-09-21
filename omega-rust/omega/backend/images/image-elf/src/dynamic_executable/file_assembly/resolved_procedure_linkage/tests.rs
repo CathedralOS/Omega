@@ -2,8 +2,8 @@
 
 use super::{
     ElfAppliedProcedureLinkageFixup, ElfAppliedProcedureLinkageKind,
-    ElfAppliedProcedureLinkageStorage, ValidatedElfDynamicFileEnvelope,
-    apply_elf_procedure_linkage_fixups,
+    ElfAppliedProcedureLinkageStorage, ElfAppliedProcedureLinkageTarget,
+    ValidatedElfDynamicFileEnvelope, apply_elf_procedure_linkage_fixups,
     non_authoritative_resolved_linkage_compatibility_fingerprint,
 };
 use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::candidates::{
@@ -36,12 +36,17 @@ use target::{
 };
 
 fn standard_envelope(target: TargetProfile) -> ValidatedElfDynamicFileEnvelope {
-    envelope(target, [b"alpha_call".as_slice(), b"beta_call".as_slice()])
+    envelope(
+        target,
+        [b"alpha_call".as_slice(), b"beta_call".as_slice()],
+        &[],
+    )
 }
 
 fn envelope(
     target: TargetProfile,
     imported_symbols: [&[u8]; 2],
+    general_slots: &[(usize, i64)],
 ) -> ValidatedElfDynamicFileEnvelope {
     let mut image = FinalImage::with_capacity(
         target.native_target(),
@@ -54,7 +59,7 @@ fn envelope(
         Handle::invalid(),
         3,
         2,
-        3,
+        3 + general_slots.len(),
     );
     let entry = image.symbol_table.symbols.insert(FinalImageSymbol {
         name: "_start".to_owned(),
@@ -114,6 +119,19 @@ fn envelope(
                 symbol_handle,
                 addend: 0,
                 kind,
+            });
+    }
+    for &(slot_offset, slot_addend) in general_slots {
+        image
+            .relocation_table
+            .relocations
+            .insert(FinalImageRelocation {
+                section: FinalImageSection::Data,
+                offset: slot_offset,
+                byte_width: 8,
+                symbol_handle: imports[0],
+                addend: slot_addend,
+                kind: RelocationKind::Absolute64,
             });
     }
 
@@ -228,6 +246,53 @@ fn both_linux_targets_apply_every_exact_procedure_and_source_fixup() {
 }
 
 #[test]
+fn data_slot_import_relocations_emit_and_apply_exact_general_rela_rows() {
+    for (target, relocation_type) in [
+        (TargetProfile::LinuxX64, 1_u64),
+        (TargetProfile::LinuxArm64, 257_u64),
+    ] {
+        let resolved = apply_elf_procedure_linkage_fixups(envelope(
+            target,
+            [b"alpha_call", b"beta_call"],
+            &[(0, 7)],
+        ))
+        .unwrap();
+        let rela = resolved.general_relocation_bytes();
+        assert_eq!(rela.len(), 24);
+        let r_offset = u64::from_le_bytes(rela[0..8].try_into().unwrap());
+        let r_info = u64::from_le_bytes(rela[8..16].try_into().unwrap());
+        let r_addend = i64::from_le_bytes(rela[16..24].try_into().unwrap());
+        let layout = load_layout(resolved.envelope());
+        assert_eq!(r_offset, layout.image_memory().data_virtual_address());
+        assert_eq!(r_info, (1_u64 << 32) | relocation_type);
+        assert_eq!(r_addend, 7);
+        let fixup = resolved
+            .applied_fixups()
+            .iter()
+            .find(|fixup| fixup.storage() == ElfAppliedProcedureLinkageStorage::GeneralRelocation)
+            .expect("one .rela.dyn r_offset fixup");
+        assert_eq!(
+            fixup.kind(),
+            ElfAppliedProcedureLinkageKind::Elf64RelaOffset
+        );
+        assert_eq!(fixup.byte_offset(), 0);
+        assert_eq!(fixup.byte_width(), 8);
+        assert_eq!(
+            fixup.target(),
+            ElfAppliedProcedureLinkageTarget::RelocatedImageSection {
+                section: FinalImageSection::Data,
+                byte_offset: 0,
+            }
+        );
+        assert_eq!(
+            fixup.target_address(),
+            layout.image_memory().data_virtual_address()
+        );
+        assert_eq!(fixup.encoded_field(), r_offset);
+    }
+}
+
+#[test]
 fn exact_replay_is_deterministic_and_target_or_import_bound() {
     let first =
         apply_elf_procedure_linkage_fixups(standard_envelope(TargetProfile::LinuxX64)).unwrap();
@@ -238,6 +303,7 @@ fn exact_replay_is_deterministic_and_target_or_import_bound() {
     let import_change = apply_elf_procedure_linkage_fixups(envelope(
         TargetProfile::LinuxX64,
         [b"alpha_call", b"gamma_call"],
+        &[],
     ))
     .unwrap();
     assert_eq!(first.source_text_bytes(), replay.source_text_bytes());

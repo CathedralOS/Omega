@@ -122,40 +122,61 @@ pub struct MathematicalJudgmentReceipt {
 struct AcceptanceBuilder {
     ambient_assumption_count: usize,
     rules: std::collections::BTreeSet<AcceptedProofRule>,
-    assumptions: Vec<AcceptedPremise>,
-    semantic_axioms: Vec<AcceptedPremise>,
+    assumptions: PremiseRoster,
+    semantic_axioms: PremiseRoster,
 }
 
 impl AcceptanceBuilder {
     fn record_assumption(&mut self, index: usize, proposition: &Proposition) {
         if index < self.ambient_assumption_count {
-            record_premise(&mut self.assumptions, index, proposition);
+            self.assumptions.record(index, proposition);
         }
     }
 
     fn record_semantic_axiom(&mut self, index: usize, proposition: &Proposition) {
-        record_premise(&mut self.semantic_axioms, index, proposition);
+        self.semantic_axioms.record(index, proposition);
     }
 
     fn finish(self, mathematical_core: MathematicalCoreDecision) -> CertificateAcceptance {
         CertificateAcceptance {
             rules: self.rules.into_iter().collect(),
-            assumptions: self.assumptions,
-            semantic_axioms: self.semantic_axioms,
+            assumptions: self.assumptions.premises,
+            semantic_axioms: self.semantic_axioms.premises,
             mathematical_core,
         }
     }
 }
 
-fn record_premise(premises: &mut Vec<AcceptedPremise>, index: usize, proposition: &Proposition) {
-    if !premises
-        .iter()
-        .any(|premise| premise.index == index && premise.proposition == *proposition)
-    {
-        premises.push(AcceptedPremise {
+/// Accepted premises in first-recorded order, beside an index-keyed map of
+/// the positions each index occupies.
+///
+/// The admitted predicate is unchanged -- a citation is new unless some
+/// recorded premise shares both its index and its proposition -- but only
+/// rows that already share the index can satisfy the first half, so the
+/// proposition comparison runs against those rows alone. A certificate
+/// citing an N-row roster costs N structural comparisons in the common case
+/// of one proposition per index, not N(N-1)/2.
+#[derive(Debug, Default)]
+pub(crate) struct PremiseRoster {
+    pub(crate) premises: Vec<AcceptedPremise>,
+    positions: std::collections::BTreeMap<usize, Vec<usize>>,
+}
+
+impl PremiseRoster {
+    pub(crate) fn record(&mut self, index: usize, proposition: &Proposition) {
+        if let Some(recorded) = self.positions.get(&index)
+            && recorded
+                .iter()
+                .any(|position| self.premises[*position].proposition == *proposition)
+        {
+            return;
+        }
+        let position = self.premises.len();
+        self.premises.push(AcceptedPremise {
             index,
             proposition: proposition.clone(),
         });
+        self.positions.entry(index).or_default().push(position);
     }
 }
 

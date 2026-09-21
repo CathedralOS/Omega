@@ -216,6 +216,113 @@ fn field_call_assignment_retains_original_root_and_scalar_parameter_namespace() 
     ));
 }
 
+/// A Trapping integer binary keeps its deliberate no-fact boundary: the
+/// checked scalar stage records neither a pure `AssignmentValue` expression
+/// nor a computation root for `self.x + 1`, so the field-store sequence
+/// declines at its source guard -- the destination, field identity, and
+/// arithmetic-policy carrier are all admitted. The missing Trapping operation
+/// family is owned by ARITHMETIC-POLICY-REALIZATION (Terminal Psi has no
+/// Trapping operation to realize) with the check-stage refusal pinned by
+/// `flow/transfers` under NOMINAL-FIELD-FLOW; this lane owns only the proof
+/// that the store declines exactly there. Pins the
+/// `arithmetic/runtime_trapping_overflow_traps` boundary.
+#[test]
+fn trapping_binary_assignment_declines_at_the_missing_scalar_source() {
+    use super::super::super::structural_scalar_signature;
+    use crate::execution::terminal_unit::LocalConstructionTrace;
+    let source = r#"
+        data Main { x: i32 in Trapping; }
+        machine Main::bump(&mut self) {
+            self.x = 2147483647;
+            self.x = self.x + 1;
+        }
+    "#;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let checked = crate::lower_typed_trees(typed).unwrap();
+    let program = &checked.typed;
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::bump")
+        .unwrap();
+    let state = &program.machine_states(machine)[0];
+    // The literal store's source binds an ordinary pure expression, so the
+    // receiver destination, the exact field, and the `in Trapping` carrier
+    // all pass admission; only the computed RHS below is unowned.
+    assert!(
+        checked
+            .facts
+            .values
+            .scalar_expressions
+            .expression_at(
+                state.symbol,
+                0,
+                CheckedScalarExpressionRole::AssignmentValue
+            )
+            .is_some(),
+        "literal assignment retains its bound source"
+    );
+    assert!(
+        checked
+            .facts
+            .values
+            .scalar_expressions
+            .expression_at(
+                state.symbol,
+                1,
+                CheckedScalarExpressionRole::AssignmentValue
+            )
+            .is_none()
+            && checked
+                .facts
+                .values
+                .scalar_computations
+                .root_at(
+                    state.symbol,
+                    1,
+                    CheckedScalarExpressionRole::AssignmentValue
+                )
+                .is_none(),
+        "Trapping `self.x + 1` records no checked scalar value fact"
+    );
+    let mut shapes = ShapeCollector::new(program);
+    let (_, structural, scalar) =
+        structural_scalar_signature(program, &mut shapes, machine, state, &[], true)
+            .expect("mutable receiver signature");
+    let trace = LocalConstructionTrace::default();
+    assert!(
+        super::super::build_structural_scalar_field_store_sequence_traced(
+            program,
+            &checked.facts,
+            machine,
+            state,
+            &structural,
+            &scalar,
+            0,
+            None,
+            &trace,
+        )
+        .is_none()
+    );
+    assert_eq!(
+        trace.stage(),
+        checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
+            phase: "structural field store: record literal field",
+            state_index: None,
+            statement_index: None,
+        }
+    );
+}
+
 #[test]
 fn field_call_assignment_rejects_missing_stale_and_substituted_root_custody() {
     let checked = fixture();
