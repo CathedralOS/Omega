@@ -1,10 +1,10 @@
 //! Applied-decision publication custody.
 use super::{
     Optimization, OptimizationSelections, VerifiedPsiOptimizationUnit,
-    dead_scalar_literals_verified, dispatch_specialization_verified, exact_add_verified,
-    live_exact_add_zero_verified, proof_certified_local_cse_verified,
-    redundant_block_parameter_verified, replay_psi_pipeline, run, run_pipeline,
-    unreachable_private_machine_verified, work_budget,
+    dead_scalar_literals_verified, exact_add_verified, live_exact_add_zero_verified,
+    proof_certified_local_cse_verified, redundant_block_parameter_verified, replay_psi_pipeline,
+    representation_specialization_membership_verified, run, run_pipeline,
+    state_specialization_dispatch_verified, unreachable_private_machine_verified, work_budget,
 };
 use crate::{
     AppliedDecisionCustodyAxis, OptimizedAbstractProjectionError, ValidatedOptimizedAbstractPlan,
@@ -24,7 +24,7 @@ use optimization_core::{
 
 type Fixture = fn() -> VerifiedPsiOptimizationUnit;
 
-fn suite_cases() -> [(Optimization, Fixture); 7] {
+fn suite_cases() -> [(Optimization, Fixture); 8] {
     [
         (
             Optimization::SparseConditionalConstantPropagation,
@@ -52,7 +52,11 @@ fn suite_cases() -> [(Optimization, Fixture); 7] {
         ),
         (
             Optimization::StateSpecialization,
-            dispatch_specialization_verified,
+            state_specialization_dispatch_verified,
+        ),
+        (
+            Optimization::RepresentationSpecialization,
+            representation_specialization_membership_verified,
         ),
     ]
 }

@@ -135,6 +135,7 @@ pub(super) fn structural_provider_module() -> TerminalModule {
         };
         machine.blocks[0].operations = vec![Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(index as u64 + 1),
             result: OperationResult::Unit,
             kind: OperationKind::BoundaryCall {

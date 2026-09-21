@@ -101,10 +101,8 @@ pub(crate) fn validate_selected_attached_method_bounds(
     for machine in program.machines().iter().filter(|machine| {
         machine.generic_data_template.is_valid() && method_is_selected(program, machine, &selected)
     }) {
-        let Some(template) = program
-            .machines()
-            .iter()
-            .find(|template| template.symbol == machine.generic_data_template)
+        let Some(template) =
+            crate::lookup::machine_by_symbol(program, machine.generic_data_template)
         else {
             diagnostics.push(Diagnostic::error(
                 "generic-data method lost its exact template",

@@ -3,7 +3,9 @@
 #   provenance  - the committed binary re-derives from the committed source
 #                 (macOS arm64: clang rebuild modulo the OS-imposed code
 #                 signature; Windows x64: the committed forge re-emits the
-#                 audited .hex listing — checkable on any host with Python 3);
+#                 audited .hex listing — checkable on any host with Python 3;
+#                 Linux x86-64: GNU binutils re-serializes alpha_x64_linux.s
+#                 into a byte-parity clone of the committed ELF);
 #   container   - both audited seeds parse as native executables and the
 #                 recorded stamping hole is the tape section's raw extent —
 #                 checkable on any host with Python 3;
@@ -93,6 +95,29 @@ if [ "$ALPHA_VERIFY_MODE" = full ]; then
       fi
       ;;
   esac
+
+  # The third audited seed is a static ELF64 whose provenance is a byte-exact
+  # GNU binutils rebuild of alpha_x64_linux.s (as --64 + ld -s --build-id=none).
+  # That toolchain produces ELF only on Linux x86-64, so the clone check lives
+  # there — the same shape as the macOS leg living under Xcode clang.
+  if [ "$(uname -s)-$(uname -m)" = "Linux-x86_64" ]; then
+    if command -v as >/dev/null 2>&1 && command -v ld >/dev/null 2>&1; then
+      TMP=$(mktemp -d)
+      if as --64 -o "$TMP/a.o" "$OMEGA_PATH_ALPHA/alpha_x64_linux.s" 2>"$TMP/err" &&
+         ld -s -o "$TMP/rebuilt" --build-id=none -e _start "$TMP/a.o" 2>>"$TMP/err"; then
+        if cmp -s "$TMP/rebuilt" "$OMEGA_PATH_ALPHA/alpha_x64_linux"; then
+          echo "provenance ✓ — alpha_x64_linux reproduces from alpha_x64_linux.s (GNU binutils)"
+        else
+          echo "provenance FAIL — committed alpha_x64_linux differs from a rebuild of its source"; rc=1
+        fi
+      else
+        echo "provenance FAIL — alpha_x64_linux rebuild errored:"; sed 's/^/  /' "$TMP/err"; rc=1
+      fi
+      rm -rf "$TMP"
+    else
+      echo "provenance SKIP — GNU binutils as/ld not found for alpha_x64_linux rebuild"
+    fi
+  fi
 fi
 
 # The container leg inspects the committed seeds' native structure, so it runs
@@ -110,7 +135,7 @@ echo "--- behavior (conformance) ---"
 if [ "$ALPHA_SEED_EXECUTABLE" = 1 ]; then
   if sh "$OMEGA_REPO_ROOT/tests/alpha/conformance.sh"; then :; else rc=1; fi
 else
-  echo "alpha conformance: requires macOS arm64 or Windows x64" >&2
+  echo "alpha conformance: requires macOS arm64, Linux x86-64, or Windows x64" >&2
   refused=1
 fi
 
@@ -122,7 +147,7 @@ if [ "$ALPHA_SEED_EXECUTABLE" = 1 ]; then
     echo "reconstruction SKIP - Beta compiler gate not found"
   fi
 else
-  echo "Beta compiler reconstruction: requires macOS arm64 or Windows x64" >&2
+  echo "Beta compiler reconstruction: requires macOS arm64, Linux x86-64, or Windows x64" >&2
   refused=1
 fi
 
@@ -137,7 +162,7 @@ echo "--- shared hexadecimal prefix (strict grammar) ---"
 if [ "$ALPHA_SEED_EXECUTABLE" = 1 ]; then
   if sh "$OMEGA_REPO_ROOT/tests/beta/compiler/word-prefix.sh"; then :; else rc=1; fi
 else
-  echo "Beta word prefix: requires macOS arm64 or Windows x64" >&2
+  echo "Beta word prefix: requires macOS arm64, Linux x86-64, or Windows x64" >&2
   refused=1
 fi
 
@@ -145,7 +170,7 @@ echo ""
 if [ $rc != 0 ]; then
   echo "alpha seed verification FAILED"
 elif [ $refused != 0 ]; then
-  echo "Alpha-to-Beta edge UNAVAILABLE — seed execution requires macOS arm64 or Windows x64"
+  echo "Alpha-to-Beta edge UNAVAILABLE — seed execution requires macOS arm64, Linux x86-64, or Windows x64"
   rc=2
 elif [ "$ALPHA_VERIFY_MODE" = full ]; then
   echo "Alpha-to-Beta edge VERIFIED (provenance diagnostic + behavior + Beta compiler construction)"

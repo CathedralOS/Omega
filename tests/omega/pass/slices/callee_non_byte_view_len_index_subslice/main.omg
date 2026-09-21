@@ -1,0 +1,45 @@
+// A callee receives a non-byte-element borrowed view (`&[Entry]`) and uses all
+// three view vocabulary operations in one body: `sub.len` for the extent guard,
+// `sub[index]` for element indexing, and `sub[1..]` to materialize a tail
+// subslice whose own `len` and element index are then exercised. The borrowed
+// descriptor must carry through the call boundary for every operation, not
+// just the length fact.
+
+data Entry {
+    value: i32;
+}
+
+data Main {
+    entries: [Entry; 4];
+}
+
+machine Main::main(&mut self) -> i32 {
+    self.entries[1].value = 9;
+
+    let view: &[Entry] = self.entries.as_slice();
+    let index: u64 = 1;
+
+    transition {
+        _ -> self.inspect(view, index)
+    }
+}
+
+machine Main::inspect(&mut self, sub: &[Entry], index: u64) -> i32 {
+    transition sub.len >= 1 && index < sub.len {
+        true -> self.confirm(sub[1..], sub[index].value)
+        false -> 0
+    }
+}
+
+machine Main::confirm(&mut self, tail: &[Entry], chosen: i32) -> i32 {
+    transition tail.len >= 1 {
+        true -> emit(tail[0].value)
+        false -> chosen
+    }
+
+    state emit(&mut self, first: i32) -> i32 {
+        transition {
+            _ -> first
+        }
+    }
+}

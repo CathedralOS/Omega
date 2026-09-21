@@ -153,8 +153,10 @@ pub(crate) fn emit(
         let id = operations.allocate();
         operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id,
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: effect.place,
                 structural_type: effect.structural_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,

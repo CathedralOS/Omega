@@ -156,10 +156,10 @@ pub use platform_bringup::uefi_bootstrap::{
 };
 pub use program_local::program_local_extents::{
     ProgramLocalExtentAggregateRetirementError, ProgramLocalExtentMaterializationError,
-    ProgramLocalExtentRegistry, ProgramLocalExtentRetirementError, ReleasedRetainedForeignArgument,
-    RetainedForeignAccess, RetainedForeignArgument, RetainedForeignArgumentDisposition,
-    RetainedForeignArgumentError, RetainedForeignArgumentId, RetainedForeignArgumentRange,
-    RetainedForeignArgumentRequest, RetiredProgramLocalExtent,
+    ProgramLocalExtentRegistry, ProgramLocalExtentRemapError, ProgramLocalExtentRetirementError,
+    ReleasedRetainedForeignArgument, RetainedForeignAccess, RetainedForeignArgument,
+    RetainedForeignArgumentDisposition, RetainedForeignArgumentError, RetainedForeignArgumentId,
+    RetainedForeignArgumentRange, RetainedForeignArgumentRequest, RetiredProgramLocalExtent,
 };
 pub use program_local::program_local_roots::{
     EstablishedProgramLocalRoot, EstablishedProgramLocalRootCapacity,

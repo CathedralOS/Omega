@@ -85,10 +85,7 @@ fn call_site_boolean_contract_expression_value_with_operators<'program, 'call>(
         state_flow.machine_symbol,
         state_flow.state_symbol,
     )?;
-    let caller_machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == state_flow.machine_symbol)?;
+    let caller_machine = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol)?;
 
     ContractExpressionEvaluator {
         program,

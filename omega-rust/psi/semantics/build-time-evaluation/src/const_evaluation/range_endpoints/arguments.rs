@@ -13,7 +13,7 @@ use typed_trees::{
     types::{PrimitiveType, TypeReferenceHandle},
 };
 
-pub(super) struct Invocation<'program> {
+pub(crate) struct Invocation<'program> {
     pub working: &'program TypedTrees,
     pub execution: &'program TypedTrees,
     pub admission: &'program BuildTimeAdmissionPlan,

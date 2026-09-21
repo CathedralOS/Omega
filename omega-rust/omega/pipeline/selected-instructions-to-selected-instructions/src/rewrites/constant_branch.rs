@@ -46,12 +46,17 @@
 //! definitions, and producer elimination stays with the
 //! producer-elimination rules.
 //!
-//! Proposal and independent replay share only the admission predicates and
-//! the rebuilt-terminator constructor. Validation re-derives the admitted
-//! branch from the source, requires the proposed terminator to equal the
-//! reconstructed `Jump`, and restores the complete source by content:
-//! every other instruction, register, roster row, call, and settlement is
-//! retained bit-identical.
+//! Validation consumes the proposed program, requires the terminator in
+//! the branch's block to equal the independently computed `Jump`, and
+//! restores the complete source by content: every other instruction,
+//! register, roster row, call, and settlement is retained bit-identical.
+//! The validator re-derives the fold's preconditions on its own audit —
+//! the branch/kind pairing and zero-operand shape, the flag partition
+//! every implicit use must satisfy, the jump row's exact implicit-surface
+//! match, and the constant operands the successor is decided from —
+//! never consulting the producer's `admission` routine; only the
+//! module's shared condition-state walk and operand audit are common to
+//! both sides.
 
 mod admission;
 mod rewrite;

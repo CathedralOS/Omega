@@ -126,10 +126,6 @@ pub use component_eras::component_era_entry_ledger::{
     ProgramLocalRootEpochLeaseAcquisitionError, ProgramLocalRootEpochLeaseId,
     ProgramLocalRootEpochLeaseReleaseError,
 };
-pub use component_eras::component_era_journal::{
-    ComponentEraJournal, ComponentEraJournalFact, ComponentEraJournalReplayError,
-    ComponentEraJournalRoster,
-};
 pub use component_eras::component_progress_manifest::{
     CheckedComponentProgressDemand, ComponentBuildBoundProgressDemand, ComponentProgressManifest,
     ComponentProgressManifestDigest,

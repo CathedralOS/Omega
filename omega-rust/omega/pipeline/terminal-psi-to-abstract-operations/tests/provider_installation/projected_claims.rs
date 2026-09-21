@@ -157,6 +157,7 @@ fn projected_structural_provider_module() -> TerminalModule {
     caller.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(1),
             result: OperationResult::Unit,
             kind: OperationKind::BoundaryCall {
@@ -175,6 +176,7 @@ fn projected_structural_provider_module() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(2),
             result: OperationResult::Unit,
             kind: OperationKind::BoundaryCall {

@@ -132,7 +132,7 @@ its contract:
 
 ```omega
 let closed: CloseResult = block file.close();
-let outcome: TaskOutcome<T> = suspend task.finish();
+let outcome: TaskOutcome<T> = suspend block task.finish();
 ```
 
 The marker makes the waiting site visible; explicit consumption, not the

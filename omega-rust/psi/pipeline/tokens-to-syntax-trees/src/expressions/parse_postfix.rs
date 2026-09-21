@@ -500,6 +500,9 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
             // `x.store` without a following `(` stays an ordinary member read.
 
             input = rest;
+            // Like an operator token, the authored member name is the stable
+            // occurrence of this read; the receiver keeps its own span.
+            let member_span = member.source_span();
             expression =
                 syntax_trees
                     .expressions
@@ -508,6 +511,9 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                         member,
                         case_variant: None,
                     }));
+            syntax_trees
+                .expressions
+                .set_source_span(expression, member_span);
             continue;
         }
 

@@ -32,7 +32,7 @@ reaches Console
             LineReadResult::Invalid -> invalid()
         }
     }
-    state report(&mut self, reason: i32, count: u64) {
+    state report(&mut self, reason: i32 [0..=100], count: u64) {
         self.console.write(&self.line);
         let next: ByteRead = block self.console.read_byte();
         transition next {
@@ -40,11 +40,20 @@ reaches Console
             ByteRead::Eof -> done(reason, count)
         }
     }
-    state suffix(&mut self, reason: i32, count: u64, value: i32 [0..=255]) {
+    state suffix(&mut self, reason: i32 [0..=100], count: u64, value: i32 [0..=255]) {
         self.console.write_byte(value);
         transition { _ -> done(reason, count) }
     }
-    state done(&mut self, reason: i32, count: u64) {
+    state done(&mut self, reason: i32 [0..=100], count: u64) {
+        // `LineReadResult.count` is an unbounded u64: the contract carries no
+        // upper bound, so the exact `i32` cast needs a dominating premise.
+        // The four-byte line caps count at 4; `finish` declares that bound.
+        transition count <= 4 {
+            true -> finish(reason, count)
+            _ -> invalid()
+        }
+    }
+    state finish(&mut self, reason: i32 [0..=100], count: u64 [0..=4]) {
         self.console.exit_process(reason + count as i32);
     }
     state invalid(&mut self) { self.console.exit_process(99); }

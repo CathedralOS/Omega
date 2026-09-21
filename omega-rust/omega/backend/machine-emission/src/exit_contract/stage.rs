@@ -75,56 +75,6 @@ pub fn validate_whole_function_exit_contract_with_frame<S: ValidatedSelectedAnal
     )
 }
 
-/// Establish the baseline whole-function exit contract over an independently
-/// validated resolved layout. This compatibility wrapper remains distinct
-/// from the canonical typed post-allocation join in the module entrance.
-pub fn stage_whole_function_exit_contract<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
-    physical: &ValidatedPhysicalRegisterModel,
-    encoding: &StagedOptimizedSelectedFormEncoding,
-    layout: &StagedOptimizedResolvedSelectedFormLayout,
-) -> Result<ValidatedWholeFunctionExitContract, WholeFunctionExitContractError> {
-    let contract = compute(
-        selected,
-        machine,
-        physical,
-        encoding,
-        layout.program(),
-        WholeFunctionExitLayoutCustody::BaselineNearLayoutV1,
-    )?;
-    let validated = ValidatedWholeFunctionExitContract {
-        contract: std::sync::Arc::new(contract),
-    };
-    validate_whole_function_exit_contract(
-        selected, machine, physical, encoding, layout, &validated,
-    )?;
-    Ok(validated)
-}
-
-/// Replay the baseline compatibility join and reject any detached contract.
-pub fn validate_whole_function_exit_contract<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
-    physical: &ValidatedPhysicalRegisterModel,
-    encoding: &StagedOptimizedSelectedFormEncoding,
-    layout: &StagedOptimizedResolvedSelectedFormLayout,
-    contract: &ValidatedWholeFunctionExitContract,
-) -> Result<(), WholeFunctionExitContractError> {
-    validate_optimized_resolved_selected_form_layout(selected, machine, physical, encoding, layout)
-        .map_err(WholeFunctionExitContractError::Layout)?;
-    super::validation::validate(
-        selected,
-        machine,
-        physical,
-        encoding,
-        layout.program(),
-        WholeFunctionExitLayoutCustody::BaselineNearLayoutV1,
-        None,
-        contract.contract(),
-    )
-}
-
 /// Stage an exit contract over an independently validated x86 branch-relaxed
 /// layout. This path retains the relaxation receipt in the contract rather
 /// than treating the transformed layout as baseline layout authority.

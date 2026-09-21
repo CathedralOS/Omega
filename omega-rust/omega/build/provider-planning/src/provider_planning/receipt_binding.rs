@@ -129,6 +129,28 @@ pub(super) fn plan_admitted_receipt_updates(
                     .any(|method| method.requirement_identity == requirement_identity)
             })
             .collect::<Vec<_>>();
+        // A shared requirement identity — an inherited requirement carried
+        // by several granted plans — still binds exactly one receipt: the
+        // plan whose schema is the requirement's own boundary trait owns the
+        // declared evidence. When that owner slot is not granted the
+        // unscoped matches keep their fail-closed behavior rather than
+        // attributing the receipt to an inheriting plan by roster order.
+        let owner_matches = matches
+            .iter()
+            .copied()
+            .filter(|grant| {
+                crate::service_schema::schema_binds_exact_boundary_trait(
+                    &checked.typed,
+                    &grant.selected_plan.schema,
+                    owner,
+                )
+            })
+            .collect::<Vec<_>>();
+        let matches = if owner_matches.is_empty() {
+            matches
+        } else {
+            owner_matches
+        };
         match matches.as_slice() {
             [] => {}
             [grant] => {

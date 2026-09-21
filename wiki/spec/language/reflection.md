@@ -312,6 +312,23 @@ policy, not proof. Metadata processing executes no getter, constructor, setter,
 or external operation merely to describe it. Logical collections expose selected
 element operations rather than implicitly traversing allocator bookkeeping.
 
+## Embedded inspection and edits
+
+[Embedding](../build/embedding.md#reflection-and-debugging) exposes selected
+descriptions and checked callable operations, not a second mutation mechanism.
+An invariant-preserving setter still requires valid access at invocation: an edit
+can invalidate stronger live flow facts even when the type's domain stays true.
+A fuel pause retains the activation's loans, invariant windows, and restoration
+debts; it does not permit an editor to borrow or write the affected storage.
+Detached candidates can be edited, then submitted through an operation that
+obtains access and establishes the full contract when applying them.
+
+Code bodies are not mutable reflection values. Source edits go through ordinary
+compilation; another Psi-producing transformation must also submit a new checked
+artifact. Authorized component replacement does not transplant old continuations
+into the edited code. Debug snapshots may describe unestablished storage but
+cannot return it as an established typed value or callable authority.
+
 ## Compiler ownership
 
 Psi owns authorized schema queries, semantic member correspondence, typed policy

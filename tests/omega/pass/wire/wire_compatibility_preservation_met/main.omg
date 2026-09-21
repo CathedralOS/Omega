@@ -1,0 +1,37 @@
+// Chapter 21: a `PreserveUnknown` compatibility demand is met when the codec
+// publishes preserving decode -- an authored `PreservingDecode` realization
+// for the local schema's value type -- rather than unsatisfiable by
+// construction.
+
+use omega_language_std::wire;
+
+data RelayChannel {
+}
+
+data MessageLineage {
+}
+
+data LocalMessage {
+    #1 value: u32;
+}
+
+data PeerMessage {
+    #1 value: u32;
+}
+
+data PreservePolicy {
+}
+
+machine preserving_decode(
+    bytes: &[u8]
+) -> DecodeResult<Relayed<LocalMessage>>
+satisfies PreservingDecode<PreservePolicy, LocalMessage>::decode_preserving
+{
+    DecodeResult::Invalid
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

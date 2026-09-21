@@ -37,8 +37,8 @@ directory.
 ## Durable result
 
 Normalized Build carries pipeline-consumed target, dependency, root, provider,
-behavior-exclusion, optimization, and output selections. It does not serialize
-source/staging roots, handles, or admitted host-service authority. Image/application facts remain
+test-group, behavior-exclusion, optimization, and output selections. It does not
+serialize source/staging roots, handles, or admitted host-service authority. Image/application facts remain
 build-owned; signing-affecting versus publication-only metadata follows
 [application publication](macos_application.md).
 
@@ -65,6 +65,18 @@ and native. The intended fields are `builder.pcc.psi` and `builder.pcc.native`.
 These selections affect portable evidence production, not ordinary language
 checking, optimizer correctness or receiving authority. A receiver independently
 selects its versioned policy package and concrete configuration.
+
+## Test groups
+
+[Requirement-based tests](testing.md) register exact product machine requirements
+through `builder.tests.group<Requirement>()`. Each enabled group collects its
+package-local concrete satisfiers for Terminal Psi execution before successful
+publication. Groups own provider configuration, not new authority. Root grants
+can only be attenuated; selecting a real provider cannot escape virtual backing.
+The group and global `disabled` fields default to false. No registered groups
+means no automatic tests, not an implicit core/std dependency or hidden group.
+Group selection belongs to evaluated build configuration; it does not change
+the unconditional dependency-discovery rules.
 
 ## Behavior exclusions
 

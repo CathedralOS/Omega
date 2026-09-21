@@ -11,6 +11,7 @@
 //! publishes the validated plan through [`publication`].
 mod abstract_optimization;
 mod analyses;
+mod field_value_specialization;
 mod pass_manager;
 mod publication;
 mod ranked_rewrites;
@@ -36,8 +37,9 @@ pub use analyses::{
     DominatorAnalysis, EffectClass, EffectKnowledge, EffectSummaryAnalysis, ExactUnsignedTripCount,
     ExecutableEdgeAnalysis, ExecutableEdgeFact, ExecutableEdgeKnowledge, ExitKind,
     FunctionControlFlow, FunctionEffectSummary, LoopAnalysis, LoopRegion, NodeEffectSummary,
-    NodeLiveness, OwnershipFrontierAnalysis, OwnershipFrontierAnalysisFact, ScalarConstant,
-    ScalarConstantAnalysis, ScalarConstantFact, ScalarConstantSupport,
+    NodeLiveness, OwnershipFrontierAnalysis, OwnershipFrontierAnalysisFact, PlaceAliasClaim,
+    PlaceAliasFunction, PlaceAliasRelation, PlaceAliasRoot, PlaceAliasesAnalysis, PlaceView,
+    ScalarConstant, ScalarConstantAnalysis, ScalarConstantFact, ScalarConstantSupport,
     StronglyConnectedComponentAnalysis, UnsignedCountdownInvariantConstantPlacements,
     UnsignedCountdownInvariantConstants, UnsignedCountdownLoopSummary, UseDefinitionAnalysis,
     ValidatedCountdownInvariantConstantAnalysis,
@@ -50,6 +52,12 @@ pub(crate) use analyses::{
     analyze_countdown_invariant_constant_placement, analyze_countdown_invariant_constants,
     analyze_counted_loops, validate_countdown_invariant_constant_analysis,
     validate_countdown_invariant_constant_placement_analysis, validate_counted_loop_analysis,
+};
+pub use field_value_specialization::{
+    AppliedFieldValueSpecialization, FieldValueSpecializationCandidate,
+    FieldValueSpecializationError, ResolvedFieldValue, ValidatedFieldValueSpecialization,
+    apply_field_value_specialization, propose_field_value_specializations,
+    validate_field_value_specialization,
 };
 pub use pass_manager::*;
 pub use ranked_rewrites::*;

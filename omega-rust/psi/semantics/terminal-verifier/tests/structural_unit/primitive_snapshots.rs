@@ -18,6 +18,7 @@ fn term(raw: u64) -> ScalarTerm {
 fn store(raw: u64, value: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(raw),
         result: OperationResult::Unit,
         kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -46,6 +47,7 @@ fn snapshot_module() -> TerminalModule {
         store(1, 1),
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(2),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -226,6 +228,7 @@ fn owned_reference_call_forgets_storage_observations_but_keeps_scalar_snapshots(
                 store(70, 1),
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(71),
                     result: OperationResult::Scalar(ValueDeclaration {
                         id: value_id(71),
@@ -303,6 +306,7 @@ fn jump(raw: u64, target: u64) -> Terminator {
         target: block_id(target),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
@@ -326,6 +330,7 @@ fn diamond_module() -> TerminalModule {
             target: block_id(2),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -334,6 +339,7 @@ fn diamond_module() -> TerminalModule {
             target: block_id(3),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -345,6 +351,7 @@ fn diamond_module() -> TerminalModule {
     ] {
         machine.blocks.push(Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: block_id(raw),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -390,6 +397,7 @@ fn primitive_snapshot_mutable_call_invalidates_reaching_store_not_captured_value
     };
     callee.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(10),
         result: OperationResult::Unit,
         kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -400,10 +408,12 @@ fn primitive_snapshot_mutable_call_invalidates_reaching_store_not_captured_value
     }];
     let call = Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(4),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: callee.id,
             arguments: vec![value_id(2)],
             structural_arguments: vec![StructuralArgument {
@@ -465,8 +475,10 @@ fn primitive_snapshot_requires_cyclic_arrivals_without_losing_iteration_local_st
     };
     machine.blocks[0].operations[0] = Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(1),
         result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: place_id(1),
             structural_type: structural_type_id(1),
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -483,6 +495,7 @@ fn primitive_snapshot_requires_cyclic_arrivals_without_losing_iteration_local_st
             target: block_id(3),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -491,6 +504,7 @@ fn primitive_snapshot_requires_cyclic_arrivals_without_losing_iteration_local_st
             target: block_id(4),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -521,8 +535,10 @@ fn primitive_snapshot_fresh_locals_are_disjoint_and_initialization_stays_require
         });
         let establishment = Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(producer),
             result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: place_id(place),
                 structural_type: structural_type_id(1),
                 multiplicity: StructuralMultiplicity::Unrestricted,

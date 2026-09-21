@@ -70,16 +70,18 @@ pub(super) fn compile(
 fn interpret_checked(
     checked: &compiler::CheckedCompilation,
 ) -> Result<InterpretOutcome, Vec<Diagnostic>> {
-    let entry = checked.selected_program_entry_machine().ok_or_else(|| {
+    let entry = checked.selected_program_entry().ok_or_else(|| {
         vec![Diagnostic::error(
             "build has no exact target-owned ProgramEntry binding",
         )]
     })?;
+    // Dispatch on the bound machine's symbol, never its spelling: another
+    // module or package may declare a same-named machine.
     // Default interpretation captures output and uses virtual host state. Do not
     // print or grant live host effects before native admission and publication.
-    Ok(checked_interpreter::interpret_entry(
+    Ok(checked_interpreter::interpret_entry_symbol(
         checked,
-        entry,
+        entry.source_signature().machine_symbol(),
         &[],
         InterpretOptions::default(),
     ))

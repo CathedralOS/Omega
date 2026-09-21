@@ -1,0 +1,50 @@
+// The borrowed-strategy carve is still refused. The restoration window lets
+// `strategy.tail` move out of a `&mut Bump`, but no boundary call may run
+// while the field is absent — and the split needs exactly that custody — so
+// the only spellings left either block the call or return custody sourced
+// from a borrowed parameter. The by-value `strategy: Bump` threading in the
+// pass canary is therefore the surviving shape, not a workaround.
+use omega::language::core::extent;
+use omega::language::core::content;
+
+data Split {
+    taken: Extent in Granted & Vacant;
+    rest: Extent in Granted & Vacant;
+}
+
+boundary trait ExtentPartition {
+    machine split(whole: Extent in Granted & Vacant, length: u64) -> Split
+    ensures
+        result.taken.length == length,
+        embed(result.taken.length) + embed(result.rest.length) == embed(whole.length),
+        Granted::content(old(&whole))
+        == separate(
+            Granted::content(&result.taken),
+            Granted::content(&result.rest),
+        );
+}
+
+data Bump {
+    tail: Extent in Granted & Vacant;
+    remaining: u64;
+}
+
+machine carve(
+    partition: &ExtentPartition,
+    strategy: &mut Bump,
+    length: u64
+) -> Extent in Granted & Vacant
+requires
+    length <= strategy.remaining
+reaches ExtentPartition
+{
+    let tail: Extent in Granted & Vacant = strategy.tail;
+    let parts: Split = partition.split(tail, length);
+    strategy.tail = parts.rest;
+    strategy.remaining = strategy.remaining - length;
+    parts.taken
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

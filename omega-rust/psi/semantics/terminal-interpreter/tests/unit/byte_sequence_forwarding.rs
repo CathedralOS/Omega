@@ -58,6 +58,7 @@ fn borrowed_arguments(places: &[u64]) -> Vec<StructuralArgument> {
 fn boundary(ordinal: u64, places: &[u64]) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(ordinal),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
@@ -72,10 +73,12 @@ fn boundary(ordinal: u64, places: &[u64]) -> Operation {
 fn unit_call(ordinal: u64, callee: u64, places: &[u64]) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(ordinal),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: machine_id(callee),
             arguments: Vec::new(),
             structural_arguments: borrowed_arguments(places),
@@ -109,6 +112,7 @@ fn nested_module() -> TerminalModule {
     root.blocks[0].operations.extend([
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(3),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishByteSequenceLiteral {
@@ -134,6 +138,7 @@ fn nested_module() -> TerminalModule {
     inner.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(30),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishByteSequenceLiteral {
@@ -249,10 +254,12 @@ fn structural_scalar_helpers_forward_bytes_and_restore_the_caller() {
     };
     module.machines[1].blocks[0].operations[0] = Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(20),
         result: OperationResult::Scalar(result),
         kind: OperationKind::CallStructuralScalar {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: machine_id(3),
             arguments: Vec::new(),
             structural_arguments: borrowed_arguments(&[5, 6]),
@@ -269,6 +276,7 @@ fn structural_scalar_helpers_forward_bytes_and_restore_the_caller() {
     });
     inner.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(33),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -314,6 +322,7 @@ fn unrelated_unit_scalar_and_structural_result_calls_preserve_caller_bytes() {
         0,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(3),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishByteSequenceLiteral {
@@ -328,6 +337,7 @@ fn unrelated_unit_scalar_and_structural_result_calls_preserve_caller_bytes() {
             unit_call(5, 3, &[]),
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(6),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -336,6 +346,7 @@ fn unrelated_unit_scalar_and_structural_result_calls_preserve_caller_bytes() {
                 }),
                 kind: OperationKind::Call {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     callee: machine_id(4),
                     arguments: Vec::new(),
                     requirement_obligations: Vec::new(),
@@ -344,6 +355,7 @@ fn unrelated_unit_scalar_and_structural_result_calls_preserve_caller_bytes() {
             },
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(7),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -352,6 +364,7 @@ fn unrelated_unit_scalar_and_structural_result_calls_preserve_caller_bytes() {
                 }),
                 kind: OperationKind::CallStructuralScalar {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     callee: machine_id(4),
                     arguments: Vec::new(),
                     structural_arguments: Vec::new(),
@@ -371,6 +384,7 @@ fn unrelated_unit_scalar_and_structural_result_calls_preserve_caller_bytes() {
     });
     scalar.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(40),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

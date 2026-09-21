@@ -590,3 +590,48 @@ fn checked_transport_certifies_denotation_facts_only() {
     assert_eq!(fact.proposition, Proposition::Falsehood);
     assert!(fact.certified);
 }
+
+/// The transport cites only the roster equations its denotation can reach:
+/// unrelated `Equal` rows before and after the selected arm's own equation
+/// are not cloned into the certificate, and the certified classification is
+/// unaffected.
+#[test]
+fn transport_roster_cites_only_reachable_equations() {
+    let condition = ValueId::new(1).unwrap();
+    let mut axioms = Vec::new();
+    for index in 10..20u64 {
+        axioms.push(Proposition::Equal(
+            value(index, ScalarType::Boolean),
+            value(index + 1, ScalarType::Boolean),
+        ));
+    }
+    let relevant = axioms.len();
+    axioms.push(Proposition::Equal(
+        value(1, ScalarType::Boolean),
+        ScalarTerm::Boolean(true),
+    ));
+    for index in 30..40u64 {
+        axioms.push(Proposition::Equal(
+            value(index, ScalarType::Boolean),
+            value(index + 1, ScalarType::Boolean),
+        ));
+    }
+    let premise = Proposition::Equal(value(1, ScalarType::Boolean), ScalarTerm::Boolean(true));
+    assert_eq!(
+        super::reachable_axiom_equalities(&axioms, [&premise, &Proposition::Truth])
+            .iter()
+            .map(|(index, _)| *index)
+            .collect::<Vec<_>>(),
+        [relevant]
+    );
+    let fact = condition_fact(
+        condition,
+        true,
+        &axioms,
+        &|id| ScalarTerm::value(id, ScalarType::Boolean),
+        &context(&axioms),
+    )
+    .unwrap();
+    assert_eq!(fact.proposition, Proposition::Truth);
+    assert!(fact.certified);
+}

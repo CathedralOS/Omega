@@ -732,3 +732,85 @@ fn computed_primitive_assignment_retains_rhs_calls() {
         }
     ));
 }
+
+#[test]
+fn pure_scalar_builtin_call_in_a_local_initializer_selects_between_operands() {
+    let checked = checked(
+        "machine cap(value: u64, floor: u64) -> u64 {
+            let result: u64 = max(value, floor);
+            result
+        }",
+    );
+    let machine = machine_named(&checked, "cap");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine)
+        .expect("a pure scalar builtin folds into the local's computation");
+    let [
+        CheckedUnitEffectOperationPlan::EstablishScalarLocal {
+            result:
+                checked_trees::CheckedUnitScalarResultBindingPlan {
+                    statement_index: 0,
+                    binding_ordinal: 0,
+                    primitive_type: PrimitiveType::U64,
+                },
+            value: checked_trees::CheckedCallScalarArgument::Computation(root),
+        },
+        _,
+        CheckedUnitEffectOperationPlan::Complete { .. },
+    ] = plan.operations.as_slice()
+    else {
+        panic!(
+            "expected one computation-backed establishment then completion: {:?}",
+            plan.operations
+        );
+    };
+    let typed_machine = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|candidate| candidate.symbol == machine)
+        .unwrap();
+    let state = &checked.typed.machine_states(typed_machine)[0];
+    let statements = checked
+        .typed
+        .statement_table
+        .statements(state.statement_nodes);
+    let typed_trees::statement::StatementNode::LocalData(local) = &statements[0] else {
+        panic!("local initializer statement");
+    };
+    let plans = &checked.facts.values.scalar_computations;
+    let node = plans.nodes.get(*root);
+    assert_eq!(node.primitive_type, PrimitiveType::U64);
+    let checked_trees::CheckedScalarComputationKind::Select {
+        source_expression,
+        condition,
+        when_true,
+        when_false,
+    } = &node.kind
+    else {
+        panic!(
+            "expected the builtin to select between operands: {:?}",
+            node.kind
+        );
+    };
+    assert_eq!(*source_expression, local.initial_value);
+    let condition = plans.nodes.get(*condition);
+    let checked_trees::CheckedScalarComputationKind::Apply {
+        source_expression: application_source,
+        operands,
+        ..
+    } = &condition.kind
+    else {
+        panic!("expected an applied comparison: {:?}", condition.kind);
+    };
+    assert_eq!(condition.primitive_type, PrimitiveType::Bool);
+    assert_eq!(*application_source, local.initial_value);
+    let operands = plans.operands.span(*operands).unwrap();
+    assert_eq!(operands, &[*when_true, *when_false]);
+    for operand in operands {
+        assert_eq!(plans.nodes.get(*operand).primitive_type, PrimitiveType::U64);
+    }
+}

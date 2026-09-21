@@ -1,0 +1,45 @@
+// PASS canary: floating Match subjects retain their IEEE comparison meaning
+// across subject shapes — a projected record field and a computed expression
+// dispatch through the same ordinary floating value patterns as a named
+// parameter in both formats.
+
+use omega::language::core::float_operations;
+
+data Narrow { left: f32; right: f32; }
+data Wide { left: f64; right: f64; }
+
+machine choose_projected32(pair: Narrow, first: f32, second: f32) -> i64 {
+    match pair.left { first -> 7, second -> 9, _ -> 11 }
+}
+machine choose_projected64(pair: Wide, first: f64, second: f64) -> i64 {
+    match pair.right { first -> 7, second -> 9, _ -> 11 }
+}
+machine choose_computed32(a: f32, b: f32, first: f32, second: f32) -> i64 {
+    match a + b { first -> 7, second -> 9, _ -> 11 }
+}
+machine choose_computed64(a: f64, b: f64, first: f64, second: f64) -> i64 {
+    match a * b { first -> 7, second -> 9, _ -> 11 }
+}
+
+machine projected32() -> i64 {
+    let pair: Narrow = Narrow { left: 2.0f32, right: 1.0f32 };
+    choose_projected32(pair, 1.0f32, 2.0f32)
+}
+machine projected64() -> i64 {
+    let wide: Wide = Wide { left: 1.0f64, right: 2.0f64 };
+    choose_projected64(wide, 1.0f64, 2.0f64)
+}
+machine computed32() -> i64 { choose_computed32(0.5f32, 0.5f32, 1.0f32, 2.0f32) }
+machine computed64() -> i64 { choose_computed64(0.5f64, 4.0f64, 1.0f64, 2.0f64) }
+machine projected_fallback32() -> i64 {
+    let pair: Narrow = Narrow { left: 3.0f32, right: 1.0f32 };
+    choose_projected32(pair, 1.0f32, 2.0f32)
+}
+
+machine launch() {
+    let a: i64 = projected32();
+    let b: i64 = projected64();
+    let c: i64 = computed32();
+    let d: i64 = computed64();
+    let e: i64 = projected_fallback32();
+}

@@ -43,6 +43,13 @@ Source attribution alone does not independently prove a control-flow relation
 that the object replayer cannot see. The canonical semantic subject and its
 verified lowering correspondence remain necessary.
 
+A runtime-sized activation claim contributes its authored bound, never its
+committed extent: simultaneously live claim bounds add with alignment, bounds
+on mutually exclusive branches take the maximum, and an unbounded claim leaves
+the activation's demand open — there is no WCSU for it, so the claim cannot be
+admitted. See [runtime-sized activation storage](activation_storage.md) for
+the claim, custody, and publication contract.
+
 A native body-demand theorem excludes external entry adapters and architectural
 arrival state. Root admission joins it to the selected context-indexed entry
 realization specified by [entry-stack composition](entry_stacks.md).
