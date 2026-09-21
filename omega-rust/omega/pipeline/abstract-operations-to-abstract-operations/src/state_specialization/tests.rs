@@ -3,10 +3,11 @@
 use super::super::VerifiedPsiOptimizationSession;
 use crate::{
     StateArgumentSpecializationCandidate, StateArgumentSpecializationError,
-    apply_state_argument_specialization, propose_state_argument_specializations,
-    validate_state_argument_specialization,
+    apply_state_argument_specialization, optimize_abstract_operations,
+    propose_state_argument_specializations, validate_state_argument_specialization,
 };
 use abstract_operations::AbstractOperation;
+use optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
 use optimization_unit::{
     NodeLocation, OptimizationEdge, ProvenanceDisposition, PsiOptimizationUnit, PsiProvenance,
     PsiRealizationSite, recompute_psi_optimization_unit_identity,
@@ -2236,6 +2237,39 @@ fn replay_rejects_forged_call_result_rows() {
         validate_state_argument_specialization(&session, candidate).is_ok(),
         "the exact candidate still validates"
     );
+}
+
+/// The board's acceptance chain witnessed end to end on a real source file:
+/// the lowered `run` machine reaches the public `optimize_abstract_operations`
+/// entrance under the exact `Optimization::StateSpecialization` selection,
+/// commits through `omega.psi-rule.state-argument-specialization.v1`, and
+/// publishes a validated plan whose unit moved — the candidate replayed
+/// independently inside that same entrance, because publication runs the
+/// registered validators rather than trusting the producer.
+#[test]
+fn source_produced_machine_selects_the_rule_through_the_public_entrance() {
+    let session = lowered_session(CALL_RESULT_TAKEN_SOURCE, "source entrance");
+    let input_identity = session.unit().identity;
+    let input = session.input().clone();
+    let selections = OptimizationSelections::new([Optimization::StateSpecialization])
+        .expect("state-specialization selection");
+    let plan = optimize_abstract_operations(
+        input,
+        &selections,
+        &selections.project_psi(),
+        OptimizationWorkBudget::new(96, 64, 64, 64, 64).expect("budget"),
+    )
+    .expect("the public entrance publishes a validated plan");
+    assert_eq!(plan.commits().len(), 1);
+    assert!(
+        plan.commits()
+            .iter()
+            .any(|commit| commit.rule == super::rule_identity()),
+        "the commit carries this family's exact rule identity"
+    );
+    assert_eq!(plan.selections(), &selections);
+    assert_eq!(plan.psi_selections(), &selections);
+    assert_ne!(plan.unit().identity, input_identity);
 }
 
 /// The integer-comparison dispatch block and the own scalar parameter its
