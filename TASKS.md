@@ -17330,7 +17330,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **STARTUP-ENTRY-MECHANICS.** Resolved — named sibling alias of the
   settled STARTUP-ENTRY-MECHANICS-OWNERSHIP cluster (resolved by audit
   at `be03555d17`; ENTRY-MECHANICS-RUNTIME-CONSOLIDATION at :7683 names
-  this stub verbatim). Entry/exit mechanics consolidate at
+  this stub verbatim). Re-verified at `c3dd8016a74d`+ head fetch
+  (Zergling-52, linux x86-64, claim 64ad3bc5): `root_entry/` holds six
+  modules (root_validation, root_admission, provider_execution,
+  progress_profile_installation, opaque_callback_replacement,
+  required_root_slots), `tests/architecture/layering.rs` still pins the
+  external-roots ownership rows, and `hosted_unit_entry.rs` is intact under
+  image-emission. The prior `external-roots/src/root_entry` fence under
+  this name has drained; `hosted_receiver*` stays fenced by
+  PLAN-LAID-VIEWS (~09:25Z). Entry/exit mechanics consolidate at
   `backend/runtime/external-roots/src/root_entry` (validation,
   admission, provider execution, progress-profile installation) plus
   `platform_bringup` for UEFI bootstrap; `program-entry-plan` is
