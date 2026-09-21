@@ -2,8 +2,8 @@ use super::{
     ArithmeticDomain, Cell, DataDefinition, DataMember, EvalResult, Evaluator, ExpressionHandle,
     ExpressionNode, FloatMeaning, FloatSemantics, Frame, Halt, HashSet,
     MutableRecordProjectionStep, MutableScalarRecast, PrimitiveType, SemanticFloatFormat,
-    SymbolHandle, TableNamePath, Value, apply_arithmetic_domain, interpreter_f32_from_bits,
-    interpreter_f32_to_bits, trap, unsupported,
+    SymbolHandle, TableNamePath, TypeReferenceNode, Value, apply_arithmetic_domain,
+    interpreter_f32_from_bits, interpreter_f32_to_bits, trap, unsupported,
 };
 impl<'program> Evaluator<'program> {
     pub(super) fn field_cell(&self, container: &Cell, field: &str) -> EvalResult<Cell> {
@@ -551,7 +551,15 @@ impl<'program> Evaluator<'program> {
                 self.element_cell(&collection, index)
             }
             ExpressionNode::Borrow(inner) => self.resolve_place(inner.target, frame),
-            other => unsupported(format!("place expression not supported: {other:?}")),
+            // A place can be ROOTED at a computed expression: `pick(bag).field`,
+            // `view(values)[i]`, a `match` arm that returns `&mut`. Evaluating it
+            // once produces a `Ref` whose referent cell IS the place; callers
+            // deref it like any name-resolved reference cell. A non-reference
+            // result is a temporary with no storage and still fails closed.
+            other => match self.eval_expression(handle, frame)? {
+                Value::Ref(target) => Ok(target),
+                _ => unsupported(format!("place expression not supported: {other:?}")),
+            },
         }
     }
 
@@ -776,6 +784,36 @@ impl<'program> Evaluator<'program> {
         let (receiver, field_name) = match self.program.expression_table.expression(handle).clone()
         {
             ExpressionNode::Member(member) => {
+                // A computed receiver (`pick(bag).field = v`) must not be
+                // probed through `resolve_place` here -- this coercion query
+                // runs before the store resolves the whole target, and
+                // resolving an effectful receiver twice would replay it. Its
+                // declared type still names the field's slot exactly. Named
+                // place receivers keep the runtime shape because a machine
+                // instance's fields come from attached/owned data that only
+                // the live struct's symbol enumerates.
+                if !matches!(
+                    self.program.expression_table.expression(member.receiver),
+                    ExpressionNode::Name(_)
+                        | ExpressionNode::Member(_)
+                        | ExpressionNode::Indexed(_)
+                        | ExpressionNode::Borrow(_)
+                ) {
+                    let mut receiver = self.expression_type_reference(member.receiver, frame)?;
+                    loop {
+                        receiver = match self.program.type_reference_table.type_reference(receiver)
+                        {
+                            TypeReferenceNode::Reference { referee, .. }
+                            | TypeReferenceNode::Constrained {
+                                base_type: referee, ..
+                            } => *referee,
+                            TypeReferenceNode::Named { symbol, .. } => {
+                                return self.field_type_reference(*symbol, member.member.as_str());
+                            }
+                            _ => return None,
+                        };
+                    }
+                }
                 let receiver = self.resolve_place(member.receiver, frame).ok()?;
                 (receiver, member.member.as_str().to_owned())
             }
@@ -962,5 +1000,140 @@ impl<'program> Evaluator<'program> {
                 .map_err(Halt::Trap),
             other => trap(format!("cannot subslice {other:?}")),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    fn checked_program(source: &str) -> checked_trees::CheckedTrees {
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .expect("tokens");
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("symbols");
+        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("types");
+        typed_trees_to_checked_trees::lower_typed_trees(typed).expect("checked")
+    }
+
+    fn assert_exit_seven(source: &str) {
+        let checked = checked_program(source);
+        let outcome =
+            crate::interpret_entry(&checked, "main", &[], crate::InterpretOptions::default());
+        assert_eq!(outcome.error, None, "{source}");
+        assert_eq!(outcome.exit_code, 7, "{source}");
+    }
+
+    #[test]
+    fn reborrow_member_projection_of_call_result() {
+        assert_exit_seven(
+            r#"
+data Cell {
+    value: i32;
+    tag: i32;
+}
+
+data Bag {
+    cells: [Cell; 4];
+}
+
+machine pick(bag: &mut Bag) -> &mut Cell {
+    transition { _ -> &mut bag.cells[2] }
+}
+
+machine main() -> i32 {
+    let mut bag: Bag = Bag {
+        cells: [Cell { value: 0, tag: 0 }, Cell { value: 0, tag: 0 },
+                Cell { value: 0, tag: 0 }, Cell { value: 0, tag: 0 }],
+    };
+    let r: &mut i32 = &mut pick(&mut bag).value;
+    r = 7;
+    transition bag.cells[2].value == 7 {
+        true -> 7
+        false -> 0
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn reborrow_indexed_element_of_slice_call_result() {
+        assert_exit_seven(
+            r#"
+machine view(values: &mut [i32; 4]) -> &mut [i32; 4] {
+    transition { _ -> &mut values }
+}
+
+machine main() -> i32 {
+    let mut values: [i32; 4] = [0, 0, 0, 0];
+    let r: &mut i32 = &mut view(&mut values)[2];
+    r = 7;
+    transition values[2] == 7 {
+        true -> 7
+        false -> 0
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn rebinding_reference_returning_call() {
+        assert_exit_seven(
+            r#"
+data Cell {
+    value: i32;
+}
+
+data Bag {
+    cells: [Cell; 4];
+}
+
+machine pick(bag: &mut Bag) -> &mut Cell {
+    transition { _ -> &mut bag.cells[3] }
+}
+
+machine main() -> i32 {
+    let mut bag: Bag = Bag {
+        cells: [Cell { value: 0 }, Cell { value: 0 },
+                Cell { value: 0 }, Cell { value: 0 }],
+    };
+    let cell: &mut Cell = &mut pick(&mut bag);
+    cell.value = 7;
+    transition bag.cells[3].value == 7 {
+        true -> 7
+        false -> 0
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn borrow_of_value_producing_call_still_fails() {
+        // `once()` returns a plain value, not a reference: there is no storage
+        // cell to reborrow, so forming `&mut once()` must still fail closed.
+        let checked = checked_program(
+            r#"
+machine once() -> i32 {
+    transition { _ -> 0 }
+}
+
+machine main() -> i32 {
+    let mut cell: i32 = 0;
+    let r: &mut i32 = &mut once();
+    r = 7;
+    transition { _ -> cell }
+}
+"#,
+        );
+        let outcome =
+            crate::interpret_entry(&checked, "main", &[], crate::InterpretOptions::default());
+        let error = outcome.error.expect("unsupported borrow target");
+        assert!(error.contains("place expression not supported"), "{error}");
     }
 }
