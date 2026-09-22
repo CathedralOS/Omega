@@ -6,11 +6,24 @@ pub mod functions;
 pub mod identity;
 pub mod publication;
 
-pub use control_flow::*;
-pub use fixups::*;
-pub use functions::*;
+pub use control_flow::{
+    FunctionFragmentBranchEvidence, FunctionFragmentConditionalBranchEvidence,
+    FunctionFragmentConditionalBranchPredicate, FunctionFragmentControlProvenance,
+    FunctionFragmentJumpEvidence, FunctionFragmentSuccessorProvenance,
+};
+pub use fixups::{
+    FunctionFragmentInternalMachineFixup, FunctionFragmentInternalMachineFixupKind,
+    FunctionFragmentInternalMachineFixupState, FunctionFragmentNormalizedForeignCallFixup,
+    FunctionFragmentNormalizedForeignCallFixupKind,
+    FunctionFragmentNormalizedForeignCallFixupState,
+};
+pub use functions::{FunctionFragment, FunctionFragmentBlockSpan, FunctionFragmentInstructionSpan};
 pub use identity::function_fragment_emission_identity;
-pub use publication::*;
+pub use publication::{
+    FunctionFragmentEmissionManifest, FunctionFragmentEmissionManifestDecodeError,
+    FunctionFragmentEmissionStage, FunctionFragmentEmissionStatistics,
+    FunctionFragmentEmissionUnavailableData,
+};
 
 use optimization_core::FunctionFragmentEmissionIdentity;
 use selected_instructions::SelectedInstructionPlanIdentity;

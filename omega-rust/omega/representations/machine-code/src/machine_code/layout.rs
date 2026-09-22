@@ -12,13 +12,32 @@ pub mod policy;
 pub mod program;
 pub mod text_section;
 
-pub use control_flow::*;
-pub use evidence::*;
-pub use functions::*;
+pub use control_flow::{
+    ResolvedBranchEvidence, ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate,
+    ResolvedJumpEvidence,
+};
+pub use evidence::{
+    X86BranchRelaxationAction, X86BranchRelaxationAttempt, X86BranchRelaxationAttemptOutcome,
+    X86BranchRelaxationIdentity, X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
+    relaxation, relaxation_identity,
+};
+pub use functions::{
+    ResolvedSelectedBlockLayout, ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout,
+};
 pub use identity::{ResolvedSelectedFormLayoutIdentity, resolved_machine_layout_identity};
-pub use policy::*;
+pub use policy::SelectedFunctionLayoutPolicy;
 pub use program::ResolvedMachineProgram;
-pub use text_section::*;
+pub use text_section::{
+    FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionManifestDecodeError,
+    FunctionFragmentTextSectionStage, FunctionFragmentTextSectionStatistics,
+    FunctionFragmentTextSectionUnavailableData, InternalMachineCallResolutionKind,
+    InternalMachineCallResolutionState, NormalizedForeignCallResolutionKind,
+    NormalizedForeignCallResolutionState, PlacedBlockSpan, PlacedFunctionFragment,
+    PlacedInstructionSpan, PlacedInternalMachineCallResolution,
+    PlacedNormalizedForeignCallResolution, RelocationFreeTextSectionPlacement,
+    TextSectionPlacementPolicy, TextSectionRelocationRequirements,
+    relocation_free_text_section_identity,
+};
 
 use crate::{SelectedFormMachineOptimizationCustody, SelectedFormMovnOptimizationCustody};
 use optimization_core::Optimization;

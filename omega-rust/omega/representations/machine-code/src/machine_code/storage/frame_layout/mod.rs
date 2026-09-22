@@ -7,6 +7,17 @@ mod callee_save;
 mod layout;
 mod spill;
 
-pub use callee_save::*;
-pub use layout::*;
-pub use spill::*;
+pub use callee_save::{
+    FunctionNonAuthoritativeCalleeSaveStorage, NonAuthoritativeCalleeSaveSlot,
+    NonAuthoritativeCalleeSaveSlotId, NonAuthoritativeCalleeSaveStorageIdentity,
+    NonAuthoritativeCalleeSaveStoragePlan, NonAuthoritativeCalleeSaveStoragePolicy,
+};
+pub use layout::{
+    CalleeSaveFrameSlot, FrameUnwindPlan, FrameUnwindRestore, FunctionTargetFrameLayout,
+    LocalStorageFrameSlot, OutgoingAbiFrameArea, ReturnAddressFrameCustody, StackProbePlan,
+    TargetFrameLayoutPlan, TargetFrameLayoutPolicy,
+};
+pub use spill::{
+    FunctionSpillFrameRequirements, NonAuthoritativeSpillFrameRequirementIdentity,
+    NonAuthoritativeSpillFrameRequirementPlan, NonAuthoritativeSpillFrameRequirementPolicy,
+};

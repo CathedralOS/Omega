@@ -4,6 +4,12 @@ pub mod execution;
 pub mod ports;
 pub mod settlements;
 
-pub use execution::*;
-pub use ports::*;
-pub use settlements::*;
+pub use execution::{
+    BoundaryExecutionRecord, CompletionProviderCustodyBinding, ProviderExecutionRecord,
+    derive_completion_provider_custody,
+};
+pub use ports::PortEffectRecord;
+pub use settlements::{
+    BoundaryByteSequenceArgumentRecord, BoundaryResultRecord, BoundaryScalarResultRecord,
+    BoundarySettlementRecord, BoundaryStructuralResultRecord,
+};
