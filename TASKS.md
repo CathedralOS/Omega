@@ -282,6 +282,27 @@ the complete product bar; focused successes below do not establish that baseline
     `service_custody/parameters.rs`. Do not replace the two-read/helper flow
     with a single-hop owned-Service recognizer.
 
+  - `filesystem/native_wrapper_write_all_result`: on macOS ARM64, store the
+    `Filesystem::write_all` result in a field; bad path yields Error and
+    the `/tmp` path yields Ok. The native harness requires PASS and no FAIL
+    on stdout, not merely exit zero. Keep this customer distinct from
+    filesystem release-proof closure.
+  - `host/runtime_gui_foreground_window_exit`: select the fixture's exact
+    authored Gui requirement/provider, then execute create -> foreground
+    query/result store -> destroy -> exit 70 on Windows. The invisible window
+    need not become foreground.
+  - Integer/string literal dispatch: emitted programs exit 22 for integer
+    dispatch and 11 for `"look"`, preserving authored selection order and
+    ordinary result/field storage. Reproduce the current omission before
+    carrying forward historical phase diagnoses.
+  - `wire/runtime_wire_exact_array_without_count_exit`: execute generated
+    encoding of `[u32; 4]` without a synthetic count sibling. Require seven
+    bytes `00 00 04 01 02 03 04` and exit 70; retain the checked-interpreter
+    oracle. Its dedicated native witness remains unwritten.
+  - `capabilities/acquires_through_helper_return`: **ENTRY-CONTENT-ROOTS**
+    owns the real nested-binding entry below; a checked flow report or empty
+    Probe entry does not close its native acceptance.
+
   Route other failures to **STATE-LOCAL-VALUE-FRONTIER**,
   **MATCH-SELECTIVE-LOWERING**, **GENERAL-CYCLIC-EXECUTION**,
   **NOMINAL-FIELD-FLOW**, **BORROW-PROOF-CONVERGENCE**,
@@ -824,6 +845,10 @@ syntax and other terminal services are not prerequisites.
   Acceptance: published `number_guess`, `cli_mvp` and `generic_counters`
   retain their documented behavior with no test-supplied `self` or service
   qualifications. Keep `entry_and_abi::hosted_receiver*` controls.
+  Execute `acquires_through_helper_return` through its original `Main::main`
+  nested binding/helper-return chain, preserving exact propagated acquires and
+  provenance. The fixture currently selects empty `Probe::enter`; that
+  publication and checked-report coverage are not Main's native closure.
   Execute on matching hosts and report unavailable runtime legs explicitly.
   Missing/incompatible supply, forged zero/literal construction, lookalikes,
   redirected continuations, non-ZII receiver state, bad backing/alignment,
@@ -2522,7 +2547,9 @@ syntax and other terminal services are not prerequisites.
 - **CML4.** Complete edge-local residual cleanup under the
   [ownership contract](wiki/spec/terminal-psi/ownership.md): outgoing values
   materialize before transfer and disposal, every occurrence has one
-  disposition, and dying roots clean in reverse establishment order.
+  disposition, and independent dying roots clean in reverse declaration order.
+  Abandoned partial construction/staging cleans its established prefix in
+  reverse establishment order, as the [language rule](wiki/spec/language/ownership.md#construction-and-disposal-order) requires.
   Crash/abort/process-exit abandonment has no cleanup successor.
   Owners: `typed-trees-to-checked-trees/src/execution/control_cleanup.rs`
   and `execution/unit/cleanup/`, `checked-trees-to-lowered-psi/src/unit/unit_cleanup/`,
@@ -2545,7 +2572,7 @@ syntax and other terminal services are not prerequisites.
   - Fix whole/residual scheduling across dying roots. The multi-temporary
     path in `execution/unit/cleanup/anonymous.rs::append_continuation`
     appends residuals in operand order, and the test above expects that
-    order; it does not establish the required reverse-establishment schedule.
+    order; it does not establish the required cleanup schedule.
     Complete construction-local roots, partial construction and mixed dying
     roots, retaining maximal untouched subtrees and empty complements.
     No runtime liveness flags, expansion of untouched arrays into leaves, or
@@ -2566,7 +2593,8 @@ syntax and other terminal services are not prerequisites.
 
   Acceptance: source-produced artifacts reload and independently reconstruct
   exact complements and complete transfer/cleanup partitions; native runs
-  preserve values and cleanup timing across the composed edges. Reject missing,
+  preserve values and observable hook order/timing across the composed edges.
+  Frontend admission or diagnostic ordering is not that runtime witness. Reject missing,
   duplicate, reordered, overlapping, wrong-root/type and post-transfer cleanup.
   Fuel exhaustion commits no disposal and retry cannot repeat one.
   Preserve `terminal-verifier`'s `jump_edge_residual_discards_close_the_projected_argument_root_in_order`
@@ -3655,171 +3683,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 
 
 
-- **CANARY-ACQUIRES-THROUGH-HELPER-RETURN** — mined candidate; scope verified, real residual — the canary exists and is rostered (`tests/omega/pass/capabilities/acquires_through_helper_return`, in `tests/canary_suite.rs` + `tests/fixture_rosters/reports_and_capabilities.rs`), but the rostered fixture is red on `1fc01bb690`: `pass_canaries_compile` filtered to it fails at native-artifact Terminal production — `InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: "`Main::main` has no admitted body (local construction stopped at signature)" }`. The remaining leg is the checked/lowering gap that stops `Main::main`'s local construction at the signature (authority-propagating helper-return shape reaches no admitted body), not a missing corpus member. Fixture path is under a live same-item claim (Devin / cathr-acquires-helper-return).
-- **CANARY-CORE-NAME-COLLISION** — mined candidate; verify scope then implement.
 
-- **CANARY-ACQUIRES-THROUGH-HELPER-RETURN.** Mined candidate — resolved,
-  already landed. The stub names the canary
-  `tests/omega/pass/capabilities/acquires_through_helper_return` (chapter
-  18 nested-acquires: `Vault::pick` mints `Folder::Writable` at the
-  `Desktop` boundary, `Backup::stage` and `Main::main` receive it through
-  helper returns — the authority-flow report must propagate `acquires`
-  up the call graph with helper provenance). The machinery lives in
-  `typed-trees-to-checked-trees/src/facts/capabilities.rs`
-  (`propagate_nested_capability_flows` fixpoints
-  returns/derives/acquires over the service-reach call edges);
-  `d96a0fda39`-era board notes recorded it claimed at 23:30Z in the
-  InvalidUnitMachinePlan family, but the family failure it was grouped
-  with never touched this canary. Re-verified at `e70748c995` on linux
-  x86-64: `OMEGA_PASS_CANARY_FILTER=acquires_through_helper_return`
-  pass_canaries_compile PASS (18.3s) and
-  `capability_flows_retain_exact_direct_and_propagated_sites` PASS —
-  both propagated routes (`Backup::stage acquires via Vault::pick`,
-  `Main::main acquires via Backup::stage`) pinned by the roster.
-  Record: `wiki/drafts/canary_acquires_through_helper_return.md`.
-- **CANARY-NATIVE-WRAPPER-WRITE-ALL-RESULT.** Mined candidate; scope
-  verified at 1edade1a48 — names the canary
-  `tests/omega/pass/filesystem/native_wrapper_write_all_result` (the
-  payload-carrying `Filesystem::write_all -> UnitResult` deep-fix guard:
-  bad path must deliver `Error`, good path `Ok`, through an assigned
-  field). Infrastructure already landed: the fixture carries a deployable
-  `build.omg` binding all four hosted `ProgramEntry` roots
-  (`builder.roots.bind(<t>::ProgramEntry, Main::main)`), is rostered
-  (`fixture_rosters/native_filesystem_canaries.rs:82`,
-  `NATIVE_WRAPPER_WRITE_ALL_RESULT`), and has its test leg
-  `native_wrapper_write_all_result_passes` in
-  `native_filesystem_canaries/native_filesystem_passes.rs:452`. What the
-  leg still needs is a macOS arm64 run — the whole
-  `native_filesystem_canaries` suite is `#![cfg(target_os = "macos")]` and
-  asserts via `compile_exact_macos_entry` + real `/tmp` writes, so the
-  PASS cannot be witnessed on a linux_x86_64 host (a compile-only leg is
-  already covered by the pass-corpus compile roster). Re-verified at
-  `27deadf4122`: the suite's `#![cfg(target_os = "macos")]` gate is
-  still in place and all four `ProgramEntry` bindings persist in the
-  fixture's `build.omg`, so the only open deliverable remains the
-  macOS witness. Prerequisite: a
-  seeded macOS arm64 host (SEED-HOST-CHAIN-LEGS' audited list); then run
-  `cargo nextest run -p compiler --test canary_suite -E
-  'test(=native_filesystem_canaries::native_filesystem_passes::native_wrapper_write_all_result_passes)'`
-  there and record the result on this row.
-  **macOS arm64 witness recorded 2026-09-21 — and it FAILS.** This row's only
-  deliverable was a macOS arm64 run, and this is that host, so the leg is no
-  longer host-blocked: it is a measured red.
-  `cargo nextest run -p compiler --test native_filesystem_canaries -E
-  'test(/native_wrapper_write_all_result/)'` fails after 121 s with
-  "selected ProgramEntry establishment rejoins 0 Terminal attachment identities;
-  expected one; the machine's unit plan was omitted at local construction at
-  `state graph: state signature: parameter signature: attached data shape`
-  (state 0)".
 
-  That omission phase is a recorded member of the attached-Unit-plan family
-  (`known_baseline_failures.md`), whose producer site is
-  `t2c/src/execution/unit/calls/signatures.rs` — NOT the record-literal store
-  phase whose guard was repaired at `238ff31237c0c`, which is why that repair
-  does not close this one. Build note for whoever re-runs it: `-p compiler` with
-  only an `-E` filter still links every test binary in the crate and exhausts
-  the disk; name `--test native_filesystem_canaries` to build one.
-
-- **CANARY-RUNTIME-GUI-FOREGROUND-WINDOW-EXIT.** Mined candidate — resolved (fenced residual): scope verified
-  2026-09-20 (z164): re-mines `tests/omega/pass/host/runtime_gui_foreground_window_exit`
-  — the fixture exists, is authored correctly (intrinsic `Service<Gui>` field,
-  all four hosted ProgramEntry binds), and is rostered in `ACTIVE_PASS_CANARIES`
-  (`canary_suite.rs`). The dedicated run test
-  `runtime_gui_foreground_window_exit_canary_runs` is `#[cfg(windows)]`-gated by
-  design (no value assertion possible off the real desktop), so on linux x86-64
-  the fixture's only leg is `pass_canaries_compile`. Measured at `739e4e81e9`:
-  the compile fails at `selected ProgramEntry Service field Main::gui
-  requires a selected Fused provider for boundary Gui`
-  (`selected-dispatch/src/service_custody/root.rs`) — an EARLIER stop than the
-  ledger's recorded `Lowering(InvalidUnitMachinePlan)` family
-  (`known_baseline_failures.md`:152, stale for this member) and the siblings'
-  moved ProgramEntry-rejoin stop. Sibling gui canaries
-  `runtime_gui_window_{lifecycle,blit}_exit` pass the same leg on the same host
-  — the selected linux Gui provider covers their ops but not `foreground_window`
-  (the 0-arg value-returning GetForegroundWindow import). The producing surfaces
-  (provider-plan production in
-  `typed-trees-to-checked-trees/src/execution/unit/*`, Fused custody in
-  `selected-dispatch`) sit in PROVIDER-ATTACHMENT-MACHINE-PLAN /
-  ENTRY-CONTENT-ROOTS / GENERAL-CYCLIC-EXECUTION lanes — outside this item's
-  fixture fence; the windows run leg is host-gated by design.
-
-  Re-verified at `c3e3bfec35`: fixture still
-  authored under `tests/omega/pass/host/runtime_gui_foreground_window_exit`
-  and rostered in `ACTIVE_PASS_CANARIES` (`canary_suite.rs:4911`); the
-  Fused-`Gui`-provider compile stop, the `#[cfg(windows)]` run-leg gating,
-  and the producing-surface ownership are unchanged.
-  Re-verified at `96bc0ef8104` on linux x86-64 (dev-88738):
-  `OMEGA_PASS_CANARY_FILTER=runtime_gui_foreground_window_exit` — 1 fail,
-  identical stop (`Main::gui requires a selected Fused provider for
-  boundary Gui`); residual stays with the named producing-surface items.
-  covered — fixture landed and rostered; run test is Windows-gated
-- **CANARY-RUNTIME-LITERAL-DISPATCH-EXIT.** — mined candidate; scope verified
-  2026-09-20 (z105): re-mines the `control_flow/runtime_{integer,string}
-  _literal_dispatch_exit` pair in the known-baseline-failures InvalidUnitMachinePlan
-  family ([wiki/drafts/known_baseline_failures.md](wiki/drafts/known_baseline_failures.md):150).
-  The recorded attribution is stale — on `fcfb576fe9` both fixtures still fail
-  `pass_canaries_compile` but at a different stage: `selected ProgramEntry
-  establishment rejoins 0 Terminal attachment identities; expected one` from
-  `selected-dispatch/src/service_custody/root.rs` — neither `machines` nor
-  `composed_machines` in `terminal_unit_effects` carries an
-  attachment_type_identity for the bound (Main::main, entry state). Both
-  fixtures bind all four hosted ProgramEntry roots and pass the Fused-provider
-  prerequisite, so the moved failure is now the unit-effects plan emitting no
-  attachment identity for a literal-dispatch machine — the producing surfaces
-  (`typed-trees-to-checked-trees/src/execution/unit/*`,
-  terminal-production receiver eligibility) sit in GENERAL-CYCLIC-EXECUTION's
-  unit-plan lane and ENTRY-CONTENT-ROOTS' live claim (00:00Z). Sibling
-  family members are individually claimed this wave (CANARY-WIRE-EXACT-
-  ARRAY-WITHOUT-COUNT-EXIT 00:33Z, CANARY-ACQUIRES-THROUGH-HELPER-RETURN
-  23:30Z); the baseline doc entry needs its refresh when the family
-  attribution settles. Re-witnessed 2026-09-21 at `e70748c9954` (linux
-  x86-64, `omega --check` on each fixture root): both fixtures still reject
-  with the same ProgramEntry-rejoin diagnostic, and the emitted text now
-  carries the per-fixture omission cause — the integer fixture's unit plan
-  is omitted at `state graph: terminator: unsupported tail: transition
-  chain` (state 0; a `transition` chain is not one of the admitted tail
-  shapes at `execution/unit/state_graph/mod.rs` — only an empty tail, one
-  return expression, one unconditional jump, or an exact when/else pair),
-  while the string fixture's unit plan is omitted at `structural field
-  store: record literal field`
-  (`execution/unit/structural_scalar_store/mod.rs:572`). So the family
-  splits into two distinct missing unit-plan admissions — transition-chain
-  terminator tail and record-literal field store — both under the same
-  `execution/unit/` ownership lane; the ledger refresh has since landed —
-  `known_baseline_failures.md`'s re-measurement at `7b224763615` records
-  this pair under the moved selected-entry rejoin gate.
-  Re-witnessed 2026-09-21 at `891eb5c584` (linux x86-64,
-  `OMEGA_PASS_CANARY_FILTER` pass_canaries_compile): identical outcome —
-  integer `transition chain`, string `record literal field`, still 0
-  rejoined attachment identities; the repair remains in the
-  `execution/unit/` unit-plan lane.
-  Re-witnessed at `fff3918dc42f` (linux x86-64, zergling-111): identical
-  outcome again — the integer fixture's unit plan is still omitted at
-  `state graph: terminator: unsupported tail: transition chain` (state 0)
-  and the string fixture's at `structural field store: record literal
-  field`; both still report 0 rejoined attachment identities in 50s under
-  the filtered pass_canaries_compile run.
-  covered — repair sits in the `execution/unit/` unit-plan lane (known-baseline family owner), not under this name
-- **CANARY-WIRE-EXACT-ARRAY-WITHOUT-COUNT-EXIT.** — mined candidate; scope verified
-  2026-09-20 (z180): re-mines `tests/omega/pass/wire/runtime_wire_exact_
-  array_without_count_exit`, which already exists and is rostered in
-  `ACTIVE_PASS_CANARIES` (compiled by `pass_canaries_compile`): a
-  `#0 readings: [u32; 4]` exact-array field wired through generated `encode`
-  with no synthetic `<name>_count` sibling, then `exit_process(70)`. On linux
-  x86-64 at `0db54f596a` the canary is red at `selected ProgramEntry
-  establishment rejoins 0 Terminal attachment identities; expected one`
-  (`selected-dispatch/src/service_custody/root.rs`). Fixture bisection at that
-  revision: fields + `exit_process` alone pass; declaring the numbered schema
-  without calling the codec passes; any `Telemetry::encode`/`decode` call
-  inside `Main::main` fails — independent of field count, the `[u32; 4]`
-  member, control-flow shape, or codec direction — and a verbatim copy of
-  `runtime_wire_roundtrip_primitive_exit` fails identically. Same moved-failure
-  family as CANARY-RUNTIME-LITERAL-DISPATCH-EXIT: the unit-effects plan emits
-  no `attachment_type_identity` for the bound (`Main::main`, entry state) once
-  the entry machine calls a generated codec; the producing surfaces
-  (`typed-trees-to-checked-trees/src/execution/unit/*`, terminal-production
-  receiver eligibility) sit in GENERAL-CYCLIC-EXECUTION's unit-plan lane and
-  ENTRY-CONTENT-ROOTS' live claim — outside this item's fence.
 - **COMPILER-PASS-PROFILE-TIMINGS.** Preserve timing opt-in through retained
   and direct Terminal production. Both paths in
   `checked-compilation-to-terminal-artifact/src/terminal_artifact.rs`
@@ -3854,20 +3719,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   receiving-axiom contracts to survive. No independent slice exists here.
 
 
-- **NEW-TPV-DECLARATION-ORDER-NORMALIZATION-PIN.** Mined candidate; slice
-  landed. The name resolves to the declaration-order normalization
-  contract in `topology-plan`: `NormalizedGraph::new` sorts the supplied
-  roster by name and resolves `EndpointKey` indices against that canonical
-  order ("Input order does not matter — output is canonical"), and the
-  emitted `DeploymentPlan` is canonical throughout — but no test pinned
-  that producer declaration order never changes the plan. Added
-  `declaration_order_normalizes_to_the_identical_plan` to
-  `packages/topology/tests/composition.rs`: reversed instance and binding
-  declaration orders compose to byte-identical plans and identical policy
-  outcomes. `cargo nextest run -p topology-plan --test composition`:
-  17/17 PASS on linux x86-64; `cargo fmt` clean. Worked unclaimed — no
-  claimable marker existed for this name and the file carries no live
-  fence.
 - **GENERAL-SOURCE-BINDER-SYNTAX.** Resolved — scope verified: the general mathematical binder surface (`let`/`boundary let` telescopes, `core::Level`/`core::Type<u>`/`core::Strict<v>`/`core::Squash` carriers, generalized and authored universe binders, arrow-typed telescope parameters, named assumptions) already landed under the PROOF-CONTRACT-MIGRATION structural legs; the in-fence residual was the bounded machine-valued body denotation in `typed-trees-to-checked-trees/src/proof`. Extended it: `x != y` now denotes `Squash (Not (Id S l r))` through an interned `Not : Π(_ : Type 0). Type 0` assumption — kept at `Type 0`, not `sEmpty` elimination, so inequality composes inside `&&`/`||` like `==` — and `()` interned a dedicated `Unit : Type 0` carrier, so unit binder domains and unit-carried calls denote instead of refusing. Remaining named legs stay with their owners: `core::*` symbol-identity classification (blocked on the fixed `core::*` declarations landing in `source/library/core`), checked-signature encoding into Terminal evidence, member-call `target_symbol` binding inside `let` bodies, and order relations over non-integer operands. Gate on linux x86-64: `cargo check`/`clippy -p typed-trees-to-checked-trees` clean of new warnings; `cargo nextest run -p typed-trees-to-checked-trees` 5008/5009 — `open_range_token_use_rejects_instead_of_falling_back` fails verbatim at base `d82697ffca` (unrelated wave breakage). Re-verified at `8734480a01`: the filtered binder/signature/denotation suite passes 128/128 and `open_range_token_use_rejects_instead_of_falling_back` is green again — the unrelated failure has since been repaired.
 - **GENERATED-CODEC-INDEPENDENT-VERIFICATION.** Establish sufficient
   independently checked evidence for generated codecs' `Derived` trust under
@@ -3929,83 +3780,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   owner decision. Introducing an aggregate proof-work refusal ceiling requires
   the existing `compile-time-proof-work-ceiling` decision in OWNER_QUESTIONS.md.
 
-- **NATIVE-DIFF-FRONTEND-DROP-ORDER.** Resolved — the frontend drop-order
-  expectations lane is landed and green in
-  `tests/native-differential/tests/frontend_drop_expectations.rs`'s
-  drop-order block (:705+): authored consume sequences decide hook
-  eligibility per exit, multiple drop fences on one declaration emit
-  diagnostics in a fixed precedence order, and cleanup ORDER is pinned
-  through admission + diagnostic sequencing (the reference interpreter
-  runs no observable cleanup yet — a future cleanup-executing
-  interpreter must extend, not silently change, the block). Re-witnessed
-  at `5246ff65f4c`: `cargo nextest run -p omega-native-differential-test
-  --test frontend_drop_expectations` → 26/26 PASS on linux x86-64
-  (incl. drop-order-two-hooks, -reverse-explicit, -double-consume,
-  -reassign-consumed, -field-path). The residual — runtime cleanup-order
-  evidence — is pinned as a deliberate future expectation change, not an
-  open board leg.
-- **NATIVE-DIFF-HOSTED-RECEIVER-CHECKED-ENTRY** — mined candidate; verify scope then implement.
-
-- **NEW-APR-TRAPPING-SHIFT-REFUSAL-PIN.** Inserted row — minted name (planner
-  scope: `tests/omega/fail/arithmetic/trapping_shift_requires_realization` +
-  `canary_suite/roster.rs`). Scope verified at `bb192d7ea9eb` on linux
-  x86-64: the refusal it names is live — `validate_total_specification_arithmetic`
-  (`proof_contracts/arithmetic_domains/total_specification.rs:241`) rejects a
-  shift whose LEFT operand selects `in Trapping` inside any contract/proposition
-  term ("direct Trapping arithmetic `<<` is illegal in machine `...` requires
-  contract: specification terms are total and cannot transfer runtime control"),
-  and no existing canary pins the shift-shaped leg (fail/ranges Trapping hits
-  are carrier annotations, not contract-term arithmetic). The pin is a
-  checked-semantics fail fixture (`requires (left << k) >= 1` on a `left:
-  u32 in Trapping` parameter) plus one `CHECKED_ONLY_FAIL_CANARIES` entry —
-  which lives in `canary_suite.rs`, not the scoped `roster.rs` (roster.rs is
-  the inventory harness that consumes those arrays). Registration is fenced:
-  `canary_suite.rs` held by PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION
-  (devin-5389, ~16:19Z Sep 21). Landable after that claim drains.
-- **NEW-ATC-ENTRY-READBACK-BOUNDARY.** Mined candidate — unresolvable name; no implementing surface found at `0a0662ad27ad`. The token `ATC` occurs as a standalone word nowhere in TASKS.md, TASKS_BOOTSTRAP.md, TASKS_OPTIMIZER.md, `wiki/`, `tools/`, `source/`, `samples/`, or any `*.rs`/`*.omg` file — verified on both this worktree and `origin/main`; the nearest read-back surface (`wiki/drafts/known_baseline_failures.md`'s field-readback fixtures and `tests/omega/pass/control_flow/runtime_straight_line_terminal_field_readback_exit`) carries no ATC naming and is already owned. Nothing exists to scope or implement under this name; recorded here so the mined name is not re-dispatched.
-- **NEW-BAC-CHECKPOINT-THROUGH-EXECUTION-REQUEST.** Inserted row, scope
-  verified (planner-scoped to
-  `assembled-syntax-to-checked-compilation/src/checking.rs`,
-  `checking/checked_compilation.rs`,
-  `checking/execution_settlement.rs`) — the admitted-checkpoint-to-
-  execution-request contract is already implemented and pinned:
-  `AdmittedBuildCheckpoint::execute` (build_continuation.rs:290) captures
-  `restricted_build_requests` before the checkpoint is consumed, joins
-  each request through `RestrictedBuildGrants::admit`, re-verifies the
-  executed config's selected symbol against the admitted symbol, and
-  `ExecutedBuildCheckpoint` carries the requests into
-  `BuiltCheckedProgram` — `check_selected_execution`
-  (execution_settlement.rs:325) moves them verbatim into
-  `CheckedExecution.restricted_build_requests`, exposed by
-  `checked_compilation.rs:625`. Coverage already lives in
-  `continuation_tests.rs`: `ungranted_restricted_build_request_waits_`
-  `before_its_effect` (grant refusal gates the effect, stamp never
-  written) and `granted_restricted_build_request_executes_its_effect`
-  (request survives to `checked.restricted_build_requests()`).
-  Verified at head fetch on linux x86-64; no live claim fences the three
-  scoped files.
 
 
-- **NEW-NATIVE-DIFF-IGNORED-OPERAND-PROBE-INTENT.** Inserted row, scope
-  verified (planner-scoped to `tests/native-differential/tests/real_fs.rs`)
-  — the ignored-operand probe intent is already implemented and green:
-  `IgnoredOperandProbe` inside
-  `filesystem_operands_prepare_before_real_authority` calls
-  `fs.create(path, (dividend / divisor) as i32)` with a trapping divisor,
-  and asserts the operand evaluation halts (`EvaluationHalted(Trap)`,
-  operation_tag 1, zero grant refusals) before `create` can touch disk —
-  "ignored ABI operands must finish preparation before create can touch
-  disk" (`!prepared_file.exists()`). Re-witnessed green at head fetch:
-  `nextest -p omega-native-differential-test --test real_fs -E
-  'test(~filesystem_operands_prepare)'` PASS. Note the suite's
-  "native-differential" name describes the real-vs-hermetic filesystem
-  split — probes run under the checked interpreter (`interpret_with_options`
-  / `evaluate_granted_build_machine_arguments`), not a produced native
-  artifact; an actual native-binary twin of the trap-ordering intent would
-  need the artifact-production harness, which this file does not own.
-  Sibling surfaces: the neighboring grant probes (InvalidOutputProbe,
-  CanonicalizeOutputProbe, CrossDomainProbe) pin the remaining
-  preparation-intent quadrants in the same test.
+
 - **NEW-RBRA-MIGRATION-RECIPE.** Inserted row — slice landed. Planner-scoped
   to `wiki/drafts/range_suffix_migration.md`, which did not exist: authored it
   as the migration recipe for REMOVE-BRACKETED-RANGE-ANNOTATIONS (:62) — a
@@ -4021,7 +3798,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **NEW-RBRA-STD-LIBRARY-MIGRATION.** Inserted row, scope verified at `891194236afa` (planner-scoped to `source/library/std/{console,time,calling}.omg` + `source/library/std/targets/{linux_x86_64,linux_arm64,windows_x86_64,macos_x86_64}`) — no migration is pending on the scoped surface: every assigned path is byte-identical between this worktree and `origin/main` (empty `git diff --stat` per file/dir), and the std library already spells the current `Service<R>` carrier vocabulary (`time.omg:951` `host: Service<TimeHost>`; bare boundary-trait value spellings reject under `32f5182254`). The `RBRA` token occurs nowhere in the tree or boards; the only sibling in the series is NEW-RBRA-PASS-RECAST-GENERICS, which holds `tests/omega/pass/{recast,generics}` (15:22Z) — the corpus side of whatever migration the series names. Nothing to implement under this name until a concrete contract or failing customer identifies the delta.
 - **NEW-TLBR-PARAMETERIZED-REQUIREMENT-ADMISSION.** Inserted row, scope verified at `c3dd8016a74d` (planner-scoped to `psi/semantics/validation/src/machine_calls/calls/generic_bounds.rs`, byte-identical to origin/main) — the parameterized-requirement admission frontier is `is_directly_callable_top_level_requirement`: a top-level `boundary requirement` may be body-called only when public, nongeneric (`lifetime_parameters.is_empty()` AND `machine_type_parameters(callee).is_empty()`), single-state, and self-free or owned-self; generic/lifetime-parameterized requirements deliberately keep the symbol fence ("receiver custody and obligation transfer are a separate settlement shape"). Widening the predicate is not a slice inside this file: it decides which bodyless symbols may execute, which requires the selected-provider settlement to answer a generic instantiation plus the lifetime-linked return frontier — machinery in selected-dispatch/provider-planning, not validation. The instantiation-bound machinery that an admitted parameterized call would need (`validate_type_parameter_instantiation_bounds` positional pinning + `type_satisfies_declared_property`) already exists and is exercised through the resolved-target rung. No bounded slice remains under the assigned file; the cross-file leg needs a dispatch that includes selected-dispatch's provider resolution.
 - **MODULE-CONSTANT-BUILTIN-CARRIER** — mined candidate; verify scope then implement.
-- **NATIVE-DIFF-HOSTED-RECEIVER-HARNESS-MIGRATION** — mined candidate; verify scope then implement.
 - **OBLIGATION-NORMALIZED-IDENTITY** — mined candidate; verify scope then implement.
 
 
