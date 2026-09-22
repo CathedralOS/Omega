@@ -1,3 +1,4 @@
+use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 use super::ContractExpressionEvaluator;
@@ -78,9 +79,13 @@ impl ContractExpressionEvaluator<'_, '_> {
                 }
             }
             ExpressionNode::Integer(value) => value.value_i64(),
-            ExpressionNode::Member(member) if member.member.as_str() == "len" => self
-                .collection_length(member.receiver)
-                .and_then(|length| i64::try_from(length).ok()),
+            ExpressionNode::Member(member)
+                if CollectionMeasure::from_authored_spelling(member.member.as_str())
+                    == Some(CollectionMeasure::Length) =>
+            {
+                self.collection_length(member.receiver)
+                    .and_then(|length| i64::try_from(length).ok())
+            }
             ExpressionNode::Borrow(inner) => self.integer_value(inner.target),
             _ => None,
         }

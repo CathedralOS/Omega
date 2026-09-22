@@ -1,4 +1,6 @@
+use crate::semantic_calls::MeasureReceiver;
 use checked_trees::{CheckFacts, ContractProofFactOwner};
+use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
@@ -8,8 +10,7 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceN
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OwnerMemberTarget {
     Declaration(SymbolHandle),
-    CollectionLength,
-    CollectionCapacity,
+    CollectionMeasure(CollectionMeasure),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -842,14 +843,25 @@ fn member_target_in_environment(
         })
         .map(OwnerMemberTarget::Declaration)
         .or_else(|| {
-            (member.member.as_str() == "len" && inferred_type_is_collection(program, receiver_type))
-                .then_some(OwnerMemberTarget::CollectionLength)
+            collection_measure_in_environment(program, member, receiver_type)
+                .map(OwnerMemberTarget::CollectionMeasure)
         })
-        .or_else(|| {
-            (member.member.as_str() == "capacity"
-                && inferred_type_is_collection(program, receiver_type))
-            .then_some(OwnerMemberTarget::CollectionCapacity)
-        })
+}
+
+/// The measure a member selects on its inferred receiver, asked of
+/// [`crate::semantic_calls::collection_measure_member`] in that query's
+/// receiver vocabulary. A nominal or compiler-text receiver has no measure.
+fn collection_measure_in_environment(
+    program: &TypedTrees,
+    member: &TableMemberExpression,
+    receiver_type: InferredType,
+) -> Option<CollectionMeasure> {
+    let receiver = match receiver_type {
+        InferredType::TypeReference(type_reference) => MeasureReceiver::Declared(type_reference),
+        InferredType::CollectionView(_) => MeasureReceiver::Window,
+        InferredType::Nominal(_) | InferredType::CompilerString => return None,
+    };
+    crate::semantic_calls::collection_measure_member(program, member, receiver)
 }
 
 fn resolve_member_symbol_from_authored_source(
@@ -1078,10 +1090,7 @@ fn inferred_type_is_collection(program: &TypedTrees, inferred: InferredType) -> 
     match inferred {
         InferredType::Nominal(_) => false,
         InferredType::TypeReference(type_reference) => {
-            crate::authored_selections::member_targets::type_reference_is_collection(
-                program,
-                type_reference,
-            )
+            crate::semantic_calls::type_reference_is_collection(program, type_reference)
         }
         InferredType::CollectionView(_) => true,
         InferredType::CompilerString => false,

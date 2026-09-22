@@ -1,5 +1,6 @@
 //! Conservative symbolic evaluation for default-domain invariant checks.
 
+use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
@@ -52,7 +53,9 @@ pub(super) fn fold_with_valuation(
             }
         }
         ExpressionNode::Integer(value) => value.text().parse::<i128>().ok(),
-        ExpressionNode::Member(member) if matches!(member.member.as_str(), "len" | "capacity") => {
+        ExpressionNode::Member(member)
+            if CollectionMeasure::from_authored_spelling(member.member.as_str()).is_some() =>
+        {
             let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver)
             else {
                 return None;
@@ -63,11 +66,13 @@ pub(super) fn fold_with_valuation(
                 .last()?
                 .as_str();
             match measures.iter().find(|(name, _, _)| name == field) {
-                Some((_, length, capacity)) => match member.member.as_str() {
-                    "len" => *length,
-                    "capacity" => *capacity,
-                    _ => None,
-                },
+                Some((_, length, capacity)) => {
+                    match CollectionMeasure::from_authored_spelling(member.member.as_str()) {
+                        Some(CollectionMeasure::Length) => *length,
+                        Some(CollectionMeasure::Capacity) => *capacity,
+                        None => None,
+                    }
+                }
                 None if born_zero => Some(0),
                 None => None,
             }

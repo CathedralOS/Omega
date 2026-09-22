@@ -1,3 +1,4 @@
+use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 use super::super::super::expressions::expression_integer_value;
@@ -12,7 +13,9 @@ pub(in crate::checks::ranges::guards) fn seed_less_than_len_fact(
     let ExpressionNode::Member(member) = program.expression_table.expression(upper_bound) else {
         return;
     };
-    if member.member.as_str() != "len" {
+    if CollectionMeasure::from_authored_spelling(member.member.as_str())
+        != Some(CollectionMeasure::Length)
+    {
         return;
     }
 
@@ -40,7 +43,9 @@ pub(in crate::checks::ranges::guards) fn seed_at_most_len_range_bound_fact(
     let ExpressionNode::Member(member) = program.expression_table.expression(upper_bound) else {
         return;
     };
-    if member.member.as_str() != "len" {
+    if CollectionMeasure::from_authored_spelling(member.member.as_str())
+        != Some(CollectionMeasure::Length)
+    {
         return;
     }
 
@@ -63,7 +68,9 @@ pub(in crate::checks::ranges::guards) fn seed_successor_at_most_len_fact(
     let ExpressionNode::Member(member) = program.expression_table.expression(upper_bound) else {
         return;
     };
-    if member.member.as_str() != "len" {
+    if CollectionMeasure::from_authored_spelling(member.member.as_str())
+        != Some(CollectionMeasure::Length)
+    {
         return;
     }
 

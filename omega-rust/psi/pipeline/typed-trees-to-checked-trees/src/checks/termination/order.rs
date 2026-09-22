@@ -7,6 +7,7 @@
 mod tests;
 
 use language_semantics::RankingViewId;
+use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::measure::MeasureDefinition;
@@ -430,9 +431,10 @@ fn decreasing_value_kind(
     state: &typed_trees::state::State,
     decreases: ExpressionHandle,
 ) -> Option<DecreasingValueKind> {
-    // `value.len` (or any member named `len`) is a nat-like scalar.
+    // `value.len` (or any member spelled `len`) is a nat-like scalar.
     if let ExpressionNode::Member(member) = program.expression_table.expression(decreases)
-        && member.member.as_str() == "len"
+        && CollectionMeasure::from_authored_spelling(member.member.as_str())
+            == Some(CollectionMeasure::Length)
     {
         return Some(DecreasingValueKind::Nat);
     }
@@ -525,7 +527,10 @@ fn expression_type_name(
                 .last()
                 .map(|member| member.as_str()),
         ),
-        ExpressionNode::Member(member) if member.member.as_str() == "len" => {
+        ExpressionNode::Member(member)
+            if CollectionMeasure::from_authored_spelling(member.member.as_str())
+                == Some(CollectionMeasure::Length) =>
+        {
             Some("u64".to_string())
         }
         ExpressionNode::Member(member) => program

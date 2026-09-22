@@ -5,6 +5,7 @@ use super::{
     SymbolHandle, TableNamePath, TypeReferenceNode, Value, apply_arithmetic_domain,
     interpreter_f32_from_bits, interpreter_f32_to_bits, trap, unsupported,
 };
+use language_semantics::declaration_selection::CollectionMeasure;
 impl<'program> Evaluator<'program> {
     pub(super) fn field_cell(&self, container: &Cell, field: &str) -> EvalResult<Cell> {
         let container = self.deref_cell(container.clone());
@@ -32,12 +33,18 @@ impl<'program> Evaluator<'program> {
                     ))
                 }),
             // `slice.len` / `array.len` in member form produces a fresh length.
-            Value::Array(elements) if field == "len" => {
+            Value::Array(elements)
+                if CollectionMeasure::from_authored_spelling(field)
+                    == Some(CollectionMeasure::Length) =>
+            {
                 self.allocate_cell(Value::Int(elements.len() as i64))
             }
             // A text literal flowing into a `&[u8] in Utf8` parameter observes
             // its UTF-8 byte count, matching the native `<literal>.len` fold.
-            Value::Str(text) if field == "len" => {
+            Value::Str(text)
+                if CollectionMeasure::from_authored_spelling(field)
+                    == Some(CollectionMeasure::Length) =>
+            {
                 self.allocate_cell(Value::Int(text.borrow().len() as i64))
             }
             other => trap(format!("cannot read field `{field}` of {other:?}")),
@@ -343,7 +350,8 @@ impl<'program> Evaluator<'program> {
         }
         if matches!(
             path.as_slice(),
-            [MutableRecordProjectionStep::Field(field)] if field == "len"
+            [MutableRecordProjectionStep::Field(field)]
+                if CollectionMeasure::from_authored_spelling(field.as_str()) == Some(CollectionMeasure::Length)
         ) && self.declared_type_is_slice(target_type)
             && let Some(element_type) = self.collection_element_type(target_type)
             && let Some((stride, _)) =

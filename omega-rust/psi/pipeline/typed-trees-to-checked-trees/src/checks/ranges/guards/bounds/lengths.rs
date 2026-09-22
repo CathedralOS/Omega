@@ -1,3 +1,4 @@
+use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 use super::super::super::expressions::expression_integer_value;
@@ -61,7 +62,9 @@ fn seed_minimum_length_fact(
     else {
         return;
     };
-    if member.member.as_str() != "len" {
+    if CollectionMeasure::from_authored_spelling(member.member.as_str())
+        != Some(CollectionMeasure::Length)
+    {
         return;
     }
 
@@ -79,7 +82,9 @@ fn seed_length_equality_side(
     else {
         return false;
     };
-    if member.member.as_str() != "len" {
+    if CollectionMeasure::from_authored_spelling(member.member.as_str())
+        != Some(CollectionMeasure::Length)
+    {
         return false;
     }
 

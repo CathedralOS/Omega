@@ -21,6 +21,7 @@ use crate::lowering::state::{
 use crate::resolution::lowerer::Lowerer;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::CollectionMeasure;
 use symbol_resolved_trees::machine::{
     GenericConformanceBound, Machine, MachineStorage, TraitConformance,
 };
@@ -479,7 +480,8 @@ fn elaborate_single_subject_default(
 
     if let syntax::expression::ExpressionNode::Member(member) =
         syntax_trees.expressions.expression(subject)
-        && member.member.as_str() == "len"
+        && CollectionMeasure::from_authored_spelling(member.member.as_str())
+            == Some(CollectionMeasure::Length)
     {
         return canonical_view(RankingViewId::NAT_DESCENDING);
     }

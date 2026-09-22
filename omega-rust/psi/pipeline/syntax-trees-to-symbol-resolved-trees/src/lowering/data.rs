@@ -9,6 +9,7 @@ use crate::lowering::type_reference::{lower_child_type_references, lower_type_re
 use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::CollectionMeasure;
 use std::collections::HashSet;
 use symbol_resolved_trees::data::{
     DataDefinition, DataDefinitionStorage, DataField, DataMember, DataProperties, DataVariant,
@@ -309,7 +310,9 @@ pub(crate) fn zero_fold(
     use symbol_resolved_trees::expression::{BinaryOperator, ExpressionNode};
     match expressions.expression(expression) {
         ExpressionNode::Name(_) => Some(0),
-        ExpressionNode::Member(member) if matches!(member.member.as_str(), "len" | "capacity") => {
+        ExpressionNode::Member(member)
+            if CollectionMeasure::from_authored_spelling(member.member.as_str()).is_some() =>
+        {
             // The ZII value of every builtin sequence carrier is empty; both
             // standing measures are therefore exactly zero.
             Some(0)

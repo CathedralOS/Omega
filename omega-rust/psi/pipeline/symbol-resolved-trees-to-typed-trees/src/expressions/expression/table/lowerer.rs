@@ -8,6 +8,7 @@ use crate::expressions::expression::name_paths::{
 use crate::expressions::expression::operators::lower_binary_operator;
 use crate::lowerer::name::lower_name;
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::CollectionMeasure;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
 
@@ -482,7 +483,9 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 // Structural collection length has the builtin u64 carrier.
                 // Retain its type handle for later exact receiver checking;
                 // this spelling alone does not establish metadata meaning.
-                if member.member.as_str() == "len" {
+                if CollectionMeasure::from_authored_spelling(member.member.as_str())
+                    == Some(CollectionMeasure::Length)
+                {
                     self.retain_builtin_type_reference(symbols::BuiltinTypeAtom::U64)?;
                 }
                 let member_symbol = self.declared_member_symbol(member);

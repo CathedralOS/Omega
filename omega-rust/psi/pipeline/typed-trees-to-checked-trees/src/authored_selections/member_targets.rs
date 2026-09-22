@@ -8,8 +8,8 @@ use crate::authored_selections::contexts;
 use crate::authored_selections::operator_targets::{
     authored_operand_type, type_reference_for_symbol,
 };
+use crate::semantic_calls::MeasureReceiver;
 use checked_trees::CheckFacts;
-use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
@@ -40,15 +40,8 @@ pub(crate) fn checked_member_target(
                 contexts::OwnerMemberTarget::Declaration(symbol) => {
                     CheckedResolutionTarget::Declaration(symbol)
                 }
-                contexts::OwnerMemberTarget::CollectionLength => {
-                    CheckedResolutionTarget::Intrinsic(
-                        AuthoredDeclarationSelectionIntrinsic::CollectionLength,
-                    )
-                }
-                contexts::OwnerMemberTarget::CollectionCapacity => {
-                    CheckedResolutionTarget::Intrinsic(
-                        AuthoredDeclarationSelectionIntrinsic::CollectionCapacity,
-                    )
+                contexts::OwnerMemberTarget::CollectionMeasure(measure) => {
+                    CheckedResolutionTarget::Intrinsic(measure.intrinsic())
                 }
             },
         )
@@ -86,9 +79,7 @@ fn checked_value_member_target(
             member.member.as_str(),
         )
         .and_then(declaration_target)
-        .or_else(|| {
-            collection_measure_target(program, value.type_reference, member.member.as_str())
-        });
+        .or_else(|| collection_measure_target(program, value.type_reference, member));
         let Some(target) = target else {
             continue;
         };
@@ -107,7 +98,7 @@ fn authored_member_target(
     let receiver_type = authored_operand_type(program, member.receiver)?;
     member_symbol_from_type_reference(program, receiver_type, member.member.as_str())
         .and_then(declaration_target)
-        .or_else(|| collection_measure_target(program, receiver_type, member.member.as_str()))
+        .or_else(|| collection_measure_target(program, receiver_type, member))
 }
 
 fn contextual_statement_member_target(
@@ -146,9 +137,7 @@ fn contextual_statement_member_target(
                     member.member.as_str(),
                 )
                 .and_then(declaration_target)
-                .or_else(|| {
-                    collection_measure_target(program, receiver_type, member.member.as_str())
-                })?;
+                .or_else(|| collection_measure_target(program, receiver_type, member))?;
                 if resolved.is_some_and(|candidate| candidate != target) {
                     return None;
                 }
@@ -214,38 +203,14 @@ fn member_symbol_from_type_reference(
 fn collection_measure_target(
     program: &TypedTrees,
     type_reference: typed_trees::types::TypeReferenceHandle,
-    member_name: &str,
+    member: &typed_trees::expression::TableMemberExpression,
 ) -> Option<CheckedResolutionTarget> {
-    if !type_reference_is_collection(program, type_reference) {
-        return None;
-    }
-    let intrinsic = match member_name {
-        "len" => AuthoredDeclarationSelectionIntrinsic::CollectionLength,
-        "capacity" => AuthoredDeclarationSelectionIntrinsic::CollectionCapacity,
-        _ => return None,
-    };
-    Some(CheckedResolutionTarget::Intrinsic(intrinsic))
-}
-
-pub(crate) fn type_reference_is_collection(
-    program: &TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
-) -> bool {
-    pub(crate) use typed_trees::types::TypeReferenceNode;
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            type_reference_is_collection(program, *referee)
-        }
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_reference_is_collection(program, *base_type)
-        }
-        TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. } => true,
-        TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::Generic { .. }
-        | TypeReferenceNode::Named { .. }
-        | TypeReferenceNode::Unit => false,
-    }
+    let measure = crate::semantic_calls::collection_measure_member(
+        program,
+        member,
+        MeasureReceiver::Declared(type_reference),
+    )?;
+    Some(CheckedResolutionTarget::Intrinsic(measure.intrinsic()))
 }
 
 pub(crate) fn expression_is_contextual_domain_primitive(
@@ -495,10 +460,7 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
                     expression,
                     member,
                 ),
-                Some(
-                    contexts::OwnerMemberTarget::CollectionLength
-                        | contexts::OwnerMemberTarget::CollectionCapacity
-                )
+                Some(contexts::OwnerMemberTarget::CollectionMeasure(_))
             ) {
                 return true;
             }

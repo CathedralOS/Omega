@@ -1,5 +1,6 @@
 //! The typed decrease rule shared by runtime and proof slice recursion.
 
+use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -78,7 +79,8 @@ pub fn slice_tail_strictly_decreases(
         BinaryOperator::GreaterOrEqual => 0,
         _ => return false,
     };
-    length.member.as_str() == "len"
+    CollectionMeasure::from_authored_spelling(length.member.as_str())
+        == Some(CollectionMeasure::Length)
         && names_parameter(program, length.receiver, parameter)
         && tail_bound(program, binary.right)
             .is_some_and(|bound| bound_ordering_at_least(program, bound, start, bonus))

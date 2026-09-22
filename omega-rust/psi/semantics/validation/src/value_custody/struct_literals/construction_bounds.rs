@@ -1,4 +1,5 @@
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::CollectionMeasure;
 use std::collections::BTreeSet;
 use typed_trees::TypedTrees;
 use typed_trees::data::DataDefinition;
@@ -202,7 +203,9 @@ fn bounds_eval(
             .parse::<i64>()
             .map(Bounds::point)
             .unwrap_or(Bounds::UNKNOWN),
-        ExpressionNode::Member(member) if matches!(member.member.as_str(), "len" | "capacity") => {
+        ExpressionNode::Member(member)
+            if CollectionMeasure::from_authored_spelling(member.member.as_str()).is_some() =>
+        {
             let measure = match program.expression_table.expression(member.receiver) {
                 ExpressionNode::Name(path) => program
                     .expression_table
@@ -210,11 +213,15 @@ fn bounds_eval(
                     .last()
                     .and_then(|name| {
                         match valuation.iter().find(|(field, _)| *field == name.as_str()) {
-                            Some((_, bounds)) => match member.member.as_str() {
-                                "len" => bounds.length,
-                                "capacity" => bounds.capacity,
-                                _ => None,
-                            },
+                            Some((_, bounds)) => {
+                                match CollectionMeasure::from_authored_spelling(
+                                    member.member.as_str(),
+                                ) {
+                                    Some(CollectionMeasure::Length) => bounds.length,
+                                    Some(CollectionMeasure::Capacity) => bounds.capacity,
+                                    None => None,
+                                }
+                            }
                             // An omitted declared sequence field has the
                             // ZII empty value; a receiver outside the scope
                             // has no measure at all.
@@ -468,7 +475,9 @@ fn collect_out_of_scope_leaf_names(
                 out_of_scope.push(last.as_str().to_owned());
             }
         }
-        ExpressionNode::Member(member) if matches!(member.member.as_str(), "len" | "capacity") => {
+        ExpressionNode::Member(member)
+            if CollectionMeasure::from_authored_spelling(member.member.as_str()).is_some() =>
+        {
             collect_out_of_scope_leaf_names(program, declared, member.receiver, out_of_scope);
         }
         ExpressionNode::Binary(binary) => {

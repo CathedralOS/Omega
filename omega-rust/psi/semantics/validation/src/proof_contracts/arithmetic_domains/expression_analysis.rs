@@ -11,6 +11,7 @@ use super::{
     guard_narrowing, is_arithmetic, ordered_values, place_path, range_constraint_interval,
     unsigned_representability,
 };
+use language_semantics::declaration_selection::CollectionMeasure;
 fn integer_policy_primitive(
     operator: BinaryOperator,
 ) -> Option<numerics::integer_policy::IntegerPolicyPrimitive> {
@@ -69,7 +70,10 @@ fn fixed_array_length(
     let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
         return None;
     };
-    if member.member.as_str() != "len" || member.case_variant.is_some() {
+    if CollectionMeasure::from_authored_spelling(member.member.as_str())
+        != Some(CollectionMeasure::Length)
+        || member.case_variant.is_some()
+    {
         return None;
     }
     let mut receiver = declared_place_type_raw(program, machine, state, member.receiver)?;

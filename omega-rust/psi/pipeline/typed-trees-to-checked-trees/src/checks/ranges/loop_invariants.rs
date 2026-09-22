@@ -1,3 +1,4 @@
+use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -730,7 +731,9 @@ fn parse_counter_relational_upper(
     else {
         return None;
     };
-    if member.member.as_str() == "len" {
+    if CollectionMeasure::from_authored_spelling(member.member.as_str())
+        == Some(CollectionMeasure::Length)
+    {
         let collection = program.expression_table.display_name(member.receiver);
         return collection.starts_with("self.").then_some(RelationalUpper {
             term: UpperTerm::CollectionLength(collection),
@@ -872,7 +875,9 @@ fn authored_upper_term(
     let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
         return None;
     };
-    if member.member.as_str() == "len" {
+    if CollectionMeasure::from_authored_spelling(member.member.as_str())
+        == Some(CollectionMeasure::Length)
+    {
         let collection = program.expression_table.display_name(member.receiver);
         return collection
             .starts_with("self.")

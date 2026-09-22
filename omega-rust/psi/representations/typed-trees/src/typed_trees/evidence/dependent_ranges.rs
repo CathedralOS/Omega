@@ -22,6 +22,7 @@
 
 use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable};
 use crate::name::Identifier;
+use language_semantics::declaration_selection::CollectionMeasure;
 
 /// The recognized symbolic maximum: the named `self` FIELD and a literal
 /// offset applied to its entry value (`self.count - 1` -> offset -1).
@@ -246,7 +247,9 @@ fn bare_name_len(table: &ExpressionTable, expression: ExpressionHandle) -> Optio
     let ExpressionNode::Member(member) = table.expression(expression) else {
         return None;
     };
-    if member.member.as_str() != "len" {
+    if CollectionMeasure::from_authored_spelling(member.member.as_str())
+        != Some(CollectionMeasure::Length)
+    {
         return None;
     }
     let ExpressionNode::Name(path) = table.expression(member.receiver) else {

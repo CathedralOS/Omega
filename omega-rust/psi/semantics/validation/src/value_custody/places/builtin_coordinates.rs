@@ -2,6 +2,7 @@
 
 use super::{declared_indexed_projection_type, declared_place_type_raw};
 use language_core::OperatorSpelling;
+use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -18,7 +19,8 @@ pub fn collection_length_receiver(
     let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
         return None;
     };
-    if member.member.as_str() != "len"
+    if CollectionMeasure::from_authored_spelling(member.member.as_str())
+        != Some(CollectionMeasure::Length)
         || member.member_symbol.is_valid()
         || member.case_variant.is_some()
     {

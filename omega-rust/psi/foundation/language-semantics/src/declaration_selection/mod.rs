@@ -136,6 +136,63 @@ impl CollectionViewOperation {
     }
 }
 
+/// One compiler-owned standing measure of a collection carrier: the `len`
+/// or `capacity` projection on a fixed array or slice.
+///
+/// A measure is compiler-owned value metadata, never a declaration selected
+/// from the package namespace: no package declares `len`, and a record field
+/// that happens to be spelled `len` is that record's own field. Checking
+/// records the measure once as [`AuthoredDeclarationSelectionIntrinsic`]
+/// (see [`Self::intrinsic`]); this map is the only place the two spellings
+/// live.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CollectionMeasure {
+    /// The live element count.
+    Length,
+    /// The backing extent a constrained carrier can grow into.
+    Capacity,
+}
+
+impl CollectionMeasure {
+    /// Every compiler-owned measure. Adding a variant without its spelling
+    /// stops compiling here rather than silently dropping out of the map.
+    pub const ALL: [Self; 2] = [Self::Length, Self::Capacity];
+
+    /// The authored member spelling which selects this measure.
+    ///
+    /// The spelling is authored vocabulary, so it belongs to the vocabulary
+    /// that owns the measure. A consumer running before checking has recorded
+    /// the selection -- or one which cannot reach the selection ledger --
+    /// asks about spelling, and it asks here.
+    pub const fn authored_spelling(self) -> &'static str {
+        match self {
+            Self::Length => "len",
+            Self::Capacity => "capacity",
+        }
+    }
+
+    /// The measure an authored member spelling selects, or `None` when the
+    /// spelling names no compiler-owned measure.
+    ///
+    /// A matching spelling is a necessary condition, never a sufficient one:
+    /// a declared field may be spelled `len` too. The caller still owes the
+    /// receiver-type condition which separates the compiler-owned measure of
+    /// a fixed array or slice from a same-named field of a record.
+    pub fn from_authored_spelling(spelling: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|measure| measure.authored_spelling() == spelling)
+    }
+
+    /// The intrinsic selection target checking records for this measure.
+    pub const fn intrinsic(self) -> AuthoredDeclarationSelectionIntrinsic {
+        match self {
+            Self::Length => AuthoredDeclarationSelectionIntrinsic::CollectionLength,
+            Self::Capacity => AuthoredDeclarationSelectionIntrinsic::CollectionCapacity,
+        }
+    }
+}
+
 /// A compiler-owned language meaning selected by authored syntax without a
 /// package declaration. Intrinsics finalize explicitly so package admission
 /// never invents a declaration symbol or leaves a successful selection
