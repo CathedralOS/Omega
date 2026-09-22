@@ -5,11 +5,11 @@ use effects::provider_plan::ServiceEntryClaim;
 
 use crate::ProgramEntrySourceVisibleParameterSignature;
 
-use super::model::{
+use super::validation::ValidatedSemanticEntryInputs;
+use super::{
     OptimizedProgramStoragePhysicalEntryDisposition, OptimizedProgramStorageSemanticEntryContract,
     OptimizedProgramStorageSemanticRoot,
 };
-use super::validation::ValidatedSemanticEntryInputs;
 
 pub(super) fn construct(
     validated: ValidatedSemanticEntryInputs,

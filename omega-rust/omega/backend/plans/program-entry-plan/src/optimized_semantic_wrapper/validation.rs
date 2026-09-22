@@ -10,15 +10,15 @@ use crate::{
     ProgramStorageEntryRootRole,
 };
 
-use super::model::{
-    OptimizedProgramStorageSemanticReceiverStorage,
-    OptimizedProgramStorageSemanticWrapperEncodingDisposition,
-    OptimizedProgramStorageSemanticWrapperPlan, OptimizedProgramStorageSemanticWrapperStep,
-};
 use super::recipe::{
     EXTENT_ALIGNMENT, EXTENT_BYTE_COUNT, OUTGOING_FRAME_BYTE_COUNT,
     OptimizedProgramStorageSemanticReceiverLayout, PRE_CALL_STACK_ALIGNMENT,
     RECEIVER_SLOT_BYTE_OFFSET, SHADOW_BYTE_COUNT, expected_relocation, expected_steps,
+};
+use super::{
+    OptimizedProgramStorageSemanticReceiverStorage,
+    OptimizedProgramStorageSemanticWrapperEncodingDisposition,
+    OptimizedProgramStorageSemanticWrapperPlan, OptimizedProgramStorageSemanticWrapperStep,
 };
 
 /// The receiver residence is not a boundary input: nothing outside the

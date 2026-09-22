@@ -4,7 +4,7 @@ use calling_conventions::{CallingPolicy, MachineRegister};
 
 use crate::{ProgramEntrySourceExtentFieldRole, ProgramStorageEntryRootRole};
 
-use super::model::{
+use super::{
     OptimizedProgramStorageSemanticReceiverStorage,
     OptimizedProgramStorageSemanticWrapperContinuationDisposition,
     OptimizedProgramStorageSemanticWrapperRelocationKind,
