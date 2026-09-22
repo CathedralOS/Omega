@@ -8,4 +8,11 @@
 //! stage and effect validation in the validation crate.
 
 pub mod flow_effects;
-pub use flow_effects::*;
+pub use flow_effects::{
+    CallOperational, CallServiceReachInference, CapabilityFlowFact, CapabilityFlowKind,
+    CapabilityFlowPlan, InstallationReachRequirement, InvocationInferencePlan, InvocationTarget,
+    MachineInvocationInference, MachineOperational, MachineServiceReachInference, OperationalPlan,
+    ServiceReachDependency, ServiceReachInferencePlan, StateOperational,
+    StateServiceReachInference, StaticMachineCallBinding, capabilities, invocations, operational,
+    service_reach,
+};

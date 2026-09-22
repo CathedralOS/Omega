@@ -8,4 +8,8 @@
 
 pub mod optimization_selections;
 
-pub use optimization_selections::*;
+pub use optimization_selections::{
+    DuplicatePsiOptimization, PRETERMINAL_PSI_PASS_CATALOG, PsiOptimization,
+    PsiOptimizationSelectionDecodeError, PsiOptimizationSelectionIdentity,
+    PsiOptimizationSelections, catalog,
+};
