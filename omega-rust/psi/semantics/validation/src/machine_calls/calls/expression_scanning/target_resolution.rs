@@ -158,13 +158,16 @@ pub(super) fn report_unresolved_value_call(
     }
     let Some(receiver) = receiver_name else {
         // Receiverless: the three machine channels missed; only the reserved
-        // value builtins remain. `asm#port_in` is the value-position asm
-        // intrinsic (`asm { in dest, port }` desugars to `dest =
-        // asm#port_in(port)`); the name is unnameable from source.
-        if BuiltinFunction::from_name(target).is_some_and(BuiltinFunction::is_scalar_computation)
-            || matches!(target, "asm#port_in" | "asm#pushfq" | "asm#rdmsr")
-            || language_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(target)
-                .is_some()
+        // value builtins remain: the composing scalar computations, the
+        // value-position asm intrinsics (`asm { in dest, port }` desugars to
+        // `dest = asm#port_in(port)`; the names are unnameable from source)
+        // and the register reads their catalogs own.
+        if BuiltinFunction::from_name(target).is_some_and(|builtin| {
+            builtin.is_scalar_computation() || builtin.is_value_position_asm_intrinsic()
+        }) || language_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(
+            target,
+        )
+        .is_some()
             || language_core::inline_assembly::AsmSystemRegister::from_read_intrinsic_name(target)
                 .is_some()
         {

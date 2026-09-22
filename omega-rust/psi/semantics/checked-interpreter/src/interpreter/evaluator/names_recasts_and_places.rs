@@ -5,6 +5,7 @@ use super::{
     SymbolHandle, TableNamePath, TypeReferenceNode, Value, apply_arithmetic_domain,
     interpreter_f32_from_bits, interpreter_f32_to_bits, trap, unsupported,
 };
+use language_semantics::const_value::boolean_literal_spelling;
 use language_semantics::declaration_selection::CollectionMeasure;
 impl<'program> Evaluator<'program> {
     pub(super) fn field_cell(&self, container: &Cell, field: &str) -> EvalResult<Cell> {
@@ -58,12 +59,10 @@ impl<'program> Evaluator<'program> {
             .program
             .expression_table
             .name_path_members(path.members);
-        if members.len() == 1 {
-            match members[0].as_str() {
-                "true" => return Ok(Value::Bool(true)),
-                "false" => return Ok(Value::Bool(false)),
-                _ => {}
-            }
+        if let [name] = members
+            && let Some(value) = boolean_literal_spelling(name.as_str())
+        {
+            return Ok(Value::Bool(value));
         }
         // An enum value reference (`CellId::R02` / `Command::Look`) resolves to an Enum.
         if let Some(enum_value) = self.enum_value_from_path(path)? {

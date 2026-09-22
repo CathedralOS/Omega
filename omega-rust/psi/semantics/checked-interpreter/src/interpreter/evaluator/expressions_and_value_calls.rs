@@ -585,7 +585,9 @@ impl<'program> Evaluator<'program> {
         // The tree walker has no architectural flags register. Preserve the
         // value-flow shape with the architecturally fixed RFLAGS bit 1 set;
         // the matching restore statement is a no-op above.
-        if target == "asm#pushfq" && !call.receiver.is_valid() {
+        if BuiltinFunction::from_name(target) == Some(BuiltinFunction::AsmSnapshotFlags)
+            && !call.receiver.is_valid()
+        {
             return Ok(Value::Int(2));
         }
         if let Some(builtin @ (BuiltinFunction::Max | BuiltinFunction::Min)) =
@@ -878,8 +880,10 @@ impl<'program> Evaluator<'program> {
         // interpreter represents literal-backed and borrowed byte views with
         // the same shared `Value::Str` cell, mirroring the native `{ptr, len}`
         // descriptor copy. Returning a clone shares the bytes.
-        if matches!(target, "as_view" | "bytes")
-            && call.receiver.is_valid()
+        if matches!(
+            CollectionViewOperation::from_authored_spelling(target),
+            Some(CollectionViewOperation::TextView | CollectionViewOperation::Bytes)
+        ) && call.receiver.is_valid()
             && let Ok(cell) = self.resolve_place(call.receiver, frame)
         {
             let cell = self.deref_cell(cell);

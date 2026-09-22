@@ -9,7 +9,9 @@
 use super::{CalleeState, Candidate};
 use crate::monomorphization::selection::resolve_callee;
 use diagnostics::Diagnostic;
-use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+use language_semantics::const_value::{
+    CanonicalConstValue, DecodedCanonicalConstValue, boolean_literal_spelling,
+};
 use numerics::literals::LandedIntegerType;
 use symbols::SymbolKind;
 use typed_trees::TypedTrees;
@@ -56,12 +58,11 @@ pub(super) fn spelling(program: &TypedTrees, argument: &StaticMachineArgument) -
     let [name] = argument.path.as_ref() else {
         return None;
     };
-    match name.as_str() {
-        "true" => Some(CanonicalConstValue::boolean(true).atom()),
-        "false" => Some(CanonicalConstValue::boolean(false).atom()),
-        // A previous specialization may forward a compiler-created atom.
-        spelling => CanonicalConstValue::from_atom(spelling).map(|value| value.atom()),
+    if let Some(value) = boolean_literal_spelling(name.as_str()) {
+        return Some(CanonicalConstValue::boolean(value).atom());
     }
+    // A previous specialization may forward a compiler-created atom.
+    CanonicalConstValue::from_atom(name.as_str()).map(|value| value.atom())
 }
 
 pub(super) fn validate_authored(

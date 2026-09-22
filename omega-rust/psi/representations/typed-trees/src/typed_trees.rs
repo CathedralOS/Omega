@@ -397,7 +397,9 @@ fn static_const_argument_spelling(
     program: &TypedTrees,
     argument: &expression::StaticMachineArgument,
 ) -> Option<String> {
-    use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+    use language_semantics::const_value::{
+        CanonicalConstValue, DecodedCanonicalConstValue, boolean_literal_spelling,
+    };
 
     if argument.type_reference.is_valid()
         || argument.application.is_some()
@@ -432,12 +434,11 @@ fn static_const_argument_spelling(
     let [name] = argument.path.as_ref() else {
         return None;
     };
-    match name.as_str() {
-        "true" => Some(CanonicalConstValue::boolean(true).atom()),
-        "false" => Some(CanonicalConstValue::boolean(false).atom()),
-        // A previous specialization may forward a compiler-created atom.
-        spelling => CanonicalConstValue::from_atom(spelling).map(|value| value.atom()),
+    if let Some(value) = boolean_literal_spelling(name.as_str()) {
+        return Some(CanonicalConstValue::boolean(value).atom());
     }
+    // A previous specialization may forward a compiler-created atom.
+    CanonicalConstValue::from_atom(name.as_str()).map(|value| value.atom())
 }
 
 /// Wrap one static const spelling in the normalized `Named` type identity the

@@ -410,7 +410,8 @@ fn constructor_fields_are_complete(
 ) -> bool {
     use typed_trees::data::DataMember;
     if data == "bool" {
-        return matches!(case, "true" | "false") && fields.is_empty();
+        return language_semantics::const_value::boolean_literal_spelling(case).is_some()
+            && fields.is_empty();
     }
     let mut definitions = program
         .data_definitions()

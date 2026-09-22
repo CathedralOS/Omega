@@ -3,7 +3,9 @@
 use super::Candidate;
 use crate::monomorphization::body_rewriting::static_const_literal_from_type_reference;
 use diagnostics::Diagnostic;
-use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+use language_semantics::const_value::{
+    CanonicalConstValue, DecodedCanonicalConstValue, boolean_literal_spelling,
+};
 use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -112,11 +114,7 @@ fn value(
     }
     let primitive = program.type_reference_table.primitive_type(declared_type)?;
     if primitive == PrimitiveType::Bool {
-        return match name.as_str() {
-            "true" => Some(ExpressionNode::Boolean(true)),
-            "false" => Some(ExpressionNode::Boolean(false)),
-            _ => None,
-        };
+        return boolean_literal_spelling(name.as_str()).map(ExpressionNode::Boolean);
     }
     let literal = static_const_literal_from_type_reference(program, binding)?;
     integer_value(program, declared_type, literal)

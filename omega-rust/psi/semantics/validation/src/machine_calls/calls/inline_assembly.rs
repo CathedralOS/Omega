@@ -123,10 +123,10 @@ pub(crate) fn validate_asm_value_destination(
                     call.target.as_str(),
                 ) {
                     Some(register) => register.read_mnemonic(),
-                    None => match call.target.as_str() {
-                        "asm#port_in" => "in",
-                        "asm#pushfq" => "pushfq",
-                        "asm#rdmsr" => "rdmsr",
+                    None => match symbols::BuiltinFunction::from_name(call.target.as_str()) {
+                        Some(symbols::BuiltinFunction::AsmPortIn) => "in",
+                        Some(symbols::BuiltinFunction::AsmSnapshotFlags) => "pushfq",
+                        Some(symbols::BuiltinFunction::AsmReadMsr) => "rdmsr",
                         _ => return,
                     },
                 }

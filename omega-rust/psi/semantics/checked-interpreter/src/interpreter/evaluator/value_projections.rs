@@ -9,6 +9,7 @@
 use super::{
     Cell, EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame, Halt, Value, unsupported,
 };
+use language_semantics::const_value::boolean_literal_spelling;
 impl Evaluator<'_> {
     pub(super) fn eval_read_cell(
         &mut self,
@@ -30,7 +31,7 @@ impl Evaluator<'_> {
                 {
                     return self.allocate_cell(value);
                 }
-                if matches!(members, [name] if matches!(name.as_str(), "true" | "false")) {
+                if matches!(members, [name] if boolean_literal_spelling(name.as_str()).is_some()) {
                     let value = self.eval_name(&path, frame)?;
                     return self.allocate_cell(value);
                 }

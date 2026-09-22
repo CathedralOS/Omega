@@ -47,7 +47,9 @@ use crate::preparation::generic_data::closed_name_identity;
 use crate::preparation::generic_data::constant_selection;
 use crate::preparation::generic_data::evaluate_const_fact_expression;
 use diagnostics::Diagnostic;
-use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+use language_semantics::const_value::{
+    CanonicalConstValue, DecodedCanonicalConstValue, boolean_literal_spelling,
+};
 use numerics::bignum::BigInt;
 use numerics::literals::{IntegerLiteral, IntegerRadix};
 use source::SourceSpan;
@@ -1572,19 +1574,16 @@ fn integer_to_i128(value: &BigInt) -> Option<i128> {
 /// Only already closed Boolean spelling or the shared canonical value atom.
 /// Constructor matching does not evaluate expressions or reinterpret integers.
 pub(super) fn normalized_boolean_argument(text: &str) -> Option<bool> {
-    match text {
-        "true" => Some(true),
-        "false" => Some(false),
-        _ => {
-            let value = CanonicalConstValue::from_atom(text)?;
-            if value.type_name != "bool" {
-                return None;
-            }
-            match value.decode_encoding()? {
-                DecodedCanonicalConstValue::Boolean(value) => Some(value),
-                _ => None,
-            }
-        }
+    if let Some(value) = boolean_literal_spelling(text) {
+        return Some(value);
+    }
+    let value = CanonicalConstValue::from_atom(text)?;
+    if value.type_name != "bool" {
+        return None;
+    }
+    match value.decode_encoding()? {
+        DecodedCanonicalConstValue::Boolean(value) => Some(value),
+        _ => None,
     }
 }
 

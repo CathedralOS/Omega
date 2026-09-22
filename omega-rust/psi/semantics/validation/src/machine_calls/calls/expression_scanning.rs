@@ -14,6 +14,7 @@ use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::proof_contracts::arithmetic_domains::{self, ValueEnv};
 use crate::value_custody::locals::WritableRoots;
 use diagnostics::Diagnostic;
+use symbols::BuiltinFunction;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
@@ -204,7 +205,8 @@ fn validate_expression_call_bounds(
         // still visits its operand, including any nested ordinary call.
         return;
     }
-    if (call.target.as_str() == "asm#pushfq"
+    let builtin = BuiltinFunction::from_name(call.target.as_str());
+    if (builtin == Some(BuiltinFunction::AsmSnapshotFlags)
         || language_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(
             call.target.as_str(),
         )
@@ -226,11 +228,14 @@ fn validate_expression_call_bounds(
         return;
     }
 
-    if matches!(call.target.as_str(), "asm#port_in" | "asm#rdmsr") && !call.receiver.is_valid() {
-        let (intrinsic, instruction, operand_index) = if call.target.as_str() == "asm#port_in" {
-            ("asm#port_in", "in", 1)
+    if let Some(builtin @ (BuiltinFunction::AsmPortIn | BuiltinFunction::AsmReadMsr)) = builtin
+        && !call.receiver.is_valid()
+    {
+        let intrinsic = builtin.name();
+        let (instruction, operand_index) = if builtin == BuiltinFunction::AsmPortIn {
+            ("in", 1)
         } else {
-            ("asm#rdmsr", "rdmsr", 1)
+            ("rdmsr", 1)
         };
         let arguments = program.expression_table.expression_handles(call.arguments);
         if arguments.len() != 1 {
