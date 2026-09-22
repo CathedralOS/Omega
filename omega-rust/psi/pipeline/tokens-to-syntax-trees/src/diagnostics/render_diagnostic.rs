@@ -73,7 +73,6 @@ fn render_keyword(keyword: KeywordKind) -> &'static str {
         KeywordKind::CallingConvention => "calling_convention",
         KeywordKind::Contains => "contains",
         KeywordKind::Else => "else",
-        KeywordKind::Enum => "enum",
         KeywordKind::False => "false",
         KeywordKind::Foreign => "foreign",
         KeywordKind::Host => "host",

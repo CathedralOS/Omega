@@ -154,45 +154,6 @@ fn parse_declared_item<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Item> {
-    if input.at_contextual("repr") {
-        let input = input.take_contextual("repr")?;
-        let input = input.take_contextual("native")?;
-        let input = input.take_keyword(KeywordKind::Data, "data")?;
-        // `repr native` explicitly requests the compiler's current native
-        // field layout, so no extra representation marker is needed yet.
-        let (item, rest) = parse_data_definition(syntax_trees, input)?;
-        if syntax_trees
-            .items
-            .data_members(item.members)
-            .iter()
-            .any(|member| match member {
-                syntax_trees::item::DataMember::Field(field) => field.identity.is_some(),
-                syntax_trees::item::DataMember::Variant(variant) => variant.identity.is_some(),
-                syntax_trees::item::DataMember::Retired(_) => true,
-            })
-        {
-            return Err(input.error_here(
-                "`repr native` data cannot carry identity numbers (identity is a schema fact \
-                 for serialization grammars, not a layout request)",
-            ));
-        }
-        return Ok((Item::Data(item), rest));
-    }
-
-    if input.at_contextual("wire") {
-        let after = input.take_contextual("wire")?;
-        let after = after.take_keyword(KeywordKind::Data, "data")?;
-        let _ = after;
-        // The `wire data` declaration form is RETIRED (ch20 rewrite): field
-        // identity is optional syntax on plain `data`, consumed by
-        // identity-keyed grammars at carriers.
-        return Err(input.error_here(
-            "`wire data` is retired: declare a plain `data` with identity numbers on its fields \
-             (`data Save { #1 seed: u64; retired #2; }`) -- numbers are optional schema facts, \
-             consumed by identity-keyed grammars (chapter 20)",
-        ));
-    }
-
     if input.at_contextual("module") {
         let input = input.take_contextual("module")?;
         let (item, rest) = parse_module_declaration(syntax_trees, input)?;
@@ -209,13 +170,6 @@ fn parse_declared_item<'tokens, 'source>(
         let input = input.take_keyword(KeywordKind::Use, "use")?;
         let (item, rest) = parse_use_item(syntax_trees, input)?;
         return Ok((Item::Use(item), rest));
-    }
-
-    if input.at_contextual("export") {
-        return Err(input.error_here(
-            "the `export` item is retired: mark package-owned declarations `pub`, use an \
-             ordinary public wrapper, or declare the package whose declarations source selects",
-        ));
     }
 
     if input.at_keyword(KeywordKind::Data) {
@@ -240,12 +194,6 @@ fn parse_declared_item<'tokens, 'source>(
         let input = input.take_contextual("proposition")?;
         let (item, rest) = parse_proposition_definition(syntax_trees, input)?;
         return Ok((Item::Proposition(item), rest));
-    }
-
-    if input.at_keyword(KeywordKind::Enum) {
-        return Err(input.error_here(
-            "`enum` is retired; spell alternatives as `case` members of a `data` declaration",
-        ));
     }
 
     if input.at_contextual("abi") {

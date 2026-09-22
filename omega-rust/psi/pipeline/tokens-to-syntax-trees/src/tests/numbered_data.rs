@@ -3,28 +3,6 @@ use source_files_to_tokens::Lexer;
 use syntax_trees::item::{DataMember, Item};
 
 #[test]
-fn native_representation_syntax_does_not_admit_numbered_data() {
-    for declaration in [
-        "repr native data Message { #7 value: u32; }",
-        "repr native data Message { retired #8; }",
-        "repr native data Message<T> { #7 value: T; }",
-        "repr native data Message { case #7 Ready; }",
-    ] {
-        let tokens = Lexer::new(declaration).tokenize().expect("tokens");
-        let error = parse_syntax_trees(&tokens).expect_err("unsupported representation syntax");
-        assert!(
-            error
-                .message
-                .contains("`repr native` data cannot carry identity numbers")
-        );
-    }
-    let tokens = Lexer::new("repr native data Message { value: u32; }")
-        .tokenize()
-        .expect("tokens");
-    parse_syntax_trees(&tokens).expect("existing unnumbered representation syntax");
-}
-
-#[test]
 fn numbered_declarations_share_ordinary_data_and_source_identity() {
     for declaration in [
         "data Message { #7 value: u32; retired #8; }",
