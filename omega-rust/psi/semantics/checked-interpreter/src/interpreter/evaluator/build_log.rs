@@ -6,7 +6,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn try_build_log_write_line_value_call(
         &mut self,
         call: &typed_trees::expression::TableCallExpression,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         if BuildOperation::from_call_target(call.target.as_str())
             != Some(BuildOperation::LogWriteLine)
@@ -26,7 +26,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn try_build_log_write_line_statement(
         &mut self,
         call: &typed_trees::statement::TableCall,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<bool> {
         if BuildOperation::from_call_target(call.target.as_str())
             != Some(BuildOperation::LogWriteLine)
@@ -34,7 +34,7 @@ impl<'program> Evaluator<'program> {
         {
             return Ok(false);
         }
-        let Some(receiver) = self.statement_receiver_cell(call.receiver, frame)? else {
+        let Some(receiver) = self.statement_receiver_cell(call, frame)? else {
             return Ok(false);
         };
         let arguments = self
@@ -49,7 +49,7 @@ impl<'program> Evaluator<'program> {
         receiver: Cell,
         target_symbol: SymbolHandle,
         arguments: &[ExpressionHandle],
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<bool> {
         let receiver = self.deref_cell(receiver);
         if !matches!(

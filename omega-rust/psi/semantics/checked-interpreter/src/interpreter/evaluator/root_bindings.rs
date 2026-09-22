@@ -47,7 +47,7 @@ impl<'program> Evaluator<'program> {
         &mut self,
         statement: StatementHandle,
         binding: &RootBinding,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<()> {
         self.tick()?;
         // Read a reference carrier once, preserving its original cell even

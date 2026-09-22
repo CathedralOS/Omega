@@ -1,10 +1,9 @@
 use super::{
     BTreeMap, BuildEvaluationSponsor, CALL_DEPTH_BUDGET, Cell, CellMeter, CheckedTrees,
     DataDefinition, DataMember, EvalResult, EvaluatedArgument, EvaluationUsage, Evaluator,
-    FilesystemLogicalHandles, FilesystemMetadataLayout, Frame, Halt, Machine, MutableScalarRecast,
-    PrimitiveType, RefCell, State, StatementNode, SymbolHandle, TextByteMeter, TransitionDecision,
-    TypeReferenceHandle, TypeReferenceNode, TypedTrees, Value, ambient_step_budget, trap,
-    unsupported, wrap_to_width,
+    FilesystemLogicalHandles, FilesystemMetadataLayout, Frame, FrameLocal, Halt, Machine,
+    PrimitiveType, State, StatementNode, SymbolHandle, TextByteMeter, TransitionDecision,
+    TypeReferenceNode, TypedTrees, Value, ambient_step_budget, trap, unsupported, wrap_to_width,
 };
 impl<'program> Evaluator<'program> {
     pub(in crate::interpreter) fn new(
@@ -514,18 +513,9 @@ impl<'program> Evaluator<'program> {
         // Machine-owned data (the `owned_data` span) are additional named cells.
         for owned in self.program.machine_owned_data(machine) {
             let value = if owned.initial_value.is_valid() {
-                let frame = Frame {
-                    return_type: TypeReferenceHandle::invalid(),
-                    locals: RefCell::new(BTreeMap::new()),
-                    type_locals: RefCell::new(BTreeMap::new()),
-                    self_cell: self.allocate_cell(Value::Unit)?,
-                    machine_symbol: SymbolHandle::invalid(),
-                    state_symbol: SymbolHandle::invalid(),
-                    scalar_locals: RefCell::new(BTreeMap::new()),
-                    mutable_scalar_recasts: RefCell::new(BTreeMap::new()),
-                    guard_call_results: RefCell::new(Vec::new()),
-                };
-                self.eval_expression(owned.initial_value, &frame)?
+                let mut frame =
+                    Frame::bare(self.allocate_cell(Value::Unit)?, SymbolHandle::invalid());
+                self.eval_expression(owned.initial_value, &mut frame)?
             } else {
                 self.default_value_for_type(owned.type_reference)?
             };
@@ -944,13 +934,11 @@ impl<'program> Evaluator<'program> {
         let mut instance = instance;
         let mut state = state;
         let mut current_args = args;
-        // Locals accumulated across SAME-machine sibling transitions: the backend models a
-        // machine as one frame whose slots persist, so an inlined sub-state still sees the
-        // enclosing state's params/`let`s (e.g. `mark_current_room` reading `enter_room`'s
-        // `room_index`). New args bind on top; carried-over names stay visible.
-        let mut carried: BTreeMap<String, Cell> = BTreeMap::new();
-        let mut carried_types: BTreeMap<String, TypeReferenceHandle> = BTreeMap::new();
-        let mut carried_recasts: BTreeMap<String, MutableScalarRecast> = BTreeMap::new();
+        // Bindings accumulated across SAME-machine sibling transitions: the backend models a
+        // machine as one frame whose slots persist, so a state re-entered through a
+        // self-targeting or sibling transition keeps its earlier bindings. New args bind on
+        // top; carried-over bindings stay in the frame.
+        let mut carried: Vec<FrameLocal> = Vec::new();
 
         loop {
             self.tick()?;
@@ -967,14 +955,12 @@ impl<'program> Evaluator<'program> {
                 ));
             }
 
-            let frame = self.bind_frame(
+            let mut frame = self.bind_frame(
                 state,
                 instance.clone(),
                 &current_args,
                 machine.symbol,
-                &carried,
-                &carried_types,
-                &carried_recasts,
+                carried,
             )?;
 
             // Execute statements, watching for the first satisfied transition. A state
@@ -989,7 +975,7 @@ impl<'program> Evaluator<'program> {
             {
                 match statement {
                     StatementNode::Transition(transition) => {
-                        if let Some(decision) = self.eval_transition(transition, &frame)? {
+                        if let Some(decision) = self.eval_transition(transition, &mut frame)? {
                             next = Some(decision);
                             break;
                         }
@@ -998,17 +984,17 @@ impl<'program> Evaluator<'program> {
                         tail_value = Some(self.eval_expression_at_type(
                             *expression,
                             frame.return_type,
-                            &frame,
+                            &mut frame,
                         )?);
                     }
                     StatementNode::RootBinding(binding) => {
-                        self.execute_root_binding(statement_handle, binding, &frame)?;
+                        self.execute_root_binding(statement_handle, binding, &mut frame)?;
                     }
                     StatementNode::Call(call) => {
-                        self.eval_call_statement(statement_handle, call, &frame)?;
+                        self.eval_call_statement(statement_handle, call, &mut frame)?;
                     }
                     other => {
-                        self.exec_statement(other, &frame)?;
+                        self.exec_statement(other, &mut frame)?;
                     }
                 }
             }
@@ -1020,9 +1006,7 @@ impl<'program> Evaluator<'program> {
                 Some(TransitionDecision::SelfTarget) => {
                     // Re-run the same state (rare; guard against infinite loops via budget),
                     // carrying its bindings forward.
-                    carried = frame.locals.into_inner();
-                    carried_types = frame.type_locals.into_inner();
-                    carried_recasts = frame.mutable_scalar_recasts.into_inner();
+                    carried = frame.locals;
                     continue;
                 }
                 Some(TransitionDecision::Named {
@@ -1035,9 +1019,7 @@ impl<'program> Evaluator<'program> {
                         && Cell::ptr_eq(&target_instance, &instance)
                     {
                         // Carry this state's bindings forward to the sibling state.
-                        carried = frame.locals.into_inner();
-                        carried_types = frame.type_locals.into_inner();
-                        carried_recasts = frame.mutable_scalar_recasts.into_inner();
+                        carried = frame.locals;
                         state = target_state;
                         current_args = args;
                         continue;
@@ -1052,9 +1034,7 @@ impl<'program> Evaluator<'program> {
                     instance = target_instance;
                     state = target_state;
                     current_args = args;
-                    carried = BTreeMap::new();
-                    carried_types = BTreeMap::new();
-                    carried_recasts = BTreeMap::new();
+                    carried = Vec::new();
                     continue;
                 }
             }
@@ -1062,22 +1042,24 @@ impl<'program> Evaluator<'program> {
     }
 
     /// Bind a state's parameters (skipping `self`) to the positional argument cells. Seeds
-    /// from `carried` (the enclosing same-machine state's bindings) so an inlined sub-state
-    /// still sees outer params/locals; the state's own params override on top.
+    /// from `carried` (the enclosing same-machine state's bindings) so a re-entered state
+    /// still holds its earlier bindings; the state's own params rebind on top.
     fn bind_frame(
         &self,
         state: &State,
         self_cell: Cell,
         args: &[EvaluatedArgument],
         machine_symbol: SymbolHandle,
-        carried: &BTreeMap<String, Cell>,
-        carried_types: &BTreeMap<String, TypeReferenceHandle>,
-        carried_recasts: &BTreeMap<String, MutableScalarRecast>,
+        carried: Vec<FrameLocal>,
     ) -> EvalResult<Frame> {
-        let mut scalar_locals = BTreeMap::new();
-        let mut locals = carried.clone();
-        let mut type_locals = carried_types.clone();
-        let mut mutable_scalar_recasts = carried_recasts.clone();
+        let mut frame = Frame {
+            return_type: state.return_type,
+            locals: carried,
+            self_cell,
+            machine_symbol,
+            state_symbol: state.symbol,
+            guard_call_results: Vec::new(),
+        };
         let mut arg_index = 0;
         for parameter in self.program.state_parameters(state) {
             if parameter.is_self {
@@ -1101,6 +1083,7 @@ impl<'program> Evaluator<'program> {
             // correct. Funnels through `coerce_scalar_with` like every other seam.
             // The resolved (primitive, domain) is also RECORDED so arithmetic on
             // the param applies its declared domain at the operation node.
+            let mut scalar = None;
             let cell = match self
                 .program
                 .primitive_type_reference(parameter.type_reference)
@@ -1109,7 +1092,7 @@ impl<'program> Evaluator<'program> {
                     let domain = self
                         .program
                         .arithmetic_domain_for_type_reference(parameter.type_reference);
-                    scalar_locals.insert(parameter.name.as_str().to_owned(), (primitive, domain));
+                    scalar = Some((primitive, domain));
                     let scalar = match &*cell.borrow() {
                         v @ (Value::Int(_) | Value::Float(_)) => Some(v.clone()),
                         _ => None,
@@ -1124,24 +1107,16 @@ impl<'program> Evaluator<'program> {
                 }
                 None => cell,
             };
-            locals.insert(parameter.name.as_str().to_owned(), cell);
-            type_locals.insert(parameter.name.as_str().to_owned(), parameter.type_reference);
-            if let Some(recast) = argument.mutable_recast {
-                mutable_scalar_recasts.insert(parameter.name.as_str().to_owned(), recast);
-            }
+            frame.bind(FrameLocal {
+                symbol: parameter.symbol,
+                cell,
+                type_reference: parameter.type_reference,
+                scalar,
+                mutable_recast: argument.mutable_recast,
+            });
             arg_index += 1;
         }
-        Ok(Frame {
-            return_type: state.return_type,
-            locals: RefCell::new(locals),
-            type_locals: RefCell::new(type_locals),
-            self_cell,
-            machine_symbol,
-            state_symbol: state.symbol,
-            scalar_locals: RefCell::new(scalar_locals),
-            mutable_scalar_recasts: RefCell::new(mutable_scalar_recasts),
-            guard_call_results: RefCell::new(Vec::new()),
-        })
+        Ok(frame)
     }
 }
 

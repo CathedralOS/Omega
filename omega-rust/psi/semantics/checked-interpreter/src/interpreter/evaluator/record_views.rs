@@ -553,7 +553,7 @@ impl<'program> Evaluator<'program> {
         path: &[MutableRecordProjectionStep],
         base_offset: usize,
         region_len: usize,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<MutableRecordProjection>> {
         let Some((MutableRecordProjectionStep::Field(field_name), rest)) = path.split_first()
         else {
@@ -595,7 +595,7 @@ impl<'program> Evaluator<'program> {
         path: &[MutableRecordProjectionStep],
         base_offset: usize,
         region_len: usize,
-        frame: &Frame,
+        frame: &mut Frame,
         outer_stride: Option<usize>,
     ) -> EvalResult<Option<MutableRecordProjection>> {
         if path.is_empty() {

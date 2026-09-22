@@ -62,7 +62,7 @@ impl<'program> Evaluator<'program> {
         arguments: &[ExpressionHandle],
         format: SemanticFloatFormat,
         intrinsic: &str,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Value> {
         let scalar_type = arguments
             .iter()
@@ -149,7 +149,7 @@ impl<'program> Evaluator<'program> {
         arguments: &[ExpressionHandle],
         format: SemanticFloatFormat,
         intrinsic: &str,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Value> {
         let scalar_type = arguments
             .iter()
@@ -246,7 +246,7 @@ impl<'program> Evaluator<'program> {
         arguments: &[ExpressionHandle],
         format: SemanticFloatFormat,
         intrinsic: &str,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Value> {
         let scalar_type = self.expression_scalar_type(arguments[0], frame);
         let Value::Float(value) = self.eval_expression(arguments[0], frame)? else {

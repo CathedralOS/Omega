@@ -1,7 +1,8 @@
 use super::{
-    ArithmeticDomain, Cell, EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame, Halt,
-    Machine, MutableScalarRecast, State, StatementNode, SymbolHandle, TableCall, TableTransition,
-    TransitionDecision, TransitionGuardNode, TransitionTargetNode, TypeReferenceNode, Value, trap,
+    ArithmeticDomain, Cell, EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame,
+    FrameLocal, Halt, Machine, MutableScalarRecast, State, StatementNode, SymbolHandle, TableCall,
+    TableTransition, TransitionDecision, TransitionGuardNode, TransitionTargetNode,
+    TypeReferenceNode, Value, trap,
 };
 use language_core::is_self_receiver;
 use language_semantics::declaration_selection::BuildOperation;
@@ -28,7 +29,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn exec_statement(
         &mut self,
         statement: &StatementNode,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<()> {
         self.tick()?;
         match statement {
@@ -210,12 +211,13 @@ impl<'program> Evaluator<'program> {
                     && let Some((source, recast)) =
                         self.mutable_scalar_recast_initializer(local.initial_value, frame)?
                 {
-                    frame.bind(local.name.as_str(), self.allocate_cell(Value::Ref(source))?);
-                    frame.bind_type(local.name.as_str(), local.type_reference);
-                    frame
-                        .mutable_scalar_recasts
-                        .borrow_mut()
-                        .insert(local.name.as_str().to_owned(), recast);
+                    frame.bind(FrameLocal {
+                        symbol: local.symbol,
+                        cell: self.allocate_cell(Value::Ref(source))?,
+                        type_reference: local.type_reference,
+                        scalar: None,
+                        mutable_recast: Some(recast),
+                    });
                     return Ok(());
                 }
                 // A `let v = <struct>` or `let v = <owned array>` is a VALUE copy: deep-clone so
@@ -244,22 +246,27 @@ impl<'program> Evaluator<'program> {
                 // (decision 17): Wrapping/Exact truncate like the native store,
                 // Saturating clamps, Trapping traps, an f32 local rounds to f32.
                 let value = self.coerce_scalar_value(value, local.type_reference)?;
-                // A `let` introduces a fresh local cell, bound through the frame's
-                // interior-mutable locals map. A scalar local also RECORDS its
-                // declared (primitive, domain) so later arithmetic on the name
-                // applies the domain at the operation node.
-                if let Some(primitive) = self.program.primitive_type_reference(local.type_reference)
-                {
-                    let domain = self
-                        .program
-                        .arithmetic_domain_for_type_reference(local.type_reference);
-                    frame
-                        .scalar_locals
-                        .borrow_mut()
-                        .insert(local.name.as_str().to_owned(), (primitive, domain));
-                }
-                frame.bind(local.name.as_str(), self.allocate_cell(value)?);
-                frame.bind_type(local.name.as_str(), local.type_reference);
+                // A `let` introduces a fresh local cell bound by its symbol. A
+                // scalar local also RECORDS its declared (primitive, domain) so
+                // later arithmetic on the name applies the domain at the
+                // operation node.
+                let scalar = self
+                    .program
+                    .primitive_type_reference(local.type_reference)
+                    .map(|primitive| {
+                        (
+                            primitive,
+                            self.program
+                                .arithmetic_domain_for_type_reference(local.type_reference),
+                        )
+                    });
+                frame.bind(FrameLocal {
+                    symbol: local.symbol,
+                    cell: self.allocate_cell(value)?,
+                    type_reference: local.type_reference,
+                    scalar,
+                    mutable_recast: None,
+                });
                 Ok(())
             }
             // Executed in run_state_collect_inner, where the statement handle
@@ -283,7 +290,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn eval_transition(
         &mut self,
         transition: &TableTransition,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<TransitionDecision<'program>>> {
         let holds = match transition.guard {
             TransitionGuardNode::Always => true,
@@ -313,7 +320,7 @@ impl<'program> Evaluator<'program> {
     fn resolve_transition_target(
         &mut self,
         target: &TransitionTargetNode,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<TransitionDecision<'program>> {
         match target {
             TransitionTargetNode::Terminal => Ok(TransitionDecision::Terminal),
@@ -423,7 +430,7 @@ impl<'program> Evaluator<'program> {
         &mut self,
         statement: typed_trees::statement::StatementHandle,
         call: &TableCall,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Value> {
         if let Some(dispatch) = self.selected_boundary_adapter(
             call.receiver_symbol,
@@ -431,7 +438,7 @@ impl<'program> Evaluator<'program> {
             &call.machine_arguments,
         ) {
             let receiver = if dispatch.forward_receiver {
-                Some(self.eval_boundary_receiver_path(call.receiver, frame)?)
+                Some(self.eval_boundary_receiver_path(call, frame)?)
             } else {
                 None
             };
@@ -544,15 +551,11 @@ impl<'program> Evaluator<'program> {
             return Ok(value);
         }
 
-        let target = call.target.as_str();
         let (machine, state, instance) = if call.receiver.is_empty() {
             self.resolve_entry_state_symbol(call.target_symbol, frame)
-                .map_or_else(
-                    || self.resolve_state_call(call.receiver, target, call.target_symbol, frame),
-                    Ok,
-                )?
+                .map_or_else(|| self.resolve_state_call(call, frame), Ok)?
         } else {
-            self.resolve_state_call(call.receiver, target, call.target_symbol, frame)?
+            self.resolve_state_call(call, frame)?
         };
 
         let args = self.eval_state_arguments(
@@ -600,15 +603,12 @@ impl<'program> Evaluator<'program> {
     ///    run its entry state on the current `self`.
     fn resolve_state_call(
         &self,
-        receiver: arena::HandleSpan<typed_trees::name::Identifier>,
-        target: &str,
-        target_symbol: SymbolHandle,
+        call: &TableCall,
         frame: &Frame,
     ) -> EvalResult<(&'program Machine, &'program State, Cell)> {
+        let target = call.target.as_str();
         // (1) Explicit receiver path to a contained sub-machine instance.
-        if let Some(resolved) =
-            self.resolve_receiver_state_call(receiver, target, target_symbol, frame)?
-        {
+        if let Some(resolved) = self.resolve_receiver_state_call(call, frame)? {
             return Ok(resolved);
         }
 
@@ -634,15 +634,15 @@ impl<'program> Evaluator<'program> {
     /// machine. The receiver path's leaf is the field; the head may be `self`.
     fn resolve_receiver_state_call(
         &self,
-        receiver: arena::HandleSpan<typed_trees::name::Identifier>,
-        target: &str,
-        target_symbol: SymbolHandle,
+        call: &TableCall,
         frame: &Frame,
     ) -> EvalResult<Option<(&'program Machine, &'program State, Cell)>> {
+        let target = call.target.as_str();
+        let target_symbol = call.target_symbol;
         let members: Vec<String> = self
             .program
             .statement_table
-            .name_path_members(receiver)
+            .name_path_members(call.receiver)
             .iter()
             .map(|name| name.as_str().to_owned())
             .collect();
@@ -656,7 +656,7 @@ impl<'program> Evaluator<'program> {
         let mut start = 0;
         if is_self_receiver(&members[0]) {
             start = 1;
-        } else if let Some(local) = frame.get(&members[0]) {
+        } else if let Some(local) = frame.local_cell(call.receiver_root_symbol) {
             cell = local;
             start = 1;
         }
@@ -829,7 +829,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn eval_argument(
         &mut self,
         argument: ExpressionHandle,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Cell> {
         match self.program.expression_table.expression(argument) {
             ExpressionNode::Indexed(indexed)

@@ -13,7 +13,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn try_wire_encode_call(
         &mut self,
         call: &TableCall,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         let Some(schema) = self.program.wire_encode_call_schema(call) else {
             return Ok(None);
@@ -423,7 +423,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn try_wire_decode_call(
         &mut self,
         call: &TableCall,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         let Some(schema) = self.program.wire_decode_call_schema(call) else {
             return Ok(None);
@@ -1036,7 +1036,7 @@ fn wire_argument_declared_type(
         }
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
-            let mut current = *frame.type_locals.borrow().get(members.first()?.as_str())?;
+            let mut current = frame.local_type(path.head_symbol)?;
             for member in members.iter().skip(1) {
                 current = typed_trees::wire::data_field_type(program, current, member.as_str())?;
             }

@@ -15,7 +15,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn eval_expression(
         &mut self,
         handle: ExpressionHandle,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Value> {
         self.tick()?;
         let node = self.program.expression_table.expression(handle).clone();
@@ -305,7 +305,7 @@ impl<'program> Evaluator<'program> {
         &mut self,
         expression: ExpressionHandle,
         binary: &typed_trees::expression::TableBinaryExpression,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Value> {
         if self
             .selected_build_time_operators
@@ -374,7 +374,7 @@ impl<'program> Evaluator<'program> {
         &mut self,
         expression: ExpressionHandle,
         binary: &typed_trees::expression::TableBinaryExpression,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         let Some(candidate) = self
             .operator_facts
@@ -431,24 +431,17 @@ impl<'program> Evaluator<'program> {
         &mut self,
         handle: ExpressionHandle,
         call: &typed_trees::expression::TableCallExpression,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Value> {
         // A transition's guard subject evaluates ONCE per transition evaluation: the
         // parser lowers `transition self.f(x) { true -> a false -> b }` into one guard
         // per arm, each holding a COPY of the subject call (distinct handles, identical
         // structure). A later arm reuses the earlier arm's result instead of re-running
         // the callee's side effects -- matching the native lowering's shared prelude.
-        if self.guard_depth > 0 {
-            let memo = frame.guard_call_results.borrow();
-            for (seen, value) in memo.iter() {
-                if self
-                    .program
-                    .expression_table
-                    .expressions_structurally_equal(*seen, handle)
-                {
-                    return Ok(value.clone());
-                }
-            }
+        if self.guard_depth > 0
+            && let Some(value) = frame.guard_call_result(self.program, handle)
+        {
+            return Ok(value);
         }
 
         let receiver_symbol = match self.program.expression_table.expression(call.receiver) {
@@ -477,10 +470,7 @@ impl<'program> Evaluator<'program> {
                 frame,
             )?;
             if self.guard_depth > 0 {
-                frame
-                    .guard_call_results
-                    .borrow_mut()
-                    .push((handle, value.clone()));
+                frame.record_guard_call_result(handle, &value);
             }
             return Ok(value);
         }
@@ -560,10 +550,7 @@ impl<'program> Evaluator<'program> {
         }
         if let Some(value) = self.try_provider_selection_value_call(handle, call, frame)? {
             if self.guard_depth > 0 {
-                frame
-                    .guard_call_results
-                    .borrow_mut()
-                    .push((handle, value.clone()));
+                frame.record_guard_call_result(handle, &value);
             }
             return Ok(value);
         }
@@ -572,10 +559,7 @@ impl<'program> Evaluator<'program> {
         // activation's root Build.
         if let Some(value) = self.try_behavior_exclusion_value_call(handle, call, frame)? {
             if self.guard_depth > 0 {
-                frame
-                    .guard_call_results
-                    .borrow_mut()
-                    .push((handle, value.clone()));
+                frame.record_guard_call_result(handle, &value);
             }
             return Ok(value);
         }
@@ -898,10 +882,7 @@ impl<'program> Evaluator<'program> {
             self.non_fs_host_boundary_touched = true;
             let value = self.read_stdin_byte_value(call.target_symbol)?;
             if self.guard_depth > 0 {
-                frame
-                    .guard_call_results
-                    .borrow_mut()
-                    .push((handle, value.clone()));
+                frame.record_guard_call_result(handle, &value);
             }
             return Ok(value);
         }
@@ -980,10 +961,7 @@ impl<'program> Evaluator<'program> {
                     self.non_fs_host_boundary_touched = true;
                     let value = self.read_stdin_byte_value(call.target_symbol)?;
                     if self.guard_depth > 0 {
-                        frame
-                            .guard_call_results
-                            .borrow_mut()
-                            .push((handle, value.clone()));
+                        frame.record_guard_call_result(handle, &value);
                     }
                     return Ok(value);
                 }
@@ -1095,10 +1073,7 @@ impl<'program> Evaluator<'program> {
         self.guard_depth = entered_guard_depth;
         let value = value?;
         if entered_guard_depth > 0 {
-            frame
-                .guard_call_results
-                .borrow_mut()
-                .push((handle, value.clone()));
+            frame.record_guard_call_result(handle, &value);
         }
         Ok(value)
     }
@@ -1107,7 +1082,7 @@ impl<'program> Evaluator<'program> {
         &mut self,
         target: &str,
         call: &typed_trees::expression::TableCallExpression,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         if !call.receiver.is_valid() {
             return Ok(None);
@@ -1398,7 +1373,7 @@ impl<'program> Evaluator<'program> {
         &mut self,
         call: &typed_trees::expression::TableCallExpression,
         target: &str,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<(&'program Machine, &'program State, Cell)> {
         // Static-machine specialization rewrites a parameter call to the exact
         // selected ENTRY symbol.  Its human-facing target remains the authored
@@ -1469,7 +1444,7 @@ impl<'program> Evaluator<'program> {
                 .name_path_members(path.members);
             if members.len() == 1
                 && !members[0].is_self_receiver()
-                && frame.get(members[0].as_str()).is_none()
+                && frame.local_cell(path.head_symbol).is_none()
             {
                 if let Some(resolved) = self.resolve_entry_state_symbol(call.target_symbol, frame) {
                     return Ok(resolved);
@@ -1515,7 +1490,7 @@ impl<'program> Evaluator<'program> {
     fn eval_struct_literal(
         &mut self,
         literal: &typed_trees::expression::TableStructLiteral,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Value> {
         if let Some(case_name) = &literal.case_name {
             return self.eval_case_literal(literal, case_name.as_str(), frame);
@@ -1568,7 +1543,7 @@ impl<'program> Evaluator<'program> {
         &mut self,
         literal: &typed_trees::expression::TableStructLiteral,
         case_name: &str,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Value> {
         let type_name = literal.type_name.as_str();
         let Some(data) = self
@@ -1645,7 +1620,7 @@ impl<'program> Evaluator<'program> {
     fn eval_call_expression_argument(
         &mut self,
         argument: ExpressionHandle,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Cell> {
         // Share the same argument-evaluation rules as state calls (incl. reference
         // forwarding for bare-place args that already hold a `&mut`).

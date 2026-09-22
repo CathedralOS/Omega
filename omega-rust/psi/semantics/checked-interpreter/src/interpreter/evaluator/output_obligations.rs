@@ -57,7 +57,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn try_build_output_obligation_value_call(
         &mut self,
         call: &typed_trees::expression::TableCallExpression,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         if !call.receiver.is_valid()
             || !matches!(call.target.as_str(), "require" | "complete" | "fail")
@@ -84,14 +84,14 @@ impl<'program> Evaluator<'program> {
     pub(super) fn try_build_output_obligation_statement(
         &mut self,
         call: &typed_trees::statement::TableCall,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<bool> {
         if call.receiver.is_empty()
             || !matches!(call.target.as_str(), "require" | "complete" | "fail")
         {
             return Ok(false);
         }
-        let Some(receiver) = self.statement_receiver_cell(call.receiver, frame)? else {
+        let Some(receiver) = self.statement_receiver_cell(call, frame)? else {
             return Ok(false);
         };
         let Some(output_root) =
@@ -112,7 +112,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn try_required_output_path_value_call(
         &mut self,
         call: &typed_trees::expression::TableCallExpression,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         if call.target.as_str() != "path" || !call.receiver.is_valid() {
             return Ok(None);
@@ -154,7 +154,7 @@ impl<'program> Evaluator<'program> {
         if call.target.as_str() != "path" || call.receiver.is_empty() {
             return Ok(false);
         }
-        let Some(receiver) = self.statement_receiver_cell(call.receiver, frame)? else {
+        let Some(receiver) = self.statement_receiver_cell(call, frame)? else {
             return Ok(false);
         };
         let is_marker = matches!(
@@ -229,7 +229,7 @@ impl<'program> Evaluator<'program> {
         target: &str,
         output_root: FilesystemGrantRootIdentity,
         arguments: &[ExpressionHandle],
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Value> {
         match target {
             "require" => {
@@ -512,7 +512,7 @@ impl<'program> Evaluator<'program> {
     fn eval_byte_operand(
         &mut self,
         expression: ExpressionHandle,
-        frame: &Frame,
+        frame: &mut Frame,
         context: &str,
     ) -> EvalResult<Vec<u8>> {
         match self.eval_expression(expression, frame)? {

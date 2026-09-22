@@ -10,7 +10,7 @@ impl Evaluator<'_> {
         &mut self,
         target: ExpressionHandle,
         value: ExpressionHandle,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<bool> {
         let ExpressionNode::Indexed(indexed) = self.program.expression_table.expression(target)
         else {

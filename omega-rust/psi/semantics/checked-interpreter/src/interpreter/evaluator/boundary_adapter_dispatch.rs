@@ -1,6 +1,6 @@
 use super::{
-    EvalResult, EvaluatedArgument, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value,
-    trap,
+    EvalResult, EvaluatedArgument, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle,
+    TableCall, Value, trap,
 };
 impl<'program> Evaluator<'program> {
     pub(super) fn selected_boundary_adapter(
@@ -29,16 +29,19 @@ impl<'program> Evaluator<'program> {
     /// Receiver forwarding is an argument operation, not a synthetic source edit.
     pub(super) fn eval_boundary_receiver_path(
         &mut self,
-        receiver: arena::HandleSpan<typed_trees::name::Identifier>,
+        call: &TableCall,
         frame: &Frame,
     ) -> EvalResult<EvaluatedArgument> {
-        let members = self.program.statement_table.name_path_members(receiver);
+        let members = self
+            .program
+            .statement_table
+            .name_path_members(call.receiver);
         let Some((head, rest)) = members.split_first() else {
             return trap("selected boundary adapter lost its receiver");
         };
         let mut cell = if head.is_self_receiver() {
             frame.self_cell.clone()
-        } else if let Some(local) = frame.get(head.as_str()) {
+        } else if let Some(local) = frame.local_cell(call.receiver_root_symbol) {
             local
         } else {
             self.field_cell(&frame.self_cell, head.as_str())?
@@ -55,7 +58,7 @@ impl<'program> Evaluator<'program> {
         dispatch: checked_trees::CheckedBoundaryAdapterDispatch,
         receiver: Option<EvaluatedArgument>,
         arguments: &[ExpressionHandle],
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Value> {
         let (machine, state, instance) = self
             .resolve_entry_state_symbol(dispatch.realization_state, frame)

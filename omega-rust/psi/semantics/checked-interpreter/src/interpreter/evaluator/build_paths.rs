@@ -1,6 +1,6 @@
 use super::{
     BTreeMap, Cell, EvalResult, Evaluator, ExpressionHandle, FilesystemHostOperation, Frame, Halt,
-    SymbolHandle, Value, real_filesystem,
+    SymbolHandle, TableCall, Value, real_filesystem,
 };
 use crate::{
     FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT, FilesystemGrantRootIdentity,
@@ -18,7 +18,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn try_build_named_input_value_call(
         &mut self,
         call: &typed_trees::expression::TableCallExpression,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         if call.target.as_str() != "get"
             || !call.receiver.is_valid()
@@ -66,7 +66,7 @@ impl<'program> Evaluator<'program> {
     fn build_relative_bytes(
         &mut self,
         expression: ExpressionHandle,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Vec<u8>> {
         match self.eval_expression(expression, frame)? {
             Value::Str(bytes) => Ok(bytes.borrow().to_vec()),
@@ -108,7 +108,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn try_build_root_resolve_value_call(
         &mut self,
         call: &typed_trees::expression::TableCallExpression,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         if call.target.as_str() != "resolve" || !call.receiver.is_valid() {
             return Ok(None);
@@ -177,7 +177,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn try_build_facet_filesystem_value_call(
         &mut self,
         call: &typed_trees::expression::TableCallExpression,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         if !call.receiver.is_valid()
             || !matches!(
@@ -207,7 +207,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn try_build_facet_filesystem_statement(
         &mut self,
         call: &typed_trees::statement::TableCall,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         if call.receiver.is_empty()
             || !matches!(
@@ -217,7 +217,7 @@ impl<'program> Evaluator<'program> {
         {
             return Ok(None);
         }
-        let Some(receiver) = self.statement_receiver_cell(call.receiver, frame)? else {
+        let Some(receiver) = self.statement_receiver_cell(call, frame)? else {
             return Ok(None);
         };
         let Some(operation) = self.build_facet_filesystem_operation(
@@ -268,7 +268,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn try_build_output_include_source_value_call(
         &mut self,
         call: &typed_trees::expression::TableCallExpression,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         if BuildOperation::from_call_target(call.target.as_str())
             != Some(BuildOperation::IncludedSourceHandoff)
@@ -288,7 +288,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn try_build_output_include_source_statement(
         &mut self,
         call: &typed_trees::statement::TableCall,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<bool> {
         if BuildOperation::from_call_target(call.target.as_str())
             != Some(BuildOperation::IncludedSourceHandoff)
@@ -296,7 +296,7 @@ impl<'program> Evaluator<'program> {
         {
             return Ok(false);
         }
-        let Some(receiver) = self.statement_receiver_cell(call.receiver, frame)? else {
+        let Some(receiver) = self.statement_receiver_cell(call, frame)? else {
             return Ok(false);
         };
         let arguments = self
@@ -311,7 +311,7 @@ impl<'program> Evaluator<'program> {
         receiver: Cell,
         target_symbol: SymbolHandle,
         arguments: &[ExpressionHandle],
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<bool> {
         let receiver = self.deref_cell(receiver);
         let output_root = match &*receiver.borrow() {
@@ -384,10 +384,13 @@ impl<'program> Evaluator<'program> {
 
     pub(super) fn statement_receiver_cell(
         &self,
-        receiver: arena::HandleSpan<typed_trees::name::Identifier>,
+        call: &TableCall,
         frame: &Frame,
     ) -> EvalResult<Option<Cell>> {
-        let members = self.program.statement_table.name_path_members(receiver);
+        let members = self
+            .program
+            .statement_table
+            .name_path_members(call.receiver);
         let Some(first) = members.first() else {
             return Ok(None);
         };
@@ -395,7 +398,7 @@ impl<'program> Evaluator<'program> {
         let mut start = 0usize;
         if first.is_self_receiver() {
             start = 1;
-        } else if let Some(local) = frame.get(first.as_str()) {
+        } else if let Some(local) = frame.local_cell(call.receiver_root_symbol) {
             cell = local;
             start = 1;
         }

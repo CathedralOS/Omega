@@ -32,7 +32,7 @@ impl<'program> Evaluator<'program> {
         &mut self,
         handle: ExpressionHandle,
         call: &typed_trees::expression::TableCallExpression,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         if call.target.as_str() != "provider" || !call.receiver.is_valid() {
             return Ok(None);
@@ -82,12 +82,12 @@ impl<'program> Evaluator<'program> {
     pub(super) fn try_build_product_provider_statement(
         &mut self,
         call: &typed_trees::statement::TableCall,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<bool> {
         if call.target.as_str() != "provider" || call.receiver.is_empty() {
             return Ok(false);
         }
-        let Some(receiver) = self.statement_receiver_cell(call.receiver, frame)? else {
+        let Some(receiver) = self.statement_receiver_cell(call, frame)? else {
             return Ok(false);
         };
         let is_facet = matches!(
@@ -132,7 +132,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn try_product_provider_ref_path_value_call(
         &mut self,
         call: &typed_trees::expression::TableCallExpression,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         if call.target.as_str() != "path" || !call.receiver.is_valid() {
             return Ok(None);
@@ -178,7 +178,7 @@ impl<'program> Evaluator<'program> {
         if call.target.as_str() != "path" || call.receiver.is_empty() {
             return Ok(false);
         }
-        let Some(receiver) = self.statement_receiver_cell(call.receiver, frame)? else {
+        let Some(receiver) = self.statement_receiver_cell(call, frame)? else {
             return Ok(false);
         };
         let is_marker = matches!(
@@ -380,7 +380,7 @@ impl<'program> Evaluator<'program> {
     fn eval_product_provider_operand(
         &mut self,
         expression: ExpressionHandle,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Vec<u8>> {
         match self.eval_expression(expression, frame)? {
             Value::Str(bytes) => Ok(bytes.borrow().to_vec()),

@@ -14,7 +14,7 @@ impl Evaluator<'_> {
     pub(super) fn eval_read_cell(
         &mut self,
         expression: ExpressionHandle,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Cell> {
         match self.program.expression_table.expression(expression).clone() {
             ExpressionNode::Name(path) => {
@@ -46,21 +46,11 @@ impl Evaluator<'_> {
                 }
                 // Destructuring reuses the subject already observed by its
                 // guard; a copied call expression must not invoke it again.
-                if member.case_variant.is_some() {
-                    let observed = frame
-                        .guard_call_results
-                        .borrow()
-                        .iter()
-                        .find(|(subject, _)| {
-                            self.program
-                                .expression_table
-                                .expressions_structurally_equal(*subject, member.receiver)
-                        })
-                        .map(|(_, value)| value.clone());
-                    if let Some(observed) = observed {
-                        let receiver = self.allocate_cell(observed)?;
-                        return self.field_cell(&receiver, member.member.as_str());
-                    }
+                if member.case_variant.is_some()
+                    && let Some(observed) = frame.guard_call_result(self.program, member.receiver)
+                {
+                    let receiver = self.allocate_cell(observed)?;
+                    return self.field_cell(&receiver, member.member.as_str());
                 }
                 let receiver = self.eval_read_cell(member.receiver, frame)?;
                 self.field_cell(&receiver, member.member.as_str())
