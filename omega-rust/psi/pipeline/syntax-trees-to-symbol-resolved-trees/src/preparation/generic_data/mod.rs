@@ -45,10 +45,42 @@ mod remainder_tests;
 #[cfg(test)]
 mod sum_constructor_tests;
 
-pub(crate) use arguments::*;
-pub(crate) use const_evaluation::*;
-pub(crate) use discovery::*;
-pub(crate) use substitution::*;
+pub(crate) use arguments::{
+    DomainHead, closed_argument_identity, domain_application_head, domain_index_telescope,
+    monomorphizable_argument_slugs, normalize_domain_head_positions, type_reference_slug,
+};
+pub(in crate::preparation::generic_data) use arguments::{
+    canonicalize_monomorphizable_argument_handles, complete_argument_tuple,
+};
+pub(in crate::preparation) use const_evaluation::collect_type_positions;
+pub(crate) use const_evaluation::{
+    ConstFactValue, ConstScalarSpelling, ConstScalarValue, evaluate_const_fact_binary,
+    evaluate_const_fact_expression, evaluate_const_membership_fact,
+    prove_const_literal_leaf_domain_constraints, prove_declared_const_domain_constraints,
+};
+pub(in crate::preparation::generic_data) use const_evaluation::{
+    EvaluatedConst, canonicalize_closed_domain_indices, canonicalize_const_definition,
+    canonicalize_selected_const_definition, canonicalize_selected_declaration_value,
+    canonicalize_selected_index_expression, capture_machine_runtime_template_names,
+    checked_fact_integer, collect_data_type_reference_positions,
+    collect_machine_type_reference_positions, collect_type_reference_positions,
+    consider_generic_spelling, const_expression_contains_name, const_integer_in_envelope,
+    const_integer_type, domain_index_parameters, evaluate_const_argument_expression,
+    generic_const_integer_types, integer_literal_value,
+    normalize_generic_template_const_expressions, prove_const_leaf_domain_constraints,
+    qualified_const_name, replace_const_expression_names_from,
+    replace_machine_const_expression_names_from, syntax_type_identity, validate_const_index_type,
+    validate_syntax_integer_range,
+};
+pub(crate) use discovery::{ClosedArgumentIdentity, ClosedConstraintIdentity, selected_data_item};
+pub(in crate::preparation::generic_data) use discovery::{
+    GenericData, GenericDataShape, Instantiation, PendingRewrite, selected_generic_data,
+};
+#[cfg(test)]
+pub(in crate::preparation::generic_data) use substitution::substitute_type_reference;
+pub(crate) use substitution::{
+    closed_name_identity, substitute_member, type_reference_mentions_parameter,
+};
 use synthesis::desugar_generic_data_instances;
 pub(super) use synthesis::desugar_generic_data_instances_with_selection;
 
