@@ -1,3 +1,4 @@
+use crate::access_plan::diagnostic::into_validated_access;
 use crate::plan_policy::authorization::validate_operation_ordering;
 use crate::{
     AccessOperation, AccessPlanDiagnostic, AdmittedSchemaDeviceCorrespondence,
@@ -112,19 +113,15 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
         StablePrimitiveAccessRequest<'view, 'extent>,
         StablePrimitiveAccessRejection<'view, 'extent>,
     > {
-        let operation = match validate_stable_primitive_request(&self) {
-            Ok(operation) => operation,
-            Err(diagnostic) => {
-                return Err(StablePrimitiveAccessRejection {
-                    request: self,
-                    diagnostic,
-                });
-            }
-        };
-        Ok(StablePrimitiveAccessRequest {
-            request: self,
-            operation,
-        })
+        into_validated_access(
+            self,
+            validate_stable_primitive_request,
+            |request, operation| StablePrimitiveAccessRequest { request, operation },
+            |request, diagnostic| StablePrimitiveAccessRejection {
+                request,
+                diagnostic,
+            },
+        )
     }
 }
 
@@ -238,13 +235,15 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
         StableCompoundMutationAccessRequest<'view, 'extent>,
         StableCompoundMutationAccessRejection<'view, 'extent>,
     > {
-        if let Err(diagnostic) = validate_stable_compound_mutation_request(&self) {
-            return Err(StableCompoundMutationAccessRejection {
-                request: self,
+        into_validated_access(
+            self,
+            validate_stable_compound_mutation_request,
+            |request, ()| StableCompoundMutationAccessRequest { request },
+            |request, diagnostic| StableCompoundMutationAccessRejection {
+                request,
                 diagnostic,
-            });
-        }
-        Ok(StableCompoundMutationAccessRequest { request: self })
+            },
+        )
     }
 }
 
@@ -388,19 +387,15 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
         ExternalPrimitiveAccessRequest<'view, 'extent>,
         ExternalPrimitiveAccessRejection<'view, 'extent>,
     > {
-        let operation = match validate_external_primitive_request(&self) {
-            Ok(operation) => operation,
-            Err(diagnostic) => {
-                return Err(ExternalPrimitiveAccessRejection {
-                    request: self,
-                    diagnostic,
-                });
-            }
-        };
-        Ok(ExternalPrimitiveAccessRequest {
-            request: self,
-            operation,
-        })
+        into_validated_access(
+            self,
+            validate_external_primitive_request,
+            |request, operation| ExternalPrimitiveAccessRequest { request, operation },
+            |request, diagnostic| ExternalPrimitiveAccessRejection {
+                request,
+                diagnostic,
+            },
+        )
     }
 }
 
@@ -561,19 +556,15 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
         AtomicPrimitiveAccessRequest<'view, 'extent>,
         AtomicPrimitiveAccessRejection<'view, 'extent>,
     > {
-        let operation = match validate_atomic_primitive_request(&self) {
-            Ok(operation) => operation,
-            Err(diagnostic) => {
-                return Err(AtomicPrimitiveAccessRejection {
-                    request: self,
-                    diagnostic,
-                });
-            }
-        };
-        Ok(AtomicPrimitiveAccessRequest {
-            request: self,
-            operation,
-        })
+        into_validated_access(
+            self,
+            validate_atomic_primitive_request,
+            |request, operation| AtomicPrimitiveAccessRequest { request, operation },
+            |request, diagnostic| AtomicPrimitiveAccessRejection {
+                request,
+                diagnostic,
+            },
+        )
     }
 }
 

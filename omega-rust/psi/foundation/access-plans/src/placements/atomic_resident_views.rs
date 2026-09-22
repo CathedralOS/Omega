@@ -10,6 +10,7 @@ use extents::{
     ProviderExistingContentGrant, ResidentClaimId,
 };
 
+use crate::access_plan::diagnostic::into_validated_access;
 use crate::placements::owned_atomic_resident_custody::validate_owned_atomic_resident_authority;
 use crate::placements::owned_resident_custody::{
     validate_provider_content_binding, validate_resident_observation,
@@ -296,13 +297,15 @@ impl<'resident> EstablishedBorrowedAtomicResidentPlacement<'resident> {
     /// End this occurrence and release its exact loan. The lender's dormant
     /// claim and provider receipts remain unchanged.
     pub fn retire(self) -> Result<(), BorrowedAtomicResidentRetirementError<'resident>> {
-        if let Err(diagnostic) = self.validate_retirement_authority() {
-            return Err(BorrowedAtomicResidentRetirementError {
-                established: self,
+        into_validated_access(
+            self,
+            |established| established.validate_retirement_authority(),
+            |_, ()| (),
+            |established, diagnostic| BorrowedAtomicResidentRetirementError {
+                established,
                 diagnostic,
-            });
-        }
-        Ok(())
+            },
+        )
     }
 
     #[cfg(test)]

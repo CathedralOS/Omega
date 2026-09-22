@@ -4,6 +4,7 @@
 //! occurrence to an exact whole-range `ExtentLoan` and forwards the lender's
 //! claim and provider receipts through placed field access.
 
+use crate::access_plan::diagnostic::into_validated_access;
 use crate::placements::owned_resident_custody::validate_owned_resident_authority;
 use crate::placements::owned_resident_custody::validate_provider_content_binding;
 use crate::placements::owned_resident_custody::validate_resident_observation;
@@ -272,13 +273,15 @@ impl<'resident> EstablishedBorrowedResidentPlacement<'resident> {
     /// Explicitly end this placed occurrence and release its exact loan. The
     /// lender's dormant resident claim and provider receipts remain unchanged.
     pub fn retire(self) -> Result<(), BorrowedResidentRetirementError<'resident>> {
-        if let Err(diagnostic) = self.validate_retirement_authority() {
-            return Err(BorrowedResidentRetirementError {
-                established: self,
+        into_validated_access(
+            self,
+            |established| established.validate_retirement_authority(),
+            |_, ()| (),
+            |established, diagnostic| BorrowedResidentRetirementError {
+                established,
                 diagnostic,
-            });
-        }
-        Ok(())
+            },
+        )
     }
 
     #[cfg(test)]

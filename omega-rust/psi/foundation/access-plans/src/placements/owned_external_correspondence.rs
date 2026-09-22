@@ -12,6 +12,7 @@
 
 use extents::Extent;
 
+use crate::access_plan::diagnostic::into_validated_access;
 use crate::placements::owned_resident_custody::{
     replay_owned_admission_resources, validate_resident_observation,
 };
@@ -130,19 +131,21 @@ pub fn adopt_owned_external(
     admission: OwnedPlacementAdmission,
     correspondence: AdmittedSchemaDeviceCorrespondence,
 ) -> Result<OwnedCorrespondedExternalAdmission, OwnedExternalAdoptionError> {
-    if let Err(diagnostic) =
-        validate_owned_external_authority(&admission, &correspondence, "External adoption")
-    {
-        return Err(OwnedExternalAdoptionError {
+    into_validated_access(
+        (admission, correspondence),
+        |(admission, correspondence)| {
+            validate_owned_external_authority(admission, correspondence, "External adoption")
+        },
+        |(admission, correspondence), ()| OwnedCorrespondedExternalAdmission {
+            admission,
+            correspondence,
+        },
+        |(admission, correspondence), diagnostic| OwnedExternalAdoptionError {
             admission,
             correspondence,
             diagnostic,
-        });
-    }
-    Ok(OwnedCorrespondedExternalAdmission {
-        admission,
-        correspondence,
-    })
+        },
+    )
 }
 
 fn validate_owned_external_authority(
@@ -236,22 +239,26 @@ impl OwnedCorrespondedExternalAdmission {
         self,
         occurrence: PlacedOccurrenceId,
     ) -> Result<EstablishedOwnedExternalPlacement, OwnedExternalViewEstablishmentError> {
-        if let Err(diagnostic) = validate_owned_external_authority(
-            &self.admission,
-            &self.correspondence,
-            "owned External view",
-        ) {
-            return Err(OwnedExternalViewEstablishmentError {
-                carrier: self,
+        into_validated_access(
+            self,
+            |carrier| {
+                validate_owned_external_authority(
+                    &carrier.admission,
+                    &carrier.correspondence,
+                    "owned External view",
+                )
+            },
+            |carrier, ()| EstablishedOwnedExternalPlacement {
+                admission: carrier.admission,
+                correspondence: carrier.correspondence,
+                occurrence,
+            },
+            |carrier, diagnostic| OwnedExternalViewEstablishmentError {
+                carrier,
                 occurrence,
                 diagnostic,
-            });
-        }
-        Ok(EstablishedOwnedExternalPlacement {
-            admission: self.admission,
-            correspondence: self.correspondence,
-            occurrence,
-        })
+            },
+        )
     }
 }
 
@@ -314,20 +321,24 @@ impl EstablishedOwnedExternalPlacement {
     pub fn retire(
         self,
     ) -> Result<OwnedCorrespondedExternalAdmission, OwnedExternalRetirementError> {
-        if let Err(diagnostic) = validate_owned_external_authority(
-            &self.admission,
-            &self.correspondence,
-            "owned External retirement",
-        ) {
-            return Err(OwnedExternalRetirementError {
-                established: self,
+        into_validated_access(
+            self,
+            |established| {
+                validate_owned_external_authority(
+                    &established.admission,
+                    &established.correspondence,
+                    "owned External retirement",
+                )
+            },
+            |established, ()| OwnedCorrespondedExternalAdmission {
+                admission: established.admission,
+                correspondence: established.correspondence,
+            },
+            |established, diagnostic| OwnedExternalRetirementError {
+                established,
                 diagnostic,
-            });
-        }
-        Ok(OwnedCorrespondedExternalAdmission {
-            admission: self.admission,
-            correspondence: self.correspondence,
-        })
+            },
+        )
     }
 
     /// Project one accepted External field through a shared borrow of this

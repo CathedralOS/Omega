@@ -1,6 +1,7 @@
 use extents::{Extent, ExtentLoan};
 
 use crate::ResourceProfileReceiptId;
+use crate::access_plan::diagnostic::into_validated_access;
 use crate::placements::schema_correspondence::normalized_identity;
 use crate::{
     AccessPlanDiagnostic, AdmittedResourceProfile, OwnedPlacementAdmission,
@@ -102,18 +103,19 @@ pub fn admit_placement<'extent>(
     plan: &ValidatedPlacementPlan,
     profile: &AdmittedResourceProfile,
 ) -> Result<PlacementAdmission<'extent>, PlacementRejection<'extent>> {
-    let validation = validate_placement_admission(&loan, plan, profile);
-    match validation {
-        Ok(resources) => Ok(PlacementAdmission {
+    into_validated_access(
+        (identity, loan),
+        |(_, loan)| validate_placement_admission(loan, plan, profile),
+        |(identity, loan), resources| PlacementAdmission {
             identity,
             placement_plan: plan.clone(),
             profile_receipt: profile.receipt(),
             profile: profile.clone(),
             resources,
             loan,
-        }),
-        Err(diagnostic) => Err(PlacementRejection { loan, diagnostic }),
-    }
+        },
+        |(_, loan), diagnostic| PlacementRejection { loan, diagnostic },
+    )
 }
 
 /// Admit one complete owned Extent without manufacturing an owned loan or a
@@ -128,23 +130,28 @@ pub fn admit_owned_placement(
     plan: &ValidatedPlacementPlan,
     profile: &AdmittedResourceProfile,
 ) -> Result<OwnedPlacementAdmission, OwnedPlacementRejection> {
-    let validation = match extent.loan(0, extent.length()) {
-        Ok(loan) => validate_placement_admission(&loan, plan, profile),
-        Err(diagnostic) => Err(AccessPlanDiagnostic(format!(
-            "owned extent could not produce its internal whole-range loan: {diagnostic}"
-        ))),
-    };
-    match validation {
-        Ok(resources) => Ok(OwnedPlacementAdmission {
+    into_validated_access(
+        (identity, extent),
+        |(_, extent)| {
+            extent
+                .loan(0, extent.length())
+                .map_err(|diagnostic| {
+                    AccessPlanDiagnostic(format!(
+                        "owned extent could not produce its internal whole-range loan: {diagnostic}"
+                    ))
+                })
+                .and_then(|loan| validate_placement_admission(&loan, plan, profile))
+        },
+        |(identity, extent), resources| OwnedPlacementAdmission {
             identity,
             placement_plan: plan.clone(),
             profile_receipt: profile.receipt(),
             profile: profile.clone(),
             resources,
             extent,
-        }),
-        Err(diagnostic) => Err(OwnedPlacementRejection { extent, diagnostic }),
-    }
+        },
+        |(_, extent), diagnostic| OwnedPlacementRejection { extent, diagnostic },
+    )
 }
 
 pub(super) fn validate_placement_admission(

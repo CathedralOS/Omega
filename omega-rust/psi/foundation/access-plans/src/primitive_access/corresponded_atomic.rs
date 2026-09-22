@@ -10,6 +10,7 @@
 
 #[cfg(test)]
 use crate::PlacementPlanId;
+use crate::access_plan::diagnostic::into_validated_access;
 use crate::{
     AccessPlanDiagnostic, AdmittedSchemaDeviceCorrespondence, AtomicPrimitiveAccessRequest,
 };
@@ -108,19 +109,15 @@ impl<'view, 'extent> AtomicPrimitiveAccessRequest<'view, 'extent> {
         CorrespondedAtomicPrimitiveAccessRequest<'view, 'extent>,
         CorrespondedAtomicPrimitiveAccessRejection<'view, 'extent>,
     > {
-        let correspondence = match validate_corresponded_atomic_access(&self) {
-            Ok(correspondence) => correspondence,
-            Err(diagnostic) => {
-                return Err(CorrespondedAtomicPrimitiveAccessRejection {
-                    access: self,
-                    diagnostic,
-                });
-            }
-        };
-        Ok(CorrespondedAtomicPrimitiveAccessRequest {
-            access: self,
-            correspondence,
-        })
+        into_validated_access(
+            self,
+            validate_corresponded_atomic_access,
+            |access, correspondence| CorrespondedAtomicPrimitiveAccessRequest {
+                access,
+                correspondence,
+            },
+            |access, diagnostic| CorrespondedAtomicPrimitiveAccessRejection { access, diagnostic },
+        )
     }
 }
 

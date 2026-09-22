@@ -1,5 +1,6 @@
 use extents::{ExtentLoan, ProviderExistingContentGrant};
 
+use crate::access_plan::diagnostic::into_validated_access;
 use crate::placements::placement_admission::validate_placement_admission;
 use crate::{
     AccessPlanDiagnostic, DormantOwnedResident, ObservationModel, OwnedPlacementAdmission,
@@ -18,15 +19,16 @@ pub fn adopt_owned_stable(
     admission: OwnedPlacementAdmission,
     content: ProviderExistingContentGrant,
 ) -> Result<DormantOwnedResident, OwnedStableAdoptionError> {
-    let diagnostic = validate_owned_stable_adoption(&admission, &content);
-    if let Err(diagnostic) = diagnostic {
-        return Err(OwnedStableAdoptionError {
+    into_validated_access(
+        (admission, content),
+        |(admission, content)| validate_owned_stable_adoption(admission, content),
+        |(admission, content), ()| DormantOwnedResident { admission, content },
+        |(admission, content), diagnostic| OwnedStableAdoptionError {
             admission,
             content,
             diagnostic,
-        });
-    }
-    Ok(DormantOwnedResident { admission, content })
+        },
+    )
 }
 
 fn validate_owned_stable_adoption(
