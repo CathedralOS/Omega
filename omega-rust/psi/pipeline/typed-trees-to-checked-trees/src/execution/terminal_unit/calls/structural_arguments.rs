@@ -7,8 +7,8 @@ use crate::execution::terminal_unit::calls::argument_paths::{
     byte_sequence_literal_argument, projected_argument_path, projected_argument_path_with_identity,
 };
 use crate::execution::terminal_unit::calls::boundary_admission::{
-    boundary_argument_presentation_is_admitted, fixed_byte_array_view_is_admitted,
-    is_registered_boundary_scalar_target,
+    boundary_argument_presentation_is_admitted, fixed_array_slice_view_is_admitted,
+    fixed_byte_array_view_is_admitted, is_registered_boundary_scalar_target,
 };
 use crate::execution::terminal_unit::calls::computation_arguments;
 use crate::execution::terminal_unit::calls::reference_forwarding;
@@ -498,13 +498,19 @@ pub(crate) fn structural_call_arguments(
                 // fields and arrays at every depth; authored access and alias
                 // custody are still rejoined below. Byte-view presentation and
                 // owned partial transfers retain their separate contracts.
-                projected_argument_path_with_identity(
-                    program,
-                    caller_state.symbol,
-                    statement_index,
-                    &place,
-                    &target_identity,
-                )?
+                let (projected_type, path) =
+                    projected_argument_path(program, caller_state.symbol, statement_index, &place)?;
+                if base_type_identity(program, projected_type, &[])? != target_identity
+                    && !(borrowed_slice_view_element(program, target.type_reference, &[]).is_some()
+                        && fixed_array_slice_view_is_admitted(
+                            program,
+                            projected_type,
+                            target.type_reference,
+                        ))
+                {
+                    return None;
+                }
+                path
             }
             segments
                 if allow_field_path_projection

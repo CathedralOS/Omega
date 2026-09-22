@@ -1,0 +1,45 @@
+// A Fused entry receiver carrying a Service field must keep its Terminal
+// attachment identity while it lends a fixed array field to a checked-body
+// callee declared on a borrowed slice view. The projected `[u64; 3]` place
+// seeds the callee's `&mut [u64]` parameter through the ordinary borrowed-view
+// presentation; dropping that argument once discarded the entry machine's
+// plan and the establishment rejoin failed.
+use omega::language::core::service;
+
+pub boundary trait Ping {
+    machine ping();
+}
+
+data PingProvider { }
+machine PingProvider::ping() satisfies Ping::ping { }
+
+data Filter {
+    threshold: u64;
+}
+
+data Worker { }
+machine Worker::drain(&mut self, buf: &mut [u64], filter: &Filter, index: u64) {
+    transition {
+        _ -> probe(&mut buf, filter, index)
+    }
+
+    state probe(&mut self, buf: &mut [u64], filter: &Filter, index: u64) {
+        transition {
+            _ -> done()
+        }
+    }
+
+    state done(&mut self) {
+    }
+}
+
+data Main {
+    console: Service<Ping>;
+    worker: Worker;
+    items: [u64; 3];
+    filter: Filter;
+}
+
+machine Main::main(&mut self) {
+    self.worker.drain(&mut self.items, &self.filter, 0);
+}

@@ -98,6 +98,47 @@ pub(crate) fn boundary_argument_presentation_is_admitted(
     )
 }
 
+/// A fixed array lends its initialized extent as the borrowed element view a
+/// checked-body callee declares. This is the element-typed sibling of the byte
+/// presentation above: the source keeps its literal backing, the target keeps
+/// its declared `&[T]`/`&mut [T]` view, and the projected path names the
+/// storage rather than materializing a view local.
+pub(crate) fn fixed_array_slice_view_is_admitted(
+    program: &TypedTrees,
+    mut source: typed_trees::types::TypeReferenceHandle,
+    target: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    if let TypeReferenceNode::Reference { referee, .. } =
+        program.type_reference_table.type_reference(source)
+    {
+        source = *referee;
+    }
+    let TypeReferenceNode::FixedArray {
+        element_type,
+        length: typed_trees::types::FixedArrayLength::Literal(_),
+    } = program.type_reference_table.type_reference(source)
+    else {
+        return false;
+    };
+    let TypeReferenceNode::Reference {
+        access: language_core::ReferenceAccess::Mutable | language_core::ReferenceAccess::Shared,
+        referee,
+        ..
+    } = program.type_reference_table.type_reference(target)
+    else {
+        return false;
+    };
+    let TypeReferenceNode::Slice {
+        element_type: target_element,
+    } = program.type_reference_table.type_reference(*referee)
+    else {
+        return false;
+    };
+    program.normalized_type_identity(*element_type).as_str()
+        == program.normalized_type_identity(*target_element).as_str()
+        && crate::checks::type_multiplicity(program, source) == Multiplicity::Unrestricted
+}
+
 /// A fixed byte array lends initialized elements without becoming a bounded owner.
 pub(crate) fn fixed_byte_array_view_is_admitted(
     program: &TypedTrees,

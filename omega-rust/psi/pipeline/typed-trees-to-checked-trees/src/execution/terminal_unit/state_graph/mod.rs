@@ -13,7 +13,7 @@ use super::{
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::returns::checked_boolean_contains_short_circuit;
-use crate::execution::terminal_unit::types::byte_sequence_carrier;
+use crate::execution::terminal_unit::types::{borrowed_slice_view_element, byte_sequence_carrier};
 use crate::execution::terminal_unit::{
     ShapeCollector, checked_composed_provider_attachment_requirements, composed_control, control,
     entry_claims, free_structural_scalar_signature_traced, machine_binders,
@@ -226,13 +226,18 @@ pub(super) fn build_traced(
                         return None;
                     }
                     let reference = reference();
-                    let primitive_reference = matches!(program.type_reference_table.type_reference(reference),
+                    let borrowed_named_referent = matches!(
+                        program.type_reference_table.type_reference(reference),
                         TypeReferenceNode::Reference { referee, .. }
-                            if matches!(program.type_reference_table.type_reference(*referee), TypeReferenceNode::Named { .. })
-                                && program.primitive_type_reference(*referee).is_some());
-                    if !primitive_reference
+                            if matches!(
+                                program.type_reference_table.type_reference(*referee),
+                                TypeReferenceNode::Named { .. }
+                            )
+                    );
+                    if !borrowed_named_referent
                         && byte_sequence_carrier(program, reference, &[])
                             != Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+                        && borrowed_slice_view_element(program, reference, &[]).is_none()
                     {
                         trace.phase(
                             "state graph: state signature: parameter custody shape: borrowed non-view carrier",
