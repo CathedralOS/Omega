@@ -34,6 +34,26 @@ pub(crate) fn hash_structural_path(
                 digest.update([2]);
                 digest.update(index.to_le_bytes());
             }
+            terminal_psi::StructuralPathSegment::RuntimeIndex {
+                selector,
+                minimum,
+                maximum,
+            } => {
+                digest.update([5]);
+                digest.update(selector.to_le_bytes());
+                for endpoint in [minimum, maximum] {
+                    match endpoint {
+                        semantic_vocabulary::IntegerValue::Signed(value) => {
+                            digest.update([1]);
+                            digest.update(value.to_le_bytes());
+                        }
+                        semantic_vocabulary::IntegerValue::Unsigned(value) => {
+                            digest.update([2]);
+                            digest.update(value.to_le_bytes());
+                        }
+                    }
+                }
+            }
         }
     }
 }

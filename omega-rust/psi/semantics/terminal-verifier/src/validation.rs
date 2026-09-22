@@ -130,8 +130,8 @@ pub use scalar_block_invariants::scalar_block_invariant_scope;
 pub(crate) use structural_byte_sequence_fields::replacement_length_equation as structural_byte_sequence_field_length_equation;
 pub(crate) use structural_byte_sequence_store::capacity as structural_byte_sequence_store_capacity;
 pub(crate) use structural_operations::{
-    exact_payloadless_case_return_exits, structural_argument_canonical_prefix,
-    structural_field_store_write_path,
+    exact_payloadless_case_return_exits, is_runtime_indexed_borrow_path,
+    structural_argument_canonical_prefix, structural_field_store_write_path,
 };
 pub(crate) use structural_scalar_fields::integer_structural_field_read_range;
 pub(crate) use structural_scalar_fields::structural_scalar_field_store_range;

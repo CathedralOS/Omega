@@ -326,6 +326,7 @@ fn reconcile_operands(
                 };
                 let Some(argument) = receiver_argument(
                     program,
+                    facts,
                     machine,
                     state,
                     *coordinate,
@@ -564,6 +565,7 @@ fn is_self_root(
 
 fn receiver_argument(
     program: &TypedTrees,
+    facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
     coordinate: CheckedUnitCallCoordinate,
@@ -625,12 +627,21 @@ fn receiver_argument(
                         target.access,
                         SharedBorrow | MutableBorrow | WriteOnlyBorrow
                     ) && matches!(segment, facts::PlaceSegment::FixedIndex { .. }))
+                    // A runtime index may borrow one shared element: the
+                    // checked `RuntimeIndex` segment retains the scalar
+                    // selector and the inclusive bounds its retained integer
+                    // entry range publishes, and terminal verification
+                    // replays both rather than trusting this admission.
+                    || (target.access == SharedBorrow
+                        && matches!(segment, facts::PlaceSegment::Index { .. }))
             })
         {
             return None;
         }
-        let (projected, path) = calls::projected_argument_path(
+        let (projected, path) = calls::projected_borrowed_receiver_path(
             program,
+            facts,
+            machine,
             state,
             usize::try_from(coordinate.statement_index).ok()?,
             place,

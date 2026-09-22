@@ -2,7 +2,9 @@
 //! wire.
 
 use crate::sections::semantic_module::CodecError;
-use crate::sections::semantic_module::scalar_wire::{decode_scalar_type, encode_scalar_type};
+use crate::sections::semantic_module::scalar_wire::{
+    decode_integer_value, decode_scalar_type, encode_integer_value, encode_scalar_type,
+};
 use crate::sections::semantic_module::wire::{Reader, Writer, decode_counted, decode_ids};
 use language_semantics::{CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
 use terminal_psi::{
@@ -90,6 +92,16 @@ pub(crate) fn encode_suspension_call_plan(
                             writer.u8(4);
                             writer.u64(*start);
                             writer.u64(*end);
+                        }
+                        terminal_psi::StructuralPathSegment::RuntimeIndex {
+                            selector,
+                            minimum,
+                            maximum,
+                        } => {
+                            writer.u8(5);
+                            writer.u32(*selector);
+                            encode_integer_value(writer, *minimum);
+                            encode_integer_value(writer, *maximum);
                         }
                     }
                 }
@@ -209,6 +221,11 @@ pub(crate) fn decode_suspension_call_plan(
                     4 => Ok(terminal_psi::StructuralPathSegment::FixedByteRange {
                         start: reader.u64()?,
                         end: reader.u64()?,
+                    }),
+                    5 => Ok(terminal_psi::StructuralPathSegment::RuntimeIndex {
+                        selector: reader.u32()?,
+                        minimum: decode_integer_value(reader)?,
+                        maximum: decode_integer_value(reader)?,
                     }),
                     tag => Err(CodecError::InvalidTag("StructuralPathSegment", tag)),
                 })?,

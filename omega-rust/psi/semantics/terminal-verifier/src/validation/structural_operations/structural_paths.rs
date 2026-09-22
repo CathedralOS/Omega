@@ -16,7 +16,12 @@ pub(crate) fn structural_argument_canonical_prefix(
     let mut prefix = Vec::with_capacity(argument.path.len());
     for (position, segment) in argument.path.iter().enumerate() {
         match segment {
-            StructuralPathSegment::Referent | StructuralPathSegment::FixedByteRange { .. } => {
+            // A runtime index has no canonical owned-field spelling: callers
+            // either omit an unreferenced binder or reject, never substitute
+            // the whole backing for a dynamically selected element.
+            StructuralPathSegment::Referent
+            | StructuralPathSegment::FixedByteRange { .. }
+            | StructuralPathSegment::RuntimeIndex { .. } => {
                 return None;
             }
             StructuralPathSegment::Field(identity) => {
@@ -89,7 +94,9 @@ pub(crate) fn canonical_field_path(
     let mut written = Vec::with_capacity(path.len());
     for segment in path {
         match segment {
-            StructuralPathSegment::Referent | StructuralPathSegment::FixedByteRange { .. } => {
+            StructuralPathSegment::Referent
+            | StructuralPathSegment::FixedByteRange { .. }
+            | StructuralPathSegment::RuntimeIndex { .. } => {
                 return None;
             }
             StructuralPathSegment::Field(identity) => {

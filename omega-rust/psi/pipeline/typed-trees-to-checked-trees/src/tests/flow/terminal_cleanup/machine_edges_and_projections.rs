@@ -619,6 +619,11 @@ fn projected_transition_cleanup_admits_wider_exact_paths() {
                         } => {
                             panic!("{case}: projected residuals never name a byte window")
                         }
+                        checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex {
+                            ..
+                        } => {
+                            panic!("{case}: projected residuals never name a runtime index")
+                        }
                     })
                     .collect::<Vec<_>>()
             })

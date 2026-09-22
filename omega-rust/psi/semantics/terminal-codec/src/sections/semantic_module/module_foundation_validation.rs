@@ -233,6 +233,15 @@ pub(crate) fn validate_structural_path(
                 }
                 *element
             }
+            (
+                StructuralPathSegment::RuntimeIndex { maximum, .. },
+                StructuralTypeShape::FixedArray { element, length },
+            ) => {
+                if !terminal_semantics::runtime_index_maximum_within_extent(*maximum, *length) {
+                    return malformed("structural path runtime index maximum is out of bounds");
+                }
+                *element
+            }
             (StructuralPathSegment::Field(_), StructuralTypeShape::FixedArray { .. }) => {
                 return malformed("structural path field requires a record type");
             }
@@ -241,6 +250,12 @@ pub(crate) fn validate_structural_path(
             }
             (StructuralPathSegment::FixedIndex(_), StructuralTypeShape::Mixed { .. }) => {
                 return malformed("structural path fixed index requires a fixed-array type");
+            }
+            (StructuralPathSegment::RuntimeIndex { .. }, StructuralTypeShape::Record { .. }) => {
+                return malformed("structural path runtime index requires a fixed-array type");
+            }
+            (StructuralPathSegment::RuntimeIndex { .. }, StructuralTypeShape::Mixed { .. }) => {
+                return malformed("structural path runtime index requires a fixed-array type");
             }
             (_, StructuralTypeShape::Sum { .. }) => {
                 return malformed("structural path cannot traverse a payload-less sum");

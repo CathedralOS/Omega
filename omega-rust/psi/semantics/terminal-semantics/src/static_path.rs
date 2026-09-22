@@ -14,10 +14,35 @@
 //! duplicates. Neither grants the place any storage, view adapter, or type
 //! identity of its own.
 
-use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralTypeId};
+use semantic_vocabulary::{CanonicalStructuralPathSegment, IntegerValue, StructuralTypeId};
 use terminal_psi::{
     StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
+
+/// The nonnegative magnitude an inclusive `RuntimeIndex` endpoint carries, or
+/// `None` when a signed endpoint is negative and so can never name an
+/// element.
+fn nonnegative_magnitude(value: IntegerValue) -> Option<u128> {
+    match value {
+        IntegerValue::Unsigned(value) => Some(value),
+        IntegerValue::Signed(value) => u128::try_from(value).ok(),
+    }
+}
+
+/// Whether a `RuntimeIndex` segment's inclusive minimum is nonnegative — the
+/// `0 <= index` half of the selector's bounds relation.
+pub fn runtime_index_minimum_is_nonnegative(minimum: IntegerValue) -> bool {
+    nonnegative_magnitude(minimum).is_some()
+}
+
+/// Whether a `RuntimeIndex` segment's inclusive maximum stays strictly inside
+/// a fixed array's declared `extent` — the `index < extent` half. The
+/// selector's published range row is replayed separately by caller-aware
+/// validation; this primitive answers only the extent relation the segment
+/// claims.
+pub fn runtime_index_maximum_within_extent(maximum: IntegerValue, extent: u64) -> bool {
+    nonnegative_magnitude(maximum).is_some_and(|maximum| maximum < u128::from(extent))
+}
 
 /// Conservative overlap of borrowed projections. Prefixes retain their whole
 /// subtree; distinct range spellings are not evidence of disjoint storage.
@@ -53,6 +78,11 @@ pub fn structural_paths_may_overlap(
                 StructuralPathSegment::FixedIndex(index),
                 StructuralPathSegment::FixedByteRange { start, end },
             ) => start >= end || (start <= index && index < end),
+            // A runtime index may select any element inside its proven
+            // bounds: it overlaps a fixed index, another runtime index, and
+            // every sibling spelling the two paths cannot disprove.
+            (StructuralPathSegment::RuntimeIndex { .. }, _)
+            | (_, StructuralPathSegment::RuntimeIndex { .. }) => true,
             _ => left == right,
         })
 }

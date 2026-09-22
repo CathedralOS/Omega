@@ -1,4 +1,5 @@
 use optimization_unit::OwnershipEvent;
+use semantic_vocabulary::IntegerValue;
 use terminal_psi::{StructuralPathSegment, TerminalAffineCleanupAction};
 
 use super::values::{encode_ids, encode_len};
@@ -84,6 +85,26 @@ fn encode_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
             StructuralPathSegment::FixedIndex(index) => {
                 bytes.push(2);
                 bytes.extend_from_slice(&index.to_le_bytes());
+            }
+            StructuralPathSegment::RuntimeIndex {
+                selector,
+                minimum,
+                maximum,
+            } => {
+                bytes.push(5);
+                bytes.extend_from_slice(&selector.to_le_bytes());
+                for endpoint in [minimum, maximum] {
+                    match endpoint {
+                        IntegerValue::Unsigned(value) => {
+                            bytes.push(1);
+                            bytes.extend_from_slice(&value.to_le_bytes());
+                        }
+                        IntegerValue::Signed(value) => {
+                            bytes.push(2);
+                            bytes.extend_from_slice(&value.to_le_bytes());
+                        }
+                    }
+                }
             }
         }
     }

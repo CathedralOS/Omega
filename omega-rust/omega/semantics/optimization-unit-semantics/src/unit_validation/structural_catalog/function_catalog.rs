@@ -385,6 +385,9 @@ pub(crate) fn validate_function_structural_catalog(
                                     terminal_psi::StructuralPathSegment::Referent
                                     | terminal_psi::StructuralPathSegment::FixedByteRange {
                                         ..
+                                    }
+                                    | terminal_psi::StructuralPathSegment::RuntimeIndex {
+                                        ..
                                     } => None,
                                 })
                                 .collect::<Option<Vec<_>>>()

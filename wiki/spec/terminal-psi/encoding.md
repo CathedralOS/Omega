@@ -793,6 +793,7 @@ bound strictly ordered.
 | 2 | FixedIndex | `u64` index |
 | 3 | Referent | none |
 | 4 | FixedByteRange | `u64` start + `u64` end |
+| 5 | RuntimeIndex | `u32` selector + integer value minimum + integer value maximum |
 
 `FixedByteRange` retains the exact half-open byte window `[start, end)` of
 initialized fixed-array backing for one borrowed call argument. Both endpoints

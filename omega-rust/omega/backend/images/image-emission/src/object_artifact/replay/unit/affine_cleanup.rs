@@ -254,7 +254,8 @@ fn is_partial_cleanup_path(path: &[terminal_psi::StructuralPathSegment]) -> bool
             terminal_psi::StructuralPathSegment::Referent
             | terminal_psi::StructuralPathSegment::FixedByteRange { .. } => false,
             terminal_psi::StructuralPathSegment::Field(identity) => !identity.is_empty(),
-            terminal_psi::StructuralPathSegment::FixedIndex(_) => true,
+            terminal_psi::StructuralPathSegment::FixedIndex(_)
+            | terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => true,
         })
 }
 

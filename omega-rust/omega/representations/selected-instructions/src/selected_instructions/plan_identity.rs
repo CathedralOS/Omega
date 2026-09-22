@@ -476,6 +476,26 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
                     bytes.push(1);
                     bytes.extend_from_slice(&index.to_le_bytes());
                 }
+                terminal_psi::StructuralPathSegment::RuntimeIndex {
+                    selector,
+                    minimum,
+                    maximum,
+                } => {
+                    bytes.push(4);
+                    bytes.extend_from_slice(&selector.to_le_bytes());
+                    for endpoint in [minimum, maximum] {
+                        match endpoint {
+                            semantic_vocabulary::IntegerValue::Signed(value) => {
+                                bytes.push(1);
+                                bytes.extend_from_slice(&value.to_le_bytes());
+                            }
+                            semantic_vocabulary::IntegerValue::Unsigned(value) => {
+                                bytes.push(2);
+                                bytes.extend_from_slice(&value.to_le_bytes());
+                            }
+                        }
+                    }
+                }
             }
         }
         bytes.push(match binding.semantic.argument.access {

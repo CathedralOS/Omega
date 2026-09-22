@@ -119,7 +119,9 @@ fn owned_subloans_resolve_every_field_and_index() {
         call_arguments(&mut changed)[0].path[position] = match segment {
             StructuralPathSegment::Field(_) => "absent".into(),
             StructuralPathSegment::FixedIndex(_) => StructuralPathSegment::FixedIndex(2),
-            StructuralPathSegment::Referent | StructuralPathSegment::FixedByteRange { .. } => {
+            StructuralPathSegment::Referent
+            | StructuralPathSegment::FixedByteRange { .. }
+            | StructuralPathSegment::RuntimeIndex { .. } => {
                 panic!("the fixture has only owned field and element projections")
             }
         };

@@ -831,6 +831,14 @@ pub(super) fn resolve_structural_path_in_types(
                 StructuralPathSegment::FixedIndex(index),
                 StructuralTypeShape::FixedArray { element, length },
             ) if index < length => *element,
+            // A runtime index resolves to the element type only while its
+            // inclusive maximum replays strictly inside the declared extent.
+            (
+                StructuralPathSegment::RuntimeIndex { maximum, .. },
+                StructuralTypeShape::FixedArray { element, length },
+            ) if terminal_semantics::runtime_index_maximum_within_extent(*maximum, *length) => {
+                *element
+            }
             _ => return None,
         };
     }
@@ -995,6 +1003,12 @@ pub(super) fn resolve_structural_path(
                 StructuralPathSegment::FixedIndex(index),
                 StructuralTypeShape::FixedArray { element, length },
             ) if index < length => *element,
+            (
+                StructuralPathSegment::RuntimeIndex { maximum, .. },
+                StructuralTypeShape::FixedArray { element, length },
+            ) if terminal_semantics::runtime_index_maximum_within_extent(*maximum, *length) => {
+                *element
+            }
             _ => return None,
         };
     }

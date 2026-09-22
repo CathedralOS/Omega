@@ -3,6 +3,7 @@
 //! module, contract, and dynamic-dispatch sections.
 
 use crate::codec_error::CodecError;
+use crate::sections::semantic_module::scalar_wire::{decode_integer_value, encode_integer_value};
 use crate::sections::semantic_module::structural_signature_wire;
 use crate::sections::semantic_module::wire::{
     Reader, Writer, decode_counted, decode_ids, decode_optional_id, encode_optional_id,
@@ -75,6 +76,16 @@ pub(crate) fn encode_structural_path(
                 writer.u8(4);
                 writer.u64(*start);
                 writer.u64(*end);
+            }
+            StructuralPathSegment::RuntimeIndex {
+                selector,
+                minimum,
+                maximum,
+            } => {
+                writer.u8(5);
+                writer.u32(*selector);
+                encode_integer_value(writer, *minimum);
+                encode_integer_value(writer, *maximum);
             }
         }
     }
@@ -198,6 +209,11 @@ pub(crate) fn decode_structural_path(
         4 => Ok(StructuralPathSegment::FixedByteRange {
             start: reader.u64()?,
             end: reader.u64()?,
+        }),
+        5 => Ok(StructuralPathSegment::RuntimeIndex {
+            selector: reader.u32()?,
+            minimum: decode_integer_value(reader)?,
+            maximum: decode_integer_value(reader)?,
         }),
         tag => Err(CodecError::InvalidTag("StructuralPathSegment", tag)),
     })
