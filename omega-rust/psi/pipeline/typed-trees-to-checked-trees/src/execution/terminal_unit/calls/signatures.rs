@@ -481,7 +481,10 @@ fn scalar_and_structural_parameters(
             continue;
         }
         trace.phase("state graph: state signature: parameter signature: receiver attachment");
-        if parameter.is_self && attachment.is_none() {
+        if parameter.is_self
+            && attachment.is_none()
+            && !is_reference(program, parameter.type_reference)
+        {
             return None;
         }
         let source_position = u32::try_from(position).ok()?;

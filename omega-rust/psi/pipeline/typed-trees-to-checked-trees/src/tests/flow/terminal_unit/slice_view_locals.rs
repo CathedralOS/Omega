@@ -114,6 +114,95 @@ fn a_callee_slice_view_formal_carries_the_same_shape() {
     assert_eq!(parameter.access, CheckedStructuralAccess::SharedBorrow);
 }
 
+/// A `&[T]` actual on a scalar-computation call loans the established view
+/// local whole: the argument names the local's own shared-borrow home rather
+/// than fabricating an owning result, the same custody a `&T` local keeps
+/// when a computation call loans it onward.
+#[test]
+fn a_scalar_computation_call_loans_the_view_local_whole() {
+    let checked = checked(
+        r#"
+        data Summer {}
+
+        data Holder {
+            values: [i32 in Wrapping; 4];
+            summer: Summer;
+        }
+
+        machine Summer::sum(&self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 {
+            (acc as i32)
+        }
+
+        machine Holder::run(&mut self) -> i32 {
+            let view: &[i32 in Wrapping] = self.values.as_slice();
+            self.summer.sum(view, 0)
+        }
+    "#,
+    );
+    let computations = &checked.facts.values.scalar_computations;
+    let calls = computations
+        .nodes
+        .iter()
+        .filter_map(|(_, node)| match &node.kind {
+            checked_trees::CheckedScalarComputationKind::Call {
+                structural_arguments,
+                ..
+            } => Some(computations.structural_arguments.span_or_empty(
+                *structural_arguments,
+            )),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [arguments] = calls.as_slice() else {
+        panic!("one scalar computation call: {calls:?}");
+    };
+    let view_argument = arguments
+        .iter()
+        .find_map(|argument| match argument {
+            checked_trees::CheckedScalarComputationStructuralArgument::Place(plan)
+                if plan.type_identity == VIEW_IDENTITY =>
+            {
+                Some(plan)
+            }
+            _ => None,
+        })
+        .expect("the view actual produces a structural place argument");
+    let run = machine_named(&checked, "run");
+    let machine = crate::lookup::machine_by_symbol(&checked.typed, run)
+        .expect("the caller machine is present");
+    let state = checked
+        .typed
+        .machine_states(machine)
+        .iter()
+        .next()
+        .expect("run has an entry state");
+    let view_local = checked
+        .typed
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            typed_trees::statement::StatementNode::LocalData(local)
+                if local.name.as_str() == "view" =>
+            {
+                Some(local.symbol)
+            }
+            _ => None,
+        })
+        .expect("the authored view local is present");
+    assert_eq!(
+        view_argument.source,
+        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+            symbol: view_local
+        }
+    );
+    assert!(view_argument.path.is_empty());
+    assert_eq!(
+        view_argument.access,
+        CheckedStructuralAccess::SharedBorrow
+    );
+}
+
 /// The lent place must hold the very elements the view carries. A view whose
 /// element type is not the lent collection's element has no admitted value,
 /// so its local leaves the roster rather than borrowing a mismatched extent.

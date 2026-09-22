@@ -363,6 +363,25 @@ pub(crate) fn structural_call_arguments(
             });
             continue;
         }
+        // A view local's whole-name argument loans its established carrier
+        // through the same source vocabulary the scalar-computation lane
+        // plans; projected spellings still resolve through the parameter and
+        // alias arms below.
+        if place.segments.is_empty()
+            && let Some(plan) = computation_arguments::shared_slice_view_argument(
+                program,
+                &facts.borrow,
+                caller_machine.symbol,
+                caller_state,
+                call,
+                &place,
+                source_symbol,
+                target,
+            )
+        {
+            output.push(plan);
+            continue;
+        }
         // An authored `self.field` argument roots at the `self` parameter's own
         // symbol, while an implicit receiver place roots at the machine the
         // parameter is attached to. Both spellings name one parameter.
