@@ -74,6 +74,7 @@ fn selected_theorem_schema_verification_rejects_extra_and_wrong_premises() {
 fn selected_theorem_schema_verification_rejects_application_mapping_drift() {
     for mutation in [
         TheoremSchemaMutation::RedirectedOperation,
+        TheoremSchemaMutation::DispatchedOperation,
         TheoremSchemaMutation::DuplicatedLeftApplication,
         TheoremSchemaMutation::OmittedRightApplication,
         TheoremSchemaMutation::ReboundSharedArgument,

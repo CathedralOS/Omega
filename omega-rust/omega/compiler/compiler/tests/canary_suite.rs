@@ -1417,6 +1417,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "constraints/invariant_declaration_retired",
     "constraints/bracketed_proof_constraint_retired",
     "proofs/proof_integer_embedding_runtime",
+    "proofs/embed_static_requirement_dispatch_rejected",
     "core/content_conservation_unqualified_place",
     "core/content_conservation_entry_former_retired",
     "calls/library_block_retired",

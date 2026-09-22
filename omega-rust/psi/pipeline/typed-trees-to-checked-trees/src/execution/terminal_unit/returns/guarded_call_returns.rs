@@ -75,13 +75,19 @@ pub(crate) fn build_payloadless_guarded_call_return_machine(
     else {
         return None;
     };
-    if !call.carries_only_positional_arguments()
+    // The plan names the callee by `target_symbol`, so the call must reach it
+    // through the ordinary nominal route. A static-requirement-dispatched call
+    // would name the satisfier's private realization here while the caller
+    // spelled the public requirement; its receiver is the rewritten first
+    // argument (or absent), never the callee's attached data, so the receiver
+    // identity checks below would exclude it anyway. Exit before the private
+    // realization is consulted.
+    if !call.selects_only_nominal_route()
+        || !call.carries_only_positional_arguments()
         || !program
             .expression_table
             .expression_handles(call.arguments)
             .is_empty()
-        || call.quotient_operation.is_some()
-        || call.private_layout_operation.is_some()
     {
         return None;
     }

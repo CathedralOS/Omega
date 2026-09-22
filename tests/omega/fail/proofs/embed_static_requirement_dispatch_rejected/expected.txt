@@ -1,0 +1,1 @@
+static conformance dispatch selected a private realization `compute`; the public requirement `compute` is the contract, not a direct checked value call
