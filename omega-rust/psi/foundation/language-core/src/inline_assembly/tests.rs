@@ -3,9 +3,10 @@
 use super::{
     AsmAuthorityRequirement, AsmCacheOperationKind, AsmCatalogEntry, AsmControlRegister,
     AsmFenceKind, AsmFlagsDataFlow, AsmInstructionAvailability, AsmInstructionRefusal,
-    AsmInstructionSerializationKind, AsmInstructionShape, AsmInterruptFlagEffect,
-    AsmMemoryOrdering, AsmMemoryTransferKind, AsmOperandAccess, AsmSchedulingHintKind,
-    AsmSystemRegister, AsmTargetApplicability, asm_catalog_entry,
+    AsmInstructionSerializationKind, AsmInstructionShape, AsmInterruptControlKind,
+    AsmInterruptFlagEffect, AsmMemoryOrdering, AsmMemoryTransferKind, AsmOperandAccess,
+    AsmSchedulingHintKind, AsmSystemRegister, AsmTargetApplicability, asm_catalog_entry,
+    asm_intrinsic_mnemonic,
 };
 
 #[test]
@@ -846,5 +847,104 @@ fn interrupt_control_contracts_pin_authority_and_delayed_sti_semantics() {
         assert_eq!(contract.interrupt_flag_effect, flag_effect);
         assert!(contract.operands.is_empty());
         assert!(contract.clobbers.is_empty());
+    }
+}
+
+#[test]
+fn every_intrinsic_name_answers_with_its_contracted_mnemonic() {
+    // The families own their spelling pairs; the seven shape-owned
+    // instructions are paired in `asm_intrinsic_mnemonic` itself. Every answer
+    // must be a user-checked catalog contract, since the query exists to
+    // produce that catalog's key.
+    let mut pairs: Vec<(&str, &str)> = vec![
+        ("asm#hlt", "hlt"),
+        ("asm#port_out", "out"),
+        ("asm#port_in", "in"),
+        ("asm#pushfq", "pushfq"),
+        ("asm#popfq", "popfq"),
+        ("asm#rdmsr", "rdmsr"),
+        ("asm#wrmsr", "wrmsr"),
+    ];
+    for kind in [AsmFenceKind::Load, AsmFenceKind::Store, AsmFenceKind::Full] {
+        pairs.push((kind.intrinsic_name(), kind.mnemonic()));
+    }
+    for kind in [
+        AsmInterruptControlKind::Disable,
+        AsmInterruptControlKind::Enable,
+    ] {
+        pairs.push((kind.intrinsic_name(), kind.mnemonic()));
+    }
+    for kind in [
+        AsmInstructionSerializationKind::Serialize,
+        AsmInstructionSerializationKind::InstructionSynchronizationBarrier,
+    ] {
+        pairs.push((kind.intrinsic_name(), kind.mnemonic()));
+    }
+    for kind in [
+        AsmSchedulingHintKind::SpinPause,
+        AsmSchedulingHintKind::Yield,
+        AsmSchedulingHintKind::Nop,
+        AsmSchedulingHintKind::WaitForEvent,
+        AsmSchedulingHintKind::WaitForInterrupt,
+        AsmSchedulingHintKind::SendEvent,
+        AsmSchedulingHintKind::SendEventLocal,
+    ] {
+        pairs.push((kind.intrinsic_name(), kind.mnemonic()));
+    }
+    for kind in [
+        AsmCacheOperationKind::WriteBackInvalidate,
+        AsmCacheOperationKind::Invalidate,
+        AsmCacheOperationKind::WriteBackNoInvalidate,
+    ] {
+        pairs.push((kind.intrinsic_name(), kind.mnemonic()));
+    }
+    for register in [
+        AsmControlRegister::Cr0,
+        AsmControlRegister::Cr2,
+        AsmControlRegister::Cr3,
+        AsmControlRegister::Cr4,
+    ] {
+        pairs.push((register.read_intrinsic_name(), register.read_mnemonic()));
+        if let Some(name) = register.write_intrinsic_name() {
+            pairs.push((name, register.write_mnemonic().expect("writable")));
+        }
+    }
+    for register in [
+        AsmSystemRegister::SctlrEl1,
+        AsmSystemRegister::TcrEl1,
+        AsmSystemRegister::Ttbr0El1,
+        AsmSystemRegister::Ttbr1El1,
+        AsmSystemRegister::MairEl1,
+        AsmSystemRegister::VbarEl1,
+        AsmSystemRegister::TpidrEl1,
+        AsmSystemRegister::EsrEl1,
+        AsmSystemRegister::FarEl1,
+    ] {
+        pairs.push((register.read_intrinsic_name(), register.read_mnemonic()));
+        if let Some(name) = register.write_intrinsic_name() {
+            pairs.push((name, register.write_mnemonic().expect("writable")));
+        }
+    }
+    assert_eq!(pairs.len(), 47, "one pair per asm intrinsic builtin");
+
+    for (intrinsic_name, mnemonic) in pairs {
+        assert_eq!(
+            asm_intrinsic_mnemonic(intrinsic_name),
+            Some(mnemonic),
+            "{intrinsic_name} must answer with its source mnemonic"
+        );
+        let Some(AsmCatalogEntry::Contract(contract)) = asm_catalog_entry(mnemonic) else {
+            panic!("{mnemonic} must be a contracted catalog entry");
+        };
+        assert_eq!(
+            contract.availability,
+            AsmInstructionAvailability::UserChecked,
+            "{mnemonic} must be user-checked"
+        );
+    }
+
+    // A mnemonic is not an intrinsic name, and ordinary builtins have none.
+    for spelling in ["hlt", "in", "read_cr0", "max", "sqrt", "old", "asm#", ""] {
+        assert_eq!(asm_intrinsic_mnemonic(spelling), None, "{spelling:?}");
     }
 }

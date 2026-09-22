@@ -123,12 +123,20 @@ pub(crate) fn validate_asm_value_destination(
                     call.target.as_str(),
                 ) {
                     Some(register) => register.read_mnemonic(),
-                    None => match symbols::BuiltinFunction::from_name(call.target.as_str()) {
-                        Some(symbols::BuiltinFunction::AsmPortIn) => "in",
-                        Some(symbols::BuiltinFunction::AsmSnapshotFlags) => "pushfq",
-                        Some(symbols::BuiltinFunction::AsmReadMsr) => "rdmsr",
-                        _ => return,
-                    },
+                    None => {
+                        let Some(instruction) =
+                            symbols::BuiltinFunction::from_name(call.target.as_str())
+                                .filter(|function| function.is_value_position_asm_intrinsic())
+                                .and_then(|function| {
+                                    language_core::inline_assembly::asm_intrinsic_mnemonic(
+                                        function.name(),
+                                    )
+                                })
+                        else {
+                            return;
+                        };
+                        instruction
+                    }
                 }
             }
         };
