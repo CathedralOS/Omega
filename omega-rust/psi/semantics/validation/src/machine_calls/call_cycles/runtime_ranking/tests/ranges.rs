@@ -504,6 +504,74 @@ fn invalid_authored_range_custody_cannot_fall_back_to_an_unranged_component() {
 }
 
 #[test]
+fn runtime_division_actuals_substitute_through_call_sites() {
+    // `spare`/`extra` ride outside every endpoint atom: the runtime-divisor
+    // actual exercises non-polynomial call substitution itself while the
+    // carried endpoints keep the exact `cap`/`step` operands.
+    let source = "data Main {}
+        machine Main::first(&mut self, remaining: u64 [0..=5], cap: u64 [0..=20], step: u64 [1..=5], spare: u64)
+        terminates by remaining in 0..(cap / step + 6);
+        -> u64 {
+            transition remaining > 0 {
+                true -> self.second(cap, remaining - 1, step, cap % step)
+                false -> remaining
+            }
+        }
+        machine Main::second(&mut self, limit: u64 [0..=20], pending: u64 [0..=5], width: u64 [1..=5], extra: u64)
+        terminates by pending in 0..(limit / width + 6);
+        -> u64 {
+            transition pending > 0 {
+                true -> self.first(pending, limit, width, extra)
+                false -> pending
+            }
+        }";
+    assert_eq!(admitted(&typed_source(source)).len(), 1);
+    // A zero modulus inside the actual still fails its own formation: the
+    // substitution must not launder an undefined operation.
+    let zeroed = source.replace("cap % step)", "cap % (step - step))");
+    assert!(admitted(&typed_source(&zeroed)).is_empty());
+    // Moving the remainder actual into the endpoint-read `limit` slot changes
+    // the endpoint: `(cap % step) / width` is not `cap / step`.
+    let moved = source.replace(
+        "self.second(cap, remaining - 1, step, cap % step)",
+        "self.second(cap % step, remaining - 1, step, cap)",
+    );
+    assert!(admitted(&typed_source(&moved)).is_empty());
+}
+
+#[test]
+fn mixed_component_runtime_division_actuals_keep_endpoint_conservation() {
+    // One ranged member and one unranged member: `cap`/`step` are conserved
+    // endpoint inputs while `extra` only has to transport the remainder
+    // actual's own exact value.
+    let source = "data Main {}
+        machine Main::outer(&mut self, remaining: u64 [0..=5], cap: u64 [0..=20], step: u64 [1..=5], spare: u64)
+        terminates by remaining in 0..(cap / step + 6);
+        -> u64 {
+            transition remaining > 0 {
+                true -> self.inner(remaining - 1, cap, step, cap % step)
+                false -> remaining
+            }
+        }
+        machine Main::inner(&mut self, n: u64 [0..=5], limit: u64 [0..=20], width: u64 [1..=5], extra: u64)
+        terminates by n;
+        -> u64 {
+            transition n > 0 {
+                true -> self.outer(n, limit, width, extra)
+                false -> n
+            }
+        }";
+    assert_eq!(admitted(&typed_source(source)).len(), 1);
+    // A different moved value in the pinned `width` slot is not the endpoint
+    // input the range reads.
+    let moved = source.replace(
+        "self.outer(n, limit, width, extra)",
+        "self.outer(n, limit, extra, extra)",
+    );
+    assert!(admitted(&typed_source(&moved)).is_empty());
+}
+
+#[test]
 fn call_range_query_rejects_foreign_subject_endpoint_and_actual_handles() {
     let program = typed_source(RANGED);
     let caller = &program.machines()[0];

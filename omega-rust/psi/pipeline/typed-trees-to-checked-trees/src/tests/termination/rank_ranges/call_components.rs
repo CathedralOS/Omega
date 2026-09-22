@@ -151,6 +151,45 @@ fn recursive_quotient_endpoints_follow_nested_terms_and_record_coordinates() {
     }
 }
 
+const REMAINDER_ACTUAL: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../tests/omega/pass/termination/remainder_actual_call_component/main.omg"
+));
+
+#[test]
+fn runtime_division_actuals_substitute_through_call_sites() {
+    // `spare`/`extra` ride outside every endpoint atom: the runtime-divisor
+    // actual exercises non-polynomial call substitution itself while the
+    // carried endpoints keep the exact `cap`/`step` operands. The callee's
+    // `requires extra <= 4` discharges the same transported remainder value.
+    prove(REMAINDER_ACTUAL);
+    // A literal zero modulus inside the actual still fails its own
+    // formation; the substitution cannot launder an undefined operation.
+    reject(&REMAINDER_ACTUAL.replace("cap % step)", "cap % (step - step))"));
+    // Transporting the remainder into the endpoint-read `limit` slot changes
+    // the ceiling: `(cap % step) / width` is not `cap / step`.
+    reject(&REMAINDER_ACTUAL.replace(
+        "self.second(cap, remaining - 1, step, cap % step)",
+        "self.second(cap % step, remaining - 1, step, cap)",
+    ));
+    // The callee's requirement is a real obligation discharged against the
+    // substituted actual, not the formal name: moving the bound it reads past
+    // the transported remainder's interval rejects the call, and the
+    // diagnostic names the transported `cap % step` term.
+    for bound in ["requires extra <= 3;", "requires extra <= width - 1;"] {
+        let tightened = REMAINDER_ACTUAL.replace("requires extra <= 4;", bound);
+        let diagnostics = lower_typed_trees(typed_program(&tightened), &CheckingRequest::settled())
+            .expect_err(&tightened);
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("cannot prove requires")
+                && diagnostic.message.contains("cap % step")),
+            "{tightened}\n{diagnostics:#?}"
+        );
+    }
+}
+
 const PAIR: &str = r#"
 data Main { observed: u64; }
 machine Main::first(&mut self, floor: u64, remaining: u64, ceiling: u64)

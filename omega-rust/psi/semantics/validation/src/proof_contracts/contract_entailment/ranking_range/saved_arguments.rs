@@ -19,7 +19,7 @@
 use super::super::StrictArithmeticExpressionBinding;
 use super::{
     BigInt, Engine, ExpressionHandle, ExpressionNode, Machine, Polynomial, State, TypedTrees,
-    lengths,
+    lengths, meanings,
 };
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
@@ -82,6 +82,19 @@ pub(super) fn install(
             &[local.initial_value],
         );
         bind_local_lengths(program, machine, state, local.initial_value, engine);
+        // The saved initializer may carry a runtime quotient or remainder:
+        // mint each division's operand-pair atom the same way the range owner
+        // does before binding, so the observation saves the exact operation
+        // instead of dropping the local. A failed bind still just leaves the
+        // local unobserved, as before.
+        let _ = meanings::install_integer_division_terms(
+            program,
+            machine,
+            state,
+            engine,
+            local.initial_value,
+            0,
+        );
         let _ = engine.bind_strict_arguments(&[StrictArithmeticExpressionBinding {
             symbol: local.symbol,
             expression: local.initial_value,

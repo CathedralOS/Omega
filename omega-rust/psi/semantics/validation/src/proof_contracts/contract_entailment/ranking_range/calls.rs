@@ -703,6 +703,21 @@ pub(crate) fn prove_ranking_range_call(
             expression: *argument,
         });
     }
+    // A scalar destination's actual may itself be a quotient or remainder
+    // tree over caller inputs: bind each division's exact-integer meaning the
+    // same way the endpoints were bound, so normalization keeps both
+    // operands' identity instead of refusing the term. Formation stays with
+    // the actual's own evaluation; a literal zero modulus fails the bind.
+    for binding in &actuals {
+        meanings::install_integer_division_terms(
+            program,
+            caller.machine,
+            source,
+            &mut engine,
+            binding.expression,
+            0,
+        )?;
+    }
     // Resolve every caller actual before adding any callee formal. Foreign
     // references and required nonnumeric inputs therefore fail before vacuity.
     if !engine.bind_strict_arguments(&actuals) {

@@ -235,6 +235,18 @@ fn prove(
             let StrictArithmeticBindingValue::Atom { identity, .. } = &binding.value else {
                 return None;
             };
+            // The actual may carry a runtime quotient or remainder: mint each
+            // division's operand-pair atom the same way the range owner does
+            // before normalizing, so the substitution transports the exact
+            // operation instead of refusing the term.
+            meanings::install_integer_division_terms(
+                program,
+                caller,
+                caller_state,
+                &mut source_engine,
+                *argument,
+                0,
+            )?;
             substitutions.insert(identity.clone(), source_engine.normalize(*argument)?);
         }
     }
@@ -390,6 +402,9 @@ fn prove(
     if !source_engine.install_hypotheses(comparisons) {
         return None;
     }
+    // Actual divisions minted above computed their intervals before the live
+    // hypotheses; tighten them now, as the range owner does after installing.
+    source_engine.refresh_opaque_intervals();
     // Subslice geometry consumes established caller facts; the requirement's
     // own conclusion is never installed to form the next slice.
     for (parameter, argument) in parameters
