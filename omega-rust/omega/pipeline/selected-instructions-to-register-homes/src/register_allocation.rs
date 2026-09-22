@@ -1,7 +1,8 @@
 //! Optimizer module role: executable entrance. Selected instructions to register homes.
 //!
 //! The route, in order: replay the selected X-to-X evidence; a completed
-//! selected-lowering run takes `assignment::transformed` homes; otherwise an
+//! selected-lowering or pre-allocation run takes `assignment::transformed`
+//! homes; otherwise an
 //! admitted recovery rule takes `assignment::recovery`; otherwise legality is
 //! staged and the direct assignment either succeeds into `assignment::baseline`
 //! homes, splits authenticated entry-fixed-view transitions through the
@@ -51,6 +52,12 @@ pub fn stage_register_allocation(
             let homes =
                 crate::assignment::transformed::stage_optimized_register_homes_after_selected_lowering(run)
                 .map_err(RegisterAllocationError::TransformedHomes)?;
+            return RetainedAllocation::try_from(homes).map_err(RegisterAllocationError::Replay);
+        }
+        crate::SelectedInstructionOptimizationEvidence::PreAllocation(run) => {
+            let homes =
+                crate::assignment::transformed::stage_optimized_register_homes_after_pre_allocation(run)
+                .map_err(RegisterAllocationError::PreAllocationHomes)?;
             return RetainedAllocation::try_from(homes).map_err(RegisterAllocationError::Replay);
         }
     };
@@ -117,6 +124,7 @@ pub enum RegisterAllocationError {
     Legality(OptimizedAllocationLegalityCustodyError),
     Homes(OptimizedRegisterHomeCustodyError),
     TransformedHomes(OptimizedPostSelectedLoweringHomeCustodyError),
+    PreAllocationHomes(crate::OptimizedPostPreAllocationHomeCustodyError),
     Replay(AllocationReplayError),
 }
 

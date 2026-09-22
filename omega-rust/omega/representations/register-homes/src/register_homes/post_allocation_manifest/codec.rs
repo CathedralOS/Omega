@@ -1,13 +1,13 @@
 //! Canonical manifest persistence. Decoding yields an unvalidated record.
 
 use optimization_core::{
-    PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
-    SelectedLoweringOptimizationCompletionIdentity,
+    PostAllocationOptimizationManifestIdentity, PreAllocationOptimizationCompletionIdentity,
+    PrePhysicalOptimizationManifestIdentity, SelectedLoweringOptimizationCompletionIdentity,
 };
 use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::{
-    FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity,
-    PressureRematerializationIdentity, SelectedInstructionPlanIdentity,
+    CopyRemovalIdentity, FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity,
+    LivenessIdentity, PressureRematerializationIdentity, SelectedInstructionPlanIdentity,
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
@@ -20,7 +20,7 @@ use super::{
 };
 
 const POST_ALLOCATION_MANIFEST_MAGIC: &[u8; 8] = b"OMGPAO\0\0";
-const POST_ALLOCATION_MANIFEST_VERSION: u32 = 9;
+const POST_ALLOCATION_MANIFEST_VERSION: u32 = 10;
 
 impl PostAllocationOptimizationManifest {
     pub fn encode(&self) -> Vec<u8> {
@@ -65,6 +65,17 @@ impl PostAllocationOptimizationManifest {
                 );
             }
         };
+        let pre_allocation_completion = match cursor.byte()? {
+            0 => None,
+            1 => Some(PreAllocationOptimizationCompletionIdentity::from_bytes(
+                cursor.array()?,
+            )),
+            tag => {
+                return Err(
+                    PostAllocationOptimizationManifestDecodeError::UnknownCompletionStatus(tag),
+                );
+            }
+        };
         let transformation_count = cursor.length()?;
         let mut selected_transformations =
             Vec::with_capacity(transformation_count.min(cursor.remaining()));
@@ -84,6 +95,9 @@ impl PostAllocationOptimizationManifest {
                 ),
                 5 => PostAllocationSelectedTransformation::RuntimeRematerialization(
                     SelectedInstructionPlanIdentity::from_bytes(cursor.array()?),
+                ),
+                6 => PostAllocationSelectedTransformation::CopyRemoval(
+                    CopyRemovalIdentity::from_bytes(cursor.array()?),
                 ),
                 tag => {
                     return Err(
@@ -127,6 +141,7 @@ impl PostAllocationOptimizationManifest {
             target,
             selected,
             selected_lowering_completion,
+            pre_allocation_completion,
             selected_transformations,
             liveness,
             ranges,
@@ -162,6 +177,13 @@ pub(super) fn encode_manifest_content(manifest: &PostAllocationOptimizationManif
         }
         None => canonical.push(0),
     }
+    match manifest.pre_allocation_completion {
+        Some(identity) => {
+            canonical.push(1);
+            canonical.extend_from_slice(&identity.bytes());
+        }
+        None => canonical.push(0),
+    }
     canonical.extend_from_slice(
         &u64::try_from(manifest.selected_transformations.len())
             .expect("post-allocation transformation length fits u64")
@@ -187,6 +209,10 @@ pub(super) fn encode_manifest_content(manifest: &PostAllocationOptimizationManif
             }
             PostAllocationSelectedTransformation::RuntimeRematerialization(identity) => {
                 canonical.push(5);
+                canonical.extend_from_slice(&identity.bytes());
+            }
+            PostAllocationSelectedTransformation::CopyRemoval(identity) => {
+                canonical.push(6);
                 canonical.extend_from_slice(&identity.bytes());
             }
         }

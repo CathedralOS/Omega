@@ -3,4 +3,5 @@
 mod assignment_and_legalization;
 mod custody;
 mod optimized_target_operations;
+mod pre_allocation;
 mod selected_machine;

@@ -64,14 +64,18 @@ pub use assignment::recovery::{
 };
 pub use assignment::runtime_spill::RuntimeSpillAllocationError;
 pub use assignment::transformed::{
-    OptimizedPostLiteralFoldHomeCustodyError, OptimizedPostSelectedLoweringHomeCustodyError,
+    OptimizedPostLiteralFoldHomeCustodyError, OptimizedPostPreAllocationHomeCustodyError,
+    OptimizedPostSelectedLoweringHomeCustodyError,
     StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
+    StagedOptimizedPostPreAllocationHomeCustodyReceipt,
     StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
-    StagedOptimizedRegisterHomesAfterLiteralFolds,
+    StagedOptimizedRegisterHomesAfterLiteralFolds, StagedOptimizedRegisterHomesAfterPreAllocation,
     StagedOptimizedRegisterHomesAfterSelectedLowering,
     stage_optimized_register_homes_after_literal_folds,
+    stage_optimized_register_homes_after_pre_allocation,
     stage_optimized_register_homes_after_selected_lowering,
     validate_optimized_register_home_after_literal_fold_custody,
+    validate_optimized_register_home_after_pre_allocation_custody,
     validate_optimized_register_home_after_selected_lowering_custody,
 };
 
@@ -83,6 +87,7 @@ pub use assignment::baseline::{
 #[cfg(feature = "test-support")]
 pub use assignment::transformed::{
     OptimizedPostLiteralFoldHomeCustodyFieldForTest,
+    OptimizedPostPreAllocationHomeCustodyFieldForTest,
     OptimizedPostSelectedLoweringHomeCustodyFieldForTest,
 };
 #[cfg(feature = "test-support")]

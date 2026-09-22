@@ -98,7 +98,9 @@ fn instruction_slot_mentions(
         SelectedInstructionKind::Store64 { slot, .. }
         | SelectedInstructionKind::FrameAddress { slot, .. } => frame_slot_mentions(slot, register),
         SelectedInstructionKind::HostedReadByte { slot }
-        | SelectedInstructionKind::HostedWriteByteI32 { slot } => {
+        | SelectedInstructionKind::HostedWriteByteI32 { slot }
+        | SelectedInstructionKind::SaveFloatingControl { slot }
+        | SelectedInstructionKind::RestoreFloatingControl { slot } => {
             local_slot_mentions(slot, register)
         }
         _ => false,
@@ -391,7 +393,7 @@ fn reconstruct<'source>(
 /// plan, a second scan of the reconstructed function's blocks counting each
 /// successor transport, and one step per roster, storage, access, and call
 /// row.
-fn measured_steps(
+pub(crate) fn measured_steps(
     plan: &SelectedInstructionPlan,
     function: &SelectedFunction,
 ) -> Result<u64, CopyRemovalError> {
@@ -476,7 +478,236 @@ fn expect(reconstructed: &Reconstructed<'_>) -> Result<SelectedFunction, CopyRem
     expected
         .virtual_registers
         .remove(reconstructed.register_index);
+    // Readers index `virtual_registers` by register id, so the removal
+    // re-densifies the function's register identifiers: every register id
+    // above the destination shifts down one on every surface that carries
+    // registers. Instruction ids are stable references — the removed copy's
+    // id simply leaves the function.
+    redensify(&mut expected, reconstructed.output)?;
     Ok(expected)
+}
+
+/// The validator's own dense register-identifier lowering. It shares no
+/// routine with the producer: a proposal matching this function proves the
+/// edit, and a dangling mention of the removed register is the producer's
+/// own corruption.
+fn redensify(
+    function: &mut SelectedFunction,
+    removed_register: VirtualRegisterId,
+) -> Result<(), CopyRemovalError> {
+    shift_function(function, removed_register, false)
+}
+
+/// The inverse map applied to a proposal under restoration: each register id
+/// at or above the removed one was the source's id-plus-one, so raising them
+/// reconstructs the source's dense numbering before the roster row is
+/// reinserted.
+fn raise(
+    function: &mut SelectedFunction,
+    removed_register: VirtualRegisterId,
+) -> Result<(), CopyRemovalError> {
+    shift_function(function, removed_register, true)
+}
+
+fn shift_function(
+    function: &mut SelectedFunction,
+    removed_register: VirtualRegisterId,
+    raising: bool,
+) -> Result<(), CopyRemovalError> {
+    for access in &mut function.memory_accesses {
+        match &mut access.role {
+            SelectedMemoryAccessRole::WriteLocal { slot }
+            | SelectedMemoryAccessRole::AddressLocal { slot } => {
+                shift_local_slot(slot, removed_register, raising)?;
+            }
+            _ => {}
+        }
+    }
+    for slot in &mut function.local_storage_slots {
+        shift_local_slot(&mut slot.id, removed_register, raising)?;
+    }
+    for register in &mut function.virtual_registers {
+        register.id = shift_register(register.id, removed_register, raising)?;
+        if let VirtualRegisterOrigin::SpillAddress {
+            register: subject, ..
+        } = &mut register.origin
+        {
+            *subject = shift_register(*subject, removed_register, raising)?;
+        }
+    }
+    for block in &mut function.blocks {
+        for instruction in block_instructions_mut(block) {
+            shift_selected_instruction(instruction, removed_register, raising)?;
+        }
+        for successor in terminator_successors_mut(&mut block.terminator) {
+            shift_successor(successor, removed_register, raising)?;
+        }
+    }
+    Ok(())
+}
+
+/// Every position of a block mutably: its body instructions, then the
+/// instruction its terminator carries.
+fn block_instructions_mut(
+    block: &mut SelectedBlock,
+) -> impl Iterator<Item = &mut SelectedInstruction> {
+    block
+        .instructions
+        .iter_mut()
+        .chain(std::iter::once(terminator_instruction_mut(
+            &mut block.terminator,
+        )))
+}
+
+fn terminator_successors_mut(terminator: &mut SelectedTerminator) -> Vec<&mut SelectedSuccessor> {
+    match terminator {
+        SelectedTerminator::Jump { successor, .. } => vec![successor],
+        SelectedTerminator::ConditionalBranch {
+            when_nonzero,
+            when_zero,
+            ..
+        } => vec![when_nonzero, when_zero],
+        SelectedTerminator::ConditionalBranchU64LessThan {
+            when_less,
+            when_not_less,
+            ..
+        }
+        | SelectedTerminator::ConditionalBranchI64LessThan {
+            when_less,
+            when_not_less,
+            ..
+        } => vec![when_less, when_not_less],
+        SelectedTerminator::Crash { .. }
+        | SelectedTerminator::HostedExitProcess { .. }
+        | SelectedTerminator::Return { .. } => Vec::new(),
+    }
+}
+
+fn shift_selected_instruction(
+    instruction: &mut SelectedInstruction,
+    removed_register: VirtualRegisterId,
+    raising: bool,
+) -> Result<(), CopyRemovalError> {
+    for operand in &mut instruction.operands {
+        operand.virtual_register =
+            shift_register(operand.virtual_register, removed_register, raising)?;
+    }
+    match &mut instruction.kind {
+        SelectedInstructionKind::Store64 { slot, .. }
+        | SelectedInstructionKind::FrameAddress { slot, .. } => {
+            shift_frame_slot(slot, removed_register, raising)
+        }
+        SelectedInstructionKind::HostedReadByte { slot }
+        | SelectedInstructionKind::HostedWriteByteI32 { slot }
+        | SelectedInstructionKind::SaveFloatingControl { slot }
+        | SelectedInstructionKind::RestoreFloatingControl { slot } => {
+            shift_local_slot(slot, removed_register, raising)
+        }
+        _ => Ok(()),
+    }
+}
+
+fn shift_successor(
+    successor: &mut SelectedSuccessor,
+    removed_register: VirtualRegisterId,
+    raising: bool,
+) -> Result<(), CopyRemovalError> {
+    for binding in &mut successor.bindings {
+        if let SelectedValueTransport::Registers {
+            argument,
+            parameter,
+        } = &mut binding.transport
+        {
+            *argument = shift_register(*argument, removed_register, raising)?;
+            *parameter = shift_register(*parameter, removed_register, raising)?;
+        }
+    }
+    for binding in &mut successor.structural_bindings {
+        match &mut binding.transport {
+            SelectedStructuralTransport::WholeValue {
+                argument,
+                destination,
+                ..
+            }
+            | SelectedStructuralTransport::Descriptor {
+                argument,
+                destination,
+            } => {
+                *argument = shift_register(*argument, removed_register, raising)?;
+                shift_local_slot(destination, removed_register, raising)?;
+            }
+            SelectedStructuralTransport::Unused => {}
+        }
+    }
+    if let Some(case) = &mut successor.structural_case {
+        shift_local_slot(&mut case.slot, removed_register, raising)?;
+        for payload in &mut case.payloads {
+            match &mut payload.transport {
+                SelectedCasePayloadTransport::Unmaterialized { parameter } => {
+                    *parameter = shift_register(*parameter, removed_register, raising)?;
+                }
+                SelectedCasePayloadTransport::Registers {
+                    argument,
+                    parameter,
+                } => {
+                    *argument = shift_register(*argument, removed_register, raising)?;
+                    *parameter = shift_register(*parameter, removed_register, raising)?;
+                }
+                SelectedCasePayloadTransport::Unused => {}
+            }
+        }
+    }
+    Ok(())
+}
+
+fn shift_local_slot(
+    slot: &mut LocalStorageSlotId,
+    removed_register: VirtualRegisterId,
+    raising: bool,
+) -> Result<(), CopyRemovalError> {
+    if let LocalStorageSlotId::Spill { register } = slot {
+        *register = shift_register(*register, removed_register, raising)?;
+    }
+    Ok(())
+}
+
+fn shift_frame_slot(
+    slot: &mut FrameStorageSlotId,
+    removed_register: VirtualRegisterId,
+    raising: bool,
+) -> Result<(), CopyRemovalError> {
+    if let FrameStorageSlotId::Local(slot) = slot {
+        shift_local_slot(slot, removed_register, raising)?;
+    }
+    Ok(())
+}
+
+/// Lowering forbids a surviving mention of the removed id; raising maps the
+/// proposal's `id >= removed` back to the source's `id + 1`.
+fn shift_register(
+    id: VirtualRegisterId,
+    removed: VirtualRegisterId,
+    raising: bool,
+) -> Result<VirtualRegisterId, CopyRemovalError> {
+    let shifted = if raising {
+        if id.0 >= removed.0 {
+            id.0.checked_add(1)
+                .ok_or(CopyRemovalError::IdentityOverflow)?
+        } else {
+            id.0
+        }
+    } else {
+        if id == removed {
+            return Err(CopyRemovalError::ReplayMismatch);
+        }
+        if id.0 > removed.0 {
+            id.0.checked_sub(1)
+                .ok_or(CopyRemovalError::IdentityOverflow)?
+        } else {
+            id.0
+        }
+    };
+    Ok(VirtualRegisterId(shifted))
 }
 
 /// Reinsert the copy and the roster row and un-rebind the reconstructed use
@@ -489,6 +720,7 @@ fn restore(
 ) -> Result<SelectedInstructionPlan, CopyRemovalError> {
     let mut restored = proposed.clone();
     let function = &mut restored.functions[reconstructed.function_index];
+    raise(function, reconstructed.output)?;
     let block = function
         .blocks
         .get_mut(reconstructed.block_index)
@@ -551,6 +783,8 @@ pub fn validate_copy_removal(
             transformed_selected: selected_instruction_plan_identity(&proposed),
             optimization_unit: source.optimization_unit_identity(),
             fuel_schedule: source.fuel_schedule_identity(),
+            function_index,
+            copy,
         },
         transformed: Arc::new(proposed),
     })
@@ -786,6 +1020,8 @@ mod independence_tests {
                 transformed_selected: identity,
                 optimization_unit: OptimizationUnitIdentity::from_bytes([2; 32]),
                 fuel_schedule: plan.fuel_schedule,
+                function_index: 0,
+                copy: COPY,
             },
             transformed: Arc::new(plan),
         };

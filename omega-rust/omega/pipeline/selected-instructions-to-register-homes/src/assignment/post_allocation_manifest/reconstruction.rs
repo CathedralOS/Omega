@@ -3,8 +3,8 @@
 use std::collections::BTreeSet;
 
 use optimization_core::{
-    PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
-    SelectedLoweringOptimizationCompletionIdentity,
+    PostAllocationOptimizationManifestIdentity, PreAllocationOptimizationCompletionIdentity,
+    PrePhysicalOptimizationManifestIdentity, SelectedLoweringOptimizationCompletionIdentity,
 };
 
 use crate::{ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedRegisterHomes};
@@ -18,6 +18,7 @@ use super::{
 pub(super) fn expected_record(
     pre_physical: PrePhysicalOptimizationManifestIdentity,
     selected_lowering_completion: Option<SelectedLoweringOptimizationCompletionIdentity>,
+    pre_allocation_completion: Option<PreAllocationOptimizationCompletionIdentity>,
     selected_transformations: &[PostAllocationSelectedTransformation],
     ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,
@@ -39,6 +40,7 @@ pub(super) fn expected_record(
             PostAllocationSelectedTransformation::RuntimeRematerialization(identity) => {
                 (5_u8, identity.bytes())
             }
+            PostAllocationSelectedTransformation::CopyRemoval(identity) => (6_u8, identity.bytes()),
         };
         !unique_transformations.insert(key)
     }) {
@@ -92,6 +94,7 @@ pub(super) fn expected_record(
         target: ranges.plan().target,
         selected: ranges.plan().selected,
         selected_lowering_completion,
+        pre_allocation_completion,
         selected_transformations: selected_transformations.to_vec(),
         liveness: ranges.receipt().liveness(),
         ranges: ranges.receipt().identity(),

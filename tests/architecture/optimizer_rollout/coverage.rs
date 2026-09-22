@@ -1217,6 +1217,44 @@ const COVERAGE: &[RuleCoverage] = &[
             "independent_product_validation_rejects_roster_corruption",
         ),
     },
+    // -- PreAllocation selection member: the stage-entrance integration file
+    //    carries the selection axes; the rewrite module's own tests carry the
+    //    admission-boundary leg.
+    RuleCoverage {
+        rule: "SelectedSameBlockCopyI64RemovalV1",
+        positive: covered(
+            "tests/native-differential/tests/pipeline_ownership/stages/selection/pre_allocation.rs",
+            "positive_removes_every_admissible_normalization_copy",
+        ),
+        negative: covered(
+            "tests/native-differential/tests/pipeline_ownership/stages/selection/pre_allocation.rs",
+            "negative_declines_every_candidate_and_publishes_unchanged",
+        ),
+        boundary: covered(
+            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/copy_removal/tests.rs",
+            "source_redefinition_interval",
+        ),
+        disabled: covered(
+            "tests/native-differential/tests/pipeline_ownership/stages/selection/pre_allocation.rs",
+            "disabled_selection_leaves_the_plan_untouched",
+        ),
+        budget: covered(
+            "tests/native-differential/tests/pipeline_ownership/stages/selection/pre_allocation.rs",
+            "measured_budget_admits_exact_usage_and_refuses_one_less",
+        ),
+        determinism: covered(
+            "tests/native-differential/tests/pipeline_ownership/stages/selection/pre_allocation.rs",
+            "repeated_runs_are_deterministic",
+        ),
+        fixed_point: covered(
+            "tests/native-differential/tests/pipeline_ownership/stages/selection/pre_allocation.rs",
+            "published_run_is_a_clean_fixed_point",
+        ),
+        corruption: covered(
+            "tests/native-differential/tests/pipeline_ownership/stages/selection/pre_allocation.rs",
+            "custody_rejects_every_one_field_substitution",
+        ),
+    },
     // -- AllocationRecovery selection members.
     RuleCoverage {
         rule: "SharedEntryFixedViewCopyAfterCompareBeforeBranchV1",

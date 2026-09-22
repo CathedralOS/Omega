@@ -2,7 +2,7 @@ use super::{AllocationOutput, AllocationReplayError, AllocationSource, ProjectAl
 use crate::{
     StagedOptimizedActiveResidentRematerialization, StagedOptimizedRegisterHomes,
     StagedOptimizedRegisterHomesAfterFixedViewCopies,
-    StagedOptimizedRegisterHomesAfterLiteralFolds,
+    StagedOptimizedRegisterHomesAfterLiteralFolds, StagedOptimizedRegisterHomesAfterPreAllocation,
     StagedOptimizedRegisterHomesAfterSelectedLowering,
 };
 
@@ -27,6 +27,7 @@ enum ReplayInputs {
     FixedView(Box<StagedOptimizedRegisterHomesAfterFixedViewCopies>),
     LiteralFolds(Box<StagedOptimizedRegisterHomesAfterLiteralFolds>),
     SelectedLowering(Box<StagedOptimizedRegisterHomesAfterSelectedLowering>),
+    PreAllocation(Box<StagedOptimizedRegisterHomesAfterPreAllocation>),
     Rematerialization(Box<StagedOptimizedActiveResidentRematerialization>),
 }
 
@@ -100,6 +101,7 @@ impl RetainedAllocation {
             ReplayInputs::FixedView(source) => source.replay_allocation().map(|_| ()),
             ReplayInputs::LiteralFolds(source) => source.replay_allocation().map(|_| ()),
             ReplayInputs::SelectedLowering(source) => source.replay_allocation().map(|_| ()),
+            ReplayInputs::PreAllocation(source) => source.replay_allocation().map(|_| ()),
             ReplayInputs::Rematerialization(source) => source.replay_allocation().map(|_| ()),
         }
     }
@@ -131,6 +133,7 @@ impl AllocationSource for RetainedAllocation {
             ReplayInputs::FixedView(source) => source.project_allocation(),
             ReplayInputs::LiteralFolds(source) => source.project_allocation(),
             ReplayInputs::SelectedLowering(source) => source.project_allocation(),
+            ReplayInputs::PreAllocation(source) => source.project_allocation(),
             ReplayInputs::Rematerialization(source) => source.project_allocation(),
         };
         validate_recovery_selection(&current, prefix_selection)?;
@@ -201,6 +204,22 @@ impl TryFrom<StagedOptimizedRegisterHomesAfterSelectedLowering> for RetainedAllo
     }
 }
 
+impl TryFrom<StagedOptimizedRegisterHomesAfterPreAllocation> for RetainedAllocation {
+    type Error = AllocationReplayError;
+
+    fn try_from(
+        source: StagedOptimizedRegisterHomesAfterPreAllocation,
+    ) -> Result<Self, Self::Error> {
+        let replayed = source.replay_allocation()?;
+        validate_recovery_selection(&replayed, None)?;
+        let current = super::current::CurrentAllocation::from_replayed(&replayed);
+        Ok(Self {
+            current,
+            replay: ReplayInputs::PreAllocation(Box::new(source)),
+        })
+    }
+}
+
 impl TryFrom<StagedOptimizedActiveResidentRematerialization> for RetainedAllocation {
     type Error = AllocationReplayError;
 
@@ -260,9 +279,14 @@ fn validate_recovery_selection(
         AllocationEvidence::ActiveResidentRematerialization(_) => {
             &[Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1]
         }
+        // A pre-allocation run can never compose with a declared recovery
+        // selection: `optimize_selected_instructions` rejects a selection
+        // mixing an executed phase with the carried-but-unexecuted
+        // allocation-recovery slice before this stage runs.
         AllocationEvidence::RegisterHomes(_)
         | AllocationEvidence::LiteralFolds(_)
-        | AllocationEvidence::SelectedLowering(_) => &[],
+        | AllocationEvidence::SelectedLowering(_)
+        | AllocationEvidence::PreAllocation(_) => &[],
     };
     if current
         .selections()

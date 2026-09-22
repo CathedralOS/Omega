@@ -15,12 +15,14 @@ mod validation;
 pub use test_support::*;
 pub use validation::{
     validate_optimized_register_home_after_literal_fold_custody,
+    validate_optimized_register_home_after_pre_allocation_custody,
     validate_optimized_register_home_after_selected_lowering_custody,
 };
 
 use crate::{
-    OptimizedLiteralFoldCustodyError, StagedOptimizedLiteralFoldCustodyReceipt,
-    StagedSelectedLoweringOptimizationCustodyReceipt,
+    OptimizedCopyRemovalCustodyError, OptimizedLiteralFoldCustodyError,
+    StagedOptimizedLiteralFoldCustodyReceipt, StagedPreAllocationOptimizationCustodyReceipt,
+    StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationCustodyReceipt,
 };
 use crate::{
     PostAllocationOptimizationManifestError, RegisterHomeError, RegisterHomeIdentity,
@@ -46,6 +48,17 @@ pub fn stage_optimized_register_homes_after_selected_lowering(
 > {
     let staged = construction::construct_register_homes_after_selected_lowering(run)?;
     validate_optimized_register_home_after_selected_lowering_custody(&staged)?;
+    Ok(staged)
+}
+
+pub fn stage_optimized_register_homes_after_pre_allocation(
+    run: StagedPreAllocationOptimizationRun,
+) -> Result<
+    StagedOptimizedRegisterHomesAfterPreAllocation,
+    OptimizedPostPreAllocationHomeCustodyError,
+> {
+    let staged = construction::construct_register_homes_after_pre_allocation(run)?;
+    validate_optimized_register_home_after_pre_allocation_custody(&staged)?;
     Ok(staged)
 }
 
@@ -298,3 +311,122 @@ impl std::fmt::Display for OptimizedPostSelectedLoweringHomeCustodyError {
 }
 
 impl std::error::Error for OptimizedPostSelectedLoweringHomeCustodyError {}
+
+/// Strict homes after a completed pre-allocation suite. The suite's
+/// completion identity is retained even when its copy-removal ledger is
+/// empty because every candidate declined on the admitted source program.
+#[derive(Debug)]
+pub struct StagedOptimizedRegisterHomesAfterPreAllocation {
+    run: StagedPreAllocationOptimizationRun,
+    homes: ValidatedRegisterHomes,
+    manifest: ValidatedPostAllocationOptimizationManifest,
+    custody: StagedOptimizedPostPreAllocationHomeCustodyReceipt,
+}
+
+impl StagedOptimizedRegisterHomesAfterPreAllocation {
+    /// The retained pre-allocation run. Replay and custody validation inspect
+    /// it; ordinary consumers read the current program and analyses directly.
+    pub const fn pre_allocation_run(&self) -> &StagedPreAllocationOptimizationRun {
+        &self.run
+    }
+    /// The program this assignment describes: the run's current program —
+    /// the last committed step's transformed plan, or the unchanged admitted
+    /// source plan when the terminal pass was already clean.
+    pub fn selected(&self) -> crate::SelectedProgramRef<'_> {
+        self.run.current()
+    }
+    /// The facts over the current program.
+    pub fn liveness(&self) -> &crate::ValidatedLiveness {
+        self.run.liveness()
+    }
+    pub fn ranges(&self) -> &crate::ValidatedLiveRanges {
+        self.run.ranges()
+    }
+    pub fn legality(&self) -> &crate::ValidatedAllocationLegality {
+        self.run.legality()
+    }
+    /// The register environment admitted with the run's source legality —
+    /// copy removal preserves it, so the source's environment is the
+    /// current one.
+    pub const fn register_environment(
+        &self,
+    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
+        self.run.source_legality_stage().register_environment()
+    }
+    /// The governing optimizer selections admitted with the run.
+    pub fn selections(&self) -> &optimization_core::OptimizationSelections {
+        self.run.selections()
+    }
+    /// The per-pass work budget admitted beside the source's evidence.
+    pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
+        self.run.source_legality_stage().budget_per_pass()
+    }
+    /// The retained optimized-target proof input, kept as replay evidence;
+    /// downstream custody checks compare the owner handle by identity.
+    pub fn optimized_target_owner(
+        &self,
+    ) -> &std::sync::Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>
+    {
+        self.run
+            .source_legality_stage()
+            .live_range_stage()
+            .liveness_stage()
+            .selected_stage()
+            .optimized_target_owner()
+    }
+    pub const fn homes(&self) -> &ValidatedRegisterHomes {
+        &self.homes
+    }
+    pub const fn post_allocation_manifest(&self) -> &ValidatedPostAllocationOptimizationManifest {
+        &self.manifest
+    }
+    pub const fn custody(&self) -> &StagedOptimizedPostPreAllocationHomeCustodyReceipt {
+        &self.custody
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StagedOptimizedPostPreAllocationHomeCustodyReceipt {
+    source: StagedPreAllocationOptimizationCustodyReceipt,
+    homes: RegisterHomeIdentity,
+    post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
+    function_count: usize,
+    assignment_count: usize,
+}
+
+impl StagedOptimizedPostPreAllocationHomeCustodyReceipt {
+    pub const fn source(&self) -> &StagedPreAllocationOptimizationCustodyReceipt {
+        &self.source
+    }
+    pub const fn homes(&self) -> RegisterHomeIdentity {
+        self.homes
+    }
+    pub const fn post_allocation_manifest(&self) -> PostAllocationOptimizationManifestIdentity {
+        self.post_allocation_manifest
+    }
+    pub const fn function_count(&self) -> usize {
+        self.function_count
+    }
+    pub const fn assignment_count(&self) -> usize {
+        self.assignment_count
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OptimizedPostPreAllocationHomeCustodyError {
+    UpstreamPreAllocation(OptimizedCopyRemovalCustodyError),
+    Assignment(RegisterHomeError),
+    Manifest(PostAllocationOptimizationManifestError),
+    ReceiptMismatch,
+}
+
+impl std::fmt::Display for OptimizedPostPreAllocationHomeCustodyError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "optimized post-pre-allocation home staging failed: {self:?}"
+        )
+    }
+}
+
+impl std::error::Error for OptimizedPostPreAllocationHomeCustodyError {}

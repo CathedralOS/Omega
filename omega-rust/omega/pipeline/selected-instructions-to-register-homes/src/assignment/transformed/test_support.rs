@@ -1,5 +1,5 @@
 use super::{
-    StagedOptimizedRegisterHomesAfterLiteralFolds,
+    StagedOptimizedRegisterHomesAfterLiteralFolds, StagedOptimizedRegisterHomesAfterPreAllocation,
     StagedOptimizedRegisterHomesAfterSelectedLowering,
 };
 
@@ -45,6 +45,54 @@ impl StagedOptimizedRegisterHomesAfterLiteralFolds {
                 self.custody.function_count += 1;
             }
             OptimizedPostLiteralFoldHomeCustodyFieldForTest::AssignmentCount => {
+                self.custody.assignment_count += 1;
+            }
+        }
+    }
+}
+
+/// One substitutable field of [`StagedOptimizedPostPreAllocationHomeCustodyReceipt`](super::StagedOptimizedPostPreAllocationHomeCustodyReceipt). `Source` takes the
+/// donor's authentic foreign pre-allocation custody receipt; the remaining
+/// flat fields take fixed alternates. Every field is representable in memory;
+/// the receipt has no wire form, so no field is canonical-encoding-closed.
+/// The independent checker is
+/// `validate_optimized_register_home_after_pre_allocation_custody`, and joined
+/// `replay_allocation` surfaces its rejection as
+/// `AllocationReplayError::PreAllocation`.
+#[derive(Debug, Clone, Copy)]
+pub enum OptimizedPostPreAllocationHomeCustodyFieldForTest {
+    Source,
+    Homes,
+    PostAllocationManifest,
+    FunctionCount,
+    AssignmentCount,
+}
+
+impl StagedOptimizedRegisterHomesAfterPreAllocation {
+    /// Mutate only retained receipt facts; the donor's nested source receipt
+    /// is authentic foreign evidence and grants no new authority here.
+    pub fn corrupt_custody_for_test(
+        &mut self,
+        field: OptimizedPostPreAllocationHomeCustodyFieldForTest,
+        donor: &Self,
+    ) {
+        match field {
+            OptimizedPostPreAllocationHomeCustodyFieldForTest::Source => {
+                self.custody.source = donor.custody.source.clone();
+            }
+            OptimizedPostPreAllocationHomeCustodyFieldForTest::Homes => {
+                self.custody.homes = crate::RegisterHomeIdentity::from_bytes([0xb2; 32]);
+            }
+            OptimizedPostPreAllocationHomeCustodyFieldForTest::PostAllocationManifest => {
+                self.custody.post_allocation_manifest =
+                    optimization_core::PostAllocationOptimizationManifestIdentity::from_bytes(
+                        [0xb3; 32],
+                    );
+            }
+            OptimizedPostPreAllocationHomeCustodyFieldForTest::FunctionCount => {
+                self.custody.function_count += 1;
+            }
+            OptimizedPostPreAllocationHomeCustodyFieldForTest::AssignmentCount => {
                 self.custody.assignment_count += 1;
             }
         }

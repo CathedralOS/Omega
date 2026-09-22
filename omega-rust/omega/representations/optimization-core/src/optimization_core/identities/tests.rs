@@ -15,8 +15,9 @@ use super::{
     OptimizedProgramStorageSemanticWrapperObjectIdentity,
     OptimizedProgramStorageSemanticWrapperObjectManifestIdentity,
     OptimizedTerminalOrdinaryCallableEntryIdentity, OwnershipFrontierFactIdentity,
-    PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
-    ProofQuestionIdentity, RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
+    PostAllocationOptimizationManifestIdentity, PreAllocationOptimizationCompletionIdentity,
+    PrePhysicalOptimizationManifestIdentity, ProofQuestionIdentity,
+    RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
     ScalarConstantFactIdentity, SelectedLoweringOptimizationCompletionIdentity,
     TargetCostModelIdentity, TerminalRelocationFreeTextSectionIdentity,
     TransformationLedgerIdentity, ValueRangeFactIdentity,
@@ -60,6 +61,7 @@ fn identity_domains_are_distinct_for_equal_canonical_bytes() {
         ScalarConstantFactIdentity::from_canonical_bytes(b"same").bytes(),
         PostAllocationOptimizationManifestIdentity::from_canonical_bytes(b"same").bytes(),
         SelectedLoweringOptimizationCompletionIdentity::from_canonical_bytes(b"same").bytes(),
+        PreAllocationOptimizationCompletionIdentity::from_canonical_bytes(b"same").bytes(),
         FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(b"same")
             .bytes(),
         TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(b"same").bytes(),
@@ -110,6 +112,7 @@ fn every_fixed_width_identity_round_trips() {
     round_trip!(OwnershipFrontierFactIdentity);
     round_trip!(PrePhysicalOptimizationManifestIdentity);
     round_trip!(PostAllocationOptimizationManifestIdentity);
+    round_trip!(PreAllocationOptimizationCompletionIdentity);
     round_trip!(SelectedLoweringOptimizationCompletionIdentity);
     round_trip!(FunctionRelativeOptimizationRealizationManifestIdentity);
     round_trip!(FunctionFragmentEmissionIdentity);

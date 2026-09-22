@@ -9,14 +9,14 @@ use crate::analyses::stage_optimized_allocation_legality_for_frameless_leaf;
 use crate::{
     SELECTED_STAGE_RULE_CATALOG, SelectedInstructionOptimizationError,
     SelectedInstructionOptimizationEvidence, SelectedInstructionOptimizationOutput,
-    SelectedStageRuleRows, run_selected_lowering_optimizations, stage_optimized_live_ranges,
-    stage_optimized_liveness,
+    SelectedStageRuleRows, run_pre_allocation_optimizations, run_selected_lowering_optimizations,
+    stage_optimized_live_ranges, stage_optimized_liveness,
 };
 use optimization_core::{OptimizationExecutionPhase, OptimizationSelections};
 use target_operations_to_selected_instructions::StagedOptimizedSelectedInstructions;
 
 /// Stage liveness and live ranges over the selected program, then execute
-/// the catalog slices this stage owns. Identity and nonempty selections both
+/// the catalog slice this stage owns. Identity and nonempty selections both
 /// publish the same current-program carrier.
 pub fn optimize_selected_instructions(
     selected: StagedOptimizedSelectedInstructions,
@@ -38,13 +38,35 @@ pub fn optimize_selected_instructions(
     if unexecutable_catalog_composition(selections).is_some() {
         return Err(SelectedInstructionOptimizationError::UnsupportedComposition);
     }
+    // One executed slice per composition: a selection spanning two executed
+    // phases has no chain order yet and rejects rather than guessing one.
+    let mut executed =
+        executed_slice_phases().filter(|phase| !selections.for_phase(*phase).is_empty());
+    let phase = executed
+        .next()
+        .expect("executed selections exist past the identity check");
+    if executed.next().is_some() {
+        return Err(SelectedInstructionOptimizationError::UnsupportedComposition);
+    }
     let legality = stage_optimized_allocation_legality_for_frameless_leaf(ranges)
         .map_err(SelectedInstructionOptimizationError::Legality)?;
-    let run = run_selected_lowering_optimizations(legality)
-        .map_err(SelectedInstructionOptimizationError::Rewrite)?;
-    SelectedInstructionOptimizationOutput::from_evidence(
-        SelectedInstructionOptimizationEvidence::LiteralFolds(run),
-    )
+    match phase {
+        OptimizationExecutionPhase::SelectedLowering => {
+            let run = run_selected_lowering_optimizations(legality)
+                .map_err(SelectedInstructionOptimizationError::Rewrite)?;
+            SelectedInstructionOptimizationOutput::from_evidence(
+                SelectedInstructionOptimizationEvidence::LiteralFolds(run),
+            )
+        }
+        OptimizationExecutionPhase::PreAllocation => {
+            let run = run_pre_allocation_optimizations(legality)
+                .map_err(SelectedInstructionOptimizationError::PreAllocation)?;
+            SelectedInstructionOptimizationOutput::from_evidence(
+                SelectedInstructionOptimizationEvidence::PreAllocation(run),
+            )
+        }
+        _ => Err(SelectedInstructionOptimizationError::UnsupportedComposition),
+    }
 }
 
 /// Whether this entrance executes a catalog slice's selections, keyed on the
@@ -52,7 +74,10 @@ pub fn optimize_selected_instructions(
 /// executed set by adding its `SelectedStageRuleRows` arm here alongside its
 /// executor and evidence variant, not by editing admission predicates.
 fn slice_executes_at_stage(rows: SelectedStageRuleRows) -> bool {
-    matches!(rows, SelectedStageRuleRows::SelectedLowering(_))
+    matches!(
+        rows,
+        SelectedStageRuleRows::SelectedLowering(_) | SelectedStageRuleRows::PreAllocation(_)
+    )
 }
 
 /// The catalog phases this entrance executes, in catalog order. This is the
@@ -100,12 +125,15 @@ mod admission_tests {
 
     /// Composition and identity replay read the same admission set: every
     /// phase the entrance executes appears exactly once, in catalog order —
-    /// today the selected-lowering slice alone.
+    /// the selected-lowering and pre-allocation slices.
     #[test]
     fn executed_phases_come_from_the_stage_catalog() {
         assert_eq!(
             executed_slice_phases().collect::<Vec<_>>(),
-            [OptimizationExecutionPhase::SelectedLowering]
+            [
+                OptimizationExecutionPhase::SelectedLowering,
+                OptimizationExecutionPhase::PreAllocation,
+            ]
         );
     }
 
@@ -135,6 +163,21 @@ mod admission_tests {
             unexecutable_catalog_composition(&selections),
             Some(OptimizationExecutionPhase::AllocationRecovery)
         );
+    }
+
+    /// Two executed slices in one selection have no chain order yet: the
+    /// entrance rejects the composition rather than sequencing it silently.
+    #[test]
+    fn mixed_executed_phases_are_an_unsupported_composition() {
+        let selections = OptimizationSelections::new([
+            Optimization::SelectedIncomingU12ExactAddImmediate,
+            Optimization::SelectedSameBlockCopyI64RemovalV1,
+        ])
+        .unwrap();
+        let executed: Vec<_> = executed_slice_phases()
+            .filter(|phase| !selections.for_phase(*phase).is_empty())
+            .collect();
+        assert_eq!(executed.len(), 2);
     }
 
     /// An executor-less carried phase by itself stays a no-op identity —

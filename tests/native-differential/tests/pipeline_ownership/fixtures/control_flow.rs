@@ -3,7 +3,7 @@
 use crate::tests::{
     AdmissionProfile, Block, BlockId, ContractId, EdgeId, ExplicitOptimizationRequest, IntegerSign,
     IntegerType, IntegerValue, MachineContract, MachineId, NativeTarget, Operation, OperationId,
-    OperationKind, OperationResult, Optimization, OptimizationSelections,
+    OperationKind, OperationResult, Optimization, OptimizationSelections, OptimizationWorkBudget,
     OptimizedTargetLoweringRequest, ProofBundle, ScalarType, StagedOptimizedSelectedInstructions,
     SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
     ValueDeclaration, ValueId, VocabularyMarker, lower_optimized_to_target_operations,
@@ -1376,16 +1376,29 @@ pub(crate) fn joined_unbound_artifact() -> (Vec<u8>, Vec<u8>) {
 }
 
 pub(crate) fn staged_joined_parameter(target: NativeTarget) -> StagedOptimizedSelectedInstructions {
+    staged_joined_parameter_with_selections(
+        target,
+        OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
+        selected_lowering_budget(),
+    )
+}
+
+/// The join-parameter diamond under an authored suite: both predecessors
+/// select edge-transfer `CopyI64`s whose destinations feed only the jump
+/// bindings — the same-block copy-removal surface the pre-allocation slice
+/// executes — while `staged_forwarded_conditional`'s return copies stay
+/// constrained and decline.
+pub(crate) fn staged_joined_parameter_with_selections(
+    target: NativeTarget,
+    selections: OptimizationSelections,
+    budget: OptimizationWorkBudget,
+) -> StagedOptimizedSelectedInstructions {
     let (semantic, proof) = joined_parameter_artifact();
     let optimized = optimize_artifact_sections(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
-        ExplicitOptimizationRequest::new(
-            OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
-            selected_lowering_budget(),
-        )
-        .unwrap(),
+        ExplicitOptimizationRequest::new(selections, budget).unwrap(),
     )
     .unwrap();
     let target = lower_optimized_to_target_operations(
@@ -1446,12 +1459,26 @@ pub(crate) fn staged_chained_forwarded(
 pub(crate) fn staged_forwarded_conditional(
     target: NativeTarget,
 ) -> StagedOptimizedSelectedInstructions {
+    staged_forwarded_conditional_with_selections(
+        target,
+        OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
+    )
+}
+
+/// The forwarded-parameter diamond under an authored suite: the `u64`
+/// parameter's normalization `CopyI64` reads only in the leaf blocks and its
+/// return copies feed fixed-view terminators, so every `CopyI64` in the plan
+/// declines same-block removal — the executable negative lane.
+pub(crate) fn staged_forwarded_conditional_with_selections(
+    target: NativeTarget,
+    selections: OptimizationSelections,
+) -> StagedOptimizedSelectedInstructions {
     let (semantic, proof) = conditional_forwarded_parameter_artifact();
     let optimized = optimize_artifact_sections(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
-        request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        request(selections),
     )
     .unwrap();
     let target = lower_optimized_to_target_operations(

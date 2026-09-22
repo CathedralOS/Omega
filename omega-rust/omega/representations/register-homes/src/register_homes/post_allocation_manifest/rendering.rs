@@ -32,6 +32,15 @@ impl PostAllocationOptimizationManifest {
             .unwrap(),
             None => writeln!(output, "selected-lowering completion: not run").unwrap(),
         }
+        match self.pre_allocation_completion {
+            Some(identity) => writeln!(
+                output,
+                "pre-allocation completion: {}",
+                hex(&identity.bytes())
+            )
+            .unwrap(),
+            None => writeln!(output, "pre-allocation completion: not run").unwrap(),
+        }
         writeln!(
             output,
             "selected transformations: {}",
@@ -54,6 +63,9 @@ impl PostAllocationOptimizationManifest {
                 }
                 PostAllocationSelectedTransformation::RuntimeRematerialization(identity) => {
                     ("runtime-rematerialization", identity.bytes())
+                }
+                PostAllocationSelectedTransformation::CopyRemoval(identity) => {
+                    ("copy-removal", identity.bytes())
                 }
             };
             writeln!(

@@ -1,11 +1,11 @@
 use optimization_core::{
-    PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
-    SelectedLoweringOptimizationCompletionIdentity,
+    PostAllocationOptimizationManifestIdentity, PreAllocationOptimizationCompletionIdentity,
+    PrePhysicalOptimizationManifestIdentity, SelectedLoweringOptimizationCompletionIdentity,
 };
 use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::{
-    FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity,
-    PressureRematerializationIdentity, SelectedInstructionPlanIdentity,
+    CopyRemovalIdentity, FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity,
+    LivenessIdentity, PressureRematerializationIdentity, SelectedInstructionPlanIdentity,
 };
 use target::NativeTarget;
 
@@ -48,6 +48,7 @@ pub enum PostAllocationSelectedTransformation {
     FixedViewCopy(FixedViewCopyIdentity),
     LiteralFold(LiteralFoldIdentity),
     PressureRematerialization(PressureRematerializationIdentity),
+    CopyRemoval(CopyRemovalIdentity),
 }
 
 /// Structured report at the first independently validated physical-home
@@ -60,6 +61,10 @@ pub struct PostAllocationOptimizationManifest {
     pub target: NativeTarget,
     pub selected: SelectedInstructionPlanIdentity,
     pub selected_lowering_completion: Option<SelectedLoweringOptimizationCompletionIdentity>,
+    /// The completed pre-allocation run's custody identity, when the
+    /// selected stage published one. `None` when no pre-allocation selection
+    /// executed.
+    pub pre_allocation_completion: Option<PreAllocationOptimizationCompletionIdentity>,
     pub selected_transformations: Vec<PostAllocationSelectedTransformation>,
     pub liveness: LivenessIdentity,
     pub ranges: LiveRangeIdentity,

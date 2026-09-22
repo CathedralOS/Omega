@@ -5,13 +5,13 @@ use super::{
 };
 use crate::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RegisterHomeIdentity};
 use optimization_core::{
-    PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
-    SelectedLoweringOptimizationCompletionIdentity,
+    PostAllocationOptimizationManifestIdentity, PreAllocationOptimizationCompletionIdentity,
+    PrePhysicalOptimizationManifestIdentity, SelectedLoweringOptimizationCompletionIdentity,
 };
 use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::{
-    FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity,
-    PressureRematerializationIdentity, SelectedInstructionPlanIdentity,
+    CopyRemovalIdentity, FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity,
+    LivenessIdentity, PressureRematerializationIdentity, SelectedInstructionPlanIdentity,
 };
 use target::NativeTarget;
 
@@ -25,6 +25,7 @@ fn record() -> PostAllocationOptimizationManifest {
         target: NativeTarget::linux_x64(),
         selected: SelectedInstructionPlanIdentity::from_canonical_bytes(b"selected"),
         selected_lowering_completion: None,
+        pre_allocation_completion: None,
         selected_transformations: Vec::new(),
         liveness: LivenessIdentity::from_bytes([1; 32]),
         ranges: LiveRangeIdentity::from_bytes([2; 32]),
@@ -90,6 +91,10 @@ fn identity_binds_every_post_allocation_domain() {
             )
         },
         |record| {
+            record.pre_allocation_completion =
+                Some(PreAllocationOptimizationCompletionIdentity::from_canonical_bytes(b"prealloc"))
+        },
+        |record| {
             record.selected_transformations.push(
                 PostAllocationSelectedTransformation::FixedViewCopy(
                     FixedViewCopyIdentity::from_bytes([6; 32]),
@@ -109,6 +114,13 @@ fn identity_binds_every_post_allocation_domain() {
                     PressureRematerializationIdentity::from_bytes([14; 32]),
                 ),
             )
+        },
+        |record| {
+            record
+                .selected_transformations
+                .push(PostAllocationSelectedTransformation::CopyRemoval(
+                    CopyRemovalIdentity::from_bytes([15; 32]),
+                ))
         },
         |record| record.liveness = LivenessIdentity::from_bytes([7; 32]),
         |record| record.ranges = LiveRangeIdentity::from_bytes([8; 32]),
@@ -228,7 +240,7 @@ fn canonical_codec_round_trips_both_routes_and_rejects_corruption() {
         )];
     one_transformation.identity = one_transformation.recomputed_identity();
     let mut unknown_transformation = one_transformation.encode();
-    let transformation_tag_offset = content_offset + 1 + 32 + 18 + 32 + 1 + 8;
+    let transformation_tag_offset = content_offset + 1 + 32 + 18 + 32 + 1 + 1 + 8;
     unknown_transformation[transformation_tag_offset] = 9;
     assert_eq!(
         PostAllocationOptimizationManifest::decode(&unknown_transformation),

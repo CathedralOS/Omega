@@ -173,6 +173,8 @@ fn fixture(target: NativeTarget) -> ValidatedCopyRemoval {
             transformed_selected: identity,
             optimization_unit: OptimizationUnitIdentity::from_bytes([2; 32]),
             fuel_schedule: plan.fuel_schedule,
+            function_index: 0,
+            copy: COPY,
         },
         transformed: std::sync::Arc::new(plan),
     }
@@ -366,19 +368,25 @@ fn chained_and_terminator_carried_uses_rebind() {
             panic!("terminator kind changed")
         };
         assert_eq!(instruction.operands[0].virtual_register, SOURCE);
-        // The chained copy's own result survives: only the destination row left.
+        // The chained copy's own result survives: only the destination row
+        // left, and the dense renumbering moved OTHER's roster entry down one.
         assert!(
             function
                 .virtual_registers
                 .iter()
-                .any(|entry| entry.id == OTHER)
+                .any(|entry| entry.id == VirtualRegisterId(OTHER.0 - 1))
         );
-        assert!(
-            function
-                .virtual_registers
-                .iter()
-                .all(|entry| entry.id != COPIED)
-        );
+        // COPIED's roster row is gone — the renumbering reuses its numeric id
+        // for OTHER, so the removed destination is identified by its origin.
+        assert!(function.virtual_registers.iter().all(|entry| {
+            !matches!(
+                entry.origin,
+                VirtualRegisterOrigin::InstructionResult {
+                    instruction: COPY,
+                    ..
+                }
+            )
+        }));
         validate_copy_removal(
             &source,
             0,

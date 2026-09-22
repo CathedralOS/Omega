@@ -14,7 +14,8 @@ use optimization_core::{Optimization, OptimizationExecutionPhase};
 
 use super::{
     ALLOCATION_RECOVERY_RULE_CATALOG, AllocationRecoveryRuleCatalogEntry,
-    SELECTED_LOWERING_RULE_CATALOG, SelectedLoweringRuleCatalogEntry,
+    PRE_ALLOCATION_RULE_CATALOG, PreAllocationRuleCatalogEntry, SELECTED_LOWERING_RULE_CATALOG,
+    SelectedLoweringRuleCatalogEntry,
 };
 
 /// One family's ordered rule rows inside the stage catalog. The slice names
@@ -23,6 +24,7 @@ use super::{
 #[derive(Debug, Clone, Copy)]
 pub enum SelectedStageRuleRows {
     SelectedLowering(&'static [SelectedLoweringRuleCatalogEntry]),
+    PreAllocation(&'static [PreAllocationRuleCatalogEntry]),
     AllocationRecovery(&'static [AllocationRecoveryRuleCatalogEntry]),
 }
 
@@ -31,6 +33,9 @@ impl SelectedStageRuleRows {
     pub fn contains(&self, optimization: Optimization) -> bool {
         match self {
             Self::SelectedLowering(rows) => rows
+                .iter()
+                .any(|entry| entry.optimization() == optimization),
+            Self::PreAllocation(rows) => rows
                 .iter()
                 .any(|entry| entry.optimization() == optimization),
             Self::AllocationRecovery(rows) => rows
@@ -43,6 +48,7 @@ impl SelectedStageRuleRows {
     pub fn optimizations(&self) -> Vec<Optimization> {
         match self {
             Self::SelectedLowering(rows) => rows.iter().map(|entry| entry.optimization()).collect(),
+            Self::PreAllocation(rows) => rows.iter().map(|entry| entry.optimization()).collect(),
             Self::AllocationRecovery(rows) => {
                 rows.iter().map(|entry| entry.optimization()).collect()
             }
@@ -53,6 +59,7 @@ impl SelectedStageRuleRows {
     pub fn len(&self) -> usize {
         match self {
             Self::SelectedLowering(rows) => rows.len(),
+            Self::PreAllocation(rows) => rows.len(),
             Self::AllocationRecovery(rows) => rows.len(),
         }
     }
@@ -91,15 +98,19 @@ impl SelectedStageRuleCatalogSlice {
 }
 
 /// The stage's one ordered catalog, in dispatch order: selected-lowering
-/// rules run before any allocation-recovery rule, matching
-/// `optimize_selected_instructions`, which rejects a mixed
-/// selection as an unsupported composition. Phases the stage does not carry
-/// (for example `PreAllocation`) have no slice: they admit no selectable rule
-/// here rather than listing an empty catalog.
-pub const SELECTED_STAGE_RULE_CATALOG: [SelectedStageRuleCatalogSlice; 2] = [
+/// rules run before pre-allocation rules, and both run before any
+/// allocation-recovery rule, matching `optimize_selected_instructions`,
+/// which rejects a mixed selection as an unsupported composition. Phases the
+/// stage does not carry have no slice: they admit no selectable rule here
+/// rather than listing an empty catalog.
+pub const SELECTED_STAGE_RULE_CATALOG: [SelectedStageRuleCatalogSlice; 3] = [
     SelectedStageRuleCatalogSlice::new(
         OptimizationExecutionPhase::SelectedLowering,
         SelectedStageRuleRows::SelectedLowering(&SELECTED_LOWERING_RULE_CATALOG),
+    ),
+    SelectedStageRuleCatalogSlice::new(
+        OptimizationExecutionPhase::PreAllocation,
+        SelectedStageRuleRows::PreAllocation(&PRE_ALLOCATION_RULE_CATALOG),
     ),
     SelectedStageRuleCatalogSlice::new(
         OptimizationExecutionPhase::AllocationRecovery,
@@ -139,11 +150,15 @@ mod tests {
     /// family-owned rows.
     #[test]
     fn stage_catalog_names_each_family_catalog_in_dispatch_order() {
-        assert_eq!(SELECTED_STAGE_RULE_CATALOG.len(), 2);
-        let [lowering, recovery] = SELECTED_STAGE_RULE_CATALOG;
+        assert_eq!(SELECTED_STAGE_RULE_CATALOG.len(), 3);
+        let [lowering, pre_allocation, recovery] = SELECTED_STAGE_RULE_CATALOG;
         assert_eq!(
             lowering.phase(),
             OptimizationExecutionPhase::SelectedLowering
+        );
+        assert_eq!(
+            pre_allocation.phase(),
+            OptimizationExecutionPhase::PreAllocation
         );
         assert_eq!(
             recovery.phase(),
@@ -152,6 +167,10 @@ mod tests {
         assert!(matches!(
             lowering.rows(),
             SelectedStageRuleRows::SelectedLowering(_)
+        ));
+        assert!(matches!(
+            pre_allocation.rows(),
+            SelectedStageRuleRows::PreAllocation(_)
         ));
         assert!(matches!(
             recovery.rows(),
@@ -200,6 +219,7 @@ mod tests {
     fn phases_without_a_slice_admit_no_rule() {
         let carried = [
             OptimizationExecutionPhase::SelectedLowering,
+            OptimizationExecutionPhase::PreAllocation,
             OptimizationExecutionPhase::AllocationRecovery,
         ];
         for phase in [
@@ -207,7 +227,6 @@ mod tests {
             OptimizationExecutionPhase::Psi,
             OptimizationExecutionPhase::AbstractOperations,
             OptimizationExecutionPhase::TargetOperations,
-            OptimizationExecutionPhase::PreAllocation,
             OptimizationExecutionPhase::PostAllocationMachine,
             OptimizationExecutionPhase::FunctionRelativeLayout,
         ] {
