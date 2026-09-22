@@ -154,7 +154,7 @@ pub fn derive_fused_program_entry_establishments(
         {
             message.push_str(&format!(
                 "; the machine's unit plan was omitted at {}",
-                describe_omission_stage(checked, omission.stage),
+                describe_omission_chain(checked, omission.stage),
             ));
         }
         return Err(vec![Diagnostic::error(message)]);
@@ -313,6 +313,51 @@ pub fn derive_fused_program_entry_establishments(
 /// The unit-effects omission ledger already records where a machine left the
 /// plan roster; surface that stage so an empty establishment rejoin names the
 /// plan admission failure rather than only its count.
+///
+/// A caller dropped for an unavailable callee is one hop from its own reason:
+/// the callee has its own ledger row, and reporting only "unavailable callee
+/// `X`" sends the reader to X's body, which is usually fine. Follow the chain
+/// instead and name the reason the roster actually recorded. `seen` bounds the
+/// walk, so a dependency cycle reports the hops it made rather than looping.
+fn describe_omission_chain(checked: &CheckedTrees, stage: CheckedUnitPlanOmissionStage) -> String {
+    let mut description = describe_omission_stage(checked, stage);
+    let mut seen: Vec<Option<symbols::SymbolHandle>> = vec![omission_target(stage)];
+    let mut current = stage;
+    while let Some(target) = omission_target(current) {
+        let Some(next) = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .omission_for_machine(target)
+        else {
+            break;
+        };
+        description.push_str(&format!(
+            ", which was itself omitted at {}",
+            describe_omission_stage(checked, next.stage),
+        ));
+        let following = omission_target(next.stage);
+        if following.is_some() && seen.contains(&following) {
+            description.push_str(" (dependency cycle)");
+            break;
+        }
+        seen.push(following);
+        current = next.stage;
+    }
+    description
+}
+
+/// The machine an omission stage blames, when it blames one. These are the
+/// stages whose reason lives in another machine's ledger row.
+fn omission_target(stage: CheckedUnitPlanOmissionStage) -> Option<symbols::SymbolHandle> {
+    match stage {
+        CheckedUnitPlanOmissionStage::UnavailableCallee { target }
+        | CheckedUnitPlanOmissionStage::MissingBoundaryTarget { target }
+        | CheckedUnitPlanOmissionStage::UnavailableScalarTarget { target } => Some(target),
+        _ => None,
+    }
+}
+
 fn describe_omission_stage(checked: &CheckedTrees, stage: CheckedUnitPlanOmissionStage) -> String {
     match stage {
         CheckedUnitPlanOmissionStage::LocalConstruction {
