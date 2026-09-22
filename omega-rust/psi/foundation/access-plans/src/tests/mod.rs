@@ -17,8 +17,8 @@ mod stable_specialization;
 use crate::placements::placement_authority::PlacementAuthorityRef;
 use crate::{
     AccessExposure, AccessFieldEntry, AccessFieldKey, AccessOperation, AccessPlan,
-    AdmittedResourceProfile, AtomicAccessOperation, AtomicCapability, AtomicPermissions,
-    AtomicTransferRule, AuthorizedFieldAccess, BorrowPolarity, BoundaryReach,
+    AccessPlanDiagnostic, AdmittedResourceProfile, AtomicAccessOperation, AtomicCapability,
+    AtomicPermissions, AtomicTransferRule, AuthorizedFieldAccess, BorrowPolarity, BoundaryReach,
     BoundaryServiceReachId, DeviceOperation, DeviceOperationCoordinates,
     DeviceOperationProviderPlanId, DeviceOperationRequirement, DeviceOperationRequirementId,
     DeviceOrderingScopeId, DeviceOrderingScopeOccurrence, DeviceOrderingScopeOccurrenceId,
@@ -637,61 +637,69 @@ fn assert_atomic_specialization(
     assert_eq!(request.operation(), AccessOperation::Atomic(expected));
 }
 
+fn expect_exact_rejection<'view, 'extent>(
+    request: PrimitiveAccessRequest<'view, 'extent>,
+    diagnostic_fragment: &str,
+    attempt: impl FnOnce(
+        PrimitiveAccessRequest<'view, 'extent>,
+    ) -> (PrimitiveAccessRequest<'view, 'extent>, AccessPlanDiagnostic),
+) -> PrimitiveAccessRequest<'view, 'extent> {
+    let before = primitive_request_snapshot(&request);
+    let (request, diagnostic) = attempt(request);
+    assert!(diagnostic.0.contains(diagnostic_fragment));
+    assert_eq!(primitive_request_snapshot(&request), before);
+    request
+}
+
 fn expect_exact_atomic_rejection<'view, 'extent>(
     request: PrimitiveAccessRequest<'view, 'extent>,
     diagnostic_fragment: &str,
 ) -> PrimitiveAccessRequest<'view, 'extent> {
-    let before = primitive_request_snapshot(&request);
-    let rejection = request
-        .into_atomic_primitive_access()
-        .expect_err("corrupt request must fail Atomic specialization");
-    assert!(
-        rejection.diagnostic().0.contains(diagnostic_fragment),
-        "unexpected Atomic rejection: {}",
-        rejection.diagnostic()
-    );
-    let (request, diagnostic) = rejection.into_parts();
-    assert!(diagnostic.0.contains(diagnostic_fragment));
-    assert_eq!(primitive_request_snapshot(&request), before);
-    request
+    expect_exact_rejection(request, diagnostic_fragment, |request| {
+        let rejection = request
+            .into_atomic_primitive_access()
+            .expect_err("corrupt request must fail Atomic specialization");
+        assert!(
+            rejection.diagnostic().0.contains(diagnostic_fragment),
+            "unexpected Atomic rejection: {}",
+            rejection.diagnostic()
+        );
+        rejection.into_parts()
+    })
 }
 
 fn expect_exact_stable_primitive_rejection<'view, 'extent>(
     request: PrimitiveAccessRequest<'view, 'extent>,
     diagnostic_fragment: &str,
 ) -> PrimitiveAccessRequest<'view, 'extent> {
-    let before = primitive_request_snapshot(&request);
-    let rejection = request
-        .into_stable_primitive_access()
-        .expect_err("corrupt request must fail Stable primitive specialization");
-    assert!(
-        rejection.diagnostic().0.contains(diagnostic_fragment),
-        "unexpected Stable primitive rejection: {}",
-        rejection.diagnostic()
-    );
-    let (request, diagnostic) = rejection.into_parts();
-    assert!(diagnostic.0.contains(diagnostic_fragment));
-    assert_eq!(primitive_request_snapshot(&request), before);
-    request
+    expect_exact_rejection(request, diagnostic_fragment, |request| {
+        let rejection = request
+            .into_stable_primitive_access()
+            .expect_err("corrupt request must fail Stable primitive specialization");
+        assert!(
+            rejection.diagnostic().0.contains(diagnostic_fragment),
+            "unexpected Stable primitive rejection: {}",
+            rejection.diagnostic()
+        );
+        rejection.into_parts()
+    })
 }
 
 fn expect_exact_stable_compound_rejection<'view, 'extent>(
     request: PrimitiveAccessRequest<'view, 'extent>,
     diagnostic_fragment: &str,
 ) -> PrimitiveAccessRequest<'view, 'extent> {
-    let before = primitive_request_snapshot(&request);
-    let rejection = request
-        .into_stable_compound_mutation_access()
-        .expect_err("corrupt request must fail Stable compound specialization");
-    assert!(
-        rejection.diagnostic().0.contains(diagnostic_fragment),
-        "unexpected Stable compound rejection: {}",
-        rejection.diagnostic()
-    );
-    let (request, diagnostic) = rejection.into_parts();
-    assert!(diagnostic.0.contains(diagnostic_fragment));
-    assert_eq!(primitive_request_snapshot(&request), before);
-    request
+    expect_exact_rejection(request, diagnostic_fragment, |request| {
+        let rejection = request
+            .into_stable_compound_mutation_access()
+            .expect_err("corrupt request must fail Stable compound specialization");
+        assert!(
+            rejection.diagnostic().0.contains(diagnostic_fragment),
+            "unexpected Stable compound rejection: {}",
+            rejection.diagnostic()
+        );
+        rejection.into_parts()
+    })
 }
 
 fn provider_existing_content(
