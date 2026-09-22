@@ -54,7 +54,7 @@ fn rich() -> PackagePolicyBaseline {
     let row = &mut plan.rows[0];
     row.requirement = requirement.clone();
     row.binding = PackagePolicyProviderBinding::CheckedAdapter {
-        machine_identity: row.realization.path.clone(),
+        machine_identity: row.realization.as_ref().unwrap().path.clone(),
         machine_package_identity: Some(value.package),
     };
     value
@@ -66,8 +66,8 @@ fn rich() -> PackagePolicyBaseline {
             application: PackageReviewBoundaryApplication::Empty,
             selected_plan_index: 0,
             realization: PackagePolicyBoundaryRealization::NongenericCheckedBody {
-                declaration: row.realization.clone(),
-                realization: row.realization.clone(),
+                declaration: row.realization.clone().unwrap(),
+                realization: row.realization.clone().unwrap(),
             },
         });
     value.selected_providers.families[0].coordinates[0].requirement_identity = requirement.path;

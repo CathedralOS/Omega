@@ -140,7 +140,10 @@ fn generic_checked_adapter_policy_does_not_persist_specialization_names() {
     let [row] = plan.rows() else {
         panic!("one declared generic adapter selection")
     };
-    assert_eq!(row.realization().path(), "GenericProvider::identity");
+    assert_eq!(
+        row.realization().unwrap().path(),
+        "GenericProvider::identity"
+    );
     assert!(matches!(
         row.binding(),
         PackagePolicyProviderBinding::CheckedAdapter { .. }
@@ -196,7 +199,7 @@ fn explicit_generic_family_retains_declaration_coverage_without_actual_applicati
     let plan = &policy.plans()[coordinate.plan_index() as usize];
     assert_eq!(plan.schema_declaration().path(), "GenericMath::identity");
     assert_eq!(
-        plan.rows()[0].realization().path(),
+        plan.rows()[0].realization().unwrap().path(),
         "GenericProvider::identity"
     );
 }

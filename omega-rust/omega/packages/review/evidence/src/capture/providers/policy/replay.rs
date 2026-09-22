@@ -1,6 +1,6 @@
 //! Validate live selected associations before projecting inert policy.
 
-use super::rejected;
+use super::{rejected, toolchain_settled};
 use crate::capture::PackageReviewInput;
 use diagnostics::Diagnostic;
 use provider_planning::{
@@ -23,20 +23,32 @@ pub(super) fn validate(
             "package or target differs from the checked root activation",
         ));
     }
-    let plans = compilation.custody.selected_provider_plans().plans();
+    let plans = compilation.custody.selected_provider_plans();
     let provenance = compilation.custody.selected_provider_provenance();
-    if plans.len() != provenance.len()
-        || plans.iter().zip(provenance).any(|(plan, retained)| {
-            plan != &retained.plan
-                || plan.rows.len() != retained.row_compiler_intrinsic_executions.len()
-        })
+    if plans.plans().len() != provenance.len()
+        || plans
+            .plans()
+            .iter()
+            .zip(provenance)
+            .any(|(plan, retained)| {
+                plan != &retained.plan
+                    || plan.rows.len() != retained.row_compiler_intrinsic_executions.len()
+            })
     {
         return Err(rejected(
             "selected plans and retained provenance are not aligned",
         ));
     }
+    // Toolchain-settled plans are minted by provider settlement itself: their
+    // rows are realized by the toolchain settlement table, so their retained
+    // realization symbols are `invalid` by construction and they carry no
+    // authored conformance provenance to replay. They validate their exact
+    // settled identity below instead. Ordinary `UniqueCoveringCandidate`
+    // plans are not exempted: `is_toolchain_settled` requires exact facts
+    // membership, not merely the shared provenance kind.
     let selected = provenance
         .iter()
+        .filter(|retained| !plans.is_toolchain_settled(&retained.plan))
         .map(|retained| SelectedProviderPlanWithProvenance {
             derived: DerivedProviderPlan {
                 plan: retained.plan.clone(),
@@ -61,10 +73,21 @@ pub(super) fn validate(
             selected,
             &independent_components,
         )?;
-    if replayed.plans() != plans {
+    let authored = plans
+        .plans()
+        .iter()
+        .filter(|plan| !plans.is_toolchain_settled(plan))
+        .cloned()
+        .collect::<Vec<_>>();
+    if replayed.plans() != authored {
         return Err(rejected(
             "selected semantic plans differ from exact typed replay",
         ));
+    }
+    for retained in provenance {
+        if plans.is_toolchain_settled(&retained.plan) {
+            toolchain_settled::validate(compilation, target, retained, &authored)?;
+        }
     }
     validate_authored_activation(compilation)
 }

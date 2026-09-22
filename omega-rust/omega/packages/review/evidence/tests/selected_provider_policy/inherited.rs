@@ -44,7 +44,10 @@ fn inherited_service_keeps_selecting_schema_and_declaring_requirement_owners() {
     assert_eq!(calling.semantic_parameters().len(), 1);
     assert!(calling.semantic_result().is_some());
     assert_eq!(plan.rows()[0].requirement(), method.requirement());
-    assert_eq!(plan.rows()[0].realization().path(), "HostProvider::ping");
+    assert_eq!(
+        plan.rows()[0].realization().unwrap().path(),
+        "HostProvider::ping"
+    );
     assert_eq!(method.parameter_count(), 1);
     assert_eq!(method.parameter_type_identities().len(), 1);
     assert!(method.has_result());

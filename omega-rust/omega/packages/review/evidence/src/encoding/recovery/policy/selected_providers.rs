@@ -99,7 +99,7 @@ fn row(reader: &mut Reader<'_>) -> Result<PackagePolicyProviderRow, Error> {
     Ok(PackagePolicyProviderRow {
         method: reader.string()?,
         requirement: nominal(reader)?,
-        realization: nominal(reader)?,
+        realization: reader.option(nominal)?,
         requirement_lifetime_partition: reader.sequence(4, Reader::u32)?,
         binding: bindings::binding(reader)?,
         compiler_intrinsic_execution: reader.option(intrinsic::execution)?,

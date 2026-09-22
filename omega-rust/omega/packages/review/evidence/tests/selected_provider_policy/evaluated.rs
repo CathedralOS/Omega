@@ -66,7 +66,7 @@ fn normalized_import_preserves_meaning_while_evaluation_receipts_change() {
     );
     assert_eq!(producer.package(), Some(package_identity()));
     assert!(producer.callable_identity().contains("import_binding"));
-    assert_eq!(row.realization().path(), "ping_leaf");
+    assert_eq!(row.realization().unwrap().path(), "ping_leaf");
     assert!(
         project_checked_selected_provider_policy(
             &first.without_typed_via("ping_leaf"),
@@ -118,10 +118,13 @@ fn selected_import_keeps_foreign_producer_owner_separate_from_local_leaf() {
     );
     assert_eq!(producer.declaration().path(), "import_binding");
     assert_eq!(
-        row.realization().owner(),
+        row.realization().unwrap().owner(),
         PackageReviewNominalOwner::Package(package_identity())
     );
-    assert_eq!(plan.schema_declaration().owner(), row.realization().owner());
+    assert_eq!(
+        plan.schema_declaration().owner(),
+        row.realization().unwrap().owner()
+    );
 }
 
 #[test]

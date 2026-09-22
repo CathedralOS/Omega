@@ -93,7 +93,7 @@ fn row(
         encode_nominal(encoder, &row.requirement)
     })?;
     encoder.field("realization", |encoder| {
-        encode_nominal(encoder, &row.realization)
+        encoder.option(row.realization.as_ref(), encode_nominal)
     })?;
     encoder.field("requirement_lifetime_partition", |encoder| {
         encoder.sequence(&row.requirement_lifetime_partition, |encoder, ordinal| {
