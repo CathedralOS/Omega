@@ -305,7 +305,7 @@ pub(super) fn state_origins(
 pub(super) fn rebase_contexts(
     program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     contexts: HandleSpan<FlowSemanticContextRef>,
@@ -324,7 +324,7 @@ pub(super) fn rebase_contexts(
         // Entry can also be reached by a named backedge. Immutable scalar
         // bindings retain the original invocation value only when every
         // incoming argument preserves it, just as for other named states.
-        let incoming_origins = ctx.entry_origin_chain_at(program, machine, state);
+        let incoming_origins = build.entry_origin_chain_at(program, machine, state);
         // Exit substitution refers to the caller's original input referent,
         // even when the source gives its local reference binding `mut`.
         // Initial assumptions are still admitted above; this is only the
@@ -353,7 +353,8 @@ pub(super) fn rebase_contexts(
             })
             .collect()
     } else {
-        ctx.entry_origin_chain_at(program, machine, state)
+        build
+            .entry_origin_chain_at(program, machine, state)
             .as_ref()
             .clone()
     };
@@ -373,7 +374,7 @@ pub(super) fn rebase_contexts(
     }
     let mut rebased = HandleSpan::empty();
     let mut parameter_origins = HandleSpan::empty();
-    let sources = ctx
+    let sources = build
         .contexts
         .semantic_context_refs
         .span_or_empty(contexts)
@@ -393,7 +394,7 @@ pub(super) fn rebase_contexts(
             // evidence. Republishing them at their original point makes the
             // next sibling collect every previous copy again.
             common::append_flow_reference(
-                &mut ctx.contexts.semantic_context_refs,
+                &mut build.contexts.semantic_context_refs,
                 &mut rebased,
                 source,
             );
@@ -427,10 +428,10 @@ pub(super) fn rebase_contexts(
             };
             let mut required_roots = Vec::new();
             if let Some(contract) = contract {
-                let contract_occurrences = ctx.proof_fact_occurrences_at(program, contract);
+                let contract_occurrences = build.proof_fact_occurrences_at(program, contract);
                 for occurrence in contract_occurrences.iter().copied() {
                     if let Some(place) =
-                        ctx.canonical_place_at(program, entry.symbol, 0, occurrence)
+                        build.canonical_place_at(program, entry.symbol, 0, occurrence)
                         && let facts::PlaceRoot::Symbol(root) = place.root
                     {
                         required_roots.push(root);
@@ -468,7 +469,7 @@ pub(super) fn rebase_contexts(
                 let declared_field = matches!(fact.origin, FactOrigin::MachineFieldDomain { .. });
                 complete &= target.is_valid() && (!assumptions || declared_field);
                 if !assumptions && let Some(contract) = contract {
-                    ctx.control.exit_parameter_origins.append_to_span(
+                    build.control.exit_parameter_origins.append_to_span(
                         &mut parameter_origins,
                         checked_trees::FlowExitParameterOrigin {
                             contract,
@@ -484,7 +485,7 @@ pub(super) fn rebase_contexts(
         if complete || !assumptions {
             let context = semantic.append_context(scoped_point, refs);
             common::append_flow_reference(
-                &mut ctx.contexts.semantic_context_refs,
+                &mut build.contexts.semantic_context_refs,
                 &mut rebased,
                 FlowSemanticContextRef { context },
             );

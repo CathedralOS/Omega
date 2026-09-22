@@ -17,7 +17,7 @@ use typed_trees::statement::TransitionGuardNode;
 pub(super) fn append_guard_context(
     program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -39,7 +39,7 @@ pub(super) fn append_guard_context(
     append_predicate_context(
         program,
         semantic,
-        ctx,
+        build,
         state_symbol,
         statement_index,
         expression,
@@ -52,7 +52,7 @@ pub(super) fn append_guard_context(
         append_case_constraint_context(
             program,
             semantic,
-            ctx,
+            build,
             state_symbol,
             statement_index,
             expression,
@@ -63,7 +63,7 @@ pub(super) fn append_guard_context(
         append_guard_bounds_context(
             program,
             semantic,
-            ctx,
+            build,
             machine_symbol,
             state_symbol,
             statement_index,
@@ -88,7 +88,7 @@ pub(super) fn append_guard_context(
 fn append_guard_bounds_context(
     program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -233,7 +233,8 @@ fn append_guard_bounds_context(
             crate::values::integer_bounds_at_place(
                 program,
                 semantic,
-                ctx.contexts
+                build
+                    .contexts
                     .semantic_context_refs
                     .span_or_empty(*active_contexts)
                     .iter()
@@ -263,16 +264,16 @@ fn append_guard_bounds_context(
     }
     let context = semantic.append_context(point, refs);
     *active_contexts =
-        retained_flow_contexts(&ctx.contexts.semantic_context_refs, *active_contexts);
+        retained_flow_contexts(&build.contexts.semantic_context_refs, *active_contexts);
     *active_constraints =
-        retained_constraint_refs(&ctx.contexts.constraint_refs, *active_constraints);
+        retained_constraint_refs(&build.contexts.constraint_refs, *active_constraints);
     common::append_flow_reference(
-        &mut ctx.contexts.semantic_context_refs,
+        &mut build.contexts.semantic_context_refs,
         active_contexts,
         FlowSemanticContextRef { context },
     );
     append_constraint_ref(
-        &mut ctx.contexts.constraint_refs,
+        &mut build.contexts.constraint_refs,
         active_constraints,
         FlowConstraintKind::SemanticContext { context },
     );
@@ -295,7 +296,7 @@ fn append_guard_bounds_context(
 fn append_case_constraint_context(
     program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -379,16 +380,16 @@ fn append_case_constraint_context(
     }
     let context = semantic.append_context(point, refs);
     *active_contexts =
-        retained_flow_contexts(&ctx.contexts.semantic_context_refs, *active_contexts);
+        retained_flow_contexts(&build.contexts.semantic_context_refs, *active_contexts);
     *active_constraints =
-        retained_constraint_refs(&ctx.contexts.constraint_refs, *active_constraints);
+        retained_constraint_refs(&build.contexts.constraint_refs, *active_constraints);
     common::append_flow_reference(
-        &mut ctx.contexts.semantic_context_refs,
+        &mut build.contexts.semantic_context_refs,
         active_contexts,
         FlowSemanticContextRef { context },
     );
     append_constraint_ref(
-        &mut ctx.contexts.constraint_refs,
+        &mut build.contexts.constraint_refs,
         active_constraints,
         FlowConstraintKind::SemanticContext { context },
     );
@@ -495,7 +496,7 @@ fn case_membership_claim(
 pub(in crate::flow) fn append_predicate_context(
     program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -509,11 +510,11 @@ pub(in crate::flow) fn append_predicate_context(
     if !expression_is_stable_predicate(program, expression) {
         return;
     }
-    let occurrences = ctx.expression_occurrences_at(program, expression);
+    let occurrences = build.expression_occurrences_at(program, expression);
     append_observation_context(
         program,
         semantic,
-        ctx,
+        build,
         state_symbol,
         statement_index,
         occurrences.as_slice(),
@@ -528,7 +529,7 @@ pub(in crate::flow) fn append_predicate_context(
 pub(in crate::flow) fn append_match_pattern_context(
     program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     state_symbol: SymbolHandle,
     statement_index: usize,
     payload: FactPayload,
@@ -550,7 +551,7 @@ pub(in crate::flow) fn append_match_pattern_context(
     if matches!(
         validation::match_subject_primitive_type(program, dispatch),
         Some(typed_trees::types::PrimitiveType::F32 | typed_trees::types::PrimitiveType::F64)
-    ) || ctx.operators.uses.iter().any(|(_, operator_use)| {
+    ) || build.operators.uses.iter().any(|(_, operator_use)| {
         operator_use.expression == expression
             && operator_use.occurrence != checked_trees::CheckedOperatorOccurrence::Expression
     }) {
@@ -558,15 +559,16 @@ pub(in crate::flow) fn append_match_pattern_context(
     }
     if !expression_is_stable_predicate(program, subject)
         || !expression_is_stable_predicate(program, pattern)
-        || !match_input_has_builtin_meaning(program, ctx.operators, subject)
-        || !match_input_has_builtin_meaning(program, ctx.operators, pattern)
+        || !match_input_has_builtin_meaning(program, build.operators, subject)
+        || !match_input_has_builtin_meaning(program, build.operators, pattern)
     {
         return;
     }
     let mut occurrences = Vec::new();
     for expression in [subject, pattern] {
         occurrences.extend(
-            ctx.expression_occurrences_at(program, expression)
+            build
+                .expression_occurrences_at(program, expression)
                 .iter()
                 .copied(),
         );
@@ -574,7 +576,7 @@ pub(in crate::flow) fn append_match_pattern_context(
     append_observation_context(
         program,
         semantic,
-        ctx,
+        build,
         state_symbol,
         statement_index,
         &occurrences,
@@ -626,7 +628,7 @@ fn match_input_has_builtin_meaning(
 fn append_observation_context(
     program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     state_symbol: SymbolHandle,
     statement_index: usize,
     occurrences: &[ExpressionHandle],
@@ -668,16 +670,16 @@ fn append_observation_context(
     }
     let context = semantic.append_context(point, refs);
     *active_contexts =
-        retained_flow_contexts(&ctx.contexts.semantic_context_refs, *active_contexts);
+        retained_flow_contexts(&build.contexts.semantic_context_refs, *active_contexts);
     *active_constraints =
-        retained_constraint_refs(&ctx.contexts.constraint_refs, *active_constraints);
+        retained_constraint_refs(&build.contexts.constraint_refs, *active_constraints);
     common::append_flow_reference(
-        &mut ctx.contexts.semantic_context_refs,
+        &mut build.contexts.semantic_context_refs,
         active_contexts,
         FlowSemanticContextRef { context },
     );
     append_constraint_ref(
-        &mut ctx.contexts.constraint_refs,
+        &mut build.contexts.constraint_refs,
         active_constraints,
         FlowConstraintKind::SemanticContext { context },
     );

@@ -28,7 +28,7 @@ use symbols::SymbolHandle;
 pub(in crate::flow) fn append_call_referent_field_domain_facts(
     program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     borrow_call: &BorrowCallFact,
@@ -135,7 +135,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts(
             state.symbol,
             borrow_call.statement_index,
             actual.clone(),
-            ctx.call_frames,
+            build.call_frames,
         );
         let targets: Vec<(crate::flow::CanonicalPlace, bool)> = match exact {
             Some(storage) => vec![(storage, false)],
@@ -148,7 +148,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts(
                     state.symbol,
                     borrow_call.statement_index,
                     root,
-                    ctx.call_frames,
+                    build.call_frames,
                 ) else {
                     continue;
                 };
@@ -174,7 +174,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts(
                     && !row_was_live(
                         program,
                         semantic,
-                        ctx,
+                        build,
                         pre_contexts,
                         &storage,
                         path,
@@ -237,12 +237,12 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts(
     for (_, refs) in contexts {
         let context = semantic.append_context(point, refs);
         common::append_flow_reference(
-            &mut ctx.contexts.semantic_context_refs,
+            &mut build.contexts.semantic_context_refs,
             &mut exit.contexts,
             FlowSemanticContextRef { context },
         );
         append_constraint_ref(
-            &mut ctx.contexts.constraint_refs,
+            &mut build.contexts.constraint_refs,
             &mut exit.constraints,
             FlowConstraintKind::SemanticContext { context },
         );
@@ -254,7 +254,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts(
 fn row_was_live(
     program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
-    ctx: &FlowBuildContext,
+    build: &FlowBuildContext,
     pre_contexts: HandleSpan<FlowSemanticContextRef>,
     storage: &crate::flow::CanonicalPlace,
     path: &[PlaceSegment],
@@ -264,7 +264,8 @@ fn row_was_live(
     place.extend_segments(path);
     let place =
         crate::semantic_places::append_place_with_segments(semantic, place.root, &place.segments);
-    ctx.contexts
+    build
+        .contexts
         .semantic_context_refs
         .span_or_empty(pre_contexts)
         .iter()

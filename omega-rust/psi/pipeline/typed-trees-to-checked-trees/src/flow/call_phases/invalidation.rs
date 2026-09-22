@@ -21,7 +21,7 @@ pub(in crate::flow) struct CallInvalidationResult {
 pub(in crate::flow) fn call_storage_writes(
     program: &typed_trees::TypedTrees,
     borrow: &BorrowFacts,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     borrow_call: &BorrowCallFact,
@@ -32,8 +32,8 @@ pub(in crate::flow) fn call_storage_writes(
         state.symbol,
         borrow,
         borrow_call,
-        ctx.state_mutation_summary_cache,
-        ctx.call_frames,
+        build.state_mutation_summary_cache,
+        build.call_frames,
     )
     .and_then(|places| {
         // When the resolver cannot enumerate this state's local origins (a
@@ -46,7 +46,7 @@ pub(in crate::flow) fn call_storage_writes(
             state.symbol,
             borrow_call.statement_index,
             places.clone(),
-            ctx.call_frames,
+            build.call_frames,
         )
         .or(Some(places))
     })
@@ -57,24 +57,24 @@ pub(in crate::flow) fn apply_call_invalidations(
     borrow: &BorrowFacts,
     semantic: &FactPlan,
     domains: &DomainFacts,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     active_contexts: HandleSpan<FlowSemanticContextRef>,
     active_constraints: HandleSpan<FlowConstraintRef>,
     borrow_call: &BorrowCallFact,
 ) -> CallInvalidationResult {
-    let mutated_places = call_storage_writes(program, borrow, ctx, machine, state, borrow_call);
-    let invalidations_start = ctx.invalidations.events.len();
+    let mutated_places = call_storage_writes(program, borrow, build, machine, state, borrow_call);
+    let invalidations_start = build.invalidations.events.len();
     let post_contexts = match mutated_places {
         None => HandleSpan::empty(),
         Some(mutated_places) => filter_contexts_after_place_mutations(
             program,
             semantic,
             domains,
-            &mut ctx.contexts.semantic_context_refs,
-            &mut ctx.invalidations.segments,
-            &mut ctx.invalidations.events,
+            &mut build.contexts.semantic_context_refs,
+            &mut build.invalidations.segments,
+            &mut build.invalidations.events,
             active_contexts,
             &mutated_places,
             FlowInvalidationSource::Call {
@@ -85,12 +85,12 @@ pub(in crate::flow) fn apply_call_invalidations(
         ),
     };
     let post_constraints = project_constraint_refs_to_active_contexts(
-        &mut ctx.contexts.constraint_refs,
+        &mut build.contexts.constraint_refs,
         active_constraints,
         post_contexts,
-        &ctx.contexts.semantic_context_refs,
+        &build.contexts.semantic_context_refs,
     );
-    let invalidations = appended_span_since(&ctx.invalidations.events, invalidations_start);
+    let invalidations = appended_span_since(&build.invalidations.events, invalidations_start);
 
     CallInvalidationResult {
         post_contexts,
