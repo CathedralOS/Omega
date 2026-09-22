@@ -2,6 +2,7 @@ use crate::flow::effective_member_symbol;
 use checked_trees::ContractCallFact;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use facts::FactPlan;
+use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 
 pub(crate) fn instantiate_call_contract_expression_place(
@@ -201,7 +202,7 @@ fn instantiate_call_contract_name_path_place(
             };
             facts.append_place_from_expression(program, expression)
         }
-    } else if first_member == Some("self")
+    } else if first_member.is_some_and(is_self_receiver)
         || target_parameters
             .iter()
             .find(|parameter| parameter.is_self)

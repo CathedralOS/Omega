@@ -131,7 +131,7 @@ impl ContractExpressionEvaluator<'_, '_> {
             .expression_table
             .name_path_members(path.members)
             .last()
-            .is_some_and(|name| name.as_str() == "self");
+            .is_some_and(|name| name.is_self_receiver());
         if !receiver_is_self {
             return None;
         }

@@ -96,7 +96,7 @@ pub(super) fn call_target(
         if !name.symbol.is_valid() || name.head_symbol != name.symbol {
             return None;
         }
-        let mut receiver = if spelling.as_str() == "self"
+        let mut receiver = if spelling.is_self_receiver()
             && name.symbol == machine.symbol
             && declaration.kind == SymbolKind::Machine
         {

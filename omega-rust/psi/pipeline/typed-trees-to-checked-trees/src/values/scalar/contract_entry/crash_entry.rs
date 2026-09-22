@@ -578,7 +578,7 @@ impl<'program> Reader<'program> {
                 && self.program.symbols.name(parameter.symbol) == parameter.name.as_str()
                 && if parameter.is_self {
                     allow_self
-                        && parameter.name.as_str() == "self"
+                        && parameter.name.is_self_receiver()
                         && self.machine.is_some_and(|machine| {
                             name.symbol == machine.symbol && name.head_symbol == machine.symbol
                         })

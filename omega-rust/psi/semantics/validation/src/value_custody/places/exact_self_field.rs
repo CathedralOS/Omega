@@ -35,7 +35,7 @@ pub fn exact_self_field<'program>(
     if receiver.symbol != machine.symbol
         || receiver.head_symbol != machine.symbol
         || !matches!(program.expression_table.name_path_members(receiver.members),
-            [only] if only.as_str() == "self")
+            [only] if only.is_self_receiver())
     {
         return None;
     }

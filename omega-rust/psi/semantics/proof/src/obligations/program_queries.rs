@@ -36,7 +36,7 @@ pub(crate) fn expression_type_reference(
 
             let name = match program.expression_table.name_path_members(path.members) {
                 [name] => name,
-                [receiver, name] if receiver.as_str() == "self" => name,
+                [receiver, name] if receiver.is_self_receiver() => name,
                 _ => return None,
             };
 
@@ -154,7 +154,7 @@ fn self_field_path(program: &TypedTrees, expression: ExpressionHandle) -> Option
         }
         ExpressionNode::Name(name) => {
             match program.expression_table.name_path_members(name.members) {
-                [first, rest @ ..] if first.as_str() == "self" => Some(
+                [first, rest @ ..] if first.is_self_receiver() => Some(
                     rest.iter()
                         .map(|segment| segment.as_str().to_owned())
                         .collect(),

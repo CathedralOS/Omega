@@ -216,7 +216,7 @@ pub(super) fn self_entry_call_is_banned(
         current_machine,
         ..
     } = *scope;
-    if !matches!(receiver_members, [receiver] if receiver.as_str() == "self") {
+    if !matches!(receiver_members, [receiver] if receiver.is_self_receiver()) {
         return false;
     }
     let machine_entry_name = current_machine

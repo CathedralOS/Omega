@@ -23,6 +23,7 @@ use checked_trees::FlowFacts;
 use flow_effects::{
     CapabilityFlowFact, CapabilityFlowKind, CapabilityFlowPlan, ServiceReachInferencePlan,
 };
+use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
@@ -390,7 +391,7 @@ fn call_receiver_provenance(
         return ReceiverProvenance::Unknown;
     };
 
-    if head == "self" {
+    if is_self_receiver(&head) {
         return ReceiverProvenance::MachineOwned;
     }
 

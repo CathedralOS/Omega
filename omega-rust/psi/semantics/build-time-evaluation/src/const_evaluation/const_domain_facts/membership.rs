@@ -301,5 +301,5 @@ fn is_direct_self_call(typed: &TypedTrees, call: &TableCallExpression) -> bool {
     let [name] = typed.expression_table.name_path_members(path.members) else {
         return false;
     };
-    name.as_str() == "self"
+    name.is_self_receiver()
 }

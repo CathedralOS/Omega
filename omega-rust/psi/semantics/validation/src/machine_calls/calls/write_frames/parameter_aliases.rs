@@ -6,6 +6,7 @@
 
 use super::place_paths::{FramePlaceOrigin, frame_place_path, split_place_root};
 use super::transparent_effects::frame_place_root_symbol;
+use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -59,7 +60,7 @@ pub(super) fn expression_reborrows_transparent_alias_binding(
                     parameters.iter().any(|parameter| {
                         super::type_reference_is_reference(program, parameter.type_reference)
                             && (root_symbol == Some(parameter.symbol)
-                                || parameter.is_self && root == "self"
+                                || parameter.is_self && is_self_receiver(root)
                                 || root == parameter.name.as_str())
                     }) || aliases.iter().any(|(name, symbol, _)| {
                         root_symbol.is_some_and(|root| {

@@ -471,7 +471,7 @@ pub fn self_membership_facts<'a>(
                     crate::expression::ExpressionNode::Name(path)
                         if matches!(
                             program.expression_table.name_path_members(path.members),
-                            [member] if member.as_str() == "self"
+                            [member] if member.is_self_receiver()
                         )
                 );
                 self_member.then_some(membership)

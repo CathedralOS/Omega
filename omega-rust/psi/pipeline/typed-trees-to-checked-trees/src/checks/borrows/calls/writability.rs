@@ -125,7 +125,7 @@ fn mutable_argument_root_name(
                 let members = program.expression_table.name_path_members(path.members);
                 if members
                     .first()
-                    .is_some_and(|member_name| member_name.as_str() == "self")
+                    .is_some_and(|member_name| member_name.is_self_receiver())
                 {
                     return Some(member.member.as_str().to_owned());
                 }

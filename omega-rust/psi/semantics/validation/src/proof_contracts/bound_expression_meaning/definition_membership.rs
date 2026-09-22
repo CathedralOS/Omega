@@ -169,7 +169,7 @@ fn subject_type(
             };
             match owner {
                 DefinitionSubject::Domain(domain) => {
-                    if name.as_str() != "self"
+                    if !name.is_self_receiver()
                         || path.symbol.is_valid()
                         || path.head_symbol.is_valid()
                         || program

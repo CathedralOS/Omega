@@ -82,7 +82,7 @@ impl<'program> Evaluator<'program> {
                         .program
                         .expression_table
                         .name_path_members(path.members);
-                    if matches!(members, [head] if head.as_str() == "self") {
+                    if matches!(members, [head] if head.is_self_receiver()) {
                         return self.machine_attached_field_type(
                             frame.machine_symbol,
                             member.member.as_str(),
@@ -99,8 +99,8 @@ impl<'program> Evaluator<'program> {
                     .name_path_members(path.members);
                 let (mut current, rest) = match members {
                     [] => return None,
-                    [head] if head.as_str() == "self" => return None,
-                    [head, field, rest @ ..] if head.as_str() == "self" => (
+                    [head] if head.is_self_receiver() => return None,
+                    [head, field, rest @ ..] if head.is_self_receiver() => (
                         self.machine_attached_field_type(frame.machine_symbol, field.as_str())?,
                         rest,
                     ),
@@ -367,10 +367,10 @@ impl<'program> Evaluator<'program> {
                 // None from the fallthrough -- its sibling operand's witness
                 // covers the pair via `.or()`). Pinned by
                 // pass/slices/runtime_saturating_array_element_guard_exit.
-                if members.len() == 2 && members[0].as_str() == "self" {
+                if members.len() == 2 && members[0].is_self_receiver() {
                     return self.attached_field_scalar_type(frame, members[1].as_str());
                 }
-                if members.len() == 1 && members[0].as_str() != "self" {
+                if members.len() == 1 && !members[0].is_self_receiver() {
                     return frame
                         .scalar_locals
                         .borrow()
@@ -388,7 +388,7 @@ impl<'program> Evaluator<'program> {
                                 .program
                                 .expression_table
                                 .name_path_members(path.members);
-                            members.len() == 1 && members[0].as_str() == "self"
+                            members.len() == 1 && members[0].is_self_receiver()
                         }
                         _ => false,
                     };

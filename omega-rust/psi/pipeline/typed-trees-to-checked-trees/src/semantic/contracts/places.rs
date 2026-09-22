@@ -5,6 +5,7 @@ use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner, ProofFacts};
 use facts::PlaceHandle;
 use facts::{FactPlace, FactPlan};
+use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 
 #[cfg(test)]
@@ -220,7 +221,7 @@ fn contract_name_path_place(
 
     let (mut place, start_index) = if members
         .first()
-        .is_some_and(|member| member.as_str() == "self")
+        .is_some_and(|member| member.is_self_receiver())
     {
         let self_symbol = contract_owner_self_symbol(program, contract.owner)?;
         // Typed source names retain the machine attachment identity for self.
@@ -252,7 +253,7 @@ fn contract_name_path_place(
         let start_index = usize::from(
             members
                 .first()
-                .is_some_and(|member| member.as_str() == "self"),
+                .is_some_and(|member| member.is_self_receiver()),
         );
         (facts.append_symbol_place(self_symbol), start_index)
     };
@@ -298,7 +299,7 @@ fn contract_owner_parameter_symbol(
     head_name: Option<&typed_trees::name::Identifier>,
 ) -> Option<SymbolHandle> {
     let head_name = head_name?.as_str();
-    if head_name == "self" {
+    if is_self_receiver(head_name) {
         return None;
     }
 

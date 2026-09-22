@@ -57,6 +57,7 @@ pub(crate) use transition_topology::named_state_transition_subgraph_is_acyclic;
 
 use super::receiver_member_chain;
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
+use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
@@ -212,7 +213,7 @@ fn known_call_written_paths_for_parts_with_origins(
         .or(typed_receiver_callee)
         .or_else(|| {
             (receiver_members.is_empty()
-                || matches!(receiver_members, [receiver] if receiver == "self"))
+                || matches!(receiver_members, [receiver] if is_self_receiver(receiver)))
             .then(|| {
                 machine_state_by_symbol(program, target_symbol)
                     .filter(|(machine, _)| machine.symbol != current_machine.symbol)

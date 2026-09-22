@@ -868,7 +868,7 @@ fn receiver_parameter_symbol(
     let [member] = program.expression_table.name_path_members(path.members) else {
         return None;
     };
-    if member.as_str() != "self"
+    if !member.is_self_receiver()
         || (path.symbol != machine.symbol && path.symbol != machine.attached_data_symbol)
     {
         return None;

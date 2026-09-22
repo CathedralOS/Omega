@@ -5,6 +5,7 @@
 //! symbol forwarding. It does not resolve calls or infer write frames.
 
 use super::place_paths::{append_place_suffix, split_place_root};
+use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -45,7 +46,7 @@ pub(super) fn relative_state_path_is_visible(
     locals: &[String],
 ) -> Option<bool> {
     let (root, _) = split_place_root(relative);
-    if root == "self"
+    if is_self_receiver(root)
         || parameters
             .iter()
             .any(|parameter| parameter.name.as_str() == root)
@@ -64,7 +65,7 @@ pub(super) fn normalize_state_relative_path(
     relative: &str,
 ) -> Option<Option<String>> {
     let (root, suffix) = split_place_root(relative);
-    if root == "self" {
+    if is_self_receiver(root) {
         return Some(Some(append_place_suffix("self", suffix)));
     }
     if let Some(parameter_index) = program

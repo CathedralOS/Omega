@@ -236,7 +236,7 @@ pub(crate) fn hoist_terminal_value_machine_call(
         let ExpressionNode::Name(path) = expressions.expression(call.receiver) else {
             return expression;
         };
-        if !matches!(expressions.name_path_members(path.members), [member] if member.as_str() == "self")
+        if !matches!(expressions.name_path_members(path.members), [member] if member.is_self_receiver())
         {
             // Contained/dynamic/proof receivers already have their own return
             // routes, and their selected requirement is not a concrete state

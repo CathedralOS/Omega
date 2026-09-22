@@ -393,7 +393,7 @@ impl<'program> Evaluator<'program> {
         };
         let mut cell = frame.self_cell.clone();
         let mut start = 0usize;
-        if first.as_str() == "self" {
+        if first.is_self_receiver() {
             start = 1;
         } else if let Some(local) = frame.get(first.as_str()) {
             cell = local;

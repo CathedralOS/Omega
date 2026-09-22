@@ -491,7 +491,7 @@ fn membership_subject_matches_owner(
             return machine.symbol.is_valid()
                 && machine.attached_data_symbol == owner.symbol
                 && matches!(program.expression_table.name_path_members(path.members),
-                    [name] if name.as_str() == "self")
+                    [name] if name.is_self_receiver())
                 && program
                     .expression_table
                     .name_path_member_symbols(path.member_symbols)

@@ -10,6 +10,7 @@ use super::place_paths::{
     FramePathPrecision, FramePlaceOrigin, append_place_suffix, frame_place_path, split_place_root,
 };
 use super::type_capabilities::type_reference_is_reference;
+use language_core::is_self_receiver;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -55,7 +56,7 @@ pub(super) fn stable_alias_place_origins(
     };
     let origin = frame_place_path(program, expression)?;
     let (root, suffix) = split_place_root(&origin.path);
-    if root == "self"
+    if is_self_receiver(root)
         || parameters
             .iter()
             .any(|parameter| parameter.name.as_str() == root)
@@ -137,7 +138,8 @@ pub(super) fn expression_reborrows_stable_alias_binding(
             suffix.is_empty()
                 && (parameters.iter().any(|parameter| {
                     type_reference_is_reference(program, parameter.type_reference)
-                        && (parameter.is_self && root == "self" || root == parameter.name.as_str())
+                        && (parameter.is_self && is_self_receiver(root)
+                            || root == parameter.name.as_str())
                 }) || aliases.iter().any(|(name, _)| root == name))
         })
     })

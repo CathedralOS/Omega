@@ -169,7 +169,7 @@ pub(crate) fn validate_call_node(
         return;
     }
     if receiver_members.is_empty()
-        || matches!(receiver_members, [receiver] if receiver.as_str() == "self")
+        || matches!(receiver_members, [receiver] if receiver.is_self_receiver())
     {
         receiverless_calls::validate_receiverless_call(&scope, arguments, diagnostics);
         return;

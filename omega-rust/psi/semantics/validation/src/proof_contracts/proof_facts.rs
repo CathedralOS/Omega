@@ -751,13 +751,13 @@ fn self_member_name(program: &TypedTrees, expression: ExpressionHandle) -> Optio
             };
             matches!(
                 program.expression_table.name_path_members(path.members),
-                [name] if name.as_str() == "self"
+                [name] if name.is_self_receiver()
             )
             .then_some(member.member.as_str())
         }
         ExpressionNode::Name(path) => {
             match program.expression_table.name_path_members(path.members) {
-                [root, member] if root.as_str() == "self" => Some(member.as_str()),
+                [root, member] if root.is_self_receiver() => Some(member.as_str()),
                 _ => None,
             }
         }

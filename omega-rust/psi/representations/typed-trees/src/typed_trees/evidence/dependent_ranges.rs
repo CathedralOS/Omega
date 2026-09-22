@@ -214,7 +214,7 @@ fn self_field_name(table: &ExpressionTable, expression: ExpressionHandle) -> Opt
     let [only] = table.name_path_members(path.members) else {
         return None;
     };
-    (only.as_str() == "self").then(|| member.member.clone())
+    only.is_self_receiver().then(|| member.member.clone())
 }
 
 /// Recognizes `<name>.len [+/- k]` -- the sibling-length class. `None` is
@@ -258,7 +258,7 @@ fn bare_name_len(table: &ExpressionTable, expression: ExpressionHandle) -> Optio
     let [only] = table.name_path_members(path.members) else {
         return None;
     };
-    (only.as_str() != "self").then(|| only.clone())
+    (!only.is_self_receiver()).then(|| only.clone())
 }
 
 /// Recognizes `<name> [+/- k]` where `<name>` is a bare single-segment Name
@@ -301,7 +301,7 @@ fn scoped_name_anchor(
     let [only] = table.name_path_members(path.members) else {
         return None;
     };
-    (only.as_str() != "self" && path.head_symbol == path.symbol).then_some(expression)
+    (!only.is_self_receiver() && path.head_symbol == path.symbol).then_some(expression)
 }
 
 #[cfg(test)]

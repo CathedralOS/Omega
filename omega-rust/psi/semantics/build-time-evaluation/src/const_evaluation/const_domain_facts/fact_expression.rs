@@ -27,7 +27,7 @@ pub(super) fn evaluate_domain_fact_expression(
             let [name] = typed.expression_table.name_path_members(path.members) else {
                 return Ok(None);
             };
-            Ok((name.as_str() == "self")
+            Ok((name.is_self_receiver())
                 .then_some(ConstProofValue::Integer(self_value)))
         }
         ExpressionNode::Binary(binary) => {

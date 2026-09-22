@@ -5,6 +5,7 @@ use super::{
     SymbolHandle, TableNamePath, TypeReferenceNode, Value, apply_arithmetic_domain,
     interpreter_f32_from_bits, interpreter_f32_to_bits, trap, unsupported,
 };
+use language_core::is_self_receiver;
 use language_semantics::const_value::boolean_literal_spelling;
 use language_semantics::declaration_selection::CollectionMeasure;
 impl<'program> Evaluator<'program> {
@@ -584,7 +585,7 @@ impl<'program> Evaluator<'program> {
 
         // Head: `self`, a local, or a self-field (implicit self).
         let head = members[0].as_str();
-        let mut cell = if head == "self" {
+        let mut cell = if is_self_receiver(head) {
             frame.self_cell.clone()
         } else if let Some(local) = frame.get(head) {
             local
@@ -837,13 +838,13 @@ impl<'program> Evaluator<'program> {
                     [single] => {
                         // A single name is either a local (no declared-type record
                         // here) or an implicit self-field.
-                        if single == "self" || frame.get(single).is_some() {
+                        if is_self_receiver(single) || frame.get(single).is_some() {
                             return None;
                         }
                         (frame.self_cell.clone(), single.clone())
                     }
                     [head, middle @ .., last] => {
-                        let mut cell = if head == "self" {
+                        let mut cell = if is_self_receiver(head) {
                             frame.self_cell.clone()
                         } else if let Some(local) = frame.get(head) {
                             local

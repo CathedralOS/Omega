@@ -211,7 +211,7 @@ fn self_field_path(
         }
         ExpressionNode::Name(name) => {
             match program.expression_table.name_path_members(name.members) {
-                [first, rest @ ..] if first.as_str() == "self" => Some(
+                [first, rest @ ..] if first.is_self_receiver() => Some(
                     rest.iter()
                         .map(|segment| segment.as_str().to_owned())
                         .collect(),

@@ -26,6 +26,7 @@ use super::type_instantiation::{
 };
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::machine_calls::calls::write_frames::FrameInference;
+use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
@@ -60,7 +61,7 @@ pub(super) fn receiver_requires_boundary_frame(
     // must fence the signature-free fallback, even when another state's
     // same-spelled parameter would be an ordinary value.
     let has_boundary_receiver = match receiver {
-        [root, member] if root == "self" => {
+        [root, member] if is_self_receiver(root) => {
             crate::value_custody::places::machine_attached_data(program, current_machine)
                 .is_some_and(|data| {
                     program.data_members(data).iter().any(|field| match field {
@@ -275,7 +276,7 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
                 (definition, false, TypeReferenceHandle::invalid())
             }
         }
-        [root, receiver] if root == "self" => {
+        [root, receiver] if is_self_receiver(root) => {
             let data =
                 crate::value_custody::places::machine_attached_data(program, current_machine)?;
             let mut fields = program
@@ -443,7 +444,7 @@ fn requirement_signature_for_receiver_path<'program>(
     let [root, members @ ..] = receiver else {
         return None;
     };
-    if root != "self" || members.is_empty() {
+    if !is_self_receiver(root) || members.is_empty() {
         return None;
     }
     let attached = current_machine.attached_data.as_ref()?;
@@ -1260,7 +1261,7 @@ fn caller_canonical_result_origin(
     let mut origin = candidate;
     for _ in 0..=aliases.len() {
         let (root, suffix) = split_place_root(&origin.path);
-        if root == "self"
+        if is_self_receiver(root)
             || parameters
                 .iter()
                 .any(|parameter| parameter.name.as_str() == root)

@@ -78,7 +78,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                 .data_type_parameters
                 .span_or_empty(domain.type_parameters)
                 .iter()
-                .filter(|parameter| parameter.name.as_str() != "self")
+                .filter(|parameter| !parameter.name.is_self_receiver())
                 .map(|parameter| (parameter.name.as_str().to_owned(), parameter.symbol))
                 .collect();
             (domain.facts, local_symbols, Some(domain.type_parameters))
@@ -507,7 +507,7 @@ fn resolved_domain_byte_predicate(
         .bodies
         .expressions
         .name_path_members(path.members);
-    matches!(members, [member] if member.as_str() == "self").then_some(predicate)
+    matches!(members, [member] if member.is_self_receiver()).then_some(predicate)
 }
 
 fn assign_proof_expression_symbols(

@@ -1083,7 +1083,7 @@ fn table_transition_target_state_and_arguments<'program>(
     let path_members = program.statement_table.name_path_members(path.members);
 
     state_by_symbol(program, path.symbol)
-        .or_else(|| matches!(path_members, [member] if member.as_str() == "self").then_some(state))
+        .or_else(|| matches!(path_members, [member] if member.is_self_receiver()).then_some(state))
         .map(|target_state| {
             (
                 target_state,

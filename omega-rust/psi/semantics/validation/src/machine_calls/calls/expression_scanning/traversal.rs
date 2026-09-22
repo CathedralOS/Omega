@@ -387,7 +387,7 @@ fn double_indexed_machine_read_is_lowerable(
                             .expression_table
                             .name_path_members(path.members)
                             .first()
-                            .is_some_and(|name| name.as_str() == "self")
+                            .is_some_and(|name| name.is_self_receiver())
                 ) {
                     return true;
                 }
@@ -405,7 +405,7 @@ fn double_indexed_machine_read_is_lowerable(
                 // for the frame case (member links between the indices stay
                 // fenced by the resolver and report loudly downstream).
                 let members = program.expression_table.name_path_members(path.members);
-                return members.first().is_some_and(|name| name.as_str() == "self")
+                return members.first().is_some_and(|name| name.is_self_receiver())
                     || members.len() == 1;
             }
             _ => return false,

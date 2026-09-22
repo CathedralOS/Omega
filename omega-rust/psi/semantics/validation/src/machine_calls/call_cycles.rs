@@ -767,7 +767,7 @@ fn collect_exact_proof_statement_edges(
         StatementNode::Call(call) => {
             let receiver_members = program.statement_table.name_path_members(call.receiver);
             if (receiver_members.is_empty()
-                || matches!(receiver_members, [receiver] if receiver.as_str() == "self"))
+                || matches!(receiver_members, [receiver] if receiver.is_self_receiver()))
                 && let Some(callee) =
                     resolve_machine_index(program, machine, symbols, index_of, &call.target)
             {
@@ -817,7 +817,7 @@ fn collect_exact_proof_statement_edges(
                     } => {
                         let members = program.statement_table.name_path_members(path.members);
                         if let [receiver, target] = members
-                            && receiver.as_str() == "self"
+                            && receiver.is_self_receiver()
                             && let Some(callee) =
                                 resolve_machine_index(program, machine, symbols, index_of, target)
                         {
@@ -902,7 +902,7 @@ fn collect_exact_proof_expression_edges(
                     ExpressionNode::Name(path)
                         if matches!(
                             program.expression_table.name_path_members(path.members),
-                            [only] if only.as_str() == "self"
+                            [only] if only.is_self_receiver()
                         )
                 );
             if receiver_is_selfish {

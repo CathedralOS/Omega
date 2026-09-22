@@ -456,7 +456,7 @@ fn result_type(
                         if !path.symbol.is_valid()
                             && !path.head_symbol.is_valid()
                             && matches!(program.expression_table.name_path_members(path.members),
-                            [name] if name.as_str() == "self") =>
+                            [name] if name.is_self_receiver()) =>
                     {
                         Some(domain.target_type)
                     }

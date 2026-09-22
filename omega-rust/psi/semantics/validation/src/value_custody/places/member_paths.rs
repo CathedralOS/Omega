@@ -1,4 +1,5 @@
 use super::unwrapped_type_reference;
+use language_core::is_self_receiver;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -37,7 +38,7 @@ pub(crate) fn declared_member_path_type(
             }
             None
         }
-        [root, field_name] if root == "self" => {
+        [root, field_name] if is_self_receiver(root) => {
             let data = super::machine_attached_data(program, current_machine)?;
             let field = program
                 .data_members(data)
@@ -136,10 +137,10 @@ pub(crate) fn first_unknown_nested_field(
     // Direct `self.<field>` has a dedicated diagnostic at both read and write
     // sites. Two-segment non-self roots used to skip both that check and this
     // walker, silently accepting `typed_local.missing` as a ZII/default read.
-    if root == "self" && path.len() < 3 {
+    if is_self_receiver(root) && path.len() < 3 {
         return None;
     }
-    let mut current_data = if root == "self" {
+    let mut current_data = if is_self_receiver(root) {
         // `self.<owned>.…` roots on the MACHINE, not its attached data.
         let first_hop = rest.first()?;
         let is_machine_owned_data = program
@@ -181,7 +182,7 @@ fn resolve_nested_member_path(
     path: &[String],
 ) -> Option<TypeReferenceHandle> {
     let (root, rest) = path.split_first()?;
-    let mut current_data = if root == "self" {
+    let mut current_data = if is_self_receiver(root) {
         super::machine_attached_data(program, current_machine)?
     } else {
         let receiver_type = local_or_parameter_type(program, current_state, root)?;

@@ -19,6 +19,7 @@ use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
 use crate::proof_contracts::arithmetic_domains::float_arithmetic::resolve_named_float_arithmetic;
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{primitive_name, primitive_range};
 use crate::proof_contracts::arithmetic_domains::operand_reports::arithmetic_operator_spelling;
+use language_core::is_self_receiver;
 
 /// Reject runtime-control arithmetic from proof positions. A contract is a
 /// total proposition: it may compare or bitwise-inspect a Trapping-qualified
@@ -532,7 +533,7 @@ pub(super) fn abstract_specification_place_type(
     segments(program, expression, &mut path)?;
     let (mut type_reference, consumed) = match path.as_slice() {
         [name, ..] if name == "result" => (bindings.result_type?, 1),
-        [name, ..] if name == "self" => {
+        [name, ..] if is_self_receiver(name) => {
             if let Some(type_reference) = bindings.self_type {
                 (type_reference, 1)
             } else if bindings.data.is_some() {

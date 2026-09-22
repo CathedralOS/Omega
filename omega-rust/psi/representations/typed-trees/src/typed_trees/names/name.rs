@@ -40,6 +40,12 @@ impl Identifier {
             IdentifierText::Generated(text) => text.as_ref(),
         }
     }
+
+    /// Whether this identifier spells the `self` receiver binding of an
+    /// attached machine or state; see `language_core::receiver_binding`.
+    pub fn is_self_receiver(&self) -> bool {
+        language_core::is_self_receiver(self.as_str())
+    }
 }
 
 impl From<&str> for Identifier {

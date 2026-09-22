@@ -14,6 +14,7 @@ use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::proof_contracts::arithmetic_domains::{self, ValueEnv};
 use crate::value_custody::locals::WritableRoots;
 use diagnostics::Diagnostic;
+use language_core::is_self_receiver;
 use symbols::BuiltinFunction;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
@@ -381,7 +382,7 @@ fn validate_expression_call_bounds(
         match program.expression_table.expression(call.receiver) {
             ExpressionNode::Name(path) => {
                 let members = program.expression_table.name_path_members(path.members);
-                if members.is_empty() || matches!(members, [r] if r.as_str() == "self") {
+                if members.is_empty() || matches!(members, [r] if r.is_self_receiver()) {
                     (true, None)
                 } else {
                     (false, members.last().map(Identifier::as_str))
@@ -643,7 +644,7 @@ fn validate_expression_call_bounds(
         .callable_field_type(receiver_name)
         .or_else(|| {
             let chain = receiver_member_chain(program, call.receiver)?;
-            if chain.len() < 3 || chain.first().map(String::as_str) != Some("self") {
+            if chain.len() < 3 || !chain.first().is_some_and(|root| is_self_receiver(root)) {
                 return None;
             }
             crate::value_custody::places::nested_receiver_type_name(

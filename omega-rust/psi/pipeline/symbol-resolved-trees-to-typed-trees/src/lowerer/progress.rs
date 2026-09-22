@@ -224,7 +224,8 @@ fn subject_path(
                 .len()
                 == 1 =>
         {
-            let name = program.expression_table.name_path_members(path.members)[0].as_str();
+            let identifier = &program.expression_table.name_path_members(path.members)[0];
+            let name = identifier.as_str();
             let root = parameters
                 .iter()
                 .find(|parameter| path.symbol.is_valid() && parameter.symbol == path.symbol)
@@ -237,7 +238,8 @@ fn subject_path(
                 // telescope-row symbol. Its durable progress-subject identity
                 // is still the exact receiver parameter.
                 .or_else(|| {
-                    (name == "self")
+                    identifier
+                        .is_self_receiver()
                         .then(|| parameters.iter().find(|parameter| parameter.is_self))
                         .flatten()
                 })

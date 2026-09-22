@@ -1,3 +1,9 @@
+//! Source-semantics vocabulary that resolution and typing consult:
+//! multiplicities, relevance, carry policies, domain classification, and, in
+//! `receiver_binding`, the `self` receiver spelling.
+
+pub mod receiver_binding;
+
 /// First-class usage multiplicity. `[copy]` maps to `Unrestricted`, ordinary
 /// data defaults to `Affine`, and `[linear]` maps to `Linear`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
