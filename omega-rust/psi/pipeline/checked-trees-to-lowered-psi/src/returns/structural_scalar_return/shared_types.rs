@@ -1,16 +1,15 @@
 //! Rejoin a selected callee's type closure in the caller's allocated namespace.
 
 use super::super::{
-    CheckedUnitStructuralFieldType, CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
-    StructuralAccess, StructuralTypeShape, lower_mixed_cases, lower_mixed_fields,
-    terminal_byte_sequence_carrier,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape, StructuralAccess,
+    StructuralTypeShape, lower_mixed_cases, lower_mixed_fields, terminal_byte_sequence_carrier,
 };
 use super::{
-    BTreeSet, CheckedStructuralScalarReturnMachinePlan, LoweringError, StructuralTypeDeclaration,
-    lookup_type_id, terminal_scalar_type, unsupported,
+    BTreeSet, CheckedStructuralScalarReturnMachinePlan, LoweringError, StructuralScalarReturnTypes,
+    StructuralTypeDeclaration, lookup_type_id, terminal_scalar_type, unsupported,
 };
 pub(super) fn validate(
-    plans: &[CheckedUnitStructuralTypePlan],
+    plans: StructuralScalarReturnTypes<'_>,
     shared: &[StructuralTypeDeclaration],
     callee: &CheckedStructuralScalarReturnMachinePlan,
 ) -> Result<(), LoweringError> {

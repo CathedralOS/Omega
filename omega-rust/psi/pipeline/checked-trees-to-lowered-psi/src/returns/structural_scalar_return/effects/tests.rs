@@ -1,4 +1,4 @@
-use super::{CheckedTrees, validate};
+use super::{CheckedTrees, StructuralScalarReturnTypes, validate};
 fn checked(source: &str) -> CheckedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
@@ -33,7 +33,12 @@ fn pure_primitive_reference_returns_lower_without_fabricated_effects_or_attachme
             .terminal_structural_scalar_returns
             .machines[0];
         assert!(
-            validate(&checked, plan).unwrap(),
+            validate(
+                &checked,
+                StructuralScalarReturnTypes::published(&checked),
+                plan
+            )
+            .unwrap(),
             "primitive-reference cohort: {source}"
         );
         let lowered = crate::lower_machine(&checked, "hold").unwrap();
@@ -84,7 +89,12 @@ fn pure_primitive_reference_returns_reject_signature_and_return_custody_substitu
             _ => plan.structural_parameters[0].type_identity = String::from("unrelated primitive"),
         }
         assert!(
-            validate(&checked, &plan).is_err(),
+            validate(
+                &checked,
+                StructuralScalarReturnTypes::published(&checked),
+                &plan
+            )
+            .is_err(),
             "custody mutation {mutation}"
         );
     }
@@ -101,7 +111,14 @@ fn pure_primitive_reference_returns_cannot_erase_an_authored_assignment() {
         .clone();
     plan.effects.clear();
     plan.return_statement_ordinal = 0;
-    assert!(validate(&checked, &plan).is_err());
+    assert!(
+        validate(
+            &checked,
+            StructuralScalarReturnTypes::published(&checked),
+            &plan
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -123,6 +140,14 @@ fn pure_primitive_reference_returns_replay_authored_contract_and_range_restricti
         checked.facts.proof.contract_facts = Default::default();
         checked.facts.flow.terminal_structural_scalar_returns =
             plain.facts.flow.terminal_structural_scalar_returns.clone();
-        assert!(validate(&checked, &forged).is_err(), "{source}");
+        assert!(
+            validate(
+                &checked,
+                StructuralScalarReturnTypes::published(&checked),
+                &forged
+            )
+            .is_err(),
+            "{source}"
+        );
     }
 }

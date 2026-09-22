@@ -2,14 +2,15 @@
 use super::super::{CheckedUnitEffectOperationPlan, StructuralParameterDeclaration};
 use super::{
     CheckedScalarExpressionRole, CheckedStructuralScalarReturnMachinePlan, CheckedTrees,
-    LoweringError, Multiplicity, Operation, StructuralTypeDeclaration, ValueDeclaration,
-    unsupported,
+    LoweringError, Multiplicity, Operation, StructuralScalarReturnTypes, StructuralTypeDeclaration,
+    ValueDeclaration, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use checked_trees::statement::StatementNode;
 
 pub(super) fn validate(
     checked: &CheckedTrees,
+    types: StructuralScalarReturnTypes<'_>,
     plan: &CheckedStructuralScalarReturnMachinePlan,
 ) -> Result<bool, LoweringError> {
     let (machine, state) =
@@ -218,13 +219,8 @@ pub(super) fn validate(
                         "primitive reference return has no primitive referent",
                     ))?;
             let identity = checked.normalized_type_identity(*referee).into_string();
-            let shape = checked
-                .facts
-                .flow
-                .terminal_structural_scalar_returns
-                .structural_types
-                .iter()
-                .find(|shape| shape.identity == retained.type_identity)
+            let shape = types
+                .find(&retained.type_identity)
                 .ok_or(LoweringError::Unsupported(
                     "primitive reference return shape is absent",
                 ))?;
