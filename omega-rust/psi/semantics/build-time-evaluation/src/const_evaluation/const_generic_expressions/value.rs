@@ -65,11 +65,9 @@ mod match_dispatch;
 use context::EvaluationContext;
 
 #[cfg(test)]
-#[path = "value/match_tests.rs"]
 mod match_tests;
 
 #[cfg(test)]
-#[path = "value/call_tests.rs"]
 mod call_tests;
 
 /// The invocation owner validates all arguments without executing landed
