@@ -16,7 +16,10 @@ mod tests;
 
 pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) -> bool {
     operations.iter().any(|operation| {
-        if matches!(operation, AbstractOperation::WriteOnlyPrimitiveStore { path, .. } if !path.is_empty()) {
+        if matches!(operation,
+            AbstractOperation::WriteOnlyPrimitiveStore { path, .. }
+            | AbstractOperation::WriteOnlyIndexedPrimitiveStore { path, .. } if !path.is_empty())
+        {
             return true;
         }
         if let AbstractOperation::CallStructuralScalar {
@@ -394,6 +397,10 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                             && access.place == destination.place
                             && access.role == selected_instructions::SelectedMemoryAccessRole::WritePlace
                     })
+                }
+                AbstractOperation::WriteOnlyIndexedPrimitiveStore { .. } => {
+                    structural_fields::write_only_indexed_store_retained(abstracted, operation, targeted)
+                        && structural_fields::write_only_indexed_footprint_retained(operation, &selected.memory_accesses)
                 }
                 AbstractOperation::Jump { .. }
                 | AbstractOperation::Conditional { .. } => control_flow::retained(operation, targeted),

@@ -79,6 +79,61 @@ pub(super) fn validate_write_only_primitive_store(
     Ok(())
 }
 
+pub(super) fn validate_write_only_indexed_primitive_store(
+    actual: &LegalizedScalarInstruction,
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+    operation: OperationId,
+) -> Result<(), LegalizationError> {
+    let (
+        LegalizedScalarInstructionKind::WriteOnlyIndexedPrimitiveStore {
+            destination,
+            path,
+            index,
+            value,
+            byte_offset,
+            byte_size,
+            extent,
+            obligation,
+            accepted_fact,
+        },
+        AbstractOperation::WriteOnlyIndexedPrimitiveStore {
+            destination: expected,
+            path: expected_path,
+            index: expected_index,
+            value: expected_value,
+            obligation: expected_obligation,
+            ..
+        },
+    ) = (&actual.kind, &node.operation)
+    else {
+        unreachable!("dispatched validate_write_only_indexed_primitive_store")
+    };
+    let invalid = Error::NonCanonicalLegalizedPlan;
+    if destination != expected
+        || path != expected_path
+        || index != expected_index
+        || value != expected_value
+        || obligation != expected_obligation
+        || crate::structural_inputs::structural_reference_input::indexed_primitive_store(
+            expected,
+            expected_path,
+            expected_value.scalar_type,
+            &unit.structural_types,
+        ) != Some((*byte_offset, *byte_size, *extent))
+        || !unit.accepted_obligation_facts.iter().any(|fact| {
+            fact.machine == optimized.machine
+                && fact.operation == operation
+                && fact.obligation == *obligation
+                && fact.identity == *accepted_fact
+        })
+    {
+        return Err(invalid);
+    }
+    Ok(())
+}
+
 pub(super) fn validate_structural_scalar_field_store(
     actual: &LegalizedScalarInstruction,
     node: &optimization_unit::OptimizationNode,

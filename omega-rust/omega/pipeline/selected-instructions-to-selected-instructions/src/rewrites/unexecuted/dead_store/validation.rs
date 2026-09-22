@@ -170,7 +170,8 @@ fn disturbs(
         ReadByteSpan { .. }
         | ReadByteSequence { .. }
         | WriteByteSpan { .. }
-        | WriteByteSequence { .. } => {
+        | WriteByteSequence { .. }
+        | WriteIndexedPrimitive { .. } => {
             matches!(subject.storage, SubjectStorage::Place)
                 && access.place == subject.place
                 && subject.reached_by(access, function)

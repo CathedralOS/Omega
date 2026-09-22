@@ -590,7 +590,8 @@ fn interferes(
         SelectedMemoryAccessRole::ReadByteSpan { .. }
         | SelectedMemoryAccessRole::ReadByteSequence { .. }
         | SelectedMemoryAccessRole::WriteByteSpan { .. }
-        | SelectedMemoryAccessRole::WriteByteSequence { .. } => {
+        | SelectedMemoryAccessRole::WriteByteSequence { .. }
+        | SelectedMemoryAccessRole::WriteIndexedPrimitive { .. } => {
             matches!(moved.storage, SubjectStorage::Place)
                 && access.place == moved.place
                 && moved.reached_by(access, function)
