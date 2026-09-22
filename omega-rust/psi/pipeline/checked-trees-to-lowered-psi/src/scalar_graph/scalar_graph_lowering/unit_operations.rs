@@ -13,14 +13,15 @@ fn target_erased_proof_arity(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
 ) -> Result<usize, LoweringError> {
-    Ok(
-        UnitBody::find(&checked.facts.flow.terminal_unit_effects, machine)?
-            .entry()?
-            .erased_proof_parameters
-            .len(),
-    )
+    Ok(UnitBody::find(
+        UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
+        machine,
+    )?
+    .entry()?
+    .erased_proof_parameters
+    .len())
 }
-use crate::unit::attached_unit::bodies::UnitBody;
+use crate::unit::attached_unit::bodies::{UnitBody, UnitPlans};
 use checked_trees::{CheckedUnitCallCoordinate, CheckedUnitEffectOperationPlan};
 
 pub(super) struct Prepared {
@@ -92,7 +93,10 @@ pub(super) fn prepare(
             )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let body = UnitBody::find(&checked.facts.flow.terminal_unit_effects, *target_machine)?;
+    let body = UnitBody::find(
+        UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
+        *target_machine,
+    )?;
     let target = body.entry()?;
     if body.result()? != checked_trees::CheckedControlResultPlan::Unit
         || target.state != *target_state

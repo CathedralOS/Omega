@@ -11,6 +11,7 @@ use super::super::{
     structural_domain_id, structural_field_id, structural_type_id, terminal_byte_sequence_carrier,
     terminal_structural_field_type,
 };
+use super::bodies::UnitPlans;
 use super::{
     CheckedBoundaryMachinePlan, CheckedTrees, CheckedUnitEffectMachinePlan,
     CheckedUnitEffectOperationPlan, CheckedUnitProviderCandidate, LoweringError, SemanticDomainId,
@@ -126,6 +127,7 @@ pub(super) fn lower_program_local_root_introductions(
 
 pub(super) fn lower_unit_structural_types(
     checked: &CheckedTrees,
+    plans: UnitPlans<'_>,
     closure: &[symbols::SymbolHandle],
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
 ) -> Result<
@@ -135,11 +137,12 @@ pub(super) fn lower_unit_structural_types(
     ),
     LoweringError,
 > {
-    lower_unit_structural_types_including(checked, closure, boundaries, &[])
+    lower_unit_structural_types_including(checked, plans, closure, boundaries, &[])
 }
 
 pub(super) fn lower_unit_structural_types_including(
     checked: &CheckedTrees,
+    plans: UnitPlans<'_>,
     closure: &[symbols::SymbolHandle],
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
     additional_roots: &[String],
@@ -150,7 +153,6 @@ pub(super) fn lower_unit_structural_types_including(
     ),
     LoweringError,
 > {
-    let plans = &checked.facts.flow.terminal_unit_effects;
     let mut roots = additional_roots.to_vec();
     for symbol in closure {
         roots.extend(crate::scalar_graph::scalar_computations::cases::type_roots(
@@ -286,11 +288,12 @@ pub(super) fn lower_unit_structural_types_including(
         );
         roots.extend(boundary.result.structural_identity().map(str::to_owned));
     }
-    lower_unit_structural_type_roots(checked, &roots)
+    lower_unit_structural_type_roots(checked, plans, &roots)
 }
 
 pub(crate) fn lower_unit_structural_type_roots(
     checked: &CheckedTrees,
+    plans: UnitPlans<'_>,
     roots: &[String],
 ) -> Result<
     (
@@ -299,8 +302,30 @@ pub(crate) fn lower_unit_structural_type_roots(
     ),
     LoweringError,
 > {
+    fn select_from<'a>(
+        roster: impl Iterator<Item = &'a CheckedUnitStructuralTypePlan>,
+        identity: &str,
+        selected: &mut Option<&'a CheckedUnitStructuralTypePlan>,
+    ) -> Result<(), LoweringError> {
+        let mut matches = roster.filter(|plan| plan.identity == identity);
+        let Some(plan) = matches.next() else {
+            return Ok(());
+        };
+        if matches.next().is_some() {
+            return unsupported(
+                "Unit closure contains a duplicate or empty structural type identity",
+            );
+        }
+        if selected.is_some_and(|previous| previous != plan) {
+            return unsupported("Unit closure structural type declarations conflict across owners");
+        }
+        *selected = Some(plan);
+        Ok(())
+    }
+
     fn selected_declaration<'a>(
         checked: &'a CheckedTrees,
+        plans: UnitPlans<'a>,
         identity: &str,
     ) -> Result<&'a CheckedUnitStructuralTypePlan, LoweringError> {
         if identity.is_empty() {
@@ -309,9 +334,18 @@ pub(crate) fn lower_unit_structural_type_roots(
             );
         }
         let mut selected = None;
+        select_from(
+            checked
+                .facts
+                .flow
+                .terminal_scalar_graphs
+                .structural_types
+                .iter(),
+            identity,
+            &mut selected,
+        )?;
+        select_from(plans.structural_types(), identity, &mut selected)?;
         for roster in [
-            &checked.facts.flow.terminal_scalar_graphs.structural_types,
-            &checked.facts.flow.terminal_unit_effects.structural_types,
             &checked
                 .facts
                 .flow
@@ -328,21 +362,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                 .terminal_structural_scalar_returns
                 .structural_types,
         ] {
-            let mut matches = roster.iter().filter(|plan| plan.identity == identity);
-            let Some(plan) = matches.next() else {
-                continue;
-            };
-            if matches.next().is_some() {
-                return unsupported(
-                    "Unit closure contains a duplicate or empty structural type identity",
-                );
-            }
-            if selected.is_some_and(|previous| previous != plan) {
-                return unsupported(
-                    "Unit closure structural type declarations conflict across owners",
-                );
-            }
-            selected = Some(plan);
+            select_from(roster.iter(), identity, &mut selected)?;
         }
         selected.ok_or(LoweringError::Unsupported(
             "Unit closure references a missing structural type",
@@ -351,6 +371,7 @@ pub(crate) fn lower_unit_structural_type_roots(
 
     fn collect<'a>(
         checked: &'a CheckedTrees,
+        plans: UnitPlans<'a>,
         identity: &str,
         active: &mut Vec<String>,
         selected: &mut Vec<&'a CheckedUnitStructuralTypePlan>,
@@ -364,13 +385,13 @@ pub(crate) fn lower_unit_structural_type_roots(
         {
             return Ok(());
         }
-        let plan = selected_declaration(checked, identity)?;
+        let plan = selected_declaration(checked, plans, identity)?;
         active.push(identity.to_owned());
         match &plan.shape {
             CheckedUnitStructuralTypeShape::Reference {
                 referent_identity, ..
             } => {
-                collect(checked, referent_identity, active, selected)?;
+                collect(checked, plans, referent_identity, active, selected)?;
             }
             CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {}
             CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
@@ -384,7 +405,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                     if let CheckedUnitStructuralFieldType::Structural { type_identity } =
                         &field.field_type
                     {
-                        collect(checked, type_identity, active, selected)?;
+                        collect(checked, plans, type_identity, active, selected)?;
                     }
                 }
             }
@@ -392,14 +413,14 @@ pub(crate) fn lower_unit_structural_type_roots(
                 element_type_identity,
                 ..
             } => {
-                collect(checked, element_type_identity, active, selected)?;
+                collect(checked, plans, element_type_identity, active, selected)?;
             }
             CheckedUnitStructuralTypeShape::Sum { cases } => {
                 for field in cases.iter().flat_map(|case| &case.fields) {
                     if let CheckedUnitStructuralFieldType::Structural { type_identity } =
                         &field.field_type
                     {
-                        collect(checked, type_identity, active, selected)?;
+                        collect(checked, plans, type_identity, active, selected)?;
                     }
                 }
             }
@@ -411,7 +432,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                     if let CheckedUnitStructuralFieldType::Structural { type_identity } =
                         &field.field_type
                     {
-                        collect(checked, type_identity, active, selected)?;
+                        collect(checked, plans, type_identity, active, selected)?;
                     }
                 }
             }
@@ -424,7 +445,7 @@ pub(crate) fn lower_unit_structural_type_roots(
     let mut selected = Vec::new();
     let mut active = Vec::new();
     for identity in roots {
-        collect(checked, identity, &mut active, &mut selected)?;
+        collect(checked, plans, identity, &mut active, &mut selected)?;
     }
     selected.sort_by(|left, right| left.identity.cmp(&right.identity));
     let type_ids = selected
@@ -615,6 +636,7 @@ pub(crate) fn lower_unit_structural_type_roots(
 
 pub(super) fn lower_unit_structural_domains_including(
     checked: &CheckedTrees,
+    plans: UnitPlans<'_>,
     closure: &[symbols::SymbolHandle],
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
     type_ids: &[(String, StructuralTypeId)],
@@ -626,7 +648,6 @@ pub(super) fn lower_unit_structural_domains_including(
     ),
     LoweringError,
 > {
-    let plans = &checked.facts.flow.terminal_unit_effects;
     let mut selected = Vec::new();
     for domain in additional_domains {
         if !selected.contains(domain) {
@@ -687,7 +708,7 @@ pub(super) fn lower_unit_structural_domains_including(
         .into_iter()
         .map(|domain| {
             let mut matches = plans
-                .structural_domains
+                .structural_domains()
                 .iter()
                 .filter(|plan| plan.domain == domain);
             let unit = matches.next();
@@ -943,22 +964,30 @@ pub(super) fn call_result_qualification_establishments(
 
 pub(super) fn lower_unit_services(
     checked: &CheckedTrees,
+    plans: UnitPlans<'_>,
     closure: &[symbols::SymbolHandle],
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
     provider_candidates: &[CheckedUnitProviderCandidate],
 ) -> Result<(Vec<ServiceDeclaration>, Vec<(ServiceReachId, ServiceId)>), LoweringError> {
-    lower_unit_services_including(checked, closure, boundaries, provider_candidates, &[])
+    lower_unit_services_including(
+        checked,
+        plans,
+        closure,
+        boundaries,
+        provider_candidates,
+        &[],
+    )
 }
 
 pub(super) fn lower_unit_services_including(
     checked: &CheckedTrees,
+    plans: UnitPlans<'_>,
     closure: &[symbols::SymbolHandle],
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
     provider_candidates: &[CheckedUnitProviderCandidate],
     additional_roots: &[ServiceReachId],
 ) -> Result<(Vec<ServiceDeclaration>, Vec<(ServiceReachId, ServiceId)>), LoweringError> {
     let facts = &checked.facts.service_reaches;
-    let plans = &checked.facts.flow.terminal_unit_effects;
     let mut selected = additional_roots.to_vec();
     for symbol in closure {
         let body = UnitBody::find(plans, *symbol)?;
@@ -1276,7 +1305,7 @@ pub(crate) fn collect_installation_machine_contract_services(
 
 fn collect_provider_candidate_services(
     rows: &language_semantics::ServiceReachRowTable,
-    plans: &checked_trees::CheckedUnitEffectPlans,
+    plans: UnitPlans<'_>,
     provider: &CheckedUnitProviderCandidate,
     candidate: UnitBody<'_>,
     selected: &mut Vec<ServiceReachId>,
@@ -1307,7 +1336,7 @@ fn collect_provider_candidate_services(
 
 pub(super) fn lower_provider_candidate_service_ceiling(
     checked: &CheckedTrees,
-    plans: &checked_trees::CheckedUnitEffectPlans,
+    plans: UnitPlans<'_>,
     provider: &CheckedUnitProviderCandidate,
     candidate: &CheckedUnitEffectMachinePlan,
     service_ids: &[(ServiceReachId, ServiceId)],

@@ -7,6 +7,7 @@
 //! source replay. The affine identity family keeps its existing separate emitter;
 //! competing body plans must reject rather than choose whichever path succeeds.
 
+use super::bodies::UnitPlans;
 use super::{
     CheckedTrees, CheckedUnitEffectOperationPlan, CheckedUnitProviderCandidate, LoweringError,
     Multiplicity, UnitBody, unique_unit_boundary, unsupported,
@@ -54,7 +55,10 @@ fn callable_candidate(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
 ) -> Result<UnitBody<'_>, LoweringError> {
-    let body = UnitBody::find(&checked.facts.flow.terminal_unit_effects, machine)?;
+    let body = UnitBody::find(
+        UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
+        machine,
+    )?;
     if checked
         .facts
         .flow
@@ -70,9 +74,9 @@ fn callable_candidate(
 
 pub(super) fn checked_unit_provider_candidates(
     checked: &CheckedTrees,
+    plans: UnitPlans<'_>,
     closure: &[symbols::SymbolHandle],
 ) -> Result<Vec<CheckedUnitProviderCandidate>, LoweringError> {
-    let plans = &checked.facts.flow.terminal_unit_effects;
     let bodies = closure
         .iter()
         .map(|symbol| UnitBody::find(plans, *symbol))

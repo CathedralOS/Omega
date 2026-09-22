@@ -4,6 +4,7 @@ use super::super::super::{
     ServiceReachId, StructuralDomainDeclaration, StructuralParameterDeclaration,
     StructuralTypeDeclaration,
 };
+use super::super::bodies::UnitPlans;
 use super::super::{
     BoundaryMachineDeclaration, CheckedBoundaryMachinePlan, ScalarType, SemanticDomainId,
     StructuralDomainId, StructuralTypeId, TerminalMachine, ValueDeclaration, lookup_machine_id,
@@ -82,8 +83,10 @@ pub(in crate::unit::attached_unit) fn emit(
         .boundary_parameters
         .iter()
         .map(|(source, id, _, scalar_parameters)| {
-            let source_plan =
-                unique_unit_boundary(&checked.facts.flow.terminal_unit_effects, *source)?;
+            let source_plan = unique_unit_boundary(
+                UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
+                *source,
+            )?;
             let declaration = shared
                 .boundaries
                 .iter()

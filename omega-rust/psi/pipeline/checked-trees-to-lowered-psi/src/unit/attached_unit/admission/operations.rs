@@ -4,6 +4,7 @@ use super::super::super::{
     CheckedBoundaryMachineResultPlan, CheckedTrees, CheckedUnitEffectMachinePlan,
     CheckedUnitEffectOperationPlan, LoweringError, terminal_scalar_type, unsupported,
 };
+use super::super::bodies::UnitPlans;
 use super::super::selected_operator::{
     validate_selected_operator_scalar_call, validate_selected_operator_structural_call,
     validate_selected_operator_structural_scalar_call,
@@ -20,12 +21,12 @@ use symbols::SymbolHandle;
 
 pub(super) fn validate<'a>(
     checked: &'a CheckedTrees,
+    plans: UnitPlans<'a>,
     machine: &CheckedUnitEffectMachinePlan,
     closure: &[SymbolHandle],
     scalar_closure: &[SymbolHandle],
     boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, String)>,
 ) -> Result<(), LoweringError> {
-    let plans = &checked.facts.flow.terminal_unit_effects;
     for (operation_index, operation) in machine.operations.iter().enumerate() {
         provider_attachments::validate_call_source(
             checked,

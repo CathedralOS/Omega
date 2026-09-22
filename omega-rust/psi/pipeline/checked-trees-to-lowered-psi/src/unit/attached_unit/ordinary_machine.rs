@@ -5,7 +5,7 @@
 //! `stores`), then seals completion, the cleanup roster, crash routes and
 //! the machine's single block.
 
-use super::bodies::UnitBody;
+use super::bodies::{UnitBody, UnitPlans};
 use super::catalog::lower_provider_candidate_service_ceiling;
 use super::composed_control::callable::EmissionCounters;
 use super::parameters::lower_declared_service_reach;
@@ -59,7 +59,7 @@ pub(super) struct ClosureCatalog<'a> {
     pub(super) machine_ids: &'a [(symbols::SymbolHandle, MachineId)],
     pub(super) signatures: &'a [MachineSignature],
     pub(super) scalar_requirement_counts: &'a [(symbols::SymbolHandle, usize)],
-    pub(super) plans: &'a checked_trees::CheckedUnitEffectPlans,
+    pub(super) plans: UnitPlans<'a>,
     pub(super) closure: &'a [symbols::SymbolHandle],
     pub(super) provider_candidate_plans: &'a [CheckedUnitProviderCandidate],
     pub(super) prepared_scalar_machines: &'a [PreparedScalarCallee<'a>],
@@ -78,7 +78,7 @@ mod stores;
 pub(super) struct MachineEmission<'a> {
     checked: &'a CheckedTrees,
     plan: &'a CheckedUnitEffectMachinePlan,
-    plans: &'a checked_trees::CheckedUnitEffectPlans,
+    plans: UnitPlans<'a>,
     parameters: &'a Vec<StructuralParameterDeclaration>,
     scalar_parameter_count: usize,
     /// The caller's claim bindings: the lowered entry claims plus every
@@ -244,8 +244,7 @@ pub(super) fn emit(
         .transpose()?;
     let provider_places = if let Some(attachment) = attachment {
         let checked_attachment = plans
-            .structural_types
-            .iter()
+            .structural_types()
             .find(|declaration| {
                 Some(declaration.identity.as_str()) == plan.attachment_type_identity.as_deref()
             })

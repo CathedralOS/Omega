@@ -13,7 +13,7 @@ use super::super::{
     lower_unit_parameters, terminal_scalar_type, unsupported,
 };
 use super::{CheckedTrees, LoweringError, internal_calls, scalar_calls};
-use crate::unit::attached_unit::bodies::UnitBody;
+use crate::unit::attached_unit::bodies::{UnitBody, UnitPlans};
 use crate::unit::attached_unit::catalog::{
     collect_installation_machine_contract_services, collect_published_contract_services,
     collect_service_summary, lower_program_local_root_introductions, lower_selected_unit_services,
@@ -226,12 +226,11 @@ fn lower_catalogs(
             .iter()
             .filter_map(|(target, _)| target.attachment().map(str::to_owned)),
     );
-    let (structural_types, type_ids) = lower_unit_structural_type_roots(checked, &type_roots)?;
-    let plans = &checked.facts.flow.terminal_unit_effects;
+    let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
+    let (structural_types, type_ids) =
+        lower_unit_structural_type_roots(checked, plans, &type_roots)?;
     let mut domain_roots = plans
-        .machines
-        .iter()
-        .find(|plan| plan.machine == machine)
+        .for_machine(machine)
         .into_iter()
         .flat_map(|plan| {
             plan.structural_parameters
@@ -248,9 +247,7 @@ fn lower_catalogs(
         })
         .chain(
             plans
-                .composed_machines
-                .iter()
-                .find(|plan| plan.machine == machine)
+                .composed_for_machine(machine)
                 .into_iter()
                 .flat_map(|plan| plan.body_qualifications.iter()),
         )
@@ -281,6 +278,7 @@ fn lower_catalogs(
     domain_roots.dedup();
     let (structural_domains, domain_ids) = lower_unit_structural_domains_including(
         checked,
+        plans,
         &[],
         boundaries,
         &type_ids,

@@ -95,6 +95,7 @@ pub(crate) fn lower_dynamic_structural_types_for_source(
     }
     attached_unit::lower_unit_structural_type_roots(
         checked,
+        attached_unit::bodies::UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
         &[
             caller_attachment.to_owned(),
             source_type_identity.to_owned(),

@@ -33,7 +33,7 @@ fn array_call_numeric_requirements_use_completed_argument_facts() {
         .symbol;
     let mut closure = crate::unit::attached_unit::lower_unit_closure(
         &checked,
-        &crate::unit::attached_unit::UnitClosureRequest::unit(entry, &[entry]),
+        &crate::unit::attached_unit::UnitClosureRequest::unit(&checked, entry, &[entry]),
     )
     .unwrap();
     finalize_operation_proofs(&mut closure.lowered)

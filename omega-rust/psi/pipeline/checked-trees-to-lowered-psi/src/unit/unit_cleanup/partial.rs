@@ -9,6 +9,7 @@ use super::{
     lookup_type_id, unique_unit_machine, unsupported,
 };
 use crate::producer_result::SourceMappedLowered;
+use crate::unit::attached_unit::bodies::UnitPlans;
 use crate::unit::attached_unit::{UnitClosureRequest, lower_unit_closure};
 use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
 
@@ -212,9 +213,9 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
     if partial.residual_affine_discards != expected_residuals {
         return unsupported("partial affine Unit residual field partition drifted");
     }
+    let published = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
     for (_, moved_type, target_machine) in &moved_paths {
-        let target =
-            unique_unit_machine(&checked.facts.flow.terminal_unit_effects, *target_machine)?;
+        let target = unique_unit_machine(published, *target_machine)?;
         let [target_parameter] = target.structural_parameters.as_slice() else {
             return unsupported("partial affine Unit target signature drifted");
         };
@@ -230,29 +231,26 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
     }
 
     // Reuse the ordinary closure lowerer only after validating the separate
-    // checked lane. The staged copy is local producer state; no compatibility
-    // or alternate artifact path escapes this function.
-    let mut staged = checked.clone();
-    let staged_unit = &mut staged.facts.flow.terminal_unit_effects;
+    // checked lane: the lane's dispatcher and shapes join the ordinary roster
+    // for this closure, and a shape both lanes publish must agree.
     for shape in partial_plans {
-        match staged_unit
-            .structural_types
-            .iter()
-            .find(|candidate| candidate.identity == shape.identity)
+        if published
+            .structural_type(&shape.identity)
+            .is_some_and(|existing| existing != shape)
         {
-            Some(existing) if existing != shape => {
-                return unsupported(
-                    "partial affine Unit structural type conflicts with its closure",
-                );
-            }
-            Some(_) => {}
-            None => staged_unit.structural_types.push(shape.clone()),
+            return unsupported("partial affine Unit structural type conflicts with its closure");
         }
     }
-    staged_unit.machines.push(plan.clone());
     let closure = lower_unit_closure(
-        &staged,
-        &UnitClosureRequest::unit(plan.machine, &[plan.machine]),
+        checked,
+        &UnitClosureRequest {
+            plans: UnitPlans::with_staged(
+                &checked.facts.flow.terminal_unit_effects,
+                plan,
+                partial_plans,
+            ),
+            ..UnitClosureRequest::unit(checked, plan.machine, &[plan.machine])
+        },
     )?;
     let mut source_mapped = SourceMappedLowered::new(closure.lowered, closure.machine_ids)?;
     let lowered = &mut source_mapped.terminal;

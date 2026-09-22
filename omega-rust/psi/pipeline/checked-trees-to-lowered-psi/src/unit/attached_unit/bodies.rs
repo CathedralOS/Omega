@@ -12,6 +12,114 @@ use checked_trees::{
     CheckedUnitStructuralParameterPlan,
 };
 
+/// The Unit plan roster one closure assembly reads. Ordinary closures read
+/// the checked `terminal_unit_effects` lane as published. A cleanup closure
+/// begins at a dispatcher the checked trees publish in its own lane
+/// (`terminal_nominal_affine_unit_cleanups` or
+/// `terminal_partial_affine_unit_cleanups`), beside the ordinary roster
+/// rather than inside it, together with the structural shapes that lane
+/// owns. This view joins that one staged plan and those shapes onto the
+/// ordinary roster so the emitter resolves them like any other body, without
+/// the cleanup lowering cloning the checked trees to push them in. A staged
+/// machine that the ordinary roster also publishes is a duplicate, exactly
+/// as two published rows would be; a staged shape whose identity the roster
+/// already carries yields to the published shape.
+#[derive(Clone, Copy)]
+pub(crate) struct UnitPlans<'a> {
+    checked: &'a checked_trees::CheckedUnitEffectPlans,
+    staged_machine: Option<&'a CheckedUnitEffectMachinePlan>,
+    staged_structural_types: &'a [checked_trees::CheckedUnitStructuralTypePlan],
+}
+
+impl<'a> UnitPlans<'a> {
+    /// The ordinary roster alone.
+    pub(crate) fn published(checked: &'a checked_trees::CheckedUnitEffectPlans) -> Self {
+        Self {
+            checked,
+            staged_machine: None,
+            staged_structural_types: &[],
+        }
+    }
+
+    /// The ordinary roster joined with one cleanup lane's dispatcher plan and
+    /// the shapes that lane owns.
+    pub(crate) fn with_staged(
+        checked: &'a checked_trees::CheckedUnitEffectPlans,
+        machine: &'a CheckedUnitEffectMachinePlan,
+        structural_types: &'a [checked_trees::CheckedUnitStructuralTypePlan],
+    ) -> Self {
+        Self {
+            checked,
+            staged_machine: Some(machine),
+            staged_structural_types: structural_types,
+        }
+    }
+
+    /// The ordinary roster joined with a cleanup lane's shapes but not its
+    /// dispatcher: the roster already publishes that machine.
+    pub(crate) fn with_staged_structural_types(
+        checked: &'a checked_trees::CheckedUnitEffectPlans,
+        structural_types: &'a [checked_trees::CheckedUnitStructuralTypePlan],
+    ) -> Self {
+        Self {
+            checked,
+            staged_machine: None,
+            staged_structural_types: structural_types,
+        }
+    }
+
+    pub(crate) fn machines(self) -> impl Iterator<Item = &'a CheckedUnitEffectMachinePlan> {
+        self.checked.machines.iter().chain(self.staged_machine)
+    }
+
+    pub(crate) fn for_machine(
+        self,
+        machine: symbols::SymbolHandle,
+    ) -> Option<&'a CheckedUnitEffectMachinePlan> {
+        self.machines().find(|plan| plan.machine == machine)
+    }
+
+    pub(crate) fn composed_machines(self) -> &'a [CheckedComposedUnitControlMachinePlan] {
+        &self.checked.composed_machines
+    }
+
+    pub(crate) fn composed_for_machine(
+        self,
+        machine: symbols::SymbolHandle,
+    ) -> Option<&'a CheckedComposedUnitControlMachinePlan> {
+        self.checked.composed_for_machine(machine)
+    }
+
+    pub(crate) fn boundary_machines(self) -> &'a [checked_trees::CheckedBoundaryMachinePlan] {
+        &self.checked.boundary_machines
+    }
+
+    pub(crate) fn structural_domains(self) -> &'a [checked_trees::CheckedUnitStructuralDomainPlan] {
+        &self.checked.structural_domains
+    }
+
+    pub(crate) fn structural_types(
+        self,
+    ) -> impl Iterator<Item = &'a checked_trees::CheckedUnitStructuralTypePlan> {
+        let published = &self.checked.structural_types;
+        published
+            .iter()
+            .chain(self.staged_structural_types.iter().filter(move |staged| {
+                !published
+                    .iter()
+                    .any(|shape| shape.identity == staged.identity)
+            }))
+    }
+
+    pub(crate) fn structural_type(
+        self,
+        identity: &str,
+    ) -> Option<&'a checked_trees::CheckedUnitStructuralTypePlan> {
+        self.structural_types()
+            .find(|shape| shape.identity == identity)
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(crate) enum UnitBody<'a> {
     Ordinary(&'a CheckedUnitEffectMachinePlan),
@@ -34,10 +142,7 @@ pub(crate) struct UnitEntry<'a> {
 impl<'a> UnitBody<'a> {
     /// Body membership routes closure traversal, not validation. find still
     /// rejects duplicate or missing owners before a body is consumed.
-    pub(crate) fn contains(
-        plans: &checked_trees::CheckedUnitEffectPlans,
-        symbol: symbols::SymbolHandle,
-    ) -> bool {
+    pub(crate) fn contains(plans: UnitPlans<'_>, symbol: symbols::SymbolHandle) -> bool {
         plans.for_machine(symbol).is_some() || plans.composed_for_machine(symbol).is_some()
     }
 
@@ -64,17 +169,16 @@ impl<'a> UnitBody<'a> {
         })
     }
     pub(crate) fn find(
-        plans: &'a checked_trees::CheckedUnitEffectPlans,
+        plans: UnitPlans<'a>,
         symbol: symbols::SymbolHandle,
     ) -> Result<Self, LoweringError> {
         let mut matches = plans
-            .machines
-            .iter()
+            .machines()
             .filter(|plan| plan.machine == symbol)
             .map(Self::Ordinary)
             .chain(
                 plans
-                    .composed_machines
+                    .composed_machines()
                     .iter()
                     .filter(|plan| plan.machine == symbol)
                     .map(Self::Composed),
