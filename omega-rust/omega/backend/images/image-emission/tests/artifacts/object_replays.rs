@@ -8,7 +8,7 @@ use super::{
 };
 use image_emission::{
     ObjectError, build_installation_record, build_object_artifact, decode_installation_record,
-    derive_installation_stack_demand, derive_stack_demand, emit_executable_image,
+    derive_installation_stack_demand, derive_stack_demand, emit_direct_executable_image,
     emit_object_container, encode_installation_record, validate_installation_record,
 };
 use machine_code::{
@@ -175,7 +175,7 @@ fn x86_internal_call_is_a_typed_relocation_and_the_only_final_text_mutation() {
 
     let container = emit_object_container(&artifact);
     assert_eq!(container.output.relocations, 1);
-    let image = emit_executable_image(&artifact, 3).expect("Linux x86-64 image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("Linux x86-64 image");
     let output = image.output();
     assert_eq!(&output.final_text_bytes[11..15], &[0xf1, 0xff, 0xff, 0xff]);
     assert_eq!(output.final_image_relocations, 1);
@@ -201,7 +201,7 @@ fn aarch64_internal_call_patches_only_the_branch_immediate() {
     assert_eq!(relocation.kind, RelocationKind::Aarch64Branch26);
     assert_eq!(relocation.offset, 8);
 
-    let image = emit_executable_image(&artifact, 3).expect("Linux AArch64 image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("Linux AArch64 image");
     let output = image.output();
     assert_eq!(&output.final_text_bytes[8..12], &[0xfe, 0xff, 0xff, 0x97]);
     assert_eq!(output.final_image_relocations, 1);
@@ -451,7 +451,7 @@ fn executable_nominal_cleanup_call_is_edge_owned_and_survives_installation() {
             if edge_identity == cleanup_edge.get()
     ));
 
-    let image = emit_executable_image(&artifact, 3).expect("cleanup image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("cleanup image");
     let installation =
         build_installation_record(&image, ProfileDecisionId::new(1).expect("profile"))
             .expect("cleanup installation");
@@ -523,7 +523,7 @@ fn scalar_cleanup_custody_and_structural_homes_survive_image_installation() {
     assert_eq!(object_caller.scalar_structural_parameter_homes.len(), 1);
     assert!(object_caller.unit_parameters.is_empty());
 
-    let image = emit_executable_image(&artifact, 3).expect("scalar cleanup image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("scalar cleanup image");
     let installation =
         build_installation_record(&image, ProfileDecisionId::new(1).expect("profile"))
             .expect("scalar cleanup installation");
@@ -669,7 +669,7 @@ fn mixed_no_code_and_nominal_cleanup_is_scalar_only_and_keeps_action_ordinal() {
         },
         "the no-code action retains ordinal zero without renumbering the call",
     );
-    let image = emit_executable_image(&artifact, 3).expect("mixed scalar cleanup image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("mixed scalar cleanup image");
     let installation =
         build_installation_record(&image, ProfileDecisionId::new(1).expect("profile"))
             .expect("mixed scalar cleanup installation");

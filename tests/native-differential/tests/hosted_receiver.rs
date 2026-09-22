@@ -168,7 +168,7 @@ fn hosted_receiver_unbound_image_cannot_replay_as_bound() {
             .expect("an unbound object still emits a plain image");
         hosted_receiver::bind_hosted_receiver(&mut artifact, &compiled.signature, profile);
         assert!(
-            image_emission::validate_executable_image(&artifact, &unbound).is_err(),
+            image_emission::validate_direct_executable_image(&artifact, &unbound).is_err(),
             "{profile:?} a pre-binding image cannot rejoin the bound object",
         );
     }
@@ -277,7 +277,7 @@ fn hosted_receiver_image_replay_rejects_mutated_bridge_bytes() {
     let len = corrupted_syscall.output().final_text_bytes.len();
     corrupted_syscall.output_mut_for_test().final_text_bytes[len - 2] = 0x06;
     assert!(
-        image_emission::validate_executable_image(&artifact, &corrupted_syscall).is_err(),
+        image_emission::validate_direct_executable_image(&artifact, &corrupted_syscall).is_err(),
         "a substituted bridge opcode rejects on replay",
     );
 
@@ -286,7 +286,7 @@ fn hosted_receiver_image_replay_rejects_mutated_bridge_bytes() {
     let mut retargeted = image.clone();
     retargeted.output_mut_for_test().final_text_bytes[len - 15] ^= 0x01;
     assert!(
-        image_emission::validate_executable_image(&artifact, &retargeted).is_err(),
+        image_emission::validate_direct_executable_image(&artifact, &retargeted).is_err(),
         "a retargeted bridge call rejects on replay",
     );
 
@@ -303,7 +303,7 @@ fn hosted_receiver_image_replay_rejects_mutated_bridge_bytes() {
         TargetProfile::LinuxArm64,
     );
     assert!(
-        image_emission::validate_executable_image(&other_artifact, &image).is_err(),
+        image_emission::validate_direct_executable_image(&other_artifact, &image).is_err(),
         "an image cannot be rejoined to a substituted object",
     );
 }
@@ -324,7 +324,7 @@ fn hosted_receiver_darwin_image_replay_rejects_mutated_bridge_bytes() {
     let len = corrupted.output().final_text_bytes.len();
     corrupted.output_mut_for_test().final_text_bytes[len - 8] ^= 0x01;
     assert!(
-        image_emission::validate_executable_image(&artifact, &corrupted).is_err(),
+        image_emission::validate_direct_executable_image(&artifact, &corrupted).is_err(),
         "a substituted Darwin bridge word rejects on replay",
     );
 }

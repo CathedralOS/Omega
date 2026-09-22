@@ -168,7 +168,7 @@ pub fn project_installed_artifact_memory_images(
             "terminal object and image identity differ".into(),
         ));
     }
-    crate::validate_executable_image(object, image).map_err(|diagnostic| {
+    crate::validate_direct_executable_image(object, image).map_err(|diagnostic| {
         InstalledArtifactMemoryProjectionError(format!(
             "terminal executable image replay failed: {diagnostic}"
         ))

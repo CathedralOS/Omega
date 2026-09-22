@@ -14,9 +14,9 @@
 use super::{WriteExitProvider, linux_foreign_call_plan, port_effect_plan, two_function_plan};
 use image_emission::{
     ExecutableImageEmissionRequest, RequestedExecutableImage, RequestedExecutableImageError,
-    build_object_artifact, emit_admitted_dynamic_elf_image, emit_dynamic_elf_image,
-    emit_executable_image, emit_requested_executable_image, validate_dynamic_elf_image_emission,
-    validate_requested_dynamic_elf_image, validate_requested_executable_image,
+    build_object_artifact, emit_admitted_dynamic_elf_image, emit_direct_executable_image,
+    emit_dynamic_elf_image, emit_executable_image, validate_dynamic_elf_image_emission,
+    validate_executable_image, validate_requested_dynamic_elf_image,
 };
 use target::{NativeTarget, TargetProfile};
 
@@ -43,7 +43,7 @@ fn import_bearing_elf_object_selects_dynamic_route_and_replays_exact_custody() {
         1,
         "one versioned ELF import selects the dynamic route",
     );
-    let image = emit_requested_executable_image(
+    let image = emit_executable_image(
         &artifact,
         ExecutableImageEmissionRequest::dynamic_elf(interpreter()),
     )
@@ -54,7 +54,7 @@ fn import_bearing_elf_object_selects_dynamic_route_and_replays_exact_custody() {
     assert_eq!(dynamic.artifact(), &artifact);
     assert!(dynamic.output().bytes.starts_with(b"\x7fELF"));
     assert_eq!(dynamic.output().final_image_imports, 1);
-    validate_requested_executable_image(&artifact, &image)
+    validate_executable_image(&artifact, &image)
         .expect("requested image replays against its exact object");
     validate_requested_dynamic_elf_image(&artifact, dynamic)
         .expect("the dynamic branch replays independently");
@@ -66,9 +66,8 @@ fn import_bearing_elf_object_fails_closed_on_direct_or_substituted_custody() {
 
     // The direct writer cannot absorb an import-bearing ELF object: the
     // request fails closed and names the target plus consumed subsystem.
-    let error =
-        emit_requested_executable_image(&artifact, ExecutableImageEmissionRequest::direct(3))
-            .expect_err("import-bearing ELF object must refuse the direct writer");
+    let error = emit_executable_image(&artifact, ExecutableImageEmissionRequest::direct(3))
+        .expect_err("import-bearing ELF object must refuse the direct writer");
     assert!(matches!(
         *error,
         RequestedExecutableImageError::MissingDynamicElfInterpreter {
@@ -89,12 +88,11 @@ fn import_bearing_elf_object_fails_closed_on_direct_or_substituted_custody() {
     let direct_object = build_object_artifact(&port_effect_plan(&WriteExitProvider(970)))
         .expect("non-import Linux object");
     assert!(direct_object.object().layout.normalized_imports.is_empty());
-    let direct_image = emit_executable_image(&direct_object, 3).expect("non-import direct image");
-    let error = validate_requested_executable_image(
-        &artifact,
-        &RequestedExecutableImage::Direct(direct_image),
-    )
-    .expect_err("a direct image cannot cover an import-bearing ELF object");
+    let direct_image =
+        emit_direct_executable_image(&direct_object, 3).expect("non-import direct image");
+    let error =
+        validate_executable_image(&artifact, &RequestedExecutableImage::Direct(direct_image))
+            .expect_err("a direct image cannot cover an import-bearing ELF object");
     assert!(
         error
             .message
@@ -104,7 +102,7 @@ fn import_bearing_elf_object_fails_closed_on_direct_or_substituted_custody() {
     // A dynamic image emitted for a different import-bearing object does not
     // retain this object; replay binds the exact source artifact.
     let donor = linux_import_artifact(97);
-    let donor_image = emit_requested_executable_image(
+    let donor_image = emit_executable_image(
         &donor,
         ExecutableImageEmissionRequest::dynamic_elf(interpreter()),
     )
@@ -129,7 +127,7 @@ fn non_import_object_rejects_dynamic_route_and_recovers_interpreter() {
     assert!(artifact.object().layout.normalized_imports.is_empty());
     let interpreter = interpreter();
     let expected = interpreter.clone();
-    let error = emit_requested_executable_image(
+    let error = emit_executable_image(
         &artifact,
         ExecutableImageEmissionRequest::dynamic_elf(interpreter),
     )
@@ -153,7 +151,7 @@ fn non_import_object_rejects_dynamic_route_and_recovers_interpreter() {
 #[test]
 fn interpreter_selection_is_bound_into_emitted_dynamic_bytes() {
     let artifact = linux_import_artifact(91);
-    let glibc = emit_requested_executable_image(
+    let glibc = emit_executable_image(
         &artifact,
         ExecutableImageEmissionRequest::dynamic_elf(interpreter()),
     )
@@ -163,7 +161,7 @@ fn interpreter_selection_is_bound_into_emitted_dynamic_bytes() {
         TargetProfile::LinuxX64,
     )
     .expect("musl interpreter");
-    let musl = emit_requested_executable_image(
+    let musl = emit_executable_image(
         &artifact,
         ExecutableImageEmissionRequest::dynamic_elf(musl_interpreter),
     )
@@ -198,9 +196,8 @@ fn non_import_elf_object_selects_direct_route_and_replays_exact_custody() {
     let artifact = build_object_artifact(&port_effect_plan(&WriteExitProvider(970)))
         .expect("non-import Linux object");
     assert!(artifact.object().layout.normalized_imports.is_empty());
-    let image =
-        emit_requested_executable_image(&artifact, ExecutableImageEmissionRequest::direct(3))
-            .expect("non-import ELF object selects the direct writer");
+    let image = emit_executable_image(&artifact, ExecutableImageEmissionRequest::direct(3))
+        .expect("non-import ELF object selects the direct writer");
     let RequestedExecutableImage::Direct(direct) = &image else {
         panic!("non-import ELF object must produce direct custody");
     };
@@ -210,13 +207,13 @@ fn non_import_elf_object_selects_direct_route_and_replays_exact_custody() {
         None,
         "ELF custody carries no subsystem fact",
     );
-    validate_requested_executable_image(&artifact, &image)
+    validate_executable_image(&artifact, &image)
         .expect("the requested direct image replays against its exact object");
 
     // The router still binds custody at this layer: a direct image emitted
     // for one object cannot be rejoined to a different object.
     let other = build_object_artifact(&two_function_plan()).expect("other Linux object");
-    let error = validate_requested_executable_image(&other, &image)
+    let error = validate_executable_image(&other, &image)
         .expect_err("a direct image does not cover a substituted object");
     assert!(
         error
@@ -229,20 +226,18 @@ fn non_import_elf_object_selects_direct_route_and_replays_exact_custody() {
 fn direct_request_binds_subsystem_only_into_pe_output() {
     let artifact = windows_object();
     assert!(artifact.object().layout.normalized_imports.is_empty());
-    let image =
-        emit_requested_executable_image(&artifact, ExecutableImageEmissionRequest::direct(3))
-            .expect("COFF object selects the direct writer");
+    let image = emit_executable_image(&artifact, ExecutableImageEmissionRequest::direct(3))
+        .expect("COFF object selects the direct writer");
     let RequestedExecutableImage::Direct(direct) = &image else {
         panic!("a COFF object must produce direct custody");
     };
     assert!(direct.output().bytes.starts_with(b"MZ"));
     assert_eq!(direct.subsystem(), Some(3));
-    validate_requested_executable_image(&artifact, &image)
+    validate_executable_image(&artifact, &image)
         .expect("the PE image replays against its exact object");
 
-    let other =
-        emit_requested_executable_image(&artifact, ExecutableImageEmissionRequest::direct(5))
-            .expect("a second subsystem emits");
+    let other = emit_executable_image(&artifact, ExecutableImageEmissionRequest::direct(5))
+        .expect("a second subsystem emits");
     assert_ne!(
         direct.output().bytes,
         other.output().bytes,
@@ -253,7 +248,7 @@ fn direct_request_binds_subsystem_only_into_pe_output() {
 #[test]
 fn direct_request_binds_code_signature_identifier_into_macho_output() {
     let artifact = macos_object();
-    let image = emit_requested_executable_image(
+    let image = emit_executable_image(
         &artifact,
         ExecutableImageEmissionRequest::direct(0)
             .with_code_signature_identifier(Some("com.example.receiver".to_string())),
@@ -270,9 +265,8 @@ fn direct_request_binds_code_signature_identifier_into_macho_output() {
 
     // Without a bound identity the writer falls back to the validated
     // executable leaf as the ad-hoc label.
-    let unsigned =
-        emit_requested_executable_image(&artifact, ExecutableImageEmissionRequest::direct(0))
-            .expect("unsigned Mach-O image");
+    let unsigned = emit_executable_image(&artifact, ExecutableImageEmissionRequest::direct(0))
+        .expect("unsigned Mach-O image");
     assert_eq!(
         image_macho::code_signature_identifier(&unsigned.output().bytes).as_deref(),
         Some("omega-program"),
@@ -282,14 +276,14 @@ fn direct_request_binds_code_signature_identifier_into_macho_output() {
         unsigned.output().bytes,
         "the bound signing identity changes the emitted image bytes",
     );
-    validate_requested_executable_image(&artifact, &image)
+    validate_executable_image(&artifact, &image)
         .expect("the signed image replays against its exact object");
 }
 
 #[test]
 fn empty_code_signature_identifier_fails_closed() {
     let artifact = macos_object();
-    let error = emit_requested_executable_image(
+    let error = emit_executable_image(
         &artifact,
         ExecutableImageEmissionRequest::direct(0)
             .with_code_signature_identifier(Some(String::new())),
@@ -314,9 +308,9 @@ fn dynamic_elf_request_discards_the_code_signature_identifier() {
         "a dynamic request carries no Mach-O signing identity",
     );
     let artifact = linux_import_artifact(91);
-    let decorated = emit_requested_executable_image(&artifact, request)
+    let decorated = emit_executable_image(&artifact, request)
         .expect("dynamic image with a discarded identifier");
-    let plain = emit_requested_executable_image(
+    let plain = emit_executable_image(
         &artifact,
         ExecutableImageEmissionRequest::dynamic_elf(interpreter()),
     )
@@ -331,7 +325,7 @@ fn dynamic_elf_request_discards_the_code_signature_identifier() {
 #[test]
 fn dynamic_elf_custody_replay_requires_exact_normalized_imports() {
     let artifact = linux_import_artifact(91);
-    let image = emit_requested_executable_image(
+    let image = emit_executable_image(
         &artifact,
         ExecutableImageEmissionRequest::dynamic_elf(interpreter()),
     )

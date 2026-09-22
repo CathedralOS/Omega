@@ -13,7 +13,8 @@
 use super::fragment_container::compile_attached_entry;
 use super::hosted_exit_runtime::assert_exit;
 use image_emission::{
-    bind_hosted_receiver, derive_stack_demand, emit_executable_image, validate_executable_image,
+    bind_hosted_receiver, derive_stack_demand, emit_direct_executable_image,
+    validate_direct_executable_image,
 };
 use target::TargetProfile;
 
@@ -120,7 +121,7 @@ fn hosted_receiver_binds_and_replays_through_emission_on_all_bridge_targets() {
             ),
             "{profile:?} the object retains the exact staged container custody",
         );
-        let unbound = emit_executable_image(&artifact, 3).expect("unbound image");
+        let unbound = emit_direct_executable_image(&artifact, 3).expect("unbound image");
         bind_receiver(&mut artifact, &compiled.signature, profile);
         let binding = artifact
             .hosted_receiver_binding()
@@ -131,19 +132,19 @@ fn hosted_receiver_binds_and_replays_through_emission_on_all_bridge_targets() {
             profile.program_entry_slot(),
         );
 
-        let image = emit_executable_image(&artifact, 3).expect("receiver image emits");
+        let image = emit_direct_executable_image(&artifact, 3).expect("receiver image emits");
         assert_ne!(
             image.output().final_text_bytes,
             unbound.output().final_text_bytes,
             "{profile:?} appends its exact bridge text",
         );
-        validate_executable_image(&artifact, &image)
+        validate_direct_executable_image(&artifact, &image)
             .expect("the emitted bridge replays its exact custody");
 
         // The image-side join is re-derived, not trusted: a stale image
         // emitted before binding cannot stand in for the bound object.
         assert!(
-            validate_executable_image(&artifact, &unbound).is_err(),
+            validate_direct_executable_image(&artifact, &unbound).is_err(),
             "{profile:?} an unbound-custody image cannot replay a bound object",
         );
 
@@ -278,7 +279,7 @@ fn hosted_receiver_emission_replays_binding_custody_exactly() {
             _ => unreachable!(),
         }
         assert!(
-            emit_executable_image(&artifact, 3).is_err(),
+            emit_direct_executable_image(&artifact, 3).is_err(),
             "{profile:?} a {mutate} substitution rejects before bridge bytes exist",
         );
     }
@@ -298,7 +299,7 @@ fn hosted_receiver_emission_rejects_mutated_fragment_custody() {
     bind_receiver(&mut artifact, &compiled.signature, profile);
     artifact.text_bytes_mut_for_test()[0] ^= 0xff;
     assert!(
-        emit_executable_image(&artifact, 3).is_err(),
+        emit_direct_executable_image(&artifact, 3).is_err(),
         "object text divergence from retained custody rejects emission",
     );
 
@@ -308,7 +309,7 @@ fn hosted_receiver_emission_rejects_mutated_fragment_custody() {
     bind_receiver(&mut artifact, &compiled.signature, profile);
     artifact.clear_fragment_replay_for_test();
     assert!(
-        emit_executable_image(&artifact, 3).is_err(),
+        emit_direct_executable_image(&artifact, 3).is_err(),
         "a bound object without retained custody rejects emission",
     );
 }
@@ -319,8 +320,8 @@ fn hosted_receiver_image_replay_rejects_mutated_bridge_bytes() {
     let compiled = compile_attached_entry(RECEIVER_STORE, "Main::launch", profile);
     let mut artifact = compiled.artifact;
     bind_receiver(&mut artifact, &compiled.signature, profile);
-    let image = emit_executable_image(&artifact, 3).expect("receiver image emits");
-    validate_executable_image(&artifact, &image).expect("exact image replays");
+    let image = emit_direct_executable_image(&artifact, 3).expect("receiver image emits");
+    validate_direct_executable_image(&artifact, &image).expect("exact image replays");
 
     // The bridge occupies the fixed 37-byte suffix of the emitted text:
     // `...; mov eax, 231; syscall; ud2`. Corrupting the syscall opcode is a
@@ -329,7 +330,7 @@ fn hosted_receiver_image_replay_rejects_mutated_bridge_bytes() {
     let len = corrupted_syscall.output().final_text_bytes.len();
     corrupted_syscall.output_mut_for_test().final_text_bytes[len - 2] = 0x06;
     assert!(
-        validate_executable_image(&artifact, &corrupted_syscall).is_err(),
+        validate_direct_executable_image(&artifact, &corrupted_syscall).is_err(),
         "a substituted bridge opcode rejects on replay",
     );
 
@@ -338,7 +339,7 @@ fn hosted_receiver_image_replay_rejects_mutated_bridge_bytes() {
     let mut retargeted = image.clone();
     retargeted.output_mut_for_test().final_text_bytes[len - 15] ^= 0x01;
     assert!(
-        validate_executable_image(&artifact, &retargeted).is_err(),
+        validate_direct_executable_image(&artifact, &retargeted).is_err(),
         "a retargeted bridge call rejects on replay",
     );
 
@@ -351,7 +352,7 @@ fn hosted_receiver_image_replay_rejects_mutated_bridge_bytes() {
         TargetProfile::LinuxArm64,
     );
     assert!(
-        validate_executable_image(&other_artifact, &image).is_err(),
+        validate_direct_executable_image(&other_artifact, &image).is_err(),
         "an image cannot be rejoined to a substituted object",
     );
 }
@@ -364,8 +365,8 @@ fn hosted_receiver_darwin_image_replay_rejects_mutated_bridge_bytes() {
     let compiled = compile_attached_entry(RECEIVER_STORE, "Main::launch", profile);
     let mut artifact = compiled.artifact;
     bind_receiver(&mut artifact, &compiled.signature, profile);
-    let image = emit_executable_image(&artifact, 0).expect("Darwin receiver image emits");
-    validate_executable_image(&artifact, &image).expect("exact image replays");
+    let image = emit_direct_executable_image(&artifact, 0).expect("Darwin receiver image emits");
+    validate_direct_executable_image(&artifact, &image).expect("exact image replays");
 
     // The Darwin bridge is sixteen fixed A64 words appended to text; the
     // second-to-last word is the `mov w0, #0` that publishes status zero.
@@ -373,7 +374,7 @@ fn hosted_receiver_darwin_image_replay_rejects_mutated_bridge_bytes() {
     let len = corrupted.output().final_text_bytes.len();
     corrupted.output_mut_for_test().final_text_bytes[len - 8] ^= 0x01;
     assert!(
-        validate_executable_image(&artifact, &corrupted).is_err(),
+        validate_direct_executable_image(&artifact, &corrupted).is_err(),
         "a substituted Darwin bridge word rejects on replay",
     );
 }

@@ -277,8 +277,8 @@ fn scalar_calls_with_rel8_use_common_fixed_frame_publication() {
         let published =
             image_emission::build_function_fragment_object_artifact(object.clone()).unwrap();
         image_emission::validate_function_fragment_object_artifact(&object, &published).unwrap();
-        let image = image_emission::emit_executable_image(&published, 3).unwrap();
-        image_emission::validate_executable_image(&published, &image).unwrap();
+        let image = image_emission::emit_direct_executable_image(&published, 3).unwrap();
+        image_emission::validate_direct_executable_image(&published, &image).unwrap();
         let record = image_emission::build_installation_record(
             &image,
             semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),
@@ -402,8 +402,8 @@ fn publish_scalar_artifacts_with_arguments(
                         .unwrap();
                 image_emission::validate_function_fragment_object_artifact(&object, &published)
                     .unwrap();
-                let image = image_emission::emit_executable_image(&published, 3).unwrap();
-                image_emission::validate_executable_image(&published, &image).unwrap();
+                let image = image_emission::emit_direct_executable_image(&published, 3).unwrap();
+                image_emission::validate_direct_executable_image(&published, &image).unwrap();
                 let record = image_emission::build_installation_record(
                     &image,
                     semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),

@@ -41,7 +41,7 @@ use image_emission::{
     InstallationError, InstallationRecord, InstalledFunction, ObjectCodeAttribution,
     ObjectUnitStack, build_installation_record,
     build_installation_record_with_selected_provider_plans_and_evidence, build_object_artifact,
-    decode_installation_record, emit_executable_image, encode_installation_record,
+    decode_installation_record, emit_direct_executable_image, encode_installation_record,
     installation_fingerprint, validate_installation_record,
 };
 use machine_code::{
@@ -1416,7 +1416,7 @@ fn nested_custody_undecodable_check<'a>(
 fn installation_function_nested_call_stacks_reject_every_one_field_substitution() {
     let plan = stored_dynamic_call_plan();
     let artifact = build_object_artifact(&plan).expect("stored dynamic artifact");
-    let image = emit_executable_image(&artifact, 3).expect("stored dynamic image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("stored dynamic image");
     let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
         .expect("stored dynamic installation");
     validate_installation_record(&record, &image).expect("exact image binding");
@@ -1615,7 +1615,7 @@ fn installation_foreign_call_stack_row_rejects_every_one_field_substitution() {
     let provider = WriteExitProvider(91);
     let plan = windows_foreign_call_plan(&provider);
     let artifact = build_object_artifact(&plan).expect("foreign call object");
-    let image = emit_executable_image(&artifact, 3).expect("foreign call PE image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("foreign call PE image");
     assert_eq!(image.foreign_calls().len(), 1, "one emitted foreign call");
     // Select one unexecuted plan beside the executed provider's so the
     // report-identity field stays representable inside the closure.
@@ -1729,7 +1729,7 @@ fn installation_function_scalar_call_stacks_reject_every_one_field_substitution(
     let mut plan = edge_owned_cleanup_plan();
     promote_x86_cleanup_to_scalar(&mut plan.functions[2]);
     let artifact = build_object_artifact(&plan).expect("scalar cleanup artifact");
-    let image = emit_executable_image(&artifact, 3).expect("scalar cleanup image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("scalar cleanup image");
     let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
         .expect("scalar cleanup installation");
     validate_installation_record(&record, &image).expect("exact image binding");
@@ -1855,7 +1855,7 @@ fn installation_function_scalar_call_stacks_reject_every_one_field_substitution(
 fn installation_function_parameter_and_home_rows_reject_every_one_field_substitution() {
     let plan = stored_dynamic_call_plan();
     let artifact = build_object_artifact(&plan).expect("stored dynamic artifact");
-    let image = emit_executable_image(&artifact, 3).expect("stored dynamic image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("stored dynamic image");
     let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
         .expect("stored dynamic installation");
     validate_installation_record(&record, &image).expect("exact image binding");
@@ -2011,7 +2011,7 @@ fn installation_function_scalar_structural_rows_reject_every_one_field_substitut
     let mut plan = edge_owned_cleanup_plan();
     promote_x86_cleanup_to_scalar(&mut plan.functions[2]);
     let artifact = build_object_artifact(&plan).expect("scalar cleanup artifact");
-    let image = emit_executable_image(&artifact, 3).expect("scalar cleanup image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("scalar cleanup image");
     let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
         .expect("scalar cleanup installation");
     validate_installation_record(&record, &image).expect("exact image binding");
@@ -2162,7 +2162,7 @@ fn installation_function_scalar_structural_rows_reject_every_one_field_substitut
 fn installation_function_unit_scalar_rows_reject_every_one_field_substitution() {
     let plan = stored_dynamic_call_plan();
     let artifact = build_object_artifact(&plan).expect("stored dynamic artifact");
-    let image = emit_executable_image(&artifact, 3).expect("stored dynamic image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("stored dynamic image");
     let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
         .expect("stored dynamic installation");
     validate_installation_record(&record, &image).expect("exact image binding");
@@ -2262,7 +2262,7 @@ fn installation_function_unit_scalar_rows_reject_every_one_field_substitution() 
 fn installation_function_store_rows_reject_every_one_field_substitution() {
     let plan = stored_dynamic_call_plan();
     let artifact = build_object_artifact(&plan).expect("stored dynamic artifact");
-    let image = emit_executable_image(&artifact, 3).expect("stored dynamic image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("stored dynamic image");
     let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
         .expect("stored dynamic installation");
     validate_installation_record(&record, &image).expect("exact image binding");
@@ -2324,7 +2324,8 @@ fn installation_function_store_rows_reject_every_one_field_substitution() {
     let mut scalar_plan = edge_owned_cleanup_plan();
     promote_x86_cleanup_to_scalar(&mut scalar_plan.functions[2]);
     let scalar_artifact = build_object_artifact(&scalar_plan).expect("scalar cleanup artifact");
-    let scalar_image = emit_executable_image(&scalar_artifact, 3).expect("scalar cleanup image");
+    let scalar_image =
+        emit_direct_executable_image(&scalar_artifact, 3).expect("scalar cleanup image");
     let scalar_record =
         build_installation_record(&scalar_image, ProfileDecisionId::new(41).expect("profile"))
             .expect("scalar cleanup installation");
@@ -2388,7 +2389,7 @@ fn installation_function_store_rows_reject_every_one_field_substitution() {
 fn installation_function_structural_store_rows_reject_every_one_field_substitution() {
     let plan = two_function_plan();
     let artifact = build_object_artifact(&plan).expect("two-function artifact");
-    let image = emit_executable_image(&artifact, 3).expect("two-function image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("two-function image");
     let mut record =
         build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
             .expect("two-function installation");
@@ -2924,7 +2925,7 @@ fn installation_function_structural_store_rows_reject_every_one_field_substituti
 fn installation_function_write_only_store_rows_reject_every_one_field_substitution() {
     let plan = two_function_plan();
     let artifact = build_object_artifact(&plan).expect("two-function artifact");
-    let image = emit_executable_image(&artifact, 3).expect("two-function image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("two-function image");
     let mut record =
         build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
             .expect("two-function installation");
@@ -3490,7 +3491,7 @@ fn installation_function_write_only_store_rows_reject_every_one_field_substituti
 fn installation_function_scalar_store_rows_reject_every_one_field_substitution() {
     let plan = two_function_plan();
     let artifact = build_object_artifact(&plan).expect("two-function artifact");
-    let image = emit_executable_image(&artifact, 3).expect("two-function image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("two-function image");
     let mut record =
         build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
             .expect("two-function installation");
@@ -3867,7 +3868,7 @@ fn installation_function_scalar_store_rows_reject_every_one_field_substitution()
 fn installation_function_affine_scalar_records_reject_every_one_field_substitution() {
     let plan = affine_scalar_record_custody_plan();
     let artifact = build_object_artifact(&plan).expect("affine scalar artifact");
-    let image = emit_executable_image(&artifact, 3).expect("affine scalar image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("affine scalar image");
     let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
         .expect("affine scalar installation");
     validate_installation_record(&record, &image).expect("exact image binding");
@@ -4466,7 +4467,7 @@ fn installation_function_affine_scalar_records_reject_every_one_field_substituti
 fn installation_function_affine_cleanup_rejects_every_one_field_substitution() {
     let plan = stored_dynamic_call_plan();
     let artifact = build_object_artifact(&plan).expect("stored dynamic artifact");
-    let image = emit_executable_image(&artifact, 3).expect("stored dynamic image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("stored dynamic image");
     let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
         .expect("stored dynamic installation");
     validate_installation_record(&record, &image).expect("exact image binding");
@@ -4654,7 +4655,8 @@ fn installation_function_affine_cleanup_rejects_every_one_field_substitution() {
     let mut scalar_plan = edge_owned_cleanup_plan();
     promote_x86_cleanup_to_scalar(&mut scalar_plan.functions[2]);
     let scalar_artifact = build_object_artifact(&scalar_plan).expect("scalar cleanup artifact");
-    let scalar_image = emit_executable_image(&scalar_artifact, 3).expect("scalar cleanup image");
+    let scalar_image =
+        emit_direct_executable_image(&scalar_artifact, 3).expect("scalar cleanup image");
     let scalar_record =
         build_installation_record(&scalar_image, ProfileDecisionId::new(41).expect("profile"))
             .expect("scalar cleanup installation");
@@ -4771,7 +4773,7 @@ fn installation_function_affine_cleanup_rejects_every_one_field_substitution() {
 fn installation_function_scalar_control_cleanups_reject_every_one_field_substitution() {
     let plan = scalar_three_leaf_cleanup_plan();
     let artifact = build_object_artifact(&plan).expect("three-leaf artifact");
-    let image = emit_executable_image(&artifact, 1).expect("three-leaf image");
+    let image = emit_direct_executable_image(&artifact, 1).expect("three-leaf image");
     let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
         .expect("three-leaf installation");
     validate_installation_record(&record, &image).expect("exact image binding");
@@ -4872,7 +4874,7 @@ fn installation_function_scalar_control_cleanups_reject_every_one_field_substitu
 fn installation_function_scalar_transport_rejects_every_one_field_substitution() {
     let plan = stored_dynamic_call_plan();
     let artifact = build_object_artifact(&plan).expect("stored dynamic artifact");
-    let image = emit_executable_image(&artifact, 3).expect("stored dynamic image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("stored dynamic image");
     let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
         .expect("stored dynamic installation");
     validate_installation_record(&record, &image).expect("exact image binding");
@@ -4991,7 +4993,8 @@ fn installation_function_scalar_transport_rejects_every_one_field_substitution()
     let mut scalar_plan = edge_owned_cleanup_plan();
     promote_x86_cleanup_to_scalar(&mut scalar_plan.functions[2]);
     let scalar_artifact = build_object_artifact(&scalar_plan).expect("scalar cleanup artifact");
-    let scalar_image = emit_executable_image(&scalar_artifact, 3).expect("scalar cleanup image");
+    let scalar_image =
+        emit_direct_executable_image(&scalar_artifact, 3).expect("scalar cleanup image");
     let scalar_record =
         build_installation_record(&scalar_image, ProfileDecisionId::new(41).expect("profile"))
             .expect("scalar cleanup installation");
@@ -5049,7 +5052,7 @@ fn installation_function_scalar_transport_rejects_every_one_field_substitution()
 fn installation_function_unit_continuations_reject_every_one_field_substitution() {
     let plan = continuation_unit_call_plan();
     let artifact = build_object_artifact(&plan).expect("continuation artifact");
-    let image = emit_executable_image(&artifact, 3).expect("continuation image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("continuation image");
     let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
         .expect("continuation installation");
     validate_installation_record(&record, &image).expect("exact image binding");
@@ -5268,7 +5271,7 @@ fn installation_function_unit_continuations_reject_every_one_field_substitution(
 fn installation_function_parameter_abi_rejects_every_one_field_substitution() {
     let plan = continuation_unit_call_plan();
     let artifact = build_object_artifact(&plan).expect("continuation artifact");
-    let image = emit_executable_image(&artifact, 3).expect("continuation image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("continuation image");
     let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
         .expect("continuation installation");
     validate_installation_record(&record, &image).expect("exact image binding");
@@ -5767,7 +5770,7 @@ fn installation_function_mixed_abi_rejects_every_one_field_substitution() {
     promote_x86_cleanup_to_scalar(&mut plan.functions[2]);
     plan.functions[2].mixed_structural_scalar_abi = Some(retained_mixed_abi(&plan.functions[2]));
     let artifact = build_object_artifact(&plan).expect("mixed-ABI artifact");
-    let image = emit_executable_image(&artifact, 3).expect("mixed-ABI image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("mixed-ABI image");
     let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
         .expect("mixed-ABI installation");
     validate_installation_record(&record, &image).expect("exact image binding");
@@ -6199,7 +6202,7 @@ fn installation_function_mixed_abi_rejects_every_one_field_substitution() {
 fn installation_function_structural_call_scalar_return_rejects_every_one_field_substitution() {
     let plan = structural_call_scalar_return_plan();
     let artifact = build_object_artifact(&plan).expect("structural-call artifact");
-    let image = emit_executable_image(&artifact, 3).expect("structural-call image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("structural-call image");
     let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
         .expect("structural-call installation");
     validate_installation_record(&record, &image).expect("exact image binding");

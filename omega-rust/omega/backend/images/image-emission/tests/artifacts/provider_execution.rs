@@ -1,7 +1,7 @@
 use super::{edge_id, identity, machine_id, operation_id, two_function_plan};
 use image_emission::{
     InstallationError, ObjectError, build_installation_record, build_object_artifact,
-    can_emit_executable_image, emit_executable_image,
+    can_emit_executable_image, emit_direct_executable_image,
 };
 use machine_code::{
     BoundarySettlementRecord, MachineCodeFunction, MachineCodePlan, PortEffectRecord,
@@ -141,7 +141,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
         artifact.boundary_settlements()[0].settlement.realization,
         realization.into()
     );
-    let image = emit_executable_image(&artifact, 3).expect("effect image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("effect image");
     assert_eq!(
         image.semantic_code_attribution(),
         artifact.semantic_code_attribution()
@@ -216,5 +216,5 @@ fn image_boundary_rejects_noncanonical_pointer_facts() {
     plan.target.pointer_size = 4;
     assert!(!can_emit_executable_image(plan.target));
     let artifact = build_object_artifact(&plan).expect("owned artifact");
-    assert!(emit_executable_image(&artifact, 3).is_err());
+    assert!(emit_direct_executable_image(&artifact, 3).is_err());
 }

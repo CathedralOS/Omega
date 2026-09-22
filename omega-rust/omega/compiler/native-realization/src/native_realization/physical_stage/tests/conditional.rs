@@ -241,8 +241,8 @@ fn publish(
         },
     )
     .unwrap_or_else(|error| panic!("{target:?} {selections:?}: publication {error:?}"));
-    let image = image_emission::emit_executable_image(&published, 3).unwrap();
-    image_emission::validate_executable_image(&published, &image).unwrap();
+    let image = image_emission::emit_direct_executable_image(&published, 3).unwrap();
+    image_emission::validate_direct_executable_image(&published, &image).unwrap();
     let record = image_emission::build_installation_record(
         &image,
         semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),

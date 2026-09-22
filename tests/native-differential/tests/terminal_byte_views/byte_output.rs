@@ -140,8 +140,8 @@ fn returning_byte_output_publishes_objects_and_images_with_exact_source_custody(
         assert!(matches!(settlement.runtime_scalar_arguments[0].source,
             InternalUnitScalarArgumentSourceRecord::SelectedBoundary { source_value, .. }
                 if source_value == ValueId::new(5).unwrap()));
-        let image = image_emission::emit_executable_image(&object, 3).unwrap();
-        image_emission::validate_executable_image(&object, &image).unwrap();
+        let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
+        image_emission::validate_direct_executable_image(&object, &image).unwrap();
         let record = image_emission::build_installation_record(
             &image,
             semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),
@@ -202,7 +202,7 @@ fn returning_byte_output_publishes_objects_and_images_with_exact_source_custody(
                 );
             }
             assert!(
-                image_emission::emit_executable_image(&changed, 3).is_err(),
+                image_emission::emit_direct_executable_image(&changed, 3).is_err(),
                 "image mutation {mutation} on {target:?}"
             );
         }

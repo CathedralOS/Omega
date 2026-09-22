@@ -9,7 +9,7 @@ use image_emission::{
     InstallationError, ObjectError, build_admitted_x86_fma_object_artifact,
     build_feature_required_x86_fma_object_artifact, build_installation_record,
     build_installation_record_with_provider_executions, build_object_artifact,
-    decode_installation_record, emit_executable_image, emit_object_container,
+    decode_installation_record, emit_direct_executable_image, emit_object_container,
     encode_installation_record, installation_fingerprint, validate_installation_record,
 };
 use machine_code::{
@@ -111,7 +111,7 @@ fn source_free_x86_fma_object_replays_exact_feature_profile_and_instruction_cust
             &plan.functions[0].bytes
         );
         assert!(
-            emit_executable_image(&artifact, 3).is_err(),
+            emit_direct_executable_image(&artifact, 3).is_err(),
             "retained requirements are not hardware admission"
         );
     }
@@ -137,10 +137,10 @@ fn admitted_x86_fma_provider_selects_generic_slot_and_reaches_an_exact_image() {
         let artifact = build_admitted_x86_fma_object_artifact(&plan, provider)
             .expect("feature-qualified generic FMA object");
         assert_eq!(artifact.x86_scalar_fma_provider(), Some(provider));
-        let image = emit_executable_image(&artifact, 3)
+        let image = emit_direct_executable_image(&artifact, 3)
             .expect("feature-qualified generic FMA object should reach exact image emission");
         assert_eq!(image.x86_scalar_fma_provider(), Some(provider));
-        image_emission::validate_executable_image(&artifact, &image)
+        image_emission::validate_direct_executable_image(&artifact, &image)
             .expect("image replay must retain exact FMA admission");
     }
 }
@@ -157,7 +157,7 @@ fn admitted_x86_fma_object_rejects_profile_and_slot_custody_drift() {
     let feature_only =
         build_feature_required_x86_fma_object_artifact(&linux_plan, TargetProfile::LinuxX64)
             .unwrap();
-    assert!(emit_executable_image(&feature_only, 3).is_err());
+    assert!(emit_direct_executable_image(&feature_only, 3).is_err());
 }
 
 #[test]
@@ -378,8 +378,8 @@ fn hosted_exit_process_object_validation_replays_exact_scalar_and_trap_bytes() {
                 object.boundary_settlements()[0].settlement.scalar_arguments,
                 [argument]
             );
-            let image = emit_executable_image(&object, 3).expect("import-free exit image");
-            image_emission::validate_executable_image(&object, &image)
+            let image = emit_direct_executable_image(&object, 3).expect("import-free exit image");
+            image_emission::validate_direct_executable_image(&object, &image)
                 .expect("exact exit image replay");
             assert_eq!(
                 image.boundary_settlements()[0].settlement.byte_count,
@@ -442,7 +442,7 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
     let write_provider = WriteExitProvider(970);
     let plan = linux_write_line_exit_plan(&write_provider);
     let object = build_object_artifact(&plan).expect("composed object validates");
-    let image = emit_executable_image(&object, 3).expect("Linux image emits");
+    let image = emit_direct_executable_image(&object, 3).expect("Linux image emits");
     let installation = build_installation_record_with_provider_executions(
         &image,
         ProfileDecisionId::new(97).unwrap(),
@@ -471,7 +471,7 @@ fn installation_boundary_settlement_rejects_every_one_field_substitution() {
     let write_provider = WriteExitProvider(970);
     let plan = linux_write_line_exit_plan(&write_provider);
     let artifact = build_object_artifact(&plan).expect("settlement artifact");
-    let image = emit_executable_image(&artifact, 3).expect("settlement image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("settlement image");
     let record = build_installation_record_with_provider_executions(
         &image,
         ProfileDecisionId::new(97).unwrap(),

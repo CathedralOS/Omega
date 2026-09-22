@@ -15,8 +15,8 @@
 use super::{edge_id, machine_id, operation_id, scalar_acyclic_plan, scalar_mutation};
 use calling_conventions::{ValuePlacement, ValueShape};
 use image_emission::{
-    ObjectError, ObjectScalarStack, build_object_artifact, emit_executable_image,
-    validate_executable_image,
+    ObjectError, ObjectScalarStack, build_object_artifact, emit_direct_executable_image,
+    validate_direct_executable_image,
 };
 use machine_code::{
     FunctionFragmentConditionalBranchPredicate as Predicate, InternalCallRelocation,
@@ -59,8 +59,8 @@ fn acyclic_scalar_graph_replays_through_object_construction_and_emission() {
             }),
             "{target:?} replays the taken arm's balanced mutation to its peak",
         );
-        let image = emit_executable_image(&artifact, 3).expect("acyclic scalar image");
-        validate_executable_image(&artifact, &image)
+        let image = emit_direct_executable_image(&artifact, 3).expect("acyclic scalar image");
+        validate_direct_executable_image(&artifact, &image)
             .expect("emitted image replays the sealed acyclic custody");
     }
 }

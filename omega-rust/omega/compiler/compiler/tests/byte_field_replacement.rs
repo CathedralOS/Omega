@@ -104,8 +104,8 @@ fn publish(
     let object = image_emission::build_function_fragment_object_artifact(source.clone()).unwrap();
     image_emission::validate_function_fragment_object_artifact(&source, &object).unwrap();
     let entry_offset = object.entry_function().text_offset;
-    let image = image_emission::emit_executable_image(&object, 3).unwrap();
-    image_emission::validate_executable_image(&object, &image).unwrap();
+    let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
+    image_emission::validate_direct_executable_image(&object, &image).unwrap();
     (image, entry_offset)
 }
 

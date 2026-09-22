@@ -404,9 +404,9 @@ fn runtime_spilled_frame_demand_admits_exact_supply_and_rejects_shortfall() {
 
         // The image and installation-record legs replay the same retained
         // rows: the sealed record must re-derive the identical ceiling.
-        let image = image_emission::emit_executable_image(&object, 3)
+        let image = image_emission::emit_direct_executable_image(&object, 3)
             .unwrap_or_else(|error| panic!("{target:?}: executable image: {error:?}"));
-        image_emission::validate_executable_image(&object, &image)
+        image_emission::validate_direct_executable_image(&object, &image)
             .unwrap_or_else(|error| panic!("{target:?}: image replay: {error:?}"));
         let record = image_emission::build_installation_record(
             &image,

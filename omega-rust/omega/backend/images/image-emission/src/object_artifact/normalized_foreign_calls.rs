@@ -871,7 +871,7 @@ fn scalar_call_result_producer(
     })
 }
 
-/// Image-side custody join for [`super::image_output::validate_executable_image`].
+/// Image-side custody join for [`super::image_output::validate_direct_executable_image`].
 ///
 /// Both publication routes retain their complete roster in the object before
 /// emission. Images cannot append late calls or weaken their retained evidence.

@@ -67,8 +67,8 @@ fn stack_pointer_calls_publish_objects_and_installation_records() {
                 caller.unit_stack.unwrap().frame_bytes
             );
         }
-        let image = image_emission::emit_executable_image(&object, 3).unwrap();
-        image_emission::validate_executable_image(&object, &image).unwrap();
+        let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
+        image_emission::validate_direct_executable_image(&object, &image).unwrap();
         let record = image_emission::build_installation_record(
             &image,
             semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),
@@ -231,7 +231,7 @@ fn borrowed_publication_rejects_substituted_roots_projections_and_transport() {
             "mutation {mutation}"
         );
         assert!(
-            image_emission::emit_executable_image(&changed, 3).is_err(),
+            image_emission::emit_direct_executable_image(&changed, 3).is_err(),
             "mutation {mutation}"
         );
     }
@@ -248,7 +248,7 @@ fn register_and_stack_pointer_directions_publish_without_referent_copies() {
         for (incoming, outgoing) in [(false, false), (false, true), (true, false)] {
             let source = container(target, &source(register_prefix(target), incoming, outgoing));
             let object = image_emission::build_function_fragment_object_artifact(source).unwrap();
-            let image = image_emission::emit_executable_image(&object, 3).unwrap();
+            let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
             let record = image_emission::build_installation_record(
                 &image,
                 semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),
@@ -269,7 +269,7 @@ fn borrowed_installation_requires_exact_image_custody() {
     let source = container(target, &pressure_source(target));
     let entry = source.source().text_section().semantic_entry;
     let object = image_emission::build_function_fragment_object_artifact(source).unwrap();
-    let image = image_emission::emit_executable_image(&object, 3).unwrap();
+    let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
     let record = image_emission::build_installation_record(
         &image,
         semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),
@@ -354,5 +354,5 @@ fn borrowed_call_free_leaf_requires_retained_replay() {
     let mut changed = object.clone();
     changed.clear_fragment_replay_for_test();
     image_emission::validate_function_fragment_object_artifact(&source, &changed).unwrap();
-    assert!(image_emission::emit_executable_image(&changed, 3).is_err());
+    assert!(image_emission::emit_direct_executable_image(&changed, 3).is_err());
 }

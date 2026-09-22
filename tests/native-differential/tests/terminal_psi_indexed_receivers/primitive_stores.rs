@@ -36,8 +36,8 @@ pub(super) fn published_text(source_text: &str, target: NativeTarget) -> (Vec<u8
         .find(|function| function.machine == entry)
         .unwrap()
         .text_offset;
-    let image = image_emission::emit_executable_image(&object, 3).unwrap();
-    image_emission::validate_executable_image(&object, &image).unwrap();
+    let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
+    image_emission::validate_direct_executable_image(&object, &image).unwrap();
     let installed = image_emission::build_installation_record(
         &image,
         semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),
@@ -60,7 +60,7 @@ fn boolean_primitive_installation_rejects_borrowed_contract_substitution() {
         object_file::stage_optimized_relocation_free_object_container(placed).unwrap(),
     );
     let object = image_emission::build_function_fragment_object_artifact(source).unwrap();
-    let image = image_emission::emit_executable_image(&object, 3).unwrap();
+    let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
     let record = image_emission::build_installation_record(
         &image,
         semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),

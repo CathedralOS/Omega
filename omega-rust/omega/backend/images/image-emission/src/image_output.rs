@@ -1,15 +1,23 @@
-//! Object-container and direct executable-image output dispatch.
+//! Object-container and executable-image output: the emission entry.
 //!
-//! This module selects the target writer, retains the sealed terminal-Psi
-//! image carrier, and invokes independent final-image replay before returning.
-//! It does not construct machine code or installation authority.
+//! [`emit_executable_image`] is the single entry: the object's contents and
+//! the caller's [`ExecutableImageEmissionRequest`] select the direct writer
+//! (ELF, Mach-O or PE over a static image, owned here) or the dynamic ELF
+//! lane (`dynamic_elf`), and [`validate_executable_image`] replays that
+//! selection. The direct lane retains the sealed terminal-Psi image carrier
+//! and invokes independent final-image replay before returning. Nothing here
+//! constructs machine code or installation authority.
 
 use diagnostics::Diagnostic;
 use image::{EmittedImageOutput, FinalImageInput, emitted_direct_executable_output};
 use object_file::{ObjectContainerInput, ObjectContainerOutput, emit_omega_object_container};
-use target::{Architecture, NativeTarget, ObjectFormat};
+use target::{Architecture, NativeTarget, NormalizedElfInterpreterPlan, ObjectFormat};
 use terminal_psi::TerminalPsiIdentity;
 
+use super::dynamic_elf::{
+    DynamicElfOrchestrationError, RequestedDynamicElfImage, emit_dynamic_elf_image,
+    validate_requested_dynamic_elf_image,
+};
 use super::final_image_validation::validate_terminal_image;
 use super::{
     LinuxX86ScalarExitShim, ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution,
@@ -18,6 +26,210 @@ use super::{
 use crate::hosted_unit_entry::{
     LINUX_X86_SCALAR_EXIT_SHIM_BYTES, SCALAR_CALL_REFERENCE_FINGERPRINT,
 };
+
+/// Exact image-emission inputs selected outside the source-free object owner.
+///
+/// A normalized interpreter is consumed only when the object itself retains
+/// versioned ELF imports.  Supplying one cannot force an otherwise direct
+/// image through the dynamic ELF path, and omitting one cannot make an
+/// unresolved ELF import fall back to the direct writer.
+#[derive(Debug, Clone)]
+pub enum ExecutableImageEmissionRequest {
+    Direct {
+        subsystem: u16,
+        /// The build-bound Mach-O CodeDirectory signing identity
+        /// (wiki/spec/build/macos_application.md). `None` selects the
+        /// validated executable leaf as the ad-hoc label; the ELF and PE
+        /// writers do not interpret this value.
+        code_signature_identifier: Option<String>,
+    },
+    DynamicElf {
+        interpreter: NormalizedElfInterpreterPlan,
+    },
+}
+
+impl ExecutableImageEmissionRequest {
+    pub const fn direct(subsystem: u16) -> Self {
+        Self::Direct {
+            subsystem,
+            code_signature_identifier: None,
+        }
+    }
+
+    /// Bind `code_signature_identifier` as the Mach-O CodeDirectory identity.
+    /// The caller supplies the build-validated authored application
+    /// identifier; emission writes it verbatim and rejects an empty string
+    /// rather than silently falling back to the leaf.
+    pub fn with_code_signature_identifier(self, code_signature_identifier: Option<String>) -> Self {
+        match self {
+            Self::Direct { subsystem, .. } => Self::Direct {
+                subsystem,
+                code_signature_identifier,
+            },
+            Self::DynamicElf { .. } => self,
+        }
+    }
+
+    /// The identity a direct request binds into Mach-O signing, if any.
+    pub fn code_signature_identifier(&self) -> Option<&str> {
+        match self {
+            Self::Direct {
+                code_signature_identifier,
+                ..
+            } => code_signature_identifier.as_deref(),
+            Self::DynamicElf { .. } => None,
+        }
+    }
+
+    pub const fn dynamic_elf(interpreter: NormalizedElfInterpreterPlan) -> Self {
+        Self::DynamicElf { interpreter }
+    }
+}
+
+/// Result of the image-bound request router.
+///
+/// Dynamic ELF output deliberately remains distinct from [`crate::ExecutableImage`]
+/// and therefore cannot enter installation or publication APIs.
+#[derive(Debug)]
+#[must_use = "requested image emission retains its exact authority boundary"]
+pub enum RequestedExecutableImage {
+    Direct(ExecutableImage),
+    DynamicElf(RequestedDynamicElfImage),
+}
+
+impl RequestedExecutableImage {
+    pub const fn output(&self) -> &EmittedImageOutput {
+        match self {
+            Self::Direct(image) => image.output(),
+            Self::DynamicElf(image) => image.output(),
+        }
+    }
+}
+
+/// Rejected image-bound request with any consumed dynamic-loader input intact.
+#[derive(Debug)]
+#[must_use = "requested image-emission rejection may retain loader custody"]
+pub enum RequestedExecutableImageError {
+    MissingDynamicElfInterpreter {
+        target: target::NativeTarget,
+        subsystem: u16,
+        diagnostic: Diagnostic,
+    },
+    UnexpectedDynamicElfInterpreter {
+        interpreter: NormalizedElfInterpreterPlan,
+        diagnostic: Diagnostic,
+    },
+    Direct(Diagnostic),
+    DynamicElf(Box<DynamicElfOrchestrationError>),
+}
+
+impl RequestedExecutableImageError {
+    pub const fn diagnostic(&self) -> &Diagnostic {
+        match self {
+            Self::MissingDynamicElfInterpreter { diagnostic, .. }
+            | Self::UnexpectedDynamicElfInterpreter { diagnostic, .. }
+            | Self::Direct(diagnostic) => diagnostic,
+            Self::DynamicElf(error) => error.diagnostic(),
+        }
+    }
+
+    pub fn into_unexpected_interpreter(self) -> Option<NormalizedElfInterpreterPlan> {
+        match self {
+            Self::UnexpectedDynamicElfInterpreter { interpreter, .. } => Some(interpreter),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for RequestedExecutableImageError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.diagnostic().fmt(formatter)
+    }
+}
+
+impl std::error::Error for RequestedExecutableImageError {}
+
+/// Emit one executable image: the single entry. The object's contents select
+/// the only justified path -- an import-bearing ELF object requires the
+/// request's normalized interpreter and takes the dynamic ELF lane
+/// (`dynamic_elf`), producing non-installable custody; every other object
+/// must omit that input and takes the direct writer
+/// ([`emit_direct_executable_image_signed`]). A request that disagrees with
+/// the object is refused with the consumed loader input intact.
+pub fn emit_executable_image(
+    artifact: &ObjectArtifact,
+    request: ExecutableImageEmissionRequest,
+) -> Result<RequestedExecutableImage, Box<RequestedExecutableImageError>> {
+    let has_normalized_imports = !artifact.object().layout.normalized_imports.is_empty();
+    let requires_dynamic_elf =
+        artifact.target().object_format == ObjectFormat::Elf && has_normalized_imports;
+    match (requires_dynamic_elf, request) {
+        (true, ExecutableImageEmissionRequest::DynamicElf { interpreter }) => {
+            emit_dynamic_elf_image(artifact, interpreter)
+                .map(|emission| {
+                    RequestedExecutableImage::DynamicElf(RequestedDynamicElfImage {
+                        artifact: artifact.clone(),
+                        emission,
+                    })
+                })
+                .map_err(|error| Box::new(RequestedExecutableImageError::DynamicElf(error)))
+        }
+        (true, ExecutableImageEmissionRequest::Direct { subsystem, .. }) => Err(Box::new(
+            RequestedExecutableImageError::MissingDynamicElfInterpreter {
+                target: artifact.target(),
+                subsystem,
+                diagnostic: Diagnostic::error(
+                    "import-bearing ELF image emission requires an exact normalized interpreter input",
+                ),
+            },
+        )),
+        (false, ExecutableImageEmissionRequest::DynamicElf { interpreter }) => Err(Box::new(
+            RequestedExecutableImageError::UnexpectedDynamicElfInterpreter {
+                interpreter,
+                diagnostic: Diagnostic::error(
+                    "a normalized ELF interpreter cannot select the dynamic writer without normalized ELF imports",
+                ),
+            },
+        )),
+        (
+            false,
+            ExecutableImageEmissionRequest::Direct {
+                subsystem,
+                code_signature_identifier,
+            },
+        ) => emit_direct_executable_image_signed(
+            artifact,
+            subsystem,
+            code_signature_identifier.as_deref(),
+        )
+        .map(RequestedExecutableImage::Direct)
+        .map_err(|diagnostic| Box::new(RequestedExecutableImageError::Direct(diagnostic))),
+    }
+}
+
+/// Independently replay the selected image path without collapsing dynamic
+/// output into installable custody: the direct lane through
+/// [`validate_direct_executable_image`], the dynamic lane through
+/// `dynamic_elf::validate_requested_dynamic_elf_image`.
+pub fn validate_executable_image(
+    artifact: &ObjectArtifact,
+    image: &RequestedExecutableImage,
+) -> Result<(), Diagnostic> {
+    let has_normalized_imports = !artifact.object().layout.normalized_imports.is_empty();
+    match image {
+        RequestedExecutableImage::Direct(image) => {
+            if artifact.target().object_format == ObjectFormat::Elf && has_normalized_imports {
+                return Err(Diagnostic::error(
+                    "import-bearing ELF object was substituted into direct image custody",
+                ));
+            }
+            validate_direct_executable_image(artifact, image)
+        }
+        RequestedExecutableImage::DynamicElf(image) => {
+            validate_requested_dynamic_elf_image(artifact, image)
+        }
+    }
+}
 
 fn validate_x86_scalar_fma_provider(artifact: &ObjectArtifact) -> Result<(), Diagnostic> {
     let fragments = artifact
@@ -93,7 +305,9 @@ pub fn can_emit_executable_image(target: NativeTarget) -> bool {
         )
 }
 
-/// Emit and validate one direct executable image.
+/// Emit and validate one direct executable image: the static lane
+/// [`emit_executable_image`] takes for an object without normalized ELF
+/// imports.
 ///
 /// The direct lane admits typed internal calls and exactly retained imports
 /// supported by its target writer. Final-text mutation outside their
@@ -106,18 +320,18 @@ pub fn can_emit_executable_image(target: NativeTarget) -> bool {
 /// build-bound identity enters only through
 /// [`crate::ExecutableImageEmissionRequest::Direct`]
 /// (wiki/spec/build/macos_application.md).
-pub fn emit_executable_image(
+pub fn emit_direct_executable_image(
     artifact: &ObjectArtifact,
     subsystem: u16,
 ) -> Result<ExecutableImage, Diagnostic> {
-    emit_executable_image_signed(artifact, subsystem, None)
+    emit_direct_executable_image_signed(artifact, subsystem, None)
 }
 
 /// `code_signature_identifier` is the build-bound Mach-O signing identity
 /// carried by the image request. It is written verbatim into the emitted
 /// CodeDirectory and participates in `LC_CODE_SIGNATURE` extent planning, so
 /// it is fixed before any load command is emitted.
-pub(crate) fn emit_executable_image_signed(
+pub(crate) fn emit_direct_executable_image_signed(
     artifact: &ObjectArtifact,
     subsystem: u16,
     code_signature_identifier: Option<&str>,
@@ -216,7 +430,7 @@ pub(crate) fn emit_executable_image_signed(
 ///
 /// This repeats final-text relocation-envelope validation and requires the
 /// recomputed evidence to equal the evidence sealed by image construction.
-pub fn validate_executable_image(
+pub fn validate_direct_executable_image(
     artifact: &ObjectArtifact,
     image: &ExecutableImage,
 ) -> Result<(), Diagnostic> {

@@ -100,13 +100,13 @@ fn publish_lowered(
     let mut changed = object.clone();
     changed.text_bytes_mut_for_test()[object.entry_function().text_offset] ^= 1;
     assert!(image_emission::validate_function_fragment_object_artifact(&source, &changed).is_err());
-    assert!(image_emission::emit_executable_image(&changed, 3).is_err());
+    assert!(image_emission::emit_direct_executable_image(&changed, 3).is_err());
     let mut missing_replay = object.clone();
     missing_replay.clear_fragment_replay_for_test();
-    assert!(image_emission::emit_executable_image(&missing_replay, 3).is_err());
+    assert!(image_emission::emit_direct_executable_image(&missing_replay, 3).is_err());
     let entry_offset = object.entry_function().text_offset;
-    let image = image_emission::emit_executable_image(&object, 3).unwrap();
-    image_emission::validate_executable_image(&object, &image).unwrap();
+    let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
+    image_emission::validate_direct_executable_image(&object, &image).unwrap();
     let record = image_emission::build_installation_record(
         &image,
         semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),

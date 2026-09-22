@@ -18,7 +18,7 @@ use image_emission::{
     ExecutableImage, InstallationError, InstallationRecord, build_installation_record,
     build_installation_record_with_provider_executions, build_object_artifact,
     build_object_artifact_with_private_functions, decode_installation_record,
-    emit_executable_image, encode_installation_record, validate_installation_record,
+    emit_direct_executable_image, encode_installation_record, validate_installation_record,
 };
 use machine_code::SemanticCodeSite;
 use optimization_core::MutationOutcome;
@@ -55,7 +55,7 @@ pub(super) fn installation_record_check(
 pub(super) fn foreign_stored_dynamic_call_record() -> InstallationRecord {
     let artifact =
         build_object_artifact(&stored_dynamic_call_plan()).expect("donor object artifact");
-    let image = emit_executable_image(&artifact, 3).expect("donor image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("donor image");
     build_installation_record(&image, ProfileDecisionId::new(1).expect("profile"))
         .expect("donor installation")
 }
@@ -64,7 +64,7 @@ pub(super) fn foreign_stored_dynamic_call_record() -> InstallationRecord {
 pub(super) fn foreign_forwarded_parameter_call_record() -> InstallationRecord {
     let artifact = build_object_artifact(&forwarded_dynamic_parameter_call_plan())
         .expect("donor object artifact");
-    let image = emit_executable_image(&artifact, 3).expect("donor image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("donor image");
     build_installation_record(&image, ProfileDecisionId::new(1).expect("profile"))
         .expect("donor installation")
 }
@@ -103,7 +103,7 @@ pub(super) fn honest_semantic_code_attribution_record() -> InstallationRecord {
     let provider = WriteExitProvider(970);
     let artifact = build_object_artifact(&linux_write_line_exit_plan(&provider))
         .expect("attribution artifact");
-    let image = emit_executable_image(&artifact, 3).expect("attribution image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("attribution image");
     build_installation_record_with_provider_executions(
         &image,
         ProfileDecisionId::new(97).expect("profile"),
@@ -246,7 +246,7 @@ optimization_core::custody_field_inventory! {
 pub(super) fn honest_compiler_private_function_record() -> InstallationRecord {
     let artifact = build_object_artifact_with_private_functions(&callback_private_plan())
         .expect("callback private artifact");
-    let image = emit_executable_image(&artifact, 3).expect("callback private image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("callback private image");
     build_installation_record(&image, ProfileDecisionId::new(53).expect("profile"))
         .expect("callback private installation")
 }
@@ -398,7 +398,7 @@ optimization_core::custody_field_inventory! {
 pub(super) fn honest_dynamic_conformance_table_record() -> InstallationRecord {
     let artifact = build_object_artifact(&dynamic_conformance_table_plan())
         .expect("dynamic-table object artifact");
-    let image = emit_executable_image(&artifact, 3).expect("dynamic-table image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("dynamic-table image");
     build_installation_record(&image, ProfileDecisionId::new(1).expect("profile"))
         .expect("dynamic-table installation")
 }
@@ -616,7 +616,7 @@ optimization_core::custody_field_inventory! {
 pub(super) fn honest_dynamic_parameter_call_record() -> InstallationRecord {
     let artifact = build_object_artifact(&dynamic_parameter_call_plan())
         .expect("dynamic-parameter object artifact");
-    let image = emit_executable_image(&artifact, 3).expect("dynamic-parameter image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("dynamic-parameter image");
     build_installation_record(&image, ProfileDecisionId::new(1).expect("profile"))
         .expect("dynamic-parameter installation")
 }
@@ -765,7 +765,7 @@ optimization_core::custody_field_inventory! {
 pub(super) fn honest_stored_dynamic_call_record() -> InstallationRecord {
     let artifact =
         build_object_artifact(&stored_dynamic_call_plan()).expect("stored dynamic object artifact");
-    let image = emit_executable_image(&artifact, 3).expect("stored dynamic image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("stored dynamic image");
     build_installation_record(&image, ProfileDecisionId::new(1).expect("profile"))
         .expect("stored dynamic installation")
 }
@@ -991,7 +991,8 @@ optimization_core::custody_field_inventory! {
 pub(super) fn honest_forwarded_dynamic_parameter_call_record() -> InstallationRecord {
     let artifact = build_object_artifact(&forwarded_dynamic_parameter_call_plan())
         .expect("forwarded dynamic-parameter object artifact");
-    let image = emit_executable_image(&artifact, 3).expect("forwarded dynamic-parameter image");
+    let image =
+        emit_direct_executable_image(&artifact, 3).expect("forwarded dynamic-parameter image");
     build_installation_record(&image, ProfileDecisionId::new(1).expect("profile"))
         .expect("forwarded dynamic-parameter installation")
 }
@@ -1172,7 +1173,8 @@ optimization_core::custody_field_inventory! {
 pub(super) fn honest_forwarded_dynamic_descriptor_record() -> InstallationRecord {
     let artifact = build_object_artifact(&forwarded_dynamic_descriptor_call_plan())
         .expect("forwarded dynamic-descriptor object artifact");
-    let image = emit_executable_image(&artifact, 3).expect("forwarded dynamic-descriptor image");
+    let image =
+        emit_direct_executable_image(&artifact, 3).expect("forwarded dynamic-descriptor image");
     build_installation_record(&image, ProfileDecisionId::new(1).expect("profile"))
         .expect("forwarded dynamic-descriptor installation")
 }
@@ -1445,7 +1447,7 @@ pub(super) fn honest_port_effect_record() -> InstallationRecord {
     let provider = WriteExitProvider(7);
     let artifact =
         build_object_artifact(&port_effect_plan(&provider)).expect("port-effect artifact");
-    let image = emit_executable_image(&artifact, 3).expect("port-effect image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("port-effect image");
     build_installation_record_with_provider_executions(
         &image,
         ProfileDecisionId::new(17).expect("profile"),

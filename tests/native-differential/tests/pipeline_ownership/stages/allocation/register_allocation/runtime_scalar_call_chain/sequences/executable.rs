@@ -80,8 +80,8 @@ fn ordered_scalar_calls_reach_native_publication() {
                         u64::max,
                     );
                 assert_eq!(demand.ceiling_bytes(), expected);
-                let image = image_emission::emit_executable_image(&object, 3).unwrap();
-                image_emission::validate_executable_image(&object, &image).unwrap();
+                let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
+                image_emission::validate_direct_executable_image(&object, &image).unwrap();
                 let record = image_emission::build_installation_record(
                     &image,
                     semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),

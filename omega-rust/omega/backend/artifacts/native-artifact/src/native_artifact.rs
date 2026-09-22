@@ -237,7 +237,7 @@ impl NativeArtifact {
                 "native artifact terminal-authority closure receipt drifted from its exact realization inputs",
             );
         }
-        image_emission::validate_executable_image(&self.object, &self.image)
+        image_emission::validate_direct_executable_image(&self.object, &self.image)
             .map_err(|_| "native artifact image failed object-to-image replay")?;
         let module = terminal_codec::decode_module(self.psi_artifact.semantic_bytes())
             .map_err(|_| "native artifact canonical semantics failed to decode")?;

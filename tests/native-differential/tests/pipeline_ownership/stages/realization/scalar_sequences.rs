@@ -134,8 +134,8 @@ fn exact_scalar_sequences_reach_shared_native_publication() {
                         .expect("shared scalar sequence object");
                 image_emission::validate_function_fragment_object_artifact(&source, &object)
                     .unwrap();
-                let image = image_emission::emit_executable_image(&object, 3).unwrap();
-                image_emission::validate_executable_image(&object, &image).unwrap();
+                let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
+                image_emission::validate_direct_executable_image(&object, &image).unwrap();
                 let installation = image_emission::build_installation_record(
                     &image,
                     semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),

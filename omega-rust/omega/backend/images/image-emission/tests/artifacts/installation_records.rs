@@ -11,7 +11,7 @@ use image_emission::{
     INSTALLATION_FORMAT_MARKER, InstallationError, InstallationRecord, build_installation_record,
     build_installation_record_with_evidence,
     build_installation_record_with_selected_provider_plans_and_evidence, build_object_artifact,
-    decode_installation_record, derive_installation_stack_demand, emit_executable_image,
+    decode_installation_record, derive_installation_stack_demand, emit_direct_executable_image,
     encode_installation_record, installation_fingerprint, validate_installation_record,
 };
 use installation_evidence::ProviderExecutionEvidence;
@@ -96,7 +96,7 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
             }],
         };
         let artifact = build_object_artifact(&plan).expect("artifact");
-        let image = emit_executable_image(&artifact, 3)
+        let image = emit_direct_executable_image(&artifact, 3)
             .unwrap_or_else(|error| panic!("{target:?} image failed: {error}"));
         assert_eq!(image.psi(), plan.psi);
         let installation = build_installation_record(&image, ProfileDecisionId::new(1).unwrap())
@@ -147,7 +147,7 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
 fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     let plan = two_function_plan();
     let artifact = build_object_artifact(&plan).expect("artifact");
-    let image = emit_executable_image(&artifact, 3).expect("Linux image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("Linux image");
     let record = build_installation_record(
         &image,
         ProfileDecisionId::new(11).expect("profile decision"),
@@ -220,7 +220,8 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     let mut changed_plan = plan;
     changed_plan.functions[1].bytes = integer_return(8);
     let changed_artifact = build_object_artifact(&changed_plan).expect("changed artifact");
-    let changed_image = emit_executable_image(&changed_artifact, 3).expect("changed Linux image");
+    let changed_image =
+        emit_direct_executable_image(&changed_artifact, 3).expect("changed Linux image");
     assert_eq!(
         validate_installation_record(&record, &changed_image),
         Err(InstallationError::ImageBindingMismatch)
@@ -242,7 +243,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
 fn installation_record_rejects_drifted_complete_image_placement() {
     let plan = internal_call_plan(NativeTarget::linux_x64());
     let artifact = build_object_artifact(&plan).expect("artifact");
-    let image = emit_executable_image(&artifact, 3).expect("Linux image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("Linux image");
     let record = build_installation_record(&image, ProfileDecisionId::new(11).expect("profile"))
         .expect("installation record");
     validate_installation_record(&record, &image).expect("exact image binding");
@@ -283,7 +284,7 @@ fn installation_record_rejects_drifted_complete_image_placement() {
     // custody alone must reject the drift.
     let macho_plan = internal_call_plan(NativeTarget::macos_arm64());
     let macho_artifact = build_object_artifact(&macho_plan).expect("Mach-O artifact");
-    let macho_image = emit_executable_image(&macho_artifact, 3).expect("Mach-O image");
+    let macho_image = emit_direct_executable_image(&macho_artifact, 3).expect("Mach-O image");
     let macho_record =
         build_installation_record(&macho_image, ProfileDecisionId::new(13).expect("profile"))
             .expect("Mach-O installation record");
@@ -397,7 +398,7 @@ fn foreign_header_record() -> InstallationRecord {
     let mut other_plan = internal_call_plan(NativeTarget::linux_x64());
     account_x86_unit_call(&mut other_plan);
     let other_artifact = build_object_artifact(&other_plan).expect("other artifact");
-    let other_image = emit_executable_image(&other_artifact, 3).expect("other image");
+    let other_image = emit_direct_executable_image(&other_artifact, 3).expect("other image");
     build_installation_record(&other_image, ProfileDecisionId::new(7).expect("profile"))
         .expect("other record")
 }
@@ -738,7 +739,7 @@ fn honest_coff_installation_record() -> InstallationRecord {
     let mut coff_plan = two_function_plan();
     coff_plan.target = NativeTarget::windows_x64();
     let coff_artifact = build_object_artifact(&coff_plan).expect("COFF artifact");
-    let coff_image = emit_executable_image(&coff_artifact, 3).expect("PE image");
+    let coff_image = emit_direct_executable_image(&coff_artifact, 3).expect("PE image");
     build_installation_record(&coff_image, ProfileDecisionId::new(19).expect("profile"))
         .expect("COFF record")
 }
@@ -785,7 +786,7 @@ fn coff_installation_header_outcome(
 fn installation_header_rejects_every_one_field_substitution() {
     let plan = two_function_plan();
     let artifact = build_object_artifact(&plan).expect("artifact");
-    let image = emit_executable_image(&artifact, 3).expect("Linux image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("Linux image");
     let record = honest_installation_header_record(&image);
     validate_installation_record(&record, &image).expect("exact image binding");
     let authentic_evidence = record.compiler_text_validation();
@@ -880,7 +881,7 @@ fn installation_header_rejects_every_one_field_substitution() {
     let mut coff_plan = two_function_plan();
     coff_plan.target = NativeTarget::windows_x64();
     let coff_artifact = build_object_artifact(&coff_plan).expect("COFF artifact");
-    let coff_image = emit_executable_image(&coff_artifact, 3).expect("PE image");
+    let coff_image = emit_direct_executable_image(&coff_artifact, 3).expect("PE image");
     let coff_record = honest_coff_installation_record();
     assert_eq!(coff_record.subsystem(), Some(3));
     validate_installation_record(&coff_record, &coff_image).expect("COFF binding");
@@ -1027,7 +1028,7 @@ optimization_core::custody_field_inventory! {
 /// record rather than cloning retained state.
 fn honest_installed_function_record() -> InstallationRecord {
     let artifact = build_object_artifact(&two_function_plan()).expect("artifact");
-    let image = emit_executable_image(&artifact, 3).expect("Linux image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("Linux image");
     build_installation_record(&image, ProfileDecisionId::new(11).expect("profile"))
         .expect("installation record")
 }
@@ -1110,7 +1111,7 @@ fn installed_function_row_outcome(
 /// independent replay against the unchanged image rejects it.
 #[test]
 fn installation_function_row_rejects_every_one_field_substitution() {
-    let image = emit_executable_image(
+    let image = emit_direct_executable_image(
         &build_object_artifact(&two_function_plan()).expect("artifact"),
         3,
     )
@@ -1195,7 +1196,7 @@ optimization_core::custody_field_inventory! {
 fn honest_internal_unit_call_record() -> InstallationRecord {
     let artifact =
         build_object_artifact(&two_call_edge_owned_cleanup_plan()).expect("cleanup artifact");
-    let image = emit_executable_image(&artifact, 3).expect("cleanup image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("cleanup image");
     build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
         .expect("cleanup installation")
 }
@@ -1520,7 +1521,7 @@ fn internal_unit_call_outcome(
 fn installation_internal_unit_call_row_rejects_every_one_field_substitution() {
     let artifact =
         build_object_artifact(&two_call_edge_owned_cleanup_plan()).expect("cleanup artifact");
-    let image = emit_executable_image(&artifact, 3).expect("cleanup image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("cleanup image");
     let record = honest_internal_unit_call_record();
     validate_installation_record(&record, &image).expect("exact image binding");
     assert_eq!(record.internal_unit_calls().len(), 3);
@@ -1562,7 +1563,7 @@ fn installation_internal_unit_call_row_rejects_every_one_field_substitution() {
 #[test]
 fn installation_record_fingerprints_component_progress_acceptance() {
     let artifact = build_object_artifact(&two_function_plan()).expect("artifact");
-    let image = emit_executable_image(&artifact, 3).expect("image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("image");
     let profile = ProfileDecisionId::new(12).expect("profile decision");
     let plain = build_installation_record(&image, profile).expect("plain record");
     let acceptance = TestComponentProgressAcceptance {
@@ -1607,7 +1608,7 @@ fn installation_record_fingerprints_component_progress_acceptance() {
 #[test]
 fn installation_record_retains_selected_provider_plan_without_execution() {
     let artifact = build_object_artifact(&two_function_plan()).expect("artifact");
-    let image = emit_executable_image(&artifact, 3).expect("image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("image");
     let profile = ProfileDecisionId::new(13).expect("profile decision");
     let record = build_installation_record_with_selected_provider_plans_and_evidence(
         &image,
@@ -1756,7 +1757,7 @@ fn installation_selected_provider_plan_rejects_every_one_field_substitution() {
     let provider = WriteExitProvider(7);
     let plan = port_effect_plan(&provider);
     let artifact = build_object_artifact(&plan).expect("port-effect artifact");
-    let image = emit_executable_image(&artifact, 3).expect("port-effect image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("port-effect image");
     let profile = ProfileDecisionId::new(23).expect("profile decision");
     let record = honest_selected_provider_plan_record(&provider, &image, profile);
     assert_eq!(
@@ -1960,7 +1961,7 @@ optimization_core::custody_field_inventory! {
 fn honest_structural_return_record() -> InstallationRecord {
     let artifact =
         build_object_artifact(&structural_return_plan()).expect("structural-return artifact");
-    let image = emit_executable_image(&artifact, 3).expect("structural-return image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("structural-return image");
     build_installation_record(&image, ProfileDecisionId::new(11).expect("profile"))
         .expect("structural-return installation")
 }
@@ -2221,7 +2222,7 @@ fn structural_return_outcome(
 fn installation_structural_return_rejects_every_one_field_substitution() {
     let artifact =
         build_object_artifact(&structural_return_plan()).expect("structural-return artifact");
-    let image = emit_executable_image(&artifact, 3).expect("structural-return image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("structural-return image");
     let record = honest_structural_return_record();
     validate_installation_record(&record, &image).expect("exact image binding");
     let [affine, linear] = record.structural_returns() else {
@@ -2254,7 +2255,7 @@ fn installation_structural_return_rejects_every_one_field_substitution() {
 #[test]
 fn installation_decoder_rejects_alternate_and_malformed_encodings() {
     let artifact = build_object_artifact(&two_function_plan()).expect("artifact");
-    let image = emit_executable_image(&artifact, 3).expect("image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("image");
     let record =
         build_installation_record(&image, ProfileDecisionId::new(1).unwrap()).expect("record");
     let bytes = encode_installation_record(&record).expect("bytes");
@@ -2319,7 +2320,7 @@ fn installation_decoder_rejects_alternate_and_malformed_encodings() {
 #[test]
 fn installation_reader_rejects_every_truncation_and_byte_fault() {
     let artifact = build_object_artifact(&two_function_plan()).expect("artifact");
-    let image = emit_executable_image(&artifact, 3).expect("image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("image");
     let record =
         build_installation_record(&image, ProfileDecisionId::new(1).unwrap()).expect("record");
     let bytes = encode_installation_record(&record).expect("bytes");

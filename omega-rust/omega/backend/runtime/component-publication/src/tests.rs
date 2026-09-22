@@ -65,7 +65,7 @@ use image_emission::{
     InstalledArtifact, InstalledCompilerPrivateFunctionEntry, bind_installed_artifact,
     bind_installed_compiler_private_function_entry, build_installation_record,
     build_installation_record_with_evidence, build_object_artifact_with_private_functions,
-    emit_executable_image,
+    emit_direct_executable_image,
 };
 use layout_plans::{
     ArtifactInstallationScopeId, EntryStubId, PlacementConstraints, PlacementPhase, PlacementSite,
@@ -238,7 +238,7 @@ fn terminal_image() -> (
             private_functions: vec![callback_private_function()],
         })
         .expect("terminal object with private callback");
-    let image = emit_executable_image(&object, 3).expect("terminal image");
+    let image = emit_direct_executable_image(&object, 3).expect("terminal image");
     (object, image)
 }
 
