@@ -5,7 +5,6 @@
 //! This stage seals source-free semantics and their proof and debug companions.
 //! It accepts only the output of the explicit pre-Terminal optimization stage.
 
-#[path = "boundary_operator_custody/replay_scope.rs"]
 mod boundary_operator_custody;
 mod publish_artifact;
 

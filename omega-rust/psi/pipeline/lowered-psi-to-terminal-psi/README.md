@@ -6,7 +6,7 @@ debug products. It does not consume checked source. The
 [Terminal product contract](../../../../wiki/spec/terminal-psi/product.md)
 defines separate consumption and the distinction between semantics and receipts.
 
-[Boundary-operator custody](src/boundary_operator_custody/replay_scope.rs) binds
+[Boundary-operator custody](src/boundary_operator_custody.rs) binds
 a checked demand roster to that exact artifact. Its entrypoint checks semantic
 identity, replays occurrences, enforces one-to-one application/operation joins
 and complete retained FMA coverage, then constructs the private receipt.
