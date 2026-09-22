@@ -297,9 +297,8 @@ fn requirement_uses_are_stamped_with_their_selected_plan_and_stage_the_same_rewr
 fn settling_a_rewritten_requirement_call_retires_its_flow_call_row_in_place() {
     let (operator_checked, operator_plans) = checked_with_plans(OPERATOR_SOURCE);
     let (requirement_checked, requirement_plans) = checked_with_plans(&requirement_source());
-    let (mut operator_bound, operator_selected) = bound(operator_checked, &operator_plans);
-    let (mut requirement_bound, requirement_selected) =
-        bound(requirement_checked, &requirement_plans);
+    let (operator_bound, operator_selected) = bound(operator_checked, &operator_plans);
+    let (requirement_bound, requirement_selected) = bound(requirement_checked, &requirement_plans);
     let requirement_uses = requirement_bound
         .facts
         .operators
@@ -350,16 +349,18 @@ fn settling_a_rewritten_requirement_call_retires_its_flow_call_row_in_place() {
                 .is_empty()
     );
 
-    crate::selected_dispatch::float_intrinsic::settle_selected_float_intrinsic_dispatch(
-        &mut operator_bound,
-        &operator_selected,
-    )
-    .expect("operator spelling settles");
-    crate::selected_dispatch::float_intrinsic::settle_selected_float_intrinsic_dispatch(
-        &mut requirement_bound,
-        &requirement_selected,
-    )
-    .expect("requirement spelling settles");
+    let operator_bound =
+        crate::selected_dispatch::float_intrinsic::settle_selected_float_intrinsic_dispatch(
+            operator_bound,
+            &operator_selected,
+        )
+        .expect("operator spelling settles");
+    let requirement_bound =
+        crate::selected_dispatch::float_intrinsic::settle_selected_float_intrinsic_dispatch(
+            requirement_bound,
+            &requirement_selected,
+        )
+        .expect("requirement spelling settles");
 
     assert!(
         operator_bound.facts.flow.control.retired_calls.is_empty(),

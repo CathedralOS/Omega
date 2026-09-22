@@ -39,11 +39,11 @@ use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::float_semantics::RoundingDirection;
-use numerics::literals::{FloatFormat, FloatLiteral};
+use numerics::literals::FloatFormat;
 use provider_planning::CompilerIntrinsicExecutionIdentity;
 use std::sync::Arc;
 use symbols::BuiltinFunction;
-use typed_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
+use typed_trees_to_checked_trees::{SettledFloatIntrinsic, SettledFloatIntrinsicExecution};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NamedFloatRealization {
@@ -103,16 +103,41 @@ enum StagedNamedFloatExecution {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct StagedNamedFloatRewrite {
-    expression: typed_trees::expression::ExpressionHandle,
+    pub(super) expression: typed_trees::expression::ExpressionHandle,
     origin: checked_trees::CheckedValueOrigin,
     realization: NamedFloatRealization,
     execution: StagedNamedFloatExecution,
 }
 
+impl StagedNamedFloatRewrite {
+    /// The settlement row Psi applies for this planned rewrite.
+    pub(super) fn settled_intrinsic(&self) -> SettledFloatIntrinsic {
+        SettledFloatIntrinsic {
+            expression: self.expression,
+            origin: self.origin,
+            execution: match self.execution {
+                StagedNamedFloatExecution::Builtin { function, symbol } => {
+                    SettledFloatIntrinsicExecution::Builtin { function, symbol }
+                }
+                StagedNamedFloatExecution::Negate(format) => {
+                    SettledFloatIntrinsicExecution::Negate(format)
+                }
+                StagedNamedFloatExecution::Convert {
+                    domain,
+                    target_type,
+                } => SettledFloatIntrinsicExecution::Convert {
+                    domain,
+                    target_type,
+                },
+            },
+        }
+    }
+}
+
 pub fn settle_selected_float_intrinsic_dispatch(
-    checked: &mut Arc<CheckedTrees>,
+    checked: Arc<CheckedTrees>,
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<Arc<CheckedTrees>, Vec<Diagnostic>> {
     super::settle_selected_execution_dispatch(checked, selected_provider_plans)
 }
 
@@ -179,118 +204,4 @@ pub(super) fn plan_selected_float_intrinsic_rewrites(
     }
 
     Ok(rewrites)
-}
-
-pub(super) fn apply_selected_float_intrinsic_rewrites(
-    checked: &mut CheckedTrees,
-    rewrites: Vec<StagedNamedFloatRewrite>,
-    source_edits: &mut crate::source_edits::SourceEditBuilder,
-) {
-    for rewrite in rewrites {
-        source_edits.expression(&checked.typed, rewrite.expression);
-        let ExpressionNode::Call(call) = checked
-            .typed
-            .expression_table
-            .expression(rewrite.expression)
-            .clone()
-        else {
-            unreachable!("validated named-float rewrite ceased to be a call before publication");
-        };
-        let arguments = checked
-            .typed
-            .expression_table
-            .expression_handles(call.arguments)
-            .to_vec();
-        let replacement = match rewrite.execution {
-            StagedNamedFloatExecution::Builtin { function, symbol } => {
-                let mut call = call;
-                call.receiver = typed_trees::expression::ExpressionHandle::invalid();
-                call.target = typed_trees::name::Identifier::generated(function.name());
-                call.target_symbol = symbol;
-                ExpressionNode::Call(call)
-            }
-            StagedNamedFloatExecution::Negate(format) => {
-                let negative_one = checked.typed.expression_table.insert(ExpressionNode::Float(
-                    FloatLiteral::from_f64(-1.0).with_landing(format),
-                ));
-                ExpressionNode::Binary(TableBinaryExpression {
-                    left: arguments[0],
-                    operator: BinaryOperator::Multiply,
-                    right: negative_one,
-                })
-            }
-            StagedNamedFloatExecution::Convert {
-                domain,
-                target_type,
-            } => ExpressionNode::Cast(typed_trees::expression::TableCastExpression {
-                value: arguments[0],
-                target_type,
-                result_type: typed_trees::types::TypeReferenceHandle::invalid(),
-                target_label: arena::HandleSpan::empty(),
-                domain,
-                semantic_domain: arena::HandleSpan::empty(),
-                semantic_domain_arguments: arena::HandleSpan::empty(),
-                semantic_domain_symbol: symbols::SymbolHandle::invalid(),
-                semantic_domain_id: language_semantics::SemanticDomainId::NULL,
-                form: language_core::CastForm::Value,
-            }),
-        };
-        *checked
-            .typed
-            .expression_table
-            .expression_mut(rewrite.expression) = replacement;
-        retire_rewritten_call_row(checked, rewrite.origin, rewrite.expression);
-    }
-}
-
-/// The flow call row captured for the authored call no longer names a call
-/// the settled body makes; retire it so execution planning skips the row
-/// while the certificates holding its handle stay valid.
-fn retire_rewritten_call_row(
-    checked: &mut CheckedTrees,
-    origin: checked_trees::CheckedValueOrigin,
-    expression: typed_trees::expression::ExpressionHandle,
-) {
-    let checked_trees::CheckedValueOrigin::StateStatement {
-        machine_symbol,
-        state_symbol,
-        statement_index,
-        ..
-    } = origin
-    else {
-        return;
-    };
-    let statement_root = checked
-        .typed
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
-        .and_then(|machine| {
-            checked
-                .typed
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == state_symbol)
-                .map(|state| state.statement_nodes)
-        })
-        .and_then(|statements| {
-            checked
-                .typed
-                .statement_table
-                .statements(statements)
-                .get(statement_index)
-        })
-        .is_some_and(|statement| {
-            matches!(
-                statement,
-                typed_trees::statement::StatementNode::Expression(root) if *root == expression
-            )
-        });
-    checked.facts.flow.control.retire_calls(
-        machine_symbol,
-        state_symbol,
-        statement_index,
-        expression,
-        statement_root,
-    );
 }

@@ -80,8 +80,8 @@ fn selected_match_comparisons_settle_without_replacing_source() {
     )
     .expect("select floating equality plan");
     let source_before = checked.typed.clone();
-    let mut checked = Arc::new(checked);
-    super::super::settle_selected_execution_dispatch(&mut checked, &selected)
+    let checked = Arc::new(checked);
+    let checked = super::super::settle_selected_execution_dispatch(checked, &selected)
         .expect("settle floating Match comparisons");
     assert_eq!(checked.typed, source_before);
     let expected_count = checked
@@ -105,10 +105,10 @@ fn selected_match_comparisons_settle_without_replacing_source() {
             .count(),
         expected_count,
     );
-    let settled = Arc::clone(&checked);
-    super::super::settle_selected_execution_dispatch(&mut checked, &selected)
+    let before = checked.as_ref().clone();
+    let checked = super::super::settle_selected_execution_dispatch(checked, &selected)
         .expect("settlement remains idempotent");
-    assert!(Arc::ptr_eq(&settled, &checked));
+    assert_eq!(checked.as_ref(), &before);
 }
 
 #[test]
@@ -176,12 +176,8 @@ fn rejected_match_settlement_preserves_shared_program() {
         .uses
         .get_mut(handle)
         .provider_plan_commitment = CheckedProviderPlanCommitment::from_digest([9; 32]);
-    let original = Arc::new(checked);
-    let mut rejected = Arc::clone(&original);
-    super::super::settle_selected_execution_dispatch(&mut rejected, &selected)
+    super::super::settle_selected_execution_dispatch(Arc::new(checked), &selected)
         .expect_err("invalid later occurrence rejects the complete roster");
-    assert!(Arc::ptr_eq(&original, &rejected));
-    assert_eq!(original.as_ref(), rejected.as_ref());
 }
 
 #[test]
@@ -202,9 +198,9 @@ fn unselected_match_does_not_retain_previous_execution() {
         operator_use.provider_plan_report_fingerprint = 0;
         operator_use.provider_plan_commitment = CheckedProviderPlanCommitment::default();
     }
-    let mut checked = Arc::new(checked);
-    super::super::settle_selected_execution_dispatch(
-        &mut checked,
+    let checked = Arc::new(checked);
+    let checked = super::super::settle_selected_execution_dispatch(
+        checked,
         &effects::SelectedProviderPlanFacts::default(),
     )
     .expect("remove no-longer-selected execution custody");

@@ -327,11 +327,12 @@ pub(crate) fn settle_selected_execution(
             settlement.exact_component_progress_root,
             None,
         )?;
-    let dispatch_source_edits =
+    let (program, dispatch_source_edits) =
         selected_dispatch::settle_selected_execution_dispatch_with_source_edits(
-            &mut checked.program,
+            checked.program,
             &checked.selected_provider_plan_facts,
         )?;
+    checked.program = program;
     let resolved_exit_bindings =
         selected_dispatch::retain_selected_compiler_intrinsic_review_identities(
             &checked.program,

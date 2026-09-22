@@ -23,39 +23,11 @@ use crate::boundary_dispatch::boundary_fields::named_type_symbol;
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::statement::StatementHandle;
+use typed_trees::expression::ExpressionNode;
+use typed_trees_to_checked_trees::{SettledCallSite, SettledRequirementCall};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct RequirementCallRewrite {
-    /// The journaled call site: an expression-table call or a
-    /// statement-table call (`Owner::name(...);`, including `_ = call();`,
-    /// and member calls `token.consume();` on a `self` requirement).
-    site: RequirementCallSite,
-    /// The caller state and statement the flow occurrence and its checked
-    /// scalar-argument facts are keyed on.
-    caller_state: symbols::SymbolHandle,
-    statement_ordinal: u32,
-    call_ordinal: u32,
-    requirement_state: symbols::SymbolHandle,
-    /// The `self` row forwards the call's receiver place as the adapter's
-    /// leading argument: the rewrite splices the receiver into argument
-    /// position 0 instead of only clearing it.
-    forward_receiver: bool,
-    /// Statement sites only: the exact field symbol of each projected member
-    /// after the receiver-path root (the leaf repeats `receiver_symbol`),
-    /// re-derived by name inside the already-exact owner types at plan time.
-    /// Expression sites reuse the authored receiver expression and carry none.
-    receiver_member_symbols: Vec<symbols::SymbolHandle>,
-    machine: String,
-    entry_symbol: symbols::SymbolHandle,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RequirementCallSite {
-    Expression(ExpressionHandle),
-    Statement(StatementHandle),
-}
+/// The settlement row Psi applies is exactly the record this owner plans.
+pub(super) type RequirementCallRewrite = SettledRequirementCall;
 
 /// The settled realization rows keyed on top-level requirements: the row's
 /// `requirement` is the entry state of a `TopLevelRequirement` machine.
@@ -302,7 +274,7 @@ pub(super) fn plan_selected_requirement_rewrites(
                         continue;
                     };
                     rewrites.push(RequirementCallRewrite {
-                        site: RequirementCallSite::Statement(handle),
+                        site: SettledCallSite::Statement(handle),
                         caller_state: state.symbol,
                         statement_ordinal,
                         call_ordinal,
@@ -369,7 +341,7 @@ pub(super) fn plan_selected_requirement_rewrites(
                 continue;
             };
             rewrites.push(RequirementCallRewrite {
-                site: RequirementCallSite::Expression(handle),
+                site: SettledCallSite::Expression(handle),
                 caller_state: *caller_state,
                 statement_ordinal,
                 call_ordinal,
@@ -385,233 +357,6 @@ pub(super) fn plan_selected_requirement_rewrites(
         return Err(diagnostics);
     }
     Ok(rewrites)
-}
-
-/// Redirect each journaled direct call to the realization entry, exactly as
-/// the named boundary-operator adapter rewrite does: receiver cleared, target
-/// name and entry symbol replaced, arguments and static bindings retained.
-/// A `self` row first splices the receiver place (a single place, or one
-/// projection hop on it) into argument 0, where the adapter's ordinary
-/// leading parameter binds it; the flow occurrence's receiver fields clear
-/// with the call node's, matching the receiver-free rewrite.
-/// The retained flow occurrence and the checked scalar-argument facts follow
-/// the call into the ordinary-call custody roles, so the rebuilt Unit plans
-/// and Terminal source custody see one coherent ordinary call to the checked
-/// body; the authored span, the journaled edit and the settled row keep the
-/// requirement.
-pub(super) fn apply_selected_requirement_rewrites(
-    checked: &mut CheckedTrees,
-    rewrites: &[RequirementCallRewrite],
-    source_edits: &mut crate::source_edits::SourceEditBuilder,
-) {
-    use checked_trees::CheckedScalarExpressionRole;
-    for rewrite in rewrites {
-        match rewrite.site {
-            RequirementCallSite::Expression(expression) => {
-                source_edits.expression(&checked.typed, expression);
-                let ExpressionNode::Call(mut call) = checked
-                    .typed
-                    .expression_table
-                    .expression(expression)
-                    .clone()
-                else {
-                    unreachable!("planned requirement rewrite ceased to be a call")
-                };
-                debug_assert_eq!(call.target_symbol, rewrite.requirement_state);
-                if rewrite.forward_receiver {
-                    // `recv.name(args)` becomes `Provider::entry(recv, args)`:
-                    // the authored receiver expression is spliced in as
-                    // argument 0, where the adapter's ordinary leading
-                    // parameter binds it; the caller's member-call custody
-                    // claim on the receiver place is preserved.
-                    let mut arguments = vec![call.receiver];
-                    arguments.extend(
-                        checked
-                            .typed
-                            .expression_table
-                            .expression_handles(call.arguments)
-                            .iter()
-                            .copied(),
-                    );
-                    call.arguments = checked
-                        .typed
-                        .expression_table
-                        .insert_expression_handles(arguments);
-                }
-                call.receiver = ExpressionHandle::invalid();
-                call.target = typed_trees::name::Identifier::generated(rewrite.machine.clone());
-                call.target_symbol = rewrite.entry_symbol;
-                *checked.typed.expression_table.expression_mut(expression) =
-                    ExpressionNode::Call(call);
-            }
-            RequirementCallSite::Statement(statement) => {
-                source_edits.statement_call(&checked.typed, statement);
-                let typed_trees::statement::StatementNode::Call(mut call) =
-                    checked.typed.statement_table.statement(statement).clone()
-                else {
-                    unreachable!("planned requirement rewrite ceased to be a statement call")
-                };
-                debug_assert_eq!(call.target_symbol, rewrite.requirement_state);
-                if rewrite.forward_receiver {
-                    // `token.consume();` becomes `Provider::entry(token);`
-                    // and `holder.inner.token.consume();` becomes
-                    // `Provider::entry(holder.inner.token);`: the root place
-                    // is reified as a Name expression and each projected
-                    // member as a Member expression carrying the exact field
-                    // symbol planning re-derived; the result is spliced in as
-                    // argument 0. Planning fenced receiver paths whose
-                    // members do not re-derive.
-                    let path_members = checked
-                        .typed
-                        .statement_table
-                        .name_path_members(call.receiver)
-                        .to_vec();
-                    debug_assert_eq!(
-                        rewrite.receiver_member_symbols.len(),
-                        path_members.len().saturating_sub(1)
-                    );
-                    let mut members = arena::HandleSpan::empty();
-                    let mut member_symbols = arena::HandleSpan::empty();
-                    checked
-                        .typed
-                        .expression_table
-                        .push_name_path_member(&mut members, path_members[0].clone());
-                    checked.typed.expression_table.push_name_path_member_symbol(
-                        &mut member_symbols,
-                        call.receiver_root_symbol,
-                    );
-                    let mut receiver_expression = checked.typed.expression_table.insert(
-                        ExpressionNode::Name(typed_trees::expression::TableNamePath {
-                            members,
-                            member_symbols,
-                            head_symbol: call.receiver_root_symbol,
-                            symbol: call.receiver_root_symbol,
-                        }),
-                    );
-                    for (member, member_symbol) in path_members[1..]
-                        .iter()
-                        .zip(rewrite.receiver_member_symbols.iter())
-                    {
-                        receiver_expression =
-                            checked
-                                .typed
-                                .expression_table
-                                .insert(ExpressionNode::Member(
-                                    typed_trees::expression::TableMemberExpression {
-                                        receiver: receiver_expression,
-                                        member_symbol: *member_symbol,
-                                        member: member.clone(),
-                                        case_variant: None,
-                                    },
-                                ));
-                    }
-                    checked
-                        .typed
-                        .expression_table
-                        .set_source_span(receiver_expression, call.source_span);
-                    let mut arguments = vec![receiver_expression];
-                    arguments.extend(
-                        checked
-                            .typed
-                            .statement_table
-                            .expression_handles(call.arguments)
-                            .iter()
-                            .copied(),
-                    );
-                    call.arguments = checked
-                        .typed
-                        .statement_table
-                        .insert_expression_handles(arguments);
-                }
-                call.receiver_root_symbol = symbols::SymbolHandle::invalid();
-                call.receiver_symbol = symbols::SymbolHandle::invalid();
-                call.receiver = arena::HandleSpan::empty();
-                call.target = typed_trees::name::Identifier::generated(rewrite.machine.clone());
-                call.target_symbol = rewrite.entry_symbol;
-                *checked.typed.statement_table.statement_mut(statement) =
-                    typed_trees::statement::StatementNode::Call(call);
-            }
-        }
-
-        // The retained flow occurrence is the caller state's call at the
-        // recorded statement/call coordinate for both site shapes; a
-        // statement site has no authored-expression handle to match on.
-        let calls = checked
-            .facts
-            .flow
-            .control
-            .states
-            .iter()
-            .find(|(_, state)| state.state_symbol == rewrite.caller_state)
-            .map(|(_, state)| state.calls);
-        if let Some(calls) = calls {
-            for call in checked.facts.flow.control.calls.span_mut_or_empty(calls) {
-                if call.statement_index == rewrite.statement_ordinal as usize
-                    && call.call_ordinal == rewrite.call_ordinal as usize
-                {
-                    call.target_symbol = rewrite.entry_symbol;
-                    call.receiver_symbol = symbols::SymbolHandle::invalid();
-                    call.has_receiver = false;
-                }
-            }
-        }
-
-        let unit_role = |role: CheckedScalarExpressionRole| match role {
-            CheckedScalarExpressionRole::BoundaryCallArgument {
-                call_ordinal,
-                argument_ordinal,
-            } if call_ordinal == rewrite.call_ordinal => {
-                Some(CheckedScalarExpressionRole::UnitCallArgument {
-                    call_ordinal,
-                    argument_ordinal,
-                })
-            }
-            _ => None,
-        };
-        let values = &mut checked.facts.values;
-        for located in values.scalar_expressions.expressions.iter_mut() {
-            if located.state == rewrite.caller_state
-                && located.statement_ordinal == rewrite.statement_ordinal
-                && let Some(role) = unit_role(located.role)
-            {
-                located.role = role;
-            }
-        }
-        let bindings = values
-            .scalar_expressions
-            .source_bindings
-            .iter()
-            .filter(|(_, binding)| {
-                binding.state == rewrite.caller_state
-                    && binding.statement_ordinal == rewrite.statement_ordinal
-                    && unit_role(binding.role).is_some()
-            })
-            .map(|(handle, _)| handle)
-            .collect::<Vec<_>>();
-        for handle in bindings {
-            let binding = values.scalar_expressions.source_bindings.get_mut(handle);
-            if let Some(role) = unit_role(binding.role) {
-                binding.role = role;
-            }
-        }
-        let roots = values
-            .scalar_computations
-            .roots
-            .iter()
-            .filter(|(_, root)| {
-                root.state == rewrite.caller_state
-                    && root.statement_ordinal == rewrite.statement_ordinal
-                    && unit_role(root.role).is_some()
-            })
-            .map(|(handle, _)| handle)
-            .collect::<Vec<_>>();
-        for handle in roots {
-            let root = values.scalar_computations.roots.get_mut(handle);
-            if let Some(role) = unit_role(root.role) {
-                root.role = role;
-            }
-        }
-    }
 }
 
 #[cfg(test)]
@@ -748,9 +493,9 @@ mod tests {
             .expect("the holder parameter")
             .symbol;
 
-        let mut settled = Arc::new(checked);
-        let edits =
-            crate::settle_selected_execution_dispatch_with_source_edits(&mut settled, &selected)
+        let settled = Arc::new(checked);
+        let (settled, edits) =
+            crate::settle_selected_execution_dispatch_with_source_edits(settled, &selected)
                 .expect("a projected receiver member call settles");
         let rows = &settled.facts.boundary_adapter_dispatch;
         assert_eq!(rows.len(), 1, "{rows:?}");
@@ -916,9 +661,9 @@ mod tests {
             .expect("the holder parameter")
             .symbol;
 
-        let mut settled = Arc::new(checked);
-        let edits =
-            crate::settle_selected_execution_dispatch_with_source_edits(&mut settled, &selected)
+        let settled = Arc::new(checked);
+        let (settled, edits) =
+            crate::settle_selected_execution_dispatch_with_source_edits(settled, &selected)
                 .expect("a deeper projected receiver member call settles");
         let rows = &settled.facts.boundary_adapter_dispatch;
         assert_eq!(rows.len(), 1, "{rows:?}");

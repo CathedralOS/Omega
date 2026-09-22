@@ -25,12 +25,12 @@ use checked_trees::{
 };
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderBinding;
-use language_core::CallOperationalAcknowledgementOrigin;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees_to_checked_trees::{SettledOperatorAdapterCall, SettledOperatorAdapterSource};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct OperatorAdapterRewrite {
-    expression: ExpressionHandle,
+    pub(super) expression: ExpressionHandle,
     origin: CheckedValueOrigin,
     requirement_operator: symbols::SymbolHandle,
     provider_plan_report_fingerprint: u64,
@@ -45,6 +45,23 @@ pub(super) struct OperatorAdapterRewrite {
 enum OperatorAdapterSource {
     NamedCall,
     Spelled(Box<[ExpressionHandle]>),
+}
+
+impl OperatorAdapterRewrite {
+    /// The settlement row Psi applies for this planned rewrite.
+    pub(super) fn settled_call(&self) -> SettledOperatorAdapterCall {
+        SettledOperatorAdapterCall {
+            expression: self.expression,
+            machine: self.machine.clone(),
+            entry_symbol: self.entry_symbol,
+            source: match &self.source {
+                OperatorAdapterSource::NamedCall => SettledOperatorAdapterSource::NamedCall,
+                OperatorAdapterSource::Spelled(operands) => {
+                    SettledOperatorAdapterSource::Spelled(operands.clone())
+                }
+            },
+        }
+    }
 }
 
 /// Rejoin every retained selected Unit call to the exact ProviderPlan still
@@ -402,59 +419,6 @@ fn stage_operator_adapter_rewrite(
         return;
     }
     rewrites.push(rewrite);
-}
-
-pub(super) fn apply_selected_operator_adapter_rewrites(
-    checked: &mut CheckedTrees,
-    rewrites: &[OperatorAdapterRewrite],
-    source_edits: &mut crate::source_edits::SourceEditBuilder,
-) {
-    for rewrite in rewrites {
-        source_edits.expression(&checked.typed, rewrite.expression);
-        let replacement = match &rewrite.source {
-            OperatorAdapterSource::NamedCall => {
-                let ExpressionNode::Call(mut call) = checked
-                    .typed
-                    .expression_table
-                    .expression(rewrite.expression)
-                    .clone()
-                else {
-                    unreachable!("validated named operator rewrite ceased to be a call")
-                };
-                call.receiver = ExpressionHandle::invalid();
-                call.target = typed_trees::name::Identifier::generated(rewrite.machine.clone());
-                call.target_symbol = rewrite.entry_symbol;
-                ExpressionNode::Call(call)
-            }
-            OperatorAdapterSource::Spelled(operands) => {
-                let arguments = checked
-                    .typed
-                    .expression_table
-                    .insert_expression_handles(operands.iter().copied());
-                ExpressionNode::Call(TableCallExpression {
-                    receiver: ExpressionHandle::invalid(),
-                    target_symbol: rewrite.entry_symbol,
-                    target: typed_trees::name::Identifier::generated(rewrite.machine.clone()),
-                    static_machine_parameter: symbols::SymbolHandle::invalid(),
-                    static_requirement_dispatch: None,
-                    machine_arguments: Box::new([]),
-                    quotient_operation: None,
-                    private_layout_operation: None,
-                    arguments,
-                    evidence_arguments: Box::new([]),
-                    operational_acknowledgement: language_core::CallOperationalAcknowledgement {
-                        origin: CallOperationalAcknowledgementOrigin::CompilerSynthesized,
-                        acknowledges_suspend: false,
-                        acknowledges_block: false,
-                    },
-                })
-            }
-        };
-        *checked
-            .typed
-            .expression_table
-            .expression_mut(rewrite.expression) = replacement;
-    }
 }
 
 pub(super) fn selected_operator_applications(

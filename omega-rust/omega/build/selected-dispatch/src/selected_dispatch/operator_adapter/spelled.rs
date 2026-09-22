@@ -256,12 +256,10 @@ mod tests {
         };
         let expected_arguments = [binary.left, binary.right];
         let original = Arc::new(fixture.checked);
-        let mut settled = Arc::clone(&original);
+        let settled = Arc::new(original.as_ref().clone());
 
-        crate::settle_selected_execution_dispatch(&mut settled, &selected)
+        let settled = crate::settle_selected_execution_dispatch(settled, &selected)
             .expect("exact fixed-token adapter dispatches");
-
-        assert!(!Arc::ptr_eq(&settled, &original));
         assert!(matches!(
             original
                 .typed
@@ -327,15 +325,10 @@ mod tests {
                 .operators
                 .uses
                 .get_mut(fixture.use_handle) = operator_use;
-            let before = fixture.checked.clone();
-            let original = Arc::new(fixture.checked);
-            let mut rejected = Arc::clone(&original);
-
-            crate::settle_selected_execution_dispatch(&mut rejected, &selected)
-                .expect_err("fixed-token identity drift must reject");
-
-            assert!(Arc::ptr_eq(&rejected, &original), "{drift}");
-            assert_eq!(rejected.as_ref(), &before, "{drift}");
+            let diagnostics =
+                crate::settle_selected_execution_dispatch(Arc::new(fixture.checked), &selected)
+                    .expect_err("fixed-token identity drift must reject");
+            assert!(!diagnostics.is_empty(), "{drift}");
         }
     }
 }

@@ -94,13 +94,10 @@ fn mixed_fixture() -> (CheckedTrees, SelectedProviderPlanFacts) {
 #[test]
 fn shared_mixed_settlement_keeps_both_plans_and_source_custody() {
     let (checked, selected) = mixed_fixture();
-    let before = checked.clone();
-    let original = Arc::new(checked);
-    let mut settled = Arc::clone(&original);
-    let journal = settle_selected_execution_dispatch_with_source_edits(&mut settled, &selected)
-        .expect("one transaction settles both operator and FMA applications");
-    assert!(!Arc::ptr_eq(&settled, &original));
-    assert_eq!(original.as_ref(), &before);
+    let original = checked.clone();
+    let (settled, journal) =
+        settle_selected_execution_dispatch_with_source_edits(Arc::new(checked), &selected)
+            .expect("one transaction settles both operator and FMA applications");
     let caller = settled
         .machines()
         .iter()
@@ -165,20 +162,14 @@ fn shared_mixed_source_guard_failure_publishes_neither_rewrites_nor_plans() {
     // but prevents the journal from certifying one exact operand binding.
     checked.typed.state_parameters.append(parameter);
     let original = Arc::new(checked);
-    let mut transformed = Arc::clone(&original);
-    settle_selected_execution_dispatch(&mut transformed, &selected)
+    settle_selected_execution_dispatch(Arc::new(original.as_ref().clone()), &selected)
         .expect("the selected execution plans and rewrites themselves remain valid");
-    let before = original.as_ref().clone();
-    let mut rejected = Arc::clone(&original);
-    let diagnostics =
-        settle_selected_execution_dispatch_with_source_edits(&mut rejected, &selected)
-            .expect_err("late source guard failure must abort the complete transaction");
+    let diagnostics = settle_selected_execution_dispatch_with_source_edits(original, &selected)
+        .expect_err("late source guard failure must abort the complete transaction");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
             .contains("duplicate operand parameter binding")),
         "{diagnostics:?}"
     );
-    assert!(Arc::ptr_eq(&rejected, &original));
-    assert_eq!(rejected.as_ref(), &before);
 }
