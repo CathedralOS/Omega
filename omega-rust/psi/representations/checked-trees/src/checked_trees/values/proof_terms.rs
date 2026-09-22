@@ -1,12 +1,15 @@
-//! Checked proof-only terms: the erased actuals recorded for proof-only
-//! erased formals, and the role keys that locate them.
+//! Checked proof terms: the erased actuals recorded for proof-lane erased
+//! formals, and the role keys that locate them.
 
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 
-/// One erased formal whose carrier is proof-only (`Nat` and friends): it
-/// admits no scalar lane, so the contract term lane carries its semantic
-/// type identity instead.
+use super::CheckedScalarExpression;
+
+/// One erased formal whose carrier rides the contract term lane: a
+/// proof-only type (`Nat` and friends), or a closed checked-shape
+/// record/enum whose fields are all term-expressible. Neither admits a
+/// scalar lane, so the lane carries the carrier's semantic type identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedErasedProofParameterPlan {
     /// The parameter's dense authored position in the signature.
@@ -14,7 +17,7 @@ pub struct CheckedErasedProofParameterPlan {
     /// The parameter's symbol; callers resolve `Formal{parameter_symbol}`
     /// occurrences into this roster's dense proof-lane position.
     pub parameter_symbol: SymbolHandle,
-    /// Canonical semantic identity of the proof-only type (`Nat`).
+    /// Canonical semantic identity of the carrier (`Nat`, `Proof`).
     pub type_identity: String,
 }
 
@@ -44,13 +47,15 @@ pub enum CheckedProofTermRole {
     TransitionContinuationArgument { argument_ordinal: u32 },
 }
 
-/// One proof-only erased actual recorded at its exact authored position.
-/// The term is construction-shaped or a pass-through of the caller's own
-/// erased proof formal; neither owns a runtime operand.
+/// One erased actual recorded at its exact authored position. The term is a
+/// construction, a pass-through of the caller's own erased proof-lane
+/// formal, or — nested inside a construction field — a scalar leaf; none
+/// owns a runtime operand.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedProofTerm {
-    /// A closed proof-only data construction (`Nat::Zero`, `Nat::Succ`).
-    /// Symbols stay resolved until the terminal lane canonicalizes them.
+    /// A closed data construction (`Nat::Zero`, `Nat::Succ`,
+    /// `Proof { tag: 1 }`). Symbols stay resolved until the terminal lane
+    /// canonicalizes them.
     Construction {
         /// The constructed data type's definition symbol.
         data_symbol: SymbolHandle,
@@ -66,6 +71,11 @@ pub enum CheckedProofTerm {
     /// A pass-through of the caller's own erased proof formal, keyed by the
     /// formal's symbol so scope lookup survives roster reorderings.
     Formal { parameter_symbol: SymbolHandle },
+    /// A scalar payload field of an erased record/enum carrier: the field's
+    /// checked expression becomes the terminal `Scalar` leaf. The leaf is
+    /// recorded whole; callers without an allocated scalar namespace reject
+    /// value-bearing leaves at conversion rather than inventing identities.
+    Scalar(CheckedScalarExpression),
 }
 
 impl Default for CheckedProofTerm {

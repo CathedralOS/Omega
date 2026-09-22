@@ -89,12 +89,14 @@ pub(crate) fn build_checked_scalar_graph_plans(
     expressions: &checked_trees::CheckedScalarExpressionPlans,
     computations: &checked_trees::CheckedScalarComputationPlans,
     structural_values: &checked_trees::CheckedStructuralValuePlans,
+    proof_terms: &checked_trees::CheckedProofTerms,
 ) -> CheckedScalarGraphPlans {
     build_checked_scalar_graph_plans_with_call_frames(
         program,
         expressions,
         computations,
         structural_values,
+        proof_terms,
         None,
     )
 }
@@ -104,6 +106,7 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
     expressions: &checked_trees::CheckedScalarExpressionPlans,
     computations: &checked_trees::CheckedScalarComputationPlans,
     structural_values: &checked_trees::CheckedStructuralValuePlans,
+    proof_terms: &checked_trees::CheckedProofTerms,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> CheckedScalarGraphPlans {
     let (guarded_exits, guarded_tails) = guarded_exits::build(program, expressions);
@@ -138,6 +141,7 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
             &mut structural_transfers,
             &mut scalar_arguments,
             &mut erased_proof_arguments,
+            proof_terms,
         )
         .is_some()
     });
@@ -160,12 +164,14 @@ pub(crate) fn finalize_checked_scalar_graph_plans(
     ownership: &checked_trees::FlowOwnershipFacts,
     computations: &checked_trees::CheckedScalarComputationPlans,
     plans: &mut CheckedScalarGraphPlans,
+    proof_terms: &checked_trees::CheckedProofTerms,
 ) {
     finalize_checked_scalar_graph_plans_with_call_frames(
         program,
         ownership,
         computations,
         plans,
+        proof_terms,
         None,
     )
 }
@@ -175,6 +181,7 @@ pub(crate) fn finalize_checked_scalar_graph_plans_with_call_frames(
     ownership: &checked_trees::FlowOwnershipFacts,
     computations: &checked_trees::CheckedScalarComputationPlans,
     plans: &mut CheckedScalarGraphPlans,
+    proof_terms: &checked_trees::CheckedProofTerms,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) {
     plans.machines.retain(|graph| {
@@ -187,6 +194,7 @@ pub(crate) fn finalize_checked_scalar_graph_plans_with_call_frames(
             &plans.structural_transfers,
             &plans.scalar_arguments,
             &plans.erased_proof_arguments,
+            proof_terms,
         )
         .is_none()
         {

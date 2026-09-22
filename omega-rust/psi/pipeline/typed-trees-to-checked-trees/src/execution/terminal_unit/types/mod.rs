@@ -899,9 +899,9 @@ pub(super) fn abi_parameter_count(parameters: &[StateParameter]) -> usize {
 }
 
 /// The authored `[erased]` scalar formals in authored order, each retaining
-/// its authored parameter position. Proof-only erased formals belong to the
-/// proof lane (`erased_proof_parameter_plans`), so this plan skips them.
-/// Erased formals with any other non-primitive type refuse the plan.
+/// its authored parameter position. Contract-term erased formals belong to
+/// the proof lane (`erased_proof_parameter_plans`), so this plan skips
+/// them. Erased formals with any other non-primitive type refuse the plan.
 pub(crate) fn erased_scalar_parameter_plans(
     program: &TypedTrees,
     state: &typed_trees::state::State,
@@ -913,9 +913,7 @@ pub(crate) fn erased_scalar_parameter_plans(
         .enumerate()
         .filter(|(_, parameter)| parameter.relevance.is_erased())
         .filter(|(_, parameter)| {
-            proof_only
-                .proof_only_mention(program, parameter.type_reference)
-                .is_none()
+            !proof_only.contract_term_carrier(program, parameter.type_reference)
         })
         .map(|(position, parameter)| {
             Some(checked_trees::CheckedStructuralScalarParameterPlan {
@@ -926,10 +924,10 @@ pub(crate) fn erased_scalar_parameter_plans(
         .collect()
 }
 
-/// The authored `[erased]` proof-only formals in authored order, each
+/// The authored `[erased]` contract-term formals in authored order, each
 /// retaining its authored parameter position and canonical semantic type
-/// identity (`Nat`). These carriers admit no scalar lane; the contract term
-/// lane carries them by identity instead.
+/// identity (`Nat`, `Proof`). These carriers admit no scalar lane; the
+/// contract term lane carries them by identity instead.
 pub(crate) fn erased_proof_parameter_plans(
     program: &TypedTrees,
     state: &typed_trees::state::State,
@@ -941,9 +939,7 @@ pub(crate) fn erased_proof_parameter_plans(
         .enumerate()
         .filter(|(_, parameter)| parameter.relevance.is_erased())
         .filter(|(_, parameter)| {
-            proof_only
-                .proof_only_mention(program, parameter.type_reference)
-                .is_some()
+            proof_only.contract_term_carrier(program, parameter.type_reference)
         })
         .map(|(position, parameter)| {
             Some(checked_trees::CheckedErasedProofParameterPlan {

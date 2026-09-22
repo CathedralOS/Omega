@@ -134,6 +134,9 @@ fn proof_term_type_matches(
                 })
             })
         }
+        // A bare scalar leaf never satisfies a proof-formal position: scalar
+        // leaves only occur nested inside a construction.
+        checked_trees::CheckedProofTerm::Scalar(_) => false,
     }
 }
 

@@ -68,6 +68,7 @@ fn owned_countdown_retains_mixed_positions_and_exact_nat_judgment() {
             &checked.facts.values.scalar_expressions,
             &checked.facts.values.scalar_computations,
             &checked.facts.values.structural_values,
+            &checked.facts.values.proof_terms,
         );
         assert!(
             discovered.for_machine(machine).is_some(),
@@ -186,6 +187,7 @@ fn owned_countdown_retains_mixed_positions_and_exact_nat_judgment() {
             &checked.facts.flow.ownership,
             &checked.facts.values.scalar_computations,
             &mut retained,
+            &checked.facts.values.proof_terms,
         );
         assert!(retained.for_machine(machine).is_some());
     }
@@ -272,6 +274,7 @@ fn cyclic_successor_rejects_substituted_argument_rows_and_rank_coordinates() {
             &checked.facts.flow.ownership,
             &checked.facts.values.scalar_computations,
             &mut plans,
+            &checked.facts.values.proof_terms,
         );
         assert!(plans.for_machine(machine).is_none(), "mutation {mutation}");
     }
@@ -346,6 +349,7 @@ fn cyclic_owned_permissions_reject_missing_duplicate_or_substituted_transfer_and
                 &ownership,
                 &checked.facts.values.scalar_computations,
                 &mut plans,
+                &checked.facts.values.proof_terms,
             );
             assert!(
                 plans.for_machine(machine).is_none(),
@@ -445,6 +449,7 @@ fn cyclic_owned_signature_does_not_erase_mutability_linearity_or_qualifications(
             &checked.facts.values.scalar_expressions,
             &checked.facts.values.scalar_computations,
             &checked.facts.values.structural_values,
+            &checked.facts.values.proof_terms,
         );
         assert!(plans.for_machine(machine).is_none(), "mutation {mutation}");
     }

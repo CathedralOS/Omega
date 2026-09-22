@@ -77,6 +77,7 @@ impl GraphEmission<'_> {
         crate::scalar_graph::scalar_graph_effects::emit(
             &state.structural_effects,
             &current_values,
+            &self.state_erased_formals[index],
             &mut self.next_value_identity,
             &mut self.all_operations,
             &mut self.call_emission,
@@ -217,6 +218,16 @@ impl GraphEmission<'_> {
                             )
                         })
                         .collect::<Result<Vec<_>, _>>()?;
+                    let erased_proof_arguments = erased_proof_arguments
+                        .iter()
+                        .map(|term| {
+                            crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                                term,
+                                &current_values,
+                                &self.state_erased_formals[index],
+                            )
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
                     let edge = edge_id(self.next_edge_identity);
                     self.next_edge_identity = self
                         .next_edge_identity
@@ -228,7 +239,7 @@ impl GraphEmission<'_> {
                         target: scalar_source_block(self.identity_base, *target),
                         arguments,
                         erased_arguments,
-                        erased_proof_arguments: erased_proof_arguments.clone(),
+                        erased_proof_arguments,
                         residual_affine_discards: Vec::new(),
                         trivial_affine_discards: trivial_affine_discards.clone(),
                     }
@@ -397,15 +408,26 @@ impl GraphEmission<'_> {
                         Vec::new()
                     };
                     // Proof terms are already position-resolved against the
-                    // source roster — they stage only through direct targets.
-                    let proof_terms = |arguments: &[semantic_vocabulary::ProofTerm],
+                    // source roster; scalar leaves resolve against this
+                    // state's completed namespace here — they stage only
+                    // through direct targets.
+                    let proof_terms = |arguments: &[crate::scalar_graph::scalar_contracts::LoweredProofTerm],
                                        direct: bool|
                      -> Result<
                         Vec<semantic_vocabulary::ProofTerm>,
                         LoweringError,
                     > {
                         if direct {
-                            Ok(arguments.to_vec())
+                            arguments
+                                .iter()
+                                .map(|term| {
+                                    crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                                        term,
+                                        &current_values,
+                                        &self.state_erased_formals[index],
+                                    )
+                                })
+                                .collect()
                         } else if arguments.is_empty() {
                             Ok(Vec::new())
                         } else {

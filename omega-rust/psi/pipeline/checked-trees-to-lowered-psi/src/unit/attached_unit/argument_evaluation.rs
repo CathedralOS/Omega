@@ -493,7 +493,17 @@ impl Evaluation {
                 target: continuation,
                 arguments: values.iter().map(|value| value.id).collect(),
                 erased_arguments: Vec::new(),
-                erased_proof_arguments: self.proof_formal_forwarding(),
+                erased_proof_arguments: self
+                    .proof_formal_forwarding()
+                    .iter()
+                    .map(|term| {
+                        crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                            term,
+                            values,
+                            &self.erased_scalar_formals,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, LoweringError>>()?,
                 residual_affine_discards: residuals,
                 trivial_affine_discards: discards,
             },
@@ -533,11 +543,18 @@ impl Evaluation {
 
     /// Forward the whole erased-proof roster positionally: the identity edge
     /// arguments a private join passes when it redeclares the caller roster.
-    fn proof_formal_forwarding(&self) -> Vec<semantic_vocabulary::ProofTerm> {
+    /// The forwarding is a lowering-stage term list: it resolves against the
+    /// caller's value namespaces wherever the edge is emitted.
+    fn proof_formal_forwarding(
+        &self,
+    ) -> Vec<crate::scalar_graph::scalar_contracts::LoweredProofTerm> {
         (0..self.erased_proof_formals.len())
-            .map(|position| semantic_vocabulary::ProofTerm::Formal {
-                position: u32::try_from(position).expect("erased-proof roster positions fit u32"),
-            })
+            .map(
+                |position| crate::scalar_graph::scalar_contracts::LoweredProofTerm::Formal {
+                    position: u32::try_from(position)
+                        .expect("erased-proof roster positions fit u32"),
+                },
+            )
             .collect()
     }
 
@@ -945,7 +962,17 @@ impl Evaluation {
                 ))?,
                 arguments: values.iter().map(|value| value.id).collect(),
                 erased_arguments: Vec::new(),
-                erased_proof_arguments: self.proof_formal_forwarding(),
+                erased_proof_arguments: self
+                    .proof_formal_forwarding()
+                    .iter()
+                    .map(|term| {
+                        crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                            term,
+                            values,
+                            &self.erased_scalar_formals,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, LoweringError>>()?,
                 residual_affine_discards: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },
@@ -1106,6 +1133,7 @@ fn emit_state(
     crate::scalar_graph::scalar_graph_effects::emit(
         &state.structural_effects,
         &values,
+        caller_erased_formals,
         next_value,
         operations,
         calls,
@@ -1163,7 +1191,16 @@ fn emit_state(
                     )
                 })
                 .collect::<Result<Vec<_>, _>>()?,
-            erased_proof_arguments: erased_proof_arguments.clone(),
+            erased_proof_arguments: erased_proof_arguments
+                .iter()
+                .map(|term| {
+                    crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                        term,
+                        &values,
+                        &erased_formals,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?,
             residual_affine_discards: Vec::new(),
             trivial_affine_discards: trivial_affine_discards.clone(),
         },
@@ -1194,6 +1231,21 @@ fn emit_state(
             };
             let when_true_erased_arguments = erased_terms(when_true_erased_arguments)?;
             let when_false_erased_arguments = erased_terms(when_false_erased_arguments)?;
+            let proof_terms =
+                |terms: &[crate::scalar_graph::scalar_contracts::LoweredProofTerm]| {
+                    terms
+                        .iter()
+                        .map(|term| {
+                            crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                                term,
+                                &values,
+                                &erased_formals,
+                            )
+                        })
+                        .collect::<Result<Vec<_>, _>>()
+                };
+            let when_true_erased_proof_arguments = proof_terms(when_true_erased_proof_arguments)?;
+            let when_false_erased_proof_arguments = proof_terms(when_false_erased_proof_arguments)?;
             let condition = emit_boolean_expression(condition, &values, next_value, operations);
             Terminator::Conditional {
                 condition,
@@ -1205,7 +1257,7 @@ fn emit_state(
                         .ok_or(LoweringError::Unsupported("call true target is absent"))?,
                     arguments: when_true_arguments,
                     erased_arguments: when_true_erased_arguments,
-                    erased_proof_arguments: when_true_erased_proof_arguments.clone(),
+                    erased_proof_arguments: when_true_erased_proof_arguments,
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
@@ -1216,7 +1268,7 @@ fn emit_state(
                         .ok_or(LoweringError::Unsupported("call false target is absent"))?,
                     arguments: when_false_arguments,
                     erased_arguments: when_false_erased_arguments,
-                    erased_proof_arguments: when_false_erased_proof_arguments.clone(),
+                    erased_proof_arguments: when_false_erased_proof_arguments,
                     trivial_affine_discards: Vec::new(),
                 },
             }

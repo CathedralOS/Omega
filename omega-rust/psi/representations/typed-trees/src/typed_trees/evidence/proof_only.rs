@@ -8,7 +8,7 @@
 //! `Node` runtime data.
 
 use crate::TypedTrees;
-use crate::data::DataMember;
+use crate::data::{DataDefinition, DataMember};
 use crate::name::Identifier;
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use std::collections::HashMap;
@@ -74,6 +74,111 @@ impl ProofOnlyClassification {
         type_reference: TypeReferenceHandle,
     ) -> Option<Identifier> {
         proof_only_mention_in(&self.reasons, program, type_reference)
+    }
+
+    /// Whether an erased formal with this carrier can ride the contract term
+    /// lane: either a proof-only carrier (`proof_only_mention`) or a closed
+    /// checked-shape record/enum whose fields are all term-expressible — a
+    /// scalar leaf, a proof-only field, or another admitted carrier. The
+    /// second family keeps its runtime shape in the typed signature but owns
+    /// no runtime storage at an erased binding, so the term lane retains its
+    /// exact construction as proof evidence instead. References, slices,
+    /// arrays, generics, quotients, boundary/ laid/ placed/ wired data stay
+    /// out: none of them have a term form this lane can serialize.
+    pub fn contract_term_carrier(
+        &self,
+        program: &TypedTrees,
+        type_reference: TypeReferenceHandle,
+    ) -> bool {
+        if self.proof_only_mention(program, type_reference).is_some() {
+            return true;
+        }
+        let mut visiting = Vec::new();
+        self.closed_contract_carrier(program, type_reference, &mut visiting)
+    }
+
+    /// One carrier candidate: a named, closed, checked-shape data definition
+    /// whose every field type is itself term-admissible. The `visiting` set
+    /// refuses carriers that reach themselves through erased fields — those
+    /// fields leave the containment graph, so the recursion is the only place
+    /// such a cycle can be seen, and an infinite proof term cannot exist.
+    fn closed_contract_carrier(
+        &self,
+        program: &TypedTrees,
+        type_reference: TypeReferenceHandle,
+        visiting: &mut Vec<SymbolHandle>,
+    ) -> bool {
+        if !type_reference.is_valid() {
+            return false;
+        }
+        let TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(type_reference)
+        else {
+            return false;
+        };
+        if visiting.contains(symbol) {
+            return false;
+        }
+        let Some(definition) = program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.symbol == *symbol)
+        else {
+            return false;
+        };
+        let shape = DataDefinition::shape_kind_from_members(program.data_members(definition));
+        if definition.supply_mode != language_core::DataSupplyMode::CheckedShape
+            || definition.quotient.is_some()
+            || !program.data_type_parameters(definition).is_empty()
+            || !matches!(
+                shape,
+                crate::data::DataShapeKind::Empty
+                    | crate::data::DataShapeKind::Record
+                    | crate::data::DataShapeKind::Enum
+                    | crate::data::DataShapeKind::Mixed
+            )
+            || program
+                .plan_laid_layouts
+                .iter()
+                .any(|plan| plan.data_symbol == definition.symbol)
+            || program
+                .placed_view_plans
+                .iter()
+                .any(|plan| plan.data_symbol == definition.symbol)
+            || program
+                .wire_schemas()
+                .iter()
+                .any(|schema| schema.name == definition.name)
+        {
+            return false;
+        }
+        visiting.push(*symbol);
+        let admitted = program.data_members(definition).iter().all(|member| {
+            let fields: &[crate::data::DataField] = match member {
+                crate::data::DataMember::Field(field) => std::slice::from_ref(field),
+                crate::data::DataMember::Variant(variant) => program.data_payload_fields(variant),
+            };
+            fields
+                .iter()
+                .all(|field| self.contract_term_field(program, field.type_reference, visiting))
+        });
+        visiting.pop();
+        admitted
+    }
+
+    /// One field of a candidate carrier: a primitive scalar lowers to a scalar
+    /// leaf, a proof-only mention stays a nested proof term, and another
+    /// admitted carrier nests as a construction. Anything else — references,
+    /// slices, arrays, generics, dynamic traits — has no term form.
+    fn contract_term_field(
+        &self,
+        program: &TypedTrees,
+        type_reference: TypeReferenceHandle,
+        visiting: &mut Vec<SymbolHandle>,
+    ) -> bool {
+        program.primitive_type_reference(type_reference).is_some()
+            || self.proof_only_mention(program, type_reference).is_some()
+            || self.closed_contract_carrier(program, type_reference, visiting)
     }
 }
 

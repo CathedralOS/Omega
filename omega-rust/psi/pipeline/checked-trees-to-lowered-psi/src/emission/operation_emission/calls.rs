@@ -31,9 +31,9 @@ pub(crate) struct LoweredDirectCallBinding {
     /// the caller's retained/erased scalar namespaces.
     pub(crate) erased_arguments: Vec<LoweredDirectExpression>,
     /// Erased proof-only actuals in the callee's erased-proof roster order.
-    /// Already terminal terms; `Formal` positions index the caller's
-    /// erased-proof roster.
-    pub(crate) erased_proof_arguments: Vec<semantic_vocabulary::ProofTerm>,
+    /// `Formal` positions index the caller's erased-proof roster; scalar
+    /// leaves resolve against this operation's caller namespace at emission.
+    pub(crate) erased_proof_arguments: Vec<crate::scalar_graph::scalar_contracts::LoweredProofTerm>,
     pub(crate) structural_arguments: Vec<StructuralArgument>,
     pub(crate) uses_structural_frame: bool,
     pub(crate) crash_continuations: Vec<checked_trees::CrashRouteBucket>,
@@ -346,6 +346,17 @@ fn emit_direct_call_operation(
             lowered_direct_scalar_term(argument, source_values_before_call, caller_erased_formals)
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
+    let erased_proof_arguments = call
+        .erased_proof_arguments
+        .iter()
+        .map(|term| {
+            crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                term,
+                source_values_before_call,
+                caller_erased_formals,
+            )
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     operations.push(Operation {
         static_reach_binding: None,
         suspension_crossing: None,
@@ -360,7 +371,7 @@ fn emit_direct_call_operation(
                 callee,
                 arguments: arguments.iter().map(|argument| argument.id).collect(),
                 erased_arguments,
-                erased_proof_arguments: call.erased_proof_arguments.clone(),
+                erased_proof_arguments,
                 requirement_obligations,
                 crash_continuations,
             }
@@ -369,7 +380,7 @@ fn emit_direct_call_operation(
                 callee,
                 arguments: arguments.iter().map(|argument| argument.id).collect(),
                 erased_arguments,
-                erased_proof_arguments: call.erased_proof_arguments.clone(),
+                erased_proof_arguments,
                 structural_arguments: call.structural_arguments.clone(),
                 claim_transfers: Vec::new(),
                 requirement_obligations,

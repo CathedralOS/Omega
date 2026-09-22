@@ -303,13 +303,15 @@ A proof term is a `u8` form tag followed by its fields. Proof terms are
 proof-only erased actuals — they carry semantic identities for the erased
 proof-formal lane, not runtime values. They appear only inside a proof term
 list in the semantic module, and their nesting shares the scalar-term depth
-bound.
+bound. A Scalar leaf embeds a scalar term; it records one scalar field of a
+record/enum carrier construction and never stands in for a runtime operand.
 
 <!-- proof-term-tags -->
 | Tag | Proof term | Fields after the tag |
 | --- | --- | --- |
 | 1 | Construction | type identity string + `bool` case-identity flag (+ case identity string when set) + counted fields (field identity string + proof term) |
 | 2 | Formal | `u32` position |
+| 3 | Scalar | scalar term |
 
 ## Content terms and places
 
@@ -521,8 +523,8 @@ next scalar, 1 the next structural parameter. Unknown tags, missing entries, and
 lane-count mismatches reject. Reordering a valid roster changes the semantic
 identity even when the parameters have identical physical shapes.
 
-Module bytes are `PSITERM\0` + `u16` format marker 105 + `u16` vocabulary
-marker 107 + the entry machine id, followed by the module's counted tables in
+Module bytes are `PSITERM\0` + `u16` format marker 106 + `u16` vocabulary
+marker 108 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with the machine roster.
 
 <!-- module-table-order -->
@@ -1659,14 +1661,14 @@ written inline with no sharing table.
 
 Each codec-emitted envelope opens with an eight-byte magic and a `u16` format
 marker; the semantic module, sealed proof section, obligation ledger, and
-debug map envelopes then carry the shared `u16` vocabulary marker (107). A
+debug map envelopes then carry the shared `u16` vocabulary marker (108). A
 receiver rejects an unknown magic or stale marker before reading any counted
 table. The installation record `PSIINST\0` is emitted outside this codec.
 
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 105 | yes |
+| semantic module | `PSITERM\0` | 106 | yes |
 | proof bundle | `PSIPRF\0\0` | 33 | no |
 | sealed proof section | `PSIPSC\0\0` | 1 | yes |
 | obligation ledger | `PSIOBLG\0` | 3 | yes |

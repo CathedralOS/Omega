@@ -60,10 +60,12 @@ pub(super) fn validate_supported_shapes(program: &TypedTrees, diagnostics: &mut 
 /// Erased signature parameters on a runtime machine occupy no position in the
 /// checked calling plan, and the plan builder admits them through one of two
 /// erased lanes: a scalar slot for a primitive carrier, or the contract term
-/// lane for a proof-only carrier such as `Nat`. A runtime record or enum
-/// formal has neither carrier, so its plan omission would otherwise surface
-/// with no name. Proof machines are exempt: their erased formals are
-/// proof-side occurrences that never need a runtime plan.
+/// lane for a carrier the term form can serialize — a proof-only type such
+/// as `Nat`, or a closed checked-shape record/enum whose fields are all
+/// term-expressible. Anything else (references, slices, arrays, generic or
+/// boundary-shaped carriers) has no term form, so its plan omission would
+/// otherwise surface with no name. Proof machines are exempt: their erased
+/// formals are proof-side occurrences that never need a runtime plan.
 fn validate_erased_runtime_scalar_formals(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     let proof_only = typed_trees::proof_only::classify(program);
     for machine in program.machines() {
@@ -84,16 +86,15 @@ fn validate_erased_runtime_scalar_formals(program: &TypedTrees, diagnostics: &mu
                 {
                     continue;
                 }
-                // A proof-only carrier such as `Nat` admits no scalar lane,
-                // so it reaches the contract term lane by identity instead.
-                if proof_only
-                    .proof_only_mention(program, parameter.type_reference)
-                    .is_some()
-                {
+                // A proof-only carrier such as `Nat` — or a closed
+                // record/enum the term form serializes field-by-field —
+                // admits no scalar lane, so it reaches the contract term
+                // lane by identity instead.
+                if proof_only.contract_term_carrier(program, parameter.type_reference) {
                     continue;
                 }
                 diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}::{}` erased parameter `{}` is not scalar; an erased formal on a runtime machine needs a scalar lane or a proof-only carrier",
+                    "machine `{}::{}` erased parameter `{}` is not scalar; an erased formal on a runtime machine needs a scalar lane or a contract term carrier",
                     machine.name, state.name, parameter.name,
                 )));
             }

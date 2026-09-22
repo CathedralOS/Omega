@@ -7,6 +7,7 @@ use super::{
     ClosedScalarValueContractPlan, IntegerValue, LoweringError, Proposition, ScalarTerm,
     ValueDeclaration, unsupported,
 };
+use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::scalar_types::terminal_scalar_type;
 #[cfg(test)]
 use crate::proofs::contract_predicates::canonical_equality;
@@ -171,29 +172,56 @@ pub(crate) fn erased_proof_formal_declarations(
         .collect()
 }
 
-/// Convert one checked proof-only actual into its terminal term. `Formal`
-/// occurrences resolve against the caller's erased-proof roster by symbol, so
-/// the emitted position always indexes the roster carried by the block or
-/// contract these terms appear under. Construction identities canonicalize
-/// through the same `::` display path every other identity uses.
+/// The lowering-stage proof term: identical in shape to the terminal
+/// `ProofTerm`, except scalar payload leaves stay `LoweredDirectExpression`s
+/// until the caller's `ValueDeclaration` namespace exists at emission.
+/// `Formal` positions are already resolved against the caller's erased-proof
+/// roster; only `Scalar` leaves still need `values`/`erased`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum LoweredProofTerm {
+    Construction {
+        type_identity: String,
+        case_identity: Option<String>,
+        fields: Vec<LoweredProofTermField>,
+    },
+    Formal {
+        position: u32,
+    },
+    Scalar(LoweredDirectExpression),
+}
+
+/// One named payload field of a lowering-stage proof-term construction.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LoweredProofTermField {
+    pub(crate) field_identity: String,
+    pub(crate) term: LoweredProofTerm,
+}
+
+/// Convert one checked proof-only actual into its lowering-stage term.
+/// `Formal` occurrences resolve against the caller's erased-proof roster by
+/// symbol, so the emitted position always indexes the roster carried by the
+/// block or contract these terms appear under. Construction identities
+/// canonicalize through the same `::` display path every other identity uses.
+/// Scalar leaves stay checked expressions: their `ValueId`s belong to the
+/// caller namespace the emitter supplies.
 pub(crate) fn checked_proof_term(
     checked: &CheckedTrees,
     term: &CheckedProofTerm,
     caller_erased_proof_parameters: &[CheckedErasedProofParameterPlan],
-) -> Result<ProofTerm, LoweringError> {
+) -> Result<LoweredProofTerm, LoweringError> {
     match term {
         CheckedProofTerm::Construction {
             data_symbol: _,
             type_identity,
             case_symbol,
             fields,
-        } => Ok(ProofTerm::Construction {
+        } => Ok(LoweredProofTerm::Construction {
             type_identity: type_identity.clone(),
             case_identity: case_symbol.map(|symbol| checked.symbols.display_path(symbol, "::")),
             fields: fields
                 .iter()
                 .map(|field| {
-                    Ok(ProofTermField {
+                    Ok(LoweredProofTermField {
                         field_identity: checked.symbols.display_path(field.field_symbol, "::"),
                         term: checked_proof_term(
                             checked,
@@ -211,7 +239,7 @@ pub(crate) fn checked_proof_term(
                 .ok_or(LoweringError::Unsupported(
                     "proof actual references a formal outside the caller's erased-proof roster",
                 ))?;
-            Ok(ProofTerm::Formal {
+            Ok(LoweredProofTerm::Formal {
                 position: u32::try_from(position).map_err(|_| {
                     LoweringError::Unsupported(
                         "erased-proof roster position exceeds the terminal term width",
@@ -219,6 +247,48 @@ pub(crate) fn checked_proof_term(
                 })?,
             })
         }
+        CheckedProofTerm::Scalar(expression) => Ok(LoweredProofTerm::Scalar(
+            crate::expression_preparation::prepare_expression::lower_checked_scalar_expression(
+                expression,
+            )?,
+        )),
+    }
+}
+
+/// Emit a lowering-stage proof term into its terminal form. `values` is the
+/// caller's scalar namespace (parameters followed by in-scope locals, exactly
+/// the ordering scalar actuals use) and `erased` the caller's erased scalar
+/// declarations — the namespaces `ErasedParameter`/`Parameter`/`Local`
+/// positions inside scalar leaves index.
+pub(crate) fn lowered_proof_term(
+    term: &LoweredProofTerm,
+    values: &[ValueDeclaration],
+    erased: &[ValueDeclaration],
+) -> Result<ProofTerm, LoweringError> {
+    match term {
+        LoweredProofTerm::Construction {
+            type_identity,
+            case_identity,
+            fields,
+        } => Ok(ProofTerm::Construction {
+            type_identity: type_identity.clone(),
+            case_identity: case_identity.clone(),
+            fields: fields
+                .iter()
+                .map(|field| {
+                    Ok(ProofTermField {
+                        field_identity: field.field_identity.clone(),
+                        term: lowered_proof_term(&field.term, values, erased)?,
+                    })
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?,
+        }),
+        LoweredProofTerm::Formal { position } => Ok(ProofTerm::Formal {
+            position: *position,
+        }),
+        LoweredProofTerm::Scalar(expression) => Ok(ProofTerm::Scalar(
+            crate::proofs::crash_routes::lowered_direct_scalar_term(expression, values, erased)?,
+        )),
     }
 }
 

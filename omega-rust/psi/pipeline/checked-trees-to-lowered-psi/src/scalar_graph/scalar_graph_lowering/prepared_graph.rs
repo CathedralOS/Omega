@@ -11,13 +11,13 @@ use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::proofs::content_conservation::LoweredContentIdentityReshuffles;
 use crate::proofs::content_conservation::LoweredContentPartitionCompositions;
 use crate::scalar_graph::scalar_computations;
+use crate::scalar_graph::scalar_contracts::LoweredProofTerm;
 use crate::scalar_graph::scalar_graph_lowering;
 use checked_trees::{
     CheckedBooleanExpression, ClosedScalarContractValue, ClosedScalarValueContractPlan,
 };
 use semantic_vocabulary::{
-    ClaimId, PlaceId, ProofTerm, QualifiedScalarType, ScalarType, StructuralFieldId,
-    StructuralTypeId,
+    ClaimId, PlaceId, QualifiedScalarType, ScalarType, StructuralFieldId, StructuralTypeId,
 };
 use terminal_psi::{
     CrashCause as TerminalCrashCause, StructuralArgument, StructuralParameterDeclaration,
@@ -39,7 +39,9 @@ pub(crate) enum LoweredScalarBranchTerminator {
         /// Proof-only erased actuals for the successor state's erased roster.
         erased_arguments: Vec<LoweredDirectExpression>,
         /// Erased proof-only actuals for the successor state's proof roster.
-        erased_proof_arguments: Vec<ProofTerm>,
+        /// Scalar leaves still carry checked expressions; emission resolves
+        /// them against the source state's completed value namespace.
+        erased_proof_arguments: Vec<LoweredProofTerm>,
         structural_arguments: Vec<StructuralArgument>,
         trivial_affine_discards: Vec<PlaceId>,
     },
@@ -48,11 +50,11 @@ pub(crate) enum LoweredScalarBranchTerminator {
         when_true_target: usize,
         when_true_arguments: Vec<LoweredDirectExpression>,
         when_true_erased_arguments: Vec<LoweredDirectExpression>,
-        when_true_erased_proof_arguments: Vec<ProofTerm>,
+        when_true_erased_proof_arguments: Vec<LoweredProofTerm>,
         when_false_target: usize,
         when_false_arguments: Vec<LoweredDirectExpression>,
         when_false_erased_arguments: Vec<LoweredDirectExpression>,
-        when_false_erased_proof_arguments: Vec<ProofTerm>,
+        when_false_erased_proof_arguments: Vec<LoweredProofTerm>,
     },
     Return {
         expression: LoweredDirectExpression,
@@ -106,8 +108,9 @@ pub(crate) struct LoweredUnitCall {
     pub(crate) target_state: symbols::SymbolHandle,
     pub(crate) arguments: Vec<LoweredDirectExpression>,
     /// Erased proof-only actuals in the callee's erased-proof roster order.
-    /// `Formal` positions index the caller state's erased-proof roster.
-    pub(crate) erased_proof_arguments: Vec<ProofTerm>,
+    /// `Formal` positions index the caller state's erased-proof roster;
+    /// scalar leaves resolve at emission against the caller value namespace.
+    pub(crate) erased_proof_arguments: Vec<LoweredProofTerm>,
     pub(crate) structural_arguments: Vec<StructuralArgument>,
     pub(crate) crash_routes: Vec<checked_trees::CrashRouteBucket>,
 }

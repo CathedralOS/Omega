@@ -635,17 +635,93 @@ fn erased_trait_requirement_qualifiers_refuse_the_qualifier() {
 }
 
 #[test]
-fn erased_nonscalar_parameter_on_runtime_machine_refuses_the_lane() {
-    // A record formal cannot occupy an erased scalar lane: the calling plan
-    // would omit it without a name, so shape admission names the refusal
-    // until contract terms carry structural erased actuals.
-    rejected(
-        r#"
+fn erased_record_parameter_on_runtime_machine_rides_the_term_lane() {
+    // A closed checked-shape record is a contract term carrier: the erased
+    // formal publishes on the proof lane and its actual lowers to a
+    // construction term whose scalar fields are scalar leaves.
+    lower_typed_trees(
+        typed_program(
+            r#"
         data Proof { tag: i32; }
         data Main { value: i32; }
 
         machine Main::run(&mut self) {
             self.record(Proof { tag: 1 }, 4);
+        }
+
+        machine Main::record(&mut self, w [erased]: Proof, y: i32) {
+            self.value = y;
+        }
+        "#,
+        ),
+        &CheckingRequest::settled(),
+    )
+    .expect("a contract-term erased record formal checks and plans");
+}
+
+#[test]
+fn erased_enum_parameter_on_runtime_machine_rides_the_term_lane() {
+    // A closed checked-shape enum is a contract term carrier too: the
+    // selected case keeps its identity in the construction term and each
+    // payload field lowers to a scalar leaf.
+    lower_typed_trees(
+        typed_program(
+            r#"
+        data Proof {
+            case Tag(value: i32);
+            case Empty;
+        }
+        data Main { value: i32; }
+
+        machine Main::run(&mut self) {
+            self.record(Proof::Tag { value: 1 }, 4);
+        }
+
+        machine Main::record(&mut self, w [erased]: Proof, y: i32) {
+            self.value = y;
+        }
+        "#,
+        ),
+        &CheckingRequest::settled(),
+    )
+    .expect("a contract-term erased enum formal checks and plans");
+}
+
+#[test]
+fn erased_generic_carrier_parameter_refuses_the_term_lane() {
+    // A generic data reference is not a closed contract term carrier — only
+    // the normalized instantiation could be — so shape admission names the
+    // refusal on the raw generic definition.
+    rejected(
+        r#"
+        data Box<T> { value: T; }
+        data Main { value: i32; }
+
+        machine Main::run(&mut self) {
+            self.record(Box { value: 1 }, 4);
+        }
+
+        machine Main::record(&mut self, w [erased]: Box<i32>, y: i32) {
+            self.value = y;
+        }
+        "#,
+        "erased parameter `w` is not scalar",
+    );
+}
+
+#[test]
+fn erased_record_parameter_with_array_field_refuses_the_term_lane() {
+    // A closed record is a carrier only when every field is
+    // term-expressible; a fixed array has no proof-term form, so the record
+    // stays inadmissible and shape admission names the refusal. This is the
+    // corpus pin fail/relevance/erased_nonscalar_parameter.
+    rejected(
+        r#"
+        data Proof { tag: i32; table: [i32; 2]; }
+        data Main { value: i32; }
+
+        machine Main::run(&mut self) {
+            self.record(Proof { tag: 1, table: [7, 8] }, 4);
         }
 
         machine Main::record(&mut self, w [erased]: Proof, y: i32) {

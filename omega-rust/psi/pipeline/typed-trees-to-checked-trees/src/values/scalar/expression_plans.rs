@@ -39,6 +39,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
     let mut expressions = Vec::new();
     let mut source_bindings = arena::Arena::default();
     let mut binding_symbols = arena::Arena::default();
+    let proof_only = typed_trees::proof_only::classify(program);
     for machine in program.machines() {
         let states = program.machine_states(machine);
         for state in states {
@@ -713,6 +714,51 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 let Some(target_type) = program
                                     .primitive_type_reference(target_parameter.type_reference)
                                 else {
+                                    // An erased contract-term formal records a
+                                    // proof term under the same authored
+                                    // argument ordinal the scalar lane uses.
+                                    if target_parameter.relevance.is_erased()
+                                        && proof_only.contract_term_carrier(
+                                            program,
+                                            target_parameter.type_reference,
+                                        )
+                                    {
+                                        if let Some(term) =
+                                            crate::values::scalar::call_lowering::lower_proof_term(
+                                                program,
+                                                operators,
+                                                *argument,
+                                                &scalar_parameters,
+                                                parameters,
+                                                &parameter_types,
+                                                &locals,
+                                                exact_integer_casts,
+                                                &proof_only,
+                                            )
+                                        {
+                                            proof_terms.push(
+                                                checked_trees::CheckedLocatedProofTerm {
+                                                    state: state.symbol,
+                                                    statement_ordinal,
+                                                    role: if continuation {
+                                                        checked_trees::CheckedProofTermRole::TransitionContinuationArgument {
+                                                            argument_ordinal,
+                                                        }
+                                                    } else {
+                                                        checked_trees::CheckedProofTermRole::TransitionArgument {
+                                                            argument_ordinal,
+                                                        }
+                                                    },
+                                                    expression: *argument,
+                                                    term,
+                                                },
+                                            );
+                                        }
+                                        // The erased argument owns no scalar
+                                        // expression: the term above is its
+                                        // whole contribution to the plan.
+                                        continue;
+                                    }
                                     if continuation {
                                         continue;
                                     }

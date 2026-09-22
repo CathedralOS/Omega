@@ -302,6 +302,7 @@ fn fresh_record_local_and_owned_loop_parameter_keep_separate_custody_ledgers() {
             &changed.facts.flow.ownership,
             &changed.facts.values.scalar_computations,
             &mut changed.facts.flow.terminal_scalar_graphs,
+            &changed.facts.values.proof_terms,
         );
         super::super::unit_operations::finalize(&changed.typed, &mut changed.facts);
         assert!(

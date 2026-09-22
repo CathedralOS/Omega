@@ -93,6 +93,7 @@ fn affine_graph_rejoins_discard_eligibility_and_whole_transfers() {
                     &ownership,
                     &checked.facts.values.scalar_computations,
                     &mut retained,
+                    &checked.facts.values.proof_terms,
                 );
                 assert!(
                     retained.for_machine(machine.symbol).is_none(),
@@ -134,6 +135,7 @@ fn affine_graph_rejects_reordered_discard_eligibility() {
         &ownership,
         &checked.facts.values.scalar_computations,
         &mut retained,
+        &checked.facts.values.proof_terms,
     );
     assert!(retained.for_machine(machine.symbol).is_none());
 }

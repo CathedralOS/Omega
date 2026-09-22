@@ -8,11 +8,13 @@
 use semantic_vocabulary::{ProofTerm, ProofTermField};
 use terminal_psi::ErasedProofFormal;
 
+use super::scalar_term_wire::{decode_scalar_term, encode_scalar_term};
 use super::wire::{Reader, Writer};
 use super::{CodecError, MAX_SCALAR_TERM_DEPTH};
 
 const PROOF_TERM_CONSTRUCTION: u8 = 1;
 const PROOF_TERM_FORMAL: u8 = 2;
+const PROOF_TERM_SCALAR: u8 = 3;
 
 pub(crate) fn encode_proof_terms(
     writer: &mut Writer,
@@ -53,6 +55,10 @@ fn encode_proof_term(
         ProofTerm::Formal { position } => {
             writer.u8(PROOF_TERM_FORMAL);
             writer.u32(*position);
+        }
+        ProofTerm::Scalar(scalar) => {
+            writer.u8(PROOF_TERM_SCALAR);
+            encode_scalar_term(writer, scalar, depth)?;
         }
     }
     Ok(())
@@ -109,6 +115,11 @@ fn decode_proof_term(reader: &mut Reader<'_>, depth: usize) -> Result<ProofTerm,
         PROOF_TERM_FORMAL => Ok(ProofTerm::Formal {
             position: reader.u32()?,
         }),
+        PROOF_TERM_SCALAR => {
+            let term = ProofTerm::Scalar(decode_scalar_term(reader, depth)?);
+            term.validate().map_err(CodecError::MalformedProposition)?;
+            Ok(term)
+        }
         tag => Err(CodecError::InvalidTag("proof term", tag)),
     }
 }

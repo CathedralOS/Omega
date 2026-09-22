@@ -1036,15 +1036,18 @@ pub(crate) fn validate_erased_argument_terms(
     Ok(())
 }
 
-/// Every ProofTerm in an erased-proof-argument lane must be well formed and
-/// each `Formal` it carries must name an erased proof formal already in scope
-/// for the caller (`formals_in_scope`). At each roster position the actual's
-/// carrier type identity must equal the callee formal's declared identity;
-/// `Construction` fields recurse with the structural field's own identity left
-/// to the term's internal consistency, since no proof-type catalog exists at
-/// this level. Proof actuals never introduce carriers the caller does not
-/// already declare.
+/// Every ProofTerm in an erased-proof-argument lane must be well formed,
+/// each `Formal` it carries must name an erased proof formal already in
+/// scope for the caller (`formals_in_scope`), and each `Scalar` leaf must
+/// name values the caller's machine already admits — the same scope erased
+/// scalar actuals draw on. At each roster position the actual's carrier
+/// type identity must equal the callee formal's declared identity;
+/// `Construction` fields recurse with the structural field's own identity
+/// left to the term's internal consistency, since no proof-type catalog
+/// exists at this level. Proof actuals never introduce carriers or values
+/// the caller does not already declare.
 pub(crate) fn validate_erased_proof_terms(
+    machine: &TerminalMachine,
     formals_in_scope: &[terminal_psi::ErasedProofFormal],
     expected: &[terminal_psi::ErasedProofFormal],
     actuals: &[semantic_vocabulary::ProofTerm],
@@ -1057,8 +1060,11 @@ pub(crate) fn validate_erased_proof_terms(
             actual: actuals.len(),
         });
     }
+    let admitted: std::collections::BTreeSet<ValueId> =
+        machine_value_types(machine).map(|(id, _)| id).collect();
     for (expected_formal, term) in expected.iter().zip(actuals) {
         validate_erased_proof_term(
+            &admitted,
             formals_in_scope,
             Some(expected_formal.type_identity.as_str()),
             term,
@@ -1069,6 +1075,7 @@ pub(crate) fn validate_erased_proof_terms(
 }
 
 fn validate_erased_proof_term(
+    admitted_values: &std::collections::BTreeSet<ValueId>,
     formals_in_scope: &[terminal_psi::ErasedProofFormal],
     expected_type: Option<&str>,
     term: &semantic_vocabulary::ProofTerm,
@@ -1089,7 +1096,13 @@ fn validate_erased_proof_term(
                 });
             }
             for field in fields {
-                validate_erased_proof_term(formals_in_scope, None, &field.term, operation)?;
+                validate_erased_proof_term(
+                    admitted_values,
+                    formals_in_scope,
+                    None,
+                    &field.term,
+                    operation,
+                )?;
             }
             Ok(())
         }
@@ -1104,6 +1117,24 @@ fn validate_erased_proof_term(
                     operation,
                     expected: expected.to_owned(),
                     actual: formal.type_identity.clone(),
+                });
+            }
+            Ok(())
+        }
+        semantic_vocabulary::ProofTerm::Scalar(scalar) => {
+            // A scalar leaf only ever nests inside a construction — the
+            // record carrier's own identity is what the roster position
+            // checks. A bare scalar can never satisfy a declared proof
+            // formal, and every `ValueId` it names must be one the caller's
+            // machine already admits.
+            if !scalar.visit_value_ids(|value| admitted_values.contains(&value)) {
+                return Err(ModuleError::ErasedCallArgumentUnknownValue { operation });
+            }
+            if let Some(expected) = expected_type {
+                return Err(ModuleError::ErasedProofArgumentTypeMismatch {
+                    operation,
+                    expected: expected.to_owned(),
+                    actual: format!("{:?}", scalar.scalar_type()),
                 });
             }
             Ok(())

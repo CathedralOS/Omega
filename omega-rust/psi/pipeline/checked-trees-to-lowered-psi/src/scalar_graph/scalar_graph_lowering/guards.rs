@@ -7,10 +7,10 @@ use super::{
 use crate::emission::expression_validation::validate_short_circuit_expression;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::scalar_graph::scalar_contracts::LoweredProofTerm;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
-use semantic_vocabulary::ProofTerm;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower(
@@ -23,13 +23,13 @@ pub(crate) fn lower(
         usize,
         Vec<LoweredDirectExpression>,
         Vec<LoweredDirectExpression>,
-        Vec<ProofTerm>,
+        Vec<LoweredProofTerm>,
     ),
     when_false: (
         usize,
         Vec<LoweredDirectExpression>,
         Vec<LoweredDirectExpression>,
-        Vec<ProofTerm>,
+        Vec<LoweredProofTerm>,
     ),
     fallback: &CheckedScalarBranchDestination,
     computations: &mut computations::Expansion<'_>,
@@ -78,13 +78,13 @@ pub(crate) fn evaluate(
         usize,
         Vec<LoweredDirectExpression>,
         Vec<LoweredDirectExpression>,
-        Vec<ProofTerm>,
+        Vec<LoweredProofTerm>,
     ),
     when_false: (
         usize,
         Vec<LoweredDirectExpression>,
         Vec<LoweredDirectExpression>,
-        Vec<ProofTerm>,
+        Vec<LoweredProofTerm>,
     ),
     computations: &mut computations::Expansion<'_>,
 ) -> Result<LoweredScalarBranchTerminator, LoweringError> {

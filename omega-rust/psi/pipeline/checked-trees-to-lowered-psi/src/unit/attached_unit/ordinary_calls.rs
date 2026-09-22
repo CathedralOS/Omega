@@ -125,6 +125,13 @@ pub(super) fn prepare(
                 argument,
                 caller_erased_proof_parameters,
             )
+            .and_then(|term| {
+                crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                    &term,
+                    caller_scalar_values,
+                    caller_erased_scalar_parameters,
+                )
+            })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let erased_arguments = erased_scalar_arguments

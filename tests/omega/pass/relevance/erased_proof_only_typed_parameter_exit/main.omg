@@ -2,11 +2,12 @@
 // layout) on an erased parameter of a runtime machine rides the erased
 // proof-term lane — `witness` publishes as an erased proof formal,
 // `Nat::Zero {}` lowers to a `ProofTerm::Construction` actual, and the
-// lane is verified at the call site but ignored at runtime. Erased
-// formals whose types DO carry runtime layout still refuse by name
-// (pinned by fail/relevance/erased_nonscalar_parameter); the dedicated
-// legs are canary_suite
-// layouts_and_pending::erased_proof_only_typed_parameter_*.
+// lane is verified at the call site but ignored at runtime. Closed
+// checked-shape records/enums whose fields are term-expressible also ride
+// this lane (pass/relevance/erased_record_parameter_exit); non-carrier
+// shapes still refuse by name (pinned by
+// fail/relevance/erased_nonscalar_parameter). The dedicated legs are
+// canary_suite layouts_and_pending::erased_proof_only_typed_parameter_*.
 use omega_language_std::console;
 use omega::language::core::service;
 use omega::language::core::nat;

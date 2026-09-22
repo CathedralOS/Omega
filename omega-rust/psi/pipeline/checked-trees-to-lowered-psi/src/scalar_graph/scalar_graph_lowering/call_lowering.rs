@@ -8,6 +8,7 @@ use crate::expression_preparation::bindings as storage;
 use crate::expression_preparation::qualifications::PreparedScalarQualifications;
 use crate::expression_preparation::source_custody;
 use crate::scalar_graph::scalar_computations as computations;
+use crate::scalar_graph::scalar_contracts::LoweredProofTerm;
 use crate::scalar_graph::scalar_graph_lowering::structural_values;
 use crate::scalar_graph::{
     CheckedScalarExpressionRole, CheckedScalarSuccessor, CheckedTrees, LoweringError,
@@ -15,7 +16,6 @@ use crate::scalar_graph::{
     StructuralTypeDeclaration, scalar_carriers, unsupported,
 };
 use checked_trees::CheckedErasedProofParameterPlan;
-use semantic_vocabulary::ProofTerm;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_checked_direct_call_binding(
@@ -270,7 +270,7 @@ pub(crate) fn lower_scalar_graph_successor(
         usize,
         Vec<LoweredDirectExpression>,
         Vec<LoweredDirectExpression>,
-        Vec<ProofTerm>,
+        Vec<LoweredProofTerm>,
     ),
     LoweringError,
 > {

@@ -367,6 +367,68 @@ fn erased_proof_only_typed_parameter_stays_out_of_the_scalar_signature() {
 }
 
 #[test]
+fn erased_record_parameter_rides_the_proof_term_lane() {
+    // PROOF-RELEVANCE-MIGRATION: a closed checked-shape record is a contract
+    // term carrier even though it carries runtime layout. `keep` publishes
+    // `witness` on the erased proof lane, so its checked signature keeps
+    // only the retained scalar position and the call carries only the
+    // runtime literal; the erased actual is recorded as a construction term
+    // whose `tag` field is a scalar leaf, and the native run proves the
+    // stripped signature executes.
+    assert_erased_parameter_call_plan(
+        fixture_roster::ERASED_RECORD_PARAMETER_EXIT,
+        &[("keep", &[0], &[70])],
+    );
+
+    let canary = pass_canary(fixture_roster::ERASED_RECORD_PARAMETER_EXIT);
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("erased record parameter should reach checked semantics");
+    let erased_actuals = checked
+        .facts
+        .values
+        .proof_terms
+        .terms
+        .iter()
+        .filter(|located| {
+            matches!(
+                located.role,
+                checked_trees::CheckedProofTermRole::ErasedCallArgument { .. }
+            )
+        })
+        .map(|located| &located.term)
+        .collect::<Vec<_>>();
+    let [
+        checked_trees::CheckedProofTerm::Construction {
+            type_identity,
+            fields,
+            ..
+        },
+    ] = erased_actuals.as_slice()
+    else {
+        panic!("the erased actual should be one construction term: {erased_actuals:?}");
+    };
+    assert_eq!(type_identity, "named(name(Proof))");
+    let [field] = fields.as_slice() else {
+        panic!("the Proof construction should carry exactly its `tag` field");
+    };
+    let checked_trees::CheckedProofTerm::Scalar(
+        checked_trees::CheckedScalarExpression::IntegerLiteral { literal },
+    ) = &field.term
+    else {
+        panic!("`tag` should lower to a scalar leaf, got {:?}", field.term);
+    };
+    assert_eq!(literal.value_i64(), Some(1));
+
+    assert_erased_parameter_canary_exits_70(
+        fixture_roster::ERASED_RECORD_PARAMETER_EXIT,
+        "erased-record-parameter",
+    );
+}
+
+#[test]
 fn plan_laid_erased_field_is_semantic_but_not_physical() {
     let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_ERASED_FIELD_EXIT);
     let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
