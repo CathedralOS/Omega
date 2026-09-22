@@ -1382,7 +1382,8 @@ syntax and other terminal services are not prerequisites.
   The existing `trusted_surface.rs` inventory mechanically covers dispatch,
   reconstructed facts, dependencies, implementation sources and soundness
   statuses. Reuse it; coverage and a `Proved` label are not themselves proofs.
-  Remaining work:
+  Revalidate changed entries' justifications before refreshing source digests;
+  a matching digest is not a soundness argument. Remaining work:
 
   - Move search out of verification, including the 4096-step search in
     `validation/crash/entry_requirements.rs`. Producers supply certificates;
@@ -1392,6 +1393,11 @@ syntax and other terminal services are not prerequisites.
     exact dependencies. Preserve `PROVED_ENTRIES`, dispatch/fact coverage,
     source-closure and unfinished-dependency checks; prove prerequisites
     rather than hiding trusted composition behind a proved leaf.
+  - Audit the borrowed-`self` cleanup-hook entry/content claims in
+    `validation/affine_cleanup.rs`: receiver and requires checks are visible,
+    but the cleanup edge's discharge of the target's entry claims needs an
+    explicit argument and substitution control. Coordinate with **CML4**;
+    this is a targeted unresolved audit, not an established exploit.
   - Define the generator over canonical Terminal bytes, not a producer-decoded
     AST accepted by assertion. The common kernel and selected inductive
     profile's unfinished soundness/encoding obligations remain dependencies,
@@ -3872,50 +3878,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   claimable marker existed for this name and the file carries no live
   fence.
 - **GENERAL-SOURCE-BINDER-SYNTAX.** Resolved — scope verified: the general mathematical binder surface (`let`/`boundary let` telescopes, `core::Level`/`core::Type<u>`/`core::Strict<v>`/`core::Squash` carriers, generalized and authored universe binders, arrow-typed telescope parameters, named assumptions) already landed under the PROOF-CONTRACT-MIGRATION structural legs; the in-fence residual was the bounded machine-valued body denotation in `typed-trees-to-checked-trees/src/proof`. Extended it: `x != y` now denotes `Squash (Not (Id S l r))` through an interned `Not : Π(_ : Type 0). Type 0` assumption — kept at `Type 0`, not `sEmpty` elimination, so inequality composes inside `&&`/`||` like `==` — and `()` interned a dedicated `Unit : Type 0` carrier, so unit binder domains and unit-carried calls denote instead of refusing. Remaining named legs stay with their owners: `core::*` symbol-identity classification (blocked on the fixed `core::*` declarations landing in `source/library/core`), checked-signature encoding into Terminal evidence, member-call `target_symbol` binding inside `let` bodies, and order relations over non-integer operands. Gate on linux x86-64: `cargo check`/`clippy -p typed-trees-to-checked-trees` clean of new warnings; `cargo nextest run -p typed-trees-to-checked-trees` 5008/5009 — `open_range_token_use_rejects_instead_of_falling_back` fails verbatim at base `d82697ffca` (unrelated wave breakage). Re-verified at `8734480a01`: the filtered binder/signature/denotation suite passes 128/128 and `open_range_token_use_rejects_instead_of_falling_back` is green again — the unrelated failure has since been repaired.
-- **GENERATED-CODEC-INDEPENDENT-VERIFICATION.** Give generated wire codecs a
-  route to `Derived` trust that does not depend on an authored grammar
-  policy. [codecs](wiki/spec/layouts/codecs.md) realization table (`:17`)
-  grants `Derived` for an "Authored or generated body independently checked
-  against the public requirement", and its Agreement and trust section
-  (`:22-24`) still records "Independent generated-codec verification and
-  preserving-codec realizations remain implementation work".
+- **GENERATED-CODEC-INDEPENDENT-VERIFICATION.** Establish sufficient
+  independently checked evidence for generated codecs' `Derived` trust under
+  [public codec agreement](wiki/spec/layouts/codecs.md#agreement-and-trust).
+  The no-authored-policy route now exists, but
+  `checked-interpreter/src/interpreter/evaluator/wire_verification.rs`
+  compares Floor/Ceiling members and malformed-input probes.
+  `build-evaluation/src/admission/wire_protocol.rs` reports `Derived` when
+  that probe's gaps are empty. Finite examples do not establish the general
+  agreement law; comparing placements or a shared field classifier is not
+  independent checking of the codec body.
 
-  Today a generated codec with no author-supplied policy is classified
-  `WireTrustClass::Admitted { authority: "Omega compiler" }`, carrying the
-  evidence line "generated body is not yet independently checked against the
-  public codec requirement"
-  (`omega-rust/omega/build/build-evaluation/src/admission/wire_protocol.rs:161-186`).
-  The only existing route to `Derived` is opt-in and single-generator: an
-  authored `CompactBinary::plan` grammar policy evaluated against the schema
-  walk sets `policy_verified`
-  (`omega-rust/psi/semantics/build-time-evaluation/src/layouts/wire_plans.rs:155-176`,
-  landed `a77deb22d6`). So the compiler trusts its own generator by
-  assertion wherever no author wrote a policy.
-
-  Acceptance: a synthesized codec with no authored policy reports
-  `WireTrustClass::Derived` through a compiler-side independent check — the
-  existing pin `synthesized_codec_stays_admitted_without_an_authored_grammar_policy`
-  (`wire_protocol.rs:1480`) inverts, with
-  `policy_verified_generated_codec_reports_derived_trust` (`:1507`) still
-  green. Preserving-codec realizations are named in the same spec sentence
-  but are not this row. Re-verified at `fff3918dc42` (z203 leg): the
-  item's whole decisive surface — the `trust_class` flip at
-  `wire_protocol.rs:167-186` and both pinned tests — sits inside
-  `admission/`, dir-fenced live to BUILD-EXCLUSION-REALIZATION
-  (~15:52Z); `WireTrustClass::Derived` has no producer anywhere else in
-  the tree. Scoped shape for the post-fence implementer: the admission
-  layer already reads the schema's PUBLIC field table
-  (`typed.wire_schemas()` / `wire_members` give each field's number +
-  `FieldShape`), so the independent check re-derives expected
-  placements there (`is_varint` → `Varint{tag}` else
-  `LengthPrefixed{tag}`, tag-ordered) from the requirement alone and
-  rejects on disagreement with the recorded plan — no authored policy
-  needed. The check's independence is structural: it consumes only
-  recorded public facts in the consumer crate, not the generator's
-  internal walk in `build-time-evaluation/layouts/wire_plans.rs`.
-  Fence caveat: a dangling helper under a still-Admitted flip would be
-  dead machinery, so the check and the pin inversion land together
-  once `admission/` opens. No unfenced slice exists.
+  Connect general agreement evidence to the exact realization and public
+  schema, or retain explicit compiler-admitted trust where it is unavailable.
+  Check the authored-policy fallback against the same obligation rather than
+  treating policy agreement as proof of every codec behavior.
+  Acceptance: a no-policy generated realization earns `Derived` only from
+  independently established requirements; witnessed divergences reject and
+  unsupported obligations remain honestly admitted. Preserve the useful probe
+  controls without presenting more probes as the missing proof. This is an
+  evidence-adequacy gap, not an observed incorrect encoding; preserving codecs
+  remain with their separate owner.
 - **GENERIC-RETURNED-VIEW-LIFETIMES.** Complete caller-side attribution of
   generic returned views under
   [returned views](wiki/spec/language/lifetimes.md#returned-views).
@@ -4184,33 +4167,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   substituted bounds or access authority reject. **PLAN-LAID-VIEWS** separately
   owns provider-backed view establishment and access-plan realization; this
   indexed-store delivery does not complete that larger contract.
-- **PRODUCER-CHECKER-BOUNDARY-AUDIT.** mined candidate — resolved: re-mine of the producer/checker seam family already bounded in `wiki/drafts/producer_checker_decision_sharing_audit.md` (verified `12dea522b2`; the ledger names this cluster explicitly — BOUNDARY-AUDIT, DECISION-SEPARATION, DECISION-SHARING-AUDIT, SHARING-AUDIT are the same seam). Every reachable surface is Re-derived or Bound: lock decisions are informational history bound to `changes.fingerprint()`, PCC claim fields are recomputed by `verify_pcc_claim_fields` under the receiver's policy, component descriptions are "trusted for nothing" (re-decode + consumer-supplied admission profile), placed-image evidence extents/digests/seals are re-derived from committed bytes. Re-witnessed at `54e321bdf0`: `derivation_cache.rs:154` still re-runs `candidate.verify()` through the admission kernel on every hit (rejected hits fall through to fresh derivation, counted in `rejected_candidates`), and `independent_components.rs:54` `verify_independent_component_descriptions` still re-verifies under the build's own admission profile. Open residual (exhaustive whole-tree verifier-callsite audit) is recorded on sibling PRODUCER-CHECKER-DECISION-SHARING-AUDIT, not here.
-- **PRODUCER-CHECKER-DECISION-SEPARATION** — mined candidate; verify scope then implement.
-- **PRODUCER-CHECKER-DECISION-SHARING-AUDIT.** — mined candidate; bounded audit at `8734480a01`, no decision sharing found on the named reuse surfaces. `proof/src/checker/derivation_cache.rs` retains only kernel-accepted certificates and every consult re-runs `candidate.verify()` through the admission kernel — a hit is a re-checked reuse, not a trusted verdict (hits rejected by the kernel fall through to fresh derivation). `component-description`'s `verify` re-derives subject/schema/entries/custody/assumptions from bytes with the expected subject caller-supplied (substitution tests prove independent replay). `build-evaluation/src/provider_settlement/independent_components.rs::verify_independent_component_descriptions` re-verifies every attached description under the build's own admission profile, never the producer's accept. PCC admission replays normalized rows against closed target specs per `machine_state_evidence.md`. Residual: an exhaustive whole-tree audit of every verifier callsite is open, but the four decision-adjacent reuse mechanisms are each independently checked. Whole-tree callsite pass at `a4d396d0de467` (linux x86-64): every verifier entry point is consumer-side re-decision — `verify_mathematical_certificate` (`terminal-codec` `mathematical_certificate_wire` decode callsites), `verify_pcc_claim_fields` + `verify_terminal_artifact_proof` (`proof_sidecar` decode), `verify_psi_proof_sidecar` (`compilation-report` `pcc.rs`/`executable_publication.rs` pre-install re-verify), `verify_independent_component_descriptions` (review replay under the build's own admission profile). All 23 non-test `.verify(` callsites classified: 13 packages/manager transaction/directory calls are consumer self-consistency re-checks (same-directory identity + held mutex), 6 acquisition-traversal calls sit inside `#[test]`, 4 proof/checker calls are the kernel re-run already audited. Producer-flag reads: `VerifiedTerminalModule` and its per-consumer siblings are sealed carriers minted only by `verify_module*` after `validate_module` + proof reconstruction under the caller's `AdmissionProfile` (distinct carriers prevent authority bleed); `policy_verified` on wire plans is minted in-process only after authored-policy/codec-walk agreement (disagreement is a compile error) and consumed only to label report trust class; `admitted`/`accepted` reads are the same compile's own ledgers. `CertificateStatus`/`Verdict` consumers are checker-side construction plus `publication/replay` candidate-decision re-derivation. No callsite trusts a producer verdict; the named residual is closed at this enumeration's depth (every reachable callsite class audited, not a formal completeness proof). Re-verified at `138ed79a67`:
-  `derivation_cache.rs` now lives under
-  `omega-rust/psi/semantics/proof/src/checker/` (same contract in its doc —
-  only kernel-accepted certificates retained, every consult re-decided by
-  the admission kernel, the producer never runs);
-  `verify_independent_component_descriptions` still re-verifies attached
-  descriptions under the build's own admission profile
-  (`build-evaluation/src/provider_settlement/independent_components.rs`),
-  and the `pcc.rs`/`executable_publication.rs` pre-install re-verify
-  callsites remain in `compilation-report`. No callsite change that would
-  reopen the closed residual.
-  Re-verified at `832c55e69b7` (linux x86-64): all four mechanism pins hold
-  — `proof/src/checker/derivation_cache.rs:171` still re-runs
-  `candidate.verify()` through the admission kernel per consult,
-  `build-evaluation/.../independent_components.rs` still re-verifies attached
-  descriptions under the build's own `AdmissionProfile`, and
-  `compilation-report`'s `pcc.rs:154`/`228` + `executable_publication.rs:262`
-  pre-install re-verifies (`verify_pcc_claim_fields`,
-  `verify_psi_proof_sidecar`) remain. Fence map: the audit draft
-  `wiki/drafts/producer_checker_decision_sharing_audit.md` is under
-  PRODUCER-CHECKER-BOUNDARY-AUDIT (dev-88738, ~09:27Z); none of the four
-  audited source files is claimed — row text is the only writable surface.
-  Sibling duplicate row below keeps its own record; verdict stands — no
-  decision sharing found, residual closed at the recorded enumeration depth.
-- **PRODUCER-CHECKER-DECISION-SHARING-AUDIT** — mined candidate; bounded audit at `8734480a01`, re-verified at `f44a1177ed` (all four mechanisms unchanged), no decision sharing found on the named reuse surfaces. `proof/src/checker/derivation_cache.rs` retains only kernel-accepted certificates and every consult re-runs `candidate.verify()` through the admission kernel — a hit is a re-checked reuse, not a trusted verdict (hits rejected by the kernel fall through to fresh derivation). `component-description`'s `verify` re-derives subject/schema/entries/custody/assumptions from bytes with the expected subject caller-supplied (substitution tests prove independent replay). `build-evaluation/src/provider_settlement/independent_components.rs::verify_independent_component_descriptions` re-verifies every attached description under the build's own admission profile, never the producer's accept. PCC admission replays normalized rows against closed target specs per `machine_state_evidence.md`. Residual: an exhaustive whole-tree audit of every verifier callsite is open, but the four decision-adjacent reuse mechanisms are each independently checked.
 - **PRODUCER-HISTORY-CUSTODY** — mined candidate; verify scope then implement.
 - **PROVIDER-ATTACHMENT-MACHINE-PLAN** — mined candidate; scope verified, no bounded slice this wave (z175, `500878c473f4c`). The namesake surface — `typed-trees-to-checked-trees/src/execution/unit/providers.rs` — already produces the exact `CheckedProviderAttachmentRequirementPlan` roster (`checked_provider_attachment_requirements` + the composed-leaf variant), pinned across `tests/flow/terminal_unit` and rejoined to authored call sites by c2l `unit/attached_unit/provider_attachments/source.rs`. The residual the name carries is BOUNDARY-ISSUANCE's open frontier — the provider-planning/native-settlement join to the installed occurrence. Plan-side work left for this item is join design across crates, not a file-local patch. providers.rs itself is unclaimed this wave.
   covered — roster already produced in `execution/unit/providers.rs`; residue is cross-crate join design, not a bounded slice
@@ -4482,155 +4438,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   fitting/nonfitting parameterized applications, exact/ambiguous targets,
   wildcard-plus-targeted constraints and consumed binder fixtures. A declaration
   fixture that never instantiates its binder does not establish usable fit.
-- **TRUSTED-SURFACE-DIGEST-RE-RECORDING.** Standing duty, not a one-off: keep
-  the trusted-surface digest ledger
-  (`omega-rust/psi/semantics/terminal-verifier/src/trusted_surface/sites.rs`)
-  matching the bound files, and revalidate before re-recording. The ledger
-  pins each bound implementation file's SHA-256 precisely so a change to
-  trusted verifier or proof-admission code cannot pass unnoticed, and
-  `recorded_digests_match_the_working_tree` fails while any digest disagrees.
 
-  This drifts repeatedly — recorded red at `0f5ae41e7d`, again at
-  `ff2f489bbf`, and again at `50559da3ab` with seven stale files across
-  `proof-admission/src/mathematical_core/bounded_denotation{,/addition,/subtraction}.rs`,
-  `terminal-verifier/src/validation/{affine_cleanup,frontier,scalar_qualifications}.rs`
-  and `.../structural_operations/structural_arguments/argument_checks.rs`.
-  Each drift is one commit changing a bound file without re-recording, so
-  expect this row to come back rather than treating a green run as its end.
 
-  The obligation is the revalidation, not the re-record.
-  `tools/trusted_surface_digests.py --write` is mechanical and must only run
-  after every citing entry's justification — the `TrustedSurfaceEntry`
-  premises, conclusion, dependencies and soundness naming that path — has
-  been checked against the actual diff since the last recorded digest
-  (`git log -p -S'<recorded digest>' -- .../sites.rs`, then
-  `git diff <sha>..HEAD -- <bound file>`). A diff that only strengthens a
-  check re-records freely; a diff that relaxes one re-records only if the
-  lifted burden demonstrably moves to a dependency the entry already names.
-  If a justification breaks, do not re-record that file — report it. A
-  partially repaired ledger with an honest report beats a green ledger that
-  lies.
-
-  Two observations from the `b260ea749e` pass are open and worth a targeted
-  follow-up, neither blocking: dropping the hook-target `entry_claims` /
-  `content_entry_claims` pins lets a cleanup hook's borrowed `self` carry
-  entry claims the cleanup edge does not visibly discharge, which belongs to
-  `formation:machine-validation`; and the new boundary-result-qualification
-  route rests on an "established by" authorization that lives under
-  `formation:structural-qualification-rosters` for structural domains, which
-  that pass did not re-derive.
-
-  Acceptance: `python3 tools/trusted_surface_digests.py` exits 0 and
-  `cargo nextest run -p terminal-verifier -E 'test(~trusted_surface)'` is
-  green (15/15 at `b260ea749e`), with every re-recorded digest's citing
-  justification revalidated in the landing commit's body.
-
-  Duty pass at `18cebfa1062bf` (assigned row TRUSTED-SURFACE-LEDGER-
-  RERECORD; the retired stub re-mines this standing duty): the ledger is
-  current — `tools/trusted_surface_digests.py` reports "all recorded
-  digests match the working tree" and
-  `trusted_surface::recorded_digests_match_the_working_tree` PASSes on
-  linux x86-64. No drift since the last record, so no entry needed
-  revalidation or re-recording this pass.
-
-  Duty pass at `39317a770b` (assigned row TRUSTED-SURFACE-DIGEST-RE-RECORD):
-  the ledger had drifted — 24 stale digests traced to four commits
-  (`e272856962` erased proof-only formals through call plans, 20 files;
-  `d482fc2ebb` IntegerCastBound via fixed cast-identity laws, 4 files;
-  `5d182b8075` machine-bound issuer identities; merge `bc0ed1f0f5` of
-  `d3d3193d59` produce/check split for crash certificates). Every citing
-  entry's justification revalidated: all four diffs add checks or keep a
-  checked fallback — none relaxes — so all 24 re-recorded. Two new bound
-  files registered (`bounded_denotation/casts.rs` under
-  formation:mathematical-core, `casts/tests.rs` test-only). Verified:
-  `python3 tools/trusted_surface_digests.py` exits 0 and
-- **TRUSTED-SURFACE-DIGEST-RE-RECORDING.** Mined candidate — resolved:
-  implemented and landed (e2974a6a800 is an ancestor of origin/main;
-  the landed re-record c0b2b6e19f registered integer_operations.rs and
-  re-recorded bounded_denotation). Re-verified 2026-09-20 on linux
-  x86-64: `cargo nextest run -p terminal-verifier -E
-  'test(~trusted_surface)'` — 15/15 pass including
-  recorded_digests_match_the_working_tree. Sibling names the same op:
-  TRUSTED-SURFACE-DIGEST-RE-RECORD (no row), -REFRESH, -RERECORD.
-  The self-audit was red at `0f5ae41e7d` (contradicting the resolved
-  siblings' "ledger is current" notes — it drifted since): `e2974a6a80`
-  added `bounded_denotation/integer_operations.rs` (uninterpreted
-  fixed-integer operations as applicative denotations) and bumped
-  `bounded_denotation.rs` without re-recording. Re-recorded in this
-  commit: `integer_operations.rs` registered as a ledger implementation
-  site (`b2bcfe6f…`) and cited by `formation:mathematical-core`,
-  `bounded_denotation.rs` digest re-recorded (`3d15c6eb…`). Green: 9/9
-  trusted_surface on linux x86-64 including
-  `recorded_digests_match_the_working_tree`.
-- **TRUSTED-SURFACE-DIGEST-REFRESH** — mined candidate; verify scope then implement.
-- **TRUSTED-SURFACE-DIGEST-RERECORD.** Resolved — scope verified at `0f5ae41e7d`,
-  implemented on this row's branch: the ledger had renewed drift, so the
-  re-record operation ran for real. `e2974a6a800` split
-  `bounded_denotation/integer_operations.rs` out of `bounded_denotation.rs`
-  (uninterpreted per-operation function constants applied to denoted
-  operands — the `formation:mathematical-core` justification holds: no
-  arithmetic law was added, the operations stay opaque). Re-recorded the
-  parent digest (`3d15c6eb…`), registered the new site (`b2bcfe6f…`), and
-  added the file to the formation's site list. Witness:
-  Re-verified at `2ccef088fb73` (linux x86-64): the subset-check leg
-  landed upstream at `75f8215cf9b1` —
-  `sr2t/declarations/trait_definition.rs:225-260` resolves each clause
-  reach to a boundary service and rejects when any covered machine's
-  base reach row lacks it ("a refinement narrows, it cannot add a
-  reach"), with the empty-base-row rejection at :213-224; `reaches _`
-  is already spelled as the independent abstract row at :227-231
-  (`continue` — bounded by the inherited row). What is still open: the
-  clause-location `ServiceReachRowTable` variant (the code comment's own
-  "pending"), and the downstream evidence-binder fit check — the
-  evidence surface `typed_trees/evidence/proof_only.rs` is fenced by
-  QUOTIENT-RUNTIME-REALIZATION (exp 10:57Z).
-- **TRUSTED-SURFACE-DIGEST-RE-RECORDING.** Mined candidate — resolved:
-  implemented and landed (e2974a6a800 is an ancestor of origin/main;
-  the landed re-record c0b2b6e19f registered integer_operations.rs and
-  re-recorded bounded_denotation). Re-verified 2026-09-20 on linux
-  x86-64: `cargo nextest run -p terminal-verifier -E
-  'test(~trusted_surface)'` — 15/15 pass including
-  recorded_digests_match_the_working_tree. Sibling names the same op:
-  TRUSTED-SURFACE-DIGEST-RE-RECORD (no row), -REFRESH, -RERECORD.
-  The self-audit was red at `0f5ae41e7d` (contradicting the resolved
-  siblings' "ledger is current" notes — it drifted since): `e2974a6a80`
-  added `bounded_denotation/integer_operations.rs` (uninterpreted
-  fixed-integer operations as applicative denotations) and bumped
-  `bounded_denotation.rs` without re-recording. Re-recorded in this
-  commit: `integer_operations.rs` registered as a ledger implementation
-  site (`b2bcfe6f…`) and cited by `formation:mathematical-core`,
-  `bounded_denotation.rs` digest re-recorded (`3d15c6eb…`). Green: 9/9
-  trusted_surface on linux x86-64 including
-  `recorded_digests_match_the_working_tree`.
-- **TRUSTED-SURFACE-DIGEST-RERECORD.** Resolved — scope verified at `0f5ae41e7d`,
-  implemented on this row's branch: the ledger had renewed drift, so the
-  re-record operation ran for real. `e2974a6a800` split
-  `bounded_denotation/integer_operations.rs` out of `bounded_denotation.rs`
-  (uninterpreted per-operation function constants applied to denoted
-  operands — the `formation:mathematical-core` justification holds: no
-  arithmetic law was added, the operations stay opaque). Re-recorded the
-  parent digest (`3d15c6eb…`), registered the new site (`b2bcfe6f…`), and
-  added the file to the formation's site list. Witness:
-
-  `cargo nextest run -p terminal-verifier -E 'test(~trusted_surface)'`
-  is 15/15 PASS on linux x86-64.
-
-  Duty pass at `138ed79a677` (assigned row TRUSTED-SURFACE-DIGEST-RE-RECORD):
-  the ledger is current — `tools/trusted_surface_digests.py` reports "all
-  recorded digests match the working tree" and the 15-test
-  `trusted_surface` suite is 15/15 PASS on linux x86-64. No drift since the
-  `39317a770b` re-record, so no entry needed revalidation this pass.
-
-  Duty pass at `a5d958d724f1` (assigned row TRUSTED-SURFACE-DIGEST-
-  RE-RECORD): the ledger is current — `tools/trusted_surface_digests.py`
-  reports "all recorded digests match the working tree" and the 15-test
-  `trusted_surface` suite is 15/15 PASS on linux x86-64. No drift since
-  the `39317a770b` re-record, so no entry needed revalidation or
-  re-recording this pass.
-
-- **TV-GENERAL-CALLS-REPLAY.** — mined candidate; verify scope then implement.
-
-- **TV-GENERAL-CALLS-REPLAY** — mined candidate; verify scope then implement.
 ## Platform-gated verification
 
 - Run Linux host/time/filesystem and `IntegerAt` runtime paths on AArch64;
