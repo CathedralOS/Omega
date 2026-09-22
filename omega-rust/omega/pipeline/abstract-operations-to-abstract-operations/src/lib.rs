@@ -20,7 +20,10 @@ mod rules;
 mod state_specialization;
 pub mod validation;
 
-pub use abstract_optimization::{AbstractOptimizationError, optimize_abstract_operations};
+pub use abstract_optimization::{
+    AbstractOptimizationError, optimize_abstract_operations, replay_psi_pipeline,
+    replay_psi_registry, run_psi_pipeline, run_psi_pipeline_for_projection, run_psi_registry,
+};
 pub use publication::{
     AppliedDecisionCustodyAxis, OptimizedAbstractProjectionError, ValidatedOptimizedAbstractPlan,
     publish_optimization_run,
@@ -61,8 +64,23 @@ pub use field_value_specialization::{
 // Proposal helpers have no consumer outside this crate; they are internal
 // plumbing, not stage entrances.
 pub(crate) use field_value_specialization::propose_field_value_specializations;
-pub use pass_manager::*;
-pub use ranked_rewrites::*;
+pub use pass_manager::{
+    CandidateContractAxis, ExternalDecisionContextAxis, ExternalDecisionReplayError,
+    OptimizationRun, OptimizationRunError, OptimizationRunUsage, PsiOptimizationCommit,
+    PsiValidatedCandidateDeclaration, VerifiedPsiOptimizationSession,
+    baseline_psi_cost_model_identity, validate_external_decision_recording,
+};
+pub use ranked_rewrites::{
+    AppliedCountdownInvariantConstantRelocation, AppliedLoopInvariantScalarMotion,
+    CountdownInvariantConstantRelocation, CountdownInvariantConstantRelocationCandidate,
+    CountdownInvariantConstantRelocationError, LoopInvariantNodeResult,
+    LoopInvariantScalarMotionCandidate, LoopInvariantScalarMotionError, LoopInvariantScalarNode,
+    LoopInvariantScalarRelocation, ValidatedCountdownInvariantConstantRelocation,
+    ValidatedLoopInvariantScalarMotion, apply_countdown_invariant_constant_relocation,
+    apply_loop_invariant_scalar_motion, propose_countdown_invariant_constant_relocations,
+    propose_loop_invariant_scalar_motion, validate_countdown_invariant_constant_relocation,
+    validate_loop_invariant_scalar_motion,
+};
 pub(crate) use representation_specialization::propose_case_membership_specializations;
 pub use representation_specialization::{
     AppliedCaseMembershipSpecialization, CaseMembershipSpecializationCandidate,

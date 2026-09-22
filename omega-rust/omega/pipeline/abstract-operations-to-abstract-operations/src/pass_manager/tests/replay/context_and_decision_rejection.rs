@@ -1,6 +1,6 @@
 use super::super::super::{
     ExternalDecisionContextAxis, ExternalDecisionReplayError, OptimizationRunError,
-    TargetCostModelIdentity, replay_psi_pipeline, run_psi_pipeline,
+    TargetCostModelIdentity,
 };
 use super::super::{
     AnalysisSet, ExternalCandidateFeatures, ExternalDecisionAction, ExternalDecisionContext,
@@ -9,6 +9,7 @@ use super::super::{
     OptimizationUnitIdentity, ValidatedCandidateSummary, budget, external_log_with,
     verified_empty_unit, verified_exact_add_unit,
 };
+use crate::{replay_psi_pipeline, run_psi_pipeline};
 
 #[test]
 fn external_replay_preflights_every_context_axis() {

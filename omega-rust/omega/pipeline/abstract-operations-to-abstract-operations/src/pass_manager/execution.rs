@@ -28,7 +28,7 @@ use super::{
     },
 };
 
-pub(super) fn run_registries(
+pub(crate) fn run_registries(
     session: VerifiedPsiOptimizationSession,
     selections: &OptimizationSelections,
     psi_selections: &PsiOptimizationSelections,
@@ -45,7 +45,7 @@ pub(super) fn run_registries(
     )
 }
 
-pub(super) fn run_registries_with_external_decisions(
+pub(crate) fn run_registries_with_external_decisions(
     session: VerifiedPsiOptimizationSession,
     selections: &OptimizationSelections,
     psi_selections: &PsiOptimizationSelections,

@@ -1,6 +1,5 @@
 //! `Optimization::DeadPureScalarElimination` evidence matrix legs.
 
-use super::super::super::run_psi_pipeline;
 use super::super::{
     OptimizationSelections, budget, verified_dead_literals_unit, verified_half_dead_literals_unit,
     verified_parameter_add_unit,
@@ -12,6 +11,7 @@ use super::{
     assert_positive_leg,
 };
 use crate::DeadScalarLiteralEliminationRule;
+use crate::run_psi_pipeline;
 use optimization_core::{Optimization, OptimizationRuleIdentity};
 
 fn expected_rule() -> OptimizationRuleIdentity {

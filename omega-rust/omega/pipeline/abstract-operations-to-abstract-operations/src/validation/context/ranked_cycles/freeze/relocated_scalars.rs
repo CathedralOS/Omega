@@ -200,7 +200,9 @@ pub(super) fn validate(
     // producer's declared place identity, so the argument stays byte-exact.
     let mut relocated_roots: BTreeMap<CycleComponentId, BTreeSet<PlaceId>> = BTreeMap::new();
     for relocation in &moved {
-        if let Some(root) = crate::validation::produced_place_root(&relocation.expected.operation) {
+        if let Some(root) = crate::validation::place_observations::produced_place_root(
+            &relocation.expected.operation,
+        ) {
             relocated_roots
                 .entry(relocation.home.id.clone())
                 .or_default()
@@ -257,7 +259,9 @@ pub(super) fn validate(
     let mut call_effects = None;
     for relocation in &moved {
         let component = relocation.home;
-        let Some(preheader_source) = crate::validation::shared_entry_source(component) else {
+        let Some(preheader_source) =
+            crate::validation::member_blocks::shared_entry_source(component)
+        else {
             return Err(mismatch(machine, relocation.expected_block));
         };
         if relocation.current_block != preheader_source {
@@ -279,7 +283,9 @@ pub(super) fn validate(
         }) {
             return Err(mismatch(machine, preheader_source));
         }
-        let leaf = crate::validation::admissible_scalar_leaf_relocation(relocation.expected);
+        let leaf = crate::validation::invariant_operations::admissible_scalar_leaf_relocation(
+            relocation.expected,
+        );
         if !leaf {
             // The proposal's non-speculative custody is re-derived here
             // rather than trusted from the transformed unit: a non-leaf
@@ -301,7 +307,9 @@ pub(super) fn validate(
                     .all(|edge| members.contains(&edge.target));
             let guaranteed = guaranteed_members
                 .entry(component.id.clone())
-                .or_insert_with(|| crate::validation::guaranteed_executed_member_blocks(component));
+                .or_insert_with(|| {
+                    crate::validation::member_blocks::guaranteed_executed_member_blocks(component)
+                });
             if !guaranteed_entry || !guaranteed.contains(&relocation.expected_block) {
                 return Err(mismatch(machine, relocation.expected_block));
             }
@@ -324,14 +332,14 @@ pub(super) fn validate(
         // forged source, operand, or obligation spelling rejects.
         let (substitution, root, argument_roots) = if leaf {
             (BTreeMap::new(), None, BTreeMap::new())
-        } else if crate::validation::admissible_invariant_place_read(relocation.expected).is_some()
+        } else if crate::validation::invariant_operations::admissible_invariant_place_read(relocation.expected).is_some()
         {
             // The whole-component place-custody gate and the root's
             // landing — preheader-visible, produced by a node this
             // component's run already relocated, or resolved through the
             // member parameter's agreed representative — are re-derived here
             // from the seed rather than trusted from the transformed unit.
-            match crate::validation::invariant_place_observation_admission(
+            match crate::validation::place_observations::invariant_place_observation_admission(
                 expected,
                 component,
                 relocation.expected,
@@ -342,13 +350,13 @@ pub(super) fn validate(
                 Some(root) => (BTreeMap::new(), Some(root), BTreeMap::new()),
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
-        } else if crate::validation::admissible_invariant_byte_read(relocation.expected).is_some() {
+        } else if crate::validation::invariant_operations::admissible_invariant_byte_read(relocation.expected).is_some() {
             // Both the root half and the scalar-operand half re-derive
             // from the seed: the run-internal `length` producer must
             // already appear among this component's relocated results,
             // and its own observation root must resolve to the read's
             // rebound root under the same relocated member roots.
-            match crate::validation::invariant_byte_read_admission(
+            match crate::validation::place_observations::invariant_byte_read_admission(
                 expected,
                 component,
                 relocation.expected,
@@ -362,7 +370,7 @@ pub(super) fn validate(
                 Some((root, substitution)) => (substitution, Some(root), BTreeMap::new()),
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
-        } else if crate::validation::admissible_invariant_subslice(relocation.expected).is_some() {
+        } else if crate::validation::invariant_operations::admissible_invariant_subslice(relocation.expected).is_some() {
             // A subslice replays the same two halves — root resolution
             // and `start`/`end`/`length` substitution with the `length`
             // coupling — while its structural result place, type,
@@ -370,7 +378,7 @@ pub(super) fn validate(
             // the moved operation. A forged result or obligation
             // spelling rejects in `same_relocated_node`'s operation
             // comparison.
-            match crate::validation::invariant_subslice_admission(
+            match crate::validation::place_observations::invariant_subslice_admission(
                 expected,
                 component,
                 relocation.expected,
@@ -384,7 +392,7 @@ pub(super) fn validate(
                 Some((root, substitution)) => (substitution, Some(root), BTreeMap::new()),
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
-        } else if crate::validation::admissible_invariant_byte_literal(relocation.expected) {
+        } else if crate::validation::invariant_operations::admissible_invariant_byte_literal(relocation.expected) {
             // A byte-sequence-literal establishment relocates byte-exact:
             // its declared place, structural type, and payload stay inside
             // the moved operation, so a forged declaration or payload
@@ -393,7 +401,7 @@ pub(super) fn validate(
             // re-derive; the shared non-speculative gate above already
             // replayed because a literal is not a scalar-constant leaf.
             (BTreeMap::new(), None, BTreeMap::new())
-        } else if crate::validation::admissible_invariant_scalar_call(relocation.expected).is_some()
+        } else if crate::validation::invariant_calls::admissible_invariant_scalar_call(relocation.expected).is_some()
         {
             // A scalar call replays its whole admission from the seed: the
             // callee's transitive summary must prove no observable effect,
@@ -402,8 +410,8 @@ pub(super) fn validate(
             // member or callee would break. Its scalar arguments then obey
             // the same re-derived substitution a computation obeys.
             let effects = call_effects
-                .get_or_insert_with(|| crate::validation::unit_effect_summaries(expected_unit));
-            match crate::validation::invariant_scalar_call_admission(
+                .get_or_insert_with(|| crate::validation::invariant_calls::unit_effect_summaries(expected_unit));
+            match crate::validation::invariant_calls::invariant_scalar_call_admission(
                 expected,
                 component,
                 relocation.expected,
@@ -415,7 +423,7 @@ pub(super) fn validate(
                 Some(substitution) => (substitution, None, BTreeMap::new()),
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
-        } else if crate::validation::admissible_invariant_unit_call(relocation.expected).is_some() {
+        } else if crate::validation::invariant_calls::admissible_invariant_unit_call(relocation.expected).is_some() {
             // A unit-result call replays the scalar call's whole admission
             // plus its structural halves from the seed: the pure callee,
             // the unobservable member roster, the whole-component
@@ -433,8 +441,8 @@ pub(super) fn validate(
             // or left the literal's producer behind rejects here or in
             // `same_relocated_node`'s operation comparison.
             let effects = call_effects
-                .get_or_insert_with(|| crate::validation::unit_effect_summaries(expected_unit));
-            match crate::validation::invariant_unit_call_admission(
+                .get_or_insert_with(|| crate::validation::invariant_calls::unit_effect_summaries(expected_unit));
+            match crate::validation::invariant_calls::invariant_unit_call_admission(
                 expected,
                 component,
                 relocation.expected,
@@ -451,7 +459,7 @@ pub(super) fn validate(
                 }
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
-        } else if crate::validation::admissible_invariant_structural_scalar_call(
+        } else if crate::validation::invariant_calls::admissible_invariant_structural_scalar_call(
             relocation.expected,
         )
         .is_some()
@@ -465,8 +473,8 @@ pub(super) fn validate(
             // skipped scalar-argument or borrow rebind rejects here or in
             // `same_relocated_node`'s operation comparison.
             let effects = call_effects
-                .get_or_insert_with(|| crate::validation::unit_effect_summaries(expected_unit));
-            match crate::validation::invariant_structural_scalar_call_admission(
+                .get_or_insert_with(|| crate::validation::invariant_calls::unit_effect_summaries(expected_unit));
+            match crate::validation::invariant_calls::invariant_structural_scalar_call_admission(
                 expected,
                 component,
                 relocation.expected,
@@ -483,7 +491,7 @@ pub(super) fn validate(
                 }
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
-        } else if crate::validation::admissible_invariant_structural_call(relocation.expected)
+        } else if crate::validation::invariant_calls::admissible_invariant_structural_call(relocation.expected)
             .is_some()
         {
             // A structural-result call replays the borrow calls' whole
@@ -504,8 +512,8 @@ pub(super) fn validate(
             // comparison, and a kept internal discard or missing exit
             // disposal rejects in the retained-member normalization.
             let effects = call_effects
-                .get_or_insert_with(|| crate::validation::unit_effect_summaries(expected_unit));
-            match crate::validation::invariant_structural_call_admission(
+                .get_or_insert_with(|| crate::validation::invariant_calls::unit_effect_summaries(expected_unit));
+            match crate::validation::invariant_calls::invariant_structural_call_admission(
                 expected,
                 component,
                 relocation.expected,
@@ -522,7 +530,7 @@ pub(super) fn validate(
                 }
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
-        } else if crate::validation::admissible_invariant_primitive_local(relocation.expected)
+        } else if crate::validation::invariant_operations::admissible_invariant_primitive_local(relocation.expected)
             .is_some()
         {
             // A primitive-local establishment replays its whole admission
@@ -535,7 +543,7 @@ pub(super) fn validate(
             // result custody stay byte-exact inside the moved operation, so
             // a forged declaration or a skipped `value` rebind rejects here
             // or in `same_relocated_node`'s operation comparison.
-            match crate::validation::invariant_primitive_local_admission(
+            match crate::validation::invariant_operations::invariant_primitive_local_admission(
                 expected,
                 component,
                 relocation.expected,
@@ -546,7 +554,7 @@ pub(super) fn validate(
                 Some(substitution) => (substitution, None, BTreeMap::new()),
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
-        } else if crate::validation::admissible_invariant_record(relocation.expected).is_some() {
+        } else if crate::validation::invariant_operations::admissible_invariant_record(relocation.expected).is_some() {
             // A record establishment replays its whole admission from the
             // seed: the whole-component place-custody bound must prove no
             // member stores to the declared place — the one condition under
@@ -561,7 +569,7 @@ pub(super) fn validate(
             // operation, so a forged declaration, a skipped field rebind, or
             // a forged copied-root rewrite rejects here or in
             // `same_relocated_node`'s operation comparison.
-            match crate::validation::invariant_record_admission(
+            match crate::validation::invariant_operations::invariant_record_admission(
                 expected,
                 component,
                 relocation.expected,
@@ -577,7 +585,7 @@ pub(super) fn validate(
                 }
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
-        } else if crate::validation::admissible_invariant_scalar_array(relocation.expected)
+        } else if crate::validation::invariant_operations::admissible_invariant_scalar_array(relocation.expected)
             .is_some()
         {
             // A scalar-array establishment replays its whole admission from
@@ -590,7 +598,7 @@ pub(super) fn validate(
             // byte-exact inside the moved operation, so a forged declaration
             // or a skipped element rebind rejects here or in
             // `same_relocated_node`'s operation comparison.
-            match crate::validation::invariant_scalar_array_admission(
+            match crate::validation::invariant_operations::invariant_scalar_array_admission(
                 expected,
                 component,
                 relocation.expected,
@@ -601,7 +609,7 @@ pub(super) fn validate(
                 Some(substitution) => (substitution, None, BTreeMap::new()),
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
-        } else if crate::validation::admissible_invariant_scalar_case(relocation.expected).is_some()
+        } else if crate::validation::invariant_operations::admissible_invariant_scalar_case(relocation.expected).is_some()
         {
             // A scalar-case establishment replays its whole admission from
             // the seed: an affine result's dispatch custody must stay inside
@@ -614,7 +622,7 @@ pub(super) fn validate(
             // result custody stay byte-exact inside the moved operation, so
             // a forged declaration or a skipped field rebind rejects here or
             // in `same_relocated_node`'s operation comparison.
-            match crate::validation::invariant_scalar_case_admission(
+            match crate::validation::invariant_operations::invariant_scalar_case_admission(
                 expected,
                 component,
                 relocation.expected,
@@ -625,7 +633,7 @@ pub(super) fn validate(
                 Some(substitution) => (substitution, None, BTreeMap::new()),
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
-        } else if crate::validation::admissible_invariant_trivial_affine_local(relocation.expected)
+        } else if crate::validation::invariant_operations::admissible_invariant_trivial_affine_local(relocation.expected)
             .is_some()
         {
             // A trivial affine local establishment replays its whole
@@ -639,7 +647,7 @@ pub(super) fn validate(
             // operation, so a forged declaration or a retained
             // member-internal discard rejects here or in
             // `same_relocated_node`'s operation comparison.
-            match crate::validation::invariant_trivial_affine_local_admission(
+            match crate::validation::invariant_operations::invariant_trivial_affine_local_admission(
                 expected,
                 component,
                 relocation.expected,
@@ -648,7 +656,7 @@ pub(super) fn validate(
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
         } else {
-            match crate::validation::invariant_scalar_operand_substitution(
+            match crate::validation::member_blocks::invariant_scalar_operand_substitution(
                 expected,
                 component,
                 relocation.expected,
@@ -718,7 +726,7 @@ pub(super) fn validate(
     if !all_relocated_roots.is_empty() {
         for expected_block in &expected.blocks {
             for node in &expected_block.nodes {
-                if !crate::validation::mutable_borrow_roots(&node.operation)
+                if !crate::validation::place_observations::mutable_borrow_roots(&node.operation)
                     .iter()
                     .any(|root| all_relocated_roots.contains(root))
                 {
@@ -806,23 +814,33 @@ fn same_relocated_node(
     argument_roots: &BTreeMap<PlaceId, PlaceId>,
 ) -> bool {
     let mut operation = expected.operation.clone();
-    crate::validation::substitute_invariant_scalar_operands(&mut operation, substitution);
+    crate::validation::relocation_rewrites::substitute_invariant_scalar_operands(
+        &mut operation,
+        substitution,
+    );
     if let Some(root) = root {
         // Admission proved the expected root is either already `root` or the
         // member structural parameter that resolves to it, so rebinding from
         // the expected source cannot admit a different place. Both observation
         // gates name the root the same way, so the expected source is read
         // off whichever one the node's shape admits through.
-        let rebound =
-            crate::validation::invariant_observation_source(expected).is_some_and(|source| {
-                crate::validation::substitute_invariant_place_root(&mut operation, source, root)
+        let rebound = crate::validation::place_observations::invariant_observation_source(expected)
+            .is_some_and(|source| {
+                crate::validation::relocation_rewrites::substitute_invariant_place_root(
+                    &mut operation,
+                    source,
+                    root,
+                )
             });
         if !rebound {
             return false;
         }
     }
     if !argument_roots.is_empty()
-        && !crate::validation::substitute_invariant_call_roots(&mut operation, argument_roots)
+        && !crate::validation::relocation_rewrites::substitute_invariant_call_roots(
+            &mut operation,
+            argument_roots,
+        )
     {
         // Admission re-derived the rewrites from the seed, so a rewrite that
         // finds no matching structural argument means the moved node drifted
@@ -854,7 +872,7 @@ fn same_relocated_node(
 /// member-internal edges keep the place live where the source's fresh place
 /// died at dispatch, and every exit edge and member return disposes it
 /// instead. Normalize the seed node through the same custody rewrite the
-/// realization performs ([`crate::validation::rewrite_scalar_case_custody`])
+/// realization performs ([`crate::validation::relocation_rewrites::rewrite_scalar_case_custody`])
 /// before comparing byte-exact — a forged transformed spelling cannot pass
 /// unless it is exactly the re-derived frontier.
 fn same_retained_node(
@@ -868,7 +886,7 @@ fn same_retained_node(
     };
     let mut normalized = expected.clone();
     let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
-    crate::validation::rewrite_scalar_case_custody(
+    crate::validation::relocation_rewrites::rewrite_scalar_case_custody(
         &function.structural_places,
         &members,
         case_results,

@@ -1,10 +1,9 @@
-use super::super::super::{
-    ExternalDecisionReplayError, OptimizationRunError, replay_psi_pipeline, run_psi_pipeline,
-};
+use super::super::super::{ExternalDecisionReplayError, OptimizationRunError};
 use super::super::{
     ExternalDecisionSchemaError, Optimization, OptimizationSelections, budget,
     verified_exact_add_unit,
 };
+use crate::{replay_psi_pipeline, run_psi_pipeline};
 
 #[test]
 fn external_replay_byte_boundary_rejects_exact_duplicate_and_v1_log() {

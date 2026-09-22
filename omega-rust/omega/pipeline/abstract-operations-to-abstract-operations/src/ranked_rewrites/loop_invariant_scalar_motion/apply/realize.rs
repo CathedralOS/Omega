@@ -82,7 +82,7 @@ pub(crate) fn realize(
                 .iter()
                 .copied()
                 .collect::<BTreeMap<_, _>>();
-            crate::validation::substitute_invariant_scalar_operands(
+            crate::validation::relocation_rewrites::substitute_invariant_scalar_operands(
                 &mut node.operation,
                 &substitution,
             );
@@ -92,7 +92,7 @@ pub(crate) fn realize(
                 }
             }
             if let Some((parameter, representative)) = planned.root_rewrite
-                && !crate::validation::substitute_invariant_place_root(
+                && !crate::validation::relocation_rewrites::substitute_invariant_place_root(
                     &mut node.operation,
                     parameter,
                     representative,
@@ -106,7 +106,7 @@ pub(crate) fn realize(
                     .iter()
                     .copied()
                     .collect::<BTreeMap<_, _>>();
-                if !crate::validation::substitute_invariant_call_roots(
+                if !crate::validation::relocation_rewrites::substitute_invariant_call_roots(
                     &mut node.operation,
                     &rewrites,
                 ) {
@@ -116,7 +116,8 @@ pub(crate) fn realize(
             Ok(node)
         })
         .collect::<Result<Vec<_>, LoopInvariantScalarMotionError>>()?;
-    let Some(preheader_source) = crate::validation::shared_entry_source(component) else {
+    let Some(preheader_source) = crate::validation::member_blocks::shared_entry_source(component)
+    else {
         return Err(LoopInvariantScalarMotionError::CandidateMismatch);
     };
     let preheader = function
@@ -175,7 +176,7 @@ pub(crate) fn realize(
                     node: 0,
                 })?;
             for node in &mut block.nodes {
-                crate::validation::rewrite_scalar_case_custody(
+                crate::validation::relocation_rewrites::rewrite_scalar_case_custody(
                     &structural_places,
                     &members,
                     &case_results,

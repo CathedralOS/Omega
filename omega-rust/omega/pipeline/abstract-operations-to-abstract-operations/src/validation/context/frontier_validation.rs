@@ -1,10 +1,9 @@
 //! Surviving obligation-owner and structural-frontier custody.
 
-use super::super::{
-    BTreeMap, O, OptimizationFact, PsiOptimizationFunction, PsiProvenance,
-    invariant_member_parameters, invariant_member_place_parameters,
-};
+use super::super::{BTreeMap, O, OptimizationFact, PsiOptimizationFunction, PsiProvenance};
 use super::{OptimizationUnitValidationError, PsiOptimizationUnit};
+use crate::validation::member_blocks::invariant_member_parameters;
+use crate::validation::place_observations::invariant_member_place_parameters;
 pub(super) fn validate_surviving_frontiers(
     input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
     unit: &PsiOptimizationUnit,

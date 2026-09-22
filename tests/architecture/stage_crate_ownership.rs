@@ -169,7 +169,25 @@ fn has_external_caller(root: &Path, crate_root: &Path, ident: &str, name: &str) 
 /// plumbing delegates and test-only helpers re-exported for crate-internal or
 /// integration-test consumers, cataloged by the stage-entrance orphan audit.
 /// Adding an entry needs the same audit disposition, not an unexamined pass.
-const PLUMBING_REEXPORTS: [(&str, &str); 2] = [
+const PLUMBING_REEXPORTS: [(&str, &str); 5] = [
+    // The projection-bound run leg `optimize_abstract_operations` calls, and
+    // the two external-decision replay entries: the same run with each
+    // candidate's action taken from a recorded log. They live at the crate
+    // root beside the phase since the run/replay sequencing moved out of
+    // pass_manager; their only consumers are the phase itself and this
+    // crate's replay tests.
+    (
+        "abstract-operations-to-abstract-operations",
+        "run_psi_pipeline_for_projection",
+    ),
+    (
+        "abstract-operations-to-abstract-operations",
+        "replay_psi_pipeline",
+    ),
+    (
+        "abstract-operations-to-abstract-operations",
+        "replay_psi_registry",
+    ),
     (
         "selected-instructions-to-selected-instructions",
         "optimize_analyzed_selected_instructions",
