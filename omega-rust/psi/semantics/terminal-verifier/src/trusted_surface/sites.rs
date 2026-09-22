@@ -678,7 +678,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
         inventory_machinery: true,
     },
     ImplementationSite {
-        path: "omega-rust/psi/semantics/terminal-verifier/src/trusted_surface/shared.rs",
+        path: "omega-rust/psi/semantics/terminal-verifier/src/trusted_surface/procedural.rs",
         sha256: None,
         inventory_machinery: true,
     },

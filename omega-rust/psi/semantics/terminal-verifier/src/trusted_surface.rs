@@ -59,18 +59,18 @@ use std::path::Path;
 
 mod checker;
 mod operations;
+mod procedural;
 mod reconstruction;
-mod shared;
 mod sites;
 
 pub use checker::{
     ENTRIES as CHECKER_ENTRIES, checker_rule_entry, evidence_route_entry, primitive_judgment_entry,
 };
 pub use operations::{ENTRIES as OPERATION_ENTRIES, operation_schema_entry};
+pub use procedural::ENTRIES as PROCEDURAL_ENTRIES;
 pub use reconstruction::{
     ENTRIES as RECONSTRUCTION_ENTRIES, obligation_owner_entry, terminator_fact_entry,
 };
-pub use shared::ENTRIES as SHARED_ENTRIES;
 pub use sites::{IMPLEMENTATION_SITES, TEST_ONLY_SOURCES, TRUSTED_SOURCE_ROOTS, TestOnlySource};
 
 /// The kind of trusted responsibility one ledger entry inventories.
@@ -262,7 +262,7 @@ pub fn all_entries() -> impl Iterator<Item = &'static TrustedSurfaceEntry> {
         .iter()
         .chain(OPERATION_ENTRIES)
         .chain(RECONSTRUCTION_ENTRIES)
-        .chain(SHARED_ENTRIES)
+        .chain(PROCEDURAL_ENTRIES)
 }
 
 /// One coverage or well-formedness failure. `Display` text names the offending

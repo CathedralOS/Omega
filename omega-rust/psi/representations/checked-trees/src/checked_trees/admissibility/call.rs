@@ -4,7 +4,7 @@ use crate::{
     AcceptanceSummary, AcceptanceVerdict, AcceptanceView, BorrowArgumentAccessFact, CallAcceptance,
     ContractProofFactRef, FlowBoundaryEdgeFact, FlowCallFact, FlowConstraintRef,
     FlowInvalidationFact, FlowSemanticContextRef,
-    admissibility::helpers::{
+    admissibility::evidence_counts::{
         blocking_evidence_count, borrow_constraint_count, constraints, semantic_contexts,
         service_reach_evidence_count, suspension_evidence_count,
     },

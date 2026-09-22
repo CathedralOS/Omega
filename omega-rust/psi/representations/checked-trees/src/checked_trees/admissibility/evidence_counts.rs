@@ -1,3 +1,7 @@
+//! Evidence counts an admissibility record cites: the flow contexts and
+//! constraints a span names, and how many borrow, service-reach, suspension,
+//! blocking, and machine-decrease facts stand behind one checked row.
+
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 
