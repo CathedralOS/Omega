@@ -2,16 +2,17 @@
 
 mod constraints;
 mod function_contract;
+mod instruction_order;
 mod receipt;
 mod replay;
-mod shared;
 
 #[cfg(test)]
 mod tests;
 
+use crate::analyses::liveness::model::{LivenessError, ValidatedLiveness};
 use function_contract::validate_function;
 use replay::replay_function;
-use shared::*;
+use selected_instructions::LivenessPlan;
 
 pub fn validate_liveness(
     selected: &impl crate::ValidatedSelectedAnalysis,

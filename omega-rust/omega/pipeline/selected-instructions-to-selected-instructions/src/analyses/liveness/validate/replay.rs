@@ -1,7 +1,15 @@
 //! Independent scalar-function and block liveness replay.
 
 use super::constraints::reject_v1_unsupported;
-use super::shared::*;
+use super::instruction_order::ordered_instructions;
+use crate::analyses::liveness::model::LivenessError;
+use register_model::{RegisterOperandAccess, RegisterUnitId};
+use selected_instructions::{
+    BlockLiveness, EntryDefinition, FunctionLiveness, InstructionLiveness, LivenessPosition,
+    OperandPosition, SelectedBlock, SelectedFunction, SelectedTerminator, SuccessorLiveness,
+    VirtualRegisterId,
+};
+use std::collections::{BTreeMap, BTreeSet};
 
 #[cfg(test)]
 std::thread_local! {
@@ -328,4 +336,8 @@ fn replay_block(
         instructions,
         successors,
     })
+}
+
+fn collect<T: Copy + Ord>(set: &BTreeSet<T>) -> Vec<T> {
+    set.iter().copied().collect()
 }

@@ -1,6 +1,10 @@
 //! Independent admission of supported operand-constraint shapes.
 
-use super::shared::*;
+use super::instruction_order::ordered_instructions;
+use crate::analyses::liveness::model::LivenessError;
+use register_model::RegisterOperandAccess;
+use selected_instructions::{SelectedFunction, VirtualRegisterId};
+use std::collections::BTreeSet;
 
 pub(super) fn reject_v1_unsupported(
     function_index: usize,
