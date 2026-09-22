@@ -150,27 +150,34 @@ pub(crate) fn summarize_state_written_paths_with_permuted_cycles<'program>(
         .iter()
         .map(|equation| (equation.state.symbol, equation.direct_writes.clone()))
         .collect::<Vec<_>>();
+    let equation_index = equations
+        .iter()
+        .enumerate()
+        .map(|(index, equation)| (equation.state.symbol, index))
+        .collect::<std::collections::HashMap<_, _>>();
+    // Only a write a state gained since the previous pass can instantiate
+    // anything new through an incoming edge, so each pass propagates just the
+    // just-arrived writes instead of re-instantiating every held path.
+    let mut delta = summaries
+        .iter()
+        .map(|(_, writes)| writes.clone())
+        .collect::<Vec<_>>();
     loop {
-        let mut changed = false;
-        for equation in &equations {
+        let mut produced = false;
+        let mut next_delta = vec![Vec::new(); summaries.len()];
+        for (source_index, equation) in equations.iter().enumerate() {
             let mut inference = outer_inference.clone();
             for local in &equation.stored {
                 inference.record_local(local);
             }
             for edge in &equation.edges {
-                let target = equations
-                    .iter()
-                    .find(|candidate| candidate.state.symbol == edge.target)?;
-                let target_writes = summaries
-                    .iter()
-                    .find(|(symbol, _)| *symbol == edge.target)?
-                    .1
-                    .clone();
-                for relative in target_writes {
+                let target_index = *equation_index.get(&edge.target)?;
+                let target = &equations[target_index];
+                for relative in &delta[target_index] {
                     for instantiated in instantiate_written_path(
                         program,
                         machine,
-                        &relative,
+                        relative,
                         Some("self"),
                         program.state_parameters(target.state),
                         &edge.arguments,
@@ -189,20 +196,20 @@ pub(crate) fn summarize_state_written_paths_with_permuted_cycles<'program>(
                         )? {
                             continue;
                         }
-                        let source_writes = summaries
-                            .iter_mut()
-                            .find(|(symbol, _)| *symbol == equation.state.symbol)?;
-                        if !source_writes.1.contains(&instantiated) {
-                            source_writes.1.push(instantiated);
-                            changed = true;
+                        let source_writes = &mut summaries[source_index].1;
+                        if !source_writes.contains(&instantiated) {
+                            source_writes.push(instantiated.clone());
+                            next_delta[source_index].push(instantiated);
+                            produced = true;
                         }
                     }
                 }
             }
         }
-        if !changed {
+        if !produced {
             break;
         }
+        delta = next_delta;
     }
 
     summaries
