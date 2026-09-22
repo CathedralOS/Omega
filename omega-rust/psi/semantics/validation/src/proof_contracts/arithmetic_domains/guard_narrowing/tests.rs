@@ -1,7 +1,7 @@
 use super::{
-    BinaryOperator, ExpressionNode, Interval, TypedTrees, ValueEnv,
-    arrival_integer_expression_bounds, fall_through_narrowed_env, guard_narrowed_env,
-    incoming_guard_env, incoming_guard_environments,
+    BinaryOperator, ExpressionNode, Interval, TypedTrees, ValueEnvironment,
+    arrival_integer_expression_bounds, fall_through_narrowed_environment,
+    guard_narrowed_environment, incoming_guard_environment, incoming_guard_environments,
 };
 use typed_trees::statement::StatementNode;
 
@@ -235,7 +235,7 @@ fn delivered_bounds(source: &str) -> Option<Interval> {
         assert_eq!(*symbol, state.symbol);
         assert_eq!(
             *environment,
-            incoming_guard_env(&program, machine, state),
+            incoming_guard_environment(&program, machine, state),
             "batched arrivals preserve each individual query: {source}",
         );
     }
@@ -244,7 +244,7 @@ fn delivered_bounds(source: &str) -> Option<Interval> {
         .iter()
         .find(|state| state.name.as_str() == "append")
         .unwrap();
-    incoming_guard_env(&program, machine, state).get("delivered")
+    incoming_guard_environment(&program, machine, state).get("delivered")
 }
 
 #[test]
@@ -347,7 +347,7 @@ fn cyclic_dependent_arrival_bounds_stay_within_the_declared_range() {
     // fixpoint round -- a guard `x + 1 <= self.max` cannot narrow the sum
     // against the field bound -- and reads then trusted a value the
     // parameter can never hold (heat_grid's `y * 4 + x` hoist temps were
-    // rejected with an env interval of (0, 23) against their synthesized
+    // rejected with an environment interval of (0, 23) against their synthesized
     // `[0..=11]`).
     assert_eq!(
         delivered_bounds(
@@ -454,7 +454,7 @@ fn arrival_bounds_follow_false_continuation_polarity() {
         .find(|state| state.name.as_str() == "append")
         .unwrap();
     assert_eq!(
-        incoming_guard_env(&program, machine, target).get("delivered"),
+        incoming_guard_environment(&program, machine, target).get("delivered"),
         Some(Interval {
             low: Some(0),
             high: Some(3)
@@ -731,19 +731,19 @@ fn nested_boolean_guard_wrappers_preserve_integer_bound_polarity() {
         else {
             panic!("authored transition");
         };
-        let selected = guard_narrowed_env(
+        let selected = guard_narrowed_environment(
             &program,
             machine,
             Some(state),
             &transition.guard,
-            &ValueEnv::new(),
+            &ValueEnvironment::new(),
         );
-        let fallback = fall_through_narrowed_env(
+        let fallback = fall_through_narrowed_environment(
             &program,
             machine,
             Some(state),
             &transition.guard,
-            &ValueEnv::new(),
+            &ValueEnvironment::new(),
         );
         let positive = Interval {
             low: Some(1),

@@ -398,9 +398,9 @@ fn validate(
             // full type range. The ENTRY state (first) is pre-seeded with the
             // machine's `requires` bounds on its parameters (`requires amount <=
             // 100`), so bounded param arithmetic stays exact. Statements are
-            // validated in order so the env is current at each use.
-            let mut value_env = if state_index == 0 {
-                arithmetic_domains::requires_value_env(program, machine, state)
+            // validated in order so the environment is current at each use.
+            let mut value_environment = if state_index == 0 {
+                arithmetic_domains::requires_value_environment(program, machine, state)
             } else {
                 // A non-entry state may assume the facts established by every
                 // incoming guarded transition. Multiple predecessors join at
@@ -435,7 +435,7 @@ fn validate(
                     machine,
                     state,
                     statement,
-                    &value_env,
+                    &value_environment,
                     call_frames.as_ref(),
                 );
                 // R5 value-call frame: conservatively apply the aggregate
@@ -454,9 +454,9 @@ fn validate(
                     )
                 });
                 if let Some(written) = value_written {
-                    value_env.invalidate_written_paths(&written);
+                    value_environment.invalidate_written_paths(&written);
                 } else {
-                    value_env.clear();
+                    value_environment.clear();
                 }
                 // VALUE-position calls inside this statement's expression trees
                 // (LocalData initializers, transition arguments, guard subjects,
@@ -474,7 +474,7 @@ fn validate(
                         &machine_symbols,
                         &symbols,
                         &writable_roots,
-                        &value_env,
+                        &value_environment,
                         &transition_values,
                         &mut boundary_operator_applications,
                         &mut diagnostics,
@@ -525,7 +525,7 @@ fn validate(
                     &writable_roots,
                     statement_handle,
                     statement,
-                    &mut value_env,
+                    &mut value_environment,
                     &transition_values,
                     direct_written,
                     &mut exact_integer_casts,

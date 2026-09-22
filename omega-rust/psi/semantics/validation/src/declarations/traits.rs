@@ -1,8 +1,11 @@
+use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
+use typed_trees::trait_definition::TraitDefinition;
+
 mod conformance;
 mod data_conformance;
 mod dynamic;
 mod requirements;
-mod shared;
 
 pub use conformance::compose_forwarded_trait_arguments;
 pub use conformance::generic_bound_operator_requirement;
@@ -20,3 +23,20 @@ pub use dynamic::{
 };
 pub(crate) use dynamic::{dynamic_requirement_call_error, dynamic_trait_symbol};
 pub(crate) use requirements::validate_trait_requirements;
+
+/// The trait `symbol` declares, or `None` for an invalid symbol or a symbol
+/// that names no trait. Every conformance, requirement, and data-conformance
+/// validator below resolves its trait through this one lookup.
+fn trait_definition_by_symbol(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<&TraitDefinition> {
+    if !symbol.is_valid() {
+        return None;
+    }
+
+    program
+        .traits()
+        .iter()
+        .find(|trait_definition| trait_definition.symbol == symbol)
+}

@@ -8,12 +8,12 @@
 //! the shared prior-fact context. A second pass after intake would permit a
 //! partial call to establish the condition needed to form itself.
 
-use super::guard_narrowing::{comparison_bound, narrow_env_by_condition};
+use super::guard_narrowing::{comparison_bound, narrow_environment_by_condition};
 use super::{
     ArithmeticDomain, BinaryOperator, Diagnostic, ExpressionHandle, ExpressionNode, Interval,
     Machine, PrimitiveType, ProofFact, SignatureContractKind, State, TypeReferenceHandle,
-    TypeReferenceNode, TypedTrees, ValueEnv, abstract_shift_count, exact_division_definedness,
-    is_arithmetic, literal_i64, place_path, range_constraint_interval,
+    TypeReferenceNode, TypedTrees, ValueEnvironment, abstract_shift_count,
+    exact_division_definedness, is_arithmetic, literal_i64, place_path, range_constraint_interval,
 };
 use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
 use crate::proof_contracts::arithmetic_domains::float_arithmetic::resolve_named_float_arithmetic;
@@ -31,7 +31,7 @@ pub(crate) fn validate_total_specification_arithmetic(
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -40,12 +40,12 @@ pub(crate) fn validate_total_specification_arithmetic(
         machine,
         state,
         expression,
-        env,
+        environment,
         owner,
         diagnostics,
     );
     // Proposition terms retain the ordinary Exact formation judgment. Run it
-    // before admitting this fact into `env`: a bound written around the very
+    // before admitting this fact into `environment`: a bound written around the very
     // operation being formed cannot prove that operation total.
     let mut formation_diagnostics = Vec::new();
     analyze(
@@ -53,7 +53,7 @@ pub(crate) fn validate_total_specification_arithmetic(
         machine,
         state,
         expression,
-        env,
+        environment,
         None,
         ArithmeticDomain::Exact,
         owner,
@@ -73,7 +73,7 @@ pub(crate) fn validate_total_specification_arithmetic(
             machine,
             state,
             candidate,
-            env,
+            environment,
             None,
             ArithmeticDomain::Exact,
             owner,
@@ -89,7 +89,7 @@ pub(crate) fn validate_total_specification_arithmetic(
                 machine,
                 state,
                 candidate,
-                env,
+                environment,
                 None,
                 ArithmeticDomain::Exact,
                 owner,
@@ -341,7 +341,7 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
     }
 
     let entry_state = program.machine_states(machine).first();
-    let mut machine_env = ValueEnv::new();
+    let mut machine_environment = ValueEnvironment::new();
     let mut machine_prior_facts = Vec::new();
     for contract in program.machine_contracts(machine) {
         let owner = format!(
@@ -372,7 +372,7 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
                     machine,
                     entry_state,
                     *expression,
-                    &machine_env,
+                    &machine_environment,
                     &owner,
                     diagnostics,
                 );
@@ -381,11 +381,11 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
                 {
                     machine_prior_facts.push(*expression);
                     if let Some(entry_state) = entry_state {
-                        narrow_env_by_condition(
+                        narrow_environment_by_condition(
                             program,
                             machine,
                             Some(entry_state),
-                            &mut machine_env,
+                            &mut machine_environment,
                             *expression,
                             true,
                         );
@@ -395,7 +395,7 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
         }
     }
     for state in program.machine_states(machine) {
-        let mut state_env = machine_env.clone();
+        let mut state_environment = machine_environment.clone();
         let mut state_prior_facts = machine_prior_facts.clone();
         for contract in program.state_contracts(state) {
             let owner = format!(
@@ -421,7 +421,7 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
                         machine,
                         Some(state),
                         *expression,
-                        &state_env,
+                        &state_environment,
                         &owner,
                         diagnostics,
                     );
@@ -429,11 +429,11 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
                         && diagnostics.len() == diagnostics_before
                     {
                         state_prior_facts.push(*expression);
-                        narrow_env_by_condition(
+                        narrow_environment_by_condition(
                             program,
                             machine,
                             Some(state),
-                            &mut state_env,
+                            &mut state_environment,
                             *expression,
                             true,
                         );
@@ -571,7 +571,7 @@ pub(super) fn abstract_specification_place_type(
 pub(super) fn abstract_specification_interval(
     program: &TypedTrees,
     bindings: AbstractSpecificationBindings<'_>,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     expression: ExpressionHandle,
 ) -> Option<Interval> {
     if let Some(literal) = literal_i64(program, expression) {
@@ -580,7 +580,7 @@ pub(super) fn abstract_specification_interval(
     let type_reference = abstract_specification_place_type(program, bindings, expression)?;
     let primitive = program.primitive_type_reference(type_reference)?;
     place_path(program, expression)
-        .and_then(|path| env.get(&path))
+        .and_then(|path| environment.get(&path))
         .or_else(|| range_constraint_interval(program, type_reference))
         .or_else(|| primitive_range(primitive))
 }
@@ -588,20 +588,20 @@ pub(super) fn abstract_specification_interval(
 /// The settled abstract slice is deliberately narrower than executable
 /// `analyze`: it recognizes only explicit same-carrier policy erasure, the
 /// surface which makes a formerly Trapping operand Exact in Prop. It shares
-/// `Interval` and the prior-fact `ValueEnv`, but does not guess call results or
+/// `Interval` and the prior-fact `ValueEnvironment`, but does not guess call results or
 /// duplicate the executable expression analyzer.
 fn validate_abstract_exact_policy_erasure_formation(
     program: &TypedTrees,
     expression: ExpressionHandle,
     owner: &str,
     bindings: AbstractSpecificationBindings<'_>,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     fn direct_operand(
         program: &TypedTrees,
         bindings: AbstractSpecificationBindings<'_>,
-        env: &ValueEnv,
+        environment: &ValueEnvironment,
         expression: ExpressionHandle,
     ) -> Option<(Option<PrimitiveType>, Interval, bool)> {
         if let Some(literal) = literal_i64(program, expression) {
@@ -640,7 +640,7 @@ fn validate_abstract_exact_policy_erasure_formation(
         };
         let primitive = program.primitive_type_reference(type_reference)?;
         let interval = place_path(program, place)
-            .and_then(|path| env.get(&path))
+            .and_then(|path| environment.get(&path))
             .or_else(|| range_constraint_interval(program, type_reference))
             .or_else(|| primitive_range(primitive))?;
         Some((Some(primitive), interval, erased))
@@ -651,7 +651,7 @@ fn validate_abstract_exact_policy_erasure_formation(
         expression: ExpressionHandle,
         owner: &str,
         bindings: AbstractSpecificationBindings<'_>,
-        env: &ValueEnv,
+        environment: &ValueEnvironment,
         diagnostics: &mut Vec<Diagnostic>,
         visited: &mut Vec<ExpressionHandle>,
     ) {
@@ -660,7 +660,15 @@ fn validate_abstract_exact_policy_erasure_formation(
         }
         visited.push(expression);
         let recurse = |child, diagnostics: &mut Vec<Diagnostic>, visited: &mut Vec<_>| {
-            walk(program, child, owner, bindings, env, diagnostics, visited);
+            walk(
+                program,
+                child,
+                owner,
+                bindings,
+                environment,
+                diagnostics,
+                visited,
+            );
         };
         match program.expression_table.expression(expression) {
             ExpressionNode::Match(dispatch) => {
@@ -683,12 +691,12 @@ fn validate_abstract_exact_policy_erasure_formation(
                     return;
                 }
                 let Some((left_primitive, left, left_erased)) =
-                    direct_operand(program, bindings, env, binary.left)
+                    direct_operand(program, bindings, environment, binary.left)
                 else {
                     return;
                 };
                 let Some((right_primitive, right, right_erased)) =
-                    direct_operand(program, bindings, env, binary.right)
+                    direct_operand(program, bindings, environment, binary.right)
                 else {
                     return;
                 };
@@ -762,24 +770,24 @@ fn validate_abstract_exact_policy_erasure_formation(
         expression,
         owner,
         bindings,
-        env,
+        environment,
         diagnostics,
         &mut Vec::new(),
     );
 }
 
-fn narrow_abstract_specification_env(
+fn narrow_abstract_specification_environment(
     program: &TypedTrees,
     bindings: AbstractSpecificationBindings<'_>,
-    env: &mut ValueEnv,
+    environment: &mut ValueEnvironment,
     expression: ExpressionHandle,
 ) {
     let ExpressionNode::Binary(comparison) = program.expression_table.expression(expression) else {
         return;
     };
     if comparison.operator == BinaryOperator::And {
-        narrow_abstract_specification_env(program, bindings, env, comparison.left);
-        narrow_abstract_specification_env(program, bindings, env, comparison.right);
+        narrow_abstract_specification_environment(program, bindings, environment, comparison.left);
+        narrow_abstract_specification_environment(program, bindings, environment, comparison.right);
         return;
     }
     let Some((path, low, high)) = comparison_bound(program, expression) else {
@@ -803,7 +811,7 @@ fn narrow_abstract_specification_env(
     if let Some(declared) = range_constraint_interval(program, type_reference) {
         interval = interval.intersect(declared);
     }
-    env.narrow(path, interval);
+    environment.narrow(path, interval);
 }
 
 /// Validate every abstract Prop-bearing owner exactly once. Concrete machine
@@ -830,8 +838,8 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
         facts: &[ProofFact],
         owner: &str,
         bindings: AbstractSpecificationBindings<'_>,
-        admit_to_env: bool,
-        env: &mut ValueEnv,
+        admit_to_environment: bool,
+        environment: &mut ValueEnvironment,
         prior_facts: &mut Vec<ExpressionHandle>,
         seen: &mut Vec<ExpressionHandle>,
         diagnostics: &mut Vec<Diagnostic>,
@@ -851,13 +859,20 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                 continue;
             }
             seen.push(*expression);
-            abstract_shift_count::validate(program, *expression, owner, bindings, env, diagnostics);
+            abstract_shift_count::validate(
+                program,
+                *expression,
+                owner,
+                bindings,
+                environment,
+                diagnostics,
+            );
             exact_division_definedness::validate_abstract(
                 program,
                 *expression,
                 owner,
                 bindings,
-                env,
+                environment,
                 diagnostics,
             );
             validate_abstract_exact_policy_erasure_formation(
@@ -865,7 +880,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                 *expression,
                 owner,
                 bindings,
-                env,
+                environment,
                 diagnostics,
             );
             let expression_domain = |candidate| {
@@ -873,8 +888,9 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                     |type_reference| program.arithmetic_domain_for_type_reference(type_reference),
                 )
             };
-            let expression_interval =
-                |candidate| abstract_specification_interval(program, bindings, env, candidate);
+            let expression_interval = |candidate| {
+                abstract_specification_interval(program, bindings, environment, candidate)
+            };
             validate_total_specification_arithmetic_with_domain_lookup(
                 program,
                 *expression,
@@ -884,9 +900,14 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                 false,
                 diagnostics,
             );
-            if admit_to_env && diagnostics.len() == diagnostics_before {
+            if admit_to_environment && diagnostics.len() == diagnostics_before {
                 prior_facts.push(*expression);
-                narrow_abstract_specification_env(program, bindings, env, *expression);
+                narrow_abstract_specification_environment(
+                    program,
+                    bindings,
+                    environment,
+                    *expression,
+                );
             }
         }
     }
@@ -899,7 +920,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
         seen: &mut Vec<ExpressionHandle>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let mut env = ValueEnv::new();
+        let mut environment = ValueEnvironment::new();
         let mut prior_facts = Vec::new();
         for contract in contracts {
             let contract_owner = format!("{owner} {} contract", kind_label(&contract.kind));
@@ -909,7 +930,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                 &contract_owner,
                 bindings,
                 contract.kind == SignatureContractKind::Requires,
-                &mut env,
+                &mut environment,
                 &mut prior_facts,
                 seen,
                 diagnostics,
@@ -949,7 +970,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
     }
 
     for domain in program.domain_definitions() {
-        let mut env = ValueEnv::new();
+        let mut environment = ValueEnvironment::new();
         let mut prior_facts = Vec::new();
         validate_facts(
             program,
@@ -960,7 +981,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                 ..Default::default()
             },
             true,
-            &mut env,
+            &mut environment,
             &mut prior_facts,
             &mut seen,
             diagnostics,
@@ -968,7 +989,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
     }
 
     for data in program.data_definitions() {
-        let mut env = ValueEnv::new();
+        let mut environment = ValueEnvironment::new();
         let mut prior_facts = Vec::new();
         validate_facts(
             program,
@@ -979,7 +1000,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                 ..Default::default()
             },
             true,
-            &mut env,
+            &mut environment,
             &mut prior_facts,
             &mut seen,
             diagnostics,

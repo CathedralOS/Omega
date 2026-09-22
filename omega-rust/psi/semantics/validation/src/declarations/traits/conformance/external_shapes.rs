@@ -2,7 +2,7 @@
 //! expose and the diagnostics for those it may not.
 
 use crate::declarations::standard_declarations::is_core_vector;
-use crate::declarations::traits::shared::trait_definition_by_symbol;
+use crate::declarations::traits::trait_definition_by_symbol;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;

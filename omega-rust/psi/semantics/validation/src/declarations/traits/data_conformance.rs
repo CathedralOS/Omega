@@ -12,7 +12,7 @@
 //! crate's `equatable` module). Written members remain authoritative; a missing
 //! bodyless requirement stays an error naming the machine the type must write.
 
-use super::shared::trait_definition_by_symbol;
+use super::trait_definition_by_symbol;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;

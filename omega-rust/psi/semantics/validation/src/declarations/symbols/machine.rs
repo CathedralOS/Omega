@@ -1,4 +1,3 @@
-use super::shared::child_symbol;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -214,6 +213,15 @@ fn retained_machine_symbol(program: &TypedTrees, machine: &Machine) -> SymbolHan
     } else {
         SymbolHandle::invalid()
     }
+}
+
+/// The child of `parent` named `name`, or the invalid handle when the machine
+/// declares no such member.
+fn child_symbol(program: &TypedTrees, parent: SymbolHandle, name: &str) -> SymbolHandle {
+    program
+        .symbols
+        .find_child_by_name(parent, name)
+        .unwrap_or_else(SymbolHandle::invalid)
 }
 
 fn retained_child_symbol(

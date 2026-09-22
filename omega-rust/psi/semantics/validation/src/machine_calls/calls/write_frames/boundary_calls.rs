@@ -96,7 +96,7 @@ pub(super) fn receiver_requires_boundary_frame(
 /// The boundary-trait signature a call statement resolves to (`self.fw.
 /// get_size(..)` -> trait `Firmware`'s `get_size`), or an exact parameter
 /// receiver's selected signature. Used by the R4 witness mint (out-param
-/// ensures seeding the value env). Arbitrary prefixes cannot select a cached
+/// ensures seeding the value environment). Arbitrary prefixes cannot select a cached
 /// field, and a sibling state's same-named parameter supplies no authority.
 pub(crate) fn boundary_trait_signature<'program>(
     program: &'program TypedTrees,

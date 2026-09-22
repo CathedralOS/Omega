@@ -26,7 +26,7 @@ pub(super) fn validate(
         writable_roots,
         ..
     } = *scope;
-    let value_env = &mut *outputs.value_env;
+    let value_environment = &mut *outputs.value_environment;
     let exact_integer_casts = &mut *outputs.exact_integer_casts;
     let boundary_operator_applications = &mut *outputs.boundary_operator_applications;
     let diagnostics = &mut *outputs.diagnostics;
@@ -51,7 +51,7 @@ pub(super) fn validate(
         machine_symbols,
         symbols,
         writable_roots,
-        value_env,
+        value_environment,
         diagnostics,
     );
     // The operands were validated under this statement's flow environment;
@@ -65,7 +65,7 @@ pub(super) fn validate(
             machine,
             current_state,
             *argument,
-            value_env,
+            value_environment,
             exact_integer_casts,
         );
     }
@@ -75,9 +75,9 @@ pub(super) fn validate(
     // conservative. Authored `stores` clauses are retired; exactness
     // grows through inferred implementation summaries.
     if let Some(written) = direct_written {
-        value_env.invalidate_written_paths(&written);
+        value_environment.invalidate_written_paths(&written);
     } else {
-        value_env.clear();
+        value_environment.clear();
     }
     // R4 witness mint: a BOUNDARY callee's `ensures` re-seeds the
     // `&mut` out-arguments' places (the boundary model's citable
@@ -96,7 +96,7 @@ pub(super) fn validate(
             current_state,
             call,
             signature,
-            value_env,
+            value_environment,
         );
     }
 }

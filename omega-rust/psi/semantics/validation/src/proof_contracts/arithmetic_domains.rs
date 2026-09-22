@@ -59,8 +59,8 @@ pub(crate) use cast_ranges::validate_range_cast_at_use;
 pub(crate) use float_arithmetic::float_source_proves_int_cast;
 pub use guard_narrowing::arrival_integer_expression_bounds;
 pub(crate) use guard_narrowing::{
-    fall_through_narrowed_env, guard_narrowed_env, incoming_guard_environments, requires_value_env,
-    seed_out_param_ensures,
+    fall_through_narrowed_environment, guard_narrowed_environment, incoming_guard_environments,
+    requires_value_environment, seed_out_param_ensures,
 };
 pub use integer_ranges::integer_widen_is_total;
 pub(crate) use integer_ranges::{
@@ -90,7 +90,7 @@ pub(crate) use total_specification::{
     validate_abstract_total_specification_arithmetic,
     validate_machine_total_specification_arithmetic, validate_total_specification_arithmetic,
 };
-pub(crate) use value_environment::ValueEnv;
+pub(crate) use value_environment::ValueEnvironment;
 
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
@@ -128,7 +128,7 @@ pub(crate) fn validate_arithmetic_domains(
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     target_primitive: Option<PrimitiveType>,
     target_domain: ArithmeticDomain,
     owner: &str,
@@ -139,7 +139,7 @@ pub(crate) fn validate_arithmetic_domains(
         machine,
         state,
         expression,
-        env,
+        environment,
         target_primitive,
         target_domain,
         owner,

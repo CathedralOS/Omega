@@ -7,7 +7,7 @@ use crate::proof_contracts::arithmetic_domains::integer_ranges::{
 };
 use crate::proof_contracts::arithmetic_domains::interval::Interval;
 use crate::proof_contracts::arithmetic_domains::range_constraints::range_constraint_interval;
-use crate::proof_contracts::arithmetic_domains::value_environment::ValueEnv;
+use crate::proof_contracts::arithmetic_domains::value_environment::ValueEnvironment;
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::TypedTrees;
@@ -107,7 +107,7 @@ pub(crate) fn resolve_unique_self_call_state<'program>(
 /// ch15 stage 2 -- MODULAR RETURN-RANGE INFERENCE: when a callee declares no
 /// return range, infer one from its body so the caller's arithmetic on the
 /// result can stay Exact without the callee writing `-> i32 [a..=b]`. Sound and
-/// STRICTLY PERMISSIVE: the body is analyzed with an EMPTY env (params at full
+/// STRICTLY PERMISSIVE: the body is analyzed with an EMPTY environment (params at full
 /// type width -> the widest possible result, so any caller's actual return is
 /// within it). All return paths of the callee state are UNIONed -- a terminal
 /// expression and/or transition VALUE targets (`{ cond -> v1 _ -> v2 }`). SOUND:
@@ -160,7 +160,7 @@ pub(crate) fn infer_return_interval(
         return None;
     }
 
-    let env = ValueEnv::new();
+    let environment = ValueEnvironment::new();
     INFERRING_RETURN.with(|flag| flag.set(true));
     let mut union: Option<Interval> = None;
     let mut clean = true;
@@ -171,7 +171,7 @@ pub(crate) fn infer_return_interval(
             callee_machine,
             Some(callee_state),
             expression,
-            &env,
+            &environment,
             target_primitive,
             ArithmeticDomain::Exact,
             "inferred return",
@@ -229,7 +229,7 @@ pub(crate) fn validate_return_value_range(
     machine: &Machine,
     state: &State,
     return_expression: ExpressionHandle,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -241,7 +241,7 @@ pub(crate) fn validate_return_value_range(
         Some(state),
         state.return_type,
         return_expression,
-        env,
+        environment,
         owner,
         diagnostics,
     );
@@ -267,7 +267,7 @@ pub(crate) fn validate_return_value_range(
             machine,
             Some(state),
             return_expression,
-            env,
+            environment,
             return_primitive,
             return_domain,
             owner,
@@ -291,7 +291,7 @@ pub(crate) fn validate_return_value_range(
         machine,
         Some(state),
         return_expression,
-        env,
+        environment,
         return_primitive,
         return_domain,
         owner,
@@ -309,7 +309,7 @@ pub(crate) fn enforce_symbolic_range(
     state: Option<&State>,
     return_type: TypeReferenceHandle,
     return_expression: ExpressionHandle,
-    environment: &ValueEnv,
+    environment: &ValueEnvironment,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {

@@ -6,10 +6,10 @@
 
 use super::{
     ArithmeticDomain, BinaryOperator, Diagnostic, ExpressionHandle, ExpressionNode, Interval,
-    Machine, PrimitiveType, State, TableCallExpression, TypeReferenceNode, TypedTrees, ValueEnv,
-    bitwise, call_return_type, declared_place_type_raw, float_source_proves_int_cast,
-    guard_narrowing, is_arithmetic, ordered_values, place_path, range_constraint_interval,
-    unsigned_representability,
+    Machine, PrimitiveType, State, TableCallExpression, TypeReferenceNode, TypedTrees,
+    ValueEnvironment, bitwise, call_return_type, declared_place_type_raw,
+    float_source_proves_int_cast, guard_narrowing, is_arithmetic, ordered_values, place_path,
+    range_constraint_interval, unsigned_representability,
 };
 use language_semantics::declaration_selection::CollectionMeasure;
 fn integer_policy_primitive(
@@ -120,7 +120,7 @@ fn integer_literal_primitive(
 /// evaluator; it never reinterprets an unsigned literal as a signed value.
 fn bitwise_known_unsigned(
     program: &TypedTrees,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     primitive: PrimitiveType,
     expression: ExpressionHandle,
     depth: usize,
@@ -131,7 +131,7 @@ fn bitwise_known_unsigned(
     {
         return None;
     }
-    if let Some(value) = known_u64_value(program, env, expression) {
+    if let Some(value) = known_u64_value(program, environment, expression) {
         return Some(value);
     }
     match program.expression_table.expression(expression) {
@@ -140,14 +140,14 @@ fn bitwise_known_unsigned(
         {
             bitwise::complement_unsigned_value(
                 primitive,
-                bitwise_known_unsigned(program, env, primitive, unary.operand, depth + 1)?,
+                bitwise_known_unsigned(program, environment, primitive, unary.operand, depth + 1)?,
             )
         }
         ExpressionNode::Binary(binary) => bitwise::binary_unsigned_value(
             binary.operator,
             primitive,
-            bitwise_known_unsigned(program, env, primitive, binary.left, depth + 1)?,
-            bitwise_known_unsigned(program, env, primitive, binary.right, depth + 1)?,
+            bitwise_known_unsigned(program, environment, primitive, binary.left, depth + 1)?,
+            bitwise_known_unsigned(program, environment, primitive, binary.right, depth + 1)?,
         ),
         _ => None,
     }
@@ -203,7 +203,7 @@ pub(super) fn analyze(
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     target_primitive: Option<PrimitiveType>,
     target_domain: ArithmeticDomain,
     owner: &str,
@@ -314,7 +314,7 @@ pub(super) fn analyze(
                 machine,
                 state,
                 binary.left,
-                env,
+                environment,
                 target_primitive,
                 target_domain,
                 owner,
@@ -325,7 +325,7 @@ pub(super) fn analyze(
                 machine,
                 state,
                 binary.right,
-                env,
+                environment,
                 target_primitive,
                 target_domain,
                 owner,
@@ -544,8 +544,20 @@ pub(super) fn analyze(
                                 primitive,
                                 left.interval,
                                 right.interval,
-                                bitwise_known_unsigned(program, env, primitive, binary.left, 0),
-                                bitwise_known_unsigned(program, env, primitive, binary.right, 0),
+                                bitwise_known_unsigned(
+                                    program,
+                                    environment,
+                                    primitive,
+                                    binary.left,
+                                    0,
+                                ),
+                                bitwise_known_unsigned(
+                                    program,
+                                    environment,
+                                    primitive,
+                                    binary.right,
+                                    0,
+                                ),
                             )
                         })
                         .unwrap_or(Interval::UNBOUNDED),
@@ -599,7 +611,7 @@ pub(super) fn analyze(
                     program,
                     machine,
                     state,
-                    env,
+                    environment,
                     binary.left,
                     binary.right,
                 )
@@ -653,8 +665,8 @@ pub(super) fn analyze(
             // must not discard tighter bounds already proved for the result.
             if effective_domain == ArithmeticDomain::Exact
                 && operator == BinaryOperator::Add
-                && (env.proves_joint_add_upper_bound(program, binary.left, binary.right)
-                    || env.proves_joint_add_lower_bound(program, binary.left, binary.right))
+                && (environment.proves_joint_add_upper_bound(program, binary.left, binary.right)
+                    || environment.proves_joint_add_lower_bound(program, binary.left, binary.right))
                 && let Some(range) = primitive.and_then(primitive_range)
             {
                 interval = interval.intersect(range);
@@ -662,13 +674,13 @@ pub(super) fn analyze(
             }
             if effective_domain == ArithmeticDomain::Exact
                 && operator == BinaryOperator::Subtract
-                && (env.proves_joint_subtract_bound(program, binary.left, binary.right)
-                    || env.proves_signed_joint_subtract_lower_bound(
+                && (environment.proves_joint_subtract_bound(program, binary.left, binary.right)
+                    || environment.proves_signed_joint_subtract_lower_bound(
                         program,
                         binary.left,
                         binary.right,
                     )
-                    || env.proves_signed_joint_subtract_upper_bound(
+                    || environment.proves_signed_joint_subtract_upper_bound(
                         program,
                         binary.left,
                         binary.right,
@@ -680,9 +692,13 @@ pub(super) fn analyze(
             }
             if effective_domain == ArithmeticDomain::Exact
                 && operator == BinaryOperator::Multiply
-                && (env.proves_joint_multiply_bound(program, binary.left, binary.right)
-                    || env.proves_signed_joint_multiply_bounds(program, binary.left, binary.right)
-                    || env.proves_signed_joint_multiply_negation_bound(
+                && (environment.proves_joint_multiply_bound(program, binary.left, binary.right)
+                    || environment.proves_signed_joint_multiply_bounds(
+                        program,
+                        binary.left,
+                        binary.right,
+                    )
+                    || environment.proves_signed_joint_multiply_negation_bound(
                         program,
                         binary.left,
                         binary.right,
@@ -759,7 +775,7 @@ pub(super) fn analyze(
                                 program,
                                 machine,
                                 state,
-                                env,
+                                environment,
                                 binary.left,
                                 right.interval,
                                 range.high,
@@ -767,7 +783,7 @@ pub(super) fn analyze(
                                 program,
                                 machine,
                                 state,
-                                env,
+                                environment,
                                 binary.right,
                                 left.interval,
                                 range.high,
@@ -778,8 +794,14 @@ pub(super) fn analyze(
                             operator,
                             left.interval,
                             right.interval,
-                            bitwise_known_unsigned(program, env, primitive, binary.left, 0),
-                            bitwise_known_unsigned(program, env, primitive, binary.right, 0),
+                            bitwise_known_unsigned(program, environment, primitive, binary.left, 0),
+                            bitwise_known_unsigned(
+                                program,
+                                environment,
+                                primitive,
+                                binary.right,
+                                0,
+                            ),
                         )
                 } else {
                     // The interval route needs every operand already bounded;
@@ -793,7 +815,7 @@ pub(super) fn analyze(
                                 program,
                                 machine,
                                 state,
-                                env,
+                                environment,
                                 binary.left,
                                 right.interval,
                                 range.high,
@@ -801,7 +823,7 @@ pub(super) fn analyze(
                                 program,
                                 machine,
                                 state,
-                                env,
+                                environment,
                                 binary.right,
                                 left.interval,
                                 range.high,
@@ -967,7 +989,7 @@ pub(super) fn analyze(
                 machine,
                 state,
                 unary.operand,
-                env,
+                environment,
                 target_primitive,
                 target_domain,
                 owner,
@@ -989,7 +1011,7 @@ pub(super) fn analyze(
                                     operand.interval,
                                     bitwise_known_unsigned(
                                         program,
-                                        env,
+                                        environment,
                                         primitive,
                                         unary.operand,
                                         0,
@@ -1088,7 +1110,7 @@ pub(super) fn analyze(
                     machine,
                     state,
                     cast.value,
-                    env,
+                    environment,
                     None,
                     ArithmeticDomain::Exact,
                     owner,
@@ -1116,7 +1138,7 @@ pub(super) fn analyze(
                 cast,
                 source_interval,
                 source.primitive,
-                env,
+                environment,
                 owner,
                 diagnostics,
             );
@@ -1158,8 +1180,14 @@ pub(super) fn analyze(
                 && let Some(target) = primitive
                 && integer_bit_width(target).is_some()
             {
-                let provable =
-                    float_source_proves_int_cast(program, machine, state, env, cast.value, target);
+                let provable = float_source_proves_int_cast(
+                    program,
+                    machine,
+                    state,
+                    environment,
+                    cast.value,
+                    target,
+                );
                 if !provable {
                     diagnostics.push(Diagnostic::error(format!(
                         "float-to-int cast in {owner} is not provably in `{}`'s range \
@@ -1252,7 +1280,7 @@ pub(super) fn analyze(
                         machine,
                         state,
                         *argument,
-                        env,
+                        environment,
                         target_primitive,
                         target_domain,
                         owner,
@@ -1351,7 +1379,7 @@ pub(super) fn analyze(
                     machine,
                     state,
                     *left_arg,
-                    env,
+                    environment,
                     target_primitive,
                     target_domain,
                     owner,
@@ -1362,7 +1390,7 @@ pub(super) fn analyze(
                     machine,
                     state,
                     *right_arg,
-                    env,
+                    environment,
                     target_primitive,
                     target_domain,
                     owner,
@@ -1465,17 +1493,17 @@ pub(super) fn analyze(
                 let type_range = primitive
                     .and_then(primitive_range)
                     .unwrap_or(Interval::UNBOUNDED);
-                // Narrowest sound interval: a value PROVEN on this path (flow env)
+                // Narrowest sound interval: a value PROVEN on this path (flow environment)
                 // wins; else a declared `[min..max]` range constraint (S4); else
                 // the full type width. A proven interval is INTERSECTED with the
                 // type range, because a typed value is ALWAYS within its type even
                 // when the proof only bounds ONE end -- a one-sided `requires x <
-                // 100` gives the env `[None, 99]`, and `[None, 99] ∩ i32 = [i32::MIN,
+                // 100` gives the environment `[None, 99]`, and `[None, 99] ∩ i32 = [i32::MIN,
                 // 99]` keeps the type's low end so `x + 1` proves Exact (a Wrapping-
                 // spilled interval is likewise clamped back to the type). The same
                 // intersect-with-source-type keystone the narrowing store uses.
                 let interval = place_path(program, expression)
-                    .and_then(|path| env.get(&path))
+                    .and_then(|path| environment.get(&path))
                     .or_else(|| range_constraint_interval(program, handle))
                     .map(|proven| proven.intersect(type_range))
                     .unwrap_or(type_range);

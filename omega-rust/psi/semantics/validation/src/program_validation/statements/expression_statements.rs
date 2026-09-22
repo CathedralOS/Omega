@@ -25,7 +25,7 @@ pub(super) fn validate(
         current_state,
         ..
     } = *scope;
-    let value_env = &mut *outputs.value_env;
+    let value_environment = &mut *outputs.value_environment;
     let exact_integer_casts = &mut *outputs.exact_integer_casts;
     let diagnostics = &mut *outputs.diagnostics;
     let Some(state) = current_state else {
@@ -41,7 +41,7 @@ pub(super) fn validate(
             machine,
             Some(state),
             *expression,
-            value_env,
+            value_environment,
             exact_integer_casts,
         );
         return;
@@ -153,7 +153,7 @@ pub(super) fn validate(
             machine,
             Some(state),
             *expression,
-            value_env,
+            value_environment,
             return_primitive,
             program.arithmetic_domain_for_type_reference(state.return_type),
             &owner,
@@ -179,7 +179,7 @@ pub(super) fn validate(
         Some(state),
         state.return_type,
         *expression,
-        value_env,
+        value_environment,
         &owner,
         diagnostics,
     );
@@ -195,7 +195,7 @@ pub(super) fn validate(
         machine,
         Some(state),
         *expression,
-        value_env,
+        value_environment,
         exact_integer_casts,
     );
 }

@@ -1,5 +1,5 @@
 use crate::proof_contracts::arithmetic_domains::{
-    ValueEnv, check_value_narrowing, validate_arithmetic_domains,
+    ValueEnvironment, check_value_narrowing, validate_arithmetic_domains,
 };
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
@@ -51,7 +51,7 @@ fn validate_anonymous_element_landing(
             machine,
             Some(state),
             value,
-            &ValueEnv::new(),
+            &ValueEnvironment::new(),
             Some(destination),
             numerics::arithmetic::ArithmeticDomain::Exact,
             owner,
@@ -75,7 +75,7 @@ pub(super) fn enforce_construction_field_obligations(
     machine: &Machine,
     state: &State,
     literal: &TableStructLiteral,
-    environment: &ValueEnv,
+    environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let type_name = literal.type_name.as_str();
@@ -280,7 +280,7 @@ pub(super) fn enforce_construction_field_obligations(
 /// `[300, ..]` into a `[i8; N]` truncates silently; `[true, ..]` into `[i8; N]`
 /// stores garbage. Does nothing unless `value` is an array literal and
 /// `expected_type` is a fixed array of a scalar primitive. Flow-insensitive (empty
-/// env), matching the construction field-obligation checks. Reused across the
+/// environment), matching the construction field-obligation checks. Reused across the
 /// binding sites that know the array's expected type (assignment target, etc.).
 pub(crate) fn validate_array_literal_elements(
     program: &TypedTrees,
@@ -394,7 +394,7 @@ pub(crate) fn validate_array_literal_elements_for_shape(
                         machine,
                         Some(state),
                         *element,
-                        &ValueEnv::new(),
+                        &ValueEnvironment::new(),
                         Some(element_primitive),
                         numerics::arithmetic::ArithmeticDomain::Exact,
                         &owner,
@@ -426,7 +426,7 @@ pub(crate) fn validate_array_literal_elements_for_shape(
                     Some(state),
                     *element,
                     element_primitive,
-                    &ValueEnv::new(),
+                    &ValueEnvironment::new(),
                     &owner,
                     diagnostics,
                 );

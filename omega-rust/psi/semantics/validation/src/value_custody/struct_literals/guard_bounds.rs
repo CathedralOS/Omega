@@ -2,7 +2,7 @@
 //! effectful expressions need write-frame evidence before entering this path.
 
 use crate::proof_contracts::arithmetic_domains::{
-    ValueEnv, fall_through_narrowed_env, guard_narrowed_env,
+    ValueEnvironment, fall_through_narrowed_environment, guard_narrowed_environment,
 };
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::BuiltinTypeAtom;
@@ -20,8 +20,8 @@ pub(super) fn construction_guard_environment(
     state: &State,
     guard: &TransitionGuardNode,
     positive: bool,
-) -> ValueEnv {
-    let empty = ValueEnv::new();
+) -> ValueEnvironment {
+    let empty = ValueEnvironment::new();
     let TransitionGuardNode::When(condition) = guard else {
         return empty;
     };
@@ -29,9 +29,9 @@ pub(super) fn construction_guard_environment(
         return empty;
     }
     if positive {
-        guard_narrowed_env(program, machine, Some(state), guard, &empty)
+        guard_narrowed_environment(program, machine, Some(state), guard, &empty)
     } else {
-        fall_through_narrowed_env(program, machine, Some(state), guard, &empty)
+        fall_through_narrowed_environment(program, machine, Some(state), guard, &empty)
     }
 }
 

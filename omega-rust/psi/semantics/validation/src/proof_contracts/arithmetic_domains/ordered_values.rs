@@ -4,7 +4,7 @@
 //! the complete argument tree of an eligible normal-return call.
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
-    PrimitiveType, State, TypeReferenceNode, TypedTrees, ValueEnv, declared_place_type_raw,
+    PrimitiveType, State, TypeReferenceNode, TypedTrees, ValueEnvironment, declared_place_type_raw,
     place_path,
 };
 use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
@@ -433,7 +433,7 @@ fn integer_meaning(
         machine,
         Some(state),
         expression,
-        &ValueEnv::new(),
+        &ValueEnvironment::new(),
         None,
         ArithmeticDomain::Exact,
         "ordered operand type",
@@ -450,7 +450,7 @@ pub(super) fn record(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    environment: &mut ValueEnv,
+    environment: &mut ValueEnvironment,
     comparison: &typed_trees::expression::TableBinaryExpression,
     positive: bool,
 ) {
@@ -544,7 +544,7 @@ pub(super) fn subtract_floor(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
-    environment: &ValueEnv,
+    environment: &ValueEnvironment,
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> Option<i64> {
@@ -576,7 +576,7 @@ pub(super) fn unsigned_increase_fits(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
-    environment: &ValueEnv,
+    environment: &ValueEnvironment,
     value: ExpressionHandle,
     increase: Interval,
     ceiling: Option<i64>,

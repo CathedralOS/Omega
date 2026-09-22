@@ -6,7 +6,7 @@
 //! subject for everything that arm evaluates: dispatch proved the case, so its
 //! facts are premises at that program point. Facts are projected onto the
 //! subject's place (`lo` inside `where lo <= hi` reads `subject.lo`) and
-//! contributed through the same env carriers an authored comparison would
+//! contributed through the same environment carriers an authored comparison would
 //! produce: ordered relations, place intervals, `known_u64` values, and
 //! joint-subtract bounds. A negated membership contributes nothing (exclusion
 //! is coverage's business); a fact shape these carriers cannot hold
@@ -17,8 +17,8 @@
 use super::super::TypeReferenceHandle;
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
-    PrimitiveType, ProofFact, State, TypedTrees, ValueEnv, comparison_interval, literal_i64,
-    meaning, ordered_values, primitive_range, range_constraint_interval,
+    PrimitiveType, ProofFact, State, TypedTrees, ValueEnvironment, comparison_interval,
+    literal_i64, meaning, ordered_values, primitive_range, range_constraint_interval,
 };
 use symbols::SymbolHandle;
 use typed_trees::data::{DataDefinition, DataMember, DataVariant};
@@ -26,7 +26,7 @@ use typed_trees::data::{DataDefinition, DataMember, DataVariant};
 /// A fact operand projected onto the dispatched subject: the ordered-values
 /// identity (symbol-exact field symbols, so a payload `x` and a common `x`
 /// never collide in a relation), plus the spelled path and declared field
-/// type the spelling-keyed env carriers need. `spelled` is `None` when the
+/// type the spelling-keyed environment carriers need. `spelled` is `None` when the
 /// field name is not unique across the whole data -- `subject.x` would then
 /// key the same spelling onto a different field's reads, so only the
 /// symbol-exact relation may be contributed.
@@ -36,7 +36,7 @@ struct FactOperand {
     field_type: Option<TypeReferenceHandle>,
 }
 
-/// Establish `classifier`'s case `where` facts on `subject` inside `env`.
+/// Establish `classifier`'s case `where` facts on `subject` inside `environment`.
 /// `classifier` must rejoin its complete retained case reference (the same
 /// ownership spine `has_exact_case_membership_meaning` requires); the subject
 /// must be an operand-identifiable place, since the contribution is defined
@@ -45,7 +45,7 @@ pub(super) fn contribute_case_where_facts(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
-    env: &mut ValueEnv,
+    environment: &mut ValueEnvironment,
     subject: ExpressionHandle,
     classifier: ExpressionHandle,
 ) {
@@ -85,7 +85,7 @@ pub(super) fn contribute_case_where_facts(
             &root,
             &fields,
             &path,
-            env,
+            environment,
             *expression,
         );
     }
@@ -101,7 +101,7 @@ fn contribute_fact_expression(
     subject_root: &SymbolHandle,
     subject_fields: &[SymbolHandle],
     subject_path: &str,
-    env: &mut ValueEnv,
+    environment: &mut ValueEnvironment,
     expression: ExpressionHandle,
 ) {
     let ExpressionNode::Binary(comparison) = program.expression_table.expression(expression) else {
@@ -115,7 +115,7 @@ fn contribute_fact_expression(
             subject_root,
             subject_fields,
             subject_path,
-            env,
+            environment,
             comparison.left,
         );
         contribute_fact_expression(
@@ -125,7 +125,7 @@ fn contribute_fact_expression(
             subject_root,
             subject_fields,
             subject_path,
-            env,
+            environment,
             comparison.right,
         );
         return;
@@ -170,8 +170,8 @@ fn contribute_fact_expression(
                 right: low.operand.clone(),
                 floor: i64::from(strict),
             };
-            if !env.ordered_values.contains(&relation) {
-                env.ordered_values.push(relation);
+            if !environment.ordered_values.contains(&relation) {
+                environment.ordered_values.push(relation);
             }
             // The unsigned `low <= high` premise is exactly the totality
             // condition for `high - low` -- `joint_subtract_guard`'s carrier.
@@ -195,7 +195,7 @@ fn contribute_fact_expression(
                                 == ArithmeticDomain::Exact
                     })
             {
-                env.mark_joint_subtract_bound(high_path.clone(), low_path.clone());
+                environment.mark_joint_subtract_bound(high_path.clone(), low_path.clone());
             }
             // A literal side narrows the place side's interval, intersected
             // with the field's declared ranges exactly like a guard leaf.
@@ -227,7 +227,7 @@ fn contribute_fact_expression(
                 if let Some(declared) = range_constraint_interval(program, field_type) {
                     interval = interval.intersect(declared);
                 }
-                env.narrow(path.clone(), interval);
+                environment.narrow(path.clone(), interval);
             }
         }
         BinaryOperator::Equal => {
@@ -254,11 +254,11 @@ fn contribute_fact_expression(
                 if let Some(declared) = range_constraint_interval(program, field_type) {
                     interval = interval.intersect(declared);
                 }
-                env.narrow(path.clone(), interval);
+                environment.narrow(path.clone(), interval);
                 if program.primitive_type_reference(field_type) == Some(PrimitiveType::U64)
                     && let Ok(value) = u64::try_from(literal)
                 {
-                    env.mark_known_u64(path.clone(), value);
+                    environment.mark_known_u64(path.clone(), value);
                 }
             }
         }
@@ -349,7 +349,7 @@ where
     })
 }
 
-/// `subject.<name>` is an unambiguous env key only when exactly one field of
+/// `subject.<name>` is an unambiguous environment key only when exactly one field of
 /// the whole data carries that name; a payload field sharing a common field's
 /// spelling would otherwise let the case fact tighten the wrong reads.
 fn field_name_unique(program: &TypedTrees, owner: &DataDefinition, name: &str) -> bool {

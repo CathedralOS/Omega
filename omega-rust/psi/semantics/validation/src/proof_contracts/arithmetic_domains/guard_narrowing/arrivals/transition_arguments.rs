@@ -1,8 +1,8 @@
 use super::super::meaning;
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Machine, State,
-    StatementNode, TransitionGuardNode, TransitionTargetNode, TypedTrees, ValueEnv, analyze,
-    narrow_env_by_condition,
+    StatementNode, TransitionGuardNode, TransitionTargetNode, TypedTrees, ValueEnvironment,
+    analyze, narrow_environment_by_condition,
 };
 use typed_trees::statement::TableTransition;
 
@@ -31,12 +31,12 @@ pub(super) fn integer_bounds(
     }
     // Declared operand bounds remain obligations of every write/arrival.
     // No predecessor guard or body-local inferred value is assumed here.
-    let mut environment = ValueEnv::new();
+    let mut environment = ValueEnvironment::new();
     if let TransitionGuardNode::When(condition) = transition.guard {
         if !stable_builtin_value(program, machine, state, condition, 0) {
             return None;
         }
-        narrow_env_by_condition(
+        narrow_environment_by_condition(
             program,
             machine,
             Some(state),

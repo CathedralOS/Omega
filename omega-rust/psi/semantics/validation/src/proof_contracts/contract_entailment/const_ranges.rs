@@ -7,7 +7,7 @@ use super::{
     Polynomial, StrictArithmeticBindingValue, StrictArithmeticSymbolBinding, SymbolHandle,
     TypedTrees,
 };
-use crate::proof_contracts::arithmetic_domains::ValueEnv;
+use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::state::State;
@@ -144,7 +144,7 @@ pub(crate) fn symbolic_range_contains(
     state: Option<&State>,
     return_type: TypeReferenceHandle,
     value: ExpressionHandle,
-    environment: &ValueEnv,
+    environment: &ValueEnvironment,
 ) -> Option<bool> {
     if let TypeReferenceNode::Reference { referee, .. } =
         program.type_reference_table.type_reference(return_type)
@@ -229,7 +229,7 @@ fn scope_engine<'program>(
     program: &'program TypedTrees,
     machine: &Machine,
     state: Option<&State>,
-    environment: Option<&ValueEnv>,
+    environment: Option<&ValueEnvironment>,
 ) -> Option<Engine<'program>> {
     let mut bindings = Vec::new();
     let mut premises = Vec::new();
@@ -975,7 +975,7 @@ pub(crate) fn validate_const_range_call_in_environment(
     target: SymbolHandle,
     selections: &[StaticMachineArgument],
     arguments: &[ExpressionHandle],
-    environment: Option<&ValueEnv>,
+    environment: Option<&ValueEnvironment>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some((callee, entry)) =

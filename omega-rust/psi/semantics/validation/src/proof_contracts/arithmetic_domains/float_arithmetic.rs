@@ -2,7 +2,9 @@
 
 use crate::proof_contracts::arithmetic_domains::integer_ranges::primitive_range;
 use crate::proof_contracts::arithmetic_domains::place_paths::place_path;
-use crate::proof_contracts::arithmetic_domains::value_environment::{FloatInterval, ValueEnv};
+use crate::proof_contracts::arithmetic_domains::value_environment::{
+    FloatInterval, ValueEnvironment,
+};
 use crate::value_custody::places::declared_place_type_raw;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{
@@ -78,7 +80,7 @@ pub(crate) fn float_source_proves_int_cast(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     value: ExpressionHandle,
     target: PrimitiveType,
 ) -> bool {
@@ -94,7 +96,7 @@ pub(crate) fn float_source_proves_int_cast(
         let Some(path) = place_path(program, value) else {
             return false;
         };
-        let (flow_range, flow_non_nan) = env.float_fact(&path);
+        let (flow_range, flow_non_nan) = environment.float_fact(&path);
         let declared = declared_place_type_raw(program, machine, state, value)
             .and_then(|handle| float_range_constraint_interval(program, handle));
         let range = declared
