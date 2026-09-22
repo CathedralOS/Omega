@@ -27,7 +27,7 @@ pub use foreign_locator::{
     NormalizedForeignLocator, evaluated_syscall_identity_digest, normalize_foreign_locator,
 };
 pub use target_profile::{
-    Architecture, NativeTarget, ObjectFormat, ProgramEntryCallingConvention,
+    Architecture, HostedIntrinsicBundle, NativeTarget, ObjectFormat, ProgramEntryCallingConvention,
     ProgramEntryPhysicalContractPackage, ProgramEntryReceiverProvisioning, ProgramEntrySchema,
     ProgramEntrySlotDeclaration, ProgramEntryVisibleParameters, TargetProfile,
     TargetProfileIdentity, TargetRequiredRootSlotDeclaration,

@@ -1933,6 +1933,7 @@ dependencies = [
  "symbol-resolved-trees-to-typed-trees",
  "symbols",
  "syntax-trees-to-symbol-resolved-trees",
+ "target",
  "tokens-to-syntax-trees",
  "typed-trees",
  "typed-trees-to-checked-trees",
