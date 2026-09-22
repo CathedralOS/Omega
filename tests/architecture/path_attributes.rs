@@ -17,17 +17,9 @@ use std::path::{Path, PathBuf};
 /// Exact no-growth ratchets: (crate directory, `#[path = ...]` attributes
 /// in production source under its `src/` tree).
 const PATH_ATTRIBUTE_CEILINGS: &[(&str, usize)] = &[
-    ("omega-rust/omega/backend/artifacts/native-artifact", 1),
-    ("omega-rust/omega/backend/images/image-emission", 2),
-    ("omega-rust/omega/backend/machine-emission", 3),
-    ("omega-rust/omega/build/package-compilation", 2),
-    ("omega-rust/omega/compiler/compilation-report", 1),
+    ("omega-rust/omega/backend/machine-emission", 2),
     (
         "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout",
-        1,
-    ),
-    (
-        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions",
         1,
     ),
 ];
@@ -52,13 +44,28 @@ fn is_test_file(path: &Path) -> bool {
         .is_some_and(|name| name == "tests.rs" || name.ends_with("_tests.rs"))
 }
 
+/// A path attribute that reaches into a `tests` directory, or that sits under
+/// `#[cfg(test)]`, declares a test fixture (a support module shared between a
+/// crate's unit tests and its integration tests); it is not a production
+/// module and is not counted.
+fn is_fixture_path_attribute(previous: Option<&str>, line: &str) -> bool {
+    line.contains("/tests/")
+        || line.contains("\"tests/")
+        || previous.is_some_and(|previous| previous.trim() == "#[cfg(test)]")
+}
+
 fn count_path_attribute_lines(path: &Path) -> usize {
     let source =
         fs::read_to_string(path).unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
-    source
-        .lines()
-        .filter(|line| is_path_attribute(line))
-        .count()
+    let mut previous = None;
+    let mut count = 0;
+    for line in source.lines() {
+        if is_path_attribute(line) && !is_fixture_path_attribute(previous, line) {
+            count += 1;
+        }
+        previous = Some(line);
+    }
+    count
 }
 
 /// Path attributes in production files under one crate's `src/` tree.
@@ -190,4 +197,16 @@ fn path_attribute_detection_matches_the_documented_forms() {
     ] {
         assert!(!is_path_attribute(line), "{line}");
     }
+    assert!(is_fixture_path_attribute(
+        None,
+        "#[path = \"../tests/support/front_end.rs\"]"
+    ));
+    assert!(is_fixture_path_attribute(
+        Some("#[cfg(test)]"),
+        "#[path = \"support/front_end.rs\"]"
+    ));
+    assert!(!is_fixture_path_attribute(
+        Some("use std::fs;"),
+        "#[path = \"machine/lower_machine.rs\"]"
+    ));
 }
