@@ -427,18 +427,12 @@ impl SymbolicFieldInnerLayout {
         element_count: u64,
         element_stride: u64,
     ) -> Self {
-        Self {
-            field: field.into(),
-            member_identity: None,
-            inner_layout: SymbolicFieldInteriorLayout {
-                hop: ConventionalRecordSumChildHop::Index {
-                    element_count,
-                    element_stride,
-                },
-                interior: SymbolicFieldInterior::Sum(element_layout),
-            },
-            inner_layouts: Vec::new(),
-        }
+        Self::new_element_array(
+            field,
+            SymbolicFieldInterior::Sum(element_layout),
+            element_count,
+            element_stride,
+        )
     }
 
     /// `new_sum_array` carrying the outer field's compiler-retained stable
@@ -470,18 +464,12 @@ impl SymbolicFieldInnerLayout {
         element_count: u64,
         element_stride: u64,
     ) -> Self {
-        Self {
-            field: field.into(),
-            member_identity: None,
-            inner_layout: SymbolicFieldInteriorLayout {
-                hop: ConventionalRecordSumChildHop::Index {
-                    element_count,
-                    element_stride,
-                },
-                interior: SymbolicFieldInterior::Record(element_layout),
-            },
-            inner_layouts: Vec::new(),
-        }
+        Self::new_element_array(
+            field,
+            SymbolicFieldInterior::Record(element_layout),
+            element_count,
+            element_stride,
+        )
     }
 
     /// `new_record_array` carrying the outer field's compiler-retained stable
@@ -496,6 +484,26 @@ impl SymbolicFieldInnerLayout {
         Self {
             member_identity: Some(member_identity),
             ..Self::new_record_array(field, element_layout, element_count, element_stride)
+        }
+    }
+
+    fn new_element_array(
+        field: impl Into<String>,
+        interior: SymbolicFieldInterior,
+        element_count: u64,
+        element_stride: u64,
+    ) -> Self {
+        Self {
+            field: field.into(),
+            member_identity: None,
+            inner_layout: SymbolicFieldInteriorLayout {
+                hop: ConventionalRecordSumChildHop::Index {
+                    element_count,
+                    element_stride,
+                },
+                interior,
+            },
+            inner_layouts: Vec::new(),
         }
     }
 
