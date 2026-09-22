@@ -131,7 +131,7 @@ pub(crate) fn resolve_signature_view_return_source(
         // A direct result can forward a reference carried by an owned input.
         // It has an empty output path but the same structural input lifetime
         // frontier as a reference returned inside another carrier.
-        return structural_view_return_source(program, parameters, return_type);
+        return structural_view_return_source(program, parameters, return_type, &[]);
     }
 
     match reference_lifetime(program, return_type) {
@@ -151,7 +151,7 @@ pub(crate) fn resolve_signature_view_return_source(
                 // contributes its reference as a candidate source and the
                 // returned loan tracks the union — the same structural
                 // matching the aggregate path applies.
-                _ => structural_view_return_source(program, parameters, return_type),
+                _ => structural_view_return_source(program, parameters, return_type, &[]),
             }
         }
         None => match ref_parameters.as_slice() {
@@ -166,6 +166,153 @@ pub(crate) fn resolve_signature_view_return_source(
                     .collect(),
             }),
         },
+    }
+}
+
+/// The same lifetime/source relation decided after one call's exact
+/// substitution has closed a template-dependent signature. Declaration type
+/// parameters resolve through `substitutions` inside every frontier walk, so
+/// each instantiated output view leaf still borrows the exact input leaf its
+/// lifetime names — or the one unambiguous input an elided leaf admits.
+///
+/// The signature's own rules then govern the closed frontier: a substituted
+/// direct-reference result of a receiver call still names the receiver, a
+/// carrier result resolves leaf by leaf through the shared complete-frontier
+/// query, and a relation that still cannot close stays ambiguous rather than
+/// reading as an empty frontier.
+pub(crate) fn resolve_substituted_view_return_source(
+    program: &TypedTrees,
+    parameters: &[StateParameter],
+    return_type: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> ViewReturnSource {
+    if !substituted_returns_borrow(program, return_type, substitutions) {
+        return ViewReturnSource::NotApplicable;
+    }
+    if substituted_is_reference_type(program, return_type, substitutions)
+        && parameters.iter().any(|parameter| parameter.is_self)
+    {
+        // Elision rule 3 survives substitution: a direct-reference result of
+        // a receiver call borrows the receiver.
+        return ViewReturnSource::SelfReceiver;
+    }
+    if !substituted_is_reference_type(program, return_type, substitutions)
+        || parameters.iter().any(|parameter| {
+            !parameter.is_self
+                && !substituted_is_reference_type(program, parameter.type_reference, substitutions)
+                && substituted_returns_borrow(program, parameter.type_reference, substitutions)
+        })
+    {
+        // Carrier results — and direct references possibly forwarded from an
+        // owned borrow-carrying input — resolve leaf by leaf on the
+        // instantiated frontier.
+        return structural_view_return_source(program, parameters, return_type, substitutions);
+    }
+
+    let mut ref_parameters: Vec<(usize, &str, Option<&str>)> = Vec::new();
+    let mut non_self_index = 0usize;
+    for parameter in parameters {
+        if parameter.is_self {
+            continue;
+        }
+        let index = non_self_index;
+        non_self_index = non_self_index.saturating_add(1);
+        if substituted_is_reference_type(program, parameter.type_reference, substitutions) {
+            ref_parameters.push((
+                index,
+                parameter.name.as_str(),
+                substituted_reference_lifetime(program, parameter.type_reference, substitutions),
+            ));
+        }
+    }
+
+    match substituted_reference_lifetime(program, return_type, substitutions) {
+        Some(output_lifetime) => {
+            let matching: Vec<&(usize, &str, Option<&str>)> = ref_parameters
+                .iter()
+                .filter(|(_, _, lifetime)| *lifetime == Some(output_lifetime))
+                .collect();
+            match matching.as_slice() {
+                [] => ViewReturnSource::Ambiguous(ViewReturnAmbiguity::LifetimeMatchesNoInput {
+                    lifetime: output_lifetime.to_owned(),
+                }),
+                [single] => ViewReturnSource::Parameter {
+                    non_self_index: single.0,
+                },
+                _ => structural_view_return_source(program, parameters, return_type, substitutions),
+            }
+        }
+        None => match ref_parameters.as_slice() {
+            [] => ViewReturnSource::NotApplicable,
+            [single] => ViewReturnSource::Parameter {
+                non_self_index: single.0,
+            },
+            _ => ViewReturnSource::Ambiguous(ViewReturnAmbiguity::ElidedMultipleInputs {
+                candidates: ref_parameters
+                    .iter()
+                    .map(|(_, name, _)| (*name).to_owned())
+                    .collect(),
+            }),
+        },
+    }
+}
+
+fn substituted_is_reference_type(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { .. } => true,
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            substituted_is_reference_type(program, *base_type, substitutions)
+        }
+        TypeReferenceNode::Named { symbol, .. } => substitutions
+            .iter()
+            .rev()
+            .find(|(parameter, _)| parameter == symbol)
+            .is_some_and(|(_, concrete)| {
+                substituted_is_reference_type(program, *concrete, substitutions)
+            }),
+        _ => false,
+    }
+}
+
+fn substituted_returns_borrow(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    substituted_is_reference_type(program, type_reference, substitutions)
+        || type_structurally_carries_borrow(
+            program,
+            type_reference,
+            substitutions,
+            &mut Vec::new(),
+            false,
+        )
+}
+
+fn substituted_reference_lifetime<'p>(
+    program: &'p TypedTrees,
+    type_reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> Option<&'p str> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { lifetime, .. } => {
+            lifetime.as_ref().map(|name| name.as_str())
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            substituted_reference_lifetime(program, *base_type, substitutions)
+        }
+        TypeReferenceNode::Named { symbol, .. } => substitutions
+            .iter()
+            .rev()
+            .find(|(parameter, _)| parameter == symbol)
+            .and_then(|(_, concrete)| {
+                substituted_reference_lifetime(program, *concrete, substitutions)
+            }),
+        _ => None,
     }
 }
 
@@ -184,18 +331,22 @@ fn reference_lifetime(program: &TypedTrees, type_reference: TypeReferenceHandle)
 
 mod carried_lifetimes;
 
-use carried_lifetimes::carried_lifetimes;
 pub(crate) use carried_lifetimes::{
-    DeclarationLifetimeFrontier, declaration_lifetime_frontier, substituted_result_is_view_free,
+    DeclarationLifetimeFrontier, declaration_lifetime_frontier,
+    substituted_result_frontier_is_complete, substituted_result_is_view_free,
 };
+use carried_lifetimes::{carried_lifetimes, substituted_carried_lifetimes};
 
 fn structural_view_return_source(
     program: &TypedTrees,
     parameters: &[StateParameter],
     return_type: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> ViewReturnSource {
-    let Some(outputs) = carried_lifetimes(program, return_type) else {
-        if let Some(source) = whole_elided_result_source(program, parameters, return_type) {
+    let Some(outputs) = substituted_carried_lifetimes(program, return_type, substitutions) else {
+        if substitutions.is_empty()
+            && let Some(source) = whole_elided_result_source(program, parameters, return_type)
+        {
             return source;
         }
         return ViewReturnSource::Ambiguous(ViewReturnAmbiguity::IncompleteStructure {
@@ -211,10 +362,12 @@ fn structural_view_return_source(
         .filter(|parameter| !parameter.is_self)
         .enumerate()
     {
-        if !returns_borrow(program, parameter.type_reference) {
+        if !substituted_returns_borrow(program, parameter.type_reference, substitutions) {
             continue;
         }
-        let Some(leaves) = carried_lifetimes(program, parameter.type_reference) else {
+        let Some(leaves) =
+            substituted_carried_lifetimes(program, parameter.type_reference, substitutions)
+        else {
             return ViewReturnSource::Ambiguous(ViewReturnAmbiguity::IncompleteStructure {
                 subject: format!("input `{}`", parameter.name),
             });

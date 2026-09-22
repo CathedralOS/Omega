@@ -149,7 +149,7 @@ fn check_target(
             }
         };
     if unresolved_frontier
-        && !closed_view_free_return(program, machine, state, target, static_arguments, arguments)
+        && !closed_return_frontier(program, machine, state, target, static_arguments, arguments)
     {
         diagnostics.push(Diagnostic::error(format!(
             "call `{name}` in machine `{}` has a template-dependent returned-carrier lifetime frontier; a concrete checked callable is required before this call can produce or discard a value",
@@ -158,7 +158,14 @@ fn check_target(
     }
 }
 
-fn closed_view_free_return(
+/// A template-dependent returned-carrier frontier admits a call once the
+/// call's own static-callable substitution closes it: the instantiated
+/// frontier must be complete and the substituted result-to-input relation
+/// must resolve every returned view leaf to an exact caller source. A
+/// closed view-free result is the same check with an empty frontier;
+/// unresolved structure, unmatched leaves, and access escalation all keep
+/// the historical rejection.
+fn closed_return_frontier(
     program: &TypedTrees,
     caller: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -185,9 +192,20 @@ fn closed_view_free_return(
     ) else {
         return false;
     };
-    crate::borrow::view_link::substituted_result_is_view_free(
+    if !crate::borrow::view_link::substituted_result_frontier_is_complete(
         program,
         signature.return_type,
         &substitutions,
+    ) {
+        return false;
+    }
+    !matches!(
+        crate::borrow::view_link::resolve_substituted_view_return_source(
+            program,
+            program.state_signature_parameters(signature),
+            signature.return_type,
+            &substitutions,
+        ),
+        crate::borrow::view_link::ViewReturnSource::Ambiguous(_)
     )
 }
