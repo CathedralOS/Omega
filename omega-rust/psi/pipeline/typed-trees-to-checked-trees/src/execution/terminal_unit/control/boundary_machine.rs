@@ -1,16 +1,18 @@
 //! Building boundary machines and their static boundary requirements.
 
+use crate::execution::terminal_unit::calls::{
+    exact_compiler_intrinsic_boundary_requirement, structural_scalar_signature,
+};
 use crate::execution::terminal_unit::types::{byte_sequence_carrier, substituted_formal_type};
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
     CheckedStructuralScalarParameterPlan, CheckedUnitStructuralDomainRequirementPlan,
     CheckedUnitStructuralParameterPlan, ShapeCollector, SymbolHandle, TypedTrees,
-    boundary_domain_requirements, exact_compiler_intrinsic_boundary_requirement,
-    fold_authorized_result_domains, is_reference, is_unit, machine_binders,
-    mutable_plain_nonlinear_referent, parameter_qualifications, projected_parameter_qualifications,
-    shared_plain_affine_referent, signature_contracts_are_exact_parameter_qualifications,
-    state_flow, structural_access_for_type_reference, structural_scalar_signature,
-    type_graph_requires_nominal_drop,
+    boundary_domain_requirements, fold_authorized_result_domains, is_reference, is_unit,
+    machine_binders, mutable_plain_nonlinear_referent, parameter_qualifications,
+    projected_parameter_qualifications, shared_plain_affine_referent,
+    signature_contracts_are_exact_parameter_qualifications, state_flow,
+    structural_access_for_type_reference, type_graph_requires_nominal_drop,
 };
 
 pub(crate) fn build_boundary_machine(

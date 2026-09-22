@@ -36,9 +36,11 @@ use super::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource, StatementNode, TypeReferenceNode, TypedTrees,
 };
+use crate::execution::terminal_unit::calls::{
+    entry_claims, free_structural_scalar_signature, structural_signature,
+};
 use crate::execution::terminal_unit::{
-    ShapeCollector, control, entry_claims, free_structural_scalar_signature, is_unit,
-    machine_binders, state_flow, structural_signature,
+    ShapeCollector, control, is_unit, machine_binders, state_flow,
 };
 
 /// `plans` is the checked ordinary-Unit roster this plan may join: the

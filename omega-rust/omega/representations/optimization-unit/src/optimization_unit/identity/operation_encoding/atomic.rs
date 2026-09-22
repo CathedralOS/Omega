@@ -3,7 +3,9 @@
 //! and single-attempt custody are encoded as data so identity changes when
 //! either changes; legality remains the event's own recheck.
 
-use super::super::{encode_abstract_result, encode_structural_operation_result};
+use crate::optimization_unit::identity::carrier_encoding::encode_abstract_result;
+use crate::optimization_unit::identity::structural_encoding::encode_structural_operation_result;
+
 use super::{AbstractOperation, CanonicalBytes};
 use abstract_operations::{
     AbstractAtomicFenceOrdering, AbstractAtomicReadModifyWrite, AtomicModificationAfter,

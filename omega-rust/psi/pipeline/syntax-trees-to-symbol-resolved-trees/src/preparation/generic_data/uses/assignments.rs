@@ -2,10 +2,12 @@
 use super::super::{
     DataMember, ExpressionNode, HashMap, Item, StatementNode, SyntaxTrees, TypeReferenceHandle,
 };
-use crate::preparation::generic_data::ConstructorFrontier;
+use crate::preparation::generic_data::uses::{
+    ConstructorFrontier, relabel_data_literal_for_expected_type,
+};
+
 use crate::preparation::generic_data::Instantiation;
 use crate::preparation::generic_data::constant_selection;
-use crate::preparation::generic_data::relabel_data_literal_for_expected_type;
 
 /// A constant's declared type constrains its constructors before the value is
 /// copied into consumers. Otherwise a closed `Box<u64>` declaration can leave

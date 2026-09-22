@@ -12,12 +12,14 @@ use super::{
     TransitionTargetNode, TypeReferenceNode, TypedTrees, calls,
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
+use crate::execution::terminal_unit::calls::{
+    entry_claims, free_structural_scalar_signature_traced, structural_scalar_signature_traced,
+};
 use crate::execution::terminal_unit::returns::checked_boolean_contains_short_circuit;
 use crate::execution::terminal_unit::types::{borrowed_slice_view_element, byte_sequence_carrier};
 use crate::execution::terminal_unit::{
     ShapeCollector, checked_composed_provider_attachment_requirements, composed_control, control,
-    entry_claims, free_structural_scalar_signature_traced, machine_binders,
-    return_unit_affine_discards, state_flow, structural_scalar_signature_traced,
+    machine_binders, return_unit_affine_discards, state_flow,
 };
 
 mod closed_sum;

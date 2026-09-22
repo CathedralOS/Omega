@@ -46,9 +46,6 @@ mod proposition_encoding;
 mod structural_encoding;
 mod unit_encoding;
 
-use carrier_encoding::*;
-use proposition_encoding::*;
-use structural_encoding::*;
 use unit_encoding::CanonicalBytes;
 
 pub use unit_encoding::{

@@ -8,7 +8,7 @@ use super::{
     TypeReferenceNode, TypedTrees,
 };
 use crate::execution::terminal_unit::ShapeCollector;
-use crate::execution::terminal_unit::provider_attachment_receiver_matches;
+use crate::execution::terminal_unit::calls::provider_attachment_receiver_matches;
 
 pub(super) fn checked_provider_attachment_requirements(
     program: &TypedTrees,

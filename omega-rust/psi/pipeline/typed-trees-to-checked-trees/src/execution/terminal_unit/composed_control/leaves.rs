@@ -6,8 +6,8 @@ use super::super::{
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralParameterPlan, Multiplicity,
     StatementNode, TypedTrees,
 };
+use crate::execution::terminal_unit::calls::build_call_operation;
 
-use crate::execution::terminal_unit::build_call_operation;
 use crate::execution::terminal_unit::state_flow;
 
 pub(super) fn build(

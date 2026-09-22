@@ -1,5 +1,6 @@
 //! Payloadless guarded call return machines.
 
+use crate::execution::terminal_unit::calls::structural_signature;
 use crate::execution::terminal_unit::cleanup::{
     service_reach_is_empty, service_reach_plan_is_empty,
 };
@@ -9,7 +10,7 @@ use crate::execution::terminal_unit::{
     CheckedStructuralResultPlan, CheckedStructuralReturnPlans, CheckedUnitCallCoordinate,
     DataMember, ExpressionNode, Multiplicity, ShapeCollector, SignatureContractKind, StatementNode,
     TransitionExit, TransitionGuardNode, TransitionTargetNode, TypeReferenceNode, TypedTrees,
-    machine_binders, parameter_qualifications, state_flow, structural_signature,
+    machine_binders, parameter_qualifications, state_flow,
 };
 
 pub(crate) fn build_payloadless_guarded_call_return_machine(

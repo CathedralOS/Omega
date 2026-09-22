@@ -4,9 +4,10 @@ use crate::pre_resolution::normalize_generic_data;
 use crate::preparation::generic_data::ClosedArgumentIdentity;
 use crate::preparation::generic_data::Instantiation;
 use crate::preparation::generic_data::closed_argument_identity;
-use crate::preparation::generic_data::concrete_machine_expression_handles;
-use crate::preparation::generic_data::expected_instance;
-use crate::preparation::generic_data::selected_constructor;
+use crate::preparation::generic_data::uses::{
+    concrete_machine_expression_handles, expected_instance, selected_constructor,
+};
+
 use source::SourceId;
 use source_files_to_tokens::Lexer;
 use syntax_trees::SyntaxTrees;

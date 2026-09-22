@@ -1,3 +1,4 @@
+use crate::execution::terminal_unit::calls::free_structural_scalar_signature;
 /*
 We build executable source plans from already-checked ownership, control, and
 call facts. A typed body can be legal without fitting a Terminal producer yet;
@@ -184,7 +185,6 @@ pub(crate) mod types;
 
 use crate::execution::terminal_unit::cleanup::build_partial_affine_unit_cleanup_machine;
 pub(crate) use calls::structural_computation_argument;
-use calls::*;
 use cleanup::*;
 use composed_control::*;
 use control::*;

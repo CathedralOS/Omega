@@ -2,7 +2,8 @@
 //! exact borrow access and the claim transfers a call performs.
 
 use crate::execution::terminal_unit::ScalarCalleePlans;
-use crate::execution::terminal_unit::byte_subslice;
+use crate::execution::terminal_unit::calls::byte_subslice;
+
 use crate::execution::terminal_unit::calls::argument_paths::{
     byte_sequence_literal_argument, projected_argument_path, projected_argument_path_with_identity,
 };

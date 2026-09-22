@@ -1,8 +1,9 @@
 use super::guard;
 use super::{
-    Batch, Diagnostic, ExpressionArguments, ExpressionEdit, ExpressionHandle, ExpressionNode,
-    GraphGuard, SelectedDispatchSourceEdits, StatementEdit, TypedTrees, rejected,
+    Diagnostic, ExpressionHandle, ExpressionNode, GraphGuard, SelectedDispatchSourceEdits,
+    TypedTrees, rejected,
 };
+use crate::source_edits::records::{Batch, ExpressionArguments, ExpressionEdit, StatementEdit};
 use symbols::SymbolHandle;
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::statement::{StatementHandle, StatementNode};

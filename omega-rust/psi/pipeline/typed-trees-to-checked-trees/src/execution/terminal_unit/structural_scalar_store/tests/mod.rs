@@ -1,5 +1,6 @@
-use super::super::{ShapeCollector, machine_binders, structural_signature};
+use super::super::{ShapeCollector, machine_binders};
 use super::{build_structural_scalar_field_store_sequence, frame};
+use crate::execution::terminal_unit::calls::structural_signature;
 use crate::execution::terminal_unit::control::build_checked_machine;
 use crate::tests::front_end::{checked_program, typed_program};
 use checked_trees::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};

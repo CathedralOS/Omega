@@ -1,4 +1,5 @@
-use super::super::super::structural_scalar_signature;
+use crate::execution::terminal_unit::calls::structural_scalar_signature;
+
 use super::super::plain_record;
 use super::CheckedUnitEffectOperationPlan;
 use crate::execution::terminal_unit::ShapeCollector;

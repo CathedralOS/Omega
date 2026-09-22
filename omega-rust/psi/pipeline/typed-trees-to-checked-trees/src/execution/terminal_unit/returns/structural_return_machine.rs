@@ -1,13 +1,14 @@
 //! The structural return machine and exact parameter qualifications.
 
+use crate::execution::terminal_unit::calls::{entry_claims, structural_signature};
 use crate::execution::terminal_unit::{
     CarryPolicy, CheckFacts, CheckedStructuralResultPlan, CheckedStructuralReturnMachinePlan,
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitStructuralTypeShape, ExpressionNode,
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource, ProofFact, SemanticDomainId, ShapeCollector, SignatureContractKind,
-    StateParameter, StatementNode, TypeReferenceNode, TypedTrees, entry_claims, machine_binders,
+    StateParameter, StatementNode, TypeReferenceNode, TypedTrees, machine_binders,
     parameter_qualifications, projected_parameter_qualifications, return_unit_affine_discards,
-    structural_signature, type_graph_requires_nominal_drop,
+    type_graph_requires_nominal_drop,
 };
 
 pub(crate) fn build_structural_return_machine(

@@ -1,5 +1,8 @@
 //! Structural and trait-operator scalar return machines.
 
+use crate::execution::terminal_unit::calls::{
+    free_structural_scalar_signature, structural_scalar_signature,
+};
 use crate::execution::terminal_unit::cleanup::{
     checked_requires_expressions, machine_has_content_evidence,
     nominal_cleanup_boolean_requirements, nominal_cleanup_missing_requirement,
@@ -22,9 +25,9 @@ use crate::execution::terminal_unit::{
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypeShape, Diagnostic, ExpressionNode,
     MachineSupplyMode, Multiplicity, PermissionAccess, PermissionEventKind, PermissionEventSource,
     PrimitiveType, ShapeCollector, StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
-    checked_shared_boolean_convergence, free_structural_scalar_signature, is_reference,
-    machine_binders, parameter_qualifications, projected_parameter_qualifications,
-    shared_convergence, state_flow, structural_scalar_signature, type_graph_requires_nominal_drop,
+    checked_shared_boolean_convergence, is_reference, machine_binders, parameter_qualifications,
+    projected_parameter_qualifications, shared_convergence, state_flow,
+    type_graph_requires_nominal_drop,
 };
 
 pub(crate) fn build_trait_operator_scalar_return_machine(

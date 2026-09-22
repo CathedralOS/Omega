@@ -1,9 +1,11 @@
 //! Boolean and integer scalar-operation tags.
 
-use super::super::{
-    encode_abstract_result, encode_canonical_path, encode_integer_value, encode_scalar_type,
+use crate::optimization_unit::identity::carrier_encoding::{
+    encode_abstract_result, encode_integer_value, encode_scalar_type,
     encode_structural_path_segment,
 };
+use crate::optimization_unit::identity::proposition_encoding::encode_canonical_path;
+
 use super::scalar_shapes::*;
 use super::{AbstractOperation, CanonicalBytes};
 

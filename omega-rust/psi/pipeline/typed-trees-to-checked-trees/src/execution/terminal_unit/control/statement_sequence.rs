@@ -20,6 +20,7 @@ use super::{
     StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
+use crate::execution::terminal_unit::calls::{ExpectedCallValueResult, build_call_operation};
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::call_occurrences;
 use crate::execution::terminal_unit::control::call_results::bind_scalar_call_result;
@@ -27,8 +28,8 @@ use crate::execution::terminal_unit::control::call_results::bind_structural_call
 use crate::execution::terminal_unit::control::call_results::checked_structural_result_type;
 use crate::execution::terminal_unit::returns::checked_boolean_contains_short_circuit;
 use crate::execution::terminal_unit::{
-    ExpectedCallValueResult, ShapeCollector, base_type_identity, build_call_operation, is_unit,
-    machine_binders, parameter_qualifications, scalar_expression_local_at, structural_operands,
+    ShapeCollector, base_type_identity, is_unit, machine_binders, parameter_qualifications,
+    scalar_expression_local_at, structural_operands,
 };
 use checked_trees::CheckedUnitStructuralReturnPlan;
 

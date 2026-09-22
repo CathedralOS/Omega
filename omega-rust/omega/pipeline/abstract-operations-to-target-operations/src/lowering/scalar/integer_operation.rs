@@ -1,9 +1,10 @@
 //! Exhaustive selection of integer scalar-operation semantics.
 use super::{
-    IntegerBinaryKind, KnownInteger, KnownScalar, WrappingShiftKind, insert_value,
-    lower_exact_shift_left, lower_exact_shift_right, lower_integer_binary, lower_wrapping_shift,
+    IntegerBinaryKind, KnownInteger, KnownScalar, WrappingShiftKind, lower_exact_shift_left,
+    lower_exact_shift_right, lower_integer_binary, lower_wrapping_shift,
 };
 use crate::LoweringError;
+use crate::lowering::scalar::expressions::insert_value;
 use abstract_operations::AbstractOperation;
 use semantic_vocabulary::{ScalarType, ValueId};
 use std::collections::BTreeMap;

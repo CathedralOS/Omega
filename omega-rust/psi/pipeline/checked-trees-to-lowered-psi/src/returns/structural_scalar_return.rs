@@ -21,13 +21,15 @@ use super::{
 use crate::emission::boolean_control::LoweredBooleanDecisionExit;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::returns::structural_scalar_return::expressions::{
+    is_branch_free_structural_scalar_expression, is_structural_scalar_return_expression,
+};
 
 mod effects;
 mod expressions;
 mod nominal;
 mod selected_operator;
 mod shared_types;
-use expressions::*;
 use nominal::lower_nominal_structural_scalar_return_machine;
 pub(crate) use selected_operator::lower_selected_operator_structural_scalar_return_machine;
 
