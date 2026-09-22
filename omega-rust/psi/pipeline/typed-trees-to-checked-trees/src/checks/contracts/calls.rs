@@ -662,12 +662,12 @@ fn unqualified_label_identifiers(label: &str) -> Vec<String> {
     let mut names = Vec::new();
     let mut cursor = 0usize;
     while cursor < label.len() {
-        let Some(ch) = label[cursor..].chars().next() else {
+        let Some(character) = label[cursor..].chars().next() else {
             break;
         };
-        if ch == '_' || ch.is_alphabetic() {
+        if character == '_' || character.is_alphabetic() {
             let start = cursor;
-            cursor += ch.len_utf8();
+            cursor += character.len_utf8();
             while cursor < label.len() {
                 let Some(next) = label[cursor..].chars().next() else {
                     break;
@@ -688,7 +688,7 @@ fn unqualified_label_identifiers(label: &str) -> Vec<String> {
                 names.push(identifier.to_owned());
             }
         } else {
-            cursor += ch.len_utf8();
+            cursor += character.len_utf8();
         }
     }
     names
@@ -751,12 +751,12 @@ fn replace_unqualified_identifiers(label: &str, replacements: &[(&str, String)])
     let mut result = String::with_capacity(label.len());
     let mut cursor = 0usize;
     while cursor < label.len() {
-        let Some(ch) = label[cursor..].chars().next() else {
+        let Some(character) = label[cursor..].chars().next() else {
             break;
         };
-        if ch == '_' || ch.is_alphabetic() {
+        if character == '_' || character.is_alphabetic() {
             let start = cursor;
-            cursor += ch.len_utf8();
+            cursor += character.len_utf8();
             while cursor < label.len() {
                 let Some(next) = label[cursor..].chars().next() else {
                     break;
@@ -779,8 +779,8 @@ fn replace_unqualified_identifiers(label: &str, replacements: &[(&str, String)])
                 result.push_str(identifier);
             }
         } else {
-            result.push(ch);
-            cursor += ch.len_utf8();
+            result.push(character);
+            cursor += character.len_utf8();
         }
     }
     result
