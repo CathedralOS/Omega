@@ -12,6 +12,7 @@ use crate::preparation::generic_data::collect_type_reference_positions;
 use crate::preparation::generic_data::consider_generic_spelling;
 use crate::preparation::generic_data::evaluate_const_fact_expression;
 use crate::preparation::generic_data::evaluate_const_membership_fact;
+use crate::preparation::generic_data::normalize_domain_head_positions;
 use crate::preparation::generic_data::normalize_generic_template_const_expressions;
 use crate::preparation::generic_data::qualified_const_name;
 use crate::preparation::generic_data::relabel_closed_data_uses_in_constants;
@@ -239,6 +240,49 @@ pub(in crate::preparation) fn desugar_generic_data_instances_with_selection(
         })
         .collect();
     let const_values = super::module_constants::lexical_integer_const_values(syntax);
+
+    // A `Carrier::Domain<indices>` type spells the same declared application
+    // as the constrained `Carrier in Domain<indices>` node. Rewrite every
+    // reachable head BEFORE the closed-index canonicalization snapshot so a
+    // module constant inside one folds exactly as it does in an authored
+    // constraint, and every later read -- solving, identity, naming,
+    // substitution -- observes the one canonical shape. Generic template
+    // members are open positions whose substituted copies reach the fixpoint
+    // below, so they are normalized while the template is still authored.
+    let mut domain_head_positions = collect_type_reference_positions(syntax);
+    for &root in closed_roots {
+        super::collect_type_positions(syntax, root, &mut domain_head_positions, true);
+    }
+    for item in syntax.root_items() {
+        let Item::Data(definition) = item else {
+            continue;
+        };
+        if definition.type_parameters.is_empty() {
+            continue;
+        }
+        for member in syntax.items.data_members(definition.members) {
+            match member {
+                DataMember::Field(field) => super::collect_type_positions(
+                    syntax,
+                    field.type_reference,
+                    &mut domain_head_positions,
+                    true,
+                ),
+                DataMember::Variant(variant) => {
+                    for field in syntax.items.data_payload_fields(variant.payload) {
+                        super::collect_type_positions(
+                            syntax,
+                            field.type_reference,
+                            &mut domain_head_positions,
+                            true,
+                        );
+                    }
+                }
+                DataMember::Retired(_) => {}
+            }
+        }
+    }
+    normalize_domain_head_positions(syntax, selection, &domain_head_positions);
 
     canonicalize_closed_domain_indices(
         syntax,

@@ -14,6 +14,7 @@ use std::{
 use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
+use typed_trees::types::TypeReferenceNode;
 
 static NEXT_PROJECT: AtomicU64 = AtomicU64::new(0);
 
@@ -1132,12 +1133,30 @@ where Backing == Cell<Element, Capacity>
     );
 }
 
-#[test]
-fn domain_application_arguments_reach_instance_identity_after_binding() {
-    // Both authored domain-application spellings bind the index through the
-    // shared matcher; what remains is a closed identity for the domain
-    // argument itself, which keeps specialization as the residual frontier.
-    let source = r#"
+/// Count the closed `TinyBytes` instances the checked forest synthesized:
+/// every specialization keeps an exact generic origin whose base symbol is
+/// the template's own.
+fn tiny_bytes_instance_count(checked: &CheckedCompilation) -> usize {
+    let template = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "TinyBytes")
+        .expect("the TinyBytes template remains declared");
+    checked
+        .typed
+        .data_definitions()
+        .iter()
+        .filter(|definition| {
+            definition.generic_instance.is_some_and(|origin| matches!(
+                checked.typed.type_reference_table.type_reference(origin),
+                TypeReferenceNode::Generic { base_symbol, .. } if *base_symbol == template.symbol
+            ))
+        })
+        .count()
+}
+
+const TINY_BYTES_DOMAIN_SOURCE: &str = r#"
 domain<const Bound: u64> u64::AtMost<Bound>;
 
 data TinyBytes<Length, const Capacity: u64>
@@ -1150,11 +1169,61 @@ where
 
 machine Main::main(&mut self) {}
 "#;
-    for spelling in ["u64::AtMost<256> ", "u64 in AtMost<256> "] {
-        let with_holder = format!("{source}\ndata Holder {{ inferred: TinyBytes<{spelling}>; }}");
-        rejects(
-            &[("main.omg", &with_holder)],
-            "closed instance specialization",
-        );
-    }
+
+#[test]
+fn domain_application_arguments_reach_instance_identity_after_binding() {
+    // Both authored domain-application spellings bind the index through the
+    // shared matcher and normalize to the same constrained node, so each
+    // holder selects the one closed `TinyBytes<u64 in AtMost<256>, 256>`
+    // instance rather than a spelling-private specialization.
+    let with_holders = format!(
+        "{TINY_BYTES_DOMAIN_SOURCE}\ndata Head {{ inferred: TinyBytes<u64::AtMost<256> >; }}\ndata Constrained {{ inferred: TinyBytes<u64 in AtMost<256> >; }}"
+    );
+    let project = Project::new(&[("main.omg", &with_holders)]);
+    let checked = project
+        .check()
+        .unwrap_or_else(|errors| panic!("{}: {errors:#?}", project.0.display()));
+    assert_eq!(
+        tiny_bytes_instance_count(&checked),
+        1,
+        "both domain spellings must select one closed TinyBytes instance"
+    );
+}
+
+#[test]
+fn domain_application_arguments_fold_const_indices_across_spellings() {
+    // A lexical const index is the same closed computation in either
+    // spelling: the head form joins the closed-index canonicalization
+    // snapshot the authored constraint already passes through, so `CAP`
+    // folds to `256` before either spelling's identity is computed.
+    let with_holders = format!(
+        "{TINY_BYTES_DOMAIN_SOURCE}\nconst CAP: u64 = 256;\ndata Head {{ inferred: TinyBytes<u64::AtMost<CAP> >; }}\ndata Constrained {{ inferred: TinyBytes<u64 in AtMost<CAP> >; }}"
+    );
+    let project = Project::new(&[("main.omg", &with_holders)]);
+    let checked = project
+        .check()
+        .unwrap_or_else(|errors| panic!("{}: {errors:#?}", project.0.display()));
+    assert_eq!(
+        tiny_bytes_instance_count(&checked),
+        1,
+        "a const index must fold identically under both domain spellings"
+    );
+}
+
+#[test]
+fn distinct_domain_index_arguments_select_distinct_instances() {
+    // Distinct indices are distinct applications of the one family: neither
+    // spelling may equate `AtMost<256>` with `AtMost<255>`.
+    let with_holders = format!(
+        "{TINY_BYTES_DOMAIN_SOURCE}\ndata Head {{ inferred: TinyBytes<u64::AtMost<256> >; }}\ndata Constrained {{ inferred: TinyBytes<u64 in AtMost<255> >; }}"
+    );
+    let project = Project::new(&[("main.omg", &with_holders)]);
+    let checked = project
+        .check()
+        .unwrap_or_else(|errors| panic!("{}: {errors:#?}", project.0.display()));
+    assert_eq!(
+        tiny_bytes_instance_count(&checked),
+        2,
+        "distinct domain indices must keep distinct closed TinyBytes instances"
+    );
 }

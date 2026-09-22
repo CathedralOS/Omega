@@ -9,14 +9,15 @@
 
 use super::super::{Binding, Solver, const_binder_envelope, normalized_boolean_argument};
 use crate::preparation::generic_data::{
-    ClosedArgumentIdentity, closed_argument_identity, closed_name_identity,
+    ClosedArgumentIdentity, DomainHead, closed_argument_identity, closed_name_identity,
+    domain_application_head, domain_index_telescope,
 };
 use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstValue;
 use numerics::bignum::BigInt;
 use source::SourceSpan;
 use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{DomainDefinition, Item, ItemHandle, TypeParameter, TypeParameterKind};
+use syntax_trees::item::{Item, ItemHandle, TypeParameter, TypeParameterKind};
 use syntax_trees::types::{
     DomainConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
@@ -38,16 +39,6 @@ struct DomainApplication {
     /// The matched carrier: the declared target for a `Carrier::Name<..>`
     /// head, the authored base for a `base in Name<..>` constraint.
     carrier: TypeReferenceHandle,
-}
-
-/// One in-forest `domain` declaration selected as an application head.
-struct DomainHead {
-    declaration: ItemHandle,
-    declared_name: Identifier,
-    /// The family's index telescope: its declared parameters minus a leading
-    /// type binder that names a generic carrier (`domain<T> T::Foreign`).
-    index_parameters: Vec<TypeParameter>,
-    target_type: TypeReferenceHandle,
 }
 
 impl Solver<'_, '_> {
@@ -189,54 +180,10 @@ impl Solver<'_, '_> {
     /// carrier: `u64::AtMost` reaches `domain<const C: u64> u64::AtMost<C>`,
     /// whose declared name retains only the domain segments. A generic-carrier
     /// family (`domain<T> T::Foreign`) declines: its binder needs its own
-    /// binding law before an application can be structural.
+    /// binding law before an application can be structural. The selection law
+    /// is shared with argument identity in `generic_data::arguments`.
     fn domain_head(&self, name: &Identifier) -> Option<DomainHead> {
-        let spelled = name.as_str();
-        let (carrier, leaf) = match spelled.rsplit_once("::") {
-            Some((carrier, leaf)) => (Some(carrier), leaf),
-            None => (None, spelled),
-        };
-        let mut candidates = self
-            .syntax
-            .root_item_handles()
-            .iter()
-            .copied()
-            .filter(|handle| {
-                let Item::Domain(definition) = self.syntax.root_item(*handle) else {
-                    return false;
-                };
-                let declared = definition.name.as_str();
-                let declared_leaf = declared.rsplit("::").next().unwrap_or(declared);
-                if declared != spelled && declared_leaf != leaf {
-                    return false;
-                }
-                match carrier {
-                    None => true,
-                    Some(carrier) => matches!(
-                        self.syntax
-                            .type_references
-                            .type_reference(definition.target_type),
-                        TypeReferenceNode::Named(target) if target.as_str() == carrier
-                    ),
-                }
-            });
-        let declaration = candidates.next()?;
-        if candidates.next().is_some() {
-            return None;
-        }
-        let Item::Domain(definition) = self.syntax.root_item(declaration) else {
-            return None;
-        };
-        let (index_parameters, generic_carrier) = self.domain_index_parameters(definition);
-        if generic_carrier {
-            return None;
-        }
-        Some(DomainHead {
-            declaration,
-            declared_name: definition.name.clone(),
-            index_parameters,
-            target_type: definition.target_type,
-        })
+        domain_application_head(self.syntax, name)
     }
 
     /// The `base in Name<index, ..>` spelling: the constraint name reaches a
@@ -286,7 +233,7 @@ impl Solver<'_, '_> {
         let Item::Domain(definition) = self.syntax.root_item(declaration) else {
             unreachable!("a domain head is a domain item")
         };
-        let (index_parameters, generic_carrier) = self.domain_index_parameters(definition);
+        let (index_parameters, generic_carrier) = domain_index_telescope(self.syntax, definition);
         if generic_carrier {
             return Err(self
                 .type_structure_error("requires a domain application on a closed carrier", span));
@@ -306,32 +253,6 @@ impl Solver<'_, '_> {
                 carrier: base_type,
             }),
             span,
-        )
-    }
-
-    /// The family's index telescope and whether its leading type binder names
-    /// the carrier. Concrete carriers like `domain<const C: u64> u64::AtMost<C>`
-    /// keep every declared parameter as an index.
-    fn domain_index_parameters(&self, definition: &DomainDefinition) -> (Vec<TypeParameter>, bool) {
-        let parameters = self
-            .syntax
-            .items
-            .type_parameters(definition.type_parameters);
-        let target_name = match self
-            .syntax
-            .type_references
-            .type_reference(definition.target_type)
-        {
-            TypeReferenceNode::Named(target) => Some(target.as_str()),
-            _ => None,
-        };
-        let generic_carrier = parameters.first().is_some_and(|parameter| {
-            matches!(parameter.kind, TypeParameterKind::Type)
-                && target_name == Some(parameter.name.as_str())
-        });
-        (
-            parameters[usize::from(generic_carrier)..].to_vec(),
-            generic_carrier,
         )
     }
 
