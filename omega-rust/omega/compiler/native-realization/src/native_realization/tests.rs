@@ -260,6 +260,105 @@ fn erased_receiver_cannot_discard_nominal_cleanup() {
 }
 
 #[test]
+fn retained_receiver_cleanup_occupancy_reaches_the_emitted_binding() {
+    let (produced, signature, plans) = entry_fixture(
+        "data Main { value: i32; }
+         machine Main::drop(&mut self) { self.value = 0; }
+         machine Main::launch(&mut self) { self.value = 7; }",
+        target::TargetProfile::LinuxX64,
+    );
+    let (artifact, receipt, _, scope, (), _, _, _, _) = produced.into_parts();
+    let receipt = receipt.expect("entry receipt");
+    let eligibility = receipt
+        .receiver_eligibility()
+        .expect("a retained receiver with nominal cleanup stays eligible");
+    assert_eq!(
+        eligibility.cleanup(),
+        terminal_psi::CheckedProgramEntryReceiverCleanup::OccupiesHostedExtent,
+    );
+    let profile = proof_admission::AdmissionProfile::default();
+    let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
+    let providers = effects::SelectedProviderPlanFacts::default();
+    let request = NativeRealizationRequest {
+        checked_scope: Some(&scope),
+        program_entry: NativeProgramEntrySettlement::new(
+            &signature,
+            plans
+                .as_ref()
+                .map(crate::tests::fixtures::hosted::paired_calling_plan_parts),
+            &[],
+        )
+        .with_checked_entry(&receipt),
+        ..request(
+            &signature,
+            plans.as_ref(),
+            &profile,
+            &optimizations,
+            &providers,
+        )
+    };
+    let input = super::lower_realization_input(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &profile,
+        &[],
+    )
+    .expect("checked receiver input");
+    let settlement = super::validate_executable_entry_receiver(
+        input.plan(),
+        input.context().module(),
+        &[],
+        &artifact,
+        &request,
+    )
+    .expect("a retained receiver's cleanup admits through hosted extent occupancy")
+    .expect("the admitted settlement retains the hosted receiver boundary");
+    let admitted_providers = super::providers::admit_native_providers(
+        &input,
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        *artifact.manifest().identity().as_bytes(),
+        &request,
+    )
+    .expect("provider admission");
+    let emitted = super::emit_realization_object(
+        input,
+        admitted_providers.installation,
+        &admitted_providers.settlements,
+        None,
+        Some(&settlement),
+        &artifact,
+        &request,
+    )
+    .expect("an occupancy-tracked receiver still emits its hosted bridge");
+    let mut object = emitted.object;
+    let binding = object
+        .hosted_receiver_binding()
+        .expect("the emitted object carries the admitted binding");
+    assert!(binding.cleanup_occupancy());
+    super::validate_emitted_receiver_binding(
+        &object,
+        emitted.semantic_wrapper_object.is_some(),
+        Some(&settlement),
+    )
+    .expect("the emitted binding tracks the admitted occupancy");
+
+    // The occupancy is binding custody the eligibility minted: an emitted
+    // binding that lost it cannot stand in for the admitted settlement.
+    *object
+        .hosted_receiver_cleanup_occupancy_mut_for_test()
+        .expect("hosted receiver binding") = false;
+    let diagnostics = super::validate_emitted_receiver_binding(&object, false, Some(&settlement))
+        .expect_err("a dropped occupancy marker must reject");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cleanup occupancy")),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+}
+
+#[test]
 fn erased_receiver_eligibility_is_required_for_fresh_and_prepared_inputs() {
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
@@ -931,7 +1030,7 @@ fn emitted_receiver_binding_rejects_unadmitted_and_substituted_identities() {
         calling_plan.plan().clone(),
     )
     .expect("exact Linux x86-64 physical contract");
-    image_emission::bind_hosted_receiver(&mut object, &signature, &physical, &[], &demand)
+    image_emission::bind_hosted_receiver(&mut object, &signature, &physical, &[], &demand, false)
         .expect("the exact bridge binds the emitted object");
     assert!(object.hosted_receiver_binding().is_some());
 
