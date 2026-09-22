@@ -111,7 +111,7 @@ pub enum BorrowCompatibilityPremiseSource {
 /// premise establishes only a relational fact over already-formed places: it
 /// cannot create a loan, extend a lifetime, widen access, or substitute for
 /// resource accounting.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BorrowCompatibilityPremise {
     pub source: BorrowCompatibilityPremiseSource,
     pub relation: BorrowCompatibilityPremiseRelation,
@@ -149,7 +149,7 @@ pub enum BorrowCompatibilitySelectorPosition {
 /// two immutable symbols plus a constant, or one resolved member projection
 /// of a storage symbol may enter this vocabulary. Mutable names and
 /// unresolved computed values never do.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BorrowCompatibilitySelectorValue {
     Integer(i64),
     Symbol(SymbolHandle),
@@ -167,13 +167,14 @@ pub enum BorrowCompatibilitySelectorValue {
         second: SymbolHandle,
         offset: i64,
     },
-    /// The value at one projected member place of a storage symbol
-    /// (`pair.first`). Mutability cannot be spelled here: a mutable
-    /// receiver's projection serializes through the same row, like `Symbol`
-    /// for `Storage`.
+    /// The value at one projected place of a storage symbol (`pair.first`,
+    /// `self.pivot[2]`): the resolved root plus the whole ordered segment
+    /// path. Mutability cannot be spelled here: a mutable receiver's
+    /// projection serializes through the same row, like `Symbol` for
+    /// `Storage`.
     Segmented {
         symbol: SymbolHandle,
-        segment: facts::PlaceSegment,
+        segments: Vec<facts::PlaceSegment>,
     },
 }
 
@@ -182,7 +183,7 @@ pub enum BorrowCompatibilitySelectorValue {
 /// `segment_index` is the exact position in the corresponding captured-place
 /// path. Together with `position`, it prevents values from being transplanted
 /// between selectors or between the two sides of the judgment.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BorrowCompatibilitySelectorSnapshot {
     pub side: BorrowCompatibilityPlaceSide,
     pub segment_index: usize,

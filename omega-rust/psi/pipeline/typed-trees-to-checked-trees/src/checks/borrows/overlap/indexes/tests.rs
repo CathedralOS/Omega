@@ -270,7 +270,7 @@ fn selector_snapshot_retains_exact_symbol_values_and_ordered_locations() {
     assert_eq!(
         snapshot
             .iter()
-            .map(|row| (row.side, row.segment_index, row.position, row.value))
+            .map(|row| (row.side, row.segment_index, row.position, row.value.clone()))
             .collect::<Vec<_>>(),
         vec![
             (
@@ -626,7 +626,10 @@ fn shared_symbol_offset_snapshot_preserves_plain_and_shifted_values() {
         .expect("captured selector snapshot")
         .snapshot;
     assert_eq!(
-        snapshot.iter().map(|row| row.value).collect::<Vec<_>>(),
+        snapshot
+            .iter()
+            .map(|row| row.value.clone())
+            .collect::<Vec<_>>(),
         vec![
             Some(BorrowCompatibilitySelectorValue::Integer(0)),
             Some(BorrowCompatibilitySelectorValue::Symbol(mid_symbol)),

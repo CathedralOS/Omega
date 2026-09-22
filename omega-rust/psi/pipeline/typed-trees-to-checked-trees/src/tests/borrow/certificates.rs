@@ -85,7 +85,7 @@ fn retains_zero_premise_structural_symbolic_adjacency_certificate() {
         certificate
             .selector_snapshot
             .iter()
-            .map(|row| (row.side, row.segment_index, row.position, row.value))
+            .map(|row| (row.side, row.segment_index, row.position, row.value.clone()))
             .collect::<Vec<_>>(),
         vec![
             (
