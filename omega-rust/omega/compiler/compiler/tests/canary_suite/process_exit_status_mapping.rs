@@ -7,8 +7,8 @@
 //! contract's).
 
 use super::{
-    CheckedCompileRequest, compile_reviewed_repository_fixture,
-    compile_rooted_backend_canary_without_output_for_target, interpret, native_hosted_target,
+    CheckedCompileRequest, Command, PathBuf, compile_reviewed_repository_fixture,
+    compile_rooted_backend_canary_without_output_for_target, fs, interpret, native_hosted_target,
     pass_canary,
 };
 /// Taken-branch semantic status: negative `i32`, presented by a Unix host as

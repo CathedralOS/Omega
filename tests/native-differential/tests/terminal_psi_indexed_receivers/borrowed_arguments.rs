@@ -3,7 +3,7 @@
 //! aggregate, owned local roots, callee re-forwarding, and attached callees
 //! with extra write-only parameters all land on caller storage.
 
-use super::{NativeTarget, artifact_for, native_text_for, optimize};
+use super::{NativeTarget, artifact_for, native_function, native_text_for, optimize};
 
 /// Two disjoint `&write` arguments in one call keep their own referents.
 const DISJOINT_WRITE_ONLY: &str = "machine stamp(left: &write u64, right: &write u64, value: u64) {
@@ -265,7 +265,7 @@ fn local_root_arguments_return_the_restored_local() {
                 #include <stdint.h>
                 extern uint64_t omega_entry(uint64_t value);
                 int main(void) {{
-                    return omega_entry({value}ull) == {value}ull ? 0 : 1;
+                    return omega_entry({_value}ull) == {_value}ull ? 0 : 1;
                 }}
             "#
                 ),

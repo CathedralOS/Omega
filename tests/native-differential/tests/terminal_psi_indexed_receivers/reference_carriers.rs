@@ -1,7 +1,7 @@
 //! Reference values carried through call results and record fields keep the
 //! caller's original referent through publication.
 
-use super::{NativeTarget, borrowed_arguments};
+use super::{NativeTarget, borrowed_arguments, native_function};
 
 /// A `&mut` returned by one call feeds a second call's argument; the write
 /// lands on the caller's original referent and the entry reads it back.
