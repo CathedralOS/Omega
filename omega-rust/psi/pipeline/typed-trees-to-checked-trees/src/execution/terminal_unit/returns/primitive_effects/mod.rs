@@ -6,10 +6,9 @@ use super::{
     CheckedUnitStructuralParameterPlan, MachineSupplyMode, Multiplicity, StatementNode,
     TypeReferenceNode, TypedTrees,
 };
+use crate::execution::terminal_unit::build_write_only_primitive_store;
 use crate::execution::terminal_unit::returns::structural_scalar_returns::build_structural_scalar_return_machine;
-use crate::execution::terminal_unit::{
-    ShapeCollector, build_write_only_primitive_store, state_flow,
-};
+use crate::execution::terminal_unit::types::{ShapeCollector, state_flow};
 
 /// Discover call-free primitive-reference bodies before their Unit callers. Nominal
 /// cleanup has no catalog here and remains in the later return-plan phase.

@@ -4,8 +4,7 @@ use super::{
     PermissionEventKind, PermissionEventSource, StatementNode, SymbolHandle, TypedTrees,
 };
 use crate::execution::terminal_unit::MachineSupplyMode;
-use crate::execution::terminal_unit::is_unit;
-use crate::execution::terminal_unit::state_flow;
+use crate::execution::terminal_unit::types::{is_unit, state_flow};
 
 pub(super) fn validate(
     program: &TypedTrees,

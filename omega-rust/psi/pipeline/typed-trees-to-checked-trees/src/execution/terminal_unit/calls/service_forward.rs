@@ -6,9 +6,9 @@ use crate::execution::terminal_unit::CheckedUnitStructuralParameterPlan;
 use crate::execution::terminal_unit::Multiplicity;
 use crate::execution::terminal_unit::StatementNode;
 use crate::execution::terminal_unit::TypedTrees;
-use crate::execution::terminal_unit::is_unit;
-use crate::execution::terminal_unit::state_flow;
-use crate::execution::terminal_unit::structural_access_for_type_reference;
+use crate::execution::terminal_unit::types::{
+    is_unit, state_flow, structural_access_for_type_reference,
+};
 
 /// This check is deliberately independent from the ordinary empty-path fast
 /// path: routed authority must retain one exact carrier, requirement, and

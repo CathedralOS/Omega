@@ -2,7 +2,8 @@ use crate::execution::terminal_unit::calls::structural_scalar_signature;
 
 use super::super::plain_record;
 use super::CheckedUnitEffectOperationPlan;
-use crate::execution::terminal_unit::ShapeCollector;
+use crate::execution::terminal_unit::types::ShapeCollector;
+
 use crate::execution::terminal_unit::structural_scalar_store::build_structural_scalar_field_store_sequence;
 use crate::tests::front_end::typed_program_from_source_map_with_generic_data;
 

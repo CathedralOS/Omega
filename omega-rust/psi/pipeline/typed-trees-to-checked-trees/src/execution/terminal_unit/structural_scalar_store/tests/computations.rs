@@ -1,5 +1,8 @@
 use super::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};
-use crate::execution::terminal_unit::ShapeCollector;
+use crate::execution::terminal_unit::types::{
+    ShapeCollector, checked_state_contracts_supported, state_flow,
+};
+
 use crate::execution::terminal_unit::calls::{build_call_operation, structural_scalar_signature};
 use crate::execution::terminal_unit::control::build_checked_machine;
 use crate::execution::terminal_unit::structural_scalar_store::build_structural_scalar_field_store_sequence;
@@ -20,7 +23,7 @@ fn fixture() -> checked_trees::CheckedTrees {
 
 #[test]
 fn selective_crashing_field_rhs_retains_its_ordered_source_plan() {
-    use super::super::super::{checked_state_contracts_supported, control, state_flow};
+    use super::super::super::control;
     use crate::execution::terminal_unit::calls::structural_scalar_signature;
     let source = r#"
         boundary trait Trace { machine observe(value: bool) reaches Trace; }
@@ -213,7 +216,8 @@ fn field_call_assignment_retains_original_root_and_scalar_parameter_namespace() 
 /// `arithmetic/runtime_trapping_overflow_traps` boundary.
 #[test]
 fn trapping_binary_assignment_declines_at_the_missing_scalar_source() {
-    use crate::execution::terminal_unit::LocalConstructionTrace;
+    use crate::execution::terminal_unit::control::LocalConstructionTrace;
+
     let source = r#"
         data Main { x: i32 in Trapping; }
         machine Main::bump(&mut self) {

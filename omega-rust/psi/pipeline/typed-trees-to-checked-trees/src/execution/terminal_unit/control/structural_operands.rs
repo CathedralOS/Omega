@@ -9,15 +9,13 @@ use super::{
     MachineSupplyMode, Multiplicity, SymbolHandle, TypedTrees,
 };
 use crate::execution::terminal_unit::calls::{ExpectedCallValueResult, build_call_operation};
+use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders, state_flow};
 
 use crate::execution::terminal_unit::ScalarCalleePlans;
-use crate::execution::terminal_unit::ShapeCollector;
 
 use crate::execution::terminal_unit::control::boundary_machine::boundary_result_plan;
 use crate::execution::terminal_unit::control::call_results::bind_structural_call_result;
 use crate::execution::terminal_unit::control::call_results::checked_structural_result_type;
-use crate::execution::terminal_unit::machine_binders;
-use crate::execution::terminal_unit::state_flow;
 
 pub(in crate::execution::terminal_unit) enum Operand<'facts> {
     Call(&'facts checked_trees::FlowCallFact),

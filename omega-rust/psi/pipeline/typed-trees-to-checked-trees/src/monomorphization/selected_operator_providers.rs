@@ -2,13 +2,16 @@ use super::{
     Diagnostic, ExpressionNode, StatementNode, SymbolHandle, TypeParameterKind,
     TypeReferenceHandle, TypedTrees,
 };
+use crate::monomorphization::body_cloning::{clone_specialized_machine, copy_type_reference};
+use crate::monomorphization::identities::{
+    accepted_template_commitment, canonical_template_contract_bytes, fnv1a_report_fingerprint,
+    machine_template_commitment,
+};
 use crate::monomorphization::selection::{
     approved_type_bounds, validate_candidate_conformance_bounds,
 };
 use crate::monomorphization::{
-    Candidate, SpecializationKey, accepted_template_commitment, candidate,
-    canonical_template_contract_bytes, clone_specialized_machine, collect_expression_tree,
-    copy_type_reference, fnv1a_report_fingerprint, machine_template_commitment,
+    Candidate, SpecializationKey, candidate, collect_expression_tree,
     materialize_static_argument_types, normalized_machine_identity, saved_calls,
 };
 

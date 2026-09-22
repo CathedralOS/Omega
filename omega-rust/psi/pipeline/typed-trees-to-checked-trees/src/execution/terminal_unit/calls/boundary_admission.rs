@@ -4,11 +4,14 @@
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::calls::call_operations::ExpectedCallValueResult;
 use crate::execution::terminal_unit::types::{
+    base_type_identity, is_unit, type_graph_requires_nominal_drop,
+};
+use crate::execution::terminal_unit::types::{
     base_type_identity_with_substitutions, byte_sequence_carrier, substituted_formal_type,
 };
 use crate::execution::terminal_unit::{
     DataMember, Multiplicity, PrimitiveType, SymbolHandle, TypeReferenceNode, TypedTrees,
-    base_type_identity, is_reference, is_unit, type_graph_requires_nominal_drop,
+    is_reference,
 };
 
 pub(crate) fn is_registered_boundary_scalar_target(

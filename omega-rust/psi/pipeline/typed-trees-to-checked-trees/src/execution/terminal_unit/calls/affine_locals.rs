@@ -1,12 +1,14 @@
 //! The trivial affine locals a unit body starts with, and the affine array
 //! construction prefix.
 
+use crate::execution::terminal_unit::types::{
+    ShapeCollector, parameter_qualifications, type_graph_requires_nominal_drop,
+};
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedAffineConstructionElementPlan, CheckedTrivialAffineStructuralLocalPlan,
     CheckedUnitStructuralTypeShape, ExpressionNode, Multiplicity, PermissionAccess,
-    PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, ShapeCollector,
-    StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees, parameter_qualifications,
-    type_graph_requires_nominal_drop,
+    PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, StatementNode,
+    SymbolHandle, TypeReferenceNode, TypedTrees,
 };
 
 pub(crate) fn build_unit_trivial_affine_locals(

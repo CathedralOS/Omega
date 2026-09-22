@@ -23,6 +23,11 @@ use crate::execution::terminal_unit::calls::{result_arguments, service_forward};
 use crate::execution::terminal_unit::cleanup::service_reach_is_empty;
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
 use crate::execution::terminal_unit::types::{
+    base_type_identity, byte_sequence_type_identity, is_unit, machine_binders,
+    parameter_root_symbol, signature_contracts_are_exact_parameter_qualifications,
+    structural_access_for_type_reference,
+};
+use crate::execution::terminal_unit::types::{
     base_type_identity_with_substitutions, substituted_formal_type,
 };
 use crate::execution::terminal_unit::{
@@ -31,10 +36,8 @@ use crate::execution::terminal_unit::{
     CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralResultBindingPlan, MachineSupplyMode, Multiplicity, PermissionEventKind,
-    PrimitiveType, SymbolHandle, TypeReferenceNode, TypedTrees, base_type_identity,
-    byte_sequence_type_identity, is_reference, is_unit, machine_binders, parameter_root_symbol,
-    scalar_targets, signature_contracts_are_exact_parameter_qualifications,
-    strips_erased_parameter, structural_access_for_type_reference,
+    PrimitiveType, SymbolHandle, TypeReferenceNode, TypedTrees, is_reference, scalar_targets,
+    strips_erased_parameter,
 };
 use validation::exact_compiler_intrinsic_boundary_requirement;
 

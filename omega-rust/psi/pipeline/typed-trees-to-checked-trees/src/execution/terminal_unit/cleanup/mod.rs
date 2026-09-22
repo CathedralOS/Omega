@@ -39,8 +39,9 @@ use super::{
 use crate::execution::terminal_unit::calls::{
     entry_claims, free_structural_scalar_signature, structural_signature,
 };
-use crate::execution::terminal_unit::{
-    ShapeCollector, control, is_unit, machine_binders, state_flow,
+use crate::execution::terminal_unit::control;
+use crate::execution::terminal_unit::types::{
+    ShapeCollector, is_unit, machine_binders, state_flow,
 };
 
 /// `plans` is the checked ordinary-Unit roster this plan may join: the

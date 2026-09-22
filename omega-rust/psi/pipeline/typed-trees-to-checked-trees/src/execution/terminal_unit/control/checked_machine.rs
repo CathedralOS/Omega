@@ -1,6 +1,8 @@
 //! Building one checked machine from its typed states and statements.
 
 use crate::execution::terminal_unit::ScalarCalleePlans;
+use crate::execution::terminal_unit::control::statement_sequence;
+
 use crate::execution::terminal_unit::calls::{
     build_affine_array_construction_prefix, build_unit_trivial_affine_locals, entry_claims,
     free_fused_service_scalar_signature, free_structural_scalar_signature,
@@ -8,13 +10,16 @@ use crate::execution::terminal_unit::calls::{
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::call_occurrences;
-use crate::execution::terminal_unit::statement_sequence::{self, StatementSequence};
+use crate::execution::terminal_unit::control::statement_sequence::StatementSequence;
+use crate::execution::terminal_unit::providers::checked_provider_attachment_requirements;
+use crate::execution::terminal_unit::selected_operator::free_selected_operator_structural_signature;
+use crate::execution::terminal_unit::types::{
+    ShapeCollector, checked_state_contracts_supported, is_unit, machine_binders,
+    return_unit_affine_discards, state_flow, type_graph_requires_nominal_drop,
+};
 use crate::execution::terminal_unit::{
     BTreeSet, CheckFacts, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    ExpressionNode, ShapeCollector, StatementNode, TypeReferenceNode, TypedTrees,
-    checked_provider_attachment_requirements, checked_state_contracts_supported,
-    free_selected_operator_structural_signature, is_unit, machine_binders,
-    return_unit_affine_discards, state_flow, type_graph_requires_nominal_drop,
+    ExpressionNode, StatementNode, TypeReferenceNode, TypedTrees,
 };
 
 /// Test convenience: the traced builder without a trace.

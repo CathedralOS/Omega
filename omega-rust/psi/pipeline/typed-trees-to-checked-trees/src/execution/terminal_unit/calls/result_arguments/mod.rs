@@ -11,17 +11,18 @@ use crate::execution::terminal_unit::PermissionAccess;
 use crate::execution::terminal_unit::PermissionClaimIdentity;
 use crate::execution::terminal_unit::PermissionEventKind;
 use crate::execution::terminal_unit::PermissionEventSource;
-use crate::execution::terminal_unit::ShapeCollector;
+use crate::execution::terminal_unit::types::{
+    ShapeCollector, base_type_identity, shared_plain_affine_referent, state_flow,
+    structural_access_for_type_reference,
+};
+
 use crate::execution::terminal_unit::StateParameter;
 use crate::execution::terminal_unit::StatementNode;
 use crate::execution::terminal_unit::SymbolHandle;
 use crate::execution::terminal_unit::TypedTrees;
-use crate::execution::terminal_unit::base_type_identity;
+
 use crate::execution::terminal_unit::calls::argument_paths::projected_argument_path_with_identity;
 use crate::execution::terminal_unit::calls::structural_arguments::exact_structural_argument_access;
-use crate::execution::terminal_unit::shared_plain_affine_referent;
-use crate::execution::terminal_unit::state_flow;
-use crate::execution::terminal_unit::structural_access_for_type_reference;
 
 mod anonymous_shared;
 
@@ -117,7 +118,7 @@ pub(super) fn argument(
     // (`Task<Token>`), so it supplies the formal's real multiplicity and
     // claim-path carrier below; a non-self formal keeps its authored type.
     let formal_type = if parameter.is_self {
-        crate::execution::terminal_unit::attached_self_application(
+        crate::execution::terminal_unit::types::attached_self_application(
             program,
             parameter.type_reference,
         )

@@ -1,4 +1,5 @@
-use crate::execution::terminal_unit::ShapeCollector;
+use crate::execution::terminal_unit::types::ShapeCollector;
+
 use crate::execution::terminal_unit::control::build_checked_machine;
 use crate::tests::front_end::checked_program;
 use language_semantics::SemanticDomainTable;

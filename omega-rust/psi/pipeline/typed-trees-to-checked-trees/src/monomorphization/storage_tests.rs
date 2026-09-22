@@ -1,10 +1,13 @@
 use super::{CallSite, ExpressionNode, StatementNode, SymbolHandle, TypedTrees};
+use crate::monomorphization::body_rewriting::{
+    cloned_runtime_call_subjects, runtime_value_subjects,
+};
+use crate::monomorphization::identities::canonical_template_contract_bytes;
+use crate::monomorphization::selection::collect_call_selections;
 use crate::monomorphization::selection::contract_expression_handles;
 use crate::monomorphization::{
     CallSelection, apply_call_specializations, candidate, candidate_for_selection,
-    canonical_template_contract_bytes, cloned_runtime_call_subjects, collect_call_selections,
     collect_statement_expression_trees, monomorphize_generic_machine_value_calls_with_selections,
-    runtime_value_subjects,
 };
 use crate::tests::front_end::typed_program;
 

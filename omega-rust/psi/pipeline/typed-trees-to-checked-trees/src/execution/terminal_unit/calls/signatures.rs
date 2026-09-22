@@ -2,15 +2,18 @@
 //! claims a unit holds on entry.
 
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
+use crate::execution::terminal_unit::types::{
+    ShapeCollector, parameter_qualifications, parameter_root_symbol,
+    projected_parameter_qualifications, structural_access_for_type_reference,
+    terminal_field_identity,
+};
 use crate::execution::terminal_unit::{
     BTreeSet, CarryPolicy, CheckFacts, CheckedStructuralAccess,
     CheckedStructuralScalarParameterPlan, CheckedUnitEntryClaimPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
     CheckedUnitStructuralTypeShape, MachineSupplyMode, Multiplicity, PermissionAccess,
-    PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, ShapeCollector,
-    StateParameter, SymbolHandle, TypeReferenceNode, TypedTrees, is_reference,
-    parameter_qualifications, parameter_root_symbol, projected_parameter_qualifications,
-    strips_erased_parameter, structural_access_for_type_reference, terminal_field_identity,
+    PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, StateParameter,
+    SymbolHandle, TypeReferenceNode, TypedTrees, is_reference, strips_erased_parameter,
 };
 
 pub(crate) fn structural_signature(

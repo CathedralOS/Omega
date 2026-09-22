@@ -4,12 +4,11 @@
 //! instead requires the caller's actual loan, including through forwarding
 //! methods whose own provisional plan erased self.
 use crate::execution::terminal_unit::ScalarCalleePlans;
-use crate::execution::terminal_unit::ShapeCollector;
-use crate::execution::terminal_unit::base_type_identity;
+use crate::execution::terminal_unit::types::{ShapeCollector, base_type_identity, state_flow};
+
 use crate::execution::terminal_unit::calls;
 use crate::execution::terminal_unit::control;
 use crate::execution::terminal_unit::receiver_aliases;
-use crate::execution::terminal_unit::state_flow;
 
 use super::{
     CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedStructuralAccess,

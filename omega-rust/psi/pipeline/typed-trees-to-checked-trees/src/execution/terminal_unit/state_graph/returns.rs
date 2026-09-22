@@ -3,7 +3,6 @@ use super::super::{
     CheckedStructuralResultPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralFieldPlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralResultBindingPlan,
     CheckedUnitStructuralTypeShape, DataMember, TypeReferenceHandle,
-    type_graph_requires_nominal_drop,
 };
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedScalarExpressionRole,
@@ -11,11 +10,13 @@ use super::{
     StatementNode, TransitionExit, TransitionTargetNode, TypeReferenceNode, TypedTrees, control,
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
-use crate::execution::terminal_unit::ShapeCollector;
+use crate::execution::terminal_unit::types::{
+    ShapeCollector, is_unit, parameter_qualifications, projected_parameter_qualifications,
+    type_graph_requires_nominal_drop,
+};
+
 use crate::execution::terminal_unit::is_reference;
-use crate::execution::terminal_unit::is_unit;
-use crate::execution::terminal_unit::parameter_qualifications;
-use crate::execution::terminal_unit::projected_parameter_qualifications;
+
 use checked_trees::{CheckedControlResultPlan, CheckedScalarCaseFieldPlan};
 
 pub(in crate::execution::terminal_unit) fn signature(

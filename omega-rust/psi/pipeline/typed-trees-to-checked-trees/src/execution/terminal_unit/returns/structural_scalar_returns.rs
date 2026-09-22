@@ -9,12 +9,17 @@ use crate::execution::terminal_unit::cleanup::{
     nominal_scalar_caller_requirements, scalar_nominal_cleanup_missing_requirement_diagnostic,
     service_reach_is_empty, service_reach_plan_is_empty,
 };
-use crate::execution::terminal_unit::primitive_effects;
+use crate::execution::terminal_unit::returns::primitive_effects;
+
 use crate::execution::terminal_unit::returns::scalar_return_expressions::{
     checked_boolean_contains_short_circuit, checked_boolean_local_reference_count,
     is_branch_free_structural_boolean_expression, is_branch_free_structural_scalar_expression,
     is_structural_boolean_return_expression, is_structural_scalar_return_expression,
     is_structural_short_circuit_boolean_return,
+};
+use crate::execution::terminal_unit::types::{
+    ShapeCollector, machine_binders, parameter_qualifications, projected_parameter_qualifications,
+    state_flow, type_graph_requires_nominal_drop,
 };
 use crate::execution::terminal_unit::{
     BTreeSet, CheckFacts, CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarExpression,
@@ -24,10 +29,8 @@ use crate::execution::terminal_unit::{
     CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitNominalAffineCleanupPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypeShape, Diagnostic, ExpressionNode,
     MachineSupplyMode, Multiplicity, PermissionAccess, PermissionEventKind, PermissionEventSource,
-    PrimitiveType, ShapeCollector, StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
-    checked_shared_boolean_convergence, is_reference, machine_binders, parameter_qualifications,
-    projected_parameter_qualifications, shared_convergence, state_flow,
-    type_graph_requires_nominal_drop,
+    PrimitiveType, StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
+    checked_shared_boolean_convergence, is_reference, shared_convergence,
 };
 
 pub(crate) fn build_trait_operator_scalar_return_machine(
@@ -289,9 +292,9 @@ pub(crate) fn build_structural_scalar_return_machine(
         .collect::<BTreeSet<_>>();
     if structural_parameters.is_empty()
         || structural_parameters.len() + scalar_parameters.len()
-            != crate::execution::terminal_unit::abi_parameter_count(source_state_parameters)
+            != crate::execution::terminal_unit::types::abi_parameter_count(source_state_parameters)
         || authored_parameter_positions.len()
-            != crate::execution::terminal_unit::abi_parameter_count(source_state_parameters)
+            != crate::execution::terminal_unit::types::abi_parameter_count(source_state_parameters)
         || authored_parameter_positions
             .iter()
             .copied()

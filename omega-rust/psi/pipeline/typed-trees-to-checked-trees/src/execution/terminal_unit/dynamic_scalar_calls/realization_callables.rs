@@ -1,10 +1,8 @@
 //! Complete checked conformance rosters, with per-member bodies and finite-family instances.
 
 use super::realization_bodies::checked_realization_scalar_body;
-use crate::execution::terminal_unit::{
-    CheckFacts, MachineSupplyMode, PrimitiveType, TypedTrees, is_unit,
-    structural_access_for_type_reference,
-};
+use crate::execution::terminal_unit::types::{is_unit, structural_access_for_type_reference};
+use crate::execution::terminal_unit::{CheckFacts, MachineSupplyMode, PrimitiveType, TypedTrees};
 use checked_trees::CheckedDynamicRealizationBodyPlan;
 
 pub(super) fn checked_dynamic_realization_callables(

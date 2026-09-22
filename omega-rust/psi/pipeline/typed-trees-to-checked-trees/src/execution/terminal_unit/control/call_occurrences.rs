@@ -4,13 +4,12 @@ use super::{
     CheckFacts, CheckedScalarExpressionRole, ExpressionNode, StatementNode, SymbolHandle,
     TypeReferenceNode, TypedTrees,
 };
-use crate::execution::terminal_unit::ShapeCollector;
+use crate::execution::terminal_unit::control::{statement_sequence, structural_operands};
+use crate::execution::terminal_unit::types::{ShapeCollector, is_unit, machine_binders};
+
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::call_results::checked_structural_result_type;
-use crate::execution::terminal_unit::is_unit;
-use crate::execution::terminal_unit::machine_binders;
-use crate::execution::terminal_unit::statement_sequence;
-use crate::execution::terminal_unit::structural_operands;
+
 use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind};
 
 pub(in crate::execution::terminal_unit) fn tail_call<'a>(

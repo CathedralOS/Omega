@@ -5,15 +5,15 @@ use super::{
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, ExpressionNode,
     MachineSupplyMode, Multiplicity, StatementNode, SymbolHandle, TypedTrees,
-    type_graph_requires_nominal_drop,
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::cleanup::{
     machine_has_content_evidence, service_reach_is_empty,
 };
-use crate::execution::terminal_unit::{
-    ShapeCollector, is_reference, machine_binders, parameter_qualifications, state_flow,
-    structural_access_for_type_reference,
+use crate::execution::terminal_unit::is_reference;
+use crate::execution::terminal_unit::types::{
+    ShapeCollector, machine_binders, parameter_qualifications, state_flow,
+    structural_access_for_type_reference, type_graph_requires_nominal_drop,
 };
 
 /// The exact selected boundary-operator application a `let` initializer

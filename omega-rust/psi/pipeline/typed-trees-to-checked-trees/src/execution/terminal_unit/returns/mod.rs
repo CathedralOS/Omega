@@ -33,7 +33,7 @@ use super::{
     Diagnostic, ExpressionNode, MachineSupplyMode, Multiplicity, StatementNode, TypeReferenceNode,
     TypedTrees,
 };
-use crate::execution::terminal_unit::ShapeCollector;
+use crate::execution::terminal_unit::types::ShapeCollector;
 
 use crate::execution::terminal_unit::control::build_boundary_machine;
 use crate::execution::terminal_unit::control::build_static_boundary_requirements;

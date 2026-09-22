@@ -22,9 +22,10 @@ mod unit;
 use super::{
     BTreeMap, CheckFacts, CheckedBoundaryMachinePlan, CheckedStructuralAccess,
     CheckedUnitCallCoordinate, MachineSupplyMode, ServiceReachSummary, StatementNode, SymbolHandle,
-    TypedTrees, state_flow,
+    TypedTrees,
 };
-use crate::execution::terminal_unit::ShapeCollector;
+use crate::execution::terminal_unit::types::{ShapeCollector, state_flow};
+
 use descriptor_transfers::build_checked_dynamic_descriptor_transfers;
 use forwarded_calls::build_checked_forwarded_dynamic_scalar_calls;
 use receivers::{CheckedDynamicScalarCall, local_receiver_symbol, stored_dynamic_receiver};

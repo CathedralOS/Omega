@@ -7,8 +7,7 @@ use super::super::{
     StatementNode, TypedTrees,
 };
 use crate::execution::terminal_unit::calls::build_call_operation;
-
-use crate::execution::terminal_unit::state_flow;
+use crate::execution::terminal_unit::types::state_flow;
 
 pub(super) fn build(
     program: &TypedTrees,

@@ -140,8 +140,12 @@ pub(super) fn refresh_generic_call_results(
         // Copy the declaration result before substitution. An open caller's
         // result uses this call's exact constants or caller binders, never the
         // callee's unbound parameters or the inferred destination as evidence.
-        let selected_return =
-            super::copy_type_reference(None, program, return_type, &forwarded_symbols);
+        let selected_return = crate::monomorphization::body_cloning::copy_type_reference(
+            None,
+            program,
+            return_type,
+            &forwarded_symbols,
+        );
         // A runtime-bound `Value` slot cannot appear in an open caller's
         // inferred result: forwarded selections only bind static subjects, so
         // the runtime-expression root list stays empty here.
@@ -183,7 +187,7 @@ fn forwarded_result_selection(
         return None;
     };
     let mut const_proposals = Vec::new();
-    super::collect_call_proposals(
+    crate::monomorphization::selection::collect_call_proposals(
         program,
         caller,
         state,
@@ -351,7 +355,8 @@ fn substitute_runtime_bound_result_bounds(
     if !range_endpoints_name_parameters(program, return_type, &substitutions) {
         return return_type;
     }
-    let copied = super::copy_type_reference(None, program, return_type, &[]);
+    let copied =
+        crate::monomorphization::body_cloning::copy_type_reference(None, program, return_type, &[]);
     substitute_named_endpoints(program, copied, &substitutions);
     copied
 }
@@ -501,8 +506,12 @@ mod tests {
         let candidates = super::super::candidate::collect(program);
         let callees = super::super::candidate::callees(program, &candidates);
         let contracts = crate::monomorphization::selection::contract_expression_handles(program);
-        let selections =
-            super::super::collect_call_selections(program, &candidates, &callees, &contracts);
+        let selections = crate::monomorphization::selection::collect_call_selections(
+            program,
+            &candidates,
+            &callees,
+            &contracts,
+        );
         refresh_generic_call_results(program, &candidates, &selections)
     }
 

@@ -6,7 +6,8 @@ use super::{
     BTreeMap, CheckFacts, CheckedStructuralAccess, CheckedUnitCallCoordinate, ServiceReachSummary,
     SymbolHandle, TypedTrees,
 };
-use crate::execution::terminal_unit::ShapeCollector;
+use crate::execution::terminal_unit::types::ShapeCollector;
+
 use crate::execution::terminal_unit::dynamic_scalar_calls::descriptor_transfers::inbound_call_site_counts;
 
 pub(super) fn promote_two_predecessor_dynamic_scalar_joins(

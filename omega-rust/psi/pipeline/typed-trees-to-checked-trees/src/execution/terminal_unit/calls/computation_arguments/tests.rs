@@ -13,7 +13,8 @@ use crate::execution::terminal_unit::PermissionEventKind;
 use crate::execution::terminal_unit::PermissionEventSource;
 use crate::execution::terminal_unit::calls::computation_arguments::owned_parameter_argument;
 use crate::execution::terminal_unit::structural_computation_argument;
-use crate::execution::terminal_unit::terminal_field_identity;
+use crate::execution::terminal_unit::types::terminal_field_identity;
+
 use crate::tests::front_end::checked_program_result;
 
 const SOURCE: &str = r#"
