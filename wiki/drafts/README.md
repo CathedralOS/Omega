@@ -143,9 +143,6 @@ the existing task boards, not in a second tracking system.
 - [Reseal-elimination scope review](scope_review_reseal_elimination.md): which
   identity recomputations are contract-required and which are redundant; delete
   once the wrapper-object plan is sealed once per produced artifact.
-- [Selected-rewrite catalog disposition](selected_rewrite_catalog_disposition_e7c0099c.md):
-  retain-or-delete audit of the orphaned rewrite modules; delete once each
-  retained rewrite carries an executed catalog entry or is deleted.
 - [Slice-view sample frontier](slice_view_sample_frontier.md): the twelve
   samples blocked on borrowed non-byte slice views and what moved; delete once
   they reach entry establishment or the vocabulary spec lands.
