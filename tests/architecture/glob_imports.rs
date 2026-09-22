@@ -85,7 +85,6 @@ const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[
     ),
     ("omega-rust/omega/representations/boundary-applications", 1),
     ("omega-rust/omega/representations/legalized-operations", 2),
-    ("omega-rust/omega/representations/optimization-unit", 4),
     ("omega-rust/omega/representations/physical-instructions", 3),
     ("omega-rust/omega/representations/register-homes", 1),
     ("omega-rust/omega/representations/register-model", 1),

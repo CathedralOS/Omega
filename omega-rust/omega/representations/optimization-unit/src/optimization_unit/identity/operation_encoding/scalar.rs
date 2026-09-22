@@ -4,9 +4,12 @@ use crate::optimization_unit::identity::carrier_encoding::{
     encode_abstract_result, encode_integer_value, encode_scalar_type,
     encode_structural_path_segment,
 };
+use crate::optimization_unit::identity::operation_encoding::scalar_shapes::{
+    encode_cast, encode_shift, encode_typed_binary, encode_typed_unary, encode_untyped_binary,
+    encode_untyped_unary,
+};
 use crate::optimization_unit::identity::proposition_encoding::encode_canonical_path;
 
-use super::scalar_shapes::*;
 use super::{AbstractOperation, CanonicalBytes};
 
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
