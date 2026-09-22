@@ -171,6 +171,7 @@ mod binary_numerals;
 mod booleans;
 mod casts;
 mod equality_transport;
+mod forbidden_roots;
 mod integer_operations;
 mod multiplication;
 mod subtraction;
@@ -713,6 +714,9 @@ struct Denotation {
     /// Shared `mul` and the multiplication/division-residual law roster
     /// the correlated multiply bounds spend.
     multiplication: multiplication::Multiplication,
+    /// The correlated forbidden-root law roster: chain-inversion,
+    /// quotient-squeeze and divisor-case-split assumptions.
+    forbidden_roots: forbidden_roots::ForbiddenRoots,
     /// Canonical mathematical term → `Int`-typed declaration position.
     /// Closed terms intern by exact evaluated value — so a decided
     /// `IntegerMathEqual` on closed operands denotes `refl`-provable
@@ -784,6 +788,7 @@ impl Denotation {
             subtraction: subtraction::Subtraction::default(),
             addition: addition::Addition::default(),
             multiplication: multiplication::Multiplication::default(),
+            forbidden_roots: forbidden_roots::ForbiddenRoots::default(),
             math_terms: BTreeMap::new(),
             scalar_integer_terms: BTreeMap::new(),
             integer_operations: BTreeMap::new(),
@@ -2587,28 +2592,44 @@ impl<'a> Elaboration<'a> {
                 )
             }
             ProofRule::IntegerCorrelatedForbiddenRoots { witness } => {
-                let citations = integer_bound_rules::correlated_forbidden_roots_relation(
-                    self.context,
-                    self.ambient_assumptions,
-                    self.axioms,
-                    self.machine_parameter_values,
-                    witness,
-                    &proof.conclusion,
-                )
-                .map_err(BoundedDenotationError::Certificate)?;
+                let (citations, checked) =
+                    integer_bound_rules::correlated_forbidden_roots_relation(
+                        self.context,
+                        self.ambient_assumptions,
+                        self.axioms,
+                        self.machine_parameter_values,
+                        witness,
+                        &proof.conclusion,
+                    )
+                    .map_err(BoundedDenotationError::Certificate)?;
                 let mut premises = Vec::with_capacity(
                     citations.semantic_axioms.len() + citations.assumptions.len(),
                 );
                 let mut evidence = Vec::with_capacity(premises.capacity());
+                let mut axiom_evidence = Vec::with_capacity(citations.semantic_axioms.len());
                 for index in citations.semantic_axioms {
                     let (proposition, variable) = self.cited_axiom(index)?;
+                    axiom_evidence.push((proposition.clone(), variable));
                     premises.push(proposition);
                     evidence.push(variable);
                 }
+                let mut bound_evidence = Vec::with_capacity(citations.assumptions.len());
                 for index in citations.assumptions {
                     let (proposition, variable) = self.ambient_premise(index)?;
+                    bound_evidence.push((proposition.clone(), variable));
                     premises.push(proposition);
                     evidence.push(variable);
+                }
+                if let Some(derived) = self.denotation.correlated_forbidden_roots_evidence(
+                    witness,
+                    &checked,
+                    &axiom_evidence,
+                    &bound_evidence,
+                    &proof.conclusion,
+                )? {
+                    self.rules
+                        .insert(AcceptedProofRule::IntegerCorrelatedForbiddenRoots);
+                    return Ok(derived);
                 }
                 self.rule_instance(
                     AcceptedProofRule::IntegerCorrelatedForbiddenRoots,

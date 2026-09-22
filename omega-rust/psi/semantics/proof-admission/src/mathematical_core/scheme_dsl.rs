@@ -43,6 +43,11 @@ pub(super) enum Syntax {
     /// list's length must equal the *referenced* declaration's level
     /// arity; both rules are re-decided by typing, never trusted here.
     Scheme(u32, Vec<Level>),
+    /// The fixed two-element type `Two : Type 0` — a leaf constant, not
+    /// a binder, so it carries no scope name.
+    Two,
+    /// Dependent `Two` elimination `caseTwo(motive, zero, one, scrutinee)`.
+    CaseTwo(Box<Syntax>, Box<Syntax>, Box<Syntax>, Box<Syntax>),
 }
 
 pub(super) fn build(
@@ -175,6 +180,19 @@ pub(super) fn build(
             declaration: *declaration,
             levels: levels.clone(),
         }),
+        Syntax::Two => arena.insert(Term::Two),
+        Syntax::CaseTwo(motive, zero_branch, one_branch, scrutinee) => {
+            let motive = build(arena, scope, motive);
+            let zero_branch = build(arena, scope, zero_branch);
+            let one_branch = build(arena, scope, one_branch);
+            let scrutinee = build(arena, scope, scrutinee);
+            arena.insert(Term::CaseTwo {
+                motive,
+                zero_branch,
+                one_branch,
+                scrutinee,
+            })
+        }
     }
 }
 
@@ -295,4 +313,24 @@ pub(super) fn box_elim(motive: Syntax, body: Syntax, scrutinee: Syntax) -> Synta
 /// declaration supplies one level per referenced level parameter.
 pub(super) fn scheme_at(declaration: u32, levels: Vec<Level>) -> Syntax {
     Syntax::Scheme(declaration, levels)
+}
+
+/// `Two : Type 0` — the fixed two-element type.
+pub(super) fn two() -> Syntax {
+    Syntax::Two
+}
+
+/// `caseTwo(motive, zero, one, scrutinee)` — dependent `Two` elimination.
+pub(super) fn case_two(
+    motive: Syntax,
+    zero_branch: Syntax,
+    one_branch: Syntax,
+    scrutinee: Syntax,
+) -> Syntax {
+    Syntax::CaseTwo(
+        Box::new(motive),
+        Box::new(zero_branch),
+        Box::new(one_branch),
+        Box::new(scrutinee),
+    )
 }
