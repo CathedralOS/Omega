@@ -14,8 +14,12 @@ fn initial_finalization_restores_complete_rosters_without_changing_check_evidenc
     facts.flow.terminal_boundary_scalar_returns = Default::default();
     facts.flow.terminal_structural_scalar_returns = Default::default();
     facts.flow.terminal_unit_effects = Default::default();
-    let rebuilt = crate::execution::finalize_execution::finalize_execution(&checked.typed, facts)
-        .expect("complete initial execution plans");
+    let rebuilt = crate::execution::finalize_execution::finalize_execution(
+        &checked.typed,
+        facts,
+        crate::execution::finalize_execution::SelectedExecution::default(),
+    )
+    .expect("complete initial execution plans");
     assert_eq!(rebuilt, expected);
 }
 
@@ -68,6 +72,7 @@ fn failed_selected_rebuild_preserves_previously_published_facts() {
     let initial_diagnostics = crate::execution::finalize_execution::finalize_execution(
         &checked.typed,
         checked.facts.clone(),
+        crate::execution::finalize_execution::SelectedExecution::default(),
     )
     .expect_err("initial finalization must also reject the missing cleanup premise");
     assert!(initial_diagnostics.iter().any(|diagnostic| {
