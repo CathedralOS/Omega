@@ -856,9 +856,22 @@ pub fn suspension_rows(
     operation: OperationId,
     target: TerminalSuspensionCallTarget,
 ) {
+    let crossing = SuspensionCrossingId::new(1).unwrap();
+    // The operation's own marker is the authoritative crossing demand; a plan
+    // naming an unmarked call side is rewritten evidence and rejects.
+    let marked = lowered
+        .semantic_module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| machine.blocks.iter_mut())
+        .flat_map(|block| block.operations.iter_mut())
+        .find(|candidate| candidate.id == operation)
+        .map(|candidate| candidate.suspension_crossing = Some(crossing))
+        .is_some();
+    assert!(marked, "the suspension row names an operation in the module");
     let plan = TerminalSuspensionCallPlan {
         operation,
-        crossing: SuspensionCrossingId::new(1).unwrap(),
+        crossing,
         target,
         effective: CarryPolicy::PERMISSIVE,
         live_value_count: 0,
@@ -866,7 +879,7 @@ pub fn suspension_rows(
     };
     let site = TerminalSuspensionCallSite {
         operation,
-        crossing: SuspensionCrossingId::new(1).unwrap(),
+        crossing,
         target,
         frontier_commitment: terminal_psi::suspension_frontier_commitment(&plan),
     };
