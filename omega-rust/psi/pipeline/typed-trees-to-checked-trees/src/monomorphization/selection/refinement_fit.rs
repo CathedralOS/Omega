@@ -57,29 +57,32 @@ pub(crate) fn resolve_bound_carrier<'program>(
     }
 }
 
+/// Every clause that bounds one base requirement.
+///
 /// "`machine *` applies to every present and future base requirement. A
 /// targeted clause names one exact requirement. Unmentioned requirements and
-/// contract axes inherit the base." An exact name therefore wins over the
-/// wildcard, and no clause at all is inheritance — no concrete obligation.
-fn covering_clause<'program>(
+/// contract axes inherit the base", and "Multiple refinements combine by an
+/// order-independent meet". A targeted clause therefore narrows a requirement
+/// ALONGSIDE the wildcard; it does not replace it. Returning only the more
+/// specific clause silently discarded every constraint `machine *` had placed
+/// on that requirement.
+///
+/// No clause at all is inheritance — no concrete obligation — so an empty
+/// result imposes nothing. The axis checks below only reject, so applying
+/// each covering clause in turn IS the meet: a realization must satisfy all
+/// of them.
+fn covering_clauses<'program>(
     refinement: &'program TraitDefinition,
     requirement: &str,
-) -> Option<&'program TraitRefinementClause> {
+) -> Vec<&'program TraitRefinementClause> {
     refinement
         .refinement_clauses
         .iter()
-        .find(|clause| {
-            clause
-                .requirement
-                .as_ref()
-                .is_some_and(|name| name.as_str() == requirement)
+        .filter(|clause| match clause.requirement.as_ref() {
+            None => true,
+            Some(name) => name.as_str() == requirement,
         })
-        .or_else(|| {
-            refinement
-                .refinement_clauses
-                .iter()
-                .find(|clause| clause.requirement.is_none())
-        })
+        .collect()
 }
 
 /// Reject the selected conformance when one of its realization machines
@@ -104,9 +107,10 @@ pub(crate) fn refinement_fit_diagnostics(
         .as_ref()
         .map_or("<unnamed>", |name| name.as_str());
     for row in rows {
-        let Some(clause) = covering_clause(refinement, row.requirement_name.as_str()) else {
+        let clauses = covering_clauses(refinement, row.requirement_name.as_str());
+        if clauses.is_empty() {
             continue;
-        };
+        }
         let Some(machine) = program
             .machines()
             .iter()
@@ -124,67 +128,71 @@ pub(crate) fn refinement_fit_diagnostics(
         };
         let requirement = row.requirement_name.as_str();
         let realization = row.realization_name.as_str();
-
-        // "`suspends false` and `blocks false` explicitly remove those
-        // possibilities". An authored `suspends true` re-states what the
-        // base already permits and binds nothing extra.
-        if !clause.signature.suspends_keyword_source_spans.is_empty()
-            && !clause.signature.suspends
-            && machine.suspends
-        {
-            diagnostics.push(reject(format!(
+        for clause in clauses {
+            // "`suspends false` and `blocks false` explicitly remove those
+            // possibilities". An authored `suspends true` re-states what the
+            // base already permits and binds nothing extra.
+            if !clause.signature.suspends_keyword_source_spans.is_empty()
+                && !clause.signature.suspends
+                && machine.suspends
+            {
+                diagnostics.push(reject(format!(
                 "removes `suspends` from `{requirement}`, but its selected realization `{realization}` suspends",
             )));
-        }
-        if !clause.signature.blocks_keyword_source_spans.is_empty()
-            && !clause.signature.blocks
-            && machine.blocks
-        {
-            diagnostics.push(reject(format!(
+            }
+            if !clause.signature.blocks_keyword_source_spans.is_empty()
+                && !clause.signature.blocks
+                && machine.blocks
+            {
+                diagnostics.push(reject(format!(
                 "removes `blocks` from `{requirement}`, but its selected realization `{realization}` blocks",
             )));
-        }
+            }
 
-        // "Refinements may narrow obligations or strengthen guarantees":
-        // an authored `terminates` demands a PUBLISHED termination promise.
-        // A privately derived body publishes none, so it cannot carry the
-        // strengthened guarantee. (There is no `terminates false` spelling;
-        // omission is inheritance.)
-        if matches!(
-            clause.signature.termination_guarantee,
-            language_semantics::TerminationGuarantee::Terminates { .. }
-        ) && !matches!(
-            machine.termination_plan.interface.published(),
-            Some(language_semantics::TerminationGuarantee::Terminates { .. })
-        ) {
-            diagnostics.push(reject(format!(
+            // "Refinements may narrow obligations or strengthen guarantees":
+            // an authored `terminates` demands a PUBLISHED termination promise.
+            // A privately derived body publishes none, so it cannot carry the
+            // strengthened guarantee. (There is no `terminates false` spelling;
+            // omission is inheritance.)
+            if matches!(
+                clause.signature.termination_guarantee,
+                language_semantics::TerminationGuarantee::Terminates { .. }
+            ) && !matches!(
+                machine.termination_plan.interface.published(),
+                Some(language_semantics::TerminationGuarantee::Terminates { .. })
+            ) {
+                diagnostics.push(reject(format!(
                 "requires `terminates` on `{requirement}`, but its selected realization `{realization}` publishes no termination guarantee",
             )));
-        }
+            }
 
-        // "`reaches;` is empty. `reaches _;` introduces an independent
-        // abstract row for that requirement bounded by the inherited row."
-        // Only a concrete clause row bounds a concrete realization; the
-        // inherited and independent-abstract forms impose nothing here.
-        if let TraitRefinementReach::Concrete(clause_row) = clause.service_reach {
-            let permitted = program.service_reach_rows.services(clause_row);
-            let reached = program
-                .service_reach_rows
-                .services(machine.service_reach_row);
-            if let Some(escaping) = reached
-                .iter()
-                .find(|service| !permitted.contains(service))
-                .copied()
-            {
-                let escaping = program
-                    .service_reaches
-                    .definition(escaping)
-                    .map_or("<service>", |definition| definition.name.as_str());
-                diagnostics.push(reject(format!(
+            // "`reaches;` is empty. `reaches _;` introduces an independent
+            // abstract row for that requirement bounded by the inherited row."
+            // Only a concrete clause row bounds a concrete realization; the
+            // inherited and independent-abstract forms impose nothing here.
+            if let TraitRefinementReach::Concrete(clause_row) = clause.service_reach {
+                let permitted = program.service_reach_rows.services(clause_row);
+                let reached = program
+                    .service_reach_rows
+                    .services(machine.service_reach_row);
+                if let Some(escaping) = reached
+                    .iter()
+                    .find(|service| !permitted.contains(service))
+                    .copied()
+                {
+                    let escaping = program
+                        .service_reaches
+                        .definition(escaping)
+                        .map_or("<service>", |definition| definition.name.as_str());
+                    diagnostics.push(reject(format!(
                     "narrows `reaches` on `{requirement}`, but its selected realization `{realization}` reaches `{escaping}`",
                 )));
+                }
             }
         }
     }
+    // A wildcard and a targeted clause can author the same narrowing; the
+    // meet states one obligation, so report it once.
+    diagnostics.dedup_by(|left, right| left.to_string() == right.to_string());
     diagnostics
 }

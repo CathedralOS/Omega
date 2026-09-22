@@ -159,9 +159,12 @@ fn an_inherited_reach_axis_imposes_no_obligation_at_the_concrete_site() {
         .expect("an omitted `reaches` clause inherits the base row");
 }
 
-/// "A targeted clause names one exact requirement. Unmentioned requirements
-/// and contract axes inherit the base." A targeted clause therefore replaces
-/// the wildcard for its requirement rather than composing with it.
+/// "`machine *` applies to every present and future base requirement. A
+/// targeted clause names one exact requirement." Both therefore bound
+/// `flush`: the wildcard removes `suspends` from every requirement and the
+/// targeted clause additionally removes `blocks`. "Multiple refinements
+/// combine by an order-independent meet" — a targeted clause narrows
+/// alongside the wildcard rather than replacing it.
 fn targeted_clause_source(write_axes: &str, flush_axes: &str) -> String {
     format!(
         r#"
@@ -198,12 +201,38 @@ fn targeted_clause_source(write_axes: &str, flush_axes: &str) -> String {
 }
 
 #[test]
-fn a_targeted_clause_replaces_the_wildcard_for_its_own_requirement() {
-    // `flush` is covered by its targeted clause, which authors only `blocks`;
-    // its `suspends` axis inherits the base, which permits suspension.
-    check_source(&targeted_clause_source("", "suspends;"))
-        .expect("the targeted `flush` clause inherits the base `suspends` axis");
-    // `write` is covered only by the wildcard, which removed `suspends`.
+fn a_targeted_clause_narrows_alongside_the_wildcard_it_does_not_replace_it() {
+    // Neither realization suspends or blocks, so both clauses are satisfied.
+    check_source(&targeted_clause_source("", ""))
+        .expect("a realization violating no covering clause fits");
+
+    // `flush` carries its targeted clause AND the wildcard. Suspending
+    // violates the wildcard's `suspends false`, which a targeted clause
+    // naming another axis cannot discard.
+    let diagnostics = rejection(
+        &targeted_clause_source("", "suspends;"),
+        "the wildcard still covers a requirement that has its own clause",
+    );
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.contains("refinement `LocalLogger` removes `suspends` from `flush`")
+        }),
+        "{diagnostics:#?}"
+    );
+
+    // The targeted clause's own axis still binds.
+    let diagnostics = rejection(
+        &targeted_clause_source("", "blocks;"),
+        "the targeted `flush` clause removes `blocks`",
+    );
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.contains("refinement `LocalLogger` removes `blocks` from `flush`")
+        }),
+        "{diagnostics:#?}"
+    );
+
+    // `write` is covered only by the wildcard.
     let diagnostics = rejection(
         &targeted_clause_source("suspends;", ""),
         "the wildcard still covers `write`",
