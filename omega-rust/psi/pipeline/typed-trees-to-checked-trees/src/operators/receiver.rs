@@ -343,7 +343,7 @@ fn self_field_type_reference(
     let names_self = path_members.len() == 1
         && (path_members
             .first()
-            .is_some_and(|name| name.as_str() == "self")
+            .is_some_and(|name| name.is_self_receiver())
             || (path.symbol.is_valid() && path.symbol == self_parameter.symbol)
             || (path.head_symbol.is_valid() && path.head_symbol == self_parameter.symbol));
     if !names_self {

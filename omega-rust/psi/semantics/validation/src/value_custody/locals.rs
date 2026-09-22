@@ -1,5 +1,6 @@
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use diagnostics::Diagnostic;
+use language_core::is_self_receiver;
 use typed_trees::data::{DataMember, TypeParameterKind};
 use typed_trees::signature::StateParameter;
 use typed_trees::statement::StatementNode;
@@ -92,7 +93,7 @@ pub(crate) fn state_binding_type(
     if !symbol.is_valid() {
         return None;
     }
-    if name == "self" && symbol == machine.symbol {
+    if is_self_receiver(name) && symbol == machine.symbol {
         return program
             .state_parameters(state)
             .iter()
@@ -137,7 +138,7 @@ pub(crate) fn state_value_root_is_known(
     name: &str,
 ) -> bool {
     let kind = program.symbols.get(root).kind;
-    if name == "self"
+    if is_self_receiver(name)
         || matches!(
             kind,
             symbols::SymbolKind::Local | symbols::SymbolKind::Parameter

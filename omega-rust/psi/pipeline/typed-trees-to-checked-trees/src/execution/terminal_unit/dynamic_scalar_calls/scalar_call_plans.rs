@@ -870,7 +870,7 @@ pub(crate) fn checked_self_attachment_source(
     let [self_name, field_name] = selection.source_path.as_slice() else {
         return None;
     };
-    if self_name.as_str() != "self"
+    if !self_name.is_self_receiver()
         || field_name != &selection.source_name
         || !machine.attached_data_symbol.is_valid()
         || !selection.source_symbol.is_valid()

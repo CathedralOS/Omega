@@ -75,7 +75,7 @@ pub(crate) fn resolve_unique_self_call_state<'program>(
             ExpressionNode::Name(path)
                 if matches!(
                     program.expression_table.name_path_members(path.members),
-                    [only] if only.as_str() == "self"
+                    [only] if only.is_self_receiver()
                 )
         );
     if !receiver_is_self {

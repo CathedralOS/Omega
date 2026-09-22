@@ -319,7 +319,7 @@ pub(super) fn infer_hoist_temp_type(
                         if expressions
                             .name_path_members(path.members)
                             .first()
-                            .is_some_and(|name| name.as_str() == "self")
+                            .is_some_and(|name| name.is_self_receiver())
                 ) {
                     break;
                 }
@@ -540,7 +540,7 @@ fn collection_type_reference(
                     if expressions
                         .name_path_members(path.members)
                         .first()
-                        .is_some_and(|name| name.as_str() == "self")
+                        .is_some_and(|name| name.is_self_receiver())
             );
             if !receiver_is_self {
                 return None;
@@ -748,7 +748,8 @@ fn resolved_symbolic_max_bound(
         let [only] = expressions.name_path_members(path.members) else {
             return None;
         };
-        (only.as_str() == "self").then(|| member.member.as_str().to_owned())
+        only.is_self_receiver()
+            .then(|| member.member.as_str().to_owned())
     };
     match expressions.expression(bound) {
         ExpressionNode::Member(_) => Some((self_field(bound)?, 0)),

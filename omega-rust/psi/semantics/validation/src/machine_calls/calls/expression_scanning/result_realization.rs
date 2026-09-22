@@ -875,7 +875,7 @@ fn member_store_destination<'a>(
     Vec<MemberStoreHop>,
 )> {
     let (root_name, root_symbol, single_member, hops) = member_store_target_path(program, target)?;
-    let parameter = if single_member && root_name.as_str() == "self" {
+    let parameter = if single_member && root_name.is_self_receiver() {
         program
             .state_parameters(state)
             .iter()

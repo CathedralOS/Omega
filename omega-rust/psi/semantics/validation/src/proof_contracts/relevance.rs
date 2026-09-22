@@ -279,7 +279,7 @@ fn transition_target_parameters<'program>(
 ) -> Option<&'program [typed_trees::signature::StateParameter]> {
     callee_parameters(program, path.symbol).or_else(|| {
         let members = program.statement_table.name_path_members(path.members);
-        matches!(members, [member] if member.as_str() == "self")
+        matches!(members, [member] if member.is_self_receiver())
             .then(|| program.state_parameters(state))
     })
 }

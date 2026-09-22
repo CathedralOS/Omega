@@ -12,6 +12,7 @@ use super::place_paths::{
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::machine_calls::calls::write_frames::FrameInference;
 use crate::machine_calls::calls::write_frames::transparent_results::transparent_place_expression_origins;
+use language_core::is_self_receiver;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -64,7 +65,7 @@ pub(super) fn instantiate_written_path_with_origins(
     argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
 ) -> Option<Vec<String>> {
     let (root, suffix) = split_place_root(relative);
-    if root == "self" {
+    if is_self_receiver(root) {
         let base = receiver_base?;
         return Some(vec![match base.precision {
             FramePathPrecision::Exact => append_place_suffix(&base.path, suffix),

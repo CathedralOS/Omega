@@ -158,7 +158,7 @@ fn is_self_entry_call(program: &TypedTrees, entry_name: &str, call: &TableCallEx
             ExpressionNode::Name(path)
                 if matches!(
                     program.expression_table.name_path_members(path.members),
-                    [only] if only.as_str() == "self"
+                    [only] if only.is_self_receiver()
                 )
         )
 }

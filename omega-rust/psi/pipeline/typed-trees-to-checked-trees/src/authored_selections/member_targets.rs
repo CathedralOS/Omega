@@ -311,7 +311,7 @@ fn contextual_self_path(
     path: &typed_trees::expression::TableNamePath,
 ) -> bool {
     let members = program.expression_table.name_path_members(path.members);
-    !path.symbol.is_valid() && members.len() == 1 && members[0].as_str() == "self"
+    !path.symbol.is_valid() && members.len() == 1 && members[0].is_self_receiver()
 }
 
 fn contextual_domain_target_type(

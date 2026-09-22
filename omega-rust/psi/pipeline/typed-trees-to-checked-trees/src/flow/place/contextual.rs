@@ -6,6 +6,7 @@ use crate::flow::push_field_place_segments;
 use crate::lookup::first_valid_name_path_symbol;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::StatementNode;
+use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 
 pub(crate) fn contextual_canonical_place_from_expression(
@@ -44,7 +45,7 @@ pub(crate) fn contextual_canonical_place_from_expression(
             let start_index = usize::from(
                 members
                     .first()
-                    .is_some_and(|member| member.as_str() == "self"),
+                    .is_some_and(|member| member.is_self_receiver()),
             );
             for (offset, member_name) in members.iter().skip(start_index + 1).enumerate() {
                 let symbol = member_symbols
@@ -113,7 +114,7 @@ fn resolve_contextual_name_path_root(
 ) -> Option<SymbolHandle> {
     let name = program.expression_table.display_name(expression);
     let state = crate::semantic_calls::find_state(program, state_symbol)?;
-    if name == "self" {
+    if is_self_receiver(&name) {
         return program
             .state_parameters(state)
             .iter()

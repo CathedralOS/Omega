@@ -2,6 +2,7 @@ use super::super::super::super::effective_member_symbol;
 use super::super::machine_by_symbol;
 
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 
 pub(crate) fn relative_place_segments_from_expression(
@@ -20,7 +21,7 @@ pub(crate) fn relative_place_segments_from_expression(
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
             let head = members.first()?.as_str();
-            if head != "self" {
+            if !is_self_receiver(head) {
                 return None;
             }
 

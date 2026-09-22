@@ -186,7 +186,7 @@ pub(crate) fn validate_transition_target_node(
         return;
     }
 
-    if path.len() == 2 && path[0].as_str() == "self" {
+    if path.len() == 2 && path[0].is_self_receiver() {
         let Some(state) = machine_symbols.state(path[1].as_str()) else {
             return;
         };

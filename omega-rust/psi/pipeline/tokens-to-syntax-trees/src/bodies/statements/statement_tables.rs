@@ -101,7 +101,7 @@ pub(crate) fn root_binding_declaration(
             return handle;
         };
         let members = syntax_trees.expressions.identifier_path_members(*path);
-        if members.len() == 1 && members[0].as_str() != "self" {
+        if members.len() == 1 && !members[0].is_self_receiver() {
             handle
         } else {
             ExpressionHandle::invalid()

@@ -313,7 +313,7 @@ fn index_is_hoistable_computed(lowerer: &Lowerer, index: ExpressionHandle) -> bo
                     if expressions
                         .name_path_members(path.members)
                         .first()
-                        .is_some_and(|name| name.as_str() == "self")
+                        .is_some_and(|name| name.is_self_receiver())
             ),
             ExpressionNode::Name(path) => {
                 let members = expressions.name_path_members(path.members);
@@ -498,11 +498,11 @@ fn is_member_of_runtime_indexed_read(lowerer: &Lowerer, expression: ExpressionHa
                 if expressions
                     .name_path_members(path.members)
                     .first()
-                    .is_some_and(|name| name.as_str() == "self")
+                    .is_some_and(|name| name.is_self_receiver())
         ),
         ExpressionNode::Name(path) => {
             let members = expressions.name_path_members(path.members);
-            members.len() == 2 && members[0].as_str() == "self"
+            members.len() == 2 && members[0].is_self_receiver()
         }
         _ => false,
     }
@@ -607,6 +607,6 @@ pub(super) fn is_hoistable_builtin_guard_call(
             if expressions
                 .name_path_members(path.members)
                 .first()
-                .is_some_and(|name| name.as_str() == "self")
+                .is_some_and(|name| name.is_self_receiver())
     )
 }

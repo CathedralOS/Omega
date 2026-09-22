@@ -157,7 +157,7 @@ fn instantiate_domain_expression_label(
             let members = program.expression_table.name_path_members(path.members);
             if members
                 .first()
-                .is_some_and(|member| member.as_str() == "self")
+                .is_some_and(|member| member.is_self_receiver())
             {
                 if members.len() == 1 {
                     base_label.to_owned()

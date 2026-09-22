@@ -1,4 +1,5 @@
 use arena::{Arena, OrderedRootArena};
+use language_core::is_self_receiver;
 use symbol_resolved_trees::data::{DataDefinition, DataMember};
 use symbol_resolved_trees::types::TypeReference;
 use symbols::{SymbolHandle, SymbolLookup, SymbolTable};
@@ -214,7 +215,7 @@ impl MachineScope<'_> {
     /// receiver-place staircase).
     pub(super) fn nested_self_chain_type(&self, chain: &[&str]) -> Option<SymbolHandle> {
         let (root, hops) = chain.split_first()?;
-        if *root != "self" {
+        if !is_self_receiver(root) {
             return None;
         }
         let mut current_symbol = self.attached_data_symbol;

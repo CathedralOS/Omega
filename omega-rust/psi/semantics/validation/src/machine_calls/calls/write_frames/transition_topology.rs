@@ -115,7 +115,7 @@ pub(super) fn named_transition_target_state<'program>(
         .find(|candidate| candidate.symbol == path.symbol)
         .or_else(|| {
             let members = program.statement_table.name_path_members(path.members);
-            matches!(members, [member] if member.as_str() == "self").then_some(source)
+            matches!(members, [member] if member.is_self_receiver()).then_some(source)
         })
 }
 

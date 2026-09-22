@@ -3,6 +3,7 @@ use super::{
     Machine, MutableScalarRecast, State, StatementNode, SymbolHandle, TableCall, TableTransition,
     TransitionDecision, TransitionGuardNode, TransitionTargetNode, TypeReferenceNode, Value, trap,
 };
+use language_core::is_self_receiver;
 use language_semantics::declaration_selection::BuildOperation;
 
 /// Whether a call target is a build declaration the build-config pass
@@ -653,7 +654,7 @@ impl<'program> Evaluator<'program> {
         // `console` is a single-member path; `self.dungeon` is `[self, dungeon]`).
         let mut cell = frame.self_cell.clone();
         let mut start = 0;
-        if members[0] == "self" {
+        if is_self_receiver(&members[0]) {
             start = 1;
         } else if let Some(local) = frame.get(&members[0]) {
             cell = local;
@@ -680,7 +681,7 @@ impl<'program> Evaluator<'program> {
 
         // Only treat this as a sub-machine call if the receiver is NOT just `self` (a bare
         // self receiver is handled by the sibling-state path).
-        let bare_self = members.len() == 1 && members[0] == "self";
+        let bare_self = members.len() == 1 && is_self_receiver(&members[0]);
         if bare_self {
             return Ok(None);
         }

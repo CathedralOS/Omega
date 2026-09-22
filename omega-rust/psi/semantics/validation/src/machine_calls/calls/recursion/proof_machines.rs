@@ -585,7 +585,7 @@ pub(crate) fn validate_proof_machine_recursion(
             && call.target_symbol == entry_symbol)
             || (!call.target_symbol.is_valid() && call.target.as_str() == entry_name);
         if selects_self_entry
-            && (receiver.is_empty() || matches!(receiver, [only] if only.as_str() == "self"))
+            && (receiver.is_empty() || matches!(receiver, [only] if only.is_self_receiver()))
         {
             // A resultless citation and an explicitly discarded value call
             // are both StatementNode::Call. The call itself is the induction

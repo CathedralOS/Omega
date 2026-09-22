@@ -36,7 +36,7 @@ impl<'program> Evaluator<'program> {
         let Some((head, rest)) = members.split_first() else {
             return trap("selected boundary adapter lost its receiver");
         };
-        let mut cell = if head.as_str() == "self" {
+        let mut cell = if head.is_self_receiver() {
             frame.self_cell.clone()
         } else if let Some(local) = frame.get(head.as_str()) {
             local

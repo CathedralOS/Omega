@@ -371,7 +371,7 @@ fn parameter_place(
         && (checked.symbols.get(root.symbol).kind == symbols::SymbolKind::Machine
             || matches!(
                 checked.expression_table.name_path_members(root.members),
-                [spelling] if spelling.as_str() == "self"
+                [spelling] if spelling.is_self_receiver()
             ));
     let authored_name = !parameter.is_self
         && (root.symbol == parameter.symbol

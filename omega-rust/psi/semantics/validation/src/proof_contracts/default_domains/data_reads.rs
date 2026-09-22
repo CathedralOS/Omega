@@ -7,6 +7,7 @@ use crate::proof_contracts::default_domains::place_queries::{
 };
 use crate::proof_contracts::default_domains::{InvariantWindow, TrackedPlace};
 use diagnostics::Diagnostic;
+use language_core::is_self_receiver;
 use typed_trees::TypedTrees;
 use typed_trees::data::DataDefinition;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -52,7 +53,7 @@ pub(crate) fn scan_statement_reads(
         StatementNode::Call(call) => {
             let receiver = program.statement_table.name_path_members(call.receiver);
             if receiver.len() > 1
-                && receiver[0].as_str() == "self"
+                && receiver[0].is_self_receiver()
                 && let Some(definition) = machine.attached_data.as_ref().and_then(|attached| {
                     program
                         .data_definitions()
@@ -126,14 +127,16 @@ fn scan_expression_reads(
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
             if members.len() == 1
-                && members[0].as_str() == "self"
+                && members[0].is_self_receiver()
                 && let Some(definition) = machine.attached_data.as_ref().and_then(|attached| {
                     program
                         .data_definitions()
                         .iter()
                         .find(|definition| definition.name == *attached)
                 })
-                && let Some(place) = tracked.iter().find(|place| place.spelling == "self")
+                && let Some(place) = tracked
+                    .iter()
+                    .find(|place| is_self_receiver(&place.spelling))
                 && place.window_open
             {
                 diagnostics.push(Diagnostic::error(format!(
@@ -172,7 +175,7 @@ fn scan_expression_reads(
             // the attached `self` value, so it must not bypass establishment
             // merely because no standalone Member node was built.
             if members.len() > 1
-                && members[0].as_str() == "self"
+                && members[0].is_self_receiver()
                 && let Some(definition) = machine.attached_data.as_ref().and_then(|attached| {
                     program
                         .data_definitions()
@@ -479,7 +482,7 @@ fn is_bare_self_name(program: &TypedTrees, expression: ExpressionHandle) -> bool
         return false;
     };
     let members = program.expression_table.name_path_members(path.members);
-    members.len() == 1 && members[0].as_str() == "self"
+    members.len() == 1 && members[0].is_self_receiver()
 }
 
 fn validate_data_read(
@@ -510,7 +513,7 @@ fn validate_data_read(
             || !is_self_rooted(receiver_spelling)
     });
     let established = established
-        || (receiver_spelling == "self"
+        || (is_self_receiver(receiver_spelling)
             && attached_value_established(
                 program,
                 machine,
@@ -585,7 +588,9 @@ pub(crate) fn attached_value_established(
     if definition.zero_gated {
         return false;
     }
-    let root = tracked.iter().find(|place| place.spelling == "self");
+    let root = tracked
+        .iter()
+        .find(|place| is_self_receiver(&place.spelling));
     for member in program.data_members(definition) {
         let typed_trees::data::DataMember::Field(field) = member else {
             continue;

@@ -56,7 +56,7 @@ pub(crate) fn declared_case_projection_field<'program>(
             if name.symbol == machine.symbol
                 && matches!(
                     program.expression_table.name_path_members(name.members),
-                    [only] if only.as_str() == "self"
+                    [only] if only.is_self_receiver()
                 ) =>
         {
             machine.attached_data_symbol

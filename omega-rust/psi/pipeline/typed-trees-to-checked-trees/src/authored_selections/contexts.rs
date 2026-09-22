@@ -946,7 +946,7 @@ fn infer_expression_type(
             let [name] = program.expression_table.name_path_members(path.members) else {
                 return None;
             };
-            if name.as_str() == "self" {
+            if name.is_self_receiver() {
                 return environment.self_type;
             }
             if name.as_str() == "result" {

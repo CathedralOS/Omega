@@ -99,7 +99,7 @@ pub(super) fn matches_name(
                 .expression_table
                 .name_path_members(path.members)
                 .first()
-                .is_some_and(|name| name.as_str() == "self"))
+                .is_some_and(|name| name.is_self_receiver()))
 }
 
 pub(super) fn mentions_name(
@@ -164,7 +164,7 @@ pub(super) fn validate_statement_call(
         if call.receiver_root_symbol == root.symbol
             || (root.receiver_machine.is_valid()
                 && call.receiver_root_symbol == root.receiver_machine
-                && receiver.first().is_some_and(|name| name.as_str() == "self"))
+                && receiver.first().is_some_and(|name| name.is_self_receiver()))
             || receiver.first().is_some_and(|name| {
                 attached_field(program, root, call.receiver_root_symbol, name.as_str()).is_some()
             })

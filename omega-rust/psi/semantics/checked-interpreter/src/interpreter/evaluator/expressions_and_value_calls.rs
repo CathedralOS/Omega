@@ -1426,7 +1426,7 @@ impl<'program> Evaluator<'program> {
                         .program
                         .expression_table
                         .name_path_members(path.members);
-                    members.is_empty() || (members.len() == 1 && members[0].as_str() == "self")
+                    members.is_empty() || (members.len() == 1 && members[0].is_self_receiver())
                 }
                 _ => false,
             }
@@ -1468,7 +1468,7 @@ impl<'program> Evaluator<'program> {
                 .expression_table
                 .name_path_members(path.members);
             if members.len() == 1
-                && members[0].as_str() != "self"
+                && !members[0].is_self_receiver()
                 && frame.get(members[0].as_str()).is_none()
             {
                 if let Some(resolved) = self.resolve_entry_state_symbol(call.target_symbol, frame) {

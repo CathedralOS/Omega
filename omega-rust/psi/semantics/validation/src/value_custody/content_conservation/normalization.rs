@@ -2,6 +2,7 @@ use super::{
     algebra_key, domain_label, is_old_call, is_separate_call, projection_label,
     projection_plan_for_call, structural_place_label,
 };
+use language_core::is_self_receiver;
 use language_semantics::content::{
     ContentAlgebraIdentity, ContentCaseSegment, ContentConservationEquation,
     ContentConservationTerm, ContentFieldSegment, ContentPlaceRoot, ContentPlaceSegment,
@@ -192,7 +193,7 @@ fn normalize_projection_subject(
                 .find(|(_, parameter)| {
                     (root_symbol.is_valid() && parameter.symbol == root_symbol)
                         || parameter.name.as_str() == root_name
-                        || (parameter.is_self && root_name == "self")
+                        || (parameter.is_self && is_self_receiver(&root_name))
                 })
         else {
             return Err(format!(

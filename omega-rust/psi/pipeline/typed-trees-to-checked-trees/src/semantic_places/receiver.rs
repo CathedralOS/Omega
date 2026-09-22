@@ -14,7 +14,7 @@ pub(crate) fn receiver_place_for_call(
             if let Some(members) = statement_call_receiver_members(program, statement) {
                 if members
                     .first()
-                    .is_some_and(|member| member.as_str() == "self")
+                    .is_some_and(|member| member.is_self_receiver())
                 {
                     let caller_state = super::find_state_in_machine(
                         program,

@@ -55,7 +55,7 @@ pub(super) fn caller_name_root_type(
     // Typed `self` paths retain the owning machine identity, not the synthetic
     // state parameter identity. Only that exact machine may select this state's
     // unique receiver declaration.
-    if member.as_str() == "self"
+    if member.is_self_receiver()
         && root == current_machine.symbol
         && declaration.kind == symbols::SymbolKind::Machine
     {

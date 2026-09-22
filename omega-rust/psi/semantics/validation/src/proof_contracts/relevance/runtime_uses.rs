@@ -51,7 +51,7 @@ pub(super) fn validate_expression(
                         || report_runtime_erased_binding(program, state, *symbol, diagnostics);
                 }
                 let members = program.expression_table.name_path_members(path.members);
-                if !reported && members.len() == 2 && members[0].as_str() == "self" {
+                if !reported && members.len() == 2 && members[0].is_self_receiver() {
                     report_runtime_erased_attached_field(
                         program,
                         machine,
@@ -387,7 +387,7 @@ pub(super) fn validate_statement_call_receiver(
     let Some((first, projected)) = members.split_first() else {
         return;
     };
-    let mut owner = if first.as_str() == "self" {
+    let mut owner = if first.is_self_receiver() {
         // `self` resolves to the machine itself, never an erased binding;
         // its fields live on the attached data.
         program

@@ -436,7 +436,7 @@ pub(super) fn signature_contracts_are_exact_parameter_qualifications(
             let Some(position) = parameters.iter().position(|parameter| {
                 parameter.symbol == path.symbol
                     || parameter.name == *name
-                    || (parameter.is_self && name.as_str() == "self")
+                    || (parameter.is_self && name.is_self_receiver())
             }) else {
                 return false;
             };

@@ -479,7 +479,7 @@ pub(crate) fn check_bounded_call_argument(
         let self_receiver = obligation
             .receiver
             .as_ref()
-            .is_none_or(|receiver| receiver.as_str() == "self");
+            .is_none_or(|receiver| receiver.is_self_receiver());
         let argument_range = integer_range_for_call_argument(proof_plan, obligation);
         // Route (c), as on transitions: a same-field tighter-or-equal
         // dependent argument forwards (self-receiver keeps `self.<field>`

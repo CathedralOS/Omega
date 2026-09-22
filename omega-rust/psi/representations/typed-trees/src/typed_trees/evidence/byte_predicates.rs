@@ -115,7 +115,7 @@ fn expression_is_self_reference(program: &TypedTrees, expression: ExpressionHand
         return false;
     };
     let members = program.expression_table.name_path_members(path.members);
-    matches!(members, [member] if member.as_str() == "self")
+    matches!(members, [member] if member.is_self_receiver())
 }
 
 #[cfg(test)]

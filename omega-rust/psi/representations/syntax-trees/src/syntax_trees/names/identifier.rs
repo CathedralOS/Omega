@@ -61,6 +61,12 @@ impl Identifier {
         self.source_span
     }
 
+    /// Whether this identifier spells the `self` receiver binding of an
+    /// attached machine or state; see `language_core::receiver_binding`.
+    pub fn is_self_receiver(&self) -> bool {
+        language_core::is_self_receiver(self.as_str())
+    }
+
     pub fn is_source_backed(&self) -> bool {
         self.source_span.span.start != self.source_span.span.end
     }

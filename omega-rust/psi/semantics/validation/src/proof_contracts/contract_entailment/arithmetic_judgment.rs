@@ -569,7 +569,7 @@ impl<'program> Engine<'program> {
                             .any(|symbol| symbol.is_valid())
                         || !matches!(
                             self.program.expression_table.name_path_members(path.members),
-                            [member] if member.as_str() == "self"
+                            [member] if member.is_self_receiver()
                         )
                     {
                         return false;

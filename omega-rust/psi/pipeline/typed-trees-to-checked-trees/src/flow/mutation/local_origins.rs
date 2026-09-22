@@ -15,6 +15,7 @@ use crate::flow::symbol_type_symbol;
 use crate::semantic_calls::find_state;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
+use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 mod coordinates;
 pub(crate) use coordinates::origin_place;
@@ -376,7 +377,8 @@ pub(crate) fn place_from_origin_path(
         .state_parameters(state)
         .iter()
         .find_map(|parameter| {
-            ((parameter.is_self && root_name == "self") || parameter.name.as_str() == root_name)
+            ((parameter.is_self && is_self_receiver(root_name))
+                || parameter.name.as_str() == root_name)
                 .then_some(parameter.symbol)
         })
         .or_else(|| {

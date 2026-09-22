@@ -576,7 +576,7 @@ fn operand_declared_primitive(
     let [receiver] = program.expression_table.name_path_members(path.members) else {
         return None;
     };
-    if receiver.as_str() != "self" {
+    if !receiver.is_self_receiver() {
         return None;
     }
     for machine in program.machines() {

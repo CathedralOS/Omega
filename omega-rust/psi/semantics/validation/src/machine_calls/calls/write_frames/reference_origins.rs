@@ -446,7 +446,7 @@ pub(super) fn declared_origin_root(
                     && program.symbols.get(machine.symbol).kind == symbols::SymbolKind::Machine
                     && members
                         .first()
-                        .is_some_and(|member| member.as_str() == "self")
+                        .is_some_and(|member| member.is_self_receiver())
                 {
                     return Some(());
                 }

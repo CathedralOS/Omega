@@ -206,7 +206,7 @@ pub(super) fn structural_parameter_field_path(
         ExpressionNode::Name(name) => {
             if program.symbols.get(name.symbol).kind == symbols::SymbolKind::Machine
                 || matches!(program.expression_table.name_path_members(name.members),
-                    [spelling] if spelling.as_str() == "self")
+                    [spelling] if spelling.is_self_receiver())
             {
                 let (position, _) = exact_self_parameter(program, parameters, expression)?;
                 return u32::try_from(position).ok();
@@ -335,7 +335,7 @@ fn exact_self_parameter<'program>(
         || name.head_symbol != name.symbol
         || program.symbols.get(name.symbol).kind != SymbolKind::Machine
         || !matches!(program.expression_table.name_path_members(name.members),
-            [spelling] if spelling.as_str() == "self")
+            [spelling] if spelling.is_self_receiver())
     {
         return None;
     }
@@ -363,7 +363,7 @@ fn exact_self_parameter<'program>(
     let parameter_symbol = program.symbols.get(parameter.symbol);
     if receivers.next().is_some()
         || parameter.is_const
-        || parameter.name.as_str() != "self"
+        || !parameter.name.is_self_receiver()
         || parameter_symbol.kind != SymbolKind::Parameter
         || parameter_symbol.parent != entry.symbol
         || program.symbols.name(parameter.symbol) != parameter.name.as_str()

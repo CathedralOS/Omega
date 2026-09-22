@@ -58,7 +58,7 @@ pub(crate) fn authored(
                         if matches!(checked.expression_table.expression(member.receiver),
                             ExpressionNode::Name(name) if name.symbol == machine.symbol
                                 || matches!(checked.expression_table.name_path_members(name.members),
-                                    [spelling] if spelling.as_str() == "self"))
+                                    [spelling] if spelling.is_self_receiver()))
                         {
                             return None;
                         }
@@ -166,7 +166,7 @@ pub(crate) fn authored(
             || subject.head_symbol != machine.symbol
             || checked.symbols.get(machine.symbol).kind != symbols::SymbolKind::Machine
             || !matches!(checked.expression_table.name_path_members(subject.members),
-                [name] if name.as_str() == "self")
+                [name] if name.is_self_receiver())
             || checked
                 .machine_states(machine)
                 .first()
@@ -185,7 +185,7 @@ pub(crate) fn authored(
         };
         if receivers.next().is_some()
             || receiver.is_const
-            || receiver.name.as_str() != "self"
+            || !receiver.name.is_self_receiver()
             || checked.symbols.get(receiver.symbol).kind != symbols::SymbolKind::Parameter
             || checked.symbols.get(receiver.symbol).parent != state.symbol
             || checked

@@ -1,6 +1,7 @@
 use crate::labels::symbol_name;
 use checked_trees::ContractCallFact;
 use facts::FactPlan;
+use language_core::is_self_receiver;
 
 #[derive(Debug, Clone)]
 pub(crate) struct ContractPlaceSubstitution {
@@ -55,7 +56,7 @@ pub(crate) fn call_contract_place_substitution(
         });
     }
 
-    if symbol_name(program, parameter_symbol) == "self" {
+    if is_self_receiver(&symbol_name(program, parameter_symbol)) {
         let substitution_place = super::receiver_place_for_call(program, facts, call, &call_site)?;
         let place = *facts.places.get(substitution_place);
         let segments = facts.place_segments.span_or_empty(place.segments).to_vec();

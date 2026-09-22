@@ -150,7 +150,7 @@ pub(crate) fn provider_attachment_receiver_matches(
             else {
                 return false;
             };
-            if self_name.as_str() != "self" {
+            if !self_name.is_self_receiver() {
                 return false;
             }
             (field_name.clone(), None)
@@ -163,7 +163,7 @@ pub(crate) fn provider_attachment_receiver_matches(
             let [self_name, field_name] = receiver.members() else {
                 return false;
             };
-            if self_name.as_str() != "self" {
+            if !self_name.is_self_receiver() {
                 return false;
             }
             (field_name.clone(), Some(receiver.member_symbol(1)))

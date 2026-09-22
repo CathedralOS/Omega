@@ -2,6 +2,7 @@ use crate::value_custody::locals::WritableRoots;
 use crate::value_custody::struct_literals::data_declares_field;
 use access_plans::BorrowPolarity;
 use diagnostics::Diagnostic;
+use language_core::is_self_receiver;
 use typed_trees::TypedTrees;
 use typed_trees::data::DataDefinition;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -131,7 +132,7 @@ fn expression_root_name_handle(program: &TypedTrees, expression: ExpressionHandl
                             .expression_table
                             .name_path_members(path.members)
                             .first()
-                            .is_some_and(|name| name.as_str() == "self") =>
+                            .is_some_and(|name| name.is_self_receiver()) =>
                 {
                     Some(member.member.as_str())
                 }
@@ -164,11 +165,11 @@ pub(crate) fn direct_self_field_member(
                 return None;
             };
             let receiver = program.expression_table.name_path_members(path.members);
-            (receiver.len() == 1 && receiver[0].as_str() == "self").then(|| member.member.as_str())
+            (receiver.len() == 1 && receiver[0].is_self_receiver()).then(|| member.member.as_str())
         }
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
-            (members.len() == 2 && members[0].as_str() == "self").then(|| members[1].as_str())
+            (members.len() == 2 && members[0].is_self_receiver()).then(|| members[1].as_str())
         }
         _ => None,
     }
@@ -362,7 +363,7 @@ pub(crate) fn declared_place_leaf_symbol(
             .map(|(symbol, _)| symbol);
     }
 
-    let mut current_data = if root == "self" {
+    let mut current_data = if is_self_receiver(root) {
         let first = rest.first()?;
         if let Some(owned) = program
             .machine_owned_data(current_machine)

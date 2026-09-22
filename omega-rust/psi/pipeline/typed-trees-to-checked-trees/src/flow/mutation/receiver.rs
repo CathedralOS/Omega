@@ -164,7 +164,7 @@ fn canonical_self_receiver_path(
     let members = statement_call_receiver_members(program, statement)?;
     if members
         .first()
-        .is_none_or(|member| member.as_str() != "self")
+        .is_none_or(|member| !member.is_self_receiver())
     {
         return None;
     }

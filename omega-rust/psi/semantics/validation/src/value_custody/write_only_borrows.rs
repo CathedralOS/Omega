@@ -981,7 +981,7 @@ fn validate_statement(
             let self_is_argument = receiver_names_declaration(program, call.receiver_symbol)
                 && !matches!(
                     program.statement_table.name_path_members(call.receiver),
-                    [member] if member.as_str() == "self"
+                    [member] if member.is_self_receiver()
                 );
             let declared_parameters =
                 crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)

@@ -1155,7 +1155,7 @@ fn parameter_case_subject(
                 // A bare `self` name resolves to the machine symbol, not a
                 // parameter; `StateParameter::is_self` is the real member.
                 let name = program.expression_table.name_path_members(path.members);
-                if !name.first().is_some_and(|member| member.as_str() == "self")
+                if !name.first().is_some_and(|member| member.is_self_receiver())
                     || name.len() != 1
                     || program
                         .state_parameters(state)

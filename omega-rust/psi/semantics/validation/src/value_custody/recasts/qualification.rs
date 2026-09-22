@@ -231,7 +231,7 @@ fn range_mint_discharges(
                 ExpressionNode::Name(path)
                     if matches!(
                         program.expression_table.name_path_members(path.members),
-                        [only] if only.as_str() == "self"
+                        [only] if only.is_self_receiver()
                     )
             )
         };
@@ -460,7 +460,7 @@ fn literal_mint_discharges(
                 ExpressionNode::Name(path)
                     if matches!(
                         program.expression_table.name_path_members(path.members),
-                        [only] if only.as_str() == "self"
+                        [only] if only.is_self_receiver()
                     ) =>
                 {
                     Some(minted)
@@ -602,7 +602,7 @@ fn requires_mint_discharges(
                 ExpressionNode::Name(fact_path)
                     if matches!(
                         program.expression_table.name_path_members(fact_path.members),
-                        [only] if only.as_str() == "self"
+                        [only] if only.is_self_receiver()
                     )
             )
         };

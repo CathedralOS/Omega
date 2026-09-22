@@ -1,6 +1,7 @@
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use diagnostics::Diagnostic;
 use facts::{FactPayload, FactPlace, PlaceRoot, PlaceSegment};
+use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
@@ -681,7 +682,7 @@ fn unqualified_label_identifiers(label: &str) -> Vec<String> {
             let qualified =
                 start > 0 && matches!(label.as_bytes().get(start - 1), Some(b'.' | b':'));
             if !qualified
-                && identifier != "self"
+                && !is_self_receiver(identifier)
                 && !names.iter().any(|name: &String| name == identifier)
             {
                 names.push(identifier.to_owned());

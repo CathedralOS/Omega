@@ -19,6 +19,7 @@ use crate::machine_calls::calls::write_frames::transparent_effects::{
 use crate::machine_calls::calls::write_frames::transparent_results::transparent_callee_result_origins;
 use crate::machine_calls::calls::write_frames::type_capabilities::type_reference_is_reference;
 use crate::machine_calls::calls::write_frames::value_expressions::ValuePosition;
+use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
@@ -312,7 +313,7 @@ fn parameter_relative_name_origins(
     let root_symbol = frame_place_root_symbol(program, expression);
     let (root, suffix) = split_place_root(&place.path);
     if let Some(parameter) = parameters.iter().find(|parameter| {
-        (root_symbol == Some(parameter.symbol) || (parameter.is_self && root == "self"))
+        (root_symbol == Some(parameter.symbol) || (parameter.is_self && is_self_receiver(root)))
             && (admit_carrier_roots
                 || type_reference_is_reference(program, parameter.type_reference))
     }) {
@@ -378,7 +379,7 @@ fn parameter_relative_aggregate_leaf_origins(
                 .iter()
                 .find(|parameter| {
                     (origin.source.root == parameter.symbol
-                        || (parameter.is_self && root == "self"))
+                        || (parameter.is_self && is_self_receiver(root)))
                         && (admit_carrier_roots
                             || type_reference_is_reference(program, parameter.type_reference))
                 })
