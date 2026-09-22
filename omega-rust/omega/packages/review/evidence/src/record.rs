@@ -8,7 +8,11 @@ mod baseline;
 pub use baseline::PackagePolicyBaseline;
 mod authority_expressions;
 mod behavior_policy;
-pub use behavior_policy::*;
+pub use behavior_policy::{
+    PackagePolicyCapabilityFlow, PackagePolicyCrash, PackagePolicyCrashGuard,
+    PackagePolicyCrashRoute, PackagePolicyInferredCrash, PackagePolicyMutation,
+    PackagePolicyProgressPremise, PackagePolicyTermination,
+};
 mod calling;
 mod conformances;
 mod contracts;
@@ -27,10 +31,19 @@ mod quotients;
 mod representation;
 mod restricted_build;
 mod rows;
-pub use policy_rows::*;
+pub use policy_rows::{
+    PACKAGE_POLICY_ROW_VERSION, PackagePolicyRow, PackagePolicyRowKind, PackagePolicyRowLimits,
+    PackagePolicyRowUsage,
+};
 mod signatures;
 mod terminal_authority;
-pub use public_policy::*;
+pub(in crate::record) use public_policy::validation;
+pub use public_policy::{
+    PackagePolicyConformanceShape, PackagePolicyDataShape, PackagePolicyDomainShape,
+    PackagePolicyMachineParameterContract, PackagePolicyMachineParameterSignature,
+    PackagePolicyOperatorShape, PackagePolicyPublicApi, PackagePolicyTraitRequirement,
+    PackagePolicyTraitShape, PackagePolicyTypeParameter, PackagePolicyTypeParameterKind,
+};
 
 pub use authority::{
     PackageReviewBooleanExpression, PackageReviewCapabilityFlow, PackageReviewCrash,

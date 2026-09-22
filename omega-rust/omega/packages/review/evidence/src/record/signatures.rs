@@ -8,8 +8,30 @@ mod external_supply;
 mod signature_vocabulary;
 mod traits;
 
-pub use callables::*;
-pub use external_policy::*;
-pub use external_supply::*;
-pub use signature_vocabulary::*;
-pub use traits::*;
+pub use callables::{
+    PackageReviewCallableConformance, PackageReviewCallableParameter,
+    PackageReviewTraitRequirementParameter,
+};
+pub use external_policy::{
+    PackagePolicyEvaluatedBindingProducer, PackagePolicyExternalBinding,
+    PackagePolicyExternalCallableSignature, PackagePolicyExternalExecutableSupply,
+    PackagePolicyExternalRequirement,
+};
+pub use external_supply::{
+    PackageReviewEvaluatedBindingUsage, PackageReviewEvaluatedImport,
+    PackageReviewEvaluatedSyscall, PackageReviewExternalBinding,
+    PackageReviewExternalCallableParameter, PackageReviewExternalCallableSignature,
+    PackageReviewExternalExecutableSupply, PackageReviewExternalRequirement,
+    PackageReviewExternalStaticParameter, PackageReviewForeignLocator,
+};
+pub use signature_vocabulary::{
+    PackageReviewConformanceBound, PackageReviewMachineParameterContract,
+    PackageReviewMachineParameterSignature, PackageReviewMachineParameterValue,
+    PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
+    PackageReviewTypeIdentity, PackageReviewTypeParameter, PackageReviewTypeParameterKind,
+};
+pub use traits::{
+    PackageReviewConformanceShape, PackageReviewConformanceSubject,
+    PackageReviewTraitCompositionKind, PackageReviewTraitParent, PackageReviewTraitRequirement,
+    PackageReviewTraitShape,
+};
