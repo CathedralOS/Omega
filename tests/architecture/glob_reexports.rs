@@ -25,7 +25,6 @@ use std::path::{Path, PathBuf};
 /// `src/` that re-export a module with a glob).
 const GLOB_REEXPORT_CEILINGS: &[(&str, usize)] = &[
     ("omega-rust/omega/backend/artifacts/native-artifact", 2),
-    ("omega-rust/omega/backend/images/image", 7),
     (
         "omega-rust/omega/backend/instruction_set_architectures/isa-aarch64",
         7,
