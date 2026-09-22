@@ -5490,19 +5490,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "inline_asm/asm_write_cr3_requires_machine_authority",
     "inline_asm/asm_write_sctlr_el1_requires_machine_authority",
     "ports/asm_port_in_unsettled",
-    // Landed 2026-09-21 without roster rows; the CompleteCorpus inventory
-    // read them as unregistered.
-    "collections/vec_duplicate_cleanup",
-    "collections/vec_invalidated_loan_after_growth",
-    "domains/predicate_domain_local_initializer_unproved",
-    "ownership/borrowed_storage_missing_repair_on_branch",
-    "ownership/borrowed_storage_repeated_extraction",
-    "ownership/borrowed_storage_stale_read_in_hole",
-    "proofs/alignment_contract_zero_return",
-    "proofs/quotient_lift_invalid_law_rejected",
-    "proofs/quotient_lift_nonhermetic_identity_rejected",
-    "relevance/erased_case_payload_runtime_read",
-    "wire/preserve_unknown_demand_unsatisfiable",
 ];
 
 #[derive(Clone, Copy)]
