@@ -7,9 +7,6 @@ use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use language_semantics::{Multiplicity, PermissionClaimIdentity};
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{ContentAlgebraKind, ContentPlaceVersion};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
@@ -18,9 +15,6 @@ use terminal_interpreter::{
     TerminalScalarValue, TerminalStructuralResult, TerminalStructuralValue,
 };
 use terminal_psi::{TerminalMachineResult, Terminator};
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
 fn result_bearing_boundary_rejects_missing_canonical_contract_custody() {
@@ -79,14 +73,7 @@ fn result_bearing_boundary_rejects_compact_equal_commitment_substitution() {
 
 #[test]
 fn source_content_custody_exit_retains_projection_and_commits_only_after_success() {
-    let tokens = Lexer::new(RESULT_BOUNDARY_CONTENT_CUSTODY_SOURCE)
-        .tokenize()
-        .expect("tokenize content custody exit");
-    let syntax = parse_syntax_trees(&tokens).expect("parse content custody exit");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve content custody exit");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type content custody exit");
-    let checked =
-        lower_typed_trees(typed, &CheckingRequest::settled()).expect("check content custody exit");
+    let checked = crate::front_end::checked_program(RESULT_BOUNDARY_CONTENT_CUSTODY_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -186,15 +173,7 @@ fn source_content_custody_exit_retains_projection_and_commits_only_after_success
 
 #[test]
 fn source_content_custody_unit_exit_retains_projection_and_consumes_claim() {
-    let tokens = Lexer::new(RESULT_BOUNDARY_CONTENT_CUSTODY_SOURCE)
-        .tokenize()
-        .expect("tokenize Unit content custody exit");
-    let syntax = parse_syntax_trees(&tokens).expect("parse Unit content custody exit");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve Unit content custody exit");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type Unit content custody exit");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check Unit content custody exit");
+    let checked = crate::front_end::checked_program(RESULT_BOUNDARY_CONTENT_CUSTODY_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::exit"),
@@ -253,15 +232,7 @@ fn source_content_custody_unit_exit_retains_projection_and_consumes_claim() {
 
 #[test]
 fn result_bearing_boundary_retains_exact_bounded_installation_reach() {
-    let tokens = Lexer::new(RESULT_BOUNDARY_BOUNDED_REACH_SOURCE)
-        .tokenize()
-        .expect("tokenize bounded result boundary");
-    let syntax = parse_syntax_trees(&tokens).expect("parse bounded result boundary");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve bounded result boundary");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type bounded result boundary");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check bounded result boundary");
+    let checked = crate::front_end::checked_program(RESULT_BOUNDARY_BOUNDED_REACH_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -387,14 +358,7 @@ fn result_bearing_boundary_retains_exact_bounded_installation_reach() {
 
 #[test]
 fn literal_fixed_array_custody_reaches_verified_interpreted_terminal_psi() {
-    let tokens = Lexer::new(INDEXED_CUSTODY_SOURCE)
-        .tokenize()
-        .expect("tokenize indexed custody");
-    let syntax = parse_syntax_trees(&tokens).expect("parse indexed custody");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve indexed custody");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type indexed custody");
-    let checked =
-        lower_typed_trees(typed, &CheckingRequest::settled()).expect("check indexed custody");
+    let checked = crate::front_end::checked_program(INDEXED_CUSTODY_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -522,15 +486,7 @@ fn literal_fixed_array_custody_reaches_verified_interpreted_terminal_psi() {
 
 #[test]
 fn literal_fixed_array_custody_crosses_ordinary_unit_calls_without_losing_siblings() {
-    let tokens = Lexer::new(ORDINARY_INDEXED_CUSTODY_SOURCE)
-        .tokenize()
-        .expect("tokenize ordinary indexed custody");
-    let syntax = parse_syntax_trees(&tokens).expect("parse ordinary indexed custody");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve ordinary indexed custody");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type ordinary indexed custody");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check ordinary indexed custody");
+    let checked = crate::front_end::checked_program(ORDINARY_INDEXED_CUSTODY_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),

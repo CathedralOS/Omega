@@ -1,6 +1,6 @@
 //! Claim-bearing composed Unit control and independent corruption replay.
 
-use super::{CheckedTrees, LoweringError, checked_source, lower_machine};
+use super::{CheckedTrees, LoweringError, lower_machine};
 use crate::TerminalMachineSelection;
 use checked_trees::CheckedUnitEffectOperationPlan;
 use semantic_vocabulary::StructuralPlaceKind;
@@ -8,7 +8,7 @@ use terminal_psi::{
     OperationKind, StructuralAccess, StructuralMultiplicity, StructuralPlaceDeclaration, Terminator,
 };
 fn checked_composed_claim() -> checked_trees::CheckedTrees {
-    checked_source(
+    crate::front_end::checked_program(
         r#"
             pub data Receipt [linear] { value: u64; }
             boundary machine Receipt::settle(self) ensures true;
@@ -28,7 +28,7 @@ fn checked_composed_claim() -> checked_trees::CheckedTrees {
 
 #[test]
 fn linear_settlement_composes_after_a_state_handoff() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
             pub data Receipt [linear] { value: u64; }
             boundary machine Receipt::settle(self) ensures true;

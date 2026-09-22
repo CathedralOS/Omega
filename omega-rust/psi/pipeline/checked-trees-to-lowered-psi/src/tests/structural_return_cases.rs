@@ -1,8 +1,6 @@
 //! Structural scalar-return regression families.
 
-use super::{
-    CheckedTrees, LoweringError, ScalarType, TerminalMachineResult, checked_source, lower_machine,
-};
+use super::{CheckedTrees, LoweringError, ScalarType, TerminalMachineResult, lower_machine};
 use crate::TerminalMachineSelection;
 use crate::terminal_identities::{block_id, place_id, value_id};
 use checked_trees::types::PrimitiveType;
@@ -11,7 +9,7 @@ use terminal_psi::{
     Operation, OperationKind, TerminalAffineCleanupAction, Terminator, ValueDeclaration,
 };
 fn structural_scalar_return_fixture(parameters: &str, result: &str, body: &str) -> CheckedTrees {
-    checked_source(&format!(
+    crate::front_end::checked_program(&format!(
         "data Root {{}}
          data Acknowledgement {{}}
          machine Root::enter({parameters}) -> {result} {{ {body} }}"

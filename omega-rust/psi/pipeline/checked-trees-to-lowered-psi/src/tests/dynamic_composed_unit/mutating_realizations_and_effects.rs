@@ -4,7 +4,7 @@ use super::{
     direct_plan, direct_plan_mut, unsupported_message,
 };
 use crate::TerminalMachineSelection;
-use crate::tests::{checked_source, checked_source_with_core_service, lower_machine};
+use crate::tests::{checked_source_with_core_service, lower_machine};
 use checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, Terminator};
@@ -171,7 +171,7 @@ fn rejects_source_path_and_machine_contract_tampering() {
 
 #[test]
 fn lowers_checked_integer_field_store_through_the_selected_dynamic_realization() {
-    let checked = checked_source(DIRECT_DYNAMIC_INTEGER_STORE_SOURCE);
+    let checked = crate::front_end::checked_program(DIRECT_DYNAMIC_INTEGER_STORE_SOURCE);
     let plan = direct_plan(&checked);
     let store = plan
         .caller_structural_scalar_field_store
@@ -237,7 +237,7 @@ fn lowers_checked_integer_field_store_through_the_selected_dynamic_realization()
 
 #[test]
 fn lowers_checked_mutating_dynamic_realization_before_its_scalar_return() {
-    let checked = checked_source(MUTATING_REALIZATION_SOURCE);
+    let checked = crate::front_end::checked_program(MUTATING_REALIZATION_SOURCE);
     let plan = direct_plan(&checked);
     assert_eq!(plan.realization_structural_scalar_field_stores.len(), 3);
 
@@ -292,7 +292,7 @@ fn lowers_checked_mutating_dynamic_realization_before_its_scalar_return() {
 
 #[test]
 fn lowers_nested_projected_mutating_realization_path_before_its_scalar_return() {
-    let checked = checked_source(PROJECTED_MUTATING_REALIZATION_SOURCE);
+    let checked = crate::front_end::checked_program(PROJECTED_MUTATING_REALIZATION_SOURCE);
     let plan = direct_plan(&checked);
     let [store] = plan.realization_structural_scalar_field_stores.as_slice() else {
         panic!("checked projected realization field store expected")
@@ -358,7 +358,7 @@ fn lowers_nested_projected_mutating_realization_path_before_its_scalar_return() 
 
 #[test]
 fn rejects_mutating_realization_body_that_drifted_from_checked_custody() {
-    let mut checked = checked_source(MUTATING_REALIZATION_SOURCE);
+    let mut checked = crate::front_end::checked_program(MUTATING_REALIZATION_SOURCE);
     direct_plan_mut(&mut checked)
         .realization_structural_scalar_field_stores
         .first_mut()
@@ -373,7 +373,7 @@ fn rejects_mutating_realization_body_that_drifted_from_checked_custody() {
 
 #[test]
 fn rejects_mutating_realization_store_order_drift() {
-    let mut checked = checked_source(MUTATING_REALIZATION_SOURCE);
+    let mut checked = crate::front_end::checked_program(MUTATING_REALIZATION_SOURCE);
     direct_plan_mut(&mut checked)
         .realization_structural_scalar_field_stores
         .swap(0, 1);
@@ -386,7 +386,7 @@ fn rejects_mutating_realization_store_order_drift() {
 
 #[test]
 fn rejects_third_mutating_realization_store_identity_drift() {
-    let mut checked = checked_source(MUTATING_REALIZATION_SOURCE);
+    let mut checked = crate::front_end::checked_program(MUTATING_REALIZATION_SOURCE);
     direct_plan_mut(&mut checked)
         .realization_structural_scalar_field_stores
         .get_mut(2)
@@ -493,10 +493,12 @@ fn rejects_tampered_checked_dynamic_store_custody() {
         "direct dynamic continuation guard drifted from checked scalar facts"
     );
 
-    let store = direct_plan(&checked_source(DIRECT_DYNAMIC_INTEGER_STORE_SOURCE))
-        .caller_structural_scalar_field_store
-        .clone()
-        .expect("checked caller field store");
+    let store = direct_plan(&crate::front_end::checked_program(
+        DIRECT_DYNAMIC_INTEGER_STORE_SOURCE,
+    ))
+    .caller_structural_scalar_field_store
+    .clone()
+    .expect("checked caller field store");
     let mut combined = checked_source_with_core_service(DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE);
     direct_plan_mut(&mut combined).caller_structural_scalar_field_store = Some(store);
     assert_eq!(
@@ -504,7 +506,7 @@ fn rejects_tampered_checked_dynamic_store_custody() {
         "direct dynamic result control cannot also retain a caller field store"
     );
 
-    let mut checked = checked_source(DIRECT_DYNAMIC_INTEGER_STORE_SOURCE);
+    let mut checked = crate::front_end::checked_program(DIRECT_DYNAMIC_INTEGER_STORE_SOURCE);
     direct_plan_mut(&mut checked)
         .caller_structural_scalar_field_store
         .as_mut()
@@ -515,7 +517,7 @@ fn rejects_tampered_checked_dynamic_store_custody() {
         "direct dynamic store field is absent or ambiguous"
     );
 
-    let mut checked = checked_source(DIRECT_DYNAMIC_INTEGER_STORE_SOURCE);
+    let mut checked = crate::front_end::checked_program(DIRECT_DYNAMIC_INTEGER_STORE_SOURCE);
     direct_plan_mut(&mut checked)
         .caller_structural_scalar_field_store
         .as_mut()

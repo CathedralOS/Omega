@@ -1,8 +1,4 @@
-use super::{
-    BYTE_SEQUENCE_AGGREGATE_EQUALITY_SOURCE, Lexer, ResolutionRequest, lower_symbol_resolved_trees,
-    lower_typed_trees, parse_syntax_trees, resolve,
-};
-use typed_trees_to_checked_trees::CheckingRequest;
+use super::BYTE_SEQUENCE_AGGREGATE_EQUALITY_SOURCE;
 #[test]
 fn byte_content_entry_routes_reject_unknown_actuals_and_unrelated_guards() {
     for source in [
@@ -21,11 +17,7 @@ fn byte_content_entry_routes_reject_unknown_actuals_and_unrelated_guards() {
             "machine Root::enter(left: Borrowed, right: Borrowed)\n    crashes Abort\n        left.active",
         ),
     ] {
-        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled()).expect_err("entry route does not cover the call");
+        let diagnostics = crate::front_end::checked_program_result(&source).expect_err("entry route does not cover the call");
         assert!(diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("call from `Root::enter` to `Helper::inspect`")
                 && diagnostic.message.contains("uncovered Abort crash route")

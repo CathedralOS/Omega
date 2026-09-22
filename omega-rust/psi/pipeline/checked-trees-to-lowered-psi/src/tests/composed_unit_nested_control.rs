@@ -1,8 +1,8 @@
 //! Independent replay of two conditional frontiers and three effect leaves.
 
 use super::{
-    CheckedScalarExpressionRole, CheckedTrees, LoweringError, checked_source,
-    checked_source_with_core_service, lower_machine,
+    CheckedScalarExpressionRole, CheckedTrees, LoweringError, checked_source_with_core_service,
+    lower_machine,
 };
 use crate::TerminalMachineSelection;
 use checked_trees::{
@@ -12,7 +12,7 @@ use checked_trees::{
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{Operation, OperationKind, Terminator};
 fn checked_nested_control() -> CheckedTrees {
-    checked_source(
+    crate::front_end::checked_program(
         r#"
             boundary trait Host { machine exit(code: i32); }
             data Root {}
@@ -36,7 +36,7 @@ fn checked_nested_control() -> CheckedTrees {
 }
 
 fn checked_depth_three_nested_control() -> CheckedTrees {
-    checked_source(
+    crate::front_end::checked_program(
         r#"
             boundary trait Host { machine exit(code: i32); }
             data Root {}
@@ -58,7 +58,7 @@ fn checked_depth_three_nested_control() -> CheckedTrees {
 }
 
 fn checked_balanced_nested_control() -> CheckedTrees {
-    checked_source(
+    crate::front_end::checked_program(
         r#"
             boundary trait Host { machine exit(code: i32); }
             data Root {}
@@ -82,7 +82,7 @@ fn checked_balanced_nested_control() -> CheckedTrees {
 }
 
 fn checked_four_state_nested_control() -> CheckedTrees {
-    checked_source(
+    crate::front_end::checked_program(
         r#"
             boundary trait Host { machine exit(code: i32); }
             data Root {}
@@ -99,7 +99,7 @@ fn checked_four_state_nested_control() -> CheckedTrees {
 }
 
 fn checked_call_prefixed_nested_control() -> CheckedTrees {
-    checked_source(
+    crate::front_end::checked_program(
         r#"
             boundary trait Host { machine exit(code: i32); }
             data Root {}
@@ -118,7 +118,7 @@ fn checked_call_prefixed_nested_control() -> CheckedTrees {
 }
 
 fn checked_multi_call_prefixed_nested_control() -> CheckedTrees {
-    checked_source(
+    crate::front_end::checked_program(
         r#"
             boundary trait Host { machine exit(code: i32); }
             data Root {}
@@ -139,7 +139,7 @@ fn checked_multi_call_prefixed_nested_control() -> CheckedTrees {
 }
 
 fn checked_boundary_prefixed_nested_control() -> CheckedTrees {
-    checked_source(
+    crate::front_end::checked_program(
         r#"
             boundary trait Host {
                 machine tick();
@@ -583,7 +583,7 @@ fn nested_control_rejects_outer_handoff_and_inner_topology_corruption() {
 
 #[test]
 fn nested_control_deduplicates_one_internal_target_with_disjoint_root_blocks() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
             data Root {}
             machine Root::quiet() {}

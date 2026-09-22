@@ -8,9 +8,6 @@ use semantic_vocabulary::{
 use semantic_vocabulary::{
     ContentAlgebra, ContentAlgebraKind, ContentProjectionExpression, ContentProjectionScalar,
 };
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{VerifiedProgramLocalRootProducerCatalog, decode_module, encode_module};
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
@@ -18,9 +15,6 @@ use terminal_interpreter::{
     TerminalStructuralInputs, TerminalStructuralScalarFieldValue, TerminalStructuralValue,
 };
 use terminal_psi::program_local_root_introduction_compatibility_report_identity;
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 /// The authored callback-registration contract: `Registration` is the linear
 /// authority token a provider hands the program, `Registration::Live` is the
@@ -64,11 +58,7 @@ const SOURCE: &str = r#"
 "#;
 
 fn lowered() -> lowered_psi::LoweredPsi {
-    let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(SOURCE);
     lower_machine(&checked, TerminalMachineSelection::Name("Customer::run"))
         .expect("lower registration program")
 }
@@ -356,11 +346,7 @@ impl TerminalEffectHandler for DriveRegistration {
 /// both boundary calls in order and forwards the live registration.
 #[test]
 fn interpreted_register_unregister_round_trip_drives_the_ledger() {
-    let tokens = Lexer::new(REGISTER_SOURCE).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(REGISTER_SOURCE);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Customer::run"))
         .expect("lower registration program");
     let module = &lowered.semantic_module;
@@ -497,13 +483,7 @@ const INSTALLED_PROVIDER_SOURCE: &str = r#"
 /// boundary settlement — observes the claim live and receipts it.
 #[test]
 fn installed_registered_provider_mints_and_settles_the_live_claim() {
-    let tokens = Lexer::new(INSTALLED_PROVIDER_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(INSTALLED_PROVIDER_SOURCE);
     let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("Customer::run"))
         .expect("installed registration program lowers");
     let module = &mut lowered.semantic_module;
@@ -855,11 +835,7 @@ const REPLY_SUM_SOURCE: &str = r#"
 /// `supported_result`, native callback entry) are owned by sibling items.
 #[test]
 fn sum_reply_case_payload_authorizes_the_routed_domain() {
-    let tokens = Lexer::new(REPLY_SUM_SOURCE).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("sum reply customer checks");
+    crate::front_end::checked_program(REPLY_SUM_SOURCE);
 }
 
 /// A boundary machine that returns the same `Reply` but is not named by the
@@ -875,12 +851,8 @@ fn non_route_requirement_cannot_mint_the_case_payload_domain() {
         "Registrar::register(registration)",
         "Registrar::mint(registration)",
     );
-    let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics =
-        lower_typed_trees(typed, &CheckingRequest::settled()).expect_err("mint is not a route");
+        crate::front_end::checked_program_result(&source).expect_err("mint is not a route");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -905,11 +877,7 @@ fn unqualified_case_payload_cannot_serve_the_qualified_state() {
         "Reply::Rejected -> again()",
         "Reply::Rejected -> again()\n            Reply::Vouched { voucher } -> ok(voucher)",
     );
-    let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+    let diagnostics = crate::front_end::checked_program_result(&source)
         .expect_err("unqualified payload must fail");
     assert!(
         diagnostics

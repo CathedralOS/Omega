@@ -73,24 +73,6 @@ const STATIC_REQUIREMENT_FAMILY_SOURCE: &str = r#"
     }
 "#;
 
-fn check(source: &str) -> CheckedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("check")
-}
-
 /// The terminal name of the machine that owns the one static-requirement
 /// proof-output invocation, so the test lowers the specialized requirement
 /// caller rather than guessing the specialization's generated name.
@@ -122,7 +104,7 @@ fn requirement_caller_terminal_name(checked: &CheckedTrees) -> String {
 
 #[test]
 fn family_conformance_row_lowers_to_one_tuple_keyed_table_row_per_roster_member() {
-    let checked = check(STATIC_REQUIREMENT_FAMILY_SOURCE);
+    let checked = crate::front_end::checked_program(STATIC_REQUIREMENT_FAMILY_SOURCE);
     let machine_name = requirement_caller_terminal_name(&checked);
     let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name(&machine_name))
         .expect("family conformance rows lower to tuple-keyed table rows");
@@ -192,7 +174,7 @@ fn family_conformance_row_lowers_to_one_tuple_keyed_table_row_per_roster_member(
 
 #[test]
 fn family_row_rejects_when_its_tuple_specialization_is_missing() {
-    let mut checked = check(STATIC_REQUIREMENT_FAMILY_SOURCE);
+    let mut checked = crate::front_end::checked_program(STATIC_REQUIREMENT_FAMILY_SOURCE);
     checked
         .typed
         .machine_specializations

@@ -1,6 +1,6 @@
 //! The writer's strict-decrease obligation, exercised as an actual byte read.
 
-use super::{checked_source, lower_machine};
+use super::lower_machine;
 use crate::TerminalMachineSelection;
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::terminal_identities::{obligation_id, operation_id, value_id};
@@ -31,7 +31,7 @@ const SOURCE: &str = r#"
 /// added Terminal read tests a proof obligation, not source correspondence.
 fn fixture() -> LoweredPsi {
     let mut lowered = lower_machine(
-        &checked_source(SOURCE),
+        &crate::front_end::checked_program(SOURCE),
         TerminalMachineSelection::Name("Root::enter"),
     )
     .unwrap();

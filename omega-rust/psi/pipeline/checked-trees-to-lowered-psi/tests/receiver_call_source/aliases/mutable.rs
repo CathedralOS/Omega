@@ -1,5 +1,5 @@
 //! Mutable carrier access remains distinct at every erased reborrow edge.
-use super::{OperationKind, StructuralAccess, checked_from_source, source};
+use super::{OperationKind, StructuralAccess, source};
 use checked_trees::BorrowAccessKind;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
@@ -19,7 +19,7 @@ fn nested_source() -> String {
 
 #[test]
 fn mutable_chain_retains_each_access_and_exact_projected_calls() {
-    let checked = checked_from_source(&nested_source());
+    let checked = crate::front_end::checked_program(&nested_source());
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("forward"),
@@ -104,7 +104,7 @@ fn mutable_chain_retains_each_access_and_exact_projected_calls() {
 
 #[test]
 fn mutable_alias_source_replay_rejects_access_path_and_lifetime_substitution() {
-    let original = checked_from_source(&nested_source());
+    let original = crate::front_end::checked_program(&nested_source());
     let _artifact = terminal_production::TerminalProductionRequest::new(
         &original,
         TerminalMachineSelection::Name("forward"),

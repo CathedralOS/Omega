@@ -10,24 +10,6 @@ use terminal_interpreter::{
 };
 use terminal_psi::{OperationKind, StructuralPathSegment, Terminator};
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap()
-}
-
 #[test]
 fn arbitrary_array_residuals_are_derived_from_the_type() {
     for length in [1, 5, 7, 17, 33] {
@@ -64,7 +46,7 @@ fn assert_source(
     residuals: &[Vec<StructuralPathSegment>],
 ) -> lowered_psi::LoweredPsi {
     let lowered = lower_machine(
-        &checked(source),
+        &crate::front_end::checked_program(source),
         TerminalMachineSelection::Name("Root::enter"),
     )
     .expect("finite paths have exact residual cleanup");
@@ -350,7 +332,7 @@ fn lowering_independently_reconstructs_the_checked_residual_complement() {
     let source = "data Token { number: u64; }
         data Sink {} machine Sink::take(value: Token) {}
         data Root {} machine Root::enter(values: [Token; 5]) { Sink::take(values[2]); }";
-    let baseline = checked(source);
+    let baseline = crate::front_end::checked_program(source);
     lower_machine(&baseline, TerminalMachineSelection::Name("Root::enter"))
         .expect("unaltered checked partition lowers");
     for mutation in 0..5 {

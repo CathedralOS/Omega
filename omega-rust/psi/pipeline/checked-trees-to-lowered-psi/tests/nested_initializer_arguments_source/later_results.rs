@@ -1,8 +1,8 @@
 use super::{
     AdmissionProfile, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, ExpressionNode,
     ObserveResults, StatementNode, TerminalArtifactInterpretError, TerminalExecutionResult,
-    TerminalInterpretError, TerminalScalarValue, checked, decode_module, decode_proof_bundle,
-    encode_module, encode_proof_section, execute, main_machine, scalar_source, unsigned,
+    TerminalInterpretError, TerminalScalarValue, decode_module, decode_proof_bundle, encode_module,
+    encode_proof_section, execute, main_machine, scalar_source, unsigned,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 pub(super) fn encoded_locals(
@@ -51,7 +51,7 @@ fn pure_local_before_computed_scalar_result_initializer_reaches_consumer() {
             "Scalar::identity(identity(left))",
             "Scalar::identity(identity(prefix))",
         );
-    let checked = checked(&source);
+    let checked = crate::front_end::checked_program(&source);
     let artifact = encoded_locals(&checked, &["prefix", "result"]);
     let mut observer = ObserveResults::default();
     assert_eq!(
@@ -125,7 +125,10 @@ fn multiple_source(first_boundary: bool, second_boundary: bool) -> String {
 fn mixed_result_initializers_preserve_prior_locals_and_intervening_effects() {
     for first_boundary in [false, true] {
         for second_boundary in [false, true] {
-            let checked = checked(&multiple_source(first_boundary, second_boundary));
+            let checked = crate::front_end::checked_program(&multiple_source(
+                first_boundary,
+                second_boundary,
+            ));
             let artifact =
                 encoded_locals(&checked, &["prefix", "first", "between", "second", "third"]);
             for (left, right) in [(255, 7), (19, 243)] {
@@ -199,7 +202,10 @@ fn later_boolean_result_operands_short_circuit_using_prior_result_values() {
             }}
         "#
         );
-        let artifact = encoded_locals(&checked(&source), &["prefix", "first", "second"]);
+        let artifact = encoded_locals(
+            &crate::front_end::checked_program(&source),
+            &["prefix", "first", "second"],
+        );
         for (input, other, cause) in [
             (false, true, None),
             (true, false, Some(terminal_psi::CrashCause::Abort)),
@@ -262,7 +268,10 @@ fn later_initializer_crash_keeps_prior_effects_and_skips_later_arguments_and_con
                 }}
             "#
             );
-            let artifact = encoded_locals(&checked(&source), &["prefix", "first", "second"]);
+            let artifact = encoded_locals(
+                &crate::front_end::checked_program(&source),
+                &["prefix", "first", "second"],
+            );
             let mut observer = ObserveResults::default();
             assert!(
                 matches!(execute(&artifact, &[], &mut observer), Err(TerminalArtifactInterpretError::Execution(TerminalInterpretError::Crash(crash))) if crash.cause == cause)
@@ -280,7 +289,7 @@ fn later_initializer_crash_keeps_prior_effects_and_skips_later_arguments_and_con
 
 #[test]
 fn later_initializer_custody_rejects_target_coordinate_namespace_and_result_drift() {
-    let checked = checked(&multiple_source(true, false));
+    let checked = crate::front_end::checked_program(&multiple_source(true, false));
     encoded_locals(&checked, &["prefix", "first", "between", "second", "third"]);
     let machine = main_machine(&checked);
     let state = &checked.typed.machine_states(machine)[0];

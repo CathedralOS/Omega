@@ -15,9 +15,6 @@ use proof_admission::{AdmissionProfile, EvidenceRoute, ProofRule};
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, IntegerSign, IntegerType, Proposition, ScalarTerm,
 };
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use terminal_interpreter::TerminalStructuralInputs;
@@ -29,9 +26,6 @@ use terminal_psi::{
     CrashPredicateTerm, CrashRouteGuard, OperationKind, StructuralFieldType, StructuralPathSegment,
     StructuralTypeShape,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
 fn projected_argument_prefix_rebases_every_integer_member_path_end_to_end() {
@@ -98,13 +92,7 @@ fn projected_argument_prefix_rebases_every_integer_member_path_end_to_end() {
         (ordered_left, ordered_right, unequal_left, unequal_right)
     }
 
-    let tokens = Lexer::new(PROJECTED_INTEGER_MEMBER_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(PROJECTED_INTEGER_MEMBER_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -325,13 +313,7 @@ fn exact_member_addition_rebases_every_operand_end_to_end() {
         (add_left, add_right, right, *scalar_type)
     }
 
-    let tokens = Lexer::new(PROJECTED_INTEGER_MEMBER_ARITHMETIC_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(PROJECTED_INTEGER_MEMBER_ARITHMETIC_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -518,13 +500,7 @@ fn exact_member_subtraction_rebases_every_operand_end_to_end() {
         (left, minuend, subtrahend, *scalar_type)
     }
 
-    let tokens = Lexer::new(PROJECTED_INTEGER_MEMBER_SUBTRACTION_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(PROJECTED_INTEGER_MEMBER_SUBTRACTION_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -709,13 +685,7 @@ fn exact_member_multiplication_rebases_every_operand_end_to_end() {
         [multiplicand, multiplier, right]
     }
 
-    let tokens = Lexer::new(PROJECTED_INTEGER_MEMBER_MULTIPLICATION_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(PROJECTED_INTEGER_MEMBER_MULTIPLICATION_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -910,13 +880,7 @@ fn exact_member_division_and_remainder_rebase_safe_literals_end_to_end() {
         ]
     }
 
-    let tokens = Lexer::new(PROJECTED_INTEGER_MEMBER_DIVISION_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(PROJECTED_INTEGER_MEMBER_DIVISION_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -1042,14 +1006,7 @@ fn exact_member_division_and_remainder_rebase_safe_literals_end_to_end() {
         "unexpected unsafe-divisor validation result: {unsafe_result:?}"
     );
 
-    let tokens = Lexer::new(RUNTIME_INTEGER_MEMBER_DIVISOR_SOURCE)
-        .tokenize()
-        .expect("runtime-divisor tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("runtime-divisor parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("runtime-divisor resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("runtime-divisor type");
-    let checked =
-        lower_typed_trees(typed, &CheckingRequest::settled()).expect("runtime-divisor check");
+    let checked = crate::front_end::checked_program(RUNTIME_INTEGER_MEMBER_DIVISOR_SOURCE);
     let runtime_divisor = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -1105,15 +1062,9 @@ fn exact_member_division_and_remainder_rebase_safe_literals_end_to_end() {
         Err(terminal_verifier::ModuleError::UnsafeStructuralCrashExactDivisor { .. })
     ));
 
-    let tokens = Lexer::new(UNPROVEN_RUNTIME_INTEGER_MEMBER_DIVISOR_SOURCE)
-        .tokenize()
-        .expect("unproven-runtime-divisor tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("unproven-runtime-divisor parse");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("unproven-runtime-divisor resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("unproven-runtime-divisor type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("an unproven runtime divisor must reject");
+    let diagnostics =
+        crate::front_end::checked_program_result(UNPROVEN_RUNTIME_INTEGER_MEMBER_DIVISOR_SOURCE)
+            .expect_err("an unproven runtime divisor must reject");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -1196,13 +1147,7 @@ fn bitwise_member_terms_rebase_across_projected_calls_and_codecs() {
         (bitwise_counts, paths)
     }
 
-    let tokens = Lexer::new(PROJECTED_INTEGER_MEMBER_BITWISE_SOURCE)
-        .tokenize()
-        .expect("bitwise tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("bitwise parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("bitwise resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("bitwise type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("bitwise check");
+    let checked = crate::front_end::checked_program(PROJECTED_INTEGER_MEMBER_BITWISE_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -1369,14 +1314,8 @@ fn total_policy_arithmetic_rebases_across_projected_calls_and_codecs() {
         (counts, paths)
     }
 
-    let tokens = Lexer::new(PROJECTED_INTEGER_MEMBER_POLICY_ARITHMETIC_SOURCE)
-        .tokenize()
-        .expect("policy arithmetic tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("policy arithmetic parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("policy arithmetic resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("policy arithmetic type");
     let checked =
-        lower_typed_trees(typed, &CheckingRequest::settled()).expect("policy arithmetic check");
+        crate::front_end::checked_program(PROJECTED_INTEGER_MEMBER_POLICY_ARITHMETIC_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -1552,14 +1491,7 @@ fn wrapping_shifts_rebase_distinct_count_carriers_across_projected_calls() {
         (counts, path_lengths)
     }
 
-    let tokens = Lexer::new(PROJECTED_INTEGER_MEMBER_WRAPPING_SHIFT_SOURCE)
-        .tokenize()
-        .expect("wrapping shifts tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("wrapping shifts parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("wrapping shifts resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("wrapping shifts type");
-    let checked =
-        lower_typed_trees(typed, &CheckingRequest::settled()).expect("wrapping shifts check");
+    let checked = crate::front_end::checked_program(PROJECTED_INTEGER_MEMBER_WRAPPING_SHIFT_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -1720,14 +1652,7 @@ fn exact_shifts_rebase_complete_count_and_overflow_requirements() {
         }
     }
 
-    let tokens = Lexer::new(PROJECTED_INTEGER_MEMBER_EXACT_SHIFT_SOURCE)
-        .tokenize()
-        .expect("Exact shifts tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("Exact shifts parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("Exact shifts resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("Exact shifts type");
-    let checked =
-        lower_typed_trees(typed, &CheckingRequest::settled()).expect("Exact shifts check");
+    let checked = crate::front_end::checked_program(PROJECTED_INTEGER_MEMBER_EXACT_SHIFT_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -1875,14 +1800,8 @@ fn policy_division_rebases_nonzero_requirements_across_projected_calls() {
         }
     }
 
-    let tokens = Lexer::new(PROJECTED_INTEGER_MEMBER_POLICY_DIVISION_SOURCE)
-        .tokenize()
-        .expect("policy division tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("policy division parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("policy division resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("policy division type");
     let checked =
-        lower_typed_trees(typed, &CheckingRequest::settled()).expect("policy division check");
+        crate::front_end::checked_program(PROJECTED_INTEGER_MEMBER_POLICY_DIVISION_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -2009,15 +1928,7 @@ fn policy_division_rebases_nonzero_requirements_across_projected_calls() {
 
 #[test]
 fn wrapping_negative_one_literal_divisor_is_self_proving() {
-    let tokens = Lexer::new(POLICY_NEGATIVE_ONE_LITERAL_DIVISION_SOURCE)
-        .tokenize()
-        .expect("negative-one policy division tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("negative-one policy division parse");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("negative-one policy division resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("negative-one policy division type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("negative-one policy division check");
+    let checked = crate::front_end::checked_program(POLICY_NEGATIVE_ONE_LITERAL_DIVISION_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -2068,15 +1979,7 @@ fn wrapping_negative_one_literal_divisor_is_self_proving() {
 
 #[test]
 fn signed_runtime_member_divisor_requires_an_overflow_safe_bound() {
-    let tokens = Lexer::new(NEGATIVE_RUNTIME_INTEGER_MEMBER_DIVISOR_SOURCE)
-        .tokenize()
-        .expect("negative-runtime-divisor tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("negative-runtime-divisor parse");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("negative-runtime-divisor resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("negative-runtime-divisor type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("negative-runtime-divisor check");
+    let checked = crate::front_end::checked_program(NEGATIVE_RUNTIME_INTEGER_MEMBER_DIVISOR_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -2111,14 +2014,7 @@ fn runtime_divisor_call_requirements_rebase_and_verify_exact_obligations() {
         }
     }
 
-    let tokens = Lexer::new(RUNTIME_DIVISOR_CALL_SOURCE)
-        .tokenize()
-        .expect("runtime-divisor-call tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("runtime-divisor-call parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("runtime-divisor-call resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("runtime-divisor-call type");
-    let checked =
-        lower_typed_trees(typed, &CheckingRequest::settled()).expect("runtime-divisor-call check");
+    let checked = crate::front_end::checked_program(RUNTIME_DIVISOR_CALL_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -2205,16 +2101,7 @@ fn runtime_divisor_call_requirements_rebase_and_verify_exact_obligations() {
 
 #[test]
 fn projected_runtime_divisor_call_rebases_requirement_through_canonical_prefix() {
-    let tokens = Lexer::new(PROJECTED_RUNTIME_DIVISOR_CALL_SOURCE)
-        .tokenize()
-        .expect("projected-runtime-divisor-call tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("projected-runtime-divisor-call parse");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("projected-runtime-divisor-call resolve");
-    let typed =
-        lower_symbol_resolved_trees(&resolved).expect("projected-runtime-divisor-call type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("projected-runtime-divisor-call check");
+    let checked = crate::front_end::checked_program(PROJECTED_RUNTIME_DIVISOR_CALL_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -2318,13 +2205,7 @@ fn proposition_disjunction_rebases_and_verifies_each_member_path_end_to_end() {
         paths
     }
 
-    let tokens = Lexer::new(DISJUNCTIVE_MEMBER_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(DISJUNCTIVE_MEMBER_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),

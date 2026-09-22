@@ -9,14 +9,14 @@ use super::{
 };
 use crate::TerminalMachineSelection;
 use crate::terminal_identities::value_id;
-use crate::tests::{checked_source, checked_source_with_core_service, lower_machine};
+use crate::tests::{checked_source_with_core_service, lower_machine};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{Operation, OperationKind, OperationResult, Terminator, ValueDeclaration};
 
 #[test]
 fn lowers_transparent_forwarding_chain_after_a_two_predecessor_join() {
-    let mut checked = checked_source(JOINED_DYNAMIC_BOOLEAN_FORWARD_SOURCE);
+    let mut checked = crate::front_end::checked_program(JOINED_DYNAMIC_BOOLEAN_FORWARD_SOURCE);
     let checked_catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
     let [joined] = checked_catalog.joined_scalar_calls.as_slice() else {
         panic!("one checked forwarded dynamic join expected: {checked_catalog:#?}")
@@ -109,7 +109,7 @@ fn lowers_transparent_forwarding_chain_after_a_two_predecessor_join() {
 
 #[test]
 fn joined_descriptor_helpers_reject_disagreeing_body_custody() {
-    let mut checked = checked_source(JOINED_DYNAMIC_BOOLEAN_FORWARD_SOURCE);
+    let mut checked = crate::front_end::checked_program(JOINED_DYNAMIC_BOOLEAN_FORWARD_SOURCE);
     checked
         .facts
         .flow
@@ -128,7 +128,7 @@ fn joined_descriptor_helpers_reject_disagreeing_body_custody() {
 
 #[test]
 fn lowers_result_less_dynamic_join_through_the_shared_helper_chain() {
-    let mut checked = checked_source(JOINED_DYNAMIC_UNIT_FORWARD_SOURCE);
+    let mut checked = crate::front_end::checked_program(JOINED_DYNAMIC_UNIT_FORWARD_SOURCE);
     let checked_catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
     assert!(checked_catalog.direct_unit_calls.is_empty());
     let [joined] = checked_catalog.joined_unit_calls.as_slice() else {
@@ -243,7 +243,7 @@ fn lowers_result_less_dynamic_join_through_the_shared_helper_chain() {
 
 #[test]
 fn lowers_parameter_sourced_dynamic_forwarding_as_two_explicit_helpers() {
-    let mut checked = checked_source(MULTI_HOP_DYNAMIC_INTEGER_SOURCE);
+    let mut checked = crate::front_end::checked_program(MULTI_HOP_DYNAMIC_INTEGER_SOURCE);
     let checked_catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
     assert_eq!(checked_catalog.transfers.len(), 2);
     let [plan] = checked_catalog.direct_scalar_calls.as_slice() else {
@@ -392,7 +392,7 @@ fn forwarded_descriptor_helper_preserves_scalar_computation_and_branch() {
         "let before: i32 = 3;\n        let result: i32 = finish(erased);\n        let combined: i32 = result ^ before;\n        transition combined == 0 { true -> 7 _ -> combined }",
     );
     assert_ne!(source, MULTI_HOP_DYNAMIC_INTEGER_SOURCE);
-    let checked = checked_source(&source);
+    let checked = crate::front_end::checked_program(&source);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
         .expect("descriptor forwarding retains the helper's actual scalar body");
     terminal_verifier::validate_module(&lowered.semantic_module)
@@ -579,7 +579,7 @@ fn forwarded_descriptor_helper_rejects_substituted_body_custody() {
 
 #[test]
 fn lowers_parameter_sourced_dynamic_unit_forwarding_as_two_explicit_helpers() {
-    let mut checked = checked_source(MULTI_HOP_DYNAMIC_UNIT_SOURCE);
+    let mut checked = crate::front_end::checked_program(MULTI_HOP_DYNAMIC_UNIT_SOURCE);
     let checked_catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
     assert_eq!(checked_catalog.transfers.len(), 2);
     let [plan] = checked_catalog.direct_unit_calls.as_slice() else {
@@ -652,7 +652,7 @@ fn lowers_parameter_sourced_dynamic_unit_forwarding_as_two_explicit_helpers() {
 
 #[test]
 fn lowers_direct_dynamic_unit_without_allocating_a_scalar_result() {
-    let checked = checked_source(DIRECT_DYNAMIC_UNIT_SOURCE);
+    let checked = crate::front_end::checked_program(DIRECT_DYNAMIC_UNIT_SOURCE);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
         .expect("direct dynamic Unit call lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)
@@ -704,7 +704,7 @@ fn lowers_direct_dynamic_unit_without_allocating_a_scalar_result() {
 
 #[test]
 fn lowers_rebound_dynamic_unit_to_a_resultless_indirect_dispatch() {
-    let checked = checked_source(REBOUND_DYNAMIC_UNIT_SOURCE);
+    let checked = crate::front_end::checked_program(REBOUND_DYNAMIC_UNIT_SOURCE);
     let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
         .expect("rebound dynamic Unit call lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)
@@ -751,7 +751,7 @@ fn lowers_rebound_dynamic_unit_to_a_resultless_indirect_dispatch() {
 #[test]
 fn retains_changed_conformance_unit_applications_without_a_scalar_result() {
     let lowered = lower_machine(
-        &checked_source(CHANGED_CONFORMANCE_DYNAMIC_UNIT_SOURCE),
+        &crate::front_end::checked_program(CHANGED_CONFORMANCE_DYNAMIC_UNIT_SOURCE),
         TerminalMachineSelection::Name("Main::run"),
     )
     .expect("changed-conformance dynamic Unit call lowers");
@@ -783,7 +783,7 @@ fn retains_changed_conformance_unit_applications_without_a_scalar_result() {
 #[test]
 fn forwards_changed_conformance_unit_custody_without_a_scalar_result() {
     let lowered = lower_machine(
-        &checked_source(FORWARDED_CHANGED_CONFORMANCE_DYNAMIC_UNIT_SOURCE),
+        &crate::front_end::checked_program(FORWARDED_CHANGED_CONFORMANCE_DYNAMIC_UNIT_SOURCE),
         TerminalMachineSelection::Name("Main::run"),
     )
     .expect("forwarded changed-conformance dynamic Unit call lowers");
@@ -812,7 +812,7 @@ fn forwards_changed_conformance_unit_custody_without_a_scalar_result() {
 
 #[test]
 fn preserves_forwarded_dynamic_unit_parameter_abi_without_a_result_value() {
-    let checked = checked_source(FORWARDED_REBOUND_DYNAMIC_UNIT_SOURCE);
+    let checked = crate::front_end::checked_program(FORWARDED_REBOUND_DYNAMIC_UNIT_SOURCE);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
         .expect("forwarded dynamic Unit call lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)
@@ -889,7 +889,7 @@ fn preserves_forwarded_dynamic_unit_parameter_abi_without_a_result_value() {
 
 #[test]
 fn forwards_a_direct_dynamic_unit_selection_without_fabricating_a_rebound_descriptor() {
-    let checked = checked_source(FORWARDED_DIRECT_DYNAMIC_UNIT_SOURCE);
+    let checked = crate::front_end::checked_program(FORWARDED_DIRECT_DYNAMIC_UNIT_SOURCE);
     let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
         .expect("direct forwarded dynamic Unit call lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)
@@ -941,7 +941,7 @@ fn forwards_a_direct_dynamic_unit_selection_without_fabricating_a_rebound_descri
 
 #[test]
 fn preserves_forwarded_dynamic_parameter_abi_from_checked_source() {
-    let checked = checked_source(FORWARDED_REBOUND_DYNAMIC_INTEGER_SOURCE);
+    let checked = crate::front_end::checked_program(FORWARDED_REBOUND_DYNAMIC_INTEGER_SOURCE);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
         .expect("forwarded dynamic parameter source lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)

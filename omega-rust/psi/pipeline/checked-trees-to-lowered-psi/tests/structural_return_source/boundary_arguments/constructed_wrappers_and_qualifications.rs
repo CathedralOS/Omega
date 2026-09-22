@@ -1,7 +1,7 @@
 use super::{
-    ObserveSettlement, artifact, assert_unsettled_helper_crash, checked,
-    constructed_wrapper_source, pause_before_crashing_helper, record_field_computation, start,
-    unit_wrapper_artifact, unit_wrapper_source, unsigned,
+    ObserveSettlement, artifact, assert_unsettled_helper_crash, constructed_wrapper_source,
+    pause_before_crashing_helper, record_field_computation, start, unit_wrapper_artifact,
+    unit_wrapper_source, unsigned,
 };
 use crate::structural_return_source::{
     AdmissionProfile, RESULT_BOUNDARY_CUSTODY_SOURCE, ResultBoundaryHandler,
@@ -15,7 +15,10 @@ use typed_trees::statement::StatementNode;
 
 #[test]
 fn unit_wrapper_constructor_source_and_permission_mutations_reject() {
-    let original = checked(&constructed_wrapper_source("value: i64;", "value: 7i64"));
+    let original = crate::front_end::checked_program(&constructed_wrapper_source(
+        "value: i64;",
+        "value: 7i64",
+    ));
     for mutation in 0..3 {
         let mut changed = original.clone();
         let root = changed
@@ -87,8 +90,14 @@ fn unit_wrapper_constructor_source_and_permission_mutations_reject() {
 
 #[test]
 fn unit_wrapper_constructor_value_cannot_drift_from_source() {
-    let mut original = checked(&constructed_wrapper_source("value: i64;", "value: 7i64"));
-    let replacement = checked(&constructed_wrapper_source("value: i64;", "value: 8i64"));
+    let mut original = crate::front_end::checked_program(&constructed_wrapper_source(
+        "value: i64;",
+        "value: 7i64",
+    ));
+    let replacement = crate::front_end::checked_program(&constructed_wrapper_source(
+        "value: i64;",
+        "value: 8i64",
+    ));
     let value = replacement
         .facts
         .values
@@ -122,7 +131,7 @@ fn unit_wrapper_cannot_substitute_a_same_typed_local_and_its_cleanup() {
         "let receipt: Receipt =",
         "let spare: Receipt = Receipt {}; let receipt: Receipt =",
     );
-    let mut original = checked(&source);
+    let mut original = crate::front_end::checked_program(&source);
     unit_wrapper_artifact(&original);
     let root = original
         .facts
@@ -177,7 +186,7 @@ fn unit_wrapper_forwards_shared_parameter_without_manufacturing_claims() {
         .replace("Receipt [linear]", "Receipt")
         .replace("Receipt::settle(self,", "Receipt::settle(&self,")
         .replace("receipt: Receipt", "receipt: &Receipt");
-    let artifact = unit_wrapper_artifact(&checked(&source));
+    let artifact = unit_wrapper_artifact(&crate::front_end::checked_program(&source));
     let module = decode_module(&artifact.0).unwrap();
     let root = module
         .machines
@@ -220,7 +229,7 @@ fn unit_wrapper_consumes_established_affine_result_without_duplicate_cleanup() {
             "let moved: Receipt = forward(receipt); let accepted: u16 = Wrapper::measure(moved, 70u16);",
         );
     let source = format!("{source}\nmachine forward(receipt: Receipt) -> Receipt {{ receipt }}");
-    let original = checked(&source);
+    let original = crate::front_end::checked_program(&source);
     let root_source = original
         .machines()
         .iter()
@@ -413,7 +422,7 @@ fn unit_wrapper_qualifications_and_range_proofs_survive_provider_rejection() {
         )
         .replace("receipt: Receipt", "receipt: Receipt in Ready")
         .replace("value: u16)", "value: u16 [1..=100])");
-    let artifact = unit_wrapper_artifact(&checked(&source));
+    let artifact = unit_wrapper_artifact(&crate::front_end::checked_program(&source));
     let module = decode_module(&artifact.0).unwrap();
     assert_eq!(module.structural_domains.len(), 1);
     let wrapper = module
@@ -448,7 +457,7 @@ fn unit_wrapper_qualifications_and_range_proofs_survive_provider_rejection() {
 
 #[test]
 fn unit_wrapper_rejects_missing_checked_and_terminal_claim_transfers() {
-    let original = checked(&unit_wrapper_source());
+    let original = crate::front_end::checked_program(&unit_wrapper_source());
     let artifact = unit_wrapper_artifact(&original);
     let mut checked = original.clone();
     let operation = checked
@@ -512,7 +521,7 @@ fn unit_wrapper_rejects_same_typed_structural_argument_substitution() {
         "Root::enter(receipt: Receipt) reaches PortIo { let accepted: u16 = Wrapper::measure(receipt, 70u16); }",
         "Root::enter(first: Receipt, second: Receipt) reaches PortIo { let accepted: u16 = Wrapper::measure(first, 70u16); let another: u16 = Wrapper::measure(second, 7u16); }",
     );
-    let mut checked = checked(&source);
+    let mut checked = crate::front_end::checked_program(&source);
     unit_wrapper_artifact(&checked);
     let operation = checked
         .facts
@@ -553,7 +562,7 @@ fn unit_wrapper_operand_crash_retains_the_transferred_linear_claim() {
             )
             .replace("reaches PortIo", "reaches PortIo\ncrashes Abort")
     );
-    let artifact = unit_wrapper_artifact(&checked(&source));
+    let artifact = unit_wrapper_artifact(&crate::front_end::checked_program(&source));
     let mut execution = start(&artifact);
     let mut observer = ObserveSettlement::default();
     let claims = execution.live_claim_frontier().collect::<Vec<_>>();
@@ -589,7 +598,7 @@ fn returned_boundary_scalar_accepts_computed_argument_before_linear_settlement()
         "Receipt::settle(self, value: bool)",
     )
     .replace("receipt.settle()", "receipt.settle(identity(true))");
-    let checked = checked(&source);
+    let checked = crate::front_end::checked_program(&source);
     let artifact = artifact(&checked);
     let mut execution = start(&artifact);
     assert_eq!(execution.live_claim_frontier().count(), 1);

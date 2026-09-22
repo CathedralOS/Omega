@@ -2,7 +2,7 @@
 use super::{
     AdmissionProfile, CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan,
     ExpressionNode, IntegerSign, IntegerType, IntegerValue, PrimitiveType, TerminalExecutionResult,
-    TerminalScalarValue, checked_source, interpret_terminal_artifact, reject,
+    TerminalScalarValue, interpret_terminal_artifact, reject,
 };
 use checked_trees::CheckedArrayConstructionSource;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
@@ -15,7 +15,7 @@ fn byte(value: u8) -> TerminalScalarValue {
 }
 
 fn execute(source: &str, arguments: &[TerminalScalarValue]) -> TerminalExecutionResult {
-    let checked = checked_source(source);
+    let checked = crate::front_end::checked_program(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("selected"),
@@ -91,7 +91,7 @@ fn literal_array_argument_supports_direct_scalar_completion() {
 
 #[test]
 fn literal_array_scalar_graph_rejects_result_drift_without_closure_fallback() {
-    let original = checked_source(
+    let original = crate::front_end::checked_program(
         "machine answer(row: [u8; 2], value: u8) -> u8 { value }
          machine selected() -> u8 { answer([7, 9], 42u8) }",
     );
@@ -144,7 +144,7 @@ fn literal_array_scalar_graph_rejects_result_drift_without_closure_fallback() {
 fn literal_array_scalar_completion_rejects_forged_result_metadata() {
     // A whole array local belongs to the structural operation body. Retain
     // that semantic owner while corrupting its scalar completion metadata.
-    let original = checked_source(
+    let original = crate::front_end::checked_program(
         "machine answer(row: [u8; 2], value: u8) -> u8 { value }
          machine selected() -> u8 { let row: [u8; 2] = [7, 9]; answer(row, 42u8) }",
     );
@@ -369,7 +369,7 @@ fn custody_fixture(empty: bool) -> CheckedTrees {
             "[value, identity(value)]",
         )
     };
-    checked_source(&format!(
+    crate::front_end::checked_program(&format!(
         "machine identity(value: u8) -> u8 {{ value }}
          machine pick(prefix: u8, first: {array_type}, middle: u8, second: {array_type}) -> {array_type} {{ second }}
          machine selected(value: u8) -> {array_type} {{ pick(3u8, {left}, 4u8, {right}) }}"
@@ -428,7 +428,7 @@ fn pure_short_circuit_local_precedes_ordinary_and_literal_array_calls() {
 
 #[test]
 fn computed_scalar_local_rejects_substituted_handle_and_source_root() {
-    let original = checked_source(
+    let original = crate::front_end::checked_program(
         "machine identity(value: bool) -> bool { value }
          machine keep(row: [bool; 2]) -> [bool; 2] { row }
          machine selected(enabled: bool) -> [bool; 2] {
@@ -662,7 +662,7 @@ fn literal_array_constructor_sources_reject_forged_call_formal_and_empty_owners(
 #[test]
 fn literal_array_nested_producers_cannot_impersonate_the_returned_call_result() {
     for (array_type, literal) in [("[u8; 2]", "[7, 9]"), ("[u8; 0]", "[]")] {
-        let original = checked_source(&format!(
+        let original = crate::front_end::checked_program(&format!(
             "machine keep(row: {array_type}) -> {array_type} {{ row }}
              machine selected() -> {array_type} {{ keep(keep({literal})) }}"
         ));
@@ -725,7 +725,7 @@ fn literal_array_nested_producers_cannot_impersonate_the_returned_call_result() 
 
 #[test]
 fn literal_array_argument_payload_cannot_change_under_retained_element_facts() {
-    let original = checked_source(
+    let original = crate::front_end::checked_program(
         "machine keep(row: [u8; 2]) -> [u8; 2] { row }
          machine selected() -> [u8; 2] { keep([7, 9]) }",
     );

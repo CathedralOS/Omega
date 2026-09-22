@@ -1,9 +1,6 @@
 //! Source admission for whole bounded byte-field replacement.
 
-use super::{
-    Lexer, ResolutionRequest, ScalarType, checked_source, lower_machine,
-    lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
-};
+use super::{ScalarType, lower_machine};
 use crate::TerminalMachineSelection;
 use crate::terminal_identities::{block_id, edge_id, value_id};
 use checked_trees::{
@@ -16,10 +13,9 @@ use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{
     Block, OperationKind, StructuralPathSegment, SuccessorEdge, Terminator, ValueDeclaration,
 };
-use typed_trees_to_checked_trees::CheckingRequest;
 #[test]
 fn replaced_byte_field_length_reaches_canonical_interpretation() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         domain [u8; 3]::Utf8 requires valid_utf8(self);
         boundary trait Output { machine size(value: u64) reaches Output; }
@@ -121,7 +117,7 @@ fn replaced_byte_field_length_reaches_canonical_interpretation() {
 
 #[test]
 fn byte_field_length_receiving_rejects_changed_root_and_field_paths() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         domain [u8; 3]::Utf8 requires valid_utf8(self);
         boundary trait Output { machine size(value: u64) reaches Output; }
@@ -192,7 +188,7 @@ fn byte_field_length_receiving_rejects_changed_root_and_field_paths() {
 #[test]
 fn bounded_byte_field_literal_replacement_publishes_terminal() {
     for literal in ["XXX", "X", ""] {
-        let checked = checked_source(&format!(
+        let checked = crate::front_end::checked_program(&format!(
             r#"
             domain [u8; 3]::Utf8 requires valid_utf8(self);
             data Record {{ out: [u8; 3] in Utf8; }}
@@ -269,7 +265,7 @@ fn byte_field_store_receiving_rejects_literal_path_access_and_omission_drift() {
         data Record { out: [u8;3] in Utf8; other: [u8;3] in Utf8; }
         machine Record::replace(&mut self) { self.out = "XXX"; }
     "#;
-    let checked = checked_source(source);
+    let checked = crate::front_end::checked_program(source);
     lower_machine(&checked, TerminalMachineSelection::Name("Record::replace"))
         .expect("untampered byte replacement lowers");
     for mutation in 0..5 {
@@ -318,7 +314,7 @@ fn byte_field_store_receiving_rejects_literal_path_access_and_omission_drift() {
 
 #[test]
 fn byte_replacements_preserve_sibling_and_call_order_at_each_fuel_pause() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         domain [u8;3]::Utf8 requires valid_utf8(self);
         data Record { out: [u8;3] in Utf8; other: [u8;3] in Utf8; flag: bool; }
@@ -459,12 +455,8 @@ fn bounded_byte_replacements_require_capacity_and_exact_domain_predicate() {
             machine Record::replace(&mut self) {{ self.out = "{literal}"; }}
         "#
         );
-        let tokens = Lexer::new(&source).tokenize().unwrap();
-        let syntax = parse_syntax_trees(&tokens).unwrap();
-        let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-        let typed = lower_symbol_resolved_trees(&resolved).unwrap();
         assert!(
-            lower_typed_trees(typed, &CheckingRequest::settled()).is_err(),
+            crate::front_end::checked_program_result(&source).is_err(),
             "{domain}: {literal:?} must fail source checking"
         );
     }
@@ -472,7 +464,7 @@ fn bounded_byte_replacements_require_capacity_and_exact_domain_predicate() {
 
 #[test]
 fn nested_record_byte_field_store_retains_its_exact_carrier_path() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         domain [u8;3]::Utf8 requires valid_utf8(self);
         data Record { out: [u8;3] in Utf8; }
@@ -538,7 +530,7 @@ fn nested_record_byte_field_store_retains_its_exact_carrier_path() {
 
 #[test]
 fn literal_reestablishment_in_a_cycle_consumes_fuel_without_losing_field_bytes() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         domain [u8;3]::Utf8 requires valid_utf8(self);
         data Record { out: [u8;3] in Utf8; }

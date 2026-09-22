@@ -3,9 +3,6 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
@@ -13,22 +10,10 @@ use terminal_interpreter::{
     TerminalExecutionResult, TerminalInterpretError, TerminalScalarValue,
     interpret_terminal_artifact, interpret_terminal_artifact_measured,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
-
-fn typed(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved)
-        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
-}
 
 fn assert_execution(source: &str, expected: TerminalScalarValue) {
     let artifact = {
-        let checked = lower_typed_trees(typed(source), &CheckingRequest::settled())
-            .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+        let checked = crate::front_end::checked_program(source);
         let lowered = checked_trees_to_lowered_psi::lower_machine(
             &checked,
             TerminalMachineSelection::Name("value"),
@@ -52,8 +37,7 @@ fn assert_execution(source: &str, expected: TerminalScalarValue) {
 }
 
 fn encoded(source: &str) -> (Vec<u8>, Vec<u8>) {
-    let checked = lower_typed_trees(typed(source), &CheckingRequest::settled())
-        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+    let checked = crate::front_end::checked_program(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("value"),
@@ -206,8 +190,7 @@ fn final_mutable_formal_guarantee_cannot_prove_equality_with_the_original_argume
         ensures result == input
         { input = 9; input }
     "#;
-    lower_typed_trees(typed(helper), &CheckingRequest::settled())
-        .expect("the helper's result equals its final mutable input, not an implicit old value");
+    crate::front_end::checked_program(helper);
     let source = format!(
         r#"
         {helper}
@@ -217,7 +200,7 @@ fn final_mutable_formal_guarantee_cannot_prove_equality_with_the_original_argume
         "#,
     );
     assert!(
-        lower_typed_trees(typed(&source), &CheckingRequest::settled()).is_err(),
+        crate::front_end::checked_program_result(&source).is_err(),
         "a final-formal guarantee must not be substituted with the earlier call argument",
     );
 }
@@ -369,7 +352,7 @@ fn checked_entry_storage_custody_rejects_missing_stale_and_rebound_parameter_row
         { select(7, 4, 9) }
     "#;
     assert_execution(source, integer("i32", 9));
-    let checked = lower_typed_trees(typed(source), &CheckingRequest::settled()).unwrap();
+    let checked = crate::front_end::checked_program(source);
     let machine = checked
         .typed
         .machines()

@@ -3,7 +3,7 @@ use super::later_results::encoded_locals;
 use super::{
     AdmissionProfile, CheckedUnitEffectOperationPlan, TerminalEffect, TerminalEffectHandler,
     TerminalEffectRejection, TerminalEffectResult, TerminalExecutionResult, TerminalInterpretError,
-    checked, decode_module, decode_proof_bundle, invoking, main_machine,
+    decode_module, decode_proof_bundle, invoking, main_machine,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_fuel::TerminalFuelMeter;
@@ -20,7 +20,10 @@ fn shared_result_borrows_preserve_custody_until_the_final_move() {
         "boundary trait Sink {",
         "boundary trait Sink { machine read(token: &Token, count: u16) reaches Sink;",
     );
-    let artifact = encoded_locals(&checked(&source), &["prefix", "first", "spare"]);
+    let artifact = encoded_locals(
+        &crate::front_end::checked_program(&source),
+        &["prefix", "first", "spare"],
+    );
     let mut execution = TerminalExecution::start_artifact(
         &artifact.0,
         &artifact.1,
@@ -44,7 +47,7 @@ fn shared_result_borrows_preserve_custody_until_the_final_move() {
 #[test]
 fn nested_boundary_producers_transfer_their_exact_temporary_result() {
     let artifact = encoded_locals(
-        &checked(&source(
+        &crate::front_end::checked_program(&source(
             "Sink::consume(Factory::create(identity16(prefix), 7u16), prefix);",
         )),
         &["prefix", "first", "spare"],
@@ -72,7 +75,7 @@ fn nested_boundary_producers_transfer_their_exact_temporary_result() {
 #[test]
 fn direct_boundary_arguments_evaluate_nested_affine_producers() {
     let artifact = encoded_locals(
-        &checked(&source(
+        &crate::front_end::checked_program(&source(
             "Sink::consume(forward(first, identity16(prefix)), identity16(prefix));",
         )),
         &["prefix", "first", "spare"],
@@ -100,7 +103,7 @@ fn direct_boundary_arguments_evaluate_nested_affine_producers() {
 #[test]
 fn a_boundary_result_moves_directly_into_a_later_boundary_call() {
     let artifact = encoded_locals(
-        &checked(&source("Sink::consume(first, identity16(prefix));")),
+        &crate::front_end::checked_program(&source("Sink::consume(first, identity16(prefix));")),
         &["prefix", "first", "spare"],
     );
     let mut execution = TerminalExecution::start_artifact(
@@ -131,7 +134,10 @@ fn an_ordinary_result_moves_into_a_bodyless_boundary_with_its_identity_intact() 
             "let moved: Token = forward(first, identity16(prefix)); Main::take(moved, identity16(prefix));"
         ).replace("data Main {}", "pub data Main {}")
     );
-    let artifact = encoded_locals(&checked(&source), &["prefix", "first", "spare", "moved"]);
+    let artifact = encoded_locals(
+        &crate::front_end::checked_program(&source),
+        &["prefix", "first", "spare", "moved"],
+    );
     let mut execution = TerminalExecution::start_artifact(
         &artifact.0,
         &artifact.1,
@@ -166,7 +172,7 @@ fn consuming_boundaries_establish_replacements_only_after_successful_completion(
             replacement_source()
         };
         let artifact = encoded_locals(
-            &checked(&source),
+            &crate::front_end::checked_program(&source),
             &["prefix", "first", "spare", "replacement"],
         );
         let module = decode_module(&artifact.0).unwrap();
@@ -261,7 +267,7 @@ impl TerminalEffectHandler for RejectReplacement {
 #[test]
 fn rejected_or_mistyped_replacements_retain_the_direct_input_for_exact_retry() {
     let artifact = encoded_locals(
-        &checked(&replacement_source()),
+        &crate::front_end::checked_program(&replacement_source()),
         &["prefix", "first", "spare", "replacement"],
     );
     for wrong_result in [false, true] {
@@ -308,7 +314,8 @@ fn rejected_or_mistyped_replacements_retain_the_direct_input_for_exact_retry() {
 
 #[test]
 fn direct_boundary_result_custody_rejects_substitution_and_cleanup_after_transfer() {
-    let original = checked(&source("Sink::consume(first, identity16(prefix));"));
+    let original =
+        crate::front_end::checked_program(&source("Sink::consume(first, identity16(prefix));"));
     let artifact = encoded_locals(&original, &["prefix", "first", "spare"]);
     let machine = main_machine(&original);
     let mut changed = original.clone();

@@ -2,24 +2,10 @@
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
-
-fn typed(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved)
-        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
-}
 
 fn source(
     parameters: &str,
@@ -43,8 +29,7 @@ fn source(
 }
 
 fn encoded(source: &str) -> (Vec<u8>, Vec<u8>) {
-    let checked = lower_typed_trees(typed(source), &CheckingRequest::settled())
-        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+    let checked = crate::front_end::checked_program(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("value"),
@@ -171,7 +156,7 @@ fn source_calls_cannot_satisfy_boolean_requirements_with_false_arguments() {
         ),
     ] {
         let source = source(parameters, requirement, body, arguments, true);
-        let diagnostics = match lower_typed_trees(typed(&source), &CheckingRequest::settled()) {
+        let diagnostics = match crate::front_end::checked_program_result(&source) {
             Err(diagnostics) => diagnostics,
             Ok(_) => panic!("the caller must prove the entry requirement: {source}"),
         };

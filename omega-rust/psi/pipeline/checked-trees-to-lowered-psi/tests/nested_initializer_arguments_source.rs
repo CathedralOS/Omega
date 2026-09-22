@@ -5,9 +5,6 @@ use checked_trees::{
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
@@ -15,7 +12,6 @@ use terminal_interpreter::{
     TerminalEffectResult, TerminalExecutionResult, TerminalInterpretError, TerminalScalarValue,
     TerminalStructuralValue, interpret_terminal_artifact_measured,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
@@ -54,18 +50,6 @@ const IDENTITIES: &str = r#"
     ensures 0u8 == 0u8
     { input }
 "#;
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"))
-}
 
 /// Declare that `Main::main` explicitly invokes `boundary`, right before its body opens.
 ///
@@ -323,7 +307,7 @@ fn structural_source() -> String {
 #[test]
 fn scalar_results_are_established_after_nested_operands_and_reach_later_calls() {
     for boundary in [false, true] {
-        let checked = checked(&scalar_source(boundary));
+        let checked = crate::front_end::checked_program(&scalar_source(boundary));
         let artifact = encoded(&checked);
         for (left, right) in [(0, 7), (255, 3)] {
             let mut observer = ObserveResults::default();
@@ -355,7 +339,7 @@ fn scalar_results_are_established_after_nested_operands_and_reach_later_calls() 
 
 #[test]
 fn structural_initializer_retains_affine_result_and_normal_cleanup_after_verification() {
-    let checked = checked(&structural_source());
+    let checked = crate::front_end::checked_program(&structural_source());
     let artifact = encoded(&checked);
     let module = decode_module(&artifact.0).unwrap();
     let entry = module
@@ -436,7 +420,7 @@ fn nominal_boundary_requirements_execute_computed_result_initializers() {
                 ),
                 "Producer",
             );
-            let checked = checked(&source);
+            let checked = crate::front_end::checked_program(&source);
             let artifact = encoded(&checked);
             let mut observer = ObserveResults::default();
             assert_eq!(
@@ -469,7 +453,7 @@ where machine Create satisfies Producer::{requirement};"
                 ),
             );
             assert!(matches!(
-                checked_trees_to_lowered_psi::lower_machine(&self::checked(&open), TerminalMachineSelection::Name("Main::main")),
+                checked_trees_to_lowered_psi::lower_machine(&crate::front_end::checked_program(&open), TerminalMachineSelection::Name("Main::main")),
                 Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan { machine, .. })
                     if machine == "Main::main"
             ));
@@ -490,7 +474,7 @@ fn attached_unit_callers_execute_all_computed_initializer_result_kinds() {
             "machine Main::main(left: u8, right: u8)",
             "machine Main::main(&mut self, left: u8, right: u8)",
         );
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         let artifact = encoded(&checked);
         let mut observer = ObserveResults::default();
         assert_eq!(
@@ -515,7 +499,7 @@ fn attached_unit_callers_execute_all_computed_initializer_result_kinds() {
 
 #[test]
 fn structural_result_installation_rejects_wrong_carriers_and_provider_refusal() {
-    let checked = checked(&structural_source());
+    let checked = crate::front_end::checked_program(&structural_source());
     let artifact = encoded(&checked);
     for structural_response in [
         StructuralResponse::WrongType,
@@ -577,7 +561,7 @@ fn initializer_short_circuit_operands_skip_crashes_before_establishing_scalar_re
             {{ let result: bool = Producer::choose(first && abort(), second || trap()); Host::finish(result); }}
         "#
         );
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         let artifact = encoded(&checked);
         for (first, second, cause) in [
             (false, true, None),
@@ -659,7 +643,7 @@ fn initializer_argument_crashes_precede_later_casts_and_all_outer_result_kinds()
                 {{ let result: {carrier} = Producer::create(first(), second() as u16); {consumer} }}
             "#
             );
-            let checked = checked(&source);
+            let checked = crate::front_end::checked_program(&source);
             let artifact = encoded(&checked);
             let mut observer = ObserveResults::default();
             assert!(matches!(execute(&artifact, &[], &mut observer),
@@ -679,7 +663,7 @@ fn initializer_computations_and_outer_result_custody_reject_stale_source() {
         scalar_source(true),
         structural_source(),
     ] {
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         encoded(&checked);
         let machine = main_machine(&checked);
         let statements = checked.typed.machine_states(machine)[0].statement_nodes;

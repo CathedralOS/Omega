@@ -4,9 +4,6 @@ use checked_trees::{
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
 use terminal_interpreter::TerminalStructuralInputs;
@@ -16,9 +13,6 @@ use terminal_interpreter::{
 };
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, OperationResult, StructuralPathSegment, Terminator};
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[path = "partial_affine_result_source/continuations.rs"]
 mod continuations;
@@ -38,7 +32,7 @@ const SOURCE: &str = r#"
 
 #[test]
 fn authored_result_projection_retains_its_untransferred_remainder() {
-    let checked = checked(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     let _artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -103,7 +97,7 @@ fn anonymous_projected_operands_share_one_dying_continuation() {
             }
             "#
         };
-        let checked = checked(source);
+        let checked = crate::front_end::checked_program(source);
         let lowered = checked_trees_to_lowered_psi::lower_machine(
             &checked,
             TerminalMachineSelection::Name("Root::enter"),
@@ -232,18 +226,6 @@ fn anonymous_projected_operands_share_one_dying_continuation() {
     }
 }
 
-fn typed(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    lower_typed_trees(typed(source), &CheckingRequest::settled())
-        .unwrap_or_else(|errors| panic!("{source}\n{errors:#?}"))
-}
-
 fn source(boundary: bool, nested: bool, body: &str) -> String {
     let mut source = SOURCE.replace("Sink::take(result.right);", body);
     if nested {
@@ -345,7 +327,7 @@ fn assert_source(
     moved: &[Vec<StructuralPathSegment>],
     residuals: &[Vec<StructuralPathSegment>],
 ) {
-    let checked = checked(source);
+    let checked = crate::front_end::checked_program(source);
     let root = checked
         .machines()
         .iter()
@@ -681,7 +663,11 @@ fn anonymous_projected_rows_and_leaves_keep_maximal_reverse_residuals() {
 fn checked_result_root_paths_and_complement_rejoin_authored_custody() {
     for (boundary, anonymous) in [(false, false), (true, false), (false, true), (true, true)] {
         let source = if anonymous { anonymous_source } else { source };
-        let original = checked(&source(boundary, false, "Sink::take(result.right);"));
+        let original = crate::front_end::checked_program(&source(
+            boundary,
+            false,
+            "Sink::take(result.right);",
+        ));
         checked_trees_to_lowered_psi::lower_machine(
             &original,
             TerminalMachineSelection::Name("Root::enter"),
@@ -790,7 +776,11 @@ fn checked_result_root_paths_and_complement_rejoin_authored_custody() {
                 "boundary={boundary} anonymous={anonymous} mutation={mutation}"
             );
         }
-        let mut changed = checked(&source(boundary, true, "Sink::take(result.grid[1][1]);"));
+        let mut changed = crate::front_end::checked_program(&source(
+            boundary,
+            true,
+            "Sink::take(result.grid[1][1]);",
+        ));
         checked_trees_to_lowered_psi::lower_machine(
             &changed,
             TerminalMachineSelection::Name("Root::enter"),
@@ -824,7 +814,7 @@ fn source_result_paths_cannot_be_used_after_their_owned_move() {
             "let again: Pair = Root::forward(result); Sink::take(result.left);",
         ] {
             let source = source(boundary, false, body);
-            if let Ok(checked) = lower_typed_trees(typed(&source), &CheckingRequest::settled()) {
+            if let Ok(checked) = crate::front_end::checked_program_result(&source) {
                 assert!(
                     terminal_production::TerminalProductionRequest::new(
                         &checked,
@@ -844,7 +834,7 @@ fn source_result_paths_cannot_be_used_after_their_owned_move() {
 #[test]
 fn anonymous_result_permissions_rejoin_before_publication() {
     for boundary in [false, true] {
-        let original = checked(&anonymous_source(
+        let original = crate::front_end::checked_program(&anonymous_source(
             boundary,
             true,
             "Sink::take(result.grid[1][1]);",
@@ -940,7 +930,7 @@ fn sole_call_partial_return_does_not_bypass_its_live_root_limit() {
         .replace("machine Root::enter()", "machine Root::enter(value: Pair)");
     assert!(
         terminal_production::TerminalProductionRequest::new(
-            &checked(&live_input),
+            &crate::front_end::checked_program(&live_input),
             TerminalMachineSelection::Name("Root::enter")
         )
         .produce(TerminalProductionCustody::artifact_only(

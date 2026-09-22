@@ -4,7 +4,7 @@ use super::{
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, INPUT_SOURCE, OperationKind,
     TerminalBoundaryByteBuffer, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
     TerminalEffectResult, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
-    TerminalStructuralValue, assert_stored_fields, checked_source, lower_machine,
+    TerminalStructuralValue, assert_stored_fields, lower_machine,
 };
 use crate::TerminalMachineSelection;
 use checked_trees::CheckedStructuralAccess;
@@ -75,7 +75,7 @@ fn assert_forwarded_input(source: &str, ordinary_helper: bool, expected_stored: 
         "#,
         );
     }
-    let checked = checked_source(&source);
+    let checked = crate::front_end::checked_program(&source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         terminal_production::TerminalMachineSelection::Name("Record::run"),
@@ -312,7 +312,7 @@ fn checked_provider_empty_path_reborrow_rejects_retained_source_substitution() {
             self.other = "QQ";
         }
     "#;
-    let checked = checked_source(source);
+    let checked = crate::front_end::checked_program(source);
     lower_machine(&checked, TerminalMachineSelection::Name("Record::run"))
         .expect("the authored two-parameter checked provider lowers before mutation");
     for mutation in 0..3 {

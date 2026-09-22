@@ -1,10 +1,7 @@
 use super::{checked_public_reach_wrapper, reach_fixture, service_names, summary};
 use crate::TerminalMachineSelection;
 use crate::terminal_identities::service_id;
-use crate::tests::{
-    Lexer, LoweringError, ResolutionRequest, checked_source, lower_machine,
-    lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
-};
+use crate::tests::{LoweringError, lower_machine};
 use crate::unit::attached_unit::{
     collect_contract_services, collect_published_contract_services, lower_contract_service_ceiling,
     lower_published_service_ceiling, lower_root_service_reach,
@@ -12,7 +9,6 @@ use crate::unit::attached_unit::{
 use language_semantics::{ServiceReachInterface, ServiceReachPlan};
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
-use typed_trees_to_checked_trees::CheckingRequest;
 
 #[test]
 fn top_level_bounded_boundary_keeps_fixed_invocation_reach() {
@@ -26,7 +22,7 @@ fn top_level_bounded_boundary_keeps_fixed_invocation_reach() {
         pub boundary requirement Endpoint::step() invokes Console; reaches <= {bound};
     "#
         );
-        let checked = checked_source(&source);
+        let checked = crate::front_end::checked_program(&source);
         let requirement = checked
             .typed
             .machines()
@@ -96,7 +92,7 @@ fn top_level_bounded_boundary_keeps_fixed_invocation_reach() {
         let call_source = format!(
             "{source}\n pub data Root {{}}\n machine helper() reaches Console + Storage invokes Console; {{ Endpoint::step(); }}\n pub machine Root::enter() invokes Console; {{ helper(); helper(); }}"
         );
-        let caller = checked_source(&call_source);
+        let caller = crate::front_end::checked_program(&call_source);
         let artifact = terminal_production::TerminalProductionRequest::new(
             &caller,
             terminal_production::TerminalMachineSelection::Name("Root::enter"),
@@ -161,11 +157,7 @@ fn top_level_bounded_boundary_keeps_fixed_invocation_reach() {
         assert_eq!(execution.effects().len(), 2);
         if bound == "Storage" {
             let invalid = call_source.replace("reaches Console + Storage invokes", "invokes");
-            let tokens = Lexer::new(&invalid).tokenize().expect("tokens");
-            let syntax = parse_syntax_trees(&tokens).expect("parse");
-            let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-            let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-            let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+            let diagnostics = crate::front_end::checked_program_result(&invalid)
                 .expect_err("bound does not waive direct declaration");
             assert!(
                 diagnostics
@@ -206,7 +198,7 @@ fn bounded_boundary_helpers_replay_fixed_parent_and_invocation_reach() {
             pub machine Root::enter() invokes Installer; {invocations} {{ helper(); helper(); }}
         "#
         );
-        let checked = checked_source(&source);
+        let checked = crate::front_end::checked_program(&source);
         let artifact = terminal_production::TerminalProductionRequest::new(
             &checked,
             terminal_production::TerminalMachineSelection::Name("Root::enter"),
@@ -268,7 +260,7 @@ fn bounded_boundary_helpers_replay_fixed_parent_and_invocation_reach() {
 
 #[test]
 fn unresolved_installation_selection_keeps_closed_reach_application() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         pub boundary trait Console {}
         pub boundary trait Installer { machine install() reaches <= Console; }
@@ -409,7 +401,7 @@ fn unresolved_installation_selection_keeps_closed_reach_application() {
 
 #[test]
 fn standalone_scalar_helpers_reject_reachful_or_missing_contracts() {
-    let mut checked = checked_source(
+    let mut checked = crate::front_end::checked_program(
         r#"
         pub boundary trait Console {}
         pub machine selected(value: u64) -> u64 reaches Console { value }

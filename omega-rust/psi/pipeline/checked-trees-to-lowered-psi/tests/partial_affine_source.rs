@@ -1,8 +1,5 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
@@ -10,9 +7,6 @@ use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalStructuralValue,
 };
 use terminal_psi::{OperationKind, StructuralFieldType, StructuralPathSegment, Terminator};
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 const SOURCE: &str = r#"
     domain [u8; 3]::Utf8
@@ -279,11 +273,7 @@ const NESTED_AFFINE_SIXTEEN_SOURCE: &str = r#"
 
 #[test]
 fn two_element_affine_array_cleanup_crosses_source_codec_verifier_and_interpreter() {
-    let tokens = Lexer::new(AFFINE_PAIR_SOURCE).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(AFFINE_PAIR_SOURCE);
 
     for (machine, moved, residual) in [("Root::first", 0, 1), ("Root::second", 1, 0)] {
         let lowered = checked_trees_to_lowered_psi::lower_machine(
@@ -453,11 +443,7 @@ fn two_element_affine_array_cleanup_crosses_source_codec_verifier_and_interprete
 
 #[test]
 fn fully_consumed_affine_array_uses_two_calls_and_an_ordinary_return() {
-    let tokens = Lexer::new(AFFINE_PAIR_SOURCE).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(AFFINE_PAIR_SOURCE);
 
     for (machine, expected_paths) in [("Root::forward", [0, 1]), ("Root::reverse", [1, 0])] {
         let lowered = checked_trees_to_lowered_psi::lower_machine(
@@ -630,13 +616,7 @@ fn fully_consumed_affine_array_uses_two_calls_and_an_ordinary_return() {
 
 #[test]
 fn affine_triple_residuals_follow_the_exact_decreasing_live_index_order() {
-    let tokens = Lexer::new(AFFINE_TRIPLE_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(AFFINE_TRIPLE_SOURCE);
 
     let all = checked_trees_to_lowered_psi::lower_machine(
         &checked,
@@ -1062,13 +1042,7 @@ fn affine_triple_residuals_follow_the_exact_decreasing_live_index_order() {
 
 #[test]
 fn affine_quartet_two_moves_retain_authored_calls_and_decreasing_residuals() {
-    let tokens = Lexer::new(AFFINE_QUARTET_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(AFFINE_QUARTET_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -1203,11 +1177,7 @@ fn assert_nested_affine_array_cleanup_crosses_source_codec_verifier_and_interpre
     expected_moves: &[(u64, u64)],
     expected_residuals: &[(u64, u64)],
 ) {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -1716,11 +1686,7 @@ fn nested_affine_array_cleanup_crosses_source_codec_verifier_and_interpreter() {
 
 #[test]
 fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpreter() {
-    let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -2063,11 +2029,7 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
 
 #[test]
 fn mixed_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpreter() {
-    let tokens = Lexer::new(MIXED_SOURCE).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(MIXED_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),

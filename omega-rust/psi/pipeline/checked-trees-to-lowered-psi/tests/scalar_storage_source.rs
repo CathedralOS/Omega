@@ -1,28 +1,13 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
-}
 
 fn execute(source: &str) -> TerminalExecutionResult {
-    let checked = checked(source);
+    let checked = crate::front_end::checked_program(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("value"),
@@ -117,7 +102,7 @@ fn owned_mutable_parameter_snapshot_agrees_with_canonical_execution() {
 }
 
 fn assert_call_snapshot_and_execution(source: &str, statement_index: usize) {
-    let checked = checked(source);
+    let checked = crate::front_end::checked_program(source);
     let caller = checked
         .machines()
         .iter()
@@ -228,7 +213,7 @@ fn scalar_storage_guards_select_using_the_updated_value() {
 fn changed_scalar_storage_destination_custody_rejects() {
     use checked_trees::CheckedScalarBindingDestination;
     let source = "machine value() -> u8\nrequires 3u8 == 3u8\nensures 3u8 == 3u8\n{ let mut first: u8 = 1; let mut second: u8 = 2; first = 3; first }";
-    let original = checked(source);
+    let original = crate::front_end::checked_program(source);
     checked_trees_to_lowered_psi::lower_machine(&original, TerminalMachineSelection::Name("value"))
         .expect("unmodified storage graph lowers");
     for mutation in 0..4 {
@@ -264,7 +249,7 @@ fn changed_scalar_storage_destination_custody_rejects() {
 fn scalar_storage_reads_reject_stale_symbols_and_duplicate_computations() {
     use checked_trees::{CheckedScalarExpression, CheckedScalarExpressionRole};
     let source = "machine value() -> u8\nrequires 7u8 == 7u8\nensures 7u8 == 7u8\n{ let mut current: u8 = 7; current }";
-    let original = checked(source);
+    let original = crate::front_end::checked_program(source);
     checked_trees_to_lowered_psi::lower_machine(&original, TerminalMachineSelection::Name("value"))
         .expect("unmodified storage read lowers");
     for mutation in 0..3 {

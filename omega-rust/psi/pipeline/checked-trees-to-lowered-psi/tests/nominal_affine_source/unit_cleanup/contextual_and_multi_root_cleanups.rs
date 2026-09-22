@@ -5,25 +5,19 @@ use super::{
     TWO_ROOT_TWO_EXECUTABLE_SOURCE,
 };
 use crate::nominal_affine_source::{
-    AcceptTerminalEffects, AdmissionProfile, EvidenceRoute, IntegerSign, IntegerType, Lexer,
-    OperationKind, OperationResult, ProofRule, ResolutionRequest, ScalarType, StructuralFieldType,
+    AcceptTerminalEffects, AdmissionProfile, EvidenceRoute, IntegerSign, IntegerType,
+    OperationKind, OperationResult, ProofRule, ScalarType, StructuralFieldType,
     StructuralMultiplicity, StructuralTypeShape, TerminalAffineCleanupAction,
     TerminalExecutionResult, TerminalMachineResult, TerminalStructuralValue, Terminator,
     decode_module, decode_proof_bundle, encode_module, encode_proof_section,
-    interpret_terminal_artifact_measured, lower_symbol_resolved_trees, lower_typed_trees,
-    parse_syntax_trees, resolve,
+    interpret_terminal_artifact_measured,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::TerminalStructuralInputs;
-use typed_trees_to_checked_trees::CheckingRequest;
 
 #[test]
 fn empty_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
-    let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -89,14 +83,7 @@ fn empty_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
 
 #[test]
 fn contextual_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
-    let tokens = Lexer::new(CONTEXTUAL_SOURCE)
-        .tokenize()
-        .expect("tokenize contextual cleanup");
-    let syntax = parse_syntax_trees(&tokens).expect("parse contextual cleanup");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve contextual cleanup");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type contextual cleanup source");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check contextual cleanup source");
+    let checked = crate::front_end::checked_program(CONTEXTUAL_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -319,16 +306,7 @@ fn contextual_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
 
 #[test]
 fn finite_contextual_nominal_cleanup_preserves_caller_superset_and_canonical_artifacts() {
-    let tokens = Lexer::new(FINITE_CONTEXTUAL_SOURCE)
-        .tokenize()
-        .expect("tokenize finite contextual cleanup");
-    let syntax = parse_syntax_trees(&tokens).expect("parse finite contextual cleanup");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve finite contextual cleanup");
-    let typed =
-        lower_symbol_resolved_trees(&resolved).expect("type finite contextual cleanup source");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check finite contextual cleanup source");
+    let checked = crate::front_end::checked_program(FINITE_CONTEXTUAL_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -482,16 +460,7 @@ fn finite_contextual_nominal_cleanup_preserves_caller_superset_and_canonical_art
 
 #[test]
 fn caller_only_contextual_fact_does_not_invent_a_cleanup_receiver_or_obligation() {
-    let tokens = Lexer::new(CALLER_ONLY_CONTEXTUAL_SOURCE)
-        .tokenize()
-        .expect("tokenize caller-only contextual cleanup");
-    let syntax = parse_syntax_trees(&tokens).expect("parse caller-only contextual cleanup");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve caller-only contextual cleanup");
-    let typed =
-        lower_symbol_resolved_trees(&resolved).expect("type caller-only contextual cleanup source");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check caller-only contextual cleanup source");
+    let checked = crate::front_end::checked_program(CALLER_ONLY_CONTEXTUAL_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -561,11 +530,7 @@ fn caller_only_contextual_fact_does_not_invent_a_cleanup_receiver_or_obligation(
 
 #[test]
 fn wide_mixed_primitive_record_crosses_source_lowering_codec_and_verifier() {
-    let tokens = Lexer::new(SCALAR_SOURCE).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(SCALAR_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -640,11 +605,7 @@ fn wide_mixed_primitive_record_crosses_source_lowering_codec_and_verifier() {
 
 #[test]
 fn two_nominal_roots_cleanup_in_reverse_parameter_order_and_may_share_a_target() {
-    let tokens = Lexer::new(TWO_ROOT_SOURCE).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(TWO_ROOT_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -695,16 +656,7 @@ fn two_nominal_roots_cleanup_in_reverse_parameter_order_and_may_share_a_target()
 
 #[test]
 fn contextual_multi_root_nominal_cleanup_crosses_source_codec_and_verifier() {
-    let tokens = Lexer::new(TWO_ROOT_CONTEXTUAL_SOURCE)
-        .tokenize()
-        .expect("tokenize contextual two-root cleanup");
-    let syntax = parse_syntax_trees(&tokens).expect("parse contextual two-root cleanup");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve contextual two-root cleanup");
-    let typed =
-        lower_symbol_resolved_trees(&resolved).expect("type contextual two-root cleanup source");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check contextual two-root cleanup source");
+    let checked = crate::front_end::checked_program(TWO_ROOT_CONTEXTUAL_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -765,13 +717,7 @@ fn contextual_multi_root_nominal_cleanup_crosses_source_codec_and_verifier() {
 
 #[test]
 fn two_nominal_roots_allow_one_executable_cleanup_in_reverse_order() {
-    let tokens = Lexer::new(TWO_ROOT_ONE_EXECUTABLE_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(TWO_ROOT_ONE_EXECUTABLE_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -855,13 +801,7 @@ fn two_nominal_roots_allow_one_executable_cleanup_in_reverse_order() {
 
 #[test]
 fn two_nominal_roots_run_distinct_executable_cleanups_in_reverse_order() {
-    let tokens = Lexer::new(TWO_ROOT_TWO_EXECUTABLE_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(TWO_ROOT_TWO_EXECUTABLE_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -912,13 +852,7 @@ fn two_nominal_roots_run_distinct_executable_cleanups_in_reverse_order() {
 
 #[test]
 fn two_nominal_roots_may_repeat_one_executable_cleanup_target_and_helper() {
-    let tokens = Lexer::new(TWO_ROOT_SHARED_EXECUTABLE_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(TWO_ROOT_SHARED_EXECUTABLE_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -955,15 +889,7 @@ fn two_nominal_roots_may_repeat_one_executable_cleanup_target_and_helper() {
 
 #[test]
 fn contextual_roots_may_share_one_executable_cleanup_target_and_helper() {
-    let tokens = Lexer::new(CONTEXTUAL_EXECUTABLE_SOURCE)
-        .tokenize()
-        .expect("tokenize contextual executable cleanup");
-    let syntax = parse_syntax_trees(&tokens).expect("parse contextual executable cleanup");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve contextual executable cleanup");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type contextual executable cleanup");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check contextual executable cleanup");
+    let checked = crate::front_end::checked_program(CONTEXTUAL_EXECUTABLE_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),

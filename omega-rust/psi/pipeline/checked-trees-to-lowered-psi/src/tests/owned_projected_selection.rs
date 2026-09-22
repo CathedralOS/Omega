@@ -1,11 +1,11 @@
 //! Owned match arms may move one projected affine child while each root's
 //! residual siblings die on the actual selected edge.
 
-use super::{CheckedTrees, checked_source, lower_machine};
+use super::{CheckedTrees, lower_machine};
 use crate::TerminalMachineSelection;
 use terminal_psi::Terminator;
 fn projected_selection_source() -> CheckedTrees {
-    checked_source(
+    crate::front_end::checked_program(
         "data Payload { left: u64; right: u64; }
          data Pair { first: Payload; second: Payload; }
          machine supply(first: u64, second: u64) -> Pair {

@@ -1,6 +1,6 @@
 //! Source closure ownership travels with the selected lowering result.
 
-use super::{checked_source, lower_machine};
+use super::lower_machine;
 use crate::TerminalMachineSelection;
 use crate::machine_lowering::machine_dispatch::{lower_selected_machine, select_terminal_machine};
 use crate::producer_result::{
@@ -9,7 +9,7 @@ use crate::producer_result::{
 use crate::scalar_graph::scalar_call_closure;
 #[test]
 fn scalar_selection_returns_the_source_closure_used_to_emit_its_catalog() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "machine leaf(value: u32) -> u32 { value }
          machine enter(value: u32) -> u32 { leaf(value) }",
     );
@@ -37,7 +37,7 @@ fn scalar_selection_returns_the_source_closure_used_to_emit_its_catalog() {
 
 #[test]
 fn catalog_selection_preserves_exact_source_owners_in_emitted_order() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "boundary trait Host { machine touch(); }
          machine leaf() reaches Host { Host::touch(); }
          machine enter() reaches Host { leaf(); }",
@@ -74,7 +74,7 @@ fn catalog_selection_preserves_exact_source_owners_in_emitted_order() {
 
 #[test]
 fn source_projection_modes_preserve_their_distinct_custody_authority() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "machine leaf(value: u32) -> u32 { value }
          machine enter(value: u32) -> u32 { leaf(value) }",
     );
@@ -125,7 +125,7 @@ fn source_projection_modes_preserve_their_distinct_custody_authority() {
 
 #[test]
 fn exact_source_catalog_reorders_owners_and_rejects_incomplete_or_duplicate_bindings() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "boundary trait Host { machine touch(); }
          machine leaf() reaches Host { Host::touch(); }
          machine enter() reaches Host { leaf(); }",

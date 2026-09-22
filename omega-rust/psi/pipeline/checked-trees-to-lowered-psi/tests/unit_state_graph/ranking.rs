@@ -1,6 +1,6 @@
 use super::{
-    AdmissionProfile, TerminalEffect, TerminalExecutionResult, checked, encode_module,
-    encode_proof_section, interpret_terminal_artifact_measured,
+    AdmissionProfile, TerminalEffect, TerminalExecutionResult, encode_module, encode_proof_section,
+    interpret_terminal_artifact_measured,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
@@ -8,7 +8,7 @@ use terminal_psi::{TerminalNaturalRankComparison, TerminalRankedScc};
 
 fn lower_writer() -> lowered_psi::LoweredPsi {
     checked_trees_to_lowered_psi::lower_machine(
-        &checked(WRITER),
+        &crate::front_end::checked_program(WRITER),
         TerminalMachineSelection::Name("Root::enter"),
     )
     .expect("the authored slice rank survives ordinary call-closure lowering")
@@ -260,7 +260,7 @@ fn unchanged_tail_cannot_reuse_the_strict_comparison_certificate() {
 #[test]
 fn checked_slice_rank_cannot_be_removed_or_redirected() {
     for mutation in 0..2 {
-        let mut source = checked(WRITER);
+        let mut source = crate::front_end::checked_program(WRITER);
         let plan = source
             .facts
             .flow

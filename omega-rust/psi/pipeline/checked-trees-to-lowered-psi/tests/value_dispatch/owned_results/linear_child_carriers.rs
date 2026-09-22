@@ -3,7 +3,6 @@
 //! joined destination re-establishes the frontier under its own symbol so its
 //! children stay consumable.
 
-use crate::value_dispatch::check_source;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use language_semantics::{PermissionClaimIdentity, PermissionProvenance};
 
@@ -67,8 +66,8 @@ fn carrier_match_moves_the_whole_claim_frontier_and_reconsumes_each_child() {
             false,
         ),
     ] {
-        let checked =
-            check_source(source).unwrap_or_else(|errors| panic!("{name} checks: {errors:#?}"));
+        let checked = crate::front_end::checked_program_result(source)
+            .unwrap_or_else(|errors| panic!("{name} checks: {errors:#?}"));
         let ownership = &checked.facts.flow.ownership;
         let (_, receipt) = ownership
             .owned_selections
@@ -163,7 +162,7 @@ fn carrier_match_rejects_post_join_source_and_double_consumption() {
             "Token::settle(picked.left); Token::settle(picked.right); Token::settle(x.left);",
         ),
     ] {
-        let errors = check_source(&format!(
+        let errors = crate::front_end::checked_program_result(&format!(
             "data Token [linear] {{ code: u64; }}
              data Holder {{ left: Token; right: Token; }}
              machine Token::settle(self) {{}}

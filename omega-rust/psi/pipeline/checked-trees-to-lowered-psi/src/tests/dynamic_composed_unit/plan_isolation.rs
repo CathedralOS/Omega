@@ -1,6 +1,6 @@
 use super::{DIRECT_DYNAMIC_SOURCE, DIRECT_DYNAMIC_UNIT_SOURCE};
 use crate::TerminalMachineSelection;
-use crate::tests::{checked_source, lower_machine};
+use crate::tests::lower_machine;
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 #[test]
@@ -37,7 +37,7 @@ fn assert_neighboring_machine_is_isolated(supported: &str, unsupported: &str) {
         format!("{supported}\n{unsupported}"),
         format!("{unsupported}\n{supported}"),
     ] {
-        let checked = checked_source(&source);
+        let checked = crate::front_end::checked_program(&source);
         let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
             .expect("an unsupported neighboring call must not erase complete dispatch custody");
         terminal_verifier::validate_module(&lowered.semantic_module)

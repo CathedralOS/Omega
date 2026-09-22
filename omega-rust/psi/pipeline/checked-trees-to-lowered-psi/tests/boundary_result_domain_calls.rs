@@ -6,22 +6,6 @@
 //! requirement is still refused.
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"))
-}
 
 fn program(domain_declaration: &str) -> String {
     format!(
@@ -48,7 +32,7 @@ fn program(domain_declaration: &str) -> String {
 
 fn lowered(domain_declaration: &str) -> lowered_psi::LoweredPsi {
     checked_trees_to_lowered_psi::lower_machine(
-        &checked(&program(domain_declaration)),
+        &crate::front_end::checked_program(&program(domain_declaration)),
         TerminalMachineSelection::Name("Main::main"),
     )
     .expect("lower_machine")
@@ -103,7 +87,7 @@ fn authorized_result_domain_qualifies_the_boundary_result() {
 
 #[test]
 fn unauthorized_result_domain_still_rejects_the_call() {
-    let checked = checked(&program("domain Token::Held;"));
+    let checked = crate::front_end::checked_program(&program("domain Token::Held;"));
     assert!(matches!(
         checked_trees_to_lowered_psi::lower_machine(
             &checked,

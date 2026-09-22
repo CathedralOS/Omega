@@ -1,6 +1,6 @@
 use super::{
     BOOLEAN_HELPERS, INTEGER_HELPERS, ObserveSettlement, artifact, assert_unsettled_helper_crash,
-    checked, pause_before_crashing_helper, source, start, unsigned,
+    pause_before_crashing_helper, source, start, unsigned,
 };
 use crate::structural_return_source::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter, TerminalInterpretError,
@@ -45,7 +45,7 @@ fn returned_boolean_and_integer_boundary_values_preserve_computed_and_pure_opera
             ],
         ),
     ] {
-        let artifact = artifact(&checked(&source));
+        let artifact = artifact(&crate::front_end::checked_program(&source));
         let mut execution = start(&artifact);
         let mut observer = ObserveSettlement::default();
         assert_eq!(
@@ -87,7 +87,7 @@ fn returned_boundary_provider_rejection_preserves_receipt_until_successful_retry
             vec![unsigned(17), unsigned(23)],
         ),
     ] {
-        let artifact = artifact(&checked(&source));
+        let artifact = artifact(&crate::front_end::checked_program(&source));
         let mut execution = start(&artifact);
         let claims = execution.live_claim_frontier().collect::<Vec<_>>();
         assert_eq!(claims.len(), 1);
@@ -133,7 +133,7 @@ fn returned_boundary_boolean_arguments_short_circuit_without_settling_on_crash()
             &helpers,
             true,
         );
-        let artifact = artifact(&checked(&source));
+        let artifact = artifact(&crate::front_end::checked_program(&source));
         let mut execution = start(&artifact);
         let claims = execution.live_claim_frontier().collect::<Vec<_>>();
         let mut observer = ObserveSettlement::default();
@@ -180,7 +180,7 @@ fn returned_boundary_first_argument_crash_precedes_later_cast_and_retains_linear
         let helpers = format!(
             "machine first() -> u8 crashes {first} {{ crash {first}; }}\nmachine second() -> u8 crashes {second} {{ crash {second}; }}"
         );
-        let artifact = artifact(&checked(&source(
+        let artifact = artifact(&crate::front_end::checked_program(&source(
             "u16",
             "first() as u16, second() as u16",
             &helpers,
@@ -207,7 +207,7 @@ fn returned_boundary_first_argument_crash_precedes_later_cast_and_retains_linear
 
 #[test]
 fn returned_boundary_computations_reject_outer_and_nested_source_custody_drift() {
-    let checked = checked(&source(
+    let checked = crate::front_end::checked_program(&source(
         "bool",
         "identity(false), Scalar::identity(identity(true))",
         BOOLEAN_HELPERS,

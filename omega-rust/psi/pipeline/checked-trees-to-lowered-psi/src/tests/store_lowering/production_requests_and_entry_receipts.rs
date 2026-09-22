@@ -1,6 +1,6 @@
 use crate::TerminalMachineSelection;
 use crate::lower_machine;
-use crate::tests::checked_source;
+
 use semantic_vocabulary::{ScalarType, StructuralPlaceKind};
 use terminal_production::{ProgramEntryTerminalReceiptError, TerminalArtifactProductionError};
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
@@ -11,7 +11,7 @@ use terminal_psi::{
 
 #[test]
 fn terminal_production_request_preserves_configuration_across_evidence_products() {
-    let checked = checked_source("data Main {} machine Main::launch() {}");
+    let checked = crate::front_end::checked_program("data Main {} machine Main::launch() {}");
     for selections in [
         optimization::PsiOptimizationSelections::default(),
         optimization::PsiOptimizationSelections::new([
@@ -92,7 +92,7 @@ fn terminal_production_request_returns_nonclone_callback_custody_after_productio
     #[derive(Debug)]
     struct CallbackCustody(Box<[u64; 2]>);
 
-    let checked = checked_source("data Main {} machine Main::launch() {}");
+    let checked = crate::front_end::checked_program("data Main {} machine Main::launch() {}");
     let custody = CallbackCustody(Box::new([11, 29]));
     let allocation = custody.0.as_ptr();
     let request = terminal_production::TerminalProductionRequest {
@@ -135,7 +135,7 @@ fn terminal_production_request_returns_nonclone_callback_custody_after_productio
 
 #[test]
 fn callback_custody_crosses_terminal_production_in_exact_order_and_returns_on_rejection() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
             data Main {}
             machine Main::launch() {}
@@ -193,7 +193,7 @@ fn callback_custody_crosses_terminal_production_in_exact_order_and_returns_on_re
 
 #[test]
 fn checked_boundary_operator_scope_rejects_terminal_artifact_substitution() {
-    let first = checked_source(
+    let first = crate::front_end::checked_program(
         r#"
             data Main {}
             machine Main::launch() {}
@@ -208,7 +208,7 @@ fn checked_boundary_operator_scope_rejects_terminal_artifact_substitution() {
     ))
     .expect("checked Terminal production");
 
-    let second = checked_source(
+    let second = crate::front_end::checked_program(
         r#"
             data Helper {}
             machine Helper::touch() {}
@@ -246,7 +246,7 @@ fn checked_boundary_operator_scope_rejects_terminal_artifact_substitution() {
 
 #[test]
 fn checked_boundary_operator_scope_retains_the_complete_exact_demand_roster() {
-    let demand_source = checked_source(
+    let demand_source = crate::front_end::checked_program(
         r#"
             boundary operator == Number::equal(left: i32, right: i32) -> bool;
 
@@ -267,7 +267,7 @@ fn checked_boundary_operator_scope_retains_the_complete_exact_demand_roster() {
     // This milestone closes scope custody only. Source-free operation matching
     // remains the next D29/D32 join, so use an independently lowerable Terminal
     // fixture and verify that its companion retains the exact checked row.
-    let mut checked = checked_source(
+    let mut checked = crate::front_end::checked_program(
         r#"
             data Main {}
             machine Main::launch() {}
@@ -293,7 +293,7 @@ fn checked_boundary_operator_scope_retains_the_complete_exact_demand_roster() {
 
 #[test]
 fn program_entry_receipt_binds_checked_source_to_canonical_terminal_entry() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
             data Main {}
             machine Main::launch() {}
@@ -340,7 +340,7 @@ fn program_entry_receipt_binds_checked_source_to_canonical_terminal_entry() {
 
 #[test]
 fn program_entry_receipt_retains_two_granted_extent_roots_and_their_boundary_handoff() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
             data Extent [linear] {
                 base: addr;
@@ -517,7 +517,7 @@ fn program_entry_receipt_retains_two_granted_extent_roots_and_their_boundary_han
 
 #[test]
 fn program_entry_receipt_rejects_a_scalar_result_machine() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
             data Helper {}
             machine Helper::touch() {}

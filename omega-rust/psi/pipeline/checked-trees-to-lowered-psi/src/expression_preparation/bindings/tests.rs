@@ -35,21 +35,7 @@ fn closed_record_projections_replay_exact_sources_carriers_and_all_siblings() {
         machine boolean() -> bool { !CONFIG.enabled }
         machine sibling() -> bool { true }
         machine caller() -> bool { sibling() }";
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolved");
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("typed");
-    let original = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("checked literal projections");
+    let original = crate::front_end::checked_program(source);
     let state = |name: &str| {
         let machine = original
             .machines()

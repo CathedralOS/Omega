@@ -10,7 +10,7 @@ use terminal_production::{
 #[test]
 fn reference_initializer_rejects_coherent_cached_and_operation_read_substitution() {
     let source = super::reference_initializer::source("u8");
-    let original = super::checked(&source);
+    let original = crate::front_end::checked_program(&source);
     let _ = super::artifact(&source);
     let caller = original
         .facts
@@ -106,21 +106,8 @@ fn write_only_primitive_inputs_cannot_initialize_locals_by_reading() {
             &format!("input: &{scalar}"),
             &format!("input: &write {scalar}"),
         );
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let typed =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
-            typed,
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .expect_err("write-only input cannot supply the initializer's value");
+        let diagnostics = crate::front_end::checked_program_result(&source)
+            .expect_err("write-only input cannot supply the initializer's value");
         assert!(
             diagnostics
                 .iter()
@@ -135,7 +122,7 @@ fn write_only_primitive_inputs_cannot_initialize_locals_by_reading() {
 fn retained_write_only_access_cannot_authorize_a_primitive_initializer_read() {
     for scalar in ["u8", "bool", "f32"] {
         let source = super::reference_initializer::source(scalar);
-        let mut changed = super::checked(&source);
+        let mut changed = crate::front_end::checked_program(&source);
         let _ = super::artifact(&source);
         let caller = changed
             .facts

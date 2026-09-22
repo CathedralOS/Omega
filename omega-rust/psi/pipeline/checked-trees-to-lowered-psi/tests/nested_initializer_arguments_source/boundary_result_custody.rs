@@ -1,4 +1,4 @@
-use super::{CheckedUnitEffectOperationPlan, ExpressionNode, StatementNode, checked, main_machine};
+use super::{CheckedUnitEffectOperationPlan, ExpressionNode, StatementNode, main_machine};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 const SOURCE: &str = r#"
     pub data Token { flag: bool; }
@@ -14,7 +14,7 @@ const SOURCE: &str = r#"
 
 #[test]
 fn boundary_result_move_rejects_a_conflicting_authored_name_head() {
-    let original = checked(SOURCE);
+    let original = crate::front_end::checked_program(SOURCE);
     checked_trees_to_lowered_psi::lower_machine(
         &original,
         TerminalMachineSelection::Name("Main::main"),
@@ -65,7 +65,7 @@ fn boundary_result_move_rejects_a_conflicting_authored_name_head() {
 
 #[test]
 fn boundary_result_moves_reject_same_type_substitution_and_conflicting_cleanup() {
-    let original = checked(SOURCE);
+    let original = crate::front_end::checked_program(SOURCE);
     checked_trees_to_lowered_psi::lower_machine(
         &original,
         TerminalMachineSelection::Name("Main::main"),

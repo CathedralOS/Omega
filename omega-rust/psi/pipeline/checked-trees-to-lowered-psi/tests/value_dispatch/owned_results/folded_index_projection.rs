@@ -4,7 +4,6 @@
 //! downstream divergence — the remaining gap is owned `FixedIndex` leaf
 //! emission, not the folded spelling.
 
-use crate::value_dispatch::check_source;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 const LITERAL_SOURCE: &str = "data Cell { tag: u64; }
@@ -31,7 +30,8 @@ const FOLDED_SOURCE: &str = "data Cell { tag: u64; }
 #[test]
 fn folded_index_faces_the_literal_lowering_boundary() {
     for (label, source) in [("literal", LITERAL_SOURCE), ("folded", FOLDED_SOURCE)] {
-        let checked = check_source(source).unwrap_or_else(|errors| panic!("{label}: {errors:#?}"));
+        let checked = crate::front_end::checked_program_result(source)
+            .unwrap_or_else(|errors| panic!("{label}: {errors:#?}"));
         assert_eq!(
             format!(
                 "{:?}",

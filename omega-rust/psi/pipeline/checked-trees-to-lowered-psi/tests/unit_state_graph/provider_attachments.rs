@@ -1,4 +1,3 @@
-use super::checked;
 use checked_trees::{CheckedComposedUnitControlMachinePlan, CheckedUnitEffectOperationPlan};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::{IntegerValue, StructuralPlaceKind};
@@ -48,7 +47,7 @@ const SOURCE: &str = r#"
 #[test]
 fn cyclic_provider_fields_reload_with_exact_roots_and_ordered_stores() {
     let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked(SOURCE),
+        &crate::front_end::checked_program(SOURCE),
         TerminalMachineSelection::Name("Counter::run"),
     )
     .expect("general cyclic receiver graph retains provider-field calls");
@@ -219,7 +218,7 @@ fn graph_plan_mut(
 }
 
 fn baseline() -> checked_trees::CheckedTrees {
-    let checked = checked(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Counter::run"),
@@ -614,7 +613,7 @@ const REFERENCE_CARRIER_SOURCE: &str = r#"
 
 #[test]
 fn a_store_path_never_crosses_a_borrowed_carrier_field() {
-    let checked = checked(REFERENCE_CARRIER_SOURCE);
+    let checked = crate::front_end::checked_program(REFERENCE_CARRIER_SOURCE);
     let error = format!(
         "{:?}",
         checked_trees_to_lowered_psi::lower_machine(

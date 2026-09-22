@@ -5,7 +5,7 @@
 
 use super::CALL_VALUE_SOURCE;
 use crate::value_dispatch::{
-    TerminalExecutionResult, TerminalScalarValue, check_source, execute_machine, unsigned,
+    TerminalExecutionResult, TerminalScalarValue, execute_machine, unsigned,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
@@ -128,7 +128,8 @@ fn owned_match_call_arm_evaluates_nested_scalar_call_arguments() {
 
 #[test]
 fn owned_match_call_product_edge_transports_the_exact_selected_owner() {
-    let checked = check_source(CALL_VALUE_SOURCE).expect("call selection checks");
+    let checked =
+        crate::front_end::checked_program_result(CALL_VALUE_SOURCE).expect("call selection checks");
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("choose"),
@@ -201,7 +202,8 @@ fn owned_match_call_product_edge_transports_the_exact_selected_owner() {
 
 #[test]
 fn owned_match_call_product_rejects_mutated_edge_evidence() {
-    let checked = check_source(CALL_VALUE_SOURCE).expect("call selection checks");
+    let checked =
+        crate::front_end::checked_program_result(CALL_VALUE_SOURCE).expect("call selection checks");
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("choose"),
@@ -266,7 +268,7 @@ fn owned_match_call_arm_rejects_forwarded_existing_custody() {
     // A call arm may only contribute a fresh product: moving an existing
     // affine child through a call parameter is a transfer the selection
     // receipt cannot name.
-    let errors = check_source(
+    let errors = crate::front_end::checked_program_result(
         "data Payload { left: u64; right: u64; }
         data Pair { first: Payload; second: Payload; }
         machine wrap(child: Payload) -> Payload { child }
@@ -299,7 +301,7 @@ fn owned_match_record_arm_children_check_but_await_leaf_emission() {
         "Pair { first: supply(1, 2).first, second: b.second }",
         "Pair { first: a.first, second: b.second }",
     ] {
-        let checked = check_source(&format!(
+        let checked = crate::front_end::checked_program_result(&format!(
             "data Payload {{ left: u64; right: u64; }}
             data Pair {{ first: Payload; second: Payload; }}
             machine supply(first: u64, second: u64) -> Pair {{
@@ -331,7 +333,7 @@ fn owned_match_subject_call_stays_rejected() {
     // Selection predicates keep their strict operand rule: a subject call
     // needs captured effect/loan evidence the owned-selection route does not
     // carry.
-    let errors = check_source(
+    let errors = crate::front_end::checked_program_result(
         "data Pair { first: u64; second: u64; }
         machine flag() -> bool { true }
         machine choose(a: Pair, b: Pair) -> u64 {

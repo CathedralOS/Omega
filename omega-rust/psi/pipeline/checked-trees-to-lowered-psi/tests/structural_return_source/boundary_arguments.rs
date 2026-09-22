@@ -14,24 +14,13 @@ mod mixed_scalar_and_unit_wrappers;
 mod returned_boundary_values;
 
 use crate::structural_return_source::{
-    AdmissionProfile, Lexer, ResolutionRequest, TerminalEffect, TerminalEffectHandler,
-    TerminalEffectRejection, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
-    TerminalFuelMeter, TerminalInterpretError, TerminalScalarValue, TerminalStructuralValue,
-    Terminator, decode_module, encode_module, encode_proof_section, lower_symbol_resolved_trees,
-    lower_typed_trees, parse_syntax_trees, resolve,
+    AdmissionProfile, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
+    TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter,
+    TerminalInterpretError, TerminalScalarValue, TerminalStructuralValue, Terminator,
+    decode_module, encode_module, encode_proof_section,
 };
 use checked_trees::CheckedUnitEffectOperationPlan;
 use typed_trees::statement::StatementNode;
-use typed_trees_to_checked_trees::CheckingRequest;
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).unwrap_or_else(|error| panic!("{source}: {error:?}"));
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"))
-}
 
 fn artifact(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
     let root = checked
@@ -213,7 +202,7 @@ impl TerminalEffectHandler for ObserveNestedWrapper {
 }
 
 fn assert_constructed_wrapper_execution(source: &str) {
-    let original = checked(source);
+    let original = crate::front_end::checked_program(source);
     let artifact = unit_wrapper_artifact(&original);
     let module = decode_module(&artifact.0).unwrap();
     let root = module

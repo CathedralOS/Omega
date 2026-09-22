@@ -1,6 +1,6 @@
 use super::{
     CheckedUnitEffectOperationPlan, IntegerSign, IntegerType, IntegerValue, OperationKind,
-    OperationResult, TerminalScalarValue, Terminator, checked, lower_machine, typed,
+    OperationResult, TerminalScalarValue, Terminator, checked, lower_machine,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 const DECLARATIONS: &str = "data Value { number: u64; }
@@ -295,11 +295,8 @@ fn a_reference_field_cannot_enter_the_owned_temporary_initializer_route() {
     let source = "data View { reference: &u64; }
         machine forward(value: View) -> View { value }
         machine Main::caller(value: View) { let result: View = forward(forward(value)); }";
-    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
-        typed(source),
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect_err("stored references need a loan-bearing temporary plan");
+    let diagnostics = super::checked_result(source)
+        .expect_err("stored references need a loan-bearing temporary plan");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message

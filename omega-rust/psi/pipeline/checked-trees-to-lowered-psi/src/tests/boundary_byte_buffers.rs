@@ -1,5 +1,5 @@
 //! Source-produced bounded byte fields presented to an external boundary.
-use super::{checked_source, lower_machine};
+use super::lower_machine;
 use crate::TerminalMachineSelection;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
@@ -31,7 +31,7 @@ const INPUT_SOURCE: &str = r#"
         "#;
 
 fn start(source: &str) -> (terminal_psi::TerminalModule, TerminalExecution) {
-    let checked = checked_source(source);
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         terminal_production::TerminalMachineSelection::Name("Record::run"),
@@ -176,7 +176,7 @@ fn boundary_byte_buffer_nested_source_preserves_initialized_field() {
         &[b"aa", b"bb", b"aa", b"bb", b"aa", b"bb"],
     );
     for change_store in [false, true] {
-        let mut checked = checked_source(source);
+        let mut checked = crate::front_end::checked_program(source);
         let operation = checked
             .facts
             .flow

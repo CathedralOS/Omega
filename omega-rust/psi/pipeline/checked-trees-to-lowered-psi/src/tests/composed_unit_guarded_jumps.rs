@@ -1,7 +1,7 @@
 //! Ordered guarded jump chains lower to nested decisions whose guards evaluate
 //! in authored order, with the wildcard transition retained as the fallback.
 
-use super::{checked_source, lower_machine};
+use super::lower_machine;
 use crate::TerminalMachineSelection;
 use checked_trees::CheckedComposedUnitControlTerminatorPlan;
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
@@ -13,7 +13,7 @@ fn ordered_literal_dispatch_selects_each_arm_and_the_fallback() {
         TerminalExecutionStatus, TerminalScalarValue, TerminalStructuralInputs,
     };
 
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
             boundary trait Host { machine exit(code: i32); }
             data Root {}
@@ -107,7 +107,7 @@ fn ordered_literal_dispatch_selects_each_arm_and_the_fallback() {
 
 #[test]
 fn stale_arm_guard_rejects_lowering() {
-    let mut corrupted = checked_source(
+    let mut corrupted = crate::front_end::checked_program(
         r#"
             boundary trait Host { machine exit(code: i32); }
             data Root {}

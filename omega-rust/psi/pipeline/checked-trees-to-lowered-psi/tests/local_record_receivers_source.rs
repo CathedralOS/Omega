@@ -43,21 +43,7 @@ fn local_receiver_scalar_and_fresh_case_keep_argument_identity_and_once_only_eff
         (source.replace("Mode [copy]", "Mode"), vec![1, 10, 4, 2]),
         (payload, vec![1, 4, 3, 5, 10, 4, 2]),
     ] {
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let typed =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(
-            typed,
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .unwrap();
+        let checked = crate::front_end::checked_program(&source);
         let artifact = terminal_production::TerminalProductionRequest::new(
             &checked,
             TerminalMachineSelection::Name("Main::main"),
@@ -190,21 +176,7 @@ fn local_receiver_scalar_and_fresh_case_keep_argument_identity_and_once_only_eff
 
 #[test]
 fn scalar_return_helper_reads_its_established_local_record_across_fuel() {
-    let tokens = source_files_to_tokens::Lexer::new(SOURCE)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap();
+    let checked = crate::front_end::checked_program(SOURCE);
     let helper = checked
         .machines()
         .iter()
@@ -295,21 +267,7 @@ fn scalar_return_helper_reads_its_established_local_record_across_fuel() {
 
 #[test]
 fn nested_record_constructor_and_mutable_receiver_publish_verified_terminal() {
-    let tokens = source_files_to_tokens::Lexer::new(SOURCE)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap();
+    let checked = crate::front_end::checked_program(SOURCE);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("observe"),
@@ -337,21 +295,7 @@ fn owned_record_children_reuse_parameter_and_local_places() {
         "machine make_child() -> Inner { Inner { value: 7 } } machine wrap() -> Outer { let mut child: Inner = make_child(); Outer { child: child } }",
     ] {
         let source = format!("data Inner {{ value: u64; }} data Outer {{ child: Inner; }} {body}");
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let typed =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(
-            typed,
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .unwrap();
+        let checked = crate::front_end::checked_program(&source);
         let artifact = terminal_production::TerminalProductionRequest::new(
             &checked,
             TerminalMachineSelection::Name("wrap"),

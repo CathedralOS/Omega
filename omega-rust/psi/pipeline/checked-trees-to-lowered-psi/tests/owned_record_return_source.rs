@@ -12,18 +12,6 @@ use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
 
-fn typed_source(source: &str) -> typed_trees::TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
-}
-
 fn fixture(property: &str, carrier: &str, parameters: &str, prefix: &str) -> CheckedTrees {
     let source = format!(
         "data Record {property} {{ first: u64; second: u64; third: u64; }}
@@ -33,11 +21,7 @@ fn fixture(property: &str, carrier: &str, parameters: &str, prefix: &str) -> Che
          machine stamp(output: &mut u64, value: u64) -> u64 {{ output = value; value }}
          machine retain(mask: u64, {parameters} record: {carrier}) -> {carrier} {{ {prefix} record }}"
     );
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed_source(&source),
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap()
+    crate::front_end::checked_program(&source)
 }
 
 fn unsigned(value: u128) -> TerminalScalarValue {
@@ -65,14 +49,10 @@ fn owned_record_calls_compose_without_ambiguous_body_catalogs() {
                 } else {
                     format!("{retain} {relay}")
                 };
-                let checked = typed_trees_to_checked_trees::lower_typed_trees(
-                    typed_source(&format!(
-                        "data Record {property} {{ first: u64; second: u64; third: u64; }}
+                let checked = crate::front_end::checked_program(&format!(
+                    "data Record {property} {{ first: u64; second: u64; third: u64; }}
                      machine identity(value: u64) -> u64 {{ value }} {machines}"
-                    )),
-                    &typed_trees_to_checked_trees::CheckingRequest::settled(),
-                )
-                .unwrap();
+                ));
                 let artifact = terminal_production::TerminalProductionRequest::new(
                     &checked,
                     TerminalMachineSelection::Name("relay"),
@@ -146,15 +126,11 @@ fn owned_record_calls_compose_without_ambiguous_body_catalogs() {
 #[test]
 fn owned_record_call_replay_rejects_same_type_argument_and_access_substitution() {
     for property in ["", "[copy]"] {
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(
-            typed_source(&format!(
-                "data Record {property} {{ first: u64; second: u64; third: u64; }}
+        let checked = crate::front_end::checked_program(&format!(
+            "data Record {property} {{ first: u64; second: u64; third: u64; }}
              machine retain(record: Record) -> Record {{ record }}
              machine relay(left: Record, right: Record) -> Record {{ retain(left) }}"
-            )),
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .unwrap();
+        ));
         let _ = terminal_production::TerminalProductionRequest::new(
             &checked,
             TerminalMachineSelection::Name("relay"),
@@ -219,16 +195,12 @@ fn owned_record_call_replay_rejects_same_type_argument_and_access_substitution()
 
 #[test]
 fn structural_return_requires_remaining_affine_input_cleanup_evidence() {
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed_source(
-            "data Record { first: u64; second: u64; third: u64; }
+    let checked = crate::front_end::checked_program(
+        "data Record { first: u64; second: u64; third: u64; }
          machine combine(left: Record, right: Record) -> Record {
              Record { first: left.first, second: right.second, third: left.third }
          }",
-        ),
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap();
+    );
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("combine"),
@@ -533,11 +505,7 @@ fn consumed_affine_parameter_cannot_be_returned() {
     let source = "data Record { first: u64; second: u64; third: u64; }
         machine consume(record: Record) {}
         machine retain(record: Record) -> Record { consume(record); record }";
-    let error = typed_trees_to_checked_trees::lower_typed_trees(
-        typed_source(source),
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap_err();
+    let error = crate::front_end::checked_program_result(source).unwrap_err();
     assert!(
         format!("{error:?}").contains("already transferred"),
         "{error:?}"
@@ -610,18 +578,14 @@ fn source_replay_requires_the_exact_affine_return_transfer() {
 
 #[test]
 fn owned_array_call_results_return_without_fabricated_claims() {
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed_source(
-            "data Entry { value: u64; }
+    let checked = crate::front_end::checked_program(
+        "data Entry { value: u64; }
          machine forward(values: [Entry; 3]) -> [Entry; 3] { values }
          machine relay(values: [Entry; 3]) -> [Entry; 3] {
              let first: [Entry; 3] = forward(values);
              forward(first)
          }",
-        ),
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap();
+    );
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("relay"),

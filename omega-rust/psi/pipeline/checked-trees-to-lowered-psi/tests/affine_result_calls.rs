@@ -35,25 +35,19 @@ const IDENTITY_CALL: &str = "data Value { number: u64; }
     machine forward(value: Value) -> Value { value }
     machine Main::caller(value: Value) { let result: Value = forward(value); }";
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed(source),
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("check")
+/// Every fixture here runs inside the same `Main` harness.
+fn harness(source: &str) -> String {
+    format!("data Main {{}} machine Main::run() {{}} {source}")
 }
 
-fn typed(source: &str) -> typed_trees::TypedTrees {
-    let source = format!("data Main {{}} machine Main::run() {{}} {source}");
-    let tokens = source_files_to_tokens::Lexer::new(&source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type")
+fn checked(source: &str) -> checked_trees::CheckedTrees {
+    crate::front_end::checked_program(&harness(source))
+}
+
+fn checked_result(
+    source: &str,
+) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+    crate::front_end::checked_program_result(&harness(source))
 }
 
 fn assert_call_execution(source: &str, name: &str, scalar_arguments: &[TerminalScalarValue]) {

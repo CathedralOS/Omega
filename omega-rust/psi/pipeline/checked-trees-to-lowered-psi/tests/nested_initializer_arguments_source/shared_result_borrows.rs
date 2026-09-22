@@ -1,10 +1,9 @@
 use super::boundary_result_moves::{ObserveMoves, source as result_source};
 use super::later_results::encoded_locals;
 use super::{
-    AdmissionProfile, CheckedUnitEffectOperationPlan, Lexer, ResolutionRequest, TerminalEffect,
-    TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult, TerminalExecutionResult,
-    TerminalInterpretError, TerminalStructuralValue, checked, decode_module,
-    lower_symbol_resolved_trees, main_machine, parse_syntax_trees, resolve, unsigned,
+    AdmissionProfile, CheckedUnitEffectOperationPlan, TerminalEffect, TerminalEffectHandler,
+    TerminalEffectRejection, TerminalEffectResult, TerminalExecutionResult, TerminalInterpretError,
+    TerminalStructuralValue, decode_module, main_machine, unsigned,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_fuel::TerminalFuelMeter;
@@ -15,7 +14,7 @@ use terminal_psi::{OperationResult, Terminator};
 
 #[test]
 fn anonymous_shared_result_keeps_its_owner_until_call_completion() {
-    let pure = checked(
+    let pure = crate::front_end::checked_program(
         r#"
         data Token { value: u64; }
         machine forward(token: Token) -> Token { token }
@@ -32,7 +31,7 @@ fn anonymous_shared_result_keeps_its_owner_until_call_completion() {
     ))
     .expect("anonymous shared call with an empty consumer publishes")
     .into_artifact();
-    let boundary = checked(
+    let boundary = crate::front_end::checked_program(
         r#"
         pub data Token { value: u64; }
         boundary trait Factory { machine create() -> Token reaches Factory; }
@@ -83,7 +82,7 @@ fn assert_anonymous_shared(source: &str, boundary: bool, names: &[&str]) {
     use terminal_fuel::FuelChargeSite;
     use terminal_psi::{OperationKind, StructuralAccess};
 
-    let checked = checked(source);
+    let checked = crate::front_end::checked_program(source);
     let artifact = encoded_locals(&checked, names);
     let published = terminal_production::TerminalProductionRequest::new(
         &checked,
@@ -263,7 +262,8 @@ fn source(completion: &str) -> String {
 fn anonymous_shared_result_permissions_rejoin_exact_owner_and_continuation() {
     use language_semantics::{PermissionAccess, PermissionEventSource, PermissionProvenance};
     for boundary in [false, true] {
-        let original = checked(&anonymous_source(boundary, "value: u64;"));
+        let original =
+            crate::front_end::checked_program(&anonymous_source(boundary, "value: u64;"));
         encoded_locals(&original, &[]);
         let events = original
             .facts
@@ -367,7 +367,7 @@ fn anonymous_shared_result_is_cleaned_before_the_next_statement() {
 fn anonymous_shared_results_reject_conflicting_return_cleanup() {
     for boundary in [false, true] {
         let source = anonymous_source(boundary, "value: u64;");
-        let original = checked(&source);
+        let original = crate::front_end::checked_program(&source);
         encoded_locals(&original, &[]);
         let mut changed = original.clone();
         let plan = changed
@@ -408,7 +408,7 @@ fn anonymous_shared_continuation_rejects_missing_delayed_or_rebound_cleanup() {
     for boundary in [false, true] {
         let source = anonymous_source(boundary, "value: u64;").replace(")); }", ")); done(); }")
             + "machine done() {}";
-        let original = checked(&source);
+        let original = crate::front_end::checked_program(&source);
         encoded_locals(&original, &[]);
         for mutation in 0..8 {
             let mut changed = original.clone();
@@ -466,7 +466,7 @@ fn successive_anonymous_shared_results_have_distinct_cleanup_edges() {
         "read(&Factory::create());",
         "read(&Factory::create()); read(&Factory::create());",
     );
-    let artifact = encoded_locals(&checked(&source), &[]);
+    let artifact = encoded_locals(&crate::front_end::checked_program(&source), &[]);
     let module = decode_module(&artifact.0).unwrap();
     let caller = module
         .machines
@@ -562,7 +562,9 @@ fn named_results_share_their_identity_across_reads_and_final_disposition() {
                 } else {
                     String::new()
                 };
-                let checked = checked(&source(&format!("{prefix} {calls} {completion}")));
+                let checked = crate::front_end::checked_program(&source(&format!(
+                    "{prefix} {calls} {completion}"
+                )));
                 let artifact = encoded_locals(&checked, &names);
                 let published = terminal_production::TerminalProductionRequest::new(
                     &checked,
@@ -665,14 +667,17 @@ fn shared_boundary_signatures_preserve_an_ordinary_callees_owned_parameter() {
             }}",
             source("Main::own(first);")
         );
-        let artifact = encoded_locals(&checked(&source), &["prefix", "first", "spare"]);
+        let artifact = encoded_locals(
+            &crate::front_end::checked_program(&source),
+            &["prefix", "first", "spare"],
+        );
         assert_execution(&artifact, if final_move { 3 } else { 2 });
     }
 }
 
 #[test]
 fn shared_result_operands_keep_exact_authored_identity_and_final_cleanup() {
-    let original = checked(&source(
+    let original = crate::front_end::checked_program(&source(
         "Sink::read(&first, prefix); Sink::read(&first, prefix);",
     ));
     encoded_locals(&original, &["prefix", "first", "spare"]);
@@ -749,14 +754,7 @@ fn shared_result_operands_keep_exact_authored_identity_and_final_cleanup() {
 #[test]
 fn a_named_result_cannot_be_borrowed_after_its_owned_move() {
     let source = source("Sink::consume(first, prefix); Sink::read(&first, prefix);");
-    let tokens = Lexer::new(&source).tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    if let Ok(checked) = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    ) {
+    if let Ok(checked) = crate::front_end::checked_program_result(&source) {
         assert!(
             checked_trees_to_lowered_psi::lower_machine(
                 &checked,
@@ -795,7 +793,7 @@ impl TerminalEffectHandler for RefuseSecondRead {
 #[test]
 fn refused_shared_reads_leave_results_live_for_retry() {
     let artifact = encoded_locals(
-        &checked(&source(
+        &crate::front_end::checked_program(&source(
             "Sink::read(&first, prefix); Sink::read(&first, prefix); Sink::consume(first, prefix);",
         )),
         &["prefix", "first", "spare"],
@@ -835,7 +833,10 @@ fn shared_read_before_a_crashing_operand_has_no_cleanup_successor() {
             "reaches Factory + Sink crashes Abort {"
         )
     );
-    let artifact = encoded_locals(&checked(&source), &["prefix", "first", "spare"]);
+    let artifact = encoded_locals(
+        &crate::front_end::checked_program(&source),
+        &["prefix", "first", "spare"],
+    );
     let module = decode_module(&artifact.0).unwrap();
     let mut execution = TerminalExecution::start_artifact(
         &artifact.0,

@@ -1,20 +1,8 @@
 //! Projected receiver transport does not authorize source access or aliasing.
 
-use super::super::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
-use super::{checked_from_source, projected_source};
+use super::projected_source;
 fn rejects_source(source: &str, expected: &str) {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize receiver rejection");
-    let syntax = parse_syntax_trees(&tokens).expect("parse receiver rejection");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve receiver rejection");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type receiver rejection");
-    let Err(diagnostics) = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    ) else {
+    let Err(diagnostics) = crate::front_end::checked_program_result(source) else {
         panic!("source access or aliasing must reject before Terminal planning: {source}")
     };
     assert!(
@@ -188,7 +176,7 @@ fn attenuated_receiver_allows_an_exact_disjoint_attached_field_argument() {
                      {receiver}.replace(&write {argument});
                  }}"
             );
-            checked_from_source(&source);
+            crate::front_end::checked_program(&source);
         }
     }
 }

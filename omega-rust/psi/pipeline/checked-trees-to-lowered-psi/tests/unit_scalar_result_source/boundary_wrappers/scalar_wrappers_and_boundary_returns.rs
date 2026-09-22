@@ -1,5 +1,5 @@
 use super::{artifact, execute, integer, source};
-use crate::unit_scalar_result_source::{CheckedUnitEffectOperationPlan, checked_from_source};
+use crate::unit_scalar_result_source::CheckedUnitEffectOperationPlan;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle};
@@ -7,7 +7,7 @@ use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
 
 #[test]
 fn scalar_wrapper_result_executes_and_publishes_with_exact_services() {
-    let artifact = artifact(&checked_from_source(&source()));
+    let artifact = artifact(&crate::front_end::checked_program(&source()));
     let module = decode_module(&artifact.0).unwrap();
     assert_eq!(module.machines.len(), 2);
     assert_eq!(module.boundary_machines.len(), 2);
@@ -39,7 +39,7 @@ fn direct_boundary_return_composes_with_ordered_calls_and_locals() {
                 body
             )
         );
-        let checked = checked_from_source(&source);
+        let checked = crate::front_end::checked_program(&source);
         let artifact = artifact(&checked);
         let (status, observed) = execute(&artifact);
         assert_eq!(
@@ -60,7 +60,7 @@ fn direct_boundary_return_rejects_result_and_occurrence_substitution() {
         "let result: i32 = Host::measure(70);\n            result",
         "let prior: i32 = Host::measure(11); Host::measure(70)",
     );
-    let original = checked_from_source(&source);
+    let original = crate::front_end::checked_program(&source);
     let target = original
         .machines()
         .iter()
@@ -129,7 +129,7 @@ fn scalar_wrapper_parameters_forward_through_named_and_unit_entries() {
         .replace("Scalar::measure() ->", "Scalar::measure(value: i32) ->")
         .replace("Host::measure(70)", "Host::measure(value)")
         .replace("Scalar::measure();", "Scalar::measure(70);");
-    let checked = checked_from_source(&source);
+    let checked = crate::front_end::checked_program(&source);
     let named = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Scalar::measure"),
@@ -154,7 +154,7 @@ fn scalar_wrapper_parameter_ranges_survive_call_proofs_and_publication() {
         )
         .replace("Host::measure(70)", "Host::measure(value)")
         .replace("Scalar::measure();", "Scalar::measure(70);");
-    let checked = checked_from_source(&source);
+    let checked = crate::front_end::checked_program(&source);
     let artifact = artifact(&checked);
     let module = decode_module(&artifact.0).unwrap();
     let wrapper = module

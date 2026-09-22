@@ -1,4 +1,4 @@
-use super::{CheckedUnitEffectOperationPlan, typed_from_source};
+use super::CheckedUnitEffectOperationPlan;
 use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
@@ -15,11 +15,7 @@ const ORDERED_SOURCE: &str = r#"
 "#;
 
 fn checked() -> checked_trees::CheckedTrees {
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed_from_source(ORDERED_SOURCE),
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap()
+    crate::front_end::checked_program(ORDERED_SOURCE)
 }
 
 fn plan_mut(
@@ -159,11 +155,7 @@ fn ordered_store_source_custody_rejects_omission_reordering_and_substitution() {
 #[test]
 fn unrelated_scalar_local_cannot_hide_an_omitted_call_between_stores() {
     let source = ORDERED_SOURCE.replace("self.left = 1;", "let unrelated: u16 = 7; self.left = 1;");
-    let mut checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed_from_source(&source),
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap();
+    let mut checked = crate::front_end::checked_program(&source);
     let _artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("Pair::ordered"),

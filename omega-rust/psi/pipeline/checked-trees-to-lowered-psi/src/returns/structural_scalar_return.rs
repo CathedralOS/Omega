@@ -1085,12 +1085,6 @@ mod trait_operator_tests {
     use crate::TerminalMachineSelection;
     use crate::machine_lowering::lower_machine;
     use checked_trees::CheckedBooleanExpression;
-    use source_files_to_tokens::Lexer;
-    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-    use tokens_to_syntax_trees::parse_syntax_trees;
-    use typed_trees_to_checked_trees::CheckingRequest;
-    use typed_trees_to_checked_trees::lower_typed_trees;
 
     #[test]
     fn exact_trait_operator_call_closes_into_terminal_structural_scalar_call() {
@@ -1118,11 +1112,7 @@ mod trait_operator_tests {
                 choose<Card, Ascending>(left, right)
             }
         "#;
-        let tokens = Lexer::new(source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+        let checked = crate::front_end::checked_program(source);
         let [plan] = checked
             .facts
             .flow

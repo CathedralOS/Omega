@@ -37,25 +37,7 @@ fn fixture(returned: &str) -> CheckedTrees {
              {returned}
          }}"
     );
-    checked_source(&source)
-}
-
-fn checked_source(source: &str) -> CheckedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("check selected array locals")
+    crate::front_end::checked_program(&source)
 }
 
 fn reject(checked: &CheckedTrees, mutation: &str) {
@@ -118,7 +100,8 @@ fn empty_array_catalog_cannot_change_primitive_or_nested_dimensions_under_the_sa
         ("[f32; 0]", PrimitiveType::F32),
         ("[[f64; 2]; 0]", PrimitiveType::F64),
     ] {
-        let original = checked_source(&format!("machine selected() -> {carrier} {{ [] }}"));
+        let original =
+            crate::front_end::checked_program(&format!("machine selected() -> {carrier} {{ [] }}"));
         checked_trees_to_lowered_psi::lower_machine(
             &original,
             TerminalMachineSelection::Name("selected"),
@@ -386,7 +369,7 @@ fn computed_fixture(local: bool) -> CheckedTrees {
     } else {
         "[first, saved, identity(second), identity(first)]"
     };
-    checked_source(&format!(
+    crate::front_end::checked_program(&format!(
         "machine identity(value: u8) -> u8 {{ value }}
          machine selected(first: u8, second: u8) -> [u8; 4] {{
              let saved: u8 = second;
@@ -668,7 +651,7 @@ fn array_pure_and_computed_operators_reject_semantic_substitution() {
     use checked_trees::{CheckedIntegerBinaryKind, CheckedScalarComputationKind};
     use typed_trees::expression::BinaryOperator;
 
-    let original = checked_source(
+    let original = crate::front_end::checked_program(
         "machine identity(value: u8) -> u8 { value }
          machine selected(first: u8, second: u8) -> [u8; 2] {
              [first & second, identity(first) | second]
@@ -762,7 +745,8 @@ fn array_pure_and_computed_operators_reject_semantic_substitution() {
 fn array_boolean_values_reject_source_and_retained_substitution() {
     use checked_trees::CheckedBooleanExpression;
 
-    let original = checked_source("machine selected() -> [bool; 2] { [true, false] }");
+    let original =
+        crate::front_end::checked_program("machine selected() -> [bool; 2] { [true, false] }");
     checked_trees_to_lowered_psi::lower_machine(
         &original,
         TerminalMachineSelection::Name("selected"),
@@ -805,7 +789,7 @@ fn array_boolean_values_reject_source_and_retained_substitution() {
 fn nested_literal_casts_preserve_the_exact_value_and_each_intermediate_fit() {
     let source = "machine byte(value: u8) -> u8 { value }
                   machine selected() -> [u64; 1] { [((300u16 as u32) as u64)] }";
-    let original = checked_source(source);
+    let original = crate::front_end::checked_program(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &original,
         TerminalMachineSelection::Name("selected"),
@@ -871,7 +855,7 @@ fn array_boolean_expression_depth_has_no_smaller_correspondence_limit() {
                 "machine selected(value: bool) -> [bool; 1] {{ [{}value] }}",
                 "!".repeat(140)
             );
-            let checked = checked_source(&source);
+            let checked = crate::front_end::checked_program(&source);
             checked_trees_to_lowered_psi::lower_machine(
                 &checked,
                 TerminalMachineSelection::Name("selected"),
@@ -885,8 +869,9 @@ fn array_boolean_expression_depth_has_no_smaller_correspondence_limit() {
 
 #[test]
 fn array_operator_selection_cannot_change_while_value_and_source_stay_fixed() {
-    let mut original =
-        checked_source("machine selected(input: u8) -> [u16; 1] { [(input as u16) + 1u16] }");
+    let mut original = crate::front_end::checked_program(
+        "machine selected(input: u8) -> [u16; 1] { [(input as u16) + 1u16] }",
+    );
     let (_, statements) = selected_source(&original);
     let ExpressionNode::ArrayLiteral(elements) =
         original.typed.expression_table.expression(statements[0])

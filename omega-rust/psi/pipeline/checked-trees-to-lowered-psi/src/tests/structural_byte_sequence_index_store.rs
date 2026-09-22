@@ -1,6 +1,6 @@
 //! Source-backed indexed replacement within a bounded byte field's live prefix.
 
-use super::{LoweringError, ScalarType, checked_source, lower_machine};
+use super::{LoweringError, ScalarType, lower_machine};
 use crate::TerminalMachineSelection;
 use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
 use semantic_vocabulary::{IntegerValue, Proposition, ScalarTerm};
@@ -10,7 +10,7 @@ use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, StructuralPathSegment, StructuralTypeShape};
 #[test]
 fn initialized_byte_field_runtime_index_replacement_publishes_terminal() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         domain [u8;3]::Utf8 requires valid_utf8(self);
         data Record { out: [u8;3] in Utf8; }
@@ -42,7 +42,7 @@ fn initialized_byte_field_runtime_index_replacement_publishes_terminal() {
 
 #[test]
 fn nested_byte_field_runtime_index_preserves_the_static_carrier_path() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         domain [u8;3]::Utf8 requires valid_utf8(self);
         data Record { out: [u8;3] in Utf8; }
@@ -108,7 +108,7 @@ fn assert_parameter_ranges(machine: &terminal_psi::TerminalMachine) {
 
 #[test]
 fn caller_byte_index_range_is_checked_against_the_evaluated_argument() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         domain [u8;3]::Utf8 requires valid_utf8(self);
         data Record { out: [u8;3] in Utf8; }
@@ -161,7 +161,7 @@ fn caller_byte_index_range_is_checked_against_the_evaluated_argument() {
 
 #[test]
 fn indexed_byte_store_rejects_same_type_substitution_duplicate_and_reordering() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         domain [u8;3]::Utf8 requires valid_utf8(self);
         data Record { out: [u8;3] in Utf8; }
@@ -360,7 +360,7 @@ fn run_stores(
 
 #[test]
 fn indexed_byte_replacement_preserves_a_separately_initialized_sibling() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         domain [u8;3]::Utf8 requires valid_utf8(self);
         data Record { out: [u8;3] in Utf8; other: [u8;3] in Utf8; }
@@ -384,7 +384,7 @@ fn indexed_byte_replacement_preserves_a_separately_initialized_sibling() {
 
 #[test]
 fn caller_observes_ordered_byte_writes_without_changing_live_length() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         domain [u8;3]::Utf8 requires valid_utf8(self);
         data Record { out: [u8;3] in Utf8; }
@@ -406,7 +406,7 @@ fn caller_observes_ordered_byte_writes_without_changing_live_length() {
 
 #[test]
 fn indexed_byte_store_rejoins_index_value_field_access_and_complete_roster() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         domain [u8;3]::Utf8 requires valid_utf8(self);
         data Record { out: [u8;3] in Utf8; other: [u8;3] in Utf8; }

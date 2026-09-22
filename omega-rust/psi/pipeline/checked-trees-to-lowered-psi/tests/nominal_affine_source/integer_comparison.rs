@@ -1,14 +1,12 @@
 use super::{
     AcceptTerminalEffects, AdmissionProfile, EvidenceRoute, IntegerSign, IntegerType, IntegerValue,
-    Lexer, OperationKind, ProofRule, Proposition, ResolutionRequest, ScalarTerm, ScalarType,
-    TerminalExecutionResult, TerminalFuelSchedule, TerminalScalarValue, TerminalStructuralValue,
-    Terminator, decode_module, decode_proof_bundle, derive_fixed_entry_fuel, encode_module,
-    encode_proof_section, interpret_terminal_artifact_measured, lower_symbol_resolved_trees,
-    lower_typed_trees, parse_syntax_trees, resolve, validate_fixed_entry_fuel,
+    OperationKind, ProofRule, Proposition, ScalarTerm, ScalarType, TerminalExecutionResult,
+    TerminalFuelSchedule, TerminalScalarValue, TerminalStructuralValue, Terminator, decode_module,
+    decode_proof_bundle, derive_fixed_entry_fuel, encode_module, encode_proof_section,
+    interpret_terminal_artifact_measured, validate_fixed_entry_fuel,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::TerminalStructuralInputs;
-use typed_trees_to_checked_trees::CheckingRequest;
 const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
@@ -197,13 +195,7 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
 #[test]
 #[rustfmt::skip]
 fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return() {
-    let tokens = Lexer::new(MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE)
-        .tokenize()
-        .expect("tokenize shared integer-comparison convergence");
-    let syntax = parse_syntax_trees(&tokens).expect("parse shared integer-comparison convergence");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve shared integer convergence");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type shared integer convergence");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check shared integer convergence");
+    let checked = crate::front_end::checked_program(MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name("Root::measure"))
         .expect("shared integer-comparison convergence lowers");
     let entry = lowered

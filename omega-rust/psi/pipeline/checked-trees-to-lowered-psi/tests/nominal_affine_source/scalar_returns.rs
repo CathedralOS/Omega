@@ -1,16 +1,13 @@
 use super::{
-    AcceptTerminalEffects, AdmissionProfile, Lexer, OperationKind, Proposition, ResolutionRequest,
-    ScalarTerm, ScalarType, StructuralTypeShape, TerminalAffineCleanupAction,
-    TerminalArtifactInterpretError, TerminalExecutionResult, TerminalInterpretError,
-    TerminalMachineResult, TerminalScalarValue, TerminalStructuralBooleanFieldValue,
-    TerminalStructuralValue, Terminator, decode_module, decode_proof_bundle,
-    derive_fixed_entry_fuel, encode_module, encode_proof_section,
-    interpret_terminal_artifact_measured, lower_symbol_resolved_trees, lower_typed_trees,
-    parse_syntax_trees, resolve, validate_fixed_entry_fuel,
+    AcceptTerminalEffects, AdmissionProfile, OperationKind, Proposition, ScalarTerm, ScalarType,
+    StructuralTypeShape, TerminalAffineCleanupAction, TerminalArtifactInterpretError,
+    TerminalExecutionResult, TerminalInterpretError, TerminalMachineResult, TerminalScalarValue,
+    TerminalStructuralBooleanFieldValue, TerminalStructuralValue, Terminator, decode_module,
+    decode_proof_bundle, derive_fixed_entry_fuel, encode_module, encode_proof_section,
+    interpret_terminal_artifact_measured, validate_fixed_entry_fuel,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::TerminalStructuralInputs;
-use typed_trees_to_checked_trees::CheckingRequest;
 const SCALAR_RETURN_EXECUTABLE_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
@@ -198,13 +195,7 @@ const MIXED_SCALAR_RETURN_TRIVIAL_LAST_SOURCE: &str = r#"
 
 #[test]
 fn scalar_return_materializes_value_before_nominal_cleanup_across_source_and_codec() {
-    let tokens = Lexer::new(SCALAR_RETURN_EXECUTABLE_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(SCALAR_RETURN_EXECUTABLE_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::measure"),
@@ -258,13 +249,7 @@ fn scalar_return_materializes_value_before_nominal_cleanup_across_source_and_cod
 
 #[test]
 fn ordered_scalar_return_retains_distinct_cleanup_targets_and_helpers() {
-    let tokens = Lexer::new(ORDERED_SCALAR_RETURN_EXECUTABLE_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(ORDERED_SCALAR_RETURN_EXECUTABLE_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::measure"),
@@ -332,13 +317,7 @@ fn ordered_scalar_return_retains_distinct_cleanup_targets_and_helpers() {
 
 #[test]
 fn ordered_scalar_return_reuses_one_shared_cleanup_target_and_helper() {
-    let tokens = Lexer::new(SHARED_SCALAR_RETURN_EXECUTABLE_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(SHARED_SCALAR_RETURN_EXECUTABLE_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::measure"),
@@ -387,13 +366,7 @@ fn ordered_scalar_return_reuses_one_shared_cleanup_target_and_helper() {
 
 #[test]
 fn mixed_scalar_return_invokes_nominal_then_discards_trivial_root() {
-    let tokens = Lexer::new(MIXED_SCALAR_RETURN_NOMINAL_LAST_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(MIXED_SCALAR_RETURN_NOMINAL_LAST_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::measure"),
@@ -436,13 +409,7 @@ fn mixed_scalar_return_invokes_nominal_then_discards_trivial_root() {
 
 #[test]
 fn mixed_scalar_return_discards_trivial_then_invokes_nominal_root() {
-    let tokens = Lexer::new(MIXED_SCALAR_RETURN_TRIVIAL_LAST_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(MIXED_SCALAR_RETURN_TRIVIAL_LAST_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::measure"),
@@ -485,16 +452,7 @@ fn mixed_scalar_return_discards_trivial_then_invokes_nominal_root() {
 
 #[test]
 fn contextual_scalar_return_preserves_proof_context_after_result_materialization() {
-    let tokens = Lexer::new(CONTEXTUAL_SCALAR_RETURN_SOURCE)
-        .tokenize()
-        .expect("tokenize contextual scalar cleanup");
-    let syntax = parse_syntax_trees(&tokens).expect("parse contextual scalar cleanup");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve contextual scalar cleanup");
-    let typed =
-        lower_symbol_resolved_trees(&resolved).expect("type contextual scalar cleanup source");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check contextual scalar cleanup source");
+    let checked = crate::front_end::checked_program(CONTEXTUAL_SCALAR_RETURN_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::measure"),
@@ -589,16 +547,7 @@ fn contextual_scalar_return_preserves_proof_context_after_result_materialization
 
 #[test]
 fn mixed_contextual_scalar_return_rebases_compact_nominal_proofs_to_full_roots() {
-    let tokens = Lexer::new(MIXED_CONTEXTUAL_SCALAR_RETURN_SOURCE)
-        .tokenize()
-        .expect("tokenize mixed contextual scalar cleanup");
-    let syntax = parse_syntax_trees(&tokens).expect("parse mixed contextual scalar cleanup");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve mixed contextual scalar cleanup");
-    let typed = lower_symbol_resolved_trees(&resolved)
-        .expect("type mixed contextual scalar cleanup source");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check mixed contextual scalar cleanup source");
+    let checked = crate::front_end::checked_program(MIXED_CONTEXTUAL_SCALAR_RETURN_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::measure"),
@@ -717,16 +666,7 @@ fn mixed_contextual_scalar_return_rebases_compact_nominal_proofs_to_full_roots()
 
 #[test]
 fn mixed_contextual_scalar_return_materializes_branch_free_bindings_before_cleanup() {
-    let tokens = Lexer::new(MIXED_CONTEXTUAL_SCALAR_BINDINGS_SOURCE)
-        .tokenize()
-        .expect("tokenize mixed contextual scalar bindings");
-    let syntax = parse_syntax_trees(&tokens).expect("parse mixed contextual scalar bindings");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve mixed contextual scalar bindings");
-    let typed = lower_symbol_resolved_trees(&resolved)
-        .expect("type mixed contextual scalar bindings source");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check mixed contextual scalar bindings source");
+    let checked = crate::front_end::checked_program(MIXED_CONTEXTUAL_SCALAR_BINDINGS_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::measure"),
@@ -831,16 +771,7 @@ fn mixed_contextual_scalar_return_materializes_branch_free_bindings_before_clean
 
 #[test]
 fn mixed_contextual_scalar_return_preserves_interleaved_primitive_inputs() {
-    let tokens = Lexer::new(MIXED_CONTEXTUAL_SCALAR_INPUTS_SOURCE)
-        .tokenize()
-        .expect("tokenize mixed contextual scalar inputs");
-    let syntax = parse_syntax_trees(&tokens).expect("parse mixed contextual scalar inputs");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve mixed contextual scalar inputs");
-    let typed =
-        lower_symbol_resolved_trees(&resolved).expect("type mixed contextual scalar inputs source");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check mixed contextual scalar inputs source");
+    let checked = crate::front_end::checked_program(MIXED_CONTEXTUAL_SCALAR_INPUTS_SOURCE);
     let checked_plan = checked
         .facts
         .flow
@@ -979,17 +910,7 @@ fn mixed_contextual_scalar_return_preserves_interleaved_primitive_inputs() {
 
 #[test]
 fn mixed_nominal_scalar_return_cleans_every_short_circuit_leaf() {
-    let tokens = Lexer::new(MIXED_NOMINAL_SHORT_CIRCUIT_SCALAR_SOURCE)
-        .tokenize()
-        .expect("tokenize mixed nominal short-circuit scalar return");
-    let syntax =
-        parse_syntax_trees(&tokens).expect("parse mixed nominal short-circuit scalar return");
-    let resolved = resolve(ResolutionRequest::new(&syntax))
-        .expect("resolve mixed nominal short-circuit scalar return");
-    let typed = lower_symbol_resolved_trees(&resolved)
-        .expect("type mixed nominal short-circuit scalar return");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check mixed nominal short-circuit scalar return");
+    let checked = crate::front_end::checked_program(MIXED_NOMINAL_SHORT_CIRCUIT_SCALAR_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::measure"),
@@ -1155,17 +1076,8 @@ fn mixed_nominal_scalar_return_cleans_every_short_circuit_leaf() {
 
 #[test]
 fn mixed_nominal_scalar_return_cleans_every_nested_short_circuit_leaf() {
-    let tokens = Lexer::new(MIXED_NOMINAL_NESTED_SHORT_CIRCUIT_SCALAR_SOURCE)
-        .tokenize()
-        .expect("tokenize nested nominal short-circuit scalar return");
-    let syntax =
-        parse_syntax_trees(&tokens).expect("parse nested nominal short-circuit scalar return");
-    let resolved = resolve(ResolutionRequest::new(&syntax))
-        .expect("resolve nested nominal short-circuit scalar return");
-    let typed = lower_symbol_resolved_trees(&resolved)
-        .expect("type nested nominal short-circuit scalar return");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check nested nominal short-circuit scalar return");
+    let checked =
+        crate::front_end::checked_program(MIXED_NOMINAL_NESTED_SHORT_CIRCUIT_SCALAR_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::measure"),
@@ -1258,16 +1170,8 @@ fn mixed_nominal_scalar_return_cleans_every_nested_short_circuit_leaf() {
 
 #[test]
 fn mixed_nominal_boolean_value_converges_before_one_shared_cleanup_return() {
-    let tokens = Lexer::new(MIXED_NOMINAL_SHARED_BOOLEAN_CONVERGENCE_SOURCE)
-        .tokenize()
-        .expect("tokenize shared nominal Boolean convergence");
-    let syntax = parse_syntax_trees(&tokens).expect("parse shared nominal Boolean convergence");
-    let resolved = resolve(ResolutionRequest::new(&syntax))
-        .expect("resolve shared nominal Boolean convergence");
-    let typed =
-        lower_symbol_resolved_trees(&resolved).expect("type shared nominal Boolean convergence");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check shared nominal Boolean convergence");
+    let checked =
+        crate::front_end::checked_program(MIXED_NOMINAL_SHARED_BOOLEAN_CONVERGENCE_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::measure"),

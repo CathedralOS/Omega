@@ -1,5 +1,5 @@
 //! Checked state-graph providers retain their exact body and ordinary call closure.
-use super::checked_source;
+
 use language_semantics::Multiplicity;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
@@ -30,7 +30,7 @@ const SOURCE: &str = r#"
 
 #[test]
 fn composed_provider_candidate_publishes_from_ordinary_discarding_caller() {
-    let checked = checked_source(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     let provider = checked
         .machines()
         .iter()
@@ -101,7 +101,7 @@ fn composed_provider_candidate_preserves_helper_effects_across_every_fuel_pause(
             }
             machine mark_middle() reaches Host + Relay { Relay::mark(7); }
         "#;
-    let checked = checked_source(&source);
+    let checked = crate::front_end::checked_program(&source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         terminal_production::TerminalMachineSelection::Name("run"),
@@ -228,7 +228,7 @@ fn composed_provider_candidate_preserves_borrowed_byte_view_signature() {
     let source = SOURCE
         .replace("flag: bool)", "flag: bool, buffer: &mut [u8])")
         .replace("Host::read(flag)", "Host::read(flag, buffer)");
-    let checked = checked_source(&source);
+    let checked = crate::front_end::checked_program(&source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         terminal_production::TerminalMachineSelection::Name("run"),
@@ -264,7 +264,7 @@ fn composed_provider_candidate_preserves_borrowed_byte_view_signature() {
 #[test]
 fn composed_provider_candidate_rejects_result_and_body_roster_corruption() {
     let source = SOURCE.to_owned() + "machine identity(value: ReadResult) -> ReadResult { value }";
-    let baseline = checked_source(&source);
+    let baseline = crate::front_end::checked_program(&source);
     let _ = terminal_production::TerminalProductionRequest::new(
         &baseline,
         terminal_production::TerminalMachineSelection::Name("run"),

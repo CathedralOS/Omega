@@ -2,7 +2,7 @@ use super::{
     AdmissionProfile, CheckedUnitEffectOperationPlan, FuelChargeSite, OperationKind,
     OperationResult, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
     TerminalFuelMeter, TerminalStructuralValue, Terminator, checked, decode_module,
-    decode_proof_bundle, encode_module, encode_proof_section, lower_machine, typed,
+    decode_proof_bundle, encode_module, encode_proof_section, lower_machine,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::AcceptTerminalEffects;
@@ -248,11 +248,8 @@ fn a_call_initialized_affine_local_cannot_be_moved_twice() {
         "Main::consume(result);",
         "Main::consume(result); Main::consume(result);",
     );
-    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
-        typed(&source),
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect_err("second ownership transfer must fail source checking");
+    let diagnostics = super::checked_result(&source)
+        .expect_err("second ownership transfer must fail source checking");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message

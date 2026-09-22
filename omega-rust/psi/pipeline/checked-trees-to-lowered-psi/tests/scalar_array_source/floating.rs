@@ -1,13 +1,13 @@
 //! Array transport preserves format and representation, not only floating meaning.
 use super::{
-    AdmissionProfile, ExpressionNode, TerminalExecutionResult, TerminalScalarValue, checked_source,
+    AdmissionProfile, ExpressionNode, TerminalExecutionResult, TerminalScalarValue,
     interpret_terminal_artifact, reject, row_elements, selected_source,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::IeeeFloatValue;
 
 fn execute(source: &str, arguments: &[TerminalScalarValue]) -> Vec<TerminalScalarValue> {
-    let checked = checked_source(source);
+    let checked = crate::front_end::checked_program(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("selected"),
@@ -69,7 +69,8 @@ fn floating_array_literals_calls_and_projections_execute_exact_bits() {
 
 #[test]
 fn floating_array_source_bits_and_format_cannot_be_substituted() {
-    let original = checked_source("machine selected() -> [f32; 2] { [1.5f32, -0.0f32] }");
+    let original =
+        crate::front_end::checked_program("machine selected() -> [f32; 2] { [1.5f32, -0.0f32] }");
     checked_trees_to_lowered_psi::lower_machine(
         &original,
         TerminalMachineSelection::Name("selected"),
@@ -91,7 +92,7 @@ fn floating_array_source_bits_and_format_cannot_be_substituted() {
         } else {
             "f64"
         };
-        let replacement = checked_source(&format!(
+        let replacement = crate::front_end::checked_program(&format!(
             "machine selected() -> [{carrier}; 1] {{ [{literal}] }}"
         ));
         let replacement = replacement
@@ -110,7 +111,7 @@ fn floating_array_source_bits_and_format_cannot_be_substituted() {
 
 #[test]
 fn projected_floating_array_cannot_erase_an_invalid_sibling_format() {
-    let original = checked_source(
+    let original = crate::front_end::checked_program(
         "data Rows {} const Rows::VALUES: [[f32; 1]; 2] = [[1.5f32], [2.5f32]];
          machine selected() -> [f32; 1] { Rows::VALUES[0] }",
     );
@@ -121,7 +122,8 @@ fn projected_floating_array_cannot_erase_an_invalid_sibling_format() {
     .unwrap();
     let (_, expressions) = selected_source(&original);
     let sibling = row_elements(&original, expressions[0], 1)[0];
-    let replacement = checked_source("machine selected() -> [f64; 1] { [2.5f64] }");
+    let replacement =
+        crate::front_end::checked_program("machine selected() -> [f64; 1] { [2.5f64] }");
     let replacement = replacement
         .expression_table
         .expression_entries()
@@ -134,6 +136,8 @@ fn projected_floating_array_cannot_erase_an_invalid_sibling_format() {
 
 #[test]
 fn floating_array_arithmetic_still_requires_selected_execution() {
-    let checked = checked_source("machine selected(value: f32) -> [f32; 1] { [value + 1.0f32] }");
+    let checked = crate::front_end::checked_program(
+        "machine selected(value: f32) -> [f32; 1] { [value + 1.0f32] }",
+    );
     reject(&checked, "unselected floating arithmetic");
 }

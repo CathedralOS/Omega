@@ -10,7 +10,6 @@ use super::super::{
 use super::{
     CheckedUnitStructuralPathSegment, IntegerSign, IntegerType, OperationKind, ScalarType,
     StructuralAccess, StructuralFieldType, StructuralPathSegment, StructuralTypeShape,
-    checked_from_source,
 };
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
@@ -102,7 +101,7 @@ pub(super) fn assert_projected_receiver(
                 caller_first,
                 bare_self,
             );
-            let checked = checked_from_source(&source);
+            let checked = crate::front_end::checked_program(&source);
             let caller = unit_plan(&checked, caller_name);
             let callee = unit_plan(&checked, "Record::replace");
             let [caller_receiver] = caller.structural_parameters.as_slice() else {

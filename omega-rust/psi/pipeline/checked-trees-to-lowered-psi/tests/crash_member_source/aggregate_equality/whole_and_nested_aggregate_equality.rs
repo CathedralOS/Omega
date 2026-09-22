@@ -7,9 +7,6 @@ use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, Proposition, ScalarTerm, StructuralFieldId,
 };
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use terminal_interpreter::TerminalStructuralInputs;
@@ -20,9 +17,6 @@ use terminal_interpreter::{
 use terminal_psi::{
     CrashPredicateTerm, CrashRouteGuard, OperationKind, StructuralFieldType, StructuralTypeShape,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
 fn whole_aggregate_equality_expands_and_reconstructs_end_to_end() {
@@ -79,13 +73,7 @@ fn whole_aggregate_equality_expands_and_reconstructs_end_to_end() {
         roots
     }
 
-    let tokens = Lexer::new(WHOLE_AGGREGATE_EQUALITY_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(WHOLE_AGGREGATE_EQUALITY_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -319,13 +307,7 @@ fn nested_payload_sum_equality_retains_exact_record_case_payload_paths_end_to_en
         }
     }
 
-    let tokens = Lexer::new(NESTED_PAYLOAD_SUM_EQUALITY_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(NESTED_PAYLOAD_SUM_EQUALITY_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Whole::enter"),
@@ -534,13 +516,7 @@ fn mixed_aggregate_equality_retains_common_fields_cases_and_call_rebasing_end_to
         }
     }
 
-    let tokens = Lexer::new(MIXED_AGGREGATE_EQUALITY_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(MIXED_AGGREGATE_EQUALITY_SOURCE);
     let equal = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -864,13 +840,7 @@ fn nested_mixed_aggregate_equality_prefixes_every_path_and_rebases_whole_root_ca
         }
     }
 
-    let tokens = Lexer::new(NESTED_MIXED_AGGREGATE_EQUALITY_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(NESTED_MIXED_AGGREGATE_EQUALITY_SOURCE);
     let equal = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),

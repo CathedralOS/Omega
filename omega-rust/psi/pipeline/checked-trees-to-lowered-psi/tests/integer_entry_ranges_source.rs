@@ -3,38 +3,18 @@
 //! rows reach the published catalog beside the matching `requires` bounds, a
 //! conforming delivery executes, and an exact out-of-range constant rejects.
 
-use checked_trees::CheckedTrees;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType,
 };
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
-
-fn typed(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved)
-        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
-}
-
-fn check(source: &str) -> CheckedTrees {
-    lower_typed_trees(typed(source), &CheckingRequest::settled())
-        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
-}
 
 fn lower(source: &str, entry: &str) -> lowered_psi::LoweredPsi {
     checked_trees_to_lowered_psi::lower_machine(
-        &check(source),
+        &crate::front_end::checked_program(source),
         TerminalMachineSelection::Name(entry),
     )
     .unwrap_or_else(|error| panic!("{source}: {error:?}"))
@@ -159,7 +139,7 @@ fn out_of_range_constant_delivery_is_rejected() {
             "#,
         );
         assert!(
-            lower_typed_trees(typed(&source), &CheckingRequest::settled()).is_err(),
+            crate::front_end::checked_program_result(&source).is_err(),
             "{argument} is outside u64[0..=3] and must reject at check: {source}"
         );
     }

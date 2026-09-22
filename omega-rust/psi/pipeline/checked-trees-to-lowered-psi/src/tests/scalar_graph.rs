@@ -1,5 +1,5 @@
 //! Scalar-graph module assembly regressions.
-use super::{LoweringError, ScalarType, SymbolHandle, checked_source, lower_machine};
+use super::{LoweringError, ScalarType, SymbolHandle, lower_machine};
 use crate::TerminalMachineSelection;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
@@ -21,7 +21,7 @@ use terminal_psi::Terminator;
 
 #[test]
 fn scalar_graph_replays_parameter_qualification_contracts_from_source() {
-    let original = checked_source(include_str!(
+    let original = crate::front_end::checked_program(include_str!(
         "../../../../../../tests/omega/pass/expressions/qualified_call_result_argument/main.omg"
     ));
     lower_machine(&original, TerminalMachineSelection::Name("choose"))
@@ -80,7 +80,7 @@ fn scalar_graph_replays_parameter_qualification_contracts_from_source() {
 
 #[test]
 fn scalar_completion_after_array_calls_replays_its_expression_and_statement_order() {
-    let checked = checked_source(include_str!(
+    let checked = crate::front_end::checked_program(include_str!(
         "../../../../../../tests/omega/pass/collections/owned_array_scalar_comparisons/main.omg"
     ));
     for entry in ["scalar_comparison", "array_comparison"] {

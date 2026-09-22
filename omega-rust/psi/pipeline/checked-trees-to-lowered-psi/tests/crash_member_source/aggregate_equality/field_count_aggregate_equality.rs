@@ -19,9 +19,6 @@ use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, Proposition, ScalarTerm, StructuralFieldId,
 };
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use terminal_interpreter::TerminalStructuralInputs;
@@ -30,9 +27,6 @@ use terminal_interpreter::{
     TerminalStructuralValue, interpret_terminal_artifact_measured,
 };
 use terminal_psi::{CrashRouteGuard, OperationKind, StructuralFieldType, StructuralTypeShape};
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
 fn two_field_nested_mixed_aggregate_equality_replays_every_prefixed_path() {
@@ -117,13 +111,8 @@ fn two_field_nested_mixed_aggregate_equality_replays_every_prefixed_path() {
         }
     }
 
-    let tokens = Lexer::new(TWO_FIELD_NESTED_MIXED_AGGREGATE_EQUALITY_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked =
+        crate::front_end::checked_program(TWO_FIELD_NESTED_MIXED_AGGREGATE_EQUALITY_SOURCE);
     let equal = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),

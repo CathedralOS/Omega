@@ -1,8 +1,4 @@
 //! A fresh guard proves each indexed write without a termination claim.
-use super::{
-    Lexer, ResolutionRequest, checked_source, lower_symbol_resolved_trees, lower_typed_trees,
-    parse_syntax_trees, resolve,
-};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
@@ -12,7 +8,6 @@ use terminal_interpreter::{
 };
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, StructuralPathSegment, StructuralTypeShape};
-use typed_trees_to_checked_trees::CheckingRequest;
 
 const FILL: &str = r#"
 machine fill(out: &mut [u8], byte: u8) {
@@ -57,7 +52,7 @@ const READ_ONE: &str = r#"
 
 #[test]
 fn line_result_constructor_retains_runtime_count_in_terminal() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         data LineReadResult {
             case Invalid;
@@ -109,7 +104,7 @@ fn line_result_constructor_retains_runtime_count_in_terminal() {
 
 #[test]
 fn scalar_case_return_preserves_authored_multifield_identity_and_rejects_plan_drift() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         data PairResult { case Empty; case Pair(left: u64, right: u64); }
         machine pair(left: u64, right: u64) -> PairResult {
@@ -248,7 +243,7 @@ fn scalar_case_return_bounded_literal_requires_constructor_evidence() {
         data Bounded { case Empty; case Count(value: u64 [0..=7]); }
         machine bounded() -> Bounded { Bounded::Count { value: 7 } }
     "#;
-    let checked = checked_source(source);
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         terminal_production::TerminalMachineSelection::Name("bounded"),
@@ -263,10 +258,7 @@ fn scalar_case_return_bounded_literal_requires_constructor_evidence() {
         .any(|operation| matches!(&operation.kind, OperationKind::EstablishScalarCase { fields, .. }
             if fields.len() == 1 && fields[0].range_obligation.is_some())));
     let invalid = source.replace("value: 7", "value: 8");
-    let syntax = parse_syntax_trees(&Lexer::new(&invalid).tokenize().unwrap()).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    if let Ok(checked) = lower_typed_trees(typed, &CheckingRequest::settled()) {
+    if let Ok(checked) = crate::front_end::checked_program_result(&invalid) {
         assert!(
             terminal_production::TerminalProductionRequest::new(
                 &checked,
@@ -283,7 +275,7 @@ fn scalar_case_return_bounded_literal_requires_constructor_evidence() {
 
 #[test]
 fn scalar_case_return_multistate_borrowed_view_and_ordinary_call_observe_count() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         data Outcome { case Empty; case Full(count: u64); }
         machine make(out: &mut [u8], count: u64, full: bool) -> Outcome {
@@ -382,7 +374,7 @@ fn scalar_case_return_multistate_borrowed_view_and_ordinary_call_observe_count()
 
 #[test]
 fn same_named_case_payloads_preserve_identity_through_calls_and_interpretation() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         data Outcome {
             case Empty;
@@ -481,7 +473,7 @@ fn same_named_case_payloads_preserve_identity_through_calls_and_interpretation()
 
 #[test]
 fn byte_input_exact_narrowing_uses_retained_payload_range_evidence() {
-    let checked = checked_source(READ_ONE);
+    let checked = crate::front_end::checked_program(READ_ONE);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         terminal_production::TerminalMachineSelection::Name("read_one"),
@@ -513,11 +505,7 @@ fn byte_input_exact_narrowing_uses_retained_payload_range_evidence() {
 #[test]
 fn byte_input_exact_narrowing_rejects_a_state_annotation_without_field_bounds() {
     let source = READ_ONE.replace("case Byte(value: i32 [0..=255]);", "case Byte(value: i32);");
-    let tokens = Lexer::new(&source).tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+    let diagnostics = crate::front_end::checked_program_result(&source)
         .expect_err("state annotation cannot establish missing payload bounds");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -528,7 +516,7 @@ fn byte_input_exact_narrowing_rejects_a_state_annotation_without_field_bounds() 
 
 #[test]
 fn byte_input_exact_narrowing_preserves_forwarded_and_reordered_field_ranges() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         data PairRead {
             case Eof;
@@ -565,7 +553,7 @@ fn byte_input_exact_narrowing_preserves_forwarded_and_reordered_field_ranges() {
 
 #[test]
 fn byte_input_case_payload_and_borrowed_view_compose_in_a_write_cycle() {
-    let checked = checked_source(include_str!(
+    let checked = crate::front_end::checked_program(include_str!(
         "../../../../../../tests/native-differential/tests/terminal_byte_views/byte_input.omg"
     ));
     let _artifact = terminal_production::TerminalProductionRequest::new(
@@ -581,7 +569,7 @@ fn byte_input_case_payload_and_borrowed_view_compose_in_a_write_cycle() {
 
 #[test]
 fn byte_input_case_roster_and_multiple_payloads_are_not_console_specific() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         data Observation {
             case Empty;
@@ -622,7 +610,7 @@ fn byte_input_case_roster_and_multiple_payloads_are_not_console_specific() {
 
 #[test]
 fn byte_write_loop_publishes_fresh_guarded_writes() {
-    let checked = checked_source(FILL);
+    let checked = crate::front_end::checked_program(FILL);
     let _artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         terminal_production::TerminalMachineSelection::Name("fill"),
@@ -654,7 +642,7 @@ fn byte_write_loop_fills_each_raw_prefix_once_across_fuel_suspension() {
     for initial in [vec![0x11], vec![0x11, 0x80, 0xff]] {
         for byte in [0, 65, 165] {
             let length = initial.len();
-            let checked = checked_source(&format!(
+            let checked = crate::front_end::checked_program(&format!(
                 "{FILL}\ndata Record {{ out: [u8; {length}]; other: [u8; {length}]; }}\n\
                  machine Record::run(&mut self) {{ fill(&mut self.out, {byte}); }}"
             ));
@@ -792,7 +780,7 @@ fn byte_write_loop_fills_each_raw_prefix_once_across_fuel_suspension() {
 fn byte_write_loop_empty_initialized_view_never_writes() {
     // Existing UTF-8 literal initialization supplies a genuinely empty live
     // field view. This is not a zero-length fixed-array declaration.
-    let checked = checked_source(&format!(
+    let checked = crate::front_end::checked_program(&format!(
         r#"
         {FILL}
         domain [u8; 3]::Utf8 requires valid_utf8(self);

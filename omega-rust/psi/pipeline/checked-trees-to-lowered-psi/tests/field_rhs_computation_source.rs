@@ -2,30 +2,12 @@
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue, TerminalStructuralValue,
 };
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
-use tokens_to_syntax_trees::parse_syntax_trees;
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize field RHS source");
-    let syntax = parse_syntax_trees(&tokens).expect("parse field RHS source");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve field RHS source");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type field RHS source");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("check field RHS source")
-}
 
 fn unsigned(value: u128) -> TerminalScalarValue {
     TerminalScalarValue::Integer {
@@ -112,7 +94,7 @@ fn execute(
     crashes: bool,
     expected_stores: u64,
 ) {
-    let checked = checked(source);
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("Main::main"),
@@ -381,7 +363,7 @@ fn field_rhs_computation_custody_rejects_destination_root_and_call_substitution(
         CheckedScalarComputationKind, CheckedScalarExpressionRole,
         CheckedStructuralScalarFieldStoreValue, CheckedUnitEffectOperationPlan,
     };
-    let checked = checked(
+    let checked = crate::front_end::checked_program(
         r#"
         data Main { value: u16; other: u16; }
         machine identity(value: u16) -> u16 { value }
@@ -479,17 +461,7 @@ fn receiver_field_rhs_call_reaches_canonical_terminal() {
             self.value = identity(self.value);
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize field RHS call");
-    let syntax = parse_syntax_trees(&tokens).expect("parse field RHS call");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve field RHS call");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type field RHS call");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("check field RHS call");
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("Main::main"),

@@ -3,8 +3,8 @@ use super::later_results::{SCALAR_HELPERS, encoded_locals};
 use super::{
     AdmissionProfile, CheckedUnitEffectOperationPlan, ObserveResults, StatementNode,
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
-    TerminalExecutionResult, TerminalStructuralValue, checked, decode_module, decode_proof_bundle,
-    execute, main_machine, structural_source, unsigned,
+    TerminalExecutionResult, TerminalStructuralValue, decode_module, decode_proof_bundle, execute,
+    main_machine, structural_source, unsigned,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_fuel::TerminalFuelMeter;
@@ -22,7 +22,10 @@ fn later_structural_boundary_initializer_uses_the_prior_scalar_namespace() {
             "Scalar::identity(identity(left))",
             "Scalar::identity(identity(prefix))",
         );
-    let artifact = encoded_locals(&checked(&source), &["prefix", "result"]);
+    let artifact = encoded_locals(
+        &crate::front_end::checked_program(&source),
+        &["prefix", "result"],
+    );
     let mut observer = ObserveResults::default();
     assert_eq!(
         execute(
@@ -88,7 +91,7 @@ impl TerminalEffectHandler for ObserveLaterStructuralResults {
 
 #[test]
 fn multiple_structural_boundaries_retain_scalar_values_and_reverse_result_cleanup() {
-    let original = checked(&multiple_structural_source());
+    let original = crate::front_end::checked_program(&multiple_structural_source());
     let artifact = encoded_locals(
         &original,
         &["prefix", "chosen", "first", "between", "second"],
@@ -187,7 +190,7 @@ fn later_structural_operand_crash_keeps_earlier_results_without_cleanup() {
                 "Factory::create(abort()"
             )
     );
-    let original = checked(&source);
+    let original = crate::front_end::checked_program(&source);
     let artifact = encoded_locals(
         &original,
         &["prefix", "chosen", "first", "between", "second"],
@@ -277,7 +280,7 @@ fn later_structural_operand_crash_keeps_earlier_results_without_cleanup() {
 
 #[test]
 fn later_structural_boundary_rejoins_each_authored_local_and_result_ordinal() {
-    let original = checked(&multiple_structural_source());
+    let original = crate::front_end::checked_program(&multiple_structural_source());
     let machine = main_machine(&original);
     let [state] = original.machine_states(machine) else {
         unreachable!()
@@ -388,7 +391,7 @@ fn later_structural_boundary_rejoins_each_authored_local_and_result_ordinal() {
 fn later_structural_boundary_calls_retain_nominal_requirement_targets() {
     let source = invoking(&multiple_structural_source(), "Factory");
     let artifact = encoded_locals(
-        &checked(&source),
+        &crate::front_end::checked_program(&source),
         &["prefix", "chosen", "first", "between", "second"],
     );
     let mut observer = ObserveResults::default();
@@ -417,7 +420,7 @@ fn boundary_result_moves_into_a_later_ordinary_unit_call() {
         )
     );
     let artifact = encoded_locals(
-        &checked(&source),
+        &crate::front_end::checked_program(&source),
         &["prefix", "chosen", "first", "between", "second"],
     );
     let mut observer = ObserveResults::default();
@@ -444,7 +447,7 @@ fn boundary_and_ordinary_results_share_ordinals_without_sharing_forwarding_custo
             )
     );
     let artifact = encoded_locals(
-        &checked(&source),
+        &crate::front_end::checked_program(&source),
         &["prefix", "chosen", "first", "moved", "between", "second"],
     );
     let module = decode_module(&artifact.0).unwrap();

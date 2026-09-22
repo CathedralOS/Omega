@@ -1,5 +1,5 @@
 //! Constructor subjects remain real established owners through observation.
-use super::{CheckedTrees, checked_source, lower_machine};
+use super::{CheckedTrees, lower_machine};
 use crate::TerminalMachineSelection;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::types::PrimitiveType;
@@ -18,7 +18,7 @@ const SOURCE: &str = r#"
 
 #[test]
 fn copy_case_return_requires_its_producer_to_dominate_the_return() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "data Choice [copy] { case Empty; case Some(value: u32); }
          machine choose(selected: bool) -> Choice {
              match selected { true -> Choice::Some { value: 37 }, false -> Choice::Empty }
@@ -68,7 +68,7 @@ fn copy_case_return_requires_its_producer_to_dominate_the_return() {
 
 #[test]
 fn copy_local_case_membership_repeats_direct_and_selected_observations_without_cleanup() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         data Choice [copy] { case Empty; case Some(value: u32); }
         machine direct() -> bool {
@@ -215,7 +215,7 @@ fn copy_local_case_membership_repeats_direct_and_selected_observations_without_c
 
 #[test]
 fn selected_local_case_membership_observes_the_joined_owner_and_rejects_foreign_payloads() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         data Choice { case Empty; case Some(value: bool); }
         data Other { case Empty; case Some(value: bool); }
@@ -345,7 +345,7 @@ fn selected_local_case_membership_observes_the_joined_owner_and_rejects_foreign_
 
 #[test]
 fn local_case_membership_rejoins_establishment_and_exit_provenance() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "data Choice { case Empty; }
          machine choose() -> bool {
              let choice: Choice = Choice::Empty;
@@ -384,7 +384,7 @@ fn local_case_membership_rejoins_establishment_and_exit_provenance() {
 
 #[test]
 fn local_case_membership_reuses_one_affine_owner_through_repeated_observations() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         data Choice { case Empty; case Some(first: bool, second: bool); }
         machine first(value: bool) -> bool { value }
@@ -458,7 +458,7 @@ fn local_case_membership_reuses_one_affine_owner_through_repeated_observations()
 
 #[test]
 fn local_case_membership_rejects_payload_and_same_typed_source_substitution() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         data Choice { case Empty; case Some(value: u32); }
         machine choose() -> bool {
@@ -672,7 +672,7 @@ fn field_computation(
 
 #[test]
 fn constructor_membership_rejects_changed_literal_payload_in_either_source_or_plan() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         data Choice { case Empty; case Some(value: u32); }
         machine choose() -> bool { Choice::Some { value: 37 } in Choice::Some }
@@ -734,7 +734,7 @@ fn constructor_membership_rejects_changed_literal_payload_in_either_source_or_pl
 
 #[test]
 fn constructor_membership_rejects_erased_field_operator_meaning() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         data Choice { case Empty; case Some(value: bool); }
         machine choose(value: bool) -> bool { Choice::Some { value: !value } in Choice::Some }
@@ -776,7 +776,7 @@ fn constructor_membership_rejects_erased_field_operator_meaning() {
 
 #[test]
 fn constructor_membership_stages_fields_before_observation_and_affine_cleanup() {
-    let checked = checked_source(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("choose"))
         .expect("dynamic constructor membership");
     let module = &lowered.semantic_module;
@@ -867,7 +867,7 @@ fn constructor_membership_stages_fields_before_observation_and_affine_cleanup() 
 
 #[test]
 fn selected_constructor_membership_closes_its_affine_frontier_before_the_join() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         data Choice { case Empty; case Some(value: bool); }
         machine identity(value: bool) -> bool { value }
@@ -929,7 +929,7 @@ fn selected_constructor_membership_closes_its_affine_frontier_before_the_join() 
 
 #[test]
 fn constructor_membership_rejoins_field_roster_roots_types_and_authored_source() {
-    let checked = checked_source(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     lower_machine(&checked, TerminalMachineSelection::Name("choose"))
         .expect("original source custody");
     let (handle, subject) = checked
@@ -1025,7 +1025,7 @@ fn constructor_membership_rejoins_field_roster_roots_types_and_authored_source()
 
 #[test]
 fn constructor_membership_rejects_a_same_spelled_foreign_observation_case() {
-    let checked = checked_source(&format!(
+    let checked = crate::front_end::checked_program(&format!(
         "{SOURCE}
         data Other {{ case Empty; case Some(first: bool, second: bool); }}
     "

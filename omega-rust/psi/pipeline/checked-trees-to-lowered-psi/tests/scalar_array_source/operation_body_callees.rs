@@ -2,8 +2,7 @@
 
 use super::super::{CheckedScalarExpressionRole, PrimitiveType, StatementNode};
 use super::{
-    TerminalExecutionResult, TerminalScalarValue, WRITE, assert_array, byte, checked_source,
-    execute, reject,
+    TerminalExecutionResult, TerminalScalarValue, WRITE, assert_array, byte, execute, reject,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 #[test]
@@ -21,7 +20,7 @@ fn scalar_array_local_control_keeps_prefix_effects_and_call_result_storage() {
 
 #[test]
 fn scalar_array_control_rejects_substituted_tail_and_local_custody() {
-    let original = checked_source(
+    let original = crate::front_end::checked_program(
         "machine answer(row: [u8; 2], value: u8) -> u8 { value }
          machine selected(enabled: bool, value: u8) -> u8 {
              let row: [u8; 2] = [7u8, 9u8];
@@ -256,7 +255,7 @@ fn ordered_helpers_and_scalar_graph_unit_calls_share_one_catalog() {
              transition enabled { true -> (helper(value)) false -> 0u8 }
          }
          machine selected(value: u8) -> [u8; 2] { [gate(value), 9u8] }";
-    let checked = checked_source(source);
+    let checked = crate::front_end::checked_program(source);
     for name in ["branch", "gate"] {
         let symbol = checked
             .machines()
@@ -302,7 +301,7 @@ fn ordered_scalar_helper_stores_keep_order_across_fuel_resumption() {
 
 #[test]
 fn transitive_ordered_scalar_body_rejects_source_contract_and_result_corruption() {
-    let original = checked_source(
+    let original = crate::front_end::checked_program(
         "machine touch() {}
          machine answer(row: [u8; 2], value: u8) -> u8 { value }
          machine helper(value: u8) -> u8 {

@@ -5,16 +5,12 @@ use checked_trees::{
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecutionResult,
     TerminalScalarValue, interpret_terminal_artifact_measured,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::statement::StatementNode;
 
 const BOUNDARY_SOURCE: &str = r#"
@@ -77,18 +73,6 @@ const CALLABLE_BOUNDARY_SOURCE: &str = r#"
         Host::finish(left, right);
     }
 "#;
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"))
-}
 
 fn encoded(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
     let lowered = checked_trees_to_lowered_psi::lower_machine(
@@ -212,7 +196,7 @@ fn boundary_and_unit_scalar_arguments_keep_their_authored_values_after_roundtrip
             vec![vec![signed(23), signed(70)]],
         ),
     ] {
-        let checked = checked(source);
+        let checked = crate::front_end::checked_program(source);
         assert!(
             !rows(&checked).is_empty(),
             "call operands have authored bindings"
@@ -525,7 +509,7 @@ fn checked_call_operations_reject_changed_ordinals_targets_and_boundary_sites() 
         BOUNDARY_RETURN_SOURCE,
         CALLABLE_BOUNDARY_SOURCE,
     ] {
-        let checked = checked(source);
+        let checked = crate::front_end::checked_program(source);
         encoded(&checked);
         assert_operation_custody(&checked);
     }
@@ -539,7 +523,7 @@ fn call_scalar_binding_stamps_reject_missing_duplicate_stale_and_reordered_sourc
         BOUNDARY_RETURN_SOURCE,
         CALLABLE_BOUNDARY_SOURCE,
     ] {
-        let checked = checked(source);
+        let checked = crate::front_end::checked_program(source);
         encoded(&checked);
         let rows = rows(&checked);
         assert!(rows.len() >= 2);
@@ -611,7 +595,7 @@ fn same_carrier_call_operands_cannot_swap_source_handles_or_coordinate_copies() 
         BOUNDARY_RETURN_SOURCE,
         CALLABLE_BOUNDARY_SOURCE,
     ] {
-        let checked = checked(source);
+        let checked = crate::front_end::checked_program(source);
         encoded(&checked);
         let rows = rows(&checked);
         for (handle, row) in &rows {
@@ -693,7 +677,7 @@ fn mixed_callee_parameters_keep_dense_scalar_roles_at_authored_argument_position
             {{ Sink::finish(left, token, right); }}
         "#
         );
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         encoded(&checked);
         let rows = rows(&checked);
         assert_eq!(
@@ -755,7 +739,7 @@ fn zero_scalar_call_roots_reject_same_signature_authored_target_substitution() {
              machine Main::main() {reach} {{ Sink::first(); }} \
              machine Main::alternative() {reach} {{ Sink::second(); }}"
         );
-        let mut checked = checked(&source);
+        let mut checked = crate::front_end::checked_program(&source);
         encoded(&checked);
         assert_operation_custody(&checked);
         assert!(
@@ -843,7 +827,7 @@ fn structural_boundary_results_retain_exact_scalar_operand_source_custody() {
         reaches Host
         { let result: ByteRead = Host::read(left, right); }
     "#;
-    let checked = checked(source);
+    let checked = crate::front_end::checked_program(source);
     encoded(&checked);
     assert_operation_custody(&checked);
     assert!(
@@ -923,7 +907,7 @@ fn composed_unit_boundary_leaves_verify_and_reject_changed_operand_custody() {
             state outer_no() { Host::exit(3i32, 33i32); }
         }
     "#;
-    let checked = checked(source);
+    let checked = crate::front_end::checked_program(source);
     let artifact = encoded(&checked);
     assert!(
         !checked

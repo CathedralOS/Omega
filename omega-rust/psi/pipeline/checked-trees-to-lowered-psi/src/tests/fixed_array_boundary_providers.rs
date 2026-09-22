@@ -1,5 +1,5 @@
 //! Installed checked providers write the caller's fixed extent, not replacement storage.
-use super::{CheckedTrees, byte_sequence_write, checked_source, lower_machine};
+use super::{CheckedTrees, byte_sequence_write, lower_machine};
 use crate::TerminalMachineSelection;
 use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
@@ -40,7 +40,7 @@ fn checked_array_caller(field: bool) -> CheckedTrees {
             }
         "#
     };
-    checked_source(&format!(
+    crate::front_end::checked_program(&format!(
         "{}\n{PROVIDER}\n{caller}",
         byte_sequence_write::PUT
     ))

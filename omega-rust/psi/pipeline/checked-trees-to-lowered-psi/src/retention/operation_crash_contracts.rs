@@ -492,21 +492,7 @@ mod tests {
     "#;
 
     fn checked(source: &str) -> CheckedTrees {
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .expect("tokenize");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("resolve");
-        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("type");
-        let mut checked = typed_trees_to_checked_trees::lower_typed_trees(
-            typed,
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .expect("check");
+        let mut checked = crate::front_end::checked_program(source);
         // This unit boundary tests source-to-Terminal custody. Omega
         // separately rejoins these opaque commitments to actual selected
         // ProviderPlans.

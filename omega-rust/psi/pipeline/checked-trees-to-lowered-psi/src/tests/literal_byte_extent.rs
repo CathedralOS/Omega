@@ -1,6 +1,6 @@
 //! Canonical proof production for a measured source-produced literal.
 
-use super::{LoweringError, checked_source, lower_machine};
+use super::{LoweringError, lower_machine};
 use crate::TerminalMachineSelection;
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::terminal_identities::{obligation_id, operation_id, value_id};
@@ -23,7 +23,7 @@ fn fixture(literal: &str, byte_index: u128) -> LoweredPsi {
         "#
     );
     let mut lowered = lower_machine(
-        &checked_source(&source),
+        &crate::front_end::checked_program(&source),
         TerminalMachineSelection::Name("Root::enter"),
     )
     .unwrap();

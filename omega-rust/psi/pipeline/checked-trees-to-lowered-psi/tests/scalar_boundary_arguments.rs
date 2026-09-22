@@ -1,14 +1,8 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_psi::OperationKind;
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 const SOURCE: &str = r#"
     boundary trait Console {
@@ -35,11 +29,7 @@ fn guarded_boundary_crash_contract_survives_source_lowering() {
             Sink::record(value);
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -76,11 +66,7 @@ fn mathematical_boundary_crash_guard_replays_and_executes_exact_actuals() {
             Sink::record(value);
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(source);
     let mut lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -284,11 +270,7 @@ fn named_crash_qualified_operator_call_rejects_at_terminal_lowering() {
         boundary operator == Comparison::equal(left: i32, right: i32) -> bool crashes Trap;
         machine Root::enter(left: i32, right: i32) -> bool crashes Trap { Comparison::equal(left, right) }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(source);
     let error = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -349,11 +331,7 @@ fn mixed_boundary_signature_uses_dense_scalar_crash_formals() {
             }}
             "#
         );
-        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+        let checked = crate::front_end::checked_program(&source);
         let lowered = checked_trees_to_lowered_psi::lower_machine(
             &checked,
             TerminalMachineSelection::Name("Root::enter"),
@@ -440,11 +418,7 @@ fn boundary_crash_callers_cannot_omit_or_swap_the_published_cause() {
             pub machine enter(value: u16) invokes Sink; {ceiling} {{ Sink::record(value); }}
         "#
         );
-        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        let errors = lower_typed_trees(typed, &CheckingRequest::settled())
+        let errors = crate::front_end::checked_program_result(&source)
             .expect_err("published caller must cover Abort");
         assert!(
             errors.iter().any(|error| error.message.contains("Abort")),
@@ -460,11 +434,7 @@ fn literal_false_boundary_route_has_no_surviving_cause() {
         data Root {}
         machine Root::enter() reaches Sink { Sink::record(); }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -512,11 +482,7 @@ fn guarded_boundary_contracts_survive_attached_and_scalar_result_producers() {
             }
         "#,
     ] {
-        let tokens = Lexer::new(source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+        let checked = crate::front_end::checked_program(source);
         let lowered = checked_trees_to_lowered_psi::lower_machine(
             &checked,
             TerminalMachineSelection::Name("Root::enter"),
@@ -547,12 +513,7 @@ fn structural_boundary_crash_guards_reject_without_losing_the_contract() {
         data Root {}
         machine Root::enter(flag: Flag) reaches Sink crashes Abort { Sink::record(flag); }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked =
-        lower_typed_trees(typed, &CheckingRequest::settled()).expect("source contract checks");
+    let checked = crate::front_end::checked_program(source);
     let error = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -563,11 +524,7 @@ fn structural_boundary_crash_guards_reject_without_losing_the_contract() {
 
 #[test]
 fn checked_source_preserves_exact_scalar_boundary_argument_into_terminal_psi() {
-    let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),

@@ -1,9 +1,6 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::{AdmissionProfile, EvidenceRoute, ProofRule};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarTerm};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use terminal_interpreter::TerminalStructuralInputs;
@@ -12,9 +9,6 @@ use terminal_interpreter::{
     interpret_terminal_artifact_measured,
 };
 use terminal_psi::OperationKind;
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 const SOURCE: &str = r#"
     data Helper {}
@@ -175,11 +169,7 @@ const AFFINE_CAST_AFFINE_SOURCE: &str = r#"
 
 #[test]
 fn landed_affine_sibling_custody_crosses_source_codec_and_independent_verification() {
-    let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -260,15 +250,7 @@ fn definition_affine_divisor_crosses_source_codec_and_independent_verification(
     definition_count: usize,
     exact_operation_count: usize,
 ) {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize bounded-definition source");
-    let syntax = parse_syntax_trees(&tokens).expect("parse bounded-definition source");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve bounded-definition source");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type bounded-definition divisor");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check bounded-definition affine divisor");
+    let checked = crate::front_end::checked_program(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name(machine_name),
@@ -450,14 +432,7 @@ fn nine_definition_affine_divisor_crosses_source_codec_and_independent_verificat
 
 #[test]
 fn ten_definition_affine_divisor_crosses_source_codec_and_independent_verification() {
-    let tokens = Lexer::new(TEN_DEFINITION_SOURCE)
-        .tokenize()
-        .expect("tokenize ten-definition source");
-    let syntax = parse_syntax_trees(&tokens).expect("parse ten-definition source");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve ten-definition source");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type ten-definition affine divisor");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check ten-definition affine divisor");
+    let checked = crate::front_end::checked_program(TEN_DEFINITION_SOURCE);
     // The single-witness affine frontier stops at nine definition steps, but
     // the derived-equality closure reaches the tenth hop through chained
     // one-step proofs. Every hop is independently kernel-checked, so the
@@ -561,11 +536,7 @@ fn ten_definition_affine_divisor_crosses_source_codec_and_independent_verificati
 #[test]
 fn affine_to_partial_cast_exact_division_and_remainder_cross_source_codec_verification_and_interpretation()
  {
-    let tokens = Lexer::new(AFFINE_CAST_SOURCE).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(AFFINE_CAST_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::divide"),
@@ -715,11 +686,7 @@ fn affine_to_partial_cast_exact_division_and_remainder_cross_source_codec_verifi
 #[test]
 fn partial_cast_to_affine_exact_division_and_remainder_cross_source_codec_verification_and_interpretation()
  {
-    let tokens = Lexer::new(CAST_AFFINE_SOURCE).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(CAST_AFFINE_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::divide_after_cast"),
@@ -868,13 +835,7 @@ fn partial_cast_to_affine_exact_division_and_remainder_cross_source_codec_verifi
 #[test]
 fn affine_cast_affine_exact_division_and_remainder_cross_source_codec_verification_and_interpretation()
  {
-    let tokens = Lexer::new(AFFINE_CAST_AFFINE_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(AFFINE_CAST_AFFINE_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::divide_across_cast"),
@@ -1039,14 +1000,7 @@ fn affine_cast_affine_exact_division_and_remainder_cross_source_codec_verificati
 
     let missing_root_bound =
         AFFINE_CAST_AFFINE_SOURCE.replace("root <= 125i16, -1i16 <= root", "root <= 125i16");
-    let tokens = Lexer::new(&missing_root_bound)
-        .tokenize()
-        .expect("tokenize near-miss source");
-    let syntax = parse_syntax_trees(&tokens).expect("parse near-miss source");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve near-miss source");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type near-miss source");
-    let checked =
-        lower_typed_trees(typed, &CheckingRequest::settled()).expect("check near-miss source");
+    let checked = crate::front_end::checked_program(&missing_root_bound);
     assert!(
         checked_trees_to_lowered_psi::lower_machine(
             &checked,

@@ -2,7 +2,7 @@ use super::{
     artifact, boolean_guarantee_source, execute, integer, nested_boolean_guarantee_source,
     normal_guarantee_source,
 };
-use crate::unit_scalar_result_source::{CheckedScalarExpression, checked_from_source};
+use crate::unit_scalar_result_source::CheckedScalarExpression;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle};
@@ -16,7 +16,7 @@ fn ordered_scalar_completion_proves_normal_result_guarantees() {
         "Host::finish(11); identity(value)",
     ] {
         let source = normal_guarantee_source(body);
-        let artifact = artifact(&checked_from_source(&source));
+        let artifact = artifact(&crate::front_end::checked_program(&source));
         let module = decode_module(&artifact.0).unwrap();
         let wrapper = module
             .machines
@@ -44,7 +44,7 @@ fn ordered_boolean_completion_preserves_normal_result_guarantees() {
     ] {
         for input in [false, true] {
             let source = boolean_guarantee_source(body, input);
-            let artifact = artifact(&checked_from_source(&source));
+            let artifact = artifact(&crate::front_end::checked_program(&source));
             let module = decode_module(&artifact.0).unwrap();
             assert!(
                 module
@@ -92,7 +92,7 @@ fn ordered_boolean_completion_preserves_folded_source_meaning() {
                         "ensures result == value\nreaches Host",
                         &format!("ensures {guarantee}\nreaches Host"),
                     );
-            let published = artifact(&checked_from_source(&source));
+            let published = artifact(&crate::front_end::checked_program(&source));
             let (status, observed) = execute(&published);
             assert_eq!(
                 status,
@@ -110,7 +110,7 @@ fn ordered_boolean_completion_preserves_folded_source_meaning() {
 fn literal_boolean_guards_still_require_every_arrival_proof() {
     for body in ["true && value", "false || value"] {
         let source = boolean_guarantee_source(&format!("Host::finish(false); {body}"), true);
-        let published = artifact(&checked_from_source(&source));
+        let published = artifact(&crate::front_end::checked_program(&source));
         let module = decode_module(&published.0).unwrap();
         let proof = decode_proof_bundle(&published.1).unwrap();
         assert_eq!(module.scalar_block_invariants.len(), 1);
@@ -144,7 +144,7 @@ fn literal_comparison_guarantees_reject_changed_source_meaning() {
         "ensures result == value\nreaches Host",
         "ensures result == (1u8 < 2u8)\nreaches Host",
     );
-    let original = checked_from_source(&source);
+    let original = crate::front_end::checked_program(&source);
     artifact(&original);
     let target = original
         .machines()
@@ -218,7 +218,7 @@ fn ordered_computed_boolean_result_proves_its_normal_guarantee() {
                 "ensures result == value\nreaches Host",
                 &format!("ensures {guarantee}\nreaches Host"),
             );
-            let artifact = artifact(&checked_from_source(&source));
+            let artifact = artifact(&crate::front_end::checked_program(&source));
             let (status, observed) = execute(&artifact);
             assert_eq!(
                 status,
@@ -248,7 +248,7 @@ fn ordered_call_produced_boolean_result_preserves_its_normal_guarantee() {
                 "ensures result == value\nreaches Host",
                 "ensures result == !value\nreaches Host",
             );
-            let published = artifact(&checked_from_source(&source));
+            let published = artifact(&crate::front_end::checked_program(&source));
             let (status, observed) = execute(&published);
             assert_eq!(
                 status,
@@ -278,7 +278,7 @@ fn ordered_boolean_call_computations_preserve_normal_guarantees() {
                 "ensures result == value\nreaches Host",
                 "ensures result == !value\nreaches Host",
             );
-            let published = artifact(&checked_from_source(&source));
+            let published = artifact(&crate::front_end::checked_program(&source));
             let (status, observed) = execute(&published);
             assert_eq!(
                 status,
@@ -307,7 +307,7 @@ fn ordered_boolean_call_computations_preserve_nested_effect_order() {
         let source = format!(
             "machine echo(value: bool) -> bool ensures result == value\nreaches Host {{ Host::finish(value); value }}\n{source}"
         );
-        let published = artifact(&checked_from_source(&source));
+        let published = artifact(&crate::front_end::checked_program(&source));
         let (status, observed) = execute(&published);
         assert_eq!(
             status,
@@ -326,7 +326,7 @@ fn ordered_boolean_call_computations_reject_an_altered_operation() {
         "ensures result == value\nreaches Host",
         "ensures result == !value\nreaches Host",
     );
-    let published = artifact(&checked_from_source(&source));
+    let published = artifact(&crate::front_end::checked_program(&source));
     let mut module = decode_module(&published.0).unwrap();
     let proof = decode_proof_bundle(&published.1).unwrap();
     let operation = module
@@ -360,7 +360,7 @@ fn ordered_boolean_call_computations_prove_branch_guarantees() {
                 "ensures result == value\nreaches Host",
                 "ensures result == !value\nreaches Host",
             );
-            let checked = checked_from_source(&source);
+            let checked = crate::front_end::checked_program(&source);
             let published = artifact(&checked);
             let (status, observed) = execute(&published);
             assert_eq!(
@@ -389,7 +389,7 @@ fn ordered_boolean_guarantees_compose_through_dependent_joins() {
             "let saved: bool = identity(value) && identity(true); Host::finish(false); identity(saved) || identity(false)",
         ] {
             let source = boolean_guarantee_source(body, input);
-            let published = artifact(&checked_from_source(&source));
+            let published = artifact(&crate::front_end::checked_program(&source));
             let (status, observed) = execute(&published);
             assert_eq!(
                 status,
@@ -417,7 +417,7 @@ fn dependent_boolean_joins_retain_independent_input_values() {
                 "Host::finish(false); value && spare",
                 "Host::finish(false); (identity(value) && identity(spare)) || identity(false)",
             );
-            let published = artifact(&checked_from_source(&source));
+            let published = artifact(&crate::front_end::checked_program(&source));
             let (status, observed) = execute(&published);
             assert_eq!(
                 status,
@@ -437,7 +437,7 @@ fn dependent_boolean_join_evidence_rejects_changed_guards_and_missing_arrivals()
         "Host::finish(false); (identity(value) && identity(true)) || identity(false)",
         true,
     );
-    let published = artifact(&checked_from_source(&source));
+    let published = artifact(&crate::front_end::checked_program(&source));
     let module = decode_module(&published.0).unwrap();
     let proof = decode_proof_bundle(&published.1).unwrap();
     assert_eq!(
@@ -485,7 +485,7 @@ fn ordered_call_produced_boolean_equations_compose_across_calls() {
         let source = format!(
             "machine equal(marker: u16, left: bool, right: bool) -> bool ensures result == (left == right) {{ left == right }}\n{source}"
         );
-        let published = artifact(&checked_from_source(&source));
+        let published = artifact(&crate::front_end::checked_program(&source));
         let (status, observed) = execute(&published);
         assert_eq!(
             status,
@@ -513,7 +513,7 @@ fn ordered_call_produced_boolean_result_rejects_a_substituted_actual() {
         "ensures result == value\nreaches Host",
         "ensures result == !value\nreaches Host",
     );
-    let published = artifact(&checked_from_source(&source));
+    let published = artifact(&crate::front_end::checked_program(&source));
     let mut module = decode_module(&published.0).unwrap();
     let proof = decode_proof_bundle(&published.1).unwrap();
     let wrapper = module
@@ -562,7 +562,7 @@ fn ordered_saved_boolean_result_preserves_its_normal_guarantee() {
                 "ensures result == value\nreaches Host",
                 "ensures result == !value\nreaches Host",
             );
-            let published = artifact(&checked_from_source(&source));
+            let published = artifact(&crate::front_end::checked_program(&source));
             let (status, observed) = execute(&published);
             assert_eq!(
                 status,
@@ -588,7 +588,7 @@ fn ordered_mutable_boolean_snapshot_preserves_its_normal_guarantee() {
     ] {
         for input in [false, true] {
             let source = boolean_guarantee_source(body, input);
-            let published = artifact(&checked_from_source(&source));
+            let published = artifact(&crate::front_end::checked_program(&source));
             let (status, observed) = execute(&published);
             assert_eq!(
                 status,
@@ -612,7 +612,7 @@ fn ordered_saved_boolean_computations_compose_across_boundary_effects() {
             "Host::finish(false); (value == spare) == (other == last)",
             "let first: bool = value == spare; Host::finish(false); let second: bool = other == last; first == second",
         );
-        let published = artifact(&checked_from_source(&source));
+        let published = artifact(&crate::front_end::checked_program(&source));
         let (status, observed) = execute(&published);
         assert_eq!(
             status,
@@ -638,7 +638,7 @@ fn ordered_saved_boolean_return_rejects_a_substituted_terminal_value() {
                 "ensures result == value\nreaches Host",
                 "ensures result == !value\nreaches Host",
             );
-    let published = artifact(&checked_from_source(&source));
+    let published = artifact(&crate::front_end::checked_program(&source));
     let mut module = decode_module(&published.0).unwrap();
     let proof = decode_proof_bundle(&published.1).unwrap();
     let wrapper = module
@@ -683,7 +683,7 @@ fn ordered_nested_boolean_result_proves_its_normal_guarantee() {
             ),
         ] {
             let source = nested_boolean_guarantee_source(expression, before, inputs);
-            let published = artifact(&checked_from_source(&source));
+            let published = artifact(&crate::front_end::checked_program(&source));
             let (status, observed) = execute(&published);
             assert_eq!(
                 status,
@@ -707,7 +707,7 @@ fn nested_boolean_return_requires_exact_operations_and_carried_equations() {
         "Host::finish(false);",
         [true, false, false, true],
     );
-    let published = artifact(&checked_from_source(&source));
+    let published = artifact(&crate::front_end::checked_program(&source));
     let module = decode_module(&published.0).unwrap();
     let proof = decode_proof_bundle(&published.1).unwrap();
     let mut changed_proof = proof.clone();
@@ -775,7 +775,7 @@ fn boolean_result_equation_preserves_closed_entry_fact_proofs() {
             "ensures result == value\nreaches Host",
             "ensures result == !value\nreaches Host",
         );
-    let published = artifact(&checked_from_source(&source));
+    let published = artifact(&crate::front_end::checked_program(&source));
     let (status, observed) = execute(&published);
     assert_eq!(
         status,
@@ -807,7 +807,7 @@ fn ordered_computed_boolean_equality_keeps_mixed_parameter_identities() {
                     "ensures result == value\nreaches Host",
                     "ensures result == (value == spare)\nreaches Host",
                 );
-            let published = artifact(&checked_from_source(&source));
+            let published = artifact(&crate::front_end::checked_program(&source));
             let (status, observed) = execute(&published);
             assert_eq!(
                 status,
@@ -831,7 +831,7 @@ fn computed_boolean_guarantees_reject_changed_return_and_selected_evidence() {
         "ensures result == value\nreaches Host",
         "ensures result == !value\nreaches Host",
     );
-    let original = checked_from_source(&source);
+    let original = crate::front_end::checked_program(&source);
     let published = artifact(&original);
     let proof = decode_proof_bundle(&published.1).unwrap();
     let mut module = decode_module(&published.0).unwrap();
@@ -928,7 +928,7 @@ fn ordered_qualified_scalar_result_carries_its_range_refinement() {
                     "Scalar::measure(value: i32 [1..=50]) -> i32 [1..=100]",
                 )
                 .replace("Scalar::measure(70)", &format!("Scalar::measure({input})"));
-            let published = artifact(&checked_from_source(&source));
+            let published = artifact(&crate::front_end::checked_program(&source));
             let module = decode_module(&published.0).unwrap();
             let proof = decode_proof_bundle(&published.1).unwrap();
             let wrapper = module
@@ -1017,7 +1017,7 @@ fn ordered_qualified_scalar_result_rejects_a_tightened_refinement() {
             "Scalar::measure(value: i32 [1..=50]) -> i32 [1..=100]",
         )
         .replace("Scalar::measure(70)", "Scalar::measure(50)");
-    let published = artifact(&checked_from_source(&source));
+    let published = artifact(&crate::front_end::checked_program(&source));
     let mut module = decode_module(&published.0).unwrap();
     let proof = decode_proof_bundle(&published.1).unwrap();
     let wrapper = module
@@ -1060,7 +1060,7 @@ fn ordered_qualified_scalar_result_rejects_a_substituted_return() {
             "Scalar::measure(value: i32 [1..=50], spare: i32) -> i32 [1..=100]",
         )
         .replace("Scalar::measure(70)", "Scalar::measure(40, 7)");
-    let published = artifact(&checked_from_source(&source));
+    let published = artifact(&crate::front_end::checked_program(&source));
     let mut module = decode_module(&published.0).unwrap();
     let proof = decode_proof_bundle(&published.1).unwrap();
     let wrapper = module

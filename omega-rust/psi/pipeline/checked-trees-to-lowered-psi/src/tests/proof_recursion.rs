@@ -1,12 +1,7 @@
-use super::{
-    Arc, CheckedTrees, Lexer, LoweringError, PathBuf, ResolutionRequest, SourceMap, SourceOrigin,
-    lower_machine, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees_with_id,
-    resolve,
-};
+use super::{CheckedTrees, LoweringError, PathBuf, SourceMap, SourceOrigin, lower_machine};
 use crate::TerminalMachineSelection;
 use crate::machine_lowering::machine_dispatch::select_terminal_machine;
 use semantic_vocabulary::PackageKeyIdentity;
-use typed_trees_to_checked_trees::CheckingRequest;
 
 const REACHABLE_PROOF_SCC: &str = r#"
     data ProofTree {
@@ -421,14 +416,5 @@ fn checked_managed_source(source: &str) -> CheckedTrees {
             SourceOrigin::User,
         )
         .source_id;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest {
-        syntax: &syntax,
-        sources: Some(Arc::new(sources)),
-        top_level_bindings: Vec::new(),
-    })
-    .expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
+    crate::front_end::checked_program_from_source_map(sources, &[(source_id, source)])
 }

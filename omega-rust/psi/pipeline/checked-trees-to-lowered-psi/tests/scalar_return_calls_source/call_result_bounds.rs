@@ -1,11 +1,8 @@
 use super::{
-    IntegerValue, Lexer, ResolutionRequest, TerminalArtifactInterpretError,
-    TerminalExecutionResult, TerminalInterpretError, TerminalScalarValue, encode_module,
-    encoded_arms, execute, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees,
-    resolve,
+    IntegerValue, TerminalArtifactInterpretError, TerminalExecutionResult, TerminalInterpretError,
+    TerminalScalarValue, encode_module, encoded_arms, execute,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use typed_trees_to_checked_trees::CheckingRequest;
 fn source(guarantee: &str) -> String {
     r#"
         machine bounded() -> u16
@@ -130,11 +127,7 @@ fn changed_callee_body_or_guarantee_rejects_stale_serialized_proof() {
 #[test]
 fn false_result_guarantee_is_not_treated_as_a_closed_tautology() {
     let source = source("result == 7u16").replace("{ 7u16 }", "{ 999u16 }");
-    let tokens = Lexer::new(&source).tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    match lower_typed_trees(typed, &CheckingRequest::settled()) {
+    match crate::front_end::checked_program_result(&source) {
         Err(diagnostics) => assert!(!diagnostics.is_empty()),
         Ok(checked) => {
             assert!(

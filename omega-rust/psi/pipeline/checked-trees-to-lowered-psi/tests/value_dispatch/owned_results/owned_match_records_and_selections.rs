@@ -1,7 +1,5 @@
 use super::{MIXED_SOURCE, RECORD_SOURCE, SOURCE};
-use crate::value_dispatch::{
-    TerminalExecutionResult, TerminalScalarValue, check_source, execute, unsigned,
-};
+use crate::value_dispatch::{TerminalExecutionResult, TerminalScalarValue, execute, unsigned};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 #[test]
@@ -35,7 +33,8 @@ fn owned_match_nested_record_replays_every_selected_payload() {
 #[test]
 fn owned_match_record_rejects_hidden_moves_and_post_selection_reuse() {
     let reused = RECORD_SOURCE.replace("result.payload.get_right()", "left.payload.get_right()");
-    let errors = check_source(&reused).expect_err("selected candidate cannot be reused");
+    let errors = crate::front_end::checked_program_result(&reused)
+        .expect_err("selected candidate cannot be reused");
     assert!(
         errors
             .iter()
@@ -55,7 +54,7 @@ fn owned_match_record_rejects_hidden_moves_and_post_selection_reuse() {
                 result
             }}");
         assert!(
-            check_source(&source).is_err(),
+            crate::front_end::checked_program_result(&source).is_err(),
             "fresh fields cannot conceal a consumed child: {replacement}"
         );
     }
@@ -63,7 +62,7 @@ fn owned_match_record_rejects_hidden_moves_and_post_selection_reuse() {
 
 #[test]
 fn owned_match_record_frontier_rejects_missing_and_duplicate_disposal() {
-    let checked = check_source(RECORD_SOURCE).unwrap();
+    let checked = crate::front_end::checked_program_result(RECORD_SOURCE).unwrap();
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("choose"),
@@ -112,7 +111,7 @@ fn owned_match_record_frontier_rejects_missing_and_duplicate_disposal() {
 
 #[test]
 fn owned_match_record_shared_projection_rejects_substituted_custody() {
-    let checked = check_source(RECORD_SOURCE).unwrap();
+    let checked = crate::front_end::checked_program_result(RECORD_SOURCE).unwrap();
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("choose"),
@@ -335,7 +334,8 @@ fn mixed_selection_with_two_existing_sources_discards_only_the_displaced_owner()
 #[test]
 fn possibly_transferred_source_remains_unobservable_after_mixed_selection() {
     let source = MIXED_SOURCE.replace("result in Choice::Some", "left in Choice::Some");
-    let errors = check_source(&source).expect_err("possibly transferred source is unavailable");
+    let errors = crate::front_end::checked_program_result(&source)
+        .expect_err("possibly transferred source is unavailable");
     assert!(
         errors
             .iter()
@@ -347,7 +347,8 @@ fn possibly_transferred_source_remains_unobservable_after_mixed_selection() {
 #[test]
 fn owned_selection_receipts_reject_changed_origin_arm_roster_and_death() {
     for source in [SOURCE, RECORD_SOURCE] {
-        let original = check_source(source).expect("owned selection checks");
+        let original =
+            crate::front_end::checked_program_result(source).expect("owned selection checks");
         checked_trees_to_lowered_psi::lower_machine(
             &original,
             TerminalMachineSelection::Name("choose"),
@@ -409,7 +410,8 @@ fn owned_selection_receipts_reject_changed_origin_arm_roster_and_death() {
 #[test]
 fn possibly_moved_sources_cannot_be_observed_after_selection() {
     let source = SOURCE.replace("result in Choice::Some", "left in Choice::Some");
-    let errors = check_source(&source).expect_err("possibly transferred source is unavailable");
+    let errors = crate::front_end::checked_program_result(&source)
+        .expect_err("possibly transferred source is unavailable");
     assert!(
         errors
             .iter()
@@ -428,7 +430,7 @@ fn duplicate_prior_receipts_cannot_launder_a_fresh_origin_as_unknown() {
             let result: Choice = match other { true -> first, false -> first };
             result in Choice::Some
         }";
-    let original = super::check_source(source).expect("fresh origin followed by selection checks");
+    let original = crate::front_end::checked_program(source);
     checked_trees_to_lowered_psi::lower_machine(
         &original,
         TerminalMachineSelection::Name("choose"),
@@ -550,7 +552,8 @@ fn chained_owned_selection_transfers_the_prior_result_once() {
 
 #[test]
 fn chained_owned_selection_rejects_mutated_join_arguments() {
-    let checked = check_source(CHAINED_SOURCE).expect("chained selection checks");
+    let checked =
+        crate::front_end::checked_program_result(CHAINED_SOURCE).expect("chained selection checks");
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("choose"),
@@ -604,7 +607,8 @@ fn chained_owned_selection_rejects_mutated_join_arguments() {
 
 #[test]
 fn chained_owned_selection_rejects_substituted_origin_receipt() {
-    let checked = check_source(CHAINED_SOURCE).expect("chained selection checks");
+    let checked =
+        crate::front_end::checked_program_result(CHAINED_SOURCE).expect("chained selection checks");
     let (second, receipt) = checked
         .facts
         .flow
@@ -725,7 +729,8 @@ fn projected_move_of_a_prior_selection_result_executes_the_selected_child() {
 
 #[test]
 fn projected_chained_selection_carries_block_parameter_residual_evidence() {
-    let checked = check_source(PROJECTED_CHAINED_SOURCE).expect("chained selection checks");
+    let checked = crate::front_end::checked_program_result(PROJECTED_CHAINED_SOURCE)
+        .expect("chained selection checks");
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("choose"),
@@ -787,7 +792,8 @@ fn projected_chained_selection_carries_block_parameter_residual_evidence() {
 
 #[test]
 fn projected_chained_selection_rejects_mutated_residual_evidence() {
-    let checked = check_source(PROJECTED_CHAINED_SOURCE).expect("chained selection checks");
+    let checked = crate::front_end::checked_program_result(PROJECTED_CHAINED_SOURCE)
+        .expect("chained selection checks");
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("choose"),
@@ -853,7 +859,8 @@ fn projected_chained_selection_rejects_mutated_residual_evidence() {
 
 #[test]
 fn projected_chained_selection_rejects_mutated_join_arguments() {
-    let checked = check_source(PROJECTED_CHAINED_SOURCE).expect("chained selection checks");
+    let checked = crate::front_end::checked_program_result(PROJECTED_CHAINED_SOURCE)
+        .expect("chained selection checks");
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("choose"),
@@ -907,7 +914,8 @@ fn projected_chained_selection_rejects_mutated_join_arguments() {
 
 #[test]
 fn projected_chained_selection_rejects_substituted_origin_receipt() {
-    let checked = check_source(PROJECTED_CHAINED_SOURCE).expect("chained selection checks");
+    let checked = crate::front_end::checked_program_result(PROJECTED_CHAINED_SOURCE)
+        .expect("chained selection checks");
     let (second, receipt) = checked
         .facts
         .flow
@@ -989,9 +997,9 @@ fn borrowed_untouched_local_keeps_the_lowering_boundary_explicit() {
         "let result: Choice = match selected { true -> left, false -> left };
          view in Choice::Empty",
     );
-    let baseline_checked = check_source(baseline)
+    let baseline_checked = crate::front_end::checked_program_result(baseline)
         .unwrap_or_else(|errors| panic!("direct borrowed-survivor source: {errors:#?}"));
-    let selected_checked = check_source(&selected)
+    let selected_checked = crate::front_end::checked_program_result(&selected)
         .unwrap_or_else(|errors| panic!("selected borrowed-survivor source: {errors:#?}"));
 
     // Both reject at the existing borrowed-local lowering boundary. This is

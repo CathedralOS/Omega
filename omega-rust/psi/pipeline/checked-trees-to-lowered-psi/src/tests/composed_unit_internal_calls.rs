@@ -1,6 +1,6 @@
 //! Internal Unit-call leaves and exact target replay.
 
-use super::{CheckedTrees, LoweringError, checked_source, lower_machine};
+use super::{CheckedTrees, LoweringError, lower_machine};
 use crate::TerminalMachineSelection;
 use checked_trees::CheckedUnitEffectOperationPlan;
 use terminal_psi::{Operation, OperationKind, OperationResult, Terminator};
@@ -11,7 +11,7 @@ fn composed_scalar_call_locals_replay_their_authored_computation() {
         ("let prior: u64 = value;", "prior"),
         ("let prior: u64 = identity(value);", "prior"),
     ] {
-        let checked = checked_source(&format!(
+        let checked = crate::front_end::checked_program(&format!(
             "machine identity(value: u64) -> u64 {{ value }}
              data Root {{}}
              machine Root::enter(value: u64) {{
@@ -51,7 +51,7 @@ fn composed_scalar_call_locals_replay_their_authored_computation() {
 }
 
 fn checked_composed_internal_calls() -> checked_trees::CheckedTrees {
-    checked_source(
+    crate::front_end::checked_program(
         r#"
             data Root {}
             machine Root::quiet() {}
@@ -136,7 +136,7 @@ fn lowers_both_internal_unit_leaves_to_one_canonical_target() {
 
 #[test]
 fn internal_unit_call_carries_the_erased_lane_and_requires_obligations() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
             data Root {}
             machine Root::quiet(n: i32, bound [erased]: i32)
@@ -197,7 +197,7 @@ fn internal_unit_call_carries_the_erased_lane_and_requires_obligations() {
 
 #[test]
 fn internal_unit_call_rejects_a_violating_or_missing_erased_actual() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
             data Root {}
             machine Root::quiet(n: i32, bound [erased]: i32)
@@ -264,7 +264,7 @@ fn internal_unit_call_rejects_a_violating_or_missing_erased_actual() {
 
 #[test]
 fn internal_unit_call_cites_the_second_erased_formal_in_its_own_ordinal() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
             data Root {}
             machine Root::quiet(n: i32, low [erased]: i32, high [erased]: i32)
@@ -408,7 +408,7 @@ fn internal_unit_leaf_rejects_target_plan_and_identity_corruption() {
 
 #[test]
 fn free_composed_attachment_matches_the_authored_declaration() {
-    let baseline = checked_source(
+    let baseline = crate::front_end::checked_program(
         r#"
             data Owner {}
             machine quiet() {}
@@ -480,7 +480,7 @@ fn free_composed_attachment_matches_the_authored_declaration() {
 
 #[test]
 fn free_composed_helper_rejects_fabricated_provider_fields() {
-    let mut checked = checked_source(
+    let mut checked = crate::front_end::checked_program(
         r#"
         machine quiet() {}
         machine finish(flag: bool) {
@@ -513,7 +513,7 @@ fn free_composed_helper_rejects_fabricated_provider_fields() {
 // guard reads `r` through its authored local rather than a stray position.
 #[test]
 fn composed_caller_lowers_a_retained_scalar_graph_call_result() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
             data Main { tag: u64; }
             machine Main::rot(&mut self, k: u64, a: u64, b: u64, c: u64)

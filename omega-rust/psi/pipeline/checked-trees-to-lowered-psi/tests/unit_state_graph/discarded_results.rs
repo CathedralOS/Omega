@@ -1,6 +1,6 @@
 use super::{
-    AdmissionProfile, TerminalEffect, TerminalExecutionResult, checked, encode_module,
-    encode_proof_section, interpret_terminal_artifact_measured,
+    AdmissionProfile, TerminalEffect, TerminalExecutionResult, encode_module, encode_proof_section,
+    interpret_terminal_artifact_measured,
 };
 use checked_trees::CheckedUnitEffectOperationPlan;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
@@ -50,7 +50,7 @@ fn discarded_structural_calls_preserve_results_and_interleaved_effects() {
 
 fn effects(source: &str) -> Vec<Vec<u8>> {
     let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked(source),
+        &crate::front_end::checked_program(source),
         TerminalMachineSelection::Name("Root::enter"),
     )
     .expect("discard is a result disposition, not a Unit signature");
@@ -82,7 +82,7 @@ fn effects(source: &str) -> Vec<Vec<u8>> {
 
 #[test]
 fn discarded_result_still_requires_exact_source_and_cleanup() {
-    let baseline = checked(SOURCE);
+    let baseline = crate::front_end::checked_program(SOURCE);
     for mutation in 0..6 {
         let mut checked = baseline.clone();
         let plan = checked
@@ -174,7 +174,7 @@ fn discarded_boundary_result_retains_computed_arguments() {
         }
     "#;
     let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked(source),
+        &crate::front_end::checked_program(source),
         TerminalMachineSelection::Name("Root::enter"),
     )
     .unwrap();
@@ -203,7 +203,7 @@ fn discarded_graph_result_keeps_projected_storage_across_resumes() {
 #[test]
 fn projected_result_call_rejects_forged_paths_and_access() {
     let baseline = checked_trees_to_lowered_psi::lower_machine(
-        &checked(BUFFER_SOURCE),
+        &crate::front_end::checked_program(BUFFER_SOURCE),
         TerminalMachineSelection::Name("Root::enter"),
     )
     .unwrap()
@@ -265,7 +265,7 @@ fn graph_result_call_cannot_substitute_a_same_typed_mutable_input() {
             state done() {}
         }
     "#;
-    let mut checked = checked(source);
+    let mut checked = crate::front_end::checked_program(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -330,7 +330,7 @@ fn discarded_receiver_result_retains_forwarded_self() {
 
 fn assert_original_buffer_is_updated(source: &str) {
     let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked(source),
+        &crate::front_end::checked_program(source),
         TerminalMachineSelection::Name("Root::enter"),
     )
     .unwrap();

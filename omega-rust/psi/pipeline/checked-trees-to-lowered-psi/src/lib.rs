@@ -54,5 +54,10 @@ pub use proofs::entry_requirement_certificates::{
     produce_crash_obligation_evidence, produce_entry_requirement_certificates,
 };
 
+// The front-end pipeline the tests run, shared with the `suite` integration
+// target that includes the same file; see its module documentation.
+#[cfg(test)]
+#[path = "../tests/support/front_end.rs"]
+mod front_end;
 #[cfg(test)]
 mod tests;

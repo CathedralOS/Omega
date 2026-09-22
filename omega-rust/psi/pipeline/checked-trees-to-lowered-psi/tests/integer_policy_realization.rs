@@ -47,25 +47,9 @@
 //! conversions are already value-preserving and need no such operator.
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"))
-}
 
 fn lowering_error(source: &str) -> checked_trees_to_lowered_psi::LoweringError {
-    let checked = checked(source);
+    let checked = crate::front_end::checked_program(source);
     checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Main::main"),
@@ -74,7 +58,7 @@ fn lowering_error(source: &str) -> checked_trees_to_lowered_psi::LoweringError {
 }
 
 fn lowers(source: &str) {
-    let checked = checked(source);
+    let checked = crate::front_end::checked_program(source);
     checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Main::main"),
@@ -281,7 +265,7 @@ fn an_exact_conversion_crosses_the_sign_boundary_with_a_declared_range() {
 /// cast-derived `Select` borrowing authored `&&`/`||` provenance.
 #[test]
 fn a_boolean_integer_conversion_lands_through_its_own_computation() {
-    let checked = checked(
+    let checked = crate::front_end::checked_program(
         r#"
         data Main {}
         machine trap_if(invalid: bool) {
@@ -329,7 +313,7 @@ fn a_boolean_integer_conversion_keeps_its_operands_evaluation() {
         ("invalid", "i8"),
         ("probe()", "u16"),
     ] {
-        let checked = checked(&format!(
+        let checked = crate::front_end::checked_program(&format!(
             r#"
             data Main {{}}
             machine probe() -> bool {{ true }}
@@ -420,7 +404,7 @@ fn a_wrapping_shift_initializer_reaches_a_plan() {
 /// representation.
 #[test]
 fn a_trapping_conversion_keeps_its_checked_cast_occurrence() {
-    let checked = checked(
+    let checked = crate::front_end::checked_program(
         r#"
         data Main {}
         machine narrow(value: u16) -> u8 { (value as u8 in Trapping) as u8 }
@@ -464,7 +448,7 @@ fn a_never_trapping_conversion_composes_without_a_trap_operation() {
         machine Main::main(value: u8) -> u8 { identity(value) }
     "#,
     );
-    let checked = checked(
+    let checked = crate::front_end::checked_program(
         r#"
         data Main {}
         machine widen(value: u8) -> u16 { (value as u16 in Trapping) as u16 }

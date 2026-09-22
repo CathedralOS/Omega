@@ -6,14 +6,14 @@ use super::{
     assert_stored_dynamic_scalar_artifact_executes, unsupported_message,
 };
 use crate::TerminalMachineSelection;
-use crate::tests::{checked_source, checked_source_with_core_service, lower_machine};
+use crate::tests::{checked_source_with_core_service, lower_machine};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{Operation, OperationKind, Terminator};
 
 #[test]
 fn lowers_stored_dynamic_descriptor_as_verified_terminal_storage_and_reload() {
-    let mut checked = checked_source(STORED_DYNAMIC_SOURCE);
+    let mut checked = crate::front_end::checked_program(STORED_DYNAMIC_SOURCE);
     let catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
     assert!(catalog.direct_scalar_calls.is_empty());
     assert!(catalog.rebound_scalar_calls.is_empty());
@@ -352,7 +352,7 @@ fn lowers_rebound_dynamic_custody_as_verified_indirect_terminal_dispatch() {
 
 #[test]
 fn retains_distinct_applications_when_rebinding_to_another_conformance() {
-    let checked = checked_source(CHANGED_CONFORMANCE_DYNAMIC_INTEGER_SOURCE);
+    let checked = crate::front_end::checked_program(CHANGED_CONFORMANCE_DYNAMIC_INTEGER_SOURCE);
     let catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
     assert!(catalog.direct_scalar_calls.is_empty());
     let [plan] = catalog.rebound_scalar_calls.as_slice() else {
@@ -477,7 +477,7 @@ fn composes_one_transparent_dynamic_forwarder_without_losing_descriptor_custody(
 
 #[test]
 fn composes_one_direct_dynamic_scalar_forwarder_without_fabricating_a_rebound() {
-    let checked = checked_source(FORWARDED_DIRECT_DYNAMIC_INTEGER_SOURCE);
+    let checked = crate::front_end::checked_program(FORWARDED_DIRECT_DYNAMIC_INTEGER_SOURCE);
     let catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
     assert_eq!(catalog.transfers.len(), 1);
     assert_eq!(catalog.direct_scalar_calls.len(), 1);
@@ -571,7 +571,7 @@ fn composes_one_direct_dynamic_scalar_forwarder_without_fabricating_a_rebound() 
 
 #[test]
 fn lowers_two_dynamic_predecessors_into_one_terminal_parameter() {
-    let mut checked = checked_source(JOINED_DYNAMIC_BOOLEAN_SOURCE);
+    let mut checked = crate::front_end::checked_program(JOINED_DYNAMIC_BOOLEAN_SOURCE);
     let checked_catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
     assert!(checked_catalog.direct_scalar_calls.is_empty());
     let [joined] = checked_catalog.joined_scalar_calls.as_slice() else {

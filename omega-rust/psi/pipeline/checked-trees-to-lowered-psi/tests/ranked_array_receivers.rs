@@ -5,16 +5,12 @@ use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::{
     IeeeFloatFormat, IntegerSign, IntegerType, ScalarType, StructuralPlaceKind, StructuralTypeId,
 };
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_psi::{
     ProofBundle, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
     StructuralPlaceDeclaration, StructuralTypeShape, TerminalModule, TerminalNaturalRankComparison,
     TerminalRankedScc, Terminator,
 };
 use terminal_verifier::{ModuleError, VerificationError};
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 const SOURCE: &str = r#"
     data Root { values: [u64; 3]; }
@@ -32,15 +28,7 @@ const SOURCE: &str = r#"
 
 fn canonical_countdown(field_type: &str) -> (TerminalModule, ProofBundle) {
     let source = SOURCE.replace("[u64; 3]", field_type);
-    let tokens = Lexer::new(&source).tokenize().expect("tokenize countdown");
-    let syntax = parse_syntax_trees(&tokens).expect("parse countdown");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve countdown");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type countdown");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("ranked primitive-array receiver checks");
+    let checked = crate::front_end::checked_program(&source);
     let plan = checked
         .facts
         .flow

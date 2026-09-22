@@ -1,9 +1,6 @@
 //! Structural Unit cleanup regression families.
 
-use super::{
-    CheckedTrees, Lexer, LoweringError, ResolutionRequest, checked_source, lower_machine,
-    lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
-};
+use super::{CheckedTrees, LoweringError, lower_machine};
 use crate::TerminalMachineSelection;
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::unit::unit_cleanup::{
@@ -17,7 +14,6 @@ use checked_trees::{
 use terminal_psi::{
     OperationKind, StructuralFieldType, StructuralPathSegment, StructuralTypeShape, Terminator,
 };
-use typed_trees_to_checked_trees::CheckingRequest;
 fn nominal_affine_unit_checked_fixture() -> CheckedTrees {
     let source = r#"
         data Token {}
@@ -25,11 +21,7 @@ fn nominal_affine_unit_checked_fixture() -> CheckedTrees {
         data Root {}
         machine Root::enter(token: Token) {}
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
+    crate::front_end::checked_program(source)
 }
 
 fn nominal_affine_wide_scalar_unit_checked_fixture() -> CheckedTrees {
@@ -39,11 +31,7 @@ fn nominal_affine_wide_scalar_unit_checked_fixture() -> CheckedTrees {
         data Root {}
         machine Root::enter(token: Token) {}
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
+    crate::front_end::checked_program(source)
 }
 
 #[test]
@@ -313,7 +301,7 @@ fn nominal_affine_unit_cleanup_lowering_rejects_stale_checked_joins() {
 
 #[test]
 fn ordered_nominal_cleanup_lowering_deduplicates_a_shared_helper_across_two_actions() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         data Helper {}
         machine Helper::touch() {}
@@ -408,11 +396,7 @@ fn partial_affine_unit_checked_fixture() -> CheckedTrees {
             Sink::take(value.first);
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
+    crate::front_end::checked_program(source)
 }
 
 fn nested_partial_affine_unit_checked_fixture() -> CheckedTrees {
@@ -430,11 +414,7 @@ fn nested_partial_affine_unit_checked_fixture() -> CheckedTrees {
             Sink::take(value.first);
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
+    crate::front_end::checked_program(source)
 }
 
 #[test]

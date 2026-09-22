@@ -3,7 +3,7 @@ use super::{
     EMPTY_PRODUCER_SOURCE, MULTI_FIELD_PROOF_OUTPUT_SOURCE, ORDINARY_ATTACHED_SCALAR_SOURCE,
     PLURAL_STATIC_REQUIREMENT_PROOF_OUTPUT_SOURCE, PROOF_OUTPUT_SOURCE,
     REPEATED_MULTI_FIELD_PROOF_OUTPUT_SOURCE, REPEATED_PROOF_OUTPUT_SOURCE,
-    RUNTIME_VALUE_PROOF_OUTPUT_SOURCE, STATIC_REQUIREMENT_TRAIT_DEFAULT_SOURCE, check,
+    RUNTIME_VALUE_PROOF_OUTPUT_SOURCE, STATIC_REQUIREMENT_TRAIT_DEFAULT_SOURCE,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
@@ -19,7 +19,7 @@ use terminal_psi::{EvidenceContractLaneKind, OperationKind};
 
 #[test]
 fn ordinary_attached_scalar_machine_lowers_through_the_unit_closure() {
-    let checked = check(ORDINARY_ATTACHED_SCALAR_SOURCE);
+    let checked = crate::front_end::checked_program(ORDINARY_ATTACHED_SCALAR_SOURCE);
     let selection = checked
         .facts
         .flow
@@ -57,7 +57,7 @@ fn ordinary_attached_scalar_machine_lowers_through_the_unit_closure() {
 
 #[test]
 fn plural_static_requirement_proof_outputs_preserve_order_identity_and_freshness() {
-    let checked = check(PLURAL_STATIC_REQUIREMENT_PROOF_OUTPUT_SOURCE);
+    let checked = crate::front_end::checked_program(PLURAL_STATIC_REQUIREMENT_PROOF_OUTPUT_SOURCE);
     let checked_invocation = checked
         .facts
         .proof
@@ -197,7 +197,7 @@ fn plural_static_requirement_proof_outputs_preserve_order_identity_and_freshness
 
 #[test]
 fn static_requirement_trait_default_rejoins_exact_application_and_runtime_callee() {
-    let checked = check(STATIC_REQUIREMENT_TRAIT_DEFAULT_SOURCE);
+    let checked = crate::front_end::checked_program(STATIC_REQUIREMENT_TRAIT_DEFAULT_SOURCE);
     let checked_invocation = checked
         .facts
         .proof
@@ -302,7 +302,7 @@ fn static_requirement_trait_default_rejoins_exact_application_and_runtime_callee
 
 #[test]
 fn proof_output_retains_copy_and_explicit_discard() {
-    let checked = check(COPY_AND_DISCARD_PROOF_OUTPUT_SOURCE);
+    let checked = crate::front_end::checked_program(COPY_AND_DISCARD_PROOF_OUTPUT_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::relay"),
@@ -344,7 +344,7 @@ fn proof_output_retains_copy_and_explicit_discard() {
 
 #[test]
 fn runtime_value_proof_output_links_one_scalar_call_and_executes_once() {
-    let checked = check(RUNTIME_VALUE_PROOF_OUTPUT_SOURCE);
+    let checked = crate::front_end::checked_program(RUNTIME_VALUE_PROOF_OUTPUT_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("relay"),
@@ -404,7 +404,7 @@ fn runtime_value_proof_output_links_one_scalar_call_and_executes_once() {
     let fuel = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
         .expect("the ordinary scalar call has fixed fuel");
     assert!(fuel.ceiling_units() > 0);
-    let baseline = check(
+    let baseline = crate::front_end::checked_program(
         r#"
             machine warmup() -> bool
             requires true == true
@@ -505,7 +505,7 @@ fn runtime_value_proof_output_links_one_scalar_call_and_executes_once() {
     assert!(invalid_proof_output(&mismatched_callee));
 
     let proof_only = checked_trees_to_lowered_psi::lower_machine(
-        &check(PROOF_OUTPUT_SOURCE),
+        &crate::front_end::checked_program(PROOF_OUTPUT_SOURCE),
         TerminalMachineSelection::Name("Root::relay"),
     )
     .expect("proof-only proof output");
@@ -516,7 +516,7 @@ fn runtime_value_proof_output_links_one_scalar_call_and_executes_once() {
 
 #[test]
 fn multi_field_proof_output_is_complete_canonical_and_runtime_erased() {
-    let checked = check(MULTI_FIELD_PROOF_OUTPUT_SOURCE);
+    let checked = crate::front_end::checked_program(MULTI_FIELD_PROOF_OUTPUT_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::relay"),
@@ -608,7 +608,7 @@ fn multi_field_proof_output_is_complete_canonical_and_runtime_erased() {
 
 #[test]
 fn repeated_multi_field_proof_outputs_group_calls_and_reuse_callee_producers() {
-    let checked = check(REPEATED_MULTI_FIELD_PROOF_OUTPUT_SOURCE);
+    let checked = crate::front_end::checked_program(REPEATED_MULTI_FIELD_PROOF_OUTPUT_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::relay"),
@@ -648,7 +648,7 @@ fn repeated_multi_field_proof_outputs_group_calls_and_reuse_callee_producers() {
 
 #[test]
 fn repeated_proof_output_calls_have_dense_fresh_outputs_and_one_callee_producer() {
-    let checked = check(REPEATED_PROOF_OUTPUT_SOURCE);
+    let checked = crate::front_end::checked_program(REPEATED_PROOF_OUTPUT_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::relay"),
@@ -674,7 +674,7 @@ fn repeated_proof_output_calls_have_dense_fresh_outputs_and_one_callee_producer(
 
 #[test]
 fn same_shape_proof_outputs_retain_distinct_canonical_callee_identities() {
-    let checked = check(DISTINCT_PROOF_OUTPUT_PRODUCERS_SOURCE);
+    let checked = crate::front_end::checked_program(DISTINCT_PROOF_OUTPUT_PRODUCERS_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::relay"),
@@ -699,7 +699,7 @@ fn same_shape_proof_outputs_retain_distinct_canonical_callee_identities() {
 
 #[test]
 fn empty_complete_evidence_conformance_remains_valid_provenance() {
-    let checked = check(EMPTY_PRODUCER_SOURCE);
+    let checked = crate::front_end::checked_program(EMPTY_PRODUCER_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::produce"),

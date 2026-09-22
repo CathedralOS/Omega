@@ -1,16 +1,9 @@
 use crate::TerminalMachineSelection;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use semantic_vocabulary::PackageKeyIdentity;
 use source::{SourceMap, SourceOrigin};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
 use typed_trees::TypedTrees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 use super::super::{LoweringError, lower_machine};
 use crate::proofs::quotient_correspondence::install_non_executable_quotient_correspondences;
@@ -169,18 +162,10 @@ fn quotient_program(source: &str) -> TypedTrees {
             SourceOrigin::User,
         )
         .source_id;
-    let core_tokens = Lexer::new(CORE_RELATION).tokenize().expect("tokenize core");
-    let mut syntax =
-        parse_syntax_trees_with_id(core_source_id, &core_tokens).expect("parse core relation");
-    let tokens = Lexer::new(source).tokenize().expect("tokenize fixture");
-    parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens).expect("parse fixture");
-    let resolved = resolve(ResolutionRequest {
-        syntax: &syntax,
-        sources: Some(Arc::new(sources)),
-        top_level_bindings: Vec::new(),
-    })
-    .expect("package-aware resolution");
-    let mut program = lower_symbol_resolved_trees(&resolved).expect("type lowering");
+    let mut program = crate::front_end::typed_program_from_source_map(
+        sources,
+        &[(core_source_id, CORE_RELATION), (source_id, source)],
+    );
     let eligible = program
         .machines()
         .iter()
@@ -295,14 +280,7 @@ fn baseline_module() -> terminal_psi::TerminalModule {
             value
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize baseline");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse baseline");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve baseline");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type baseline");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check baseline");
+    let checked = crate::front_end::checked_program(source);
     lower_machine(&checked, TerminalMachineSelection::Name("baseline"))
         .expect("lower baseline")
         .semantic_module

@@ -2,7 +2,7 @@
 
 use super::{
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan, OperationKind,
-    StructuralAccess, checked_from_source, unit_plan,
+    StructuralAccess, unit_plan,
 };
 use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
@@ -42,7 +42,7 @@ fn direct_aliases_retain_whole_field_indexed_and_sequential_receivers() {
                 &format!("let held: &write {referent} = &write destination;"),
                 calls,
             );
-            let checked = checked_from_source(&source);
+            let checked = crate::front_end::checked_program(&source);
             let _artifact = terminal_production::TerminalProductionRequest::new(
                 &checked,
                 TerminalMachineSelection::Name("forward"),
@@ -58,7 +58,7 @@ fn direct_aliases_retain_whole_field_indexed_and_sequential_receivers() {
 
 #[test]
 fn independent_aliases_keep_distinct_parameter_roots() {
-    let checked = checked_from_source(&source(
+    let checked = crate::front_end::checked_program(&source(
         "forward(first: &write Record, value: u16, second: &mut Record)",
         "let left: &write Record = &write first; let right: &write Record = &write second;",
         "left.replace(value); right.replace(value);",
@@ -103,7 +103,7 @@ fn independent_aliases_keep_distinct_parameter_roots() {
 #[test]
 fn attached_self_alias_retains_its_container() {
     for access in ["write", "mut"] {
-        let checked = checked_from_source(&source(
+        let checked = crate::front_end::checked_program(&source(
             &format!("Container::forward(&{access} self, value: u16)"),
             "let held: &write Container = &write self;",
             "held.records[1].replace(value);",
@@ -123,7 +123,7 @@ fn attached_self_alias_retains_its_container() {
 #[test]
 fn dotted_alias_replay_rejects_changed_field_path_and_endpoint() {
     use checked_trees::statement::StatementNode;
-    let original = checked_from_source(&source(
+    let original = crate::front_end::checked_program(&source(
         "forward(destination: &write Nested, value: u16)",
         "let held: &write Nested = &write destination;",
         "held.container.record.replace(value);",
@@ -186,7 +186,7 @@ fn dotted_alias_replay_rejects_changed_field_path_and_endpoint() {
 fn alias_replay_rejects_initializer_and_operand_substitution() {
     use checked_trees::expression::ExpressionNode;
     use checked_trees::statement::StatementNode;
-    let original = checked_from_source(&source(
+    let original = crate::front_end::checked_program(&source(
         "forward(destination: &mut [Record; 2], other: &mut [Record; 2], value: u16)",
         "let held: &write [Record; 2] = &write destination;",
         "held[1].replace(value);",
@@ -270,7 +270,7 @@ fn alias_replay_rejects_initializer_and_operand_substitution() {
 
 #[test]
 fn alias_replay_rejects_changed_source_loan_and_lifetime() {
-    let original = checked_from_source(&source(
+    let original = crate::front_end::checked_program(&source(
         "forward(destination: &write [Record; 2], value: u16)",
         "let held: &write [Record; 2] = &write destination;",
         "held[1].replace(value);",
@@ -354,7 +354,7 @@ fn mutable_parent_alias_attenuates_before_repeated_receiver_calls() {
         "let parent: &mut [Record; 2] = &mut destination; let child: &write Record = &write parent[1];",
         "child.replace(17); child.replace(value);",
     );
-    let checked = checked_from_source(&text);
+    let checked = crate::front_end::checked_program(&text);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("forward"),
@@ -387,7 +387,7 @@ fn nested_aliases_retain_immediate_parent_chains() {
                 prefix,
                 "child[0].replace(value); child[1].replace(value);",
             );
-            let checked = checked_from_source(&text);
+            let checked = crate::front_end::checked_program(&text);
             let artifact = terminal_production::TerminalProductionRequest::new(
                 &checked,
                 TerminalMachineSelection::Name("forward"),
@@ -406,7 +406,7 @@ fn nested_aliases_retain_immediate_parent_chains() {
 
 #[test]
 fn nested_alias_replay_rejects_changed_immediate_parent_and_lifecycle() {
-    let original = checked_from_source(&source(
+    let original = crate::front_end::checked_program(&source(
         "forward(destination: &write [Record; 2], value: u16)",
         "let held: &write [Record; 2] = &write destination; let middle: &write [Record; 2] = &write held; let child: &write [Record; 2] = &write middle;",
         "child[1].replace(value);",
@@ -535,7 +535,7 @@ fn nested_alias_callee_retains_and_replays_its_handoff() {
         "child[1].replace(value);",
     );
     text.push_str("machine wrapper(destination: &write [Record; 2], value: u16) { forward(&write destination, value); }");
-    let original = checked_from_source(&text);
+    let original = crate::front_end::checked_program(&text);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &original,
         TerminalMachineSelection::Name("wrapper"),

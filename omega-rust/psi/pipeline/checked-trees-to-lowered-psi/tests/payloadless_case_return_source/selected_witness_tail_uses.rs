@@ -3,7 +3,7 @@ use super::{
     FOUR_SELECTED_WITNESS_TAIL_USES_SOURCE, GUARDED_CALL_SOURCE,
     MULTI_SELECTED_GUARDED_CALL_SOURCE, SEVEN_SELECTED_WITNESS_TAIL_USES_SOURCE,
     SIX_SELECTED_WITNESS_TAIL_USES_SOURCE, THREE_SELECTED_WITNESS_TAIL_USES_SOURCE,
-    TWO_SELECTED_WITNESS_TAIL_USES_SOURCE, append_rejoined_selected_evidence_row, checked,
+    TWO_SELECTED_WITNESS_TAIL_USES_SOURCE, append_rejoined_selected_evidence_row,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
@@ -21,7 +21,7 @@ use terminal_psi::OperationKind;
 
 #[test]
 fn two_selected_witness_tail_uses_are_ordered_distinct_and_runtime_free() {
-    let checked = checked(TWO_SELECTED_WITNESS_TAIL_USES_SOURCE);
+    let checked = crate::front_end::checked_program(TWO_SELECTED_WITNESS_TAIL_USES_SOURCE);
     let caller_symbol = checked
         .machines()
         .iter()
@@ -162,7 +162,7 @@ fn two_selected_witness_tail_uses_are_ordered_distinct_and_runtime_free() {
 
 #[test]
 fn three_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
-    let checked = checked(THREE_SELECTED_WITNESS_TAIL_USES_SOURCE);
+    let checked = crate::front_end::checked_program(THREE_SELECTED_WITNESS_TAIL_USES_SOURCE);
     let caller_symbol = checked
         .machines()
         .iter()
@@ -284,7 +284,7 @@ fn three_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
 
 #[test]
 fn four_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
-    let checked = checked(FOUR_SELECTED_WITNESS_TAIL_USES_SOURCE);
+    let checked = crate::front_end::checked_program(FOUR_SELECTED_WITNESS_TAIL_USES_SOURCE);
     let caller_symbol = checked
         .machines()
         .iter()
@@ -406,7 +406,7 @@ fn four_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
 
 #[test]
 fn five_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
-    let checked = checked(FIVE_SELECTED_WITNESS_TAIL_USES_SOURCE);
+    let checked = crate::front_end::checked_program(FIVE_SELECTED_WITNESS_TAIL_USES_SOURCE);
     let caller_symbol = checked
         .machines()
         .iter()
@@ -544,7 +544,7 @@ fn five_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
 
 #[test]
 fn six_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
-    let checked = checked(SIX_SELECTED_WITNESS_TAIL_USES_SOURCE);
+    let checked = crate::front_end::checked_program(SIX_SELECTED_WITNESS_TAIL_USES_SOURCE);
     let caller_symbol = checked
         .machines()
         .iter()
@@ -682,7 +682,7 @@ fn six_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
 
 #[test]
 fn seven_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
-    let checked = checked(SEVEN_SELECTED_WITNESS_TAIL_USES_SOURCE);
+    let checked = crate::front_end::checked_program(SEVEN_SELECTED_WITNESS_TAIL_USES_SOURCE);
     let caller_symbol = checked
         .machines()
         .iter()
@@ -849,7 +849,7 @@ fn seven_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
 
 #[test]
 fn fifteen_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
-    let checked = checked(FIFTEEN_SELECTED_WITNESS_TAIL_USES_SOURCE);
+    let checked = crate::front_end::checked_program(FIFTEEN_SELECTED_WITNESS_TAIL_USES_SOURCE);
     let caller_symbol = checked
         .machines()
         .iter()
@@ -990,7 +990,7 @@ fn fifteen_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
 
 #[test]
 fn guarded_payloadless_source_call_rejoins_selected_evidence_and_uses_four_fuel() {
-    let checked = checked(GUARDED_CALL_SOURCE);
+    let checked = crate::front_end::checked_program(GUARDED_CALL_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::caller"),
@@ -1212,7 +1212,7 @@ fn guarded_payloadless_source_call_rejoins_selected_evidence_and_uses_four_fuel(
 
 #[test]
 fn guarded_payloadless_source_call_retains_a_canonical_selected_subset_without_runtime_cost() {
-    let checked = checked(MULTI_SELECTED_GUARDED_CALL_SOURCE);
+    let checked = crate::front_end::checked_program(MULTI_SELECTED_GUARDED_CALL_SOURCE);
     let [checked_plan] = checked
         .facts
         .flow

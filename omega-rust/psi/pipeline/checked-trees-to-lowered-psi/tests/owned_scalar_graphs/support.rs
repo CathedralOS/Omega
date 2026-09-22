@@ -17,27 +17,7 @@ pub fn check(source: &str) -> CheckedTrees {
     let source_id = sources
         .add(std::path::PathBuf::from("main.omg"), source.to_owned())
         .source_id;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize owned scalar graph");
-    let mut syntax = syntax_trees::SyntaxTrees::new(source_id);
-    tokens_to_syntax_trees::parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens)
-        .expect("parse owned scalar graph");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &syntax,
-            sources: Some(std::sync::Arc::new(sources)),
-            top_level_bindings: Vec::new(),
-        },
-    )
-    .expect("resolve with source map");
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type owned scalar graph");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap_or_else(|diagnostics| panic!("check owned scalar graph: {diagnostics:#?}\n{source}"))
+    crate::front_end::checked_program_from_source_map(sources, &[(source_id, source)])
 }
 
 pub fn publish(source: &str, entry: &str) -> (CheckedTrees, TerminalModule, Vec<u8>, Vec<u8>) {

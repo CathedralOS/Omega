@@ -1,5 +1,5 @@
 //! Source and resource custody for statically captured alias projections.
-use super::{CheckedUnitEffectOperationPlan, checked_from_source, source, unit_plan};
+use super::{CheckedUnitEffectOperationPlan, source, unit_plan};
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use terminal_production::{
@@ -75,7 +75,7 @@ fn projected_aliases_compose_formation_and_receiver_paths() {
             ),
         ] {
             let text = source(&signature, prefix, calls);
-            let checked = checked_from_source(&text);
+            let checked = crate::front_end::checked_program(&text);
             let caller_name = signature.split_once('(').unwrap().0;
             let plan = unit_plan(&checked, caller_name);
             let CheckedUnitEffectOperationPlan::CallUnit {
@@ -112,7 +112,7 @@ fn projected_aliases_compose_formation_and_receiver_paths() {
 
 #[test]
 fn bare_attached_alias_capture_keeps_its_authored_name_identity() {
-    let original = checked_from_source(&source(
+    let original = crate::front_end::checked_program(&source(
         "Container::forward(&write self, value: u16)",
         "let held: &write Record = &write records[1];",
         "held.replace(value);",
@@ -207,7 +207,7 @@ fn bare_attached_alias_capture_keeps_its_authored_name_identity() {
 
 #[test]
 fn projected_alias_replay_rejects_source_and_captured_place_substitution() {
-    let original = checked_from_source(&source(
+    let original = crate::front_end::checked_program(&source(
         "forward(destination: &write [Record; 2], value: u16)",
         "let held: &write Record = &write destination[1];",
         "held.replace(value);",
@@ -326,7 +326,7 @@ fn projected_alias_replay_rejects_source_and_captured_place_substitution() {
 
 #[test]
 fn projected_self_alias_replay_binds_field_capture_and_nested_suffix() {
-    let original = checked_from_source(&source(
+    let original = crate::front_end::checked_program(&source(
         "Nested::forward(&write self, value: u16)",
         "let held: &write Container = &write self.container; let child: &write Record = &write held.records[1];",
         "child.replace(value);",

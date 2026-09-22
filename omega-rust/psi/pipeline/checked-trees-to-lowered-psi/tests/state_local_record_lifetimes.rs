@@ -36,27 +36,9 @@ const SOURCE: &str = r#"
     }
 "#;
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap()
-}
-
 #[test]
 fn local_nested_record_getter_composes_with_conditional_state_exit() {
-    let checked = checked(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("Main::main"),
@@ -122,7 +104,7 @@ fn mutable_call_result_records_keep_storage_through_state_local_receivers() {
             }
         }
     "#;
-    let checked = checked(source);
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("Main::main"),
@@ -246,7 +228,7 @@ fn copy_record_state_exit_needs_no_affine_receipt_or_disposal() {
 
 fn artifact(source: &str) -> terminal_codec::CanonicalTerminalArtifact {
     terminal_production::TerminalProductionRequest::new(
-        &checked(source),
+        &crate::front_end::checked_program(source),
         TerminalMachineSelection::Name("Main::main"),
     )
     .produce(TerminalProductionCustody::artifact_only(
@@ -343,7 +325,7 @@ fn local_record_direct_jump_and_asymmetric_transfer_preserve_observations() {
             u128::from(input ^ if input == 7 { 1 } else { 2 }),
         );
     }
-    let checked = checked(&asymmetric);
+    let checked = crate::front_end::checked_program(&asymmetric);
     let transfers = checked
         .facts
         .flow
@@ -489,7 +471,7 @@ fn selected_edge_drops_two_locals_in_reverse_order_and_rejects_corruption() {
 
 #[test]
 fn local_edge_cleanup_rejects_forged_permission_origins() {
-    let checked = checked(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     let _artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("Main::main"),
@@ -554,21 +536,8 @@ fn one_selected_edge_cannot_transfer_the_same_affine_local_twice() {
     let source = SOURCE
         .replace("true -> selected(observed)", "true -> selected(local, local)")
         .replace("state selected(value: u64) {\n            Sink::record(value ^ 1);", "state selected(first: Filter, second: Filter) {\n            let observed: u64 = first.get();\n            Sink::record(observed);");
-    let tokens = source_files_to_tokens::Lexer::new(&source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect_err("one selected edge cannot duplicate affine ownership");
+    let diagnostics = crate::front_end::checked_program_result(&source)
+        .expect_err("one selected edge cannot duplicate affine ownership");
     assert!(
         diagnostics
             .iter()

@@ -11,24 +11,6 @@ use terminal_interpreter::{
 };
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
-fn checked(source: &str) -> CheckedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize source");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse source");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve source");
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type source");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
-}
-
 fn publish(checked: &CheckedTrees) -> (CanonicalTerminalArtifact, terminal_psi::TerminalModule) {
     let artifact = terminal_production::TerminalProductionRequest::new(
         checked,
@@ -119,7 +101,7 @@ fn genuine_empty_contracts_publish_on_scalar_roots_and_transitive_callees() {
             answer
         }
     "#;
-    let (artifact, module) = publish(&checked(source));
+    let (artifact, module) = publish(&crate::front_end::checked_program(source));
     assert_eq!(module.machines.len(), 2, "retain the actual scalar callee");
     for machine in &module.machines {
         assert!(machine.contract.requires.is_empty());
@@ -132,7 +114,7 @@ fn genuine_empty_contracts_publish_on_scalar_roots_and_transitive_callees() {
 #[test]
 fn empty_normal_contract_keeps_a_published_crash_route() {
     let source = "machine enter() -> u64\ncrashes Abort\n{ crash Abort; }";
-    let (_, module) = publish(&checked(source));
+    let (_, module) = publish(&crate::front_end::checked_program(source));
     assert_eq!(module.machines.len(), 1);
     let contract = &module.machines[0].contract;
     assert!(contract.requires.is_empty());
@@ -166,7 +148,7 @@ fn empty_checked_contract_cannot_erase_authored_normal_clauses() {
         ),
     ] {
         let source = format!("machine enter(input: u64) -> u64\n{clauses}\n{{ input }}");
-        let original = checked(&source);
+        let original = crate::front_end::checked_program(&source);
         let (artifact, module) = publish(&original);
         assert_eq!(module.machines.len(), 1);
         assert_eq!(module.machines[0].contract.requires.len(), requires);
@@ -179,7 +161,7 @@ fn empty_checked_contract_cannot_erase_authored_normal_clauses() {
 #[test]
 fn selected_callback_identity_preserves_its_normal_contract() {
     for clauses in ["", "requires input <= 11u64\nensures result == input"] {
-        let original = checked(&format!(
+        let original = crate::front_end::checked_program(&format!(
             "data Callback {{}}\nmachine Callback::identity(input: u64) -> u64\n{clauses}\n{{ input }}"
         ));
         let graph = &original.facts.flow.terminal_scalar_graphs.machines[0];
@@ -219,7 +201,7 @@ fn selected_callback_identity_preserves_its_normal_contract() {
 fn empty_checked_contract_cannot_erase_implicit_parameter_ranges() {
     for parameter_type in ["u64 [0..=11]", "u64 [0..12]"] {
         let source = format!("machine enter(input: {parameter_type}) -> u64 {{ input }}");
-        let original = checked(&source);
+        let original = crate::front_end::checked_program(&source);
         let source_machine = &original.machines()[0];
         assert!(original.machine_contracts(source_machine).is_empty());
         let (artifact, module) = publish(&original);
@@ -257,7 +239,7 @@ fn empty_checked_contract_cannot_erase_a_transitive_scalar_callee_guarantee() {
             answer
         }
     "#;
-    let original = checked(source);
+    let original = crate::front_end::checked_program(source);
     let (artifact, module) = publish(&original);
     assert_eq!(module.machines.len(), 2);
     let callee = module
