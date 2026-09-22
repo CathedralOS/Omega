@@ -99,16 +99,12 @@ pub(super) fn preserves_rank(
             // aggregated frame of any value calls nested in its arguments.
             // An authored operator or index selection inside an argument
             // could hide a write no frame sees, so the inertness check is
-            // structural rather than delegated to the frames. Only a
-            // checked-body callee's frame is admitted: boundary, requirement,
-            // and admitted declarations resolve a signature state whose empty
-            // body summary would claim an exclusive argument write never
-            // happened.
-            let callee_machine = program.symbols.get(call.target_symbol).parent;
-            program.machines().iter().any(|candidate| {
-                (candidate.symbol == call.target_symbol || candidate.symbol == callee_machine)
-                    && candidate.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-            }) && program
+            // structural rather than delegated to the frames. The frame
+            // query itself selects the callee's contract: a checked body is
+            // summarized, a boundary, requirement, or admitted declaration is
+            // bounded by its signature's exclusive reach, and anything
+            // unresolved stays opaque rather than admitted.
+            program
                 .statement_table
                 .expression_handles(call.arguments)
                 .iter()
@@ -122,32 +118,23 @@ pub(super) fn preserves_rank(
             // A `let` binds a fresh local no premise carrier can name, so
             // only its initializer's calls can disturb protected state. The
             // statement-call bar covers the whole initializer tree: every
-            // value-position call still names a checked-body callee --
-            // boundary, requirement, and admitted declarations resolve a
-            // signature state whose empty body summary would claim an
-            // exclusive argument write never happened -- while every
-            // non-call subterm stays inert, so nested call arguments and
-            // composed initializers are admitted alike and a call-free
-            // initializer vacuously clears the bar. The aggregate write
-            // frame is conservative over every nested call and must be
-            // complete and disjoint from every protected carrier.
-            let checked_body_callee = |call: &typed_trees::expression::TableCallExpression| {
-                if !call.target_symbol.is_valid() {
-                    return false;
-                }
-                let callee_machine = program.symbols.get(call.target_symbol).parent;
-                program.machines().iter().any(|candidate| {
-                    (candidate.symbol == call.target_symbol || candidate.symbol == callee_machine)
-                        && candidate.supply_mode
-                            == language_semantics::MachineSupplyMode::CheckedBody
-                })
-            };
+            // value-position call keeps its subterms inert the way
+            // transition actuals are -- boundary, requirement, and admitted
+            // callees are covered by their selected signature frame rather
+            // than an empty body summary -- while every non-call subterm
+            // stays inert, so nested call arguments and composed
+            // initializers are admitted alike and a call-free initializer
+            // vacuously clears the bar. The aggregate write frame is
+            // conservative over every nested call and must be complete and
+            // disjoint from every protected carrier.
+            let resolved_callee =
+                |call: &typed_trees::expression::TableCallExpression| call.target_symbol.is_valid();
             super::expression_is_inert_or_calls(
                 program,
                 machine,
                 state,
                 local.initial_value,
-                &checked_body_callee,
+                &resolved_callee,
             ) && frames.is_some_and(|frames| {
                 disjoint(frames.expression_write_frame(machine, local.initial_value))
             })

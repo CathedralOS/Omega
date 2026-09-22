@@ -251,6 +251,26 @@ fn known_call_written_paths_for_parts_with_origins(
             Some((machine, state))
         })?;
 
+    // A signature-only callee -- boundary, requirement, admitted, or
+    // externally realized -- has no authored body to summarize: its empty
+    // statement list would claim an exclusive argument write never happened.
+    // The selected signature is the write contract instead; a callee whose
+    // contract cannot be pinned stays opaque so the boundary, requirement,
+    // and conservative rungs below still answer for it.
+    if !callee_machine.supply_mode.is_checked_body() {
+        return boundary_calls::signature_state_call_written_paths(
+            program,
+            current_machine,
+            machine_symbols,
+            symbols,
+            callee_machine,
+            callee_state,
+            receiver_members,
+            receiver_origins,
+            arguments,
+            inference,
+        );
+    }
     if inference.active_states.contains(&callee_state.symbol) {
         return None;
     }
