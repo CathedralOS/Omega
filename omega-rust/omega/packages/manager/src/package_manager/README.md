@@ -10,7 +10,7 @@ package_manager/
 ├── planning.rs    dependency edits and exact update selections
 ├── change_decisions.rs  compiler findings rendered and the per-change decisions loaded
 ├── source_review.rs  separate bounded source-code diagnostics
-├── old_sources.rs    exact old-source recovery through custody issuers
+├── source_review/old_sources.rs  exact old-source recovery through custody issuers
 ├── state.rs       retained proposal and review files
 ├── proposal.rs    restart record
 └── proposal/      bounded framing and codec tests
