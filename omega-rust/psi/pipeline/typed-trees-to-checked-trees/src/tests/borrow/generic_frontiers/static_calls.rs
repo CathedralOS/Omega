@@ -91,11 +91,142 @@ fn exact_static_callable_substitution_allows_only_closed_view_free_results() {
     let direct = source(false).replace("submit<work>(job)", "submit<work>(Job { value: 9 })");
     crate::lower_typed_trees(typed_program(&direct), &crate::CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("exact direct constructor: {diagnostics:#?}"));
-    let diagnostics = crate::lower_typed_trees(
+
+    // The view-bearing customer closes under the same substitution:
+    // `Rejected.arguments.value` carries `job`'s `&i32` leaf into its
+    // original backing with shared access.
+    crate::lower_typed_trees(
         typed_program(&source(true)),
         &crate::CheckingRequest::settled(),
     )
-    .expect_err("a rejected job would carry a view requiring caller-specific loans");
+    .unwrap_or_else(|diagnostics| {
+        panic!("a rejected job carries an attributable caller view: {diagnostics:#?}")
+    });
+    let typed = typed_program(&source(true));
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Client::run")
+        .expect("Client::run");
+    let state = &typed.machine_states(machine)[0];
+    let outcome = typed
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            typed_trees::statement::StatementNode::LocalData(local)
+                if local.name.as_str() == "outcome" =>
+            {
+                Some(local.symbol)
+            }
+            _ => None,
+        })
+        .expect("outcome");
+    let job = typed
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "job")
+        .expect("job")
+        .symbol;
+    let facts = crate::borrow::build_borrow_facts(&typed);
+    let segment_names = |loan: &checked_trees::BorrowLoanFact| -> Vec<String> {
+        facts
+            .loan_owner_path(loan)
+            .iter()
+            .map(|segment| match segment {
+                checked_trees::BorrowLoanOwnerSegment::Field(symbol)
+                | checked_trees::BorrowLoanOwnerSegment::Case(symbol) => {
+                    typed.symbols.name(*symbol).to_owned()
+                }
+                _ => "?".to_owned(),
+            })
+            .collect()
+    };
+    assert!(
+        facts.loans.iter().any(|(_, loan)| {
+            loan.owner_symbol == outcome
+                && loan.root_symbol == job
+                && loan.kind == checked_trees::BorrowAccessKind::Read
+                && segment_names(loan) == ["Rejected", "arguments", "value"]
+        }),
+        "the view-bearing result loans `job`'s exact `value` leaf backing"
+    );
+
+    // Writes to every possible live source reject while the returned view is
+    // live: here the leaf's backing is the caller's own `local`, and the
+    // unrelated `other` write still passes.
+    let local_backing = source(true).replace(
+        "machine Client::run(&mut self, job: Job) reaches Requests {\n            let outcome: Outcome<i32, Job> = self.requests.submit<work>(job);\n        }",
+        "machine Client::run(&mut self) reaches Requests {\n            let mut local: i32 = 7;\n            let mut other: i32 = 1;\n            let outcome: Outcome<i32, Job> = self.requests.submit<work>(Job { value: &local });\n            other = 2;\n            local = 9;\n            let kept: Outcome<i32, Job> = outcome;\n        }",
+    );
+    let diagnostics = crate::lower_typed_trees(
+        typed_program(&local_backing),
+        &crate::CheckingRequest::settled(),
+    )
+    .expect_err("writing `local` while `outcome` loans it rejects");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("still active")),
+        "{diagnostics:#?}"
+    );
+    let unrelated_only = local_backing.replace(
+        "            other = 2;\n            local = 9;\n",
+        "            other = 2;\n",
+    );
+    crate::lower_typed_trees(
+        typed_program(&unrelated_only),
+        &crate::CheckingRequest::settled(),
+    )
+    .unwrap_or_else(|diagnostics| {
+        panic!("an unrelated backing write does not disturb the returned view: {diagnostics:#?}")
+    });
+
+    // A conflicting callable substitution still rejects: `conflict` cannot
+    // satisfy the `Target(arguments: Arguments) -> T` contract this call
+    // requires.
+    let conflicting = source(true).replace(
+        "machine work(arguments: Job) -> i32 { 0 }",
+        "machine work(arguments: Job) -> i32 { 0 }\n        machine conflict(other: u64) -> i32 { 0 }",
+    ).replace("submit<work>(job)", "submit<conflict>(job)");
+    let diagnostics = crate::lower_typed_trees(
+        typed_program(&conflicting),
+        &crate::CheckingRequest::settled(),
+    )
+    .expect_err("a conflicting callable substitution cannot close the frontier");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("template-dependent returned-carrier lifetime frontier")),
+        "{diagnostics:#?}"
+    );
+
+    // An unresolved frontier still rejects: `run`'s own `Inner` parameter
+    // leaves `value`'s instantiated leaf template-dependent, which is never
+    // an empty frontier.
+    let unresolved = r#"
+        data Ticket<T> { identifier: u64; }
+        data Outcome<T, Arguments> {
+            case Started(ticket: Ticket<T>);
+            case Rejected(arguments: Arguments);
+        }
+        boundary trait Requests {
+            machine submit<T, Arguments, machine Target>(&self, arguments: Arguments) -> Outcome<T, Arguments>
+            where machine Target<Inner>(arguments: Inner) -> T;
+            ensures true;
+        }
+        data Job<Value> { value: Value; }
+        machine work<Inner>(arguments: Inner) -> i32 { 0 }
+        data Client { requests: &Requests; }
+        machine Client::run<Inner>(&mut self, job: Job<Inner>) reaches Requests {
+            let outcome: Outcome<i32, Job<Inner>> = self.requests.submit<work>(job);
+        }
+    "#;
+    let diagnostics = crate::lower_typed_trees(
+        typed_program(unresolved),
+        &crate::CheckingRequest::settled(),
+    )
+    .expect_err("a still-dependent instantiated frontier cannot close");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
