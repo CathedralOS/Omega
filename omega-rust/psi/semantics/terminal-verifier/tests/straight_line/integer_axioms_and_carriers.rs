@@ -131,6 +131,7 @@ fn integer_equality_axiom_proves_the_return_contract() {
         }],
     };
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -350,6 +351,7 @@ fn integer_ordering_axioms_prove_return_contracts() {
             }],
         };
         let bundle = ProofBundle {
+            crash_obligations: Vec::new(),
             recursive_components: Vec::new(),
             control_cycles: Vec::new(),
             evidence_producers: Vec::new(),
@@ -561,6 +563,7 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
             }],
         };
         let bundle = ProofBundle {
+            crash_obligations: Vec::new(),
             recursive_components: Vec::new(),
             control_cycles: Vec::new(),
             evidence_producers: Vec::new(),
@@ -715,6 +718,7 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
         }],
     };
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -855,6 +859,7 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
         }],
     };
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),

@@ -511,6 +511,7 @@ fn proof_route_changes_do_not_change_the_reconstructed_question() {
         proposition: Proposition::Truth,
     }];
     let kernel_bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -520,6 +521,7 @@ fn proof_route_changes_do_not_change_the_reconstructed_question() {
         }],
     };
     let certificate_bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -555,6 +557,7 @@ fn verifier_does_not_rediscover_an_alternate_route_for_a_malformed_certificate()
         proposition: Proposition::Truth,
     }];
     let malformed_selected_route = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -712,6 +715,7 @@ fn boolean_constant_axiom_proves_the_return_contract() {
         },
     };
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -829,6 +833,7 @@ fn boolean_not_axiom_proves_the_return_contract() {
         }],
     };
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -1089,6 +1094,7 @@ fn boolean_equality_axiom_proves_the_return_contract() {
         }],
     };
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),

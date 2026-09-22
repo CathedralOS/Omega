@@ -12,6 +12,7 @@ fn exact_add_definition_bound_owns_the_appended_rule_tag() {
         rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
     };
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -33,7 +34,7 @@ fn exact_add_definition_bound_owns_the_appended_rule_tag() {
     };
 
     let bytes = encode_proof_bundle(&bundle).expect("exact-add definition proof encodes");
-    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
     assert_eq!(bytes[34], 15, "appended exact-add definition rule tag");
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 

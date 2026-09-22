@@ -793,6 +793,7 @@ fn contextual_scalar_cleanup_proof_metadata_adds_zero_fixed_fuel() {
         .collect::<Vec<_>>();
     evidence.sort_by_key(|evidence| evidence.obligation);
     let proof = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),

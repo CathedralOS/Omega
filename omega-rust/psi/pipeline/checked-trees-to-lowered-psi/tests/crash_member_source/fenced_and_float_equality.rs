@@ -8,7 +8,7 @@ use super::{
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, IeeeFloatFormat, Proposition, ScalarTerm, StructuralFieldId,
+    CanonicalStructuralPathSegment, IeeeFloatFormat, Proposition, ScalarTerm,
 };
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -135,55 +135,6 @@ fn payload_sum_nested_record_equality_rebases_and_replays_end_to_end() {
             | Proposition::IeeeFloatComparison { .. }
             | Proposition::ByteSequenceEqual { .. }
             | Proposition::ContentConservation(_) => {}
-        }
-    }
-
-    fn redirect_integer_leaf(
-        proposition: &mut Proposition,
-        from: StructuralFieldId,
-        to: StructuralFieldId,
-    ) -> bool {
-        fn redirect_term(
-            term: &mut ScalarTerm,
-            from: StructuralFieldId,
-            to: StructuralFieldId,
-        ) -> bool {
-            match term {
-                ScalarTerm::IntegerField { path, .. } => {
-                    let Some(CanonicalStructuralPathSegment::Field(field)) = path.last_mut() else {
-                        return false;
-                    };
-                    if *field != from {
-                        return false;
-                    }
-                    *field = to;
-                    true
-                }
-                ScalarTerm::BooleanEqual { left, right }
-                | ScalarTerm::IntegerEqual { left, right, .. } => {
-                    redirect_term(left, from, to) || redirect_term(right, from, to)
-                }
-                _ => false,
-            }
-        }
-
-        match proposition {
-            Proposition::Equal(left, right)
-            | Proposition::LessThan(left, right)
-            | Proposition::LessOrEqual(left, right) => {
-                redirect_term(left, from, to) || redirect_term(right, from, to)
-            }
-            Proposition::Conjunction(children) | Proposition::Disjunction(children) => children
-                .iter_mut()
-                .any(|child| redirect_integer_leaf(child, from, to)),
-            Proposition::Implication {
-                premise,
-                conclusion,
-            } => {
-                redirect_integer_leaf(premise, from, to)
-                    || redirect_integer_leaf(conclusion, from, to)
-            }
-            _ => false,
         }
     }
 
@@ -420,19 +371,28 @@ fn payload_sum_nested_record_equality_rebases_and_replays_end_to_end() {
         unreachable!()
     };
     let mut proposition = predicate.proposition().clone();
-    assert!(redirect_integer_leaf(
-        &mut proposition,
-        count_field.id,
-        active_field.id,
-    ));
+    // Weaken the caller's published route by dropping one conjunct: every
+    // retained leaf stays a valid parameter field term, so the module still
+    // validates, but the reconstructed continuation question can no longer be
+    // discharged — coverage asks the weakened published predicate and
+    // refutation asks the complement of the still-uncovered full route.
+    let Proposition::Disjunction(cases) = &mut proposition else {
+        panic!("published route is one disjunction over case conjunctions")
+    };
+    let Some(Proposition::Conjunction(conjuncts)) = cases.last_mut() else {
+        panic!("each case arm is one conjunction")
+    };
+    conjuncts.pop().expect("case arm has conjuncts");
     *predicate = CrashPredicateTerm::new(proposition);
-    let invalid_result = terminal_verifier::validate_module(&redirected);
+    terminal_verifier::validate_module(&redirected)
+        .expect("the weakened published route is still a valid Terminal module");
+    let production = checked_trees_to_lowered_psi::produce_crash_obligation_evidence(&redirected);
     assert!(
         matches!(
-            invalid_result,
-            Err(terminal_verifier::ModuleError::CallCrashContinuationUncovered { .. })
+            production,
+            Err(checked_trees_to_lowered_psi::CrashRosterError::Undischarged(_))
         ),
-        "redirecting the exact nested leaf must break the independently reconstructed call continuation: {invalid_result:?}"
+        "weakening the published route must break the independently reconstructed call continuation: {production:?}"
     );
 }
 

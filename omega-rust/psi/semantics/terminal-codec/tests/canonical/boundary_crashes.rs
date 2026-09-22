@@ -1,5 +1,5 @@
 use super::{
-    Block, BoundaryMachineDeclaration, CodecError, CrashCause, CrashRouteBucket, CrashRouteGuard,
+    Block, BoundaryMachineDeclaration, CrashCause, CrashRouteBucket, CrashRouteGuard,
     MachineContract, Operation, OperationKind, OperationResult, Proposition, ScalarTerm,
     ScalarType, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, block_id,
     boundary_machine_id, contract_id, decode_module, edge_id, encode_module, fixture, i32_type,
@@ -10,7 +10,7 @@ use terminal_codec::{
     encode_proof_bundle,
 };
 use terminal_psi::CrashPredicateTerm;
-use terminal_verifier::{ModuleError, ProofBundle};
+use terminal_verifier::ProofBundle;
 
 fn routes(value: u64) -> Vec<CrashRouteBucket> {
     vec![CrashRouteBucket {
@@ -118,11 +118,22 @@ fn boundary_crash_envelope_deletion_cannot_reuse_the_original_artifact_binding()
 
     let mut uncovered = module;
     uncovered.machines[0].contract.crash_routes.clear();
+    // Continuation coverage is a supplied-certificate question now, not a
+    // module-validity one: the uncovered module still encodes canonically,
+    // and verification rejects it because the reconstructed continuation
+    // obligation names no supplied roster row.
+    encode_module(&uncovered).expect("uncovered continuations still encode; coverage is proved");
     assert!(matches!(
-        encode_module(&uncovered),
-        Err(CodecError::InvalidModule(
-            ModuleError::CallCrashContinuationUncovered { .. }
-        ))
+        terminal_verifier::verify_module(
+            &uncovered,
+            &ProofBundle::default(),
+            &proof_admission::AdmissionProfile::default(),
+        ),
+        Err(
+            terminal_verifier::VerificationError::MissingCrashObligationEvidence(
+                terminal_psi::CrashObligationOwner::Continuation { .. }
+            )
+        )
     ));
 }
 
@@ -150,6 +161,29 @@ fn boundary_crash_encoding_rejects_cause_actual_formal_type_and_order_tampering(
             }
             _ => unreachable!(),
         }
-        assert!(encode_module(&changed).is_err(), "mutation {mutation}");
+        if mutation <= 1 {
+            // Caller coverage is a supplied-certificate question now, not a
+            // module-validity one: the tampered module still encodes
+            // canonically, and verification rejects the reconstructed
+            // continuation obligation that names no supplied roster row.
+            encode_module(&changed).expect("coverage failures still encode; coverage is proved");
+            assert!(
+                matches!(
+                    terminal_verifier::verify_module(
+                        &changed,
+                        &ProofBundle::default(),
+                        &proof_admission::AdmissionProfile::default(),
+                    ),
+                    Err(
+                        terminal_verifier::VerificationError::MissingCrashObligationEvidence(
+                            terminal_psi::CrashObligationOwner::Continuation { .. }
+                        )
+                    )
+                ),
+                "mutation {mutation}"
+            );
+        } else {
+            assert!(encode_module(&changed).is_err(), "mutation {mutation}");
+        }
     }
 }

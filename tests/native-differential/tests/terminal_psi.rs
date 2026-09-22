@@ -175,6 +175,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
+        crash_obligations: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,

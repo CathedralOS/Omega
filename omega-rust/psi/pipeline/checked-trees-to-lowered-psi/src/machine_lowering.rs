@@ -225,6 +225,22 @@ fn lower_terminal_selection(
         terminal_verifier::validate_module(&lowered.semantic_module)
             .map_err(LoweringError::InvalidTerminalModule)?;
     }
+    // The crash-certificate roster answers the questions the verifier
+    // reconstructs from this exact finished module. Producing it here — after
+    // crash contracts, custody retention, and proof installation settle —
+    // keeps the supplied rows keyed to the artifact, not to a mid-lowering
+    // module the receiver never sees.
+    lowered.proof_bundle.crash_obligations =
+        crate::produce_crash_obligation_evidence(&lowered.semantic_module).map_err(|error| {
+            match error {
+                crate::CrashRosterError::Module(error) => {
+                    LoweringError::InvalidTerminalModule(error)
+                }
+                crate::CrashRosterError::Undischarged(owners) => {
+                    LoweringError::UndischargedCrashObligations(owners)
+                }
+            }
+        })?;
     lowered.debug_map = if selection.signature == CheckedTerminalSignatureEligibility::Eligible
         && completion.debug == DebugPublication::FromCheckedPlan
     {

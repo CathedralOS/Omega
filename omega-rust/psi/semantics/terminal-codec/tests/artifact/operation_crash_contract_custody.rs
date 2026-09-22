@@ -55,7 +55,9 @@ use terminal_psi::{
     Operation, OperationKind, OperationResult, TerminalMachine, TerminalMachineResult,
     TerminalModule, TerminalOperationCrashContract, Terminator, ValueDeclaration, VocabularyMarker,
 };
-use terminal_verifier::{ModuleError, ProofBundle, verify_module};
+use terminal_verifier::{
+    CrashObligationOwner, ModuleError, ProofBundle, VerificationError, verify_module,
+};
 
 /// Byte offsets of every wire field inside the crash contract roster. The
 /// fixture's predicates are all `LessThan(Value, Integer)` in a fixed signed
@@ -1474,12 +1476,18 @@ fn terminal_operation_crash_contracts_reject_every_one_field_substitution() {
     );
     let mut uncovered = module.clone();
     uncovered.machines[0].contract.crash_routes.clear();
-    encode_rejected(
-        "producer continuations the caller never published",
-        &uncovered,
-        CodecError::InvalidModule(ModuleError::CallCrashContinuationUncovered {
-            operation: operation_id(1),
-            cause: CrashCause::Trap,
-        }),
+    // Continuation coverage is a supplied-certificate question now, not a
+    // module-validity one: the uncovered module still encodes canonically,
+    // and verification rejects it because the reconstructed continuation
+    // obligations name no supplied roster rows.
+    encode_module(&uncovered).expect("uncovered continuations still encode; coverage is proved");
+    assert!(
+        matches!(
+            verify_module(&uncovered, &bundle, &AdmissionProfile::default()),
+            Err(VerificationError::MissingCrashObligationEvidence(
+                CrashObligationOwner::Continuation { .. }
+            ))
+        ),
+        "producer continuations the caller never published"
     );
 }

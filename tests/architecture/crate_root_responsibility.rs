@@ -369,6 +369,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
         "psi/semantics/proof-admission",
         &[
             "admission",
+            "certificate_search",
             "classicality",
             "integer_rules",
             "kernel",

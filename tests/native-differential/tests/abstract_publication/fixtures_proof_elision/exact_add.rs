@@ -87,6 +87,7 @@ pub(in super::super) fn exact_add_verified_with_result(
         ProofBundle {
             recursive_components: Vec::new(),
             control_cycles: Vec::new(),
+            crash_obligations: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation,

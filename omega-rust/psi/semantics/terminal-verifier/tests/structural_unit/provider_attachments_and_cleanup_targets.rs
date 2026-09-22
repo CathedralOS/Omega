@@ -468,6 +468,7 @@ fn contextual_nominal_affine_cleanup_reconstructs_and_discharges_receiver_requir
             if obligation == obligation_id(1)
     ));
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -487,6 +488,7 @@ fn contextual_nominal_affine_cleanup_reconstructs_and_discharges_receiver_requir
         .expect("caller requirement discharges contextual cleanup premise");
 
     let wrong_bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -605,6 +607,7 @@ fn scalar_return_contextual_cleanups_require_reverse_root_order() {
         );
     }
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -676,6 +679,7 @@ fn contextual_nominal_affine_cleanup_reconstructs_and_discharges_false_receiver_
     assert_eq!(obligations[0].semantic_axioms[0], caller_requirement);
 
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -733,6 +737,7 @@ fn contextual_nominal_affine_cleanup_orders_mixed_polarities_before_field_bytes(
     }
 
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -801,6 +806,7 @@ fn contextual_nominal_affine_cleanup_reconstructs_finite_ordered_requirements() 
     }
 
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -1087,6 +1093,7 @@ fn distinct_contextual_cleanup_targets_use_distinct_receivers_and_reconstruct_ea
     }
 
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),

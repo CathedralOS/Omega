@@ -202,6 +202,7 @@ pub(crate) fn structural_call_preserving_artifact() -> (Vec<u8>, Vec<u8>) {
     let proof = ProofBundle {
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
+        crash_obligations: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     };

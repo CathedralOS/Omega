@@ -5,7 +5,9 @@ use super::{
     ValueId, id, ranked_countdown, unranked_scalar_cycle, validate_module,
     verify_module_for_interpretation,
 };
-use terminal_psi::{CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard};
+use terminal_psi::{
+    CrashCause, CrashObligationOwner, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
+};
 
 /// The ranked countdown's decrement member invokes a crash-publishing scalar
 /// helper on the machine's entry argument. The continuation roster is the
@@ -127,10 +129,22 @@ fn ranked_cycle_call_rejects_dropped_altered_or_uncovered_continuations() {
     ));
     let mut uncovered = module.clone();
     uncovered.machines[0].contract.crash_routes.clear();
-    assert!(matches!(
-        validate_module(&uncovered),
-        Err(ModuleError::CallCrashContinuationUncovered { .. })
-    ));
+    // Coverage is a certificate check now: the module stays structurally
+    // valid, and both the missing row and the producer's undischarged supply
+    // reject under interpretation verification.
+    validate_module(&uncovered).expect("an uncovered continuation is still a module");
+    let owner = crate::support::rejected_crash_owner_under(
+        &uncovered,
+        &super::ranked_countdown_proof(&uncovered),
+        |module, bundle| {
+            verify_module_for_interpretation(module, bundle, &AdmissionProfile::default())
+                .map(|_| ())
+        },
+    );
+    assert!(
+        matches!(owner, CrashObligationOwner::Continuation { .. }),
+        "expected a continuation question, got {owner:?}"
+    );
 }
 
 /// A cyclic machine may itself end on an unguarded crash exit: the route
@@ -207,7 +221,16 @@ fn cyclic_machine_crash_guards_stay_on_independently_checked_facts() {
     };
     site_guard.push(CrashPredicateTerm::new(entry_bound()));
     validate_module(&entry_provable)
-        .expect("entry-requirement crash guard verifies on a ranked machine");
+        .expect("entry-requirement crash guard validates on a ranked machine");
+    verify_module_for_interpretation(
+        &entry_provable,
+        &crate::support::crash_bundle(
+            &entry_provable,
+            super::ranked_countdown_proof(&entry_provable),
+        ),
+        &AdmissionProfile::default(),
+    )
+    .expect("the produced site certificate discharges the entry-requirement guard");
 
     let mut path_guard = ranked_countdown();
     crashing_exit(&mut path_guard, CrashCause::Abort);
@@ -226,10 +249,20 @@ fn cyclic_machine_crash_guards_stay_on_independently_checked_facts() {
             ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap()),
         ),
     )));
-    assert!(matches!(
-        validate_module(&path_guard),
-        Err(ModuleError::CrashSiteGuardUnproved { .. })
-    ));
+    validate_module(&path_guard)
+        .expect("an unproved site guard is still a structurally valid module");
+    let owner = crate::support::rejected_crash_owner_under(
+        &path_guard,
+        &super::ranked_countdown_proof(&path_guard),
+        |module, bundle| {
+            verify_module_for_interpretation(module, bundle, &AdmissionProfile::default())
+                .map(|_| ())
+        },
+    );
+    assert!(
+        matches!(owner, CrashObligationOwner::Site { .. }),
+        "expected a crash-site question, got {owner:?}"
+    );
 
     // Unranked cyclic machines keep the exhaustive fail-closed walk: a guarded
     // crash site cannot enumerate unbounded paths and rejects outright.
@@ -252,8 +285,18 @@ fn cyclic_machine_crash_guards_stay_on_independently_checked_facts() {
         ))],
         frontier_lower_bound: Vec::new(),
     };
+    // Path enumeration is part of question reconstruction now, so the
+    // fail-closed limit surfaces where the question is asked — at
+    // verification — not at structural validation.
+    validate_module(&unranked).expect("an unbounded crash-path site is still a module");
     assert!(matches!(
-        validate_module(&unranked),
-        Err(ModuleError::CrashSiteReconstructionLimitExceeded { .. })
+        verify_module_for_interpretation(
+            &unranked,
+            &super::ProofBundle::default(),
+            &AdmissionProfile::default(),
+        ),
+        Err(terminal_verifier::VerificationError::Module(
+            ModuleError::CrashSiteReconstructionLimitExceeded { .. }
+        ))
     ));
 }

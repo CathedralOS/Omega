@@ -143,6 +143,7 @@ pub(super) fn checked_operation_proof_bundle(module: &TerminalModule) -> ProofBu
     let mut proof = ProofBundle {
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
+        crash_obligations: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: obligations
             .iter()

@@ -116,6 +116,7 @@ pub(super) fn proof_recursive_bundle(module: &TerminalModule) -> ProofBundle {
         })
     };
     ProofBundle {
+        crash_obligations: Vec::new(),
         evidence: Vec::new(),
         control_cycles: Vec::new(),
         recursive_components: vec![RecursiveComponentEvidence {

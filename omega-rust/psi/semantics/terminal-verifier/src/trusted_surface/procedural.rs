@@ -497,7 +497,7 @@ rows! {
         "a crash site's declared guard terms and outcome, plus each operation's declared crash contracts checked against its owning machine's crash-route coverage",
         "crash sites and operation-level crash contracts validate before their private fact bundles are reconstructed",
         &["formation:machine-validation", "formation:frontier"],
-        &[tv!( "validation/crash.rs"), tv!( "validation/crash/operation_contracts.rs"), tv!( "validation/crash/outcome.rs"), tv!( "validation/crash/site_truth.rs")]
+        &[tv!( "validation/crash.rs"), tv!( "validation/crash/operation_contracts.rs"), tv!( "validation/crash/outcome.rs"), tv!( "verification/reconstruction/crash_obligations.rs")]
     );
     FORM_CRASH_REQUIREMENTS => (
         "formation:crash-entry-requirements",
@@ -505,7 +505,7 @@ rows! {
         "a machine's declared entry requirements over typed invocation formals, including integer-order and order-chain requirements and complements of supported scalar crash predicates",
         "entry requirements independently prove published coverage or disprove every uncovered invocation alternative without rewriting retained routes; exact forwarding and opposite-predicate formation remain trusted Rust decisions, while producer stages emit certificate supplies for verifier-reconstructed goals and consumers only re-decide supplied nodes through the certificate checker, whose covered decisions the mathematical-core kernel re-decides",
         &["formation:crash-validation", "formation:mathematical-core"],
-        &[tv!( "validation/crash/entry_requirements.rs"), tv!( "validation/crash/entry_requirements/integer_order.rs"), tv!( "validation/crash/entry_requirements/order_chain.rs")]
+        &[pa!( "certificate_search.rs"), pa!( "certificate_search/integer_order.rs"), pa!( "certificate_search/order_chain.rs"), tv!( "verification/reconstruction/crash_obligations.rs"), tv!( "verification.rs")]
     );
     FORM_BLOCK_INVARIANTS => (
         "formation:scalar-block-invariants",
@@ -521,7 +521,7 @@ rows! {
         "the module's evidence bundle: envelopes, provenance, and producer identity",
         "evidence validates for provenance and coverage: every obligation has evidence, no duplicate, unknown, noncanonical, or unused evidence is accepted",
         &["formation:module-structure", "route:certificate-derived"],
-        &[tv!( "verification.rs"), tv!( "verification/evidence_provenance.rs"), tv!( "verification/proof_bundle.rs"), tv!( "validation/evidence.rs"), tv!( "validation/evidence/contract_lanes.rs"), tv!( "validation/evidence/guarded_call_outputs.rs"), tv!( "validation/evidence/proof_output_calls.rs")]
+        &[tv!( "verification.rs"), tv!( "verification/evidence_provenance.rs"), tv!( "verification/proof_bundle.rs"), tv!( "validation/evidence.rs"), tv!( "validation/evidence/contract_lanes.rs"), tv!( "validation/evidence/guarded_call_outputs.rs"), tv!( "validation/evidence/proof_output_calls.rs"), tp!( "artifacts/proof_bundle/crash.rs")]
     );
     FORM_PROOF_RECURSION => (
         "formation:proof-recursion-validation",
@@ -649,7 +649,7 @@ rows! {
         "the mathematical-integer term language: universe-level expressions over the judgment's level parameters, terms, typing, substitution, conversion, universe-polymorphic certificates, inductive W-type formation with dependent elimination, indexed families derived from it, a set-quotient scheme whose lifts are authored as checked declarations, theorem declarations crossing the certificate wire, and the bounded denotation that re-decides a ProofNode certificate inside the core",
         "mathematical terms are well-typed, bounded, level-scope-checked, and canonically formed before any judgment or normalization evaluates them",
         &["formation:proposition-context"],
-        &[pa!( "mathematical_core.rs"), pa!( "mathematical_core/term.rs"), pa!( "mathematical_core/typing.rs"), pa!( "mathematical_core/substitution.rs"), pa!( "mathematical_core/conversion.rs"), pa!( "mathematical_core/certificate.rs"), pa!( "mathematical_core/bounded_denotation.rs"), pa!( "mathematical_core/bounded_denotation/addition.rs"), pa!( "mathematical_core/bounded_denotation/binary_numerals.rs"), pa!( "mathematical_core/bounded_denotation/subtraction.rs"), pa!( "mathematical_core/bounded_denotation/booleans.rs"), pa!( "mathematical_core/bounded_denotation/equality_transport.rs"), pa!( "mathematical_core/bounded_denotation/casts.rs"), pa!( "mathematical_core/bounded_denotation/integer_operations.rs"), pa!( "mathematical_core/indexed.rs"), pa!( "mathematical_core/quotient.rs"), pa!( "mathematical_core/scheme_dsl.rs"), pa!( "mathematical_core/theorems.rs")]
+        &[pa!( "mathematical_core.rs"), pa!( "mathematical_core/term.rs"), pa!( "mathematical_core/typing.rs"), pa!( "mathematical_core/substitution.rs"), pa!( "mathematical_core/conversion.rs"), pa!( "mathematical_core/certificate.rs"), pa!( "mathematical_core/bounded_denotation.rs"), pa!( "mathematical_core/bounded_denotation/addition.rs"), pa!( "mathematical_core/bounded_denotation/binary_numerals.rs"), pa!( "mathematical_core/bounded_denotation/subtraction.rs"), pa!( "mathematical_core/bounded_denotation/booleans.rs"), pa!( "mathematical_core/bounded_denotation/equality_transport.rs"), pa!( "mathematical_core/bounded_denotation/casts.rs"), pa!( "mathematical_core/bounded_denotation/integer_operations.rs"), pa!( "mathematical_core/bounded_denotation/multiplication.rs"), pa!( "mathematical_core/indexed.rs"), pa!( "mathematical_core/quotient.rs"), pa!( "mathematical_core/scheme_dsl.rs"), pa!( "mathematical_core/theorems.rs")]
     );
     FORM_REWRITE => (
         "formation:optimization-rewrite-validation",

@@ -2,46 +2,18 @@
 //!
 //! The verifier checks crash-site guards and call-continuation coverage from
 //! certificates the producer supplies; it re-decides supplied nodes against
-//! goals it reconstructs itself and never searches inside a check. This module
-//! is the producer stage of that split: [`produce_entry_requirement_certificates`]
-//! runs the same bounded denotation-lane search the verifier's
-//! `entry_requirements` produce stage runs, records which lane each emitted
-//! node was built under, and emits [`EntryRequirementCertificate`] rosters the
-//! accepting side replays through [`check_entry_requirement_certificate`].
-//!
-//! The two stages must stay in lockstep: a certificate produced here is
-//! accepted exactly when the verifier's `check_supplied_certificate` accepts
-//! the identical `(with_value_equalities, proof)` pair. Attaching these
-//! rosters to the proof bundle so verification can consume them instead of
-//! searching is a separate leg; this module establishes the producer
-//! capability and its parity contract.
+//! goals it reconstructs itself and never searches inside a check. This
+//! module is the producer-facing spelling of that split: the bounded
+//! denotation-lane search itself lives in
+//! `proof_admission::certificate_search`, shared by every producer, and this
+//! wrapper keeps the lowering pipeline's certificate type and function
+//! names. A certificate produced here is accepted exactly when the
+//! verifier's recorded-lane replay accepts the identical
+//! `(with_value_equalities, proof)` pair.
 
-use proof_admission::{
-    CheckedPredicateDenotations, PredicateDenotationError, PrimitiveJudgment, ProofNode, ProofRule,
-    check_predicate_denotations, check_predicate_denotations_with_value_equalities,
-};
+use proof_admission::ProofNode;
 use semantic_vocabulary::{Proposition, PropositionContext};
-
-const MAXIMUM_SEARCH_STEPS: usize = 4096;
-const MAXIMUM_PROOF_DEPTH: usize = 64;
-
-/// One denotation conversion the producer can search under. The lane flag in
-/// `EntryRequirementCertificate` selects the identical conversion at check
-/// time.
-type DenotationConversion =
-    for<'input> fn(
-        &'input PropositionContext,
-        &'input Proposition,
-        &'input [Proposition],
-        &'input [Proposition],
-    ) -> Result<CheckedPredicateDenotations<'input>, PredicateDenotationError>;
-
-/// Producer lanes in search order: the smaller Boolean-only question first,
-/// then the same question under contextual value-equality transport.
-const DENOTATION_LANES: [(bool, DenotationConversion); 2] = [
-    (false, check_predicate_denotations),
-    (true, check_predicate_denotations_with_value_equalities),
-];
+use terminal_psi::{CrashCertificate, CrashObligationEvidence, TerminalModule};
 
 /// A producer-supplied certificate for one crash goal: which denotation lane
 /// the producing search ran under and the proof node it emitted. Consumers
@@ -49,20 +21,30 @@ const DENOTATION_LANES: [(bool, DenotationConversion); 2] = [
 /// search for a route themselves.
 #[derive(Clone)]
 pub struct EntryRequirementCertificate {
-    with_value_equalities: bool,
-    proof: ProofNode,
+    certificate: CrashCertificate,
 }
 
 impl EntryRequirementCertificate {
     /// Whether the producing search ran under value-equality transport. The
     /// accepting side replays the identical conversion.
     pub fn with_value_equalities(&self) -> bool {
-        self.with_value_equalities
+        self.certificate.with_value_equalities
     }
 
     /// The emitted proof node.
     pub fn proof(&self) -> &ProofNode {
-        &self.proof
+        &self.certificate.proof
+    }
+
+    /// The wire form stored in the proof bundle's crash-obligation roster.
+    pub fn into_certificate(self) -> CrashCertificate {
+        self.certificate
+    }
+}
+
+impl From<CrashCertificate> for EntryRequirementCertificate {
+    fn from(certificate: CrashCertificate) -> Self {
+        Self { certificate }
     }
 }
 
@@ -76,24 +58,17 @@ pub fn produce_entry_requirement_certificates(
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> Vec<EntryRequirementCertificate> {
-    DENOTATION_LANES
+    proof_admission::produce_denotation_certificates(context, goal, requirements, semantic_axioms)
         .into_iter()
-        .filter_map(|(with_value_equalities, convert)| {
-            prove_lane(convert, context, goal, requirements, semantic_axioms).map(|proof| {
-                EntryRequirementCertificate {
-                    with_value_equalities,
-                    proof,
-                }
-            })
-        })
+        .map(EntryRequirementCertificate::from)
         .collect()
 }
 
 /// Check a supplied crash certificate without searching. The recorded
 /// denotation lane is part of the certificate: a node produced under equality
 /// transport is replayed against that conversion exactly as produced. This is
-/// the producer-side mirror of the verifier's `check_supplied_certificate`;
-/// the accepting path runs the same replay over the supply it receives.
+/// the producer-side mirror of the verifier's certificate replay; the
+/// accepting path runs the same replay over the supply it receives.
 pub fn check_entry_requirement_certificate(
     context: &PropositionContext,
     goal: &Proposition,
@@ -101,565 +76,120 @@ pub fn check_entry_requirement_certificate(
     semantic_axioms: &[Proposition],
     certificate: &EntryRequirementCertificate,
 ) -> bool {
-    let convert = if certificate.with_value_equalities {
-        check_predicate_denotations_with_value_equalities
-    } else {
-        check_predicate_denotations
-    };
-    let Ok(denotations) = convert(context, goal, requirements, semantic_axioms) else {
-        return false;
-    };
-    denotations
-        .check_certificate(context, &certificate.proof)
-        .is_ok()
-}
-
-/// Run the bounded search under exactly one denotation conversion.
-fn prove_lane(
-    convert: DenotationConversion,
-    context: &PropositionContext,
-    goal: &Proposition,
-    requirements: &[Proposition],
-    semantic_axioms: &[Proposition],
-) -> Option<ProofNode> {
-    let denotations = convert(context, goal, requirements, semantic_axioms).ok()?;
-    let mut remaining = MAXIMUM_SEARCH_STEPS;
-    prove(
-        denotations.goal(),
-        denotations.requirements(),
-        denotations.semantic_axioms(),
-        &mut remaining,
-        0,
+    proof_admission::check_denotation_certificate(
+        context,
+        goal,
+        requirements,
+        semantic_axioms,
+        &certificate.certificate,
     )
 }
 
-fn prove(
-    goal: &Proposition,
-    requirements: &[Proposition],
-    semantic_axioms: &[Proposition],
-    remaining: &mut usize,
-    depth: usize,
-) -> Option<ProofNode> {
-    step(remaining, depth)?;
-    for (premises, semantic) in [(requirements, false), (semantic_axioms, true)] {
-        for (index, premise) in premises.iter().enumerate() {
-            let mut path = Vec::new();
-            let mut reversed = false;
-            let found = projection(premise, goal, &mut path, remaining, depth)?;
-            let found = if !found && let Proposition::Equal(left, right) = goal {
-                path.clear();
-                reversed = true;
-                projection(
-                    premise,
-                    &Proposition::Equal(right.clone(), left.clone()),
-                    &mut path,
-                    remaining,
-                    depth,
-                )?
-            } else {
-                found
-            };
-            if !found {
-                continue;
-            }
-            let mut proof = ProofNode {
-                conclusion: premise.clone(),
-                rule: if semantic {
-                    ProofRule::SemanticAxiom { index }
-                } else {
-                    ProofRule::Assumption { index }
-                },
-            };
-            let mut current = premise;
-            for conjunct in path {
-                let Proposition::Conjunction(children) = current else {
-                    return None;
-                };
-                current = children.get(conjunct)?;
-                proof = ProofNode {
-                    conclusion: current.clone(),
-                    rule: ProofRule::ConjunctionElimination {
-                        conjunction: Box::new(proof),
-                        conjunct,
-                    },
-                };
-            }
-            return Some(if reversed {
-                ProofNode {
-                    conclusion: goal.clone(),
-                    rule: ProofRule::EqualitySymmetry {
-                        equality: Box::new(proof),
-                    },
-                }
-            } else {
-                proof
-            });
-        }
-    }
-    for (premises, semantic) in [(requirements, false), (semantic_axioms, true)] {
-        for (index, premise) in premises.iter().enumerate() {
-            let premise = ProofNode {
-                conclusion: premise.clone(),
-                rule: if semantic {
-                    ProofRule::SemanticAxiom { index }
-                } else {
-                    ProofRule::Assumption { index }
-                },
-            };
-            if let Some(proof) = common_consequence(
-                goal,
-                premise,
-                requirements.len(),
-                !semantic,
-                remaining,
-                depth + 1,
-            ) {
-                return Some(proof);
-            }
-        }
-    }
-    if let Some(proof) = order_chain::prove(goal, requirements, semantic_axioms, remaining, depth) {
-        return Some(proof);
-    }
-    let rule = match goal {
-        Proposition::Truth => ProofRule::Primitive(PrimitiveJudgment::Truth),
-        Proposition::Equal(left, right) if left == right => {
-            ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality)
-        }
-        Proposition::Conjunction(children) => ProofRule::ConjunctionIntroduction(
-            children
-                .iter()
-                .map(|child| prove(child, requirements, semantic_axioms, remaining, depth + 1))
-                .collect::<Option<Vec<_>>>()?,
-        ),
-        Proposition::Disjunction(children) => {
-            let (index, proof) = children.iter().enumerate().find_map(|(index, child)| {
-                prove(child, requirements, semantic_axioms, remaining, depth + 1)
-                    .map(|proof| (index, proof))
-            })?;
-            ProofRule::DisjunctionIntroduction {
-                disjunct: Box::new(proof),
-                index,
-            }
-        }
-        _ => return None,
-    };
-    Some(ProofNode {
-        conclusion: goal.clone(),
-        rule,
-    })
+/// Why the producer cannot attach a crash-obligation roster to a module.
+#[derive(Debug)]
+pub enum CrashRosterError {
+    /// The module did not validate, so no question could be reconstructed.
+    Module(terminal_verifier::ModuleError),
+    /// The producer's own replay found a reconstructed question no produced
+    /// certificate discharges — the roster would be rejected by every
+    /// receiver, so none is emitted. Owners arrive in canonical order.
+    Undischarged(Vec<terminal_psi::CrashObligationOwner>),
 }
 
-/// Eliminate a disjunction only when every alternative proves the same goal.
-/// Branch assumptions occupy the kernel's next local slot and cannot escape
-/// into siblings or the enclosing entry requirement context.
-fn common_consequence(
-    goal: &Proposition,
-    premise: ProofNode,
-    assumption_count: usize,
-    invocation_entry: bool,
-    remaining: &mut usize,
-    depth: usize,
-) -> Option<ProofNode> {
-    step(remaining, depth)?;
-    if &premise.conclusion == goal {
-        return Some(premise);
-    }
-    if let (Proposition::Equal(left, right), Proposition::Equal(other_left, other_right)) =
-        (goal, &premise.conclusion)
-        && left == other_right
-        && right == other_left
-    {
-        return Some(ProofNode {
-            conclusion: goal.clone(),
-            rule: ProofRule::EqualitySymmetry {
-                equality: Box::new(premise),
-            },
-        });
-    }
-    if invocation_entry && let Some(proof) = integer_order::from_premise(goal, &premise) {
-        return Some(proof);
-    }
-    // A branch may prove a published union by proving one of its alternatives.
-    // This happens inside its local assumption scope; eliminating the source
-    // disjunction below still requires a certificate for every source branch.
-    if let Proposition::Disjunction(children) = goal {
-        for (index, child) in children.iter().enumerate() {
-            if let Some(proof) = common_consequence(
-                child,
-                premise.clone(),
-                assumption_count,
-                invocation_entry,
-                remaining,
-                depth + 1,
-            ) {
-                return Some(ProofNode {
-                    conclusion: goal.clone(),
-                    rule: ProofRule::DisjunctionIntroduction {
-                        disjunct: Box::new(proof),
-                        index,
-                    },
-                });
-            }
-        }
-    }
-    match &premise.conclusion {
-        Proposition::Conjunction(children) => {
-            for (conjunct, child) in children.iter().enumerate() {
-                let child = ProofNode {
-                    conclusion: child.clone(),
-                    rule: ProofRule::ConjunctionElimination {
-                        conjunction: Box::new(premise.clone()),
-                        conjunct,
-                    },
-                };
-                if let Some(proof) = common_consequence(
-                    goal,
-                    child,
-                    assumption_count,
-                    invocation_entry,
-                    remaining,
-                    depth + 1,
-                ) {
-                    return Some(proof);
-                }
-            }
-            None
-        }
-        Proposition::Disjunction(children) => {
-            let mut branches = Vec::new();
-            for child in children {
-                branches.push(common_consequence(
-                    goal,
-                    ProofNode {
-                        conclusion: child.clone(),
-                        rule: ProofRule::Assumption {
-                            index: assumption_count,
-                        },
-                    },
-                    assumption_count + 1,
-                    invocation_entry,
-                    remaining,
-                    depth + 1,
-                )?);
-            }
-            Some(ProofNode {
-                conclusion: goal.clone(),
-                rule: ProofRule::DisjunctionElimination {
-                    disjunction: Box::new(premise),
-                    branches,
-                },
-            })
-        }
-        _ => None,
+impl From<terminal_verifier::ModuleError> for CrashRosterError {
+    fn from(error: terminal_verifier::ModuleError) -> Self {
+        Self::Module(error)
     }
 }
 
-fn step(remaining: &mut usize, depth: usize) -> Option<()> {
-    if depth >= MAXIMUM_PROOF_DEPTH {
-        return None;
-    }
-    *remaining = remaining.checked_sub(1)?;
-    Some(())
-}
-
-fn projection(
-    premise: &Proposition,
-    goal: &Proposition,
-    path: &mut Vec<usize>,
-    remaining: &mut usize,
-    depth: usize,
-) -> Option<bool> {
-    step(remaining, depth)?;
-    if premise == goal {
-        return Some(true);
-    }
-    if let Proposition::Conjunction(conjuncts) = premise {
-        for (index, conjunct) in conjuncts.iter().enumerate() {
-            path.push(index);
-            if projection(conjunct, goal, path, remaining, depth + 1)? {
-                return Some(true);
-            }
-            path.pop();
-        }
-    }
-    Some(false)
-}
-
-/// Recover strict order from the entry contract's adjacent inclusive encoding.
-/// The existing kernel rule checks the conversion; this is certificate search,
-/// not an additional source of numeric facts or a normalization rule.
-mod integer_order {
-    use proof_admission::{ProofNode, ProofRule};
-    use semantic_vocabulary::{IntegerCarrier, IntegerValue, Proposition, ScalarTerm};
-
-    pub(super) fn from_premise(goal: &Proposition, premise: &ProofNode) -> Option<ProofNode> {
-        let Proposition::LessThan(left, right) = goal else {
-            return None;
-        };
-        let Proposition::LessOrEqual(inclusive_left, inclusive_right) = &premise.conclusion else {
-            return None;
-        };
-        if left.scalar_type() != right.scalar_type() {
-            return None;
-        }
-        if (right == inclusive_right && adjacent(left, true).as_ref() == Some(inclusive_left))
-            || (left == inclusive_left && adjacent(right, false).as_ref() == Some(inclusive_right))
-        {
-            return Some(ProofNode {
-                conclusion: goal.clone(),
-                rule: ProofRule::IntegerOrderDiscreteness {
-                    relation: Box::new(premise.clone()),
-                },
-            });
-        }
-        None
-    }
-
-    fn adjacent(literal: &ScalarTerm, increasing: bool) -> Option<ScalarTerm> {
-        let (integer_type, value) = literal.integer_value()?;
-        if integer_type.carrier() != IntegerCarrier::Fixed || integer_type.is_address() {
-            return None;
-        }
-        let value = match (value, increasing) {
-            (IntegerValue::Signed(value), true) => IntegerValue::Signed(value.checked_add(1)?),
-            (IntegerValue::Signed(value), false) => IntegerValue::Signed(value.checked_sub(1)?),
-            (IntegerValue::Unsigned(value), true) => IntegerValue::Unsigned(value.checked_add(1)?),
-            (IntegerValue::Unsigned(value), false) => IntegerValue::Unsigned(value.checked_sub(1)?),
-        };
-        ScalarTerm::integer(integer_type, value).ok()
-    }
-}
-
-/// Search exact integer order paths and emit independently checked
-/// certificates.
+/// Produce the complete crash-obligation roster for one lowered module.
 ///
-/// Short-circuit guards can establish an order through several comparisons.
-/// Those comparisons remain separate ledger facts: this search neither adds a
-/// transitive axiom nor changes the crash question. Only unconditional premises
-/// and their conjuncts enter the graph; alternatives must never be combined.
-/// Reachability distinguishes strict from nonstrict paths to the same
-/// endpoint. Borrowed facts and predecessor coordinates keep search from
-/// cloning a proof tree at every branch. Only the selected path becomes a
-/// certificate.
-mod order_chain {
-    use proof_admission::{ProofNode, ProofRule};
-    use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType};
-
-    use super::step;
-
-    struct OrderFact<'input> {
-        root: &'input Proposition,
-        relation: &'input Proposition,
-        semantic: bool,
-        premise_index: usize,
-        conjuncts: Vec<usize>,
-    }
-
-    struct Reached<'input> {
-        endpoint: &'input ScalarTerm,
-        strict: bool,
-        previous: Option<(usize, usize)>,
-        length: usize,
-    }
-
-    pub(super) fn prove(
-        goal: &Proposition,
-        requirements: &[Proposition],
-        semantic_axioms: &[Proposition],
-        remaining: &mut usize,
-        depth: usize,
-    ) -> Option<ProofNode> {
-        let (start, end, strict_goal) = relation(goal)?;
-        let mut facts = Vec::new();
-        for (premises, semantic) in [(requirements, false), (semantic_axioms, true)] {
-            for (premise_index, root) in premises.iter().enumerate() {
-                collect(
-                    OrderFact {
-                        root,
-                        relation: root,
-                        semantic,
-                        premise_index,
-                        conjuncts: Vec::new(),
-                    },
-                    &mut facts,
-                    remaining,
-                    depth,
-                )?;
+/// The producer reconstructs the exact questions verification asks — over
+/// the validated artifact bytes' decoded module, not producer-side state —
+/// searches each goal under the shared denotation lanes, and returns rows in
+/// canonical owner order for `ProofBundle::crash_obligations`. Before the
+/// roster is emitted each row is replayed through the verifier's own
+/// discharge predicate: a question the produced supply cannot answer is a
+/// lowering failure, not an artifact a receiver must reject.
+pub fn produce_crash_obligation_evidence(
+    module: &TerminalModule,
+) -> Result<Vec<CrashObligationEvidence>, CrashRosterError> {
+    use terminal_verifier::CrashObligationQuestion;
+    let questions = terminal_verifier::reconstruct_crash_obligations(module)?;
+    let roster: Vec<CrashObligationEvidence> = questions
+        .iter()
+        .map(|question| {
+            let produce =
+                |goal: &Proposition, semantic_axioms: &[Proposition]| -> Vec<CrashCertificate> {
+                    question.context.as_ref().map_or_else(Vec::new, |context| {
+                        produce_entry_requirement_certificates(
+                            context,
+                            goal,
+                            &question.requirements,
+                            semantic_axioms,
+                        )
+                        .into_iter()
+                        .map(EntryRequirementCertificate::into_certificate)
+                        .collect()
+                    })
+                };
+            let (coverage, refutation) = match &question.question {
+                // One coverage roster per asserted guard, holding the
+                // certificates produced under every reconstructed path's
+                // axioms; one refutation roster per path for the path's own
+                // infeasibility (`Falsehood`) discharge.
+                CrashObligationQuestion::Site { guards, paths } => (
+                    guards
+                        .iter()
+                        .map(|guard| {
+                            paths
+                                .iter()
+                                .flat_map(|axioms| produce(guard, axioms))
+                                .collect()
+                        })
+                        .collect(),
+                    paths
+                        .iter()
+                        .map(|axioms| produce(&Proposition::Falsehood, axioms))
+                        .collect(),
+                ),
+                CrashObligationQuestion::Continuation {
+                    coverage_goals,
+                    refutation_goal,
+                } => (
+                    coverage_goals
+                        .iter()
+                        .map(|goal| produce(goal, &[]))
+                        .collect(),
+                    refutation_goal
+                        .iter()
+                        .map(|goal| produce(goal, &[]))
+                        .collect(),
+                ),
+            };
+            CrashObligationEvidence {
+                owner: question.owner,
+                coverage,
+                refutation,
             }
-        }
-        let mut reached = vec![Reached {
-            endpoint: start,
-            strict: false,
-            previous: None,
-            length: 0,
-        }];
-        let mut cursor = 0;
-        while cursor < reached.len() {
-            let length = reached[cursor].length + 1;
-            for (fact_index, fact) in facts.iter().enumerate() {
-                step(remaining, depth + length)?;
-                let (left, right, strict) = relation(fact.relation)?;
-                if left != reached[cursor].endpoint {
-                    continue;
-                }
-                let strict = strict || reached[cursor].strict;
-                let mut visited = false;
-                for prior in &reached {
-                    step(remaining, depth + length)?;
-                    if prior.endpoint == right && prior.strict == strict {
-                        visited = true;
-                        break;
-                    }
-                }
-                if visited {
-                    continue;
-                }
-                reached.push(Reached {
-                    endpoint: right,
-                    strict,
-                    previous: Some((cursor, fact_index)),
-                    length,
-                });
-                if right == end && (!strict_goal || strict) {
-                    return certificate(goal, &facts, &reached, remaining, depth);
-                }
-            }
-            cursor += 1;
-        }
-        None
-    }
-
-    fn collect<'input>(
-        fact: OrderFact<'input>,
-        facts: &mut Vec<OrderFact<'input>>,
-        remaining: &mut usize,
-        depth: usize,
-    ) -> Option<()> {
-        step(remaining, depth)?;
-        if relation(fact.relation).is_some() {
-            facts.push(fact);
-        } else if let Proposition::Conjunction(children) = fact.relation {
-            for (conjunct, child) in children.iter().enumerate() {
-                let mut conjuncts = fact.conjuncts.clone();
-                conjuncts.push(conjunct);
-                collect(
-                    OrderFact {
-                        relation: child,
-                        conjuncts,
-                        ..fact
-                    },
-                    facts,
-                    remaining,
-                    depth + 1,
-                )?;
-            }
-        }
-        Some(())
-    }
-
-    fn relation(proposition: &Proposition) -> Option<(&ScalarTerm, &ScalarTerm, bool)> {
-        let (left, right, strict) = match proposition {
-            Proposition::LessThan(left, right) => (left, right, true),
-            Proposition::LessOrEqual(left, right) => (left, right, false),
-            _ => return None,
-        };
-        (matches!(left.scalar_type(), ScalarType::Integer(_))
-            && left.scalar_type() == right.scalar_type())
-        .then_some((left, right, strict))
-    }
-
-    fn citation(fact: &OrderFact<'_>, remaining: &mut usize, depth: usize) -> Option<ProofNode> {
-        step(remaining, depth)?;
-        let mut proof = ProofNode {
-            conclusion: fact.root.clone(),
-            rule: if fact.semantic {
-                ProofRule::SemanticAxiom {
-                    index: fact.premise_index,
-                }
-            } else {
-                ProofRule::Assumption {
-                    index: fact.premise_index,
-                }
-            },
-        };
-        for (nesting, &conjunct) in fact.conjuncts.iter().enumerate() {
-            step(remaining, depth + nesting + 1)?;
-            let Proposition::Conjunction(children) = &proof.conclusion else {
-                return None;
-            };
-            proof = ProofNode {
-                conclusion: children.get(conjunct)?.clone(),
-                rule: ProofRule::ConjunctionElimination {
-                    conjunction: Box::new(proof),
-                    conjunct,
-                },
-            };
-        }
-        Some(proof)
-    }
-
-    fn certificate(
-        goal: &Proposition,
-        facts: &[OrderFact<'_>],
-        reached: &[Reached<'_>],
-        remaining: &mut usize,
-        depth: usize,
-    ) -> Option<ProofNode> {
-        let mut path = Vec::new();
-        let mut arrival = reached.last()?;
-        while let Some((previous, fact)) = arrival.previous {
-            step(remaining, depth + path.len())?;
-            path.push(fact);
-            arrival = reached.get(previous)?;
-        }
-        let mut path = path.into_iter().rev();
-        let mut proof = citation(facts.get(path.next()?)?, remaining, depth)?;
-        for (length, fact) in path.enumerate() {
-            step(remaining, depth + length + 1)?;
-            let next = citation(facts.get(fact)?, remaining, depth + length + 1)?;
-            let (left, _, left_strict) = relation(&proof.conclusion)?;
-            let (_, right, right_strict) = relation(&next.conclusion)?;
-            let strict = left_strict || right_strict;
-            proof = ProofNode {
-                conclusion: if strict {
-                    Proposition::LessThan(left.clone(), right.clone())
-                } else {
-                    Proposition::LessOrEqual(left.clone(), right.clone())
-                },
-                rule: if strict {
-                    ProofRule::IntegerStrictOrderTransitivity {
-                        left_to_middle: Box::new(proof),
-                        middle_to_right: Box::new(next),
-                    }
-                } else {
-                    ProofRule::IntegerLessOrEqualTransitivity {
-                        left_less_or_equal_middle: Box::new(proof),
-                        middle_less_or_equal_right: Box::new(next),
-                    }
-                },
-            };
-        }
-        if matches!(goal, Proposition::LessOrEqual(..)) && relation(&proof.conclusion)?.2 {
-            step(remaining, depth)?;
-            proof = ProofNode {
-                conclusion: goal.clone(),
-                rule: ProofRule::IntegerOrderWeakening {
-                    relation: Box::new(proof),
-                },
-            };
-        }
-        (proof.conclusion == *goal).then_some(proof)
+        })
+        .collect();
+    let undischarged: Vec<_> = questions
+        .iter()
+        .zip(&roster)
+        .filter(|(question, row)| !terminal_verifier::crash_obligation_discharged(question, row))
+        .map(|(question, _)| question.owner)
+        .collect();
+    if undischarged.is_empty() {
+        Ok(roster)
+    } else {
+        Err(CrashRosterError::Undischarged(undischarged))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        MAXIMUM_PROOF_DEPTH, MAXIMUM_SEARCH_STEPS, check_entry_requirement_certificate,
-        produce_entry_requirement_certificates, prove,
-    };
-    use proof_admission::check_certificate;
+    use super::{check_entry_requirement_certificate, produce_entry_requirement_certificates};
     use semantic_vocabulary::{
         IntegerSign, IntegerType, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
     };
@@ -785,40 +315,6 @@ mod tests {
             produce_entry_requirement_certificates(&context, &strict, &requirements, &[])
                 .is_empty()
         );
-    }
-
-    #[test]
-    fn conjunction_proof_search_exhausts_a_shared_budget() {
-        let goal = Proposition::Truth;
-        let requirements = [Proposition::Conjunction(vec![
-            Proposition::Falsehood,
-            goal.clone(),
-        ])];
-        let mut remaining = 2;
-        assert!(prove(&goal, &requirements, &[], &mut remaining, 0).is_none());
-        assert_eq!(remaining, 0);
-        let mut remaining = MAXIMUM_SEARCH_STEPS;
-        let proof = prove(&goal, &requirements, &[], &mut remaining, 0).unwrap();
-        check_certificate(
-            &PropositionContext::default(),
-            &goal,
-            &requirements,
-            &[],
-            &proof,
-        )
-        .unwrap();
-    }
-
-    #[test]
-    fn projection_depth_is_bounded_even_with_remaining_steps() {
-        let goal = Proposition::Truth;
-        let mut premise = goal.clone();
-        for _ in 0..MAXIMUM_PROOF_DEPTH {
-            premise = Proposition::Conjunction(vec![premise]);
-        }
-        let mut remaining = MAXIMUM_SEARCH_STEPS;
-        assert!(prove(&goal, &[premise], &[], &mut remaining, 0).is_none());
-        assert!(remaining > 0);
     }
 
     #[test]

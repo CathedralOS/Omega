@@ -1,12 +1,14 @@
 //! Canonical proof-artifact evidence and producer provenance model.
 
 mod admission;
+mod crash;
 mod nodes;
 mod recursion;
 mod witnesses;
 pub use admission::{
     AdmissionEvidence, AdmissionKind, CertificateEnvelope, EvidenceRoute, ProofSystemMarker,
 };
+pub use crash::{CrashCertificate, CrashObligationEvidence, CrashObligationOwner};
 pub use nodes::{PrimitiveJudgment, ProofNode, ProofRule};
 pub use recursion::{RecursiveComponentCertificate, RecursiveEdgeCertificate};
 use semantic_vocabulary::Proposition;
@@ -74,5 +76,10 @@ pub struct ProofBundle {
     pub evidence: Vec<ObligationEvidence>,
     pub recursive_components: Vec<RecursiveComponentEvidence>,
     pub control_cycles: Vec<ControlCycleEvidence>,
+    /// Producer-supplied certificates for verifier-reconstructed crash
+    /// obligations, canonically ordered by [`CrashObligationOwner`]. Every
+    /// reconstructed crash question must name exactly one row; a row whose
+    /// owner no reconstructed question names is unknown evidence.
+    pub crash_obligations: Vec<CrashObligationEvidence>,
     pub evidence_producers: Vec<EvidenceProducerProvenance>,
 }

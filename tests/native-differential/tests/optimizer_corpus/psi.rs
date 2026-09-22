@@ -1611,6 +1611,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
     let proof = ProofBundle {
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
+        crash_obligations: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: if matches!(leaf, Leaf::ExactTrap { .. }) {
             canonical_integer_evidence(&module)

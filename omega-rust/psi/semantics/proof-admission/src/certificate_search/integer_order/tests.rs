@@ -1,11 +1,11 @@
-use proof_admission::ProofRule;
+use crate::ProofRule;
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
     ScalarType, ValueId,
 };
 
-use super::super::{MAXIMUM_SEARCH_STEPS, establishes, prove};
 use super::adjacent;
+use crate::certificate_search::{MAXIMUM_SEARCH_STEPS, establishes, prove};
 
 fn literal(integer_type: IntegerType, number: i128) -> ScalarTerm {
     let value = match integer_type.sign() {
@@ -178,7 +178,7 @@ fn integer_bridge_uses_the_existing_shared_search_and_depth_bounds() {
             &requirements,
             &[],
             &mut remaining,
-            super::super::MAXIMUM_PROOF_DEPTH
+            crate::certificate_search::MAXIMUM_PROOF_DEPTH
         )
         .is_none()
     );

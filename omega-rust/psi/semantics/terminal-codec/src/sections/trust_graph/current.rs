@@ -16,22 +16,23 @@ use super::{
 use super::{
     BOOLEAN_POLARITY_RECONSTRUCTION_SOURCE, BYTE_READ_VALIDATION_SOURCE,
     BYTE_VIEW_VALIDATION_SOURCE, BYTE_WRITE_VALIDATION_SOURCE, CODEC_MANIFEST_SOURCE, CODEC_SOURCE,
-    CODEC_SOURCE_CLOSURE, CURRENT_ENTRY, EVIDENCE_PROVENANCE_SOURCE,
-    MACHINE_RECONSTRUCTION_CONTEXT_SOURCE, MIGRATION_POLICY_DESCRIPTOR,
+    CODEC_SOURCE_CLOSURE, CRASH_OBLIGATION_RECONSTRUCTION_SOURCE, CURRENT_ENTRY,
+    EVIDENCE_PROVENANCE_SOURCE, MACHINE_RECONSTRUCTION_CONTEXT_SOURCE, MIGRATION_POLICY_DESCRIPTOR,
     OBLIGATION_LEDGER_CODEC_SOURCE, OPERATION_FACTS_SOURCE, PREDICATE_DENOTATION_BUDGET_SOURCE,
-    PREDICATE_DENOTATION_SOURCE, PROOF_ADMISSION_CLOSED_INTEGER_SOURCE,
-    PROOF_ADMISSION_EVIDENCE_SOURCE, PROOF_ADMISSION_INTEGER_AFFINE_SOURCE,
-    PROOF_ADMISSION_INTEGER_CAST_SOURCE, PROOF_ADMISSION_INTEGER_FORBIDDEN_ROOT_SOURCE,
-    PROOF_ADMISSION_JUDGMENT_SOURCE, PROOF_ADMISSION_LIB_SOURCE,
-    PROOF_ADMISSION_ORDER_DISCRETENESS_SOURCE, PROOF_ADMISSION_PROOF_SOURCE,
-    PROOF_ADMISSION_TRAVERSAL_SOURCE, PROOF_BUNDLE_SOURCE, PROOF_CODEC_SOURCE, PROPOSITION_SOURCE,
-    PROPOSITION_VALUE_IDS_SOURCE, RECONSTRUCTION_SOURCE, SOURCE_CLOSURE_BUILD_SOURCE,
-    SUBSTITUTION_SOURCE, TERMINAL_CALL_COMPOSITION_SOURCE, TERMINAL_CANONICAL_SCALAR_GOAL_SOURCE,
-    TERMINAL_FIXED_BYTE_VIEW_SOURCE, TERMINAL_PROOF_BEARING_SCALAR_SOURCE,
-    TERMINAL_RECORD_FIELD_SOURCE, TERMINAL_REPRESENTATION_SOURCE_CLOSURE,
-    TERMINAL_SCALAR_ARRAY_SOURCE, TERMINAL_SEMANTICS_SOURCE, TERMINAL_STRUCTURAL_EFFECT_SOURCE,
-    TrustAcceptingPolicy, TrustDependencyKind, TrustDependencyNode, TrustDependencyStatus,
-    TrustGraphError, VERIFIER_CALL_COMPOSITION_SOURCE, VERIFIER_LIB_SOURCE, VERIFIER_SOURCE,
+    PREDICATE_DENOTATION_SOURCE, PROOF_ADMISSION_CERTIFICATE_SEARCH_SOURCE,
+    PROOF_ADMISSION_CLOSED_INTEGER_SOURCE, PROOF_ADMISSION_EVIDENCE_SOURCE,
+    PROOF_ADMISSION_INTEGER_AFFINE_SOURCE, PROOF_ADMISSION_INTEGER_CAST_SOURCE,
+    PROOF_ADMISSION_INTEGER_FORBIDDEN_ROOT_SOURCE, PROOF_ADMISSION_JUDGMENT_SOURCE,
+    PROOF_ADMISSION_LIB_SOURCE, PROOF_ADMISSION_ORDER_DISCRETENESS_SOURCE,
+    PROOF_ADMISSION_PROOF_SOURCE, PROOF_ADMISSION_TRAVERSAL_SOURCE, PROOF_BUNDLE_SOURCE,
+    PROOF_CODEC_SOURCE, PROPOSITION_SOURCE, PROPOSITION_VALUE_IDS_SOURCE, RECONSTRUCTION_SOURCE,
+    SOURCE_CLOSURE_BUILD_SOURCE, SUBSTITUTION_SOURCE, TERMINAL_CALL_COMPOSITION_SOURCE,
+    TERMINAL_CANONICAL_SCALAR_GOAL_SOURCE, TERMINAL_FIXED_BYTE_VIEW_SOURCE,
+    TERMINAL_PROOF_BEARING_SCALAR_SOURCE, TERMINAL_RECORD_FIELD_SOURCE,
+    TERMINAL_REPRESENTATION_SOURCE_CLOSURE, TERMINAL_SCALAR_ARRAY_SOURCE,
+    TERMINAL_SEMANTICS_SOURCE, TERMINAL_STRUCTURAL_EFFECT_SOURCE, TrustAcceptingPolicy,
+    TrustDependencyKind, TrustDependencyNode, TrustDependencyStatus, TrustGraphError,
+    VERIFIER_CALL_COMPOSITION_SOURCE, VERIFIER_LIB_SOURCE, VERIFIER_SOURCE,
     VERIFIER_SOURCE_CLOSURE, VERIFIER_VALIDATION_SOURCE, ValidatedTerminalTrustGraph,
     validate_terminal_trust_graph,
 };
@@ -67,8 +68,13 @@ fn canonical_terminal_bytes_version() -> String {
     )
 }
 
-fn canonical_proof_calculus_identity() -> &'static str {
-    "root:canonical-proof-calculus-format-33"
+// Derived, not spelled: the root identity names the exact bundle format it
+// certifies, so a marker bump cannot leave it behind.
+fn canonical_proof_calculus_identity() -> String {
+    format!(
+        "root:canonical-proof-calculus-format-{}",
+        crate::sections::proof_bundle::FORMAT_MARKER
+    )
 }
 
 fn canonical_proof_calculus_version() -> String {
@@ -149,6 +155,12 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
                 ),
                 ("proof-admission/lib.rs", PROOF_ADMISSION_LIB_SOURCE),
                 ("proof-admission/proof.rs", PROOF_ADMISSION_PROOF_SOURCE),
+                // The supplied-certificate surface: producers search here,
+                // receivers replay the recorded lane without searching.
+                (
+                    "proof-admission/certificate_search.rs",
+                    PROOF_ADMISSION_CERTIFICATE_SEARCH_SOURCE,
+                ),
                 // Bind the actual judgments, not only the module entrance
                 // that dispatches to them. Source-local proof search remains
                 // distinct from these trusted checking decisions.
@@ -242,6 +254,7 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
 }
 
 fn proof_admission_node() -> TrustDependencyNode {
+    let proof_calculus = canonical_proof_calculus_identity();
     TrustDependencyNode::new(
         "implementation:rust-proof-admission",
         TrustDependencyKind::TrustedImplementation,
@@ -253,7 +266,7 @@ fn proof_admission_node() -> TrustDependencyNode {
         "The current Rust admission checker remains trusted until the independent low-rung checker closes the diamond.",
         TrustAcceptingPolicy::ExplicitMigrationTrust,
         dependencies(&[
-            canonical_proof_calculus_identity(),
+            proof_calculus.as_str(),
             "root:explicit-rust-migration-policy",
         ]),
         &[
@@ -391,6 +404,10 @@ fn verifier_node() -> TrustDependencyNode {
                 RECONSTRUCTION_SOURCE,
             ),
             (
+                "terminal-verifier/verification/reconstruction/crash_obligations.rs",
+                CRASH_OBLIGATION_RECONSTRUCTION_SOURCE,
+            ),
+            (
                 "terminal-verifier/verification/substitution.rs",
                 SUBSTITUTION_SOURCE,
             ),
@@ -437,6 +454,10 @@ fn ledger_framework_node() -> TrustDependencyNode {
             (
                 "terminal-verifier/verification/reconstruction.rs",
                 RECONSTRUCTION_SOURCE,
+            ),
+            (
+                "terminal-verifier/verification/reconstruction/crash_obligations.rs",
+                CRASH_OBLIGATION_RECONSTRUCTION_SOURCE,
             ),
             (
                 "terminal-verifier/verification/substitution.rs",
@@ -534,6 +555,14 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                     TERMINAL_SEMANTICS_SOURCE,
                 ),
             ];
+            if row.custody() == OperationSemanticCustody::CallComposition {
+                // Call rows own the reconstructed continuation crash
+                // obligations their crash routes answer.
+                exact_sources.push((
+                    "terminal-verifier/verification/reconstruction/crash_obligations.rs",
+                    CRASH_OBLIGATION_RECONSTRUCTION_SOURCE,
+                ));
+            }
             if row.goal_free_scalar_leaf().is_some_and(|schema| {
                 schema.fact()
                     == terminal_semantics::ScalarLeafFactShape::BooleanResultEquationAndPolarityImplications

@@ -5,6 +5,7 @@ use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, MachineId, OperationId, PlaceId, Proposition, PsiSemanticId,
     ScalarTerm, ScalarType, StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
+use terminal_psi::CrashObligationOwner;
 use terminal_psi::{
     BindingRelevance, Block, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
     MachineContract, Operation, OperationKind, OperationResult, StructuralAccess,
@@ -13,7 +14,7 @@ use terminal_psi::{
     StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
     Terminator, ValueDeclaration, VocabularyMarker,
 };
-use terminal_verifier::{ModuleError, ProofBundle, VerificationError, verify_module};
+use terminal_verifier::{VerificationError, verify_module};
 
 fn id<Identity: PsiSemanticId>(raw: u64) -> Identity {
     Identity::new(raw).unwrap()
@@ -230,10 +231,17 @@ fn module(store_first: bool, entry_predicate: bool) -> TerminalModule {
 fn verify(module: &TerminalModule) -> Result<(), VerificationError> {
     verify_module(
         module,
-        &ProofBundle::default(),
+        &crate::support::produced_crash_bundle(module),
         &AdmissionProfile::default(),
     )
     .map(|_| ())
+}
+
+/// A site predicate the reconstructed question cannot discharge rejects the
+/// supplied roster — whether the row is absent entirely or the producer's own
+/// certificates cannot answer it.
+fn rejects_site(module: &TerminalModule) -> CrashObligationOwner {
+    crate::support::rejected_crash_owner(module)
 }
 
 #[test]
@@ -258,13 +266,12 @@ fn nonshared_field_reads_need_retained_origin_before_proving_entry_predicates() 
         verify(&control).unwrap();
         let mut unsupported_origin = module(false, true);
         unsupported_origin.machines[0].structural_parameters[0].access = access;
-        let error =
-            verify(&unsupported_origin).expect_err("nonshared field origin is not retained");
+        let owner = rejects_site(&unsupported_origin);
         assert!(
-            matches!(error, VerificationError::Module(ModuleError::CrashSiteGuardUnproved {
-                block, edge, predicate: 0,
-            }) if block == id::<BlockId>(2) && edge == id::<EdgeId>(3)),
-            "{access:?}: {error:?}"
+            matches!(owner, CrashObligationOwner::Site {
+                block, edge, ..
+            } if block == id::<BlockId>(2) && edge == id::<EdgeId>(3)),
+            "{access:?}: {owner:?}"
         );
     }
 }
@@ -283,11 +290,11 @@ fn a_stored_true_field_does_not_prove_it_was_true_at_invocation_entry() {
     // An entry value of false is permitted: there is deliberately no Requires.
     // The body changes it to true, so this branch cannot certify the published
     // entry predicate merely by reading the current field value.
-    let error = verify(&module(true, true)).expect_err("a current field is not an entry snapshot");
+    let owner = rejects_site(&module(true, true));
     assert!(
-        matches!(error, VerificationError::Module(ModuleError::CrashSiteGuardUnproved {
-        block, edge, predicate: 0,
-    }) if block == id::<BlockId>(2) && edge == id::<EdgeId>(3)),
-        "{error:?}"
+        matches!(owner, CrashObligationOwner::Site {
+            block, edge, ..
+        } if block == id::<BlockId>(2) && edge == id::<EdgeId>(3)),
+        "{owner:?}"
     );
 }

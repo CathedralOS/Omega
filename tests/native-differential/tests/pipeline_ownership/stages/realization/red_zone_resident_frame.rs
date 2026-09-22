@@ -141,6 +141,7 @@ fn resident_leaf_artifact() -> (Vec<u8>, Vec<u8>) {
     let proof = ProofBundle {
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
+        crash_obligations: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,

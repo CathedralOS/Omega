@@ -8,8 +8,9 @@
 //! type-checked against the formal telescope; the carried continuations must
 //! equal the published routes under exact operand substitution; and the
 //! continuations must then be covered by the owning machine's published
-//! crash routes, exactly as `validate_call_crash_coverage` covers a call's
-//! continuations. Call operations keep their own carriers and take no row.
+//! crash routes, exactly as reconstructed crash obligations cover a call's
+//! continuations under the proof bundle. Call operations keep their own
+//! carriers and take no row.
 
 use std::collections::BTreeMap;
 
@@ -21,7 +22,7 @@ use terminal_psi::{
 };
 
 use super::super::ModuleError;
-use super::{crash_routes_match, substitute_crash_routes, validate_call_crash_coverage};
+use super::{crash_routes_match, substitute_crash_routes};
 
 pub(in crate::validation) fn validate_operation_crash_contracts(
     module: &TerminalModule,
@@ -130,7 +131,7 @@ fn validate_operation_crash_contract(
             operation: contract.operation,
         });
     }
-    validate_call_crash_coverage(machine, &contract.crash_continuations, contract.operation)
+    Ok(())
 }
 
 /// The operation's direct scalar operands in authored position order, or

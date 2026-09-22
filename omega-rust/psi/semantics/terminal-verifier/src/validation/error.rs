@@ -1103,11 +1103,7 @@ pub enum ModuleError {
     NonCanonicalCrashSiteGuard(BlockId),
     CrashSiteReconstructionLimitExceeded(MachineId),
     PrimitiveSnapshotReconstructionLimitExceeded(MachineId),
-    CrashSiteGuardUnproved {
-        block: BlockId,
-        edge: EdgeId,
-        predicate: usize,
-    },
+
     CrashRouteUncovered {
         block: BlockId,
         cause: CrashCause,
@@ -1193,10 +1189,7 @@ pub enum ModuleError {
         operation: OperationId,
         callee: MachineId,
     },
-    CallCrashContinuationUncovered {
-        operation: OperationId,
-        cause: CrashCause,
-    },
+
     NonCanonicalOperationCrashContracts,
     InvalidOperationCrashContract {
         machine: MachineId,

@@ -158,11 +158,9 @@ pub(super) fn register_scalar_result_operation(
                     callee: callee.id,
                 });
             }
-            super::super::crash::validate_call_crash_coverage(
-                machine,
-                &crash_continuations,
-                operation.id,
-            )?;
+            // Coverage of these continuations is a reconstructed crash
+            // obligation answered by the proof bundle at verification, not a
+            // search performed here.
             // A scalar-only call supplies no structural boundary roots. Local
             // storage is different: every callee is independently checked for
             // establishment, dominance and cleanup by validate_machine. Do not

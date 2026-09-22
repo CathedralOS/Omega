@@ -580,6 +580,7 @@ fn ranked_terminal_proof(module: &TerminalModule) -> ProofBundle {
         .expect("ranked countdown literal one is reconstructed");
     let ordered_guard = Proposition::LessOrEqual(one.clone(), rank.clone());
     ProofBundle {
+        crash_obligations: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: reconstructed.obligation.id,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {

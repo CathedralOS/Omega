@@ -86,6 +86,7 @@ fn representative_bundle() -> ProofBundle {
         ScalarTerm::value(value_id(1), ScalarType::Integer(i32_type())),
     );
     ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -340,6 +341,7 @@ fn semantic_module() -> TerminalModule {
 
 fn kernel_bundle() -> ProofBundle {
     ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -355,6 +357,7 @@ fn certificate_bundle() -> ProofBundle {
     let literal = ScalarTerm::integer(integer, IntegerValue::Signed(7)).unwrap();
     let goal = Proposition::Equal(literal.clone(), literal);
     ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),

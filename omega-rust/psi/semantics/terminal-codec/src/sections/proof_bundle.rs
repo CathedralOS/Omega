@@ -23,9 +23,9 @@ pub use codec_error::ProofCodecError;
 pub use synopsis::render_verified_proof_synopsis;
 
 use crate::sections::proof_bundle::evidence_codec::{
-    decode_component_certificate, decode_evidence, decode_evidence_producer,
-    decode_recursive_component_evidence, encode_component_certificate, encode_evidence,
-    encode_evidence_producer,
+    decode_component_certificate, decode_crash_obligation_evidence, decode_evidence,
+    decode_evidence_producer, decode_recursive_component_evidence, encode_component_certificate,
+    encode_crash_obligation_evidence, encode_evidence, encode_evidence_producer,
 };
 use sha2::{Digest, Sha256};
 use terminal_psi::{
@@ -39,7 +39,7 @@ use wire::{Reader, Writer};
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 
 /// Single current pre-release proof vocabulary marker.
-pub(crate) const FORMAT_MARKER: u16 = 33;
+pub(crate) const FORMAT_MARKER: u16 = 34;
 
 /// Subject-sealed canonical proof section: the artifact-bound form of a proof
 /// bundle. The section header names the exact semantic subject the bundle was
@@ -191,6 +191,14 @@ pub fn decode_proof_bundle(bytes: &[u8]) -> Result<ProofBundle, ProofCodecError>
             certificate: decode_component_certificate(&mut reader, format_marker)?,
         });
     }
+    let crash_obligation_count = reader.count()?;
+    let mut crash_obligations = Vec::new();
+    for _ in 0..crash_obligation_count {
+        crash_obligations.push(decode_crash_obligation_evidence(
+            &mut reader,
+            format_marker,
+        )?);
+    }
     let producer_count = reader.count()?;
     let mut evidence_producers = Vec::new();
     for _ in 0..producer_count {
@@ -203,6 +211,7 @@ pub fn decode_proof_bundle(bytes: &[u8]) -> Result<ProofBundle, ProofCodecError>
         evidence,
         recursive_components,
         control_cycles,
+        crash_obligations,
         evidence_producers,
     };
     validate_bundle(&bundle)?;
@@ -244,6 +253,10 @@ fn encode_raw(bundle: &ProofBundle, format_marker: u16) -> Result<Vec<u8>, Proof
     for component in &bundle.control_cycles {
         writer.id(component.component);
         encode_component_certificate(&mut writer, &component.certificate, format_marker)?;
+    }
+    writer.len("crash obligation evidence", bundle.crash_obligations.len())?;
+    for obligation in &bundle.crash_obligations {
+        encode_crash_obligation_evidence(&mut writer, obligation, format_marker)?;
     }
     writer.len("evidence producers", bundle.evidence_producers.len())?;
     for producer in &bundle.evidence_producers {

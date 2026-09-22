@@ -50,8 +50,8 @@ pub use proofs::nonzero_divisor_certificate::produce_checked_canonical_integer_p
 // Crash entry-requirement certificates are produced here but attached to the
 // artifact by the Terminal assembly stage, which runs in a downstream crate.
 pub use proofs::entry_requirement_certificates::{
-    EntryRequirementCertificate, check_entry_requirement_certificate,
-    produce_entry_requirement_certificates,
+    CrashRosterError, EntryRequirementCertificate, check_entry_requirement_certificate,
+    produce_crash_obligation_evidence, produce_entry_requirement_certificates,
 };
 
 #[cfg(test)]

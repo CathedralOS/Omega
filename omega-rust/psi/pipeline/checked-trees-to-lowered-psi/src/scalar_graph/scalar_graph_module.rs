@@ -702,6 +702,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             }],
         },
         proof_bundle: ProofBundle {
+            crash_obligations: Vec::new(),
             recursive_components: Vec::new(),
             control_cycles: Vec::new(),
             evidence_producers: Vec::new(),

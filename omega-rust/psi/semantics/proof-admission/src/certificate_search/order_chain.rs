@@ -8,7 +8,7 @@
 //! Borrowed facts and predecessor coordinates keep search from cloning a proof
 //! tree at every branch. Only the selected path becomes a certificate.
 
-use proof_admission::{ProofNode, ProofRule};
+use crate::{ProofNode, ProofRule};
 use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType};
 
 use super::step;

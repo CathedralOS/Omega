@@ -79,6 +79,7 @@ fn scalar_call_reconstructs_requirements_and_imports_verified_guarantees() {
     assert_eq!(callee_guarantee.requirements.len(), 1);
 
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -161,6 +162,7 @@ fn payloadless_structural_call_imports_guarded_rows_only_as_case_implications() 
     verify_module(
         &module,
         &ProofBundle {
+            crash_obligations: Vec::new(),
             recursive_components: Vec::new(),
             control_cycles: Vec::new(),
             evidence_producers: Vec::new(),
@@ -385,6 +387,7 @@ fn payloadless_structural_call_selects_one_exact_guarded_term_without_inventing_
         })
     }));
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(2),
             route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),

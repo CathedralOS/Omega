@@ -43,6 +43,7 @@ fn proof() -> ProofNode {
 
 fn bundle(proof: ProofNode) -> ProofBundle {
     ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -69,7 +70,7 @@ fn decoded_proof(bytes: &[u8]) -> ProofNode {
 fn case_analysis_roundtrips_with_explicit_ordered_branches() {
     let bundle = bundle(proof());
     let bytes = encode_proof_bundle(&bundle).expect("case analysis encodes");
-    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
     assert_eq!(bytes[34], 16, "appended disjunction elimination rule tag");
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
     let proof = decoded_proof(&bytes);
@@ -335,7 +336,7 @@ fn existing_child_order_and_trailing_witness_bytes_are_unchanged() {
         });
         let bytes = encode_proof_bundle(&bundle).expect("existing proof rule bytes");
         assert_eq!(
-            &bytes[34..bytes.len() - 12],
+            &bytes[34..bytes.len() - 16],
             expected,
             "fixed wire tag {}",
             expected[0]

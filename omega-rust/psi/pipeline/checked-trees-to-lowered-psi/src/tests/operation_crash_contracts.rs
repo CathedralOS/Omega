@@ -210,14 +210,19 @@ fn a_recaused_site_roster_fails_closed_at_verification() {
         .clone()
         .with_checked_operators(sites)
         .expect("one site identity");
+    // The lowered module stays structurally valid; the producer's own
+    // certificate replay finds no supply for the uncovered continuation, so
+    // lowering refuses to attach a roster a receiver would reject.
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("compare")),
-        Err(LoweringError::InvalidTerminalModule(
-            terminal_verifier::ModuleError::CallCrashContinuationUncovered {
-                cause: CrashCause::Abort,
-                ..
-            }
-        ))
+        Err(LoweringError::UndischargedCrashObligations(owners))
+            if owners.iter().any(|owner| matches!(
+                owner,
+                terminal_psi::CrashObligationOwner::Continuation {
+                    cause: CrashCause::Abort,
+                    ..
+                }
+            ))
     ));
 }
 

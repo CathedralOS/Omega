@@ -8,9 +8,9 @@ use crate::structural_unit::{
 };
 use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType, StructuralPlaceKind};
 use terminal_psi::{
-    Block, ClaimTransfer, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
-    EntryClaim, Operation, OperationKind, OperationResult, ServiceDeclaration, StructuralAccess,
-    StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
+    Block, ClaimTransfer, CrashCause, CrashObligationOwner, CrashPredicateTerm, CrashRouteBucket,
+    CrashRouteGuard, EntryClaim, Operation, OperationKind, OperationResult, ServiceDeclaration,
+    StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
     SuccessorEdge, TerminalAffineCleanupAction, TerminalMachineResult, TerminalModule, Terminator,
     ValueDeclaration,
@@ -661,7 +661,7 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
         bridge(102, 50, 103),
         completion,
     ];
-    validate_module(&module).expect("both incoming paths retain the same machine formal");
+    crate::support::verify_with_crash_supply(&module);
 
     let mut conflicting = module.clone();
     let Terminator::Conditional { when_false, .. } =
@@ -670,11 +670,14 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
         unreachable!()
     };
     when_false.arguments[0] = value_id(10);
+    validate_module(&conflicting).expect("an uncovered continuation is still a module");
+    let owner = crate::support::rejected_crash_owner(&conflicting);
     assert_eq!(
-        validate_module(&conflicting).unwrap_err(),
-        ModuleError::CallCrashContinuationUncovered {
+        owner,
+        CrashObligationOwner::Continuation {
+            machine: machine_id(1),
             operation: operation_id(1),
-            cause: CrashCause::Abort
+            cause: CrashCause::Abort,
         }
     );
 
@@ -701,13 +704,12 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
         },
     };
     // Even a backedge carrying the same slot cannot manufacture a known
-    // formal when that slot's own origin has not been established.
+    // formal when that slot's own origin has not been established. The cycle
+    // itself is rejected structurally before any certificate question is
+    // reached.
     assert_eq!(
         validate_module(&cyclic).unwrap_err(),
-        ModuleError::CallCrashContinuationUncovered {
-            operation: operation_id(1),
-            cause: CrashCause::Abort
-        }
+        ModuleError::ControlCycle(block_id(102))
     );
 
     let mut foreign = module.clone();
@@ -739,11 +741,14 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
         unreachable!()
     };
     arguments[0] = value_id(60);
+    validate_module(&computed).expect("an uncovered continuation is still a module");
+    let owner = crate::support::rejected_crash_owner(&computed);
     assert_eq!(
-        validate_module(&computed).unwrap_err(),
-        ModuleError::CallCrashContinuationUncovered {
+        owner,
+        CrashObligationOwner::Continuation {
+            machine: machine_id(1),
             operation: operation_id(1),
-            cause: CrashCause::Abort
+            cause: CrashCause::Abort,
         }
     );
 }

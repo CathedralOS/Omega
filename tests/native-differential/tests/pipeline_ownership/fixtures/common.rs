@@ -99,6 +99,7 @@ pub(crate) fn operation_proof_bundle(module: &TerminalModule) -> ProofBundle {
     ProofBundle {
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
+        crash_obligations: Vec::new(),
         evidence_producers: Vec::new(),
         evidence,
     }
@@ -257,6 +258,7 @@ pub(crate) fn conditional_u64_integer_equal_parameters_artifact() -> (Vec<u8>, V
     let proof = ProofBundle {
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
+        crash_obligations: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     };
@@ -272,6 +274,7 @@ pub(crate) fn conditional_u64_equal_zero_parameter_artifact() -> (Vec<u8>, Vec<u
     let proof = ProofBundle {
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
+        crash_obligations: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     };
@@ -287,6 +290,7 @@ pub(crate) fn conditional_u64_not_equal_zero_parameter_artifact() -> (Vec<u8>, V
     let proof = ProofBundle {
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
+        crash_obligations: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     };
@@ -302,6 +306,7 @@ pub(crate) fn conditional_u64_integer_less_than_parameters_artifact() -> (Vec<u8
     let proof = ProofBundle {
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
+        crash_obligations: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     };
@@ -317,6 +322,7 @@ pub(crate) fn conditional_i64_integer_less_than_parameters_artifact() -> (Vec<u8
     let proof = ProofBundle {
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
+        crash_obligations: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     };
@@ -332,6 +338,7 @@ pub(crate) fn conditional_i64_integer_less_or_equal_parameters_artifact() -> (Ve
     let proof = ProofBundle {
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
+        crash_obligations: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     };
@@ -347,6 +354,7 @@ pub(crate) fn conditional_u64_integer_less_or_equal_parameters_artifact() -> (Ve
     let proof = ProofBundle {
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
+        crash_obligations: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     };
@@ -362,6 +370,7 @@ pub(crate) fn conditional_u64_integer_not_equal_parameters_artifact() -> (Vec<u8
     let proof = ProofBundle {
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
+        crash_obligations: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     };
@@ -786,6 +795,7 @@ pub(crate) fn conditional_immediate_artifact_with_type(
     let proof = ProofBundle {
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
+        crash_obligations: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     };
@@ -803,6 +813,7 @@ pub(crate) fn disconnected_conditional_artifact() -> (Vec<u8>, Vec<u8>) {
     let proof = ProofBundle {
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
+        crash_obligations: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     };

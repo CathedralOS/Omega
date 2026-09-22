@@ -38,8 +38,8 @@ use terminal_psi::{
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use terminal_verifier::{
-    ModuleError, ObligationEvidence, ProofBundle, VerificationError,
-    reconstruct_terminal_obligations, validate_module, verify_module,
+    ModuleError, ObligationEvidence, ProofBundle, reconstruct_terminal_obligations,
+    validate_module, verify_module,
 };
 
 fn boundary_call_module() -> TerminalModule {

@@ -21,6 +21,7 @@ pub enum ProofCodecError {
     NonCanonicalEvidenceOrder,
     NonCanonicalRecursiveComponentEvidence,
     NonCanonicalControlCycleEvidence,
+    NonCanonicalCrashObligationEvidence,
     NonCanonicalEvidenceProducerOrder,
     NonCanonicalEvidenceProducerRows,
     InvalidEvidenceProducer,

@@ -407,22 +407,38 @@ fn assert_mixed_unit_route_bindings_reject_tampering(source: &str) {
             4 => changed.machines[owner].contract.crash_routes.clear(),
             _ => unreachable!(),
         }
-        let expected = if mutation == 4 {
-            terminal_verifier::ModuleError::CallCrashContinuationUncovered {
-                operation,
-                cause: terminal_psi::CrashCause::Abort,
-            }
+        if mutation == 4 {
+            // The uncovered continuation stays structurally valid; the
+            // producer's own replay finds no certificate that discharges the
+            // reconstructed question, so no roster is emitted.
+            terminal_verifier::validate_module(&changed)
+                .expect("an uncovered continuation is still a module");
+            assert!(
+                matches!(
+                    checked_trees_to_lowered_psi::produce_crash_obligation_evidence(&changed),
+                    Err(checked_trees_to_lowered_psi::CrashRosterError::Undischarged(owners))
+                        if owners.iter().any(|owner| matches!(
+                            owner,
+                            terminal_psi::CrashObligationOwner::Continuation {
+                                operation: row_operation,
+                                cause: terminal_psi::CrashCause::Abort,
+                                ..
+                            } if *row_operation == operation
+                        ))
+                ),
+                "mutation={mutation}"
+            );
         } else {
-            terminal_verifier::ModuleError::CallCrashContinuationsMismatch {
+            let expected = terminal_verifier::ModuleError::CallCrashContinuationsMismatch {
                 operation,
                 callee: target,
-            }
-        };
-        assert_eq!(
-            terminal_verifier::validate_module(&changed).unwrap_err(),
-            expected,
-            "mutation={mutation}"
-        );
+            };
+            assert_eq!(
+                terminal_verifier::validate_module(&changed).unwrap_err(),
+                expected,
+                "mutation={mutation}"
+            );
+        }
     }
 }
 

@@ -255,22 +255,38 @@ fn guarded_unit_calls_reject_missing_foreign_and_narrowed_terminal_routes() {
             _ => unreachable!(),
         }
         let operation = module.machines[owner].blocks[block].operations[operation].id;
-        let expected = if mutation == 2 {
-            terminal_verifier::ModuleError::CallCrashContinuationUncovered {
-                operation,
-                cause: terminal_psi::CrashCause::Abort,
-            }
+        if mutation == 2 {
+            // The uncovered continuation stays structurally valid; the
+            // producer's own replay finds no certificate that discharges the
+            // reconstructed question, so no roster is emitted.
+            terminal_verifier::validate_module(&changed)
+                .expect("an uncovered continuation is still a module");
+            assert!(
+                matches!(
+                    checked_trees_to_lowered_psi::produce_crash_obligation_evidence(&changed),
+                    Err(checked_trees_to_lowered_psi::CrashRosterError::Undischarged(owners))
+                        if owners.iter().any(|owner| matches!(
+                            owner,
+                            terminal_psi::CrashObligationOwner::Continuation {
+                                operation: row_operation,
+                                cause: terminal_psi::CrashCause::Abort,
+                                ..
+                            } if *row_operation == operation
+                        ))
+                ),
+                "mutation={mutation}"
+            );
         } else {
-            terminal_verifier::ModuleError::CallCrashContinuationsMismatch {
+            let expected = terminal_verifier::ModuleError::CallCrashContinuationsMismatch {
                 operation,
                 callee: target,
-            }
-        };
-        assert_eq!(
-            terminal_verifier::validate_module(&changed).unwrap_err(),
-            expected,
-            "route mutation={mutation} rejects during semantic validation, without a proof bundle"
-        );
+            };
+            assert_eq!(
+                terminal_verifier::validate_module(&changed).unwrap_err(),
+                expected,
+                "route mutation={mutation} rejects during semantic validation, without a proof bundle"
+            );
+        }
     }
 }
 

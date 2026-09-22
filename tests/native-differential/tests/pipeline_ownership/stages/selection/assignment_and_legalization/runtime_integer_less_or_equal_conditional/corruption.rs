@@ -27,6 +27,7 @@ fn reflexive_less_or_equal_uses_one_semantic_parameter_in_the_ordinary_graph() {
         &ProofBundle {
             recursive_components: Vec::new(),
             control_cycles: Vec::new(),
+            crash_obligations: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: Vec::new(),
         },

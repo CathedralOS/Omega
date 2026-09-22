@@ -414,6 +414,7 @@ fn verified_unit() -> terminal_psi_to_abstract_operations::VerifiedPsiOptimizati
         }],
     };
     let proof = terminal_verifier::ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),

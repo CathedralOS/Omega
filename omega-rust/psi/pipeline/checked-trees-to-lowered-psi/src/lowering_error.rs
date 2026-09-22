@@ -20,6 +20,10 @@ pub enum LoweringError {
     DebugSemanticCodec(terminal_codec::CodecError),
     InvalidDebugMap(terminal_codec::DebugMapError),
     InvalidTerminalModule(terminal_verifier::ModuleError),
+    /// The producer's own replay could not discharge a reconstructed crash
+    /// obligation — no supplied certificate answers the question, so the
+    /// roster is refused rather than emitted for receivers to reject.
+    UndischargedCrashObligations(Vec<terminal_psi::CrashObligationOwner>),
     InvalidFloatMeaningProjection(FloatMeaningProjectionLoweringError),
     InvalidQuotientCorrespondence(Vec<String>),
     OperationProofUnavailable(ObligationId),

@@ -5,12 +5,13 @@ use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, MachineId, OperationId, Proposition, ScalarTerm, ScalarType,
     ValueId,
 };
+use terminal_psi::CrashObligationOwner;
 use terminal_psi::{
     Block, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, MachineContract,
     Operation, OperationKind, OperationResult, TerminalMachine, TerminalMachineResult,
     TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
-use terminal_verifier::{ModuleError, ProofBundle, validate_module, verify_module};
+use terminal_verifier::{ModuleError, validate_module, verify_module};
 
 fn boolean(position: u64, value: bool) -> Proposition {
     let mut terms = [
@@ -169,8 +170,18 @@ fn module(scalar_call: bool) -> TerminalModule {
 }
 
 fn rejects_coverage(module: &TerminalModule) {
+    // Coverage is decided by supplied certificates now: the module stays
+    // structurally valid, the missing row rejects, and the producer's own
+    // supply cannot discharge the reconstructed continuation question.
+    validate_module(module).expect("an uncovered continuation stays structurally valid");
+    let owner = crate::support::rejected_crash_owner(module);
     assert!(
-        matches!(validate_module(module), Err(ModuleError::CallCrashContinuationUncovered { operation, cause: CrashCause::Trap }) if operation == OperationId::new(1).unwrap())
+        matches!(
+            owner,
+            CrashObligationOwner::Continuation { operation, cause: CrashCause::Trap, .. }
+                if operation == OperationId::new(1).unwrap()
+        ),
+        "expected the call's continuation question, got {owner:?}"
     );
 }
 
@@ -180,10 +191,10 @@ fn entry_requirement_covers_an_unconditional_scalar_or_unit_callee_route() {
         let module = module(scalar_call);
         verify_module(
             &module,
-            &ProofBundle::default(),
+            &crate::support::produced_crash_bundle(&module),
             &AdmissionProfile::default(),
         )
-        .expect("entry requirement proves the published ceiling without producer evidence");
+        .expect("entry requirement discharge survives certificate replay");
     }
 }
 
@@ -196,7 +207,7 @@ fn conjunction_requirements_may_project_the_exact_published_predicate() {
         module.machines[0].contract.requires = vec![Proposition::Conjunction(conjuncts)];
         verify_module(
             &module,
-            &ProofBundle::default(),
+            &crate::support::produced_crash_bundle(&module),
             &AdmissionProfile::default(),
         )
         .unwrap();
@@ -214,7 +225,7 @@ fn separate_requirements_may_establish_a_conjunctive_ceiling() {
             vec![bucket(predicate(Proposition::Conjunction(conjuncts)))];
         verify_module(
             &module,
-            &ProofBundle::default(),
+            &crate::support::produced_crash_bundle(&module),
             &AdmissionProfile::default(),
         )
         .unwrap();
@@ -241,7 +252,7 @@ fn every_disjunct_must_establish_the_same_call_ceiling() {
         module.machines[0].contract.requires = vec![Proposition::Disjunction(alternatives.clone())];
         verify_module(
             &module,
-            &ProofBundle::default(),
+            &crate::support::produced_crash_bundle(&module),
             &AdmissionProfile::default(),
         )
         .expect("each alternative establishes the exact caller ceiling");
@@ -338,14 +349,14 @@ fn negated_entry_requirement_covers_an_equivalently_encoded_crash_predicate() {
         module.machines[0].contract.crash_routes = vec![bucket(predicate(boolean(1, false)))];
         verify_module(
             &module,
-            &ProofBundle::default(),
+            &crate::support::produced_crash_bundle(&module),
             &AdmissionProfile::default(),
         )
         .expect("the exact spelling remains a valid positive control");
         module.machines[0].contract.crash_routes = vec![bucket(predicate(negated_boolean(1)))];
         verify_module(
             &module,
-            &ProofBundle::default(),
+            &crate::support::produced_crash_bundle(&module),
             &AdmissionProfile::default(),
         )
         .expect("equivalent Boolean denotations establish caller coverage");
@@ -359,12 +370,7 @@ fn term_holds(term: ScalarTerm) -> Proposition {
 }
 
 fn verify_coverage(module: &TerminalModule) {
-    verify_module(
-        module,
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .unwrap();
+    crate::support::verify_with_crash_supply(module);
 }
 
 #[test]

@@ -50,17 +50,12 @@ pub(super) fn record_value_root<'plans>(
                 }
             }
             checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
-                let typed_trees::types::TypeReferenceNode::FixedArray {
-                    element_type, ..
-                } = program.type_reference_table.type_reference(reference)
+                let typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
+                    program.type_reference_table.type_reference(reference)
                 else {
                     return None;
                 };
-                pending.extend(
-                    elements
-                        .iter()
-                        .map(|element| (*element, *element_type)),
-                );
+                pending.extend(elements.iter().map(|element| (*element, *element_type)));
             }
             checked_trees::CheckedStructuralValueKind::Place(argument)
                 if argument.access == checked_trees::CheckedStructuralAccess::Owned
