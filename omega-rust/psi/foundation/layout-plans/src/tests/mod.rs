@@ -149,6 +149,24 @@ fn record_interior(carrier: &SymbolicFieldInnerLayout) -> LayoutPlanReport {
     layout.clone()
 }
 
+/// Builds a flat record report carrying the named `At` field offsets.
+fn record(fingerprint: u64, fields: &[(&str, u64)], size: u64) -> LayoutPlanReport {
+    LayoutPlanReport {
+        schema_report_fingerprint: fingerprint,
+        entries: fields
+            .iter()
+            .map(|&(field, offset)| LayoutFieldEntryReport {
+                field: field.into(),
+                member_identity: None,
+                placement: LayoutPlacementReport::At { offset },
+            })
+            .collect(),
+        offsets: Some(fields.iter().map(|&(_, offset)| offset).collect()),
+        size: Some(size),
+        align: 8,
+    }
+}
+
 fn post_handoff_context() -> MaterializationContext {
     MaterializationContext {
         consumption: ConsumptionInstant::AfterOmegaHandoff,
@@ -332,22 +350,6 @@ fn sum_field_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
 /// recursive projection emits for `Outer { middle: Middle }` where `Middle`
 /// co-locates a direct sum with the record path reaching `inner`'s sum.
 fn recursive_sum_report() -> ConventionalRecursiveRecordSumPathsLayoutReport {
-    fn record(fingerprint: u64, fields: &[(&str, u64)], size: u64) -> LayoutPlanReport {
-        LayoutPlanReport {
-            schema_report_fingerprint: fingerprint,
-            entries: fields
-                .iter()
-                .map(|&(field, offset)| LayoutFieldEntryReport {
-                    field: field.into(),
-                    member_identity: None,
-                    placement: LayoutPlacementReport::At { offset },
-                })
-                .collect(),
-            offsets: Some(fields.iter().map(|&(_, offset)| offset).collect()),
-            size: Some(size),
-            align: 8,
-        }
-    }
     ConventionalRecursiveRecordSumPathsLayoutReport {
         outer_layout: record(1, &[("header", 0), ("middle", 8)], 72),
         children: vec![ConventionalRecordSumChildLayoutReport {
@@ -399,22 +401,6 @@ fn recursive_sum_report() -> ConventionalRecursiveRecordSumPathsLayoutReport {
 /// resolves the same indexed boundary the standalone sum-array rung spells,
 /// folded through the recursive report instead of a top-level-only carrier.
 fn recursive_sum_array_report() -> ConventionalRecursiveRecordSumPathsLayoutReport {
-    fn record(fingerprint: u64, fields: &[(&str, u64)], size: u64) -> LayoutPlanReport {
-        LayoutPlanReport {
-            schema_report_fingerprint: fingerprint,
-            entries: fields
-                .iter()
-                .map(|&(field, offset)| LayoutFieldEntryReport {
-                    field: field.into(),
-                    member_identity: None,
-                    placement: LayoutPlacementReport::At { offset },
-                })
-                .collect(),
-            offsets: Some(fields.iter().map(|&(_, offset)| offset).collect()),
-            size: Some(size),
-            align: 8,
-        }
-    }
     ConventionalRecursiveRecordSumPathsLayoutReport {
         outer_layout: record(1, &[("header", 0), ("middle", 8)], 168),
         children: vec![ConventionalRecordSumChildLayoutReport {
@@ -496,22 +482,6 @@ fn recursive_sum_array_report() -> ConventionalRecursiveRecordSumPathsLayoutRepo
 /// composes the element hop and the record boundary inside it under the same
 /// bounded traversal the standalone record carrier walks.
 fn recursive_record_array_report() -> ConventionalRecursiveRecordSumPathsLayoutReport {
-    fn record(fingerprint: u64, fields: &[(&str, u64)], size: u64) -> LayoutPlanReport {
-        LayoutPlanReport {
-            schema_report_fingerprint: fingerprint,
-            entries: fields
-                .iter()
-                .map(|&(field, offset)| LayoutFieldEntryReport {
-                    field: field.into(),
-                    member_identity: None,
-                    placement: LayoutPlacementReport::At { offset },
-                })
-                .collect(),
-            offsets: Some(fields.iter().map(|&(_, offset)| offset).collect()),
-            size: Some(size),
-            align: 8,
-        }
-    }
     let element = || ConventionalRecursiveRecordSumPathsLayoutReport {
         outer_layout: record(3, &[("choice", 0), ("pad", 24)], 32),
         children: vec![ConventionalRecordSumChildLayoutReport {
