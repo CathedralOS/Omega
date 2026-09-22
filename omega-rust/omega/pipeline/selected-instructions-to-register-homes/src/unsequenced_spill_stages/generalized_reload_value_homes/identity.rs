@@ -2,7 +2,7 @@
 
 use sha2::{Digest, Sha256};
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     GeneralizedReloadCoexistingValue, GeneralizedReloadValueHomeIdentity,
     GeneralizedReloadValueHomeOutcome, GeneralizedReloadValueHomePlan,
     GeneralizedReloadValueHomePolicy, GeneralizedSpillActionSource,
@@ -72,7 +72,7 @@ pub fn generalized_reload_value_home_identity(
 #[allow(clippy::too_many_arguments)]
 fn row(
     bytes: &mut Vec<u8>,
-    result: crate::GeneralizedSpillActionId,
+    result: crate::unsequenced_spill_stages::GeneralizedSpillActionId,
     origin: GeneralizedSpillActionSource,
     block: selected_instructions::SelectedBlockId,
     start: crate::LiveRangePoint,
@@ -92,7 +92,10 @@ fn row(
     }
 }
 
-fn homes(bytes: &mut Vec<u8>, values: &[crate::GeneralizedReloadCoexistingHome]) {
+fn homes(
+    bytes: &mut Vec<u8>,
+    values: &[crate::unsequenced_spill_stages::GeneralizedReloadCoexistingHome],
+) {
     length(bytes, values.len());
     for home in values {
         match home.value {
@@ -110,7 +113,7 @@ fn homes(bytes: &mut Vec<u8>, values: &[crate::GeneralizedReloadCoexistingHome])
     }
 }
 
-fn action(bytes: &mut Vec<u8>, value: crate::GeneralizedSpillActionId) {
+fn action(bytes: &mut Vec<u8>, value: crate::unsequenced_spill_stages::GeneralizedSpillActionId) {
     bytes.extend_from_slice(&value.epoch.to_le_bytes());
     bytes.extend_from_slice(&value.ordinal.to_le_bytes());
 }

@@ -1,6 +1,6 @@
 //! Independent replay comparison and receipt sealing.
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     GeneralizedSpillInsertionError, GeneralizedSpillInsertionPlan,
     GeneralizedSpillInsertionReceipt, ValidatedAbstractSpillInsertion,
     ValidatedGeneralizedSpillInsertion, ValidatedSpillRecoveryActions,

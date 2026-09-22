@@ -2,7 +2,9 @@
 
 use optimization_core::OptimizationWorkUsage;
 
-use crate::{FunctionRecursiveReloadValueHomes, RecursiveReloadValueHomeError};
+use crate::unsequenced_spill_stages::{
+    FunctionRecursiveReloadValueHomes, RecursiveReloadValueHomeError,
+};
 
 pub(super) fn usage(
     functions: &[FunctionRecursiveReloadValueHomes],

@@ -7,11 +7,12 @@ use register_model::{
 };
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
-use crate::{
-    RecursiveReloadValueHomeError, RecursiveReloadValueHomePolicy, ValidatedAllocationLegality,
+use crate::unsequenced_spill_stages::{
+    RecursiveReloadValueHomeError, RecursiveReloadValueHomePolicy,
     ValidatedGeneralizedReloadValueHomes, ValidatedGeneralizedSpillRecoveryActions,
-    ValidatedLiveRanges, ValidatedRecursiveSpillInsertion,
+    ValidatedRecursiveSpillInsertion,
 };
+use crate::{ValidatedAllocationLegality, ValidatedLiveRanges};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn admit(

@@ -105,7 +105,7 @@ fn shared_entry_route_probes_segment_homes_before_committing_the_sequence() {
 
 #[test]
 fn declined_fixed_view_recovery_reproves_the_segment_home_probe() {
-    let source = include_str!("../assignment/runtime_spill/model.rs");
+    let source = include_str!("../assignment/runtime_spill/mod.rs");
     let manifest = source
         .split("fn upstream_manifest")
         .nth(1)

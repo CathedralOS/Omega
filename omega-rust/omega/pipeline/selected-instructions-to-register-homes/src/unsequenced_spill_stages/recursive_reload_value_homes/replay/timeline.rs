@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use register_model::ValidatedPhysicalRegisterModel;
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     GeneralizedReloadCoexistingValue, GeneralizedReloadValueHomeOutcome, GeneralizedSpillActionId,
     GeneralizedSpillRecoveryVictim, RecursiveReloadCoexistingHome, RecursiveReloadCoexistingValue,
     RecursiveReloadValueHomeAssignment, RecursiveReloadValueHomeError, RecursiveSpillEvent,
@@ -17,9 +17,9 @@ use super::{Occupant, ReplaySpec, homes};
 pub(super) fn reconstruct(
     function: usize,
     specs: &[ReplaySpec],
-    recursive: &crate::FunctionRecursiveSpillInsertion,
-    recovery: &crate::ValidatedGeneralizedSpillRecoveryActions,
-    prior: &crate::FunctionGeneralizedReloadValueHomes,
+    recursive: &crate::unsequenced_spill_stages::FunctionRecursiveSpillInsertion,
+    recovery: &crate::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryActions,
+    prior: &crate::unsequenced_spill_stages::FunctionGeneralizedReloadValueHomes,
     legality: &crate::FunctionAllocationLegality,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<Vec<RecursiveReloadValueHomeAssignment>, RecursiveReloadValueHomeError> {
@@ -266,7 +266,9 @@ fn lookup(
         .ok_or(RecursiveReloadValueHomeError::InvalidRecursiveAction { function, action })
 }
 
-fn convert_home(home: &crate::GeneralizedReloadCoexistingHome) -> RecursiveReloadCoexistingHome {
+fn convert_home(
+    home: &crate::unsequenced_spill_stages::GeneralizedReloadCoexistingHome,
+) -> RecursiveReloadCoexistingHome {
     RecursiveReloadCoexistingHome {
         value: convert_value(home.value),
         class: home.class,

@@ -5,12 +5,12 @@ use register_model::{
     ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
 };
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     SpillRecoveryWorklistError, SpillRecoveryWorklistPlan, SpillRecoveryWorklistReceipt,
-    ValidatedAbstractSpillInsertion, ValidatedAllocationLegality, ValidatedLiveRanges,
-    ValidatedLogicalSpillOperations, ValidatedSpillRecoveryWorklist,
+    ValidatedAbstractSpillInsertion, ValidatedSpillRecoveryWorklist,
     spill_recovery_worklist_identity,
 };
+use crate::{ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLogicalSpillOperations};
 
 #[allow(clippy::too_many_arguments)]
 pub fn validate_spill_recovery_worklist(

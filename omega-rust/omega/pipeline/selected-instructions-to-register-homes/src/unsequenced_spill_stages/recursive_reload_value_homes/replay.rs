@@ -14,13 +14,13 @@ use register_model::{
 };
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
-use crate::{
-    GeneralizedSpillActionId, LiveRangePoint, RecursiveReloadCoexistingValue,
-    RecursiveReloadValueHomeError, RecursiveReloadValueHomePlan, RecursiveReloadValueHomePolicy,
-    RecursiveSpillActionSource, ValidatedAllocationLegality, ValidatedGeneralizedReloadValueHomes,
-    ValidatedGeneralizedSpillRecoveryActions, ValidatedLiveRanges,
+use crate::unsequenced_spill_stages::{
+    GeneralizedSpillActionId, RecursiveReloadCoexistingValue, RecursiveReloadValueHomeError,
+    RecursiveReloadValueHomePlan, RecursiveReloadValueHomePolicy, RecursiveSpillActionSource,
+    ValidatedGeneralizedReloadValueHomes, ValidatedGeneralizedSpillRecoveryActions,
     ValidatedRecursiveSpillInsertion,
 };
+use crate::{LiveRangePoint, ValidatedAllocationLegality, ValidatedLiveRanges};
 
 #[derive(Clone)]
 struct ReplaySpec {
@@ -104,10 +104,12 @@ pub(super) fn replay(
             legality_function,
             physical,
         )?;
-        functions.push(crate::FunctionRecursiveReloadValueHomes {
-            machine: recursive_function.machine,
-            assignments,
-        });
+        functions.push(
+            crate::unsequenced_spill_stages::FunctionRecursiveReloadValueHomes {
+                machine: recursive_function.machine,
+                assignments,
+            },
+        );
     }
     let usage = work::reconstruct(&functions)?;
     if !usage.within(budget) {

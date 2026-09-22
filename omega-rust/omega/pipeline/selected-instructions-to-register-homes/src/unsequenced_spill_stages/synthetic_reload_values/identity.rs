@@ -1,10 +1,10 @@
 use sha2::{Digest, Sha256};
 
-use crate::{SyntheticReloadValuePlan, SyntheticReloadValuePolicy};
+use crate::unsequenced_spill_stages::{SyntheticReloadValuePlan, SyntheticReloadValuePolicy};
 
 pub fn synthetic_reload_value_plan_identity(
     plan: &SyntheticReloadValuePlan,
-) -> crate::SyntheticReloadValuePlanIdentity {
+) -> crate::unsequenced_spill_stages::SyntheticReloadValuePlanIdentity {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(b"omega.synthetic-reload-values.v1\0");
     bytes.extend_from_slice(&plan.abstract_spill_insertion.bytes());
@@ -31,7 +31,7 @@ pub fn synthetic_reload_value_plan_identity(
         bytes.extend_from_slice(&binding.class.0.to_le_bytes());
         bytes.extend_from_slice(&binding.view.0.to_le_bytes());
     }
-    crate::SyntheticReloadValuePlanIdentity(Sha256::digest(bytes).into())
+    crate::unsequenced_spill_stages::SyntheticReloadValuePlanIdentity(Sha256::digest(bytes).into())
 }
 
 fn length(bytes: &mut Vec<u8>, value: usize) {

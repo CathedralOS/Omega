@@ -8,7 +8,7 @@
 //! ownership table: it must link every stage crate through an entrypoint file
 //! that exists, and no stage crate may go undocumented.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 /// Stage outputs that leave `pipeline/` for a documented owner instead of a
@@ -534,6 +534,34 @@ const UNEXECUTED_REWRITE_FAMILIES: [(&str, &str); 38] = [
     ("triangle_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
 ];
 
+/// Spill families of `selected-instructions-to-register-homes` that are
+/// compiled, tested and exported under `unsequenced_spill_stages` but called
+/// by no executable allocation route: `stage_register_allocation` sequences
+/// none of them, and their one production consumer, machine emission's
+/// non-authoritative spill-frame requirements, is itself reached only from
+/// tests. Each row names the family module and the `TASKS_OPTIMIZER.md` item
+/// that owns sequencing or deleting it. The roster must equal the modules
+/// `unsequenced_spill_stages/mod.rs` declares, and their `pub fn`s are excused
+/// by this audit as a group under the same rule as the unexecuted rewrites.
+const UNSEQUENCED_SPILL_FAMILIES: [(&str, &str); 16] = [
+    ("abstract_spill_access_constraints", "SPILL-REALIZATION"),
+    ("abstract_spill_insertion", "SPILL-REALIZATION"),
+    ("abstract_spill_memory_effects", "SPILL-REALIZATION"),
+    ("generalized_reload_value_homes", "SPILL-REALIZATION"),
+    ("generalized_spill_insertion", "SPILL-REALIZATION"),
+    ("generalized_spill_recovery_actions", "SPILL-REALIZATION"),
+    ("generalized_spill_recovery_choice", "SPILL-REALIZATION"),
+    ("generalized_spill_recovery_worklist", "SPILL-REALIZATION"),
+    ("recursive_reload_value_homes", "SPILL-REALIZATION"),
+    ("recursive_spill_insertion", "SPILL-REALIZATION"),
+    ("reload_value_homes", "SPILL-REALIZATION"),
+    ("spill_pseudo_instructions", "SPILL-REALIZATION"),
+    ("spill_recovery_actions", "SPILL-REALIZATION"),
+    ("spill_recovery_choice", "SPILL-REALIZATION"),
+    ("spill_recovery_worklist", "SPILL-REALIZATION"),
+    ("synthetic_reload_values", "SPILL-REALIZATION"),
+];
+
 /// Root-reachable free `pub fn`s that no file outside their own crate calls,
 /// as found when this audit widened from top-level `src/*.rs` to every
 /// non-test file under `src/`: each is exported at its crate root yet reached
@@ -541,12 +569,16 @@ const UNEXECUTED_REWRITE_FAMILIES: [(&str, &str); 38] = [
 /// audit requires it to equal the orphans it finds, so a fix (narrowing the
 /// function to `pub(crate)`, wiring it into the route, or deleting it with its
 /// family) removes the row and a new orphan cannot enter without a row. The
-/// `selected-instructions-to-register-homes` rows are the unsequenced spill
-/// variant identities SPILL-REALIZATION owns; the four `peepholes` fold and
-/// validate pairs in `selected-instructions-to-selected-instructions` are
-/// unexecuted families outside `rewrites/` that EXACT-MACHINE-SIMPLIFICATIONS
-/// owns beside the rostered ones.
-const INTERNALLY_CALLED_REEXPORTS: [(&str, &str); 60] = [
+/// The 13 unsequenced spill identities of
+/// `selected-instructions-to-register-homes` left this roster for
+/// `UNSEQUENCED_SPILL_FAMILIES` when that area moved under a named module
+/// path; the five register-homes rows that remain are rematerialization and
+/// post-allocation-manifest helpers on the sequenced route. The four
+/// `peepholes` fold and validate pairs in
+/// `selected-instructions-to-selected-instructions` are unexecuted families
+/// outside `rewrites/` that DECLARATIVE-PEEPHOLES owns beside the rostered
+/// ones.
+const INTERNALLY_CALLED_REEXPORTS: [(&str, &str); 47] = [
     (
         "abstract-operations-to-abstract-operations",
         "analysis_dependencies",
@@ -597,10 +629,6 @@ const INTERNALLY_CALLED_REEXPORTS: [(&str, &str); 60] = [
     ),
     (
         "selected-instructions-to-register-homes",
-        "abstract_spill_insertion_identity",
-    ),
-    (
-        "selected-instructions-to-register-homes",
         "complete_optimized_active_resident_rematerialization",
     ),
     (
@@ -609,59 +637,11 @@ const INTERNALLY_CALLED_REEXPORTS: [(&str, &str); 60] = [
     ),
     (
         "selected-instructions-to-register-homes",
-        "generalized_reload_value_home_identity",
-    ),
-    (
-        "selected-instructions-to-register-homes",
-        "generalized_spill_insertion_identity",
-    ),
-    (
-        "selected-instructions-to-register-homes",
-        "generalized_spill_recovery_choice_identity",
-    ),
-    (
-        "selected-instructions-to-register-homes",
-        "generalized_spill_recovery_worklist_identity",
-    ),
-    (
-        "selected-instructions-to-register-homes",
-        "homed_spill_pseudo_instruction_plan_identity",
-    ),
-    (
-        "selected-instructions-to-register-homes",
         "project_post_allocation_optimization_manifest",
     ),
     (
         "selected-instructions-to-register-homes",
         "project_post_allocation_optimization_manifest_after_selected_lowering",
-    ),
-    (
-        "selected-instructions-to-register-homes",
-        "recursive_reload_value_home_identity",
-    ),
-    (
-        "selected-instructions-to-register-homes",
-        "recursive_spill_insertion_identity",
-    ),
-    (
-        "selected-instructions-to-register-homes",
-        "reload_value_home_identity",
-    ),
-    (
-        "selected-instructions-to-register-homes",
-        "spill_pseudo_instruction_plan_identity",
-    ),
-    (
-        "selected-instructions-to-register-homes",
-        "spill_recovery_choice_identity",
-    ),
-    (
-        "selected-instructions-to-register-homes",
-        "spill_recovery_worklist_identity",
-    ),
-    (
-        "selected-instructions-to-register-homes",
-        "synthetic_reload_value_plan_identity",
     ),
     (
         "selected-instructions-to-register-homes",
@@ -802,52 +782,55 @@ const INTERNALLY_CALLED_REEXPORTS: [(&str, &str); 60] = [
 fn stage_entrances_stay_connected_to_external_callers() {
     let root = repository();
     let sources = workspace_sources(&root);
-    let selected_rewrites = "selected-instructions-to-selected-instructions";
-    let unexecuted_declared: BTreeSet<String> = std::fs::read_to_string(
-        root.join("omega-rust/omega/pipeline")
-            .join(selected_rewrites)
-            .join("src/rewrites/unexecuted/mod.rs"),
-    )
-    .map(|source| declared_modules(&source))
-    .unwrap_or_default();
-    let unexecuted_roster: BTreeSet<String> = UNEXECUTED_REWRITE_FAMILIES
-        .iter()
-        .map(|(module, _)| (*module).to_owned())
-        .collect();
-    let shared_unexecuted_vocabulary: BTreeSet<String> = unexecuted_declared
-        .difference(&unexecuted_roster)
-        .cloned()
-        .collect();
-    assert_eq!(
-        shared_unexecuted_vocabulary
-            .iter()
-            .map(String::as_str)
-            .collect::<Vec<_>>(),
-        [
-            "commuting_accesses",
-            "condition_state",
-            "dead_path",
-            "place_storage"
-        ],
-        "rewrites/unexecuted/mod.rs declares a module that is neither a rostered \
-         family nor its shared vocabulary; add the family to \
-         UNEXECUTED_REWRITE_FAMILIES with its board owner"
-    );
-    assert!(
-        unexecuted_roster.is_subset(&unexecuted_declared),
-        "UNEXECUTED_REWRITE_FAMILIES names families rewrites/unexecuted/mod.rs \
-         no longer declares: {:?}",
-        unexecuted_roster
-            .difference(&unexecuted_declared)
-            .collect::<Vec<_>>()
-    );
     let board = std::fs::read_to_string(root.join("TASKS_OPTIMIZER.md")).unwrap();
-    for (module, owner) in UNEXECUTED_REWRITE_FAMILIES {
-        assert!(
-            board.contains(&format!("**{owner}.**")),
-            "unexecuted rewrite family {module} names owner {owner}, which is not \
-             a live TASKS_OPTIMIZER.md item"
+    // Catalogued-but-unexecuted areas: (crate, area path under src/, roster,
+    // shared vocabulary modules the area declares beside its families).
+    let areas: [(&str, &str, &[(&str, &str)], &[&str]); 2] = [
+        (
+            "selected-instructions-to-selected-instructions",
+            "rewrites/unexecuted",
+            &UNEXECUTED_REWRITE_FAMILIES,
+            &[
+                "commuting_accesses",
+                "condition_state",
+                "dead_path",
+                "place_storage",
+            ],
+        ),
+        (
+            "selected-instructions-to-register-homes",
+            "unsequenced_spill_stages",
+            &UNSEQUENCED_SPILL_FAMILIES,
+            &[],
+        ),
+    ];
+    let mut area_rosters: BTreeMap<&str, (&str, BTreeSet<String>)> = BTreeMap::new();
+    for (crate_name, area, roster, vocabulary) in areas {
+        let declared: BTreeSet<String> = std::fs::read_to_string(
+            root.join("omega-rust/omega/pipeline")
+                .join(crate_name)
+                .join("src")
+                .join(area)
+                .join("mod.rs"),
+        )
+        .map(|source| declared_modules(&source))
+        .unwrap_or_default();
+        let rostered: BTreeSet<String> = roster.iter().map(|(m, _)| (*m).to_owned()).collect();
+        let shared: BTreeSet<String> = vocabulary.iter().map(|m| (*m).to_owned()).collect();
+        let expected: BTreeSet<String> = rostered.union(&shared).cloned().collect();
+        assert_eq!(
+            declared, expected,
+            "{crate_name}/src/{area}/mod.rs declares a module set that differs from its \
+             disposition roster plus shared vocabulary; add or remove the family row"
         );
+        for (module, owner) in roster.iter() {
+            assert!(
+                board.contains(&format!("**{owner}.**")),
+                "{crate_name}::{area}::{module} names owner {owner}, which is not a live \
+                 TASKS_OPTIMIZER.md item"
+            );
+        }
+        area_rosters.insert(crate_name, (area, expected));
     }
     let mut violations = Vec::new();
     for (name, path) in stage_crates(&root) {
@@ -879,38 +862,39 @@ fn stage_entrances_stay_connected_to_external_callers() {
                         .to_owned()
                 })
                 .unwrap_or_default();
+            let area = area_rosters
+                .get(name.as_str())
+                .filter(|(area, _)| relative.starts_with(area));
             let under_public_module = public_modules.contains(&top_module)
-                || (name == selected_rewrites
-                    && relative.starts_with("rewrites/unexecuted")
-                    && library.contains("pub use rewrites::unexecuted;"));
-            let unexecuted_family = (name == selected_rewrites
-                && relative.starts_with("rewrites/unexecuted"))
-            .then(|| {
-                relative
-                    .components()
-                    .nth(2)
-                    .map(|component| {
-                        component
-                            .as_os_str()
-                            .to_string_lossy()
-                            .trim_end_matches(".rs")
-                            .to_owned()
-                    })
-                    .unwrap_or_default()
-            });
+                || area.is_some_and(|(area, _)| {
+                    library.contains(&format!("pub use {};", area.replace('/', "::")))
+                        || library.contains(&format!("pub mod {area};"))
+                });
             let source = std::fs::read_to_string(&file).unwrap();
             for function in free_public_functions(&source) {
                 let reachable = exported.contains(&function) || under_public_module;
                 if !reachable {
                     continue;
                 }
-                if let Some(family) = &unexecuted_family {
+                if let Some((area, members)) = area {
+                    let depth = area.matches('/').count() + 1;
+                    let family = relative
+                        .components()
+                        .nth(depth)
+                        .map(|component| {
+                            component
+                                .as_os_str()
+                                .to_string_lossy()
+                                .trim_end_matches(".rs")
+                                .to_owned()
+                        })
+                        .unwrap_or_default();
                     assert!(
-                        unexecuted_roster.contains(family)
-                            || shared_unexecuted_vocabulary.contains(family),
-                        "{}::rewrites::unexecuted::{family}::{function} is public but its \
-                         family is not in UNEXECUTED_REWRITE_FAMILIES",
-                        name.replace('-', "_")
+                        members.contains(&family),
+                        "{}::{}::{family}::{function} is public but its family has no \
+                         disposition row",
+                        name.replace('-', "_"),
+                        area.replace('/', "::")
                     );
                     continue;
                 }

@@ -1,6 +1,6 @@
 //! Independent spill-pseudo replay and receipt admission.
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     SpillPseudoInstructionError, SpillPseudoInstructionPlan, SpillPseudoInstructionReceipt,
     ValidatedRecursiveSpillInsertion, ValidatedSpillPseudoInstructions,
     spill_pseudo_instruction_plan_identity,

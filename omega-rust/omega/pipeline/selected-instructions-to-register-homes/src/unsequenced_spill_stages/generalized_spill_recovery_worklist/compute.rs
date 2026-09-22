@@ -2,7 +2,7 @@
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     FunctionGeneralizedSpillRecoveryWorklist, GeneralizedReloadValueHomeOutcome,
     GeneralizedSpillActionSource, GeneralizedSpillRecoveryWorkItem,
     GeneralizedSpillRecoveryWorkItemId, GeneralizedSpillRecoveryWorklistError,

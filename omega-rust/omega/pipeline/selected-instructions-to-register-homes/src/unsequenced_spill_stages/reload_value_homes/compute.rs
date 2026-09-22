@@ -10,10 +10,13 @@ use register_model::{
 };
 use selected_instructions::VirtualRegisterId;
 
-use crate::{
-    AbstractSpillInsertionAction, FunctionReloadValueHomes, LiveRangePoint, ReloadCoexistingHome,
+use crate::unsequenced_spill_stages::{
+    AbstractSpillInsertionAction, FunctionReloadValueHomes, ReloadCoexistingHome,
     ReloadValueHomeAssignment, ReloadValueHomeError, ReloadValueHomePlan, ReloadValueHomePolicy,
-    ValidatedAbstractSpillInsertion, ValidatedAllocationLegality, ValidatedLiveRanges,
+    ValidatedAbstractSpillInsertion,
+};
+use crate::{
+    LiveRangePoint, ValidatedAllocationLegality, ValidatedLiveRanges,
     ValidatedLogicalSpillOperations, VirtualInterference,
 };
 
@@ -123,7 +126,7 @@ fn admit_roots(
 
 fn build_function(
     function: usize,
-    insertion: &crate::FunctionAbstractSpillInsertion,
+    insertion: &crate::unsequenced_spill_stages::FunctionAbstractSpillInsertion,
     legality: &crate::FunctionAllocationLegality,
     ranges: &crate::FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,

@@ -15,13 +15,14 @@ use register_model::{
 use selected_instructions::VirtualRegisterId;
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     FunctionGeneralizedReloadValueHomes, GeneralizedReloadCoexistingValue,
     GeneralizedReloadValueHomeError, GeneralizedReloadValueHomePlan,
     GeneralizedReloadValueHomePolicy, GeneralizedSpillActionId, GeneralizedSpillActionSource,
-    LiveRangePoint, ValidatedAbstractSpillInsertion, ValidatedAllocationLegality,
-    ValidatedGeneralizedSpillInsertion, ValidatedLiveRanges, ValidatedSpillRecoveryActions,
+    ValidatedAbstractSpillInsertion, ValidatedGeneralizedSpillInsertion,
+    ValidatedSpillRecoveryActions,
 };
+use crate::{LiveRangePoint, ValidatedAllocationLegality, ValidatedLiveRanges};
 
 #[derive(Clone)]
 struct ReloadSpec {

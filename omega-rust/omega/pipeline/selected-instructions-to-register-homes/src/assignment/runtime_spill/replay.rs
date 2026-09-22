@@ -1,4 +1,4 @@
-use super::model::RuntimeSpillStepRewrite;
+use super::RuntimeSpillStepRewrite;
 use super::recovery::{
     analyze, assign, candidates, overlaps_pressure, sequenced_logical_operations,
     sequenced_slot_coloring, transformations,

@@ -1,6 +1,6 @@
 //! Producer-local data, declared-barrier, and slice-overlap edges.
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     AbstractSpillAccessConstraintError, AbstractSpillAccessDependency,
     AbstractSpillAccessDependencyReason, AbstractSpillAccessKind, AbstractSpillAccessPlacement,
     AbstractSpillMemoryEffect, FunctionAbstractSpillMemoryEffects,
@@ -97,7 +97,7 @@ pub(super) fn derive(
 fn find(
     function: usize,
     placements: &[AbstractSpillAccessPlacement],
-    pseudo: crate::SpillPseudoInstructionId,
+    pseudo: crate::unsequenced_spill_stages::SpillPseudoInstructionId,
 ) -> Result<&AbstractSpillAccessPlacement, AbstractSpillAccessConstraintError> {
     placements
         .iter()

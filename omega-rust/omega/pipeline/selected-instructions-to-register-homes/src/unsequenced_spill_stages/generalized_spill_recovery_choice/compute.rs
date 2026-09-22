@@ -8,14 +8,16 @@ use register_model::{
 };
 use selected_instructions::SelectedFunction;
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     GeneralizedReloadCoexistingHome, GeneralizedReloadCoexistingValue,
     GeneralizedReloadValueHomeOutcome, GeneralizedSpillRecoveryChoiceError,
     GeneralizedSpillRecoveryChoicePlan, GeneralizedSpillRecoveryChoicePolicy,
     GeneralizedSpillRecoveryContender, GeneralizedSpillRecoveryResident,
-    GeneralizedSpillRecoveryVictimChoice, LiveRangePoint, ValidatedAllocationLegality,
-    ValidatedGeneralizedReloadValueHomes, ValidatedGeneralizedSpillRecoveryWorklist,
-    ValidatedLiveRanges, ValidatedSelectedAnalysis,
+    GeneralizedSpillRecoveryVictimChoice, ValidatedGeneralizedReloadValueHomes,
+    ValidatedGeneralizedSpillRecoveryWorklist,
+};
+use crate::{
+    LiveRangePoint, ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis,
 };
 
 mod original_eligibility;
@@ -185,7 +187,7 @@ fn resolve_resident(
     blocker: &GeneralizedReloadCoexistingHome,
     block: selected_instructions::SelectedBlockId,
     point: LiveRangePoint,
-    homes: &crate::FunctionGeneralizedReloadValueHomes,
+    homes: &crate::unsequenced_spill_stages::FunctionGeneralizedReloadValueHomes,
     legality: &crate::FunctionAllocationLegality,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<GeneralizedSpillRecoveryResident, GeneralizedSpillRecoveryChoiceError> {
@@ -252,7 +254,7 @@ fn resolve_resident(
 
 fn contenders(
     function: usize,
-    item: &crate::GeneralizedSpillRecoveryWorkItem,
+    item: &crate::unsequenced_spill_stages::GeneralizedSpillRecoveryWorkItem,
     residents: &[GeneralizedSpillRecoveryResident],
     physical: &ValidatedPhysicalRegisterModel,
     work: &mut Work,

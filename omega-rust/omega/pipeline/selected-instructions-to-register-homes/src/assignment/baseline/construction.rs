@@ -7,7 +7,7 @@ use crate::{StagedOptimizedAllocationLegality, validate_optimized_allocation_leg
 use crate::{StagedOptimizedSelectedReanalysis, validate_optimized_selected_reanalysis_custody};
 
 use super::custody::{custody_receipt, post_copy_custody_receipt};
-use super::model::{
+use super::{
     OptimizedPostCopyRegisterHomeCustodyError, OptimizedRegisterHomeCustodyError,
     StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies,
 };

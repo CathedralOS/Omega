@@ -7,10 +7,10 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
 
-use crate::{
-    GeneralizedSpillRecoveryChoiceError, GeneralizedSpillRecoveryResident, LiveRangePoint,
-    VirtualFixedConstraintSite,
+use crate::unsequenced_spill_stages::{
+    GeneralizedSpillRecoveryChoiceError, GeneralizedSpillRecoveryResident,
 };
+use crate::{LiveRangePoint, VirtualFixedConstraintSite};
 
 use super::{Work, add, count};
 

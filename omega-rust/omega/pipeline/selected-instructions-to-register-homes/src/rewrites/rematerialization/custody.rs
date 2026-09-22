@@ -6,7 +6,7 @@ use crate::{
 
 use crate::StagedOptimizedAllocationLegalityCustodyReceipt;
 
-use super::model::{
+use super::{
     StagedOptimizedActiveResidentRematerializationCustodyReceipt,
     StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt,
 };

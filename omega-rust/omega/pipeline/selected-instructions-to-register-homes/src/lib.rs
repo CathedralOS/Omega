@@ -18,9 +18,10 @@
 //! - `output` owns current allocation facts and their separate replay evidence.
 //! - `preservation` derives allocation-visible callee-saved requirements.
 //! - `unsequenced_spill_stages` holds validated spill boundaries that
-//!   `stage_register_allocation` does not yet call.
+//!   `stage_register_allocation` does not yet call; they are reachable only
+//!   through that module path, so the root's names are the route's names.
 //!
-//! Every name this crate owns is re-exported below from the module that owns
+//! Every name the route owns is re-exported below from the module that owns
 //! it, so the root reads as a map. The `register_model` and
 //! `selected_instructions_to_selected_instructions` vocabularies are upstream
 //! representation crates this stage consumes; they are re-exported whole.
@@ -30,7 +31,7 @@ mod output;
 mod preservation;
 mod register_allocation;
 mod rewrites;
-mod unsequenced_spill_stages;
+pub mod unsequenced_spill_stages;
 
 // The entry and its route.
 pub use register_allocation::{RegisterAllocationError, stage_register_allocation};
@@ -137,137 +138,6 @@ pub use assignment::stack_slot_coloring::{
     StackSlotColoringError, StackSlotColoringIdentity, StackSlotColoringPlan,
     StackSlotColoringPolicy, StackSlotColoringValidationReceipt, ValidatedStackSlotColoring,
     color_logical_spill_stack_slots, stack_slot_coloring_identity, validate_stack_slot_coloring,
-};
-pub use unsequenced_spill_stages::abstract_spill_access_constraints::{
-    AbstractSpillAccessConstraintError, AbstractSpillAccessConstraintPlan,
-    AbstractSpillAccessConstraintPlanIdentity, AbstractSpillAccessConstraintPolicy,
-    AbstractSpillAccessConstraintReceipt, AbstractSpillAccessDependency,
-    AbstractSpillAccessDependencyReason, AbstractSpillAccessKind, AbstractSpillAccessPlacement,
-    FunctionAbstractSpillAccessConstraints, ValidatedAbstractSpillAccessConstraints,
-    abstract_spill_access_constraint_plan_identity, constrain_abstract_spill_accesses,
-    validate_abstract_spill_access_constraints,
-};
-pub use unsequenced_spill_stages::abstract_spill_insertion::{
-    AbstractSpillAreaReload, AbstractSpillAreaSlot, AbstractSpillAreaStore,
-    AbstractSpillInsertionAction, AbstractSpillInsertionError, AbstractSpillInsertionIdentity,
-    AbstractSpillInsertionPlan, AbstractSpillInsertionPolicy, AbstractSpillInsertionReceipt,
-    FunctionAbstractSpillInsertion, ValidatedAbstractSpillInsertion,
-    abstract_spill_insertion_identity, schedule_abstract_spill_insertion,
-    validate_abstract_spill_insertion,
-};
-pub use unsequenced_spill_stages::abstract_spill_memory_effects::{
-    AbstractSpillMemoryEffect, AbstractSpillMemoryEffectError, AbstractSpillMemoryEffectPlan,
-    AbstractSpillMemoryEffectPlanIdentity, AbstractSpillMemoryEffectPolicy,
-    AbstractSpillMemoryEffectReceipt, FunctionAbstractSpillMemoryEffects,
-    ValidatedAbstractSpillMemoryEffects, abstract_spill_memory_effect_plan_identity,
-    derive_abstract_spill_memory_effects, validate_abstract_spill_memory_effects,
-};
-pub use unsequenced_spill_stages::generalized_reload_value_homes::{
-    FunctionGeneralizedReloadValueHomes, GeneralizedReloadCoexistingHome,
-    GeneralizedReloadCoexistingValue, GeneralizedReloadValueHomeAssignment,
-    GeneralizedReloadValueHomeError, GeneralizedReloadValueHomeIdentity,
-    GeneralizedReloadValueHomeOutcome, GeneralizedReloadValueHomePlan,
-    GeneralizedReloadValueHomePolicy, GeneralizedReloadValueHomeReceipt,
-    GeneralizedReloadValuePressure, ValidatedGeneralizedReloadValueHomes,
-    assign_generalized_reload_value_homes, generalized_reload_value_home_identity,
-    validate_generalized_reload_value_homes,
-};
-pub use unsequenced_spill_stages::generalized_spill_insertion::{
-    FunctionGeneralizedSpillInsertion, GeneralizedSpillActionId, GeneralizedSpillActionSource,
-    GeneralizedSpillEvent, GeneralizedSpillInsertionError, GeneralizedSpillInsertionIdentity,
-    GeneralizedSpillInsertionPlan, GeneralizedSpillInsertionPolicy,
-    GeneralizedSpillInsertionReceipt, GeneralizedSpillSlot, ValidatedGeneralizedSpillInsertion,
-    generalized_spill_insertion_identity, schedule_generalized_spill_insertion,
-    validate_generalized_spill_insertion,
-};
-pub use unsequenced_spill_stages::generalized_spill_recovery_actions::{
-    GeneralizedSpillRecoveryActionError, GeneralizedSpillRecoveryActionIdentity,
-    GeneralizedSpillRecoveryActionPlan, GeneralizedSpillRecoveryActionPolicy,
-    GeneralizedSpillRecoveryActionReceipt, GeneralizedSpillRecoveryLogicalAction,
-    GeneralizedSpillRecoveryLogicalReload, GeneralizedSpillRecoveryLogicalStorage,
-    GeneralizedSpillRecoveryLogicalStore, GeneralizedSpillRecoveryLogicalUseRewrite,
-    GeneralizedSpillRecoveryVictim, ValidatedGeneralizedSpillRecoveryActions,
-    generalized_spill_recovery_action_identity, plan_generalized_original_spill_recovery_actions,
-    plan_generalized_spill_recovery_actions, validate_generalized_original_spill_recovery_actions,
-    validate_generalized_spill_recovery_actions,
-};
-pub use unsequenced_spill_stages::generalized_spill_recovery_choice::{
-    GeneralizedSpillRecoveryChoiceError, GeneralizedSpillRecoveryChoiceIdentity,
-    GeneralizedSpillRecoveryChoicePlan, GeneralizedSpillRecoveryChoicePolicy,
-    GeneralizedSpillRecoveryChoiceReceipt, GeneralizedSpillRecoveryContender,
-    GeneralizedSpillRecoveryResident, GeneralizedSpillRecoveryVictimChoice,
-    ValidatedGeneralizedSpillRecoveryChoices, choose_generalized_spill_recovery_victims,
-    generalized_spill_recovery_choice_identity, validate_generalized_spill_recovery_choices,
-};
-pub use unsequenced_spill_stages::generalized_spill_recovery_worklist::{
-    FunctionGeneralizedSpillRecoveryWorklist, GeneralizedSpillRecoveryWorkItem,
-    GeneralizedSpillRecoveryWorkItemId, GeneralizedSpillRecoveryWorklistError,
-    GeneralizedSpillRecoveryWorklistIdentity, GeneralizedSpillRecoveryWorklistPlan,
-    GeneralizedSpillRecoveryWorklistPolicy, GeneralizedSpillRecoveryWorklistReceipt,
-    ValidatedGeneralizedSpillRecoveryWorklist, generalized_spill_recovery_worklist_identity,
-    seed_generalized_spill_recovery_worklist, validate_generalized_spill_recovery_worklist,
-};
-pub use unsequenced_spill_stages::recursive_reload_value_homes::{
-    FunctionRecursiveReloadValueHomes, RecursiveReloadCoexistingHome,
-    RecursiveReloadCoexistingValue, RecursiveReloadValueHomeAssignment,
-    RecursiveReloadValueHomeError, RecursiveReloadValueHomeIdentity, RecursiveReloadValueHomePlan,
-    RecursiveReloadValueHomePolicy, RecursiveReloadValueHomeReceipt,
-    ValidatedRecursiveReloadValueHomes, assign_recursive_reload_value_homes,
-    recursive_reload_value_home_identity, validate_recursive_reload_value_homes,
-};
-pub use unsequenced_spill_stages::recursive_spill_insertion::{
-    FunctionRecursiveSpillInsertion, RecursiveSpillActionSource, RecursiveSpillEvent,
-    RecursiveSpillInsertionError, RecursiveSpillInsertionIdentity, RecursiveSpillInsertionPlan,
-    RecursiveSpillInsertionPolicy, RecursiveSpillInsertionReceipt, RecursiveSpillSlot,
-    RecursiveSpillStoredValue, ValidatedRecursiveSpillInsertion,
-    recursive_spill_insertion_identity, schedule_recursive_spill_insertion,
-    validate_recursive_spill_insertion,
-};
-pub use unsequenced_spill_stages::reload_value_homes::{
-    FunctionReloadValueHomes, ReloadCoexistingHome, ReloadValueHomeAssignment,
-    ReloadValueHomeError, ReloadValueHomeIdentity, ReloadValueHomePlan, ReloadValueHomePolicy,
-    ReloadValueHomeReceipt, ValidatedReloadValueHomes, assign_reload_value_homes,
-    reload_value_home_identity, validate_reload_value_homes,
-};
-pub use unsequenced_spill_stages::spill_pseudo_instructions::{
-    FunctionHomedSpillPseudoInstructions, FunctionSpillPseudoInstructions,
-    HomedSpillPseudoInstruction, HomedSpillPseudoInstructionError, HomedSpillPseudoInstructionPlan,
-    HomedSpillPseudoInstructionPlanIdentity, HomedSpillPseudoInstructionPolicy,
-    HomedSpillPseudoInstructionReceipt, SpillPseudoInstruction, SpillPseudoInstructionError,
-    SpillPseudoInstructionId, SpillPseudoInstructionPlan, SpillPseudoInstructionPlanIdentity,
-    SpillPseudoInstructionPolicy, SpillPseudoInstructionReceipt, SpillPseudoOperandRewrite,
-    SpillPseudoStorage, SpillPseudoStoredValue, ValidatedHomedSpillPseudoInstructions,
-    ValidatedSpillPseudoInstructions, homed_spill_pseudo_instruction_plan_identity,
-    lower_homed_recursive_spill_pseudos, lower_recursive_spill_pseudos,
-    spill_pseudo_instruction_plan_identity, validate_homed_spill_pseudo_instructions,
-    validate_spill_pseudo_instructions,
-};
-pub use unsequenced_spill_stages::spill_recovery_actions::{
-    SpillRecoveryActionError, SpillRecoveryActionIdentity, SpillRecoveryActionPlan,
-    SpillRecoveryActionPolicy, SpillRecoveryActionReceipt, SpillRecoveryLogicalAction,
-    SpillRecoveryLogicalReload, SpillRecoveryLogicalReloadId, SpillRecoveryLogicalStorage,
-    SpillRecoveryLogicalStorageId, SpillRecoveryLogicalStore, SpillRecoveryLogicalUseRewrite,
-    ValidatedSpillRecoveryActions, plan_spill_recovery_actions, spill_recovery_action_identity,
-    validate_spill_recovery_actions,
-};
-pub use unsequenced_spill_stages::spill_recovery_choice::{
-    SpillRecoveryChoiceError, SpillRecoveryChoiceIdentity, SpillRecoveryChoicePlan,
-    SpillRecoveryChoicePolicy, SpillRecoveryChoiceReceipt, SpillRecoveryContender,
-    SpillRecoveryResident, SpillRecoveryVictimChoice, ValidatedSpillRecoveryChoices,
-    choose_spill_recovery_victims, spill_recovery_choice_identity, validate_spill_recovery_choices,
-};
-pub use unsequenced_spill_stages::spill_recovery_worklist::{
-    SpillRecoveryEpoch, SpillRecoveryWorkItem, SpillRecoveryWorklistError,
-    SpillRecoveryWorklistIdentity, SpillRecoveryWorklistPlan, SpillRecoveryWorklistPolicy,
-    SpillRecoveryWorklistReceipt, ValidatedSpillRecoveryWorklist, seed_spill_recovery_worklist,
-    spill_recovery_worklist_identity, validate_spill_recovery_worklist,
-};
-pub use unsequenced_spill_stages::synthetic_reload_values::{
-    FunctionSyntheticReloadValues, SyntheticReloadValueBinding, SyntheticReloadValueError,
-    SyntheticReloadValueId, SyntheticReloadValuePlan, SyntheticReloadValuePlanIdentity,
-    SyntheticReloadValuePolicy, SyntheticReloadValueReceipt, ValidatedSyntheticReloadValues,
-    bind_synthetic_reload_values, synthetic_reload_value_plan_identity,
-    validate_synthetic_reload_values,
 };
 
 // Upstream vocabularies consumed by every stage above.

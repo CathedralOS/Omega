@@ -1,6 +1,6 @@
 //! Independent V2 replay comparison and receipt sealing.
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     HomedSpillPseudoInstruction, HomedSpillPseudoInstructionError, HomedSpillPseudoInstructionPlan,
     HomedSpillPseudoInstructionReceipt, ValidatedHomedSpillPseudoInstructions,
     ValidatedRecursiveReloadValueHomes, ValidatedSpillPseudoInstructions,

@@ -4,7 +4,7 @@ use optimization_core::PostAllocationOptimizationManifestIdentity;
 use crate::StagedOptimizedAllocationLegalityCustodyReceipt;
 use crate::StagedOptimizedSelectedReanalysisCustodyReceipt;
 
-use super::model::{
+use super::{
     StagedOptimizedPostCopyRegisterHomeCustodyReceipt, StagedOptimizedRegisterHomeCustodyReceipt,
 };
 

@@ -2,7 +2,9 @@
 
 use optimization_core::OptimizationWorkUsage;
 
-use crate::{AbstractSpillAccessConstraintError, FunctionAbstractSpillAccessConstraints};
+use crate::unsequenced_spill_stages::{
+    AbstractSpillAccessConstraintError, FunctionAbstractSpillAccessConstraints,
+};
 
 pub(super) fn reconstruct(
     functions: &[FunctionAbstractSpillAccessConstraints],

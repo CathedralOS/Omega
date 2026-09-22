@@ -1,6 +1,8 @@
 use sha2::{Digest, Sha256};
 
-use crate::{SpillRecoveryChoiceIdentity, SpillRecoveryChoicePlan, SpillRecoveryChoicePolicy};
+use crate::unsequenced_spill_stages::{
+    SpillRecoveryChoiceIdentity, SpillRecoveryChoicePlan, SpillRecoveryChoicePolicy,
+};
 
 pub fn spill_recovery_choice_identity(
     plan: &SpillRecoveryChoicePlan,

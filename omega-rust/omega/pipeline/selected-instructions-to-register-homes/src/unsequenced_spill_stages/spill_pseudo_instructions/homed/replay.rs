@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use optimization_core::OptimizationWorkBudget;
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     FunctionHomedSpillPseudoInstructions, HomedSpillPseudoInstruction,
     HomedSpillPseudoInstructionError, HomedSpillPseudoInstructionPlan,
     HomedSpillPseudoInstructionPolicy, SpillPseudoInstruction, ValidatedRecursiveReloadValueHomes,
@@ -78,8 +78,8 @@ fn reconstruct_roots(
 
 fn reconstruct_function(
     function: usize,
-    source: &crate::FunctionSpillPseudoInstructions,
-    homes: &crate::FunctionRecursiveReloadValueHomes,
+    source: &crate::unsequenced_spill_stages::FunctionSpillPseudoInstructions,
+    homes: &crate::unsequenced_spill_stages::FunctionRecursiveReloadValueHomes,
 ) -> Result<FunctionHomedSpillPseudoInstructions, HomedSpillPseudoInstructionError> {
     if source.machine != homes.machine {
         return Err(HomedSpillPseudoInstructionError::FunctionMismatch { function });

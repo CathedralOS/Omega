@@ -13,8 +13,8 @@ use super::{
 
 pub(super) struct Sources {
     reloads: ReloadSources,
-    recovery: selected_instructions_to_register_homes::ValidatedSpillRecoveryActions,
-    generalized: selected_instructions_to_register_homes::ValidatedGeneralizedSpillInsertion,
+    recovery: selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedSpillRecoveryActions,
+    generalized: selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedSpillInsertion,
 }
 
 impl Sources {
@@ -28,10 +28,10 @@ impl Sources {
 
     fn from_reload_sources(reloads: ReloadSources) -> Self {
         let recovery = plan_recovery(&reloads, selected_lowering_budget()).unwrap();
-        let generalized = selected_instructions_to_register_homes::schedule_generalized_spill_insertion(
+        let generalized = selected_instructions_to_register_homes::unsequenced_spill_stages::schedule_generalized_spill_insertion(
             reloads.insertion(),
             &recovery,
-            selected_instructions_to_register_homes::GeneralizedSpillInsertionPolicy::EpochZeroAndOneBlockLocalUnsignedU64ClosedIntervalFirstFitV1,
+            selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillInsertionPolicy::EpochZeroAndOneBlockLocalUnsignedU64ClosedIntervalFirstFitV1,
             selected_lowering_budget(),
         )
         .unwrap();
@@ -46,13 +46,13 @@ impl Sources {
         &self,
         budget: OptimizationWorkBudget,
     ) -> Result<
-        selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
-        selected_instructions_to_register_homes::GeneralizedReloadValueHomeError,
-    > {
+        selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedReloadValueHomes,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadValueHomeError,
+    >{
         let ranges = self.reloads.legality().live_range_stage();
         let selected = ranges.liveness_stage().selected_stage();
         let environment = selected.register_environment();
-        selected_instructions_to_register_homes::assign_generalized_reload_value_homes(
+        selected_instructions_to_register_homes::unsequenced_spill_stages::assign_generalized_reload_value_homes(
             &self.generalized,
             self.reloads.insertion(),
             &self.recovery,
@@ -63,43 +63,43 @@ impl Sources {
             environment.constraints(),
             environment.reservations(),
             &environment.allocation_constraint_keys(),
-            selected_instructions_to_register_homes::GeneralizedReloadValueHomePolicy::EpochZeroAndOneBlockLocalLowestCompatibleViewV1,
+            selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadValueHomePolicy::EpochZeroAndOneBlockLocalLowestCompatibleViewV1,
             budget,
         )
     }
 
     pub(super) fn choose_generalized_victim(
         &self,
-        homes: &selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
-        worklist: &selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryWorklist,
+        homes: &selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedReloadValueHomes,
+        worklist: &selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryWorklist,
         budget: OptimizationWorkBudget,
     ) -> Result<
-        selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryChoices,
-        selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoiceError,
-    > {
+        selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryChoices,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryChoiceError,
+    >{
         self.choose_generalized_victim_with_policy(
             homes,
             worklist,
-            selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoicePolicy::EpochTwoFarthestEndThenHighestValueV1,
+            selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryChoicePolicy::EpochTwoFarthestEndThenHighestValueV1,
             budget,
         )
     }
 
     pub(super) fn choose_generalized_victim_with_policy(
         &self,
-        homes: &selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
-        worklist: &selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryWorklist,
-        policy: selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoicePolicy,
+        homes: &selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedReloadValueHomes,
+        worklist: &selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryWorklist,
+        policy: selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryChoicePolicy,
         budget: OptimizationWorkBudget,
     ) -> Result<
-        selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryChoices,
-        selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoiceError,
-    > {
+        selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryChoices,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryChoiceError,
+    >{
         let legality = self.reloads.legality();
         let ranges = legality.live_range_stage();
         let selected = ranges.liveness_stage().selected_stage();
         let environment = selected.register_environment();
-        selected_instructions_to_register_homes::choose_generalized_spill_recovery_victims(
+        selected_instructions_to_register_homes::unsequenced_spill_stages::choose_generalized_spill_recovery_victims(
             worklist,
             homes,
             selected.selected(),
@@ -116,18 +116,18 @@ impl Sources {
 
     pub(super) fn validate_generalized_victim(
         &self,
-        homes: &selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
-        worklist: &selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryWorklist,
-        plan: selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoicePlan,
+        homes: &selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedReloadValueHomes,
+        worklist: &selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryWorklist,
+        plan: selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryChoicePlan,
     ) -> Result<
-        selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryChoices,
-        selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoiceError,
-    > {
+        selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryChoices,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryChoiceError,
+    >{
         let legality = self.reloads.legality();
         let ranges = legality.live_range_stage();
         let selected = ranges.liveness_stage().selected_stage();
         let environment = selected.register_environment();
-        selected_instructions_to_register_homes::validate_generalized_spill_recovery_choices(
+        selected_instructions_to_register_homes::unsequenced_spill_stages::validate_generalized_spill_recovery_choices(
             worklist,
             homes,
             selected.selected(),
@@ -143,32 +143,32 @@ impl Sources {
 
     pub(super) fn plan_generalized_recovery_actions(
         &self,
-        homes: &selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
-        choices: &selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryChoices,
+        homes: &selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedReloadValueHomes,
+        choices: &selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryChoices,
         budget: OptimizationWorkBudget,
     ) -> Result<
-        selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryActions,
-        selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError,
-    > {
-        selected_instructions_to_register_homes::plan_generalized_spill_recovery_actions(
+        selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryActions,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionError,
+    >{
+        selected_instructions_to_register_homes::unsequenced_spill_stages::plan_generalized_spill_recovery_actions(
             &self.generalized,
             homes,
             choices,
-            selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPolicy::EpochTwoReloadVictimLaterGeneralizedRewritesV1,
+            selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionPolicy::EpochTwoReloadVictimLaterGeneralizedRewritesV1,
             budget,
         )
     }
 
     pub(super) fn validate_generalized_recovery_actions(
         &self,
-        homes: &selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
-        choices: &selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryChoices,
-        plan: selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan,
+        homes: &selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedReloadValueHomes,
+        choices: &selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryChoices,
+        plan: selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionPlan,
     ) -> Result<
-        selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryActions,
-        selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError,
-    > {
-        selected_instructions_to_register_homes::validate_generalized_spill_recovery_actions(
+        selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryActions,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionError,
+    >{
+        selected_instructions_to_register_homes::unsequenced_spill_stages::validate_generalized_spill_recovery_actions(
             &self.generalized,
             homes,
             choices,
@@ -178,16 +178,16 @@ impl Sources {
 
     pub(super) fn plan_original_recovery_actions(
         &self,
-        homes: &selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
-        choices: &selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryChoices,
+        homes: &selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedReloadValueHomes,
+        choices: &selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryChoices,
         budget: OptimizationWorkBudget,
     ) -> Result<
-        selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryActions,
-        selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError,
-    > {
+        selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryActions,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionError,
+    >{
         let ranges = self.reloads.legality().live_range_stage();
         let selected = ranges.liveness_stage().selected_stage();
-        selected_instructions_to_register_homes::plan_generalized_original_spill_recovery_actions(
+        selected_instructions_to_register_homes::unsequenced_spill_stages::plan_generalized_original_spill_recovery_actions(
             &self.generalized,
             homes,
             choices,
@@ -199,16 +199,16 @@ impl Sources {
 
     pub(super) fn validate_original_recovery_actions(
         &self,
-        homes: &selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
-        choices: &selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryChoices,
-        plan: selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan,
+        homes: &selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedReloadValueHomes,
+        choices: &selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryChoices,
+        plan: selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionPlan,
     ) -> Result<
-        selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryActions,
-        selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError,
-    > {
+        selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryActions,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionError,
+    >{
         let ranges = self.reloads.legality().live_range_stage();
         let selected = ranges.liveness_stage().selected_stage();
-        selected_instructions_to_register_homes::validate_generalized_original_spill_recovery_actions(
+        selected_instructions_to_register_homes::unsequenced_spill_stages::validate_generalized_original_spill_recovery_actions(
             &self.generalized,
             homes,
             choices,
@@ -220,45 +220,45 @@ impl Sources {
 
     pub(super) fn schedule_recursive_spills(
         &self,
-        recovery: &selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryActions,
+        recovery: &selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryActions,
         budget: OptimizationWorkBudget,
     ) -> Result<
-        selected_instructions_to_register_homes::ValidatedRecursiveSpillInsertion,
-        selected_instructions_to_register_homes::RecursiveSpillInsertionError,
-    > {
-        selected_instructions_to_register_homes::schedule_recursive_spill_insertion(
+        selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedRecursiveSpillInsertion,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillInsertionError,
+    >{
+        selected_instructions_to_register_homes::unsequenced_spill_stages::schedule_recursive_spill_insertion(
             &self.generalized,
             recovery,
-            selected_instructions_to_register_homes::RecursiveSpillInsertionPolicy::EpochTwoReloadVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV1,
+            selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillInsertionPolicy::EpochTwoReloadVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV1,
             budget,
         )
     }
 
     pub(super) fn schedule_original_recursive_spills(
         &self,
-        recovery: &selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryActions,
+        recovery: &selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryActions,
         budget: OptimizationWorkBudget,
     ) -> Result<
-        selected_instructions_to_register_homes::ValidatedRecursiveSpillInsertion,
-        selected_instructions_to_register_homes::RecursiveSpillInsertionError,
-    > {
-        selected_instructions_to_register_homes::schedule_recursive_spill_insertion(
+        selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedRecursiveSpillInsertion,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillInsertionError,
+    >{
+        selected_instructions_to_register_homes::unsequenced_spill_stages::schedule_recursive_spill_insertion(
             &self.generalized,
             recovery,
-            selected_instructions_to_register_homes::RecursiveSpillInsertionPolicy::EpochTwoOriginalVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV2,
+            selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillInsertionPolicy::EpochTwoOriginalVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV2,
             budget,
         )
     }
 
     pub(super) fn validate_recursive_spills(
         &self,
-        recovery: &selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryActions,
-        plan: selected_instructions_to_register_homes::RecursiveSpillInsertionPlan,
+        recovery: &selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryActions,
+        plan: selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillInsertionPlan,
     ) -> Result<
-        selected_instructions_to_register_homes::ValidatedRecursiveSpillInsertion,
-        selected_instructions_to_register_homes::RecursiveSpillInsertionError,
-    > {
-        selected_instructions_to_register_homes::validate_recursive_spill_insertion(
+        selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedRecursiveSpillInsertion,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillInsertionError,
+    >{
+        selected_instructions_to_register_homes::unsequenced_spill_stages::validate_recursive_spill_insertion(
             &self.generalized,
             recovery,
             plan,
@@ -267,19 +267,19 @@ impl Sources {
 
     pub(super) fn assign_recursive_reload_homes(
         &self,
-        recursive: &selected_instructions_to_register_homes::ValidatedRecursiveSpillInsertion,
-        recovery: &selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryActions,
-        prior: &selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
+        recursive: &selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedRecursiveSpillInsertion,
+        recovery: &selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryActions,
+        prior: &selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedReloadValueHomes,
         budget: OptimizationWorkBudget,
     ) -> Result<
-        selected_instructions_to_register_homes::ValidatedRecursiveReloadValueHomes,
-        selected_instructions_to_register_homes::RecursiveReloadValueHomeError,
-    > {
+        selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedRecursiveReloadValueHomes,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomeError,
+    >{
         let legality = self.reloads.legality();
         let ranges = legality.live_range_stage();
         let selected = ranges.liveness_stage().selected_stage();
         let environment = selected.register_environment();
-        selected_instructions_to_register_homes::assign_recursive_reload_value_homes(
+        selected_instructions_to_register_homes::unsequenced_spill_stages::assign_recursive_reload_value_homes(
             recursive,
             recovery,
             prior,
@@ -290,26 +290,26 @@ impl Sources {
             environment.constraints(),
             environment.reservations(),
             &environment.allocation_constraint_keys(),
-            selected_instructions_to_register_homes::RecursiveReloadValueHomePolicy::CompleteBlockLocalLowestCompatibleViewV1,
+            selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomePolicy::CompleteBlockLocalLowestCompatibleViewV1,
             budget,
         )
     }
 
     pub(super) fn validate_recursive_reload_homes(
         &self,
-        recursive: &selected_instructions_to_register_homes::ValidatedRecursiveSpillInsertion,
-        recovery: &selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryActions,
-        prior: &selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
-        plan: selected_instructions_to_register_homes::RecursiveReloadValueHomePlan,
+        recursive: &selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedRecursiveSpillInsertion,
+        recovery: &selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryActions,
+        prior: &selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedReloadValueHomes,
+        plan: selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomePlan,
     ) -> Result<
-        selected_instructions_to_register_homes::ValidatedRecursiveReloadValueHomes,
-        selected_instructions_to_register_homes::RecursiveReloadValueHomeError,
-    > {
+        selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedRecursiveReloadValueHomes,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomeError,
+    >{
         let legality = self.reloads.legality();
         let ranges = legality.live_range_stage();
         let selected = ranges.liveness_stage().selected_stage();
         let environment = selected.register_environment();
-        selected_instructions_to_register_homes::validate_recursive_reload_value_homes(
+        selected_instructions_to_register_homes::unsequenced_spill_stages::validate_recursive_reload_value_homes(
             recursive,
             recovery,
             prior,
@@ -326,15 +326,15 @@ impl Sources {
 
     fn validate(
         &self,
-        candidate: selected_instructions_to_register_homes::GeneralizedReloadValueHomePlan,
+        candidate: selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadValueHomePlan,
     ) -> Result<
-        selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
-        selected_instructions_to_register_homes::GeneralizedReloadValueHomeError,
-    > {
+        selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedReloadValueHomes,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadValueHomeError,
+    >{
         let ranges = self.reloads.legality().live_range_stage();
         let selected = ranges.liveness_stage().selected_stage();
         let environment = selected.register_environment();
-        selected_instructions_to_register_homes::validate_generalized_reload_value_homes(
+        selected_instructions_to_register_homes::unsequenced_spill_stages::validate_generalized_reload_value_homes(
             &self.generalized,
             self.reloads.insertion(),
             &self.recovery,
@@ -363,7 +363,7 @@ fn first_reload_gets_a_home_and_second_retains_exact_pressure_on_both_targets() 
         assert_eq!(first.plan().functions[0].outcomes.len(), 2);
         assert_eq!(first.receipt().usage(), exact_usage());
 
-        let selected_instructions_to_register_homes::GeneralizedReloadValueHomeOutcome::Assigned(
+        let selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadValueHomeOutcome::Assigned(
             assigned,
         ) = &first.plan().functions[0].outcomes[0]
         else {
@@ -376,10 +376,10 @@ fn first_reload_gets_a_home_and_second_retains_exact_pressure_on_both_targets() 
         assert_eq!(assigned.coexisting_homes.len(), 2);
         assert!(assigned.coexisting_homes.iter().any(|home| {
             home.value
-                == selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(6))
+                == selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(6))
         }));
 
-        let selected_instructions_to_register_homes::GeneralizedReloadValueHomeOutcome::Pressure(
+        let selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadValueHomeOutcome::Pressure(
             pressure,
         ) = &first.plan().functions[0].outcomes[1]
         else {
@@ -391,11 +391,11 @@ fn first_reload_gets_a_home_and_second_retains_exact_pressure_on_both_targets() 
         assert_eq!(pressure.candidates.len(), 2);
         assert_eq!(pressure.blocking_homes.len(), 2);
         assert!(pressure.blocking_homes.iter().any(|home| {
-            home.value == selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Reload(action(0, 0))
+            home.value == selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadCoexistingValue::Reload(action(0, 0))
         }));
         assert!(pressure.blocking_homes.iter().any(|home| {
             home.value
-                == selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(6))
+                == selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(6))
         }));
     }
 }
@@ -411,48 +411,48 @@ fn replay_rejects_root_assigned_pressure_roster_and_usage_corruption() {
             .clone();
         let mut root = canonical.clone();
         root.generalized_spill_insertion =
-            selected_instructions_to_register_homes::GeneralizedSpillInsertionIdentity::from_bytes(
+            selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillInsertionIdentity::from_bytes(
                 [0xa7; 32],
             );
         assert_eq!(
             sources.validate(root),
-            Err(selected_instructions_to_register_homes::GeneralizedReloadValueHomeError::RootMismatch)
+            Err(selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadValueHomeError::RootMismatch)
         );
 
         for corrupt in [
-            |plan: &mut selected_instructions_to_register_homes::GeneralizedReloadValueHomePlan| {
-                let selected_instructions_to_register_homes::GeneralizedReloadValueHomeOutcome::Assigned(row) =
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadValueHomePlan| {
+                let selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadValueHomeOutcome::Assigned(row) =
                     &mut plan.functions[0].outcomes[0]
                 else {
                     unreachable!()
                 };
                 row.view.0 += 1;
             },
-            |plan: &mut selected_instructions_to_register_homes::GeneralizedReloadValueHomePlan| {
-                let selected_instructions_to_register_homes::GeneralizedReloadValueHomeOutcome::Assigned(row) =
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadValueHomePlan| {
+                let selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadValueHomeOutcome::Assigned(row) =
                     &mut plan.functions[0].outcomes[0]
                 else {
                     unreachable!()
                 };
                 row.coexisting_homes.clear();
             },
-            |plan: &mut selected_instructions_to_register_homes::GeneralizedReloadValueHomePlan| {
-                let selected_instructions_to_register_homes::GeneralizedReloadValueHomeOutcome::Pressure(row) =
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadValueHomePlan| {
+                let selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadValueHomeOutcome::Pressure(row) =
                     &mut plan.functions[0].outcomes[1]
                 else {
                     unreachable!()
                 };
                 row.candidates.reverse();
             },
-            |plan: &mut selected_instructions_to_register_homes::GeneralizedReloadValueHomePlan| {
-                let selected_instructions_to_register_homes::GeneralizedReloadValueHomeOutcome::Pressure(row) =
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadValueHomePlan| {
+                let selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadValueHomeOutcome::Pressure(row) =
                     &mut plan.functions[0].outcomes[1]
                 else {
                     unreachable!()
                 };
                 row.blocking_homes.pop();
             },
-            |plan: &mut selected_instructions_to_register_homes::GeneralizedReloadValueHomePlan| {
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadValueHomePlan| {
                 plan.functions[0].outcomes.swap(0, 1);
             },
         ] {
@@ -461,7 +461,7 @@ fn replay_rejects_root_assigned_pressure_roster_and_usage_corruption() {
             assert_eq!(
                 sources.validate(changed),
                 Err(
-                    selected_instructions_to_register_homes::GeneralizedReloadValueHomeError::NonCanonicalAssignments {
+                    selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadValueHomeError::NonCanonicalAssignments {
                         function: 0,
                     }
                 )
@@ -471,7 +471,7 @@ fn replay_rejects_root_assigned_pressure_roster_and_usage_corruption() {
         usage.usage.validation_steps += 1;
         assert_eq!(
             sources.validate(usage),
-            Err(selected_instructions_to_register_homes::GeneralizedReloadValueHomeError::UsageMismatch)
+            Err(selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadValueHomeError::UsageMismatch)
         );
     }
 }
@@ -491,7 +491,7 @@ fn exact_budget_representable_first_over_axes_and_cross_target_roots_are_typed()
         for budget in insufficient {
             assert!(matches!(
                 sources.assign(budget),
-                Err(selected_instructions_to_register_homes::GeneralizedReloadValueHomeError::BudgetExceeded {
+                Err(selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadValueHomeError::BudgetExceeded {
                     required,
                     budget: actual,
                 }) if required == exact_usage() && actual == budget
@@ -504,15 +504,18 @@ fn exact_budget_representable_first_over_axes_and_cross_target_roots_are_typed()
     let arm = Sources::new(NativeTarget::linux_arm64());
     assert_eq!(
         arm.validate(plan),
-        Err(selected_instructions_to_register_homes::GeneralizedReloadValueHomeError::RootMismatch)
+        Err(selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadValueHomeError::RootMismatch)
     );
 }
 
 const fn action(
     epoch: u32,
     ordinal: u32,
-) -> selected_instructions_to_register_homes::GeneralizedSpillActionId {
-    selected_instructions_to_register_homes::GeneralizedSpillActionId { epoch, ordinal }
+) -> selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillActionId {
+    selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillActionId {
+        epoch,
+        ordinal,
+    }
 }
 
 const fn exact_usage() -> OptimizationWorkUsage {

@@ -1,6 +1,6 @@
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::TargetRegisterEnvironmentIdentity;
-use selected_instructions_to_register_homes::AbstractSpillAccessConstraintPlanIdentity;
+use selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillAccessConstraintPlanIdentity;
 use target::NativeTarget;
 
 pub use register_environment::FrameAbiPreservationConvention;

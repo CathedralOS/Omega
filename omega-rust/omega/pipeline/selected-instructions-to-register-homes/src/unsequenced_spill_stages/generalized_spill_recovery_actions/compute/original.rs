@@ -7,15 +7,15 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
 
-use crate::{
-    FunctionGeneralizedSpillInsertion, FunctionLiveRanges, GeneralizedReloadCoexistingValue,
-    GeneralizedSpillEvent, GeneralizedSpillRecoveryActionError,
-    GeneralizedSpillRecoveryChoicePolicy, GeneralizedSpillRecoveryLogicalAction,
-    GeneralizedSpillRecoveryLogicalReload, GeneralizedSpillRecoveryLogicalStorage,
-    GeneralizedSpillRecoveryLogicalStore, GeneralizedSpillRecoveryLogicalUseRewrite,
-    GeneralizedSpillRecoveryVictim, GeneralizedSpillRecoveryVictimChoice, LogicalSpillStorageClass,
-    VirtualFixedConstraintSite,
+use crate::unsequenced_spill_stages::{
+    FunctionGeneralizedSpillInsertion, GeneralizedReloadCoexistingValue, GeneralizedSpillEvent,
+    GeneralizedSpillRecoveryActionError, GeneralizedSpillRecoveryChoicePolicy,
+    GeneralizedSpillRecoveryLogicalAction, GeneralizedSpillRecoveryLogicalReload,
+    GeneralizedSpillRecoveryLogicalStorage, GeneralizedSpillRecoveryLogicalStore,
+    GeneralizedSpillRecoveryLogicalUseRewrite, GeneralizedSpillRecoveryVictim,
+    GeneralizedSpillRecoveryVictimChoice,
 };
+use crate::{FunctionLiveRanges, LogicalSpillStorageClass, VirtualFixedConstraintSite};
 
 pub(super) fn build(
     choice: &GeneralizedSpillRecoveryVictimChoice,
@@ -156,7 +156,7 @@ pub(super) fn build(
             register,
         });
     }
-    let id = crate::GeneralizedSpillActionId {
+    let id = crate::unsequenced_spill_stages::GeneralizedSpillActionId {
         epoch: choice.work_item.epoch,
         ordinal: choice.work_item.ordinal,
     };
@@ -253,7 +253,10 @@ fn unique_pressure_slot<'a>(
     insertion: &'a FunctionGeneralizedSpillInsertion,
     choice: &GeneralizedSpillRecoveryVictimChoice,
     function: usize,
-) -> Result<&'a crate::GeneralizedSpillSlot, GeneralizedSpillRecoveryActionError> {
+) -> Result<
+    &'a crate::unsequenced_spill_stages::GeneralizedSpillSlot,
+    GeneralizedSpillRecoveryActionError,
+> {
     let mut slots = insertion
         .slots
         .iter()

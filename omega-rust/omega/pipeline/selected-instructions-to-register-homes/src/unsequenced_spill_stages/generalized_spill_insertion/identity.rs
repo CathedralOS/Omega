@@ -2,9 +2,10 @@
 
 use sha2::{Digest, Sha256};
 
-use crate::{
+use crate::LogicalSpillStorageClass;
+use crate::unsequenced_spill_stages::{
     GeneralizedSpillActionSource, GeneralizedSpillEvent, GeneralizedSpillInsertionIdentity,
-    GeneralizedSpillInsertionPlan, GeneralizedSpillInsertionPolicy, LogicalSpillStorageClass,
+    GeneralizedSpillInsertionPlan, GeneralizedSpillInsertionPolicy,
 };
 
 pub fn generalized_spill_insertion_identity(
@@ -123,12 +124,18 @@ fn source(bytes: &mut Vec<u8>, source: GeneralizedSpillActionSource) {
     }
 }
 
-fn action_id(bytes: &mut Vec<u8>, action: crate::GeneralizedSpillActionId) {
+fn action_id(
+    bytes: &mut Vec<u8>,
+    action: crate::unsequenced_spill_stages::GeneralizedSpillActionId,
+) {
     bytes.extend_from_slice(&action.epoch.to_le_bytes());
     bytes.extend_from_slice(&action.ordinal.to_le_bytes());
 }
 
-fn option_action(bytes: &mut Vec<u8>, action: Option<crate::GeneralizedSpillActionId>) {
+fn option_action(
+    bytes: &mut Vec<u8>,
+    action: Option<crate::unsequenced_spill_stages::GeneralizedSpillActionId>,
+) {
     match action {
         None => bytes.push(0),
         Some(action) => {

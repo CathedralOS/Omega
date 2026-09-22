@@ -11,14 +11,17 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
 
+use crate::unsequenced_spill_stages::{
+    SpillRecoveryActionError, SpillRecoveryActionPlan, SpillRecoveryActionPolicy,
+    SpillRecoveryLogicalAction, SpillRecoveryLogicalReload, SpillRecoveryLogicalReloadId,
+    SpillRecoveryLogicalStorage, SpillRecoveryLogicalStorageId, SpillRecoveryLogicalStore,
+    SpillRecoveryLogicalUseRewrite, SpillRecoveryVictimChoice, SpillRecoveryWorkItem,
+    SyntheticReloadValueId, ValidatedAbstractSpillInsertion, ValidatedSpillRecoveryChoices,
+    ValidatedSpillRecoveryWorklist,
+};
 use crate::{
-    LogicalSpillStorageClass, SpillRecoveryActionError, SpillRecoveryActionPlan,
-    SpillRecoveryActionPolicy, SpillRecoveryLogicalAction, SpillRecoveryLogicalReload,
-    SpillRecoveryLogicalReloadId, SpillRecoveryLogicalStorage, SpillRecoveryLogicalStorageId,
-    SpillRecoveryLogicalStore, SpillRecoveryLogicalUseRewrite, SpillRecoveryVictimChoice,
-    SpillRecoveryWorkItem, SyntheticReloadValueId, ValidatedAbstractSpillInsertion,
-    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis,
-    ValidatedSpillRecoveryChoices, ValidatedSpillRecoveryWorklist, VirtualFixedConstraintSite,
+    LogicalSpillStorageClass, ValidatedAllocationLegality, ValidatedLiveRanges,
+    ValidatedSelectedAnalysis, VirtualFixedConstraintSite,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -136,7 +139,7 @@ fn reconstruct(
     selected: &SelectedFunction,
     ranges: &crate::FunctionLiveRanges,
     legality: &crate::FunctionAllocationLegality,
-    inserted: &crate::FunctionAbstractSpillInsertion,
+    inserted: &crate::unsequenced_spill_stages::FunctionAbstractSpillInsertion,
 ) -> Result<SpillRecoveryLogicalAction, SpillRecoveryActionError> {
     let function = choice.function;
     if [

@@ -9,13 +9,15 @@ use register_model::{
     target_register_environment_identity,
 };
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     GeneralizedReloadCoexistingValue, GeneralizedReloadValueHomeOutcome,
     GeneralizedSpillRecoveryChoiceError, GeneralizedSpillRecoveryChoicePlan,
     GeneralizedSpillRecoveryChoicePolicy, GeneralizedSpillRecoveryContender,
-    GeneralizedSpillRecoveryResident, GeneralizedSpillRecoveryVictimChoice, LiveRangePoint,
-    ValidatedAllocationLegality, ValidatedGeneralizedReloadValueHomes,
-    ValidatedGeneralizedSpillRecoveryWorklist, ValidatedLiveRanges, ValidatedSelectedAnalysis,
+    GeneralizedSpillRecoveryResident, GeneralizedSpillRecoveryVictimChoice,
+    ValidatedGeneralizedReloadValueHomes, ValidatedGeneralizedSpillRecoveryWorklist,
+};
+use crate::{
+    LiveRangePoint, ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis,
 };
 
 mod original_eligibility;

@@ -1,6 +1,8 @@
 use sha2::{Digest, Sha256};
 
-use crate::{ReloadValueHomeIdentity, ReloadValueHomePlan, ReloadValueHomePolicy};
+use crate::unsequenced_spill_stages::{
+    ReloadValueHomeIdentity, ReloadValueHomePlan, ReloadValueHomePolicy,
+};
 
 pub fn reload_value_home_identity(plan: &ReloadValueHomePlan) -> ReloadValueHomeIdentity {
     let mut bytes = Vec::new();

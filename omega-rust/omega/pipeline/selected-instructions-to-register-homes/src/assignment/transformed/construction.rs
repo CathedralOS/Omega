@@ -11,14 +11,14 @@ use crate::{
 };
 
 use super::custody::{literal_fold_home_custody_receipt, selected_lowering_home_custody_receipt};
-use super::model::{
-    OptimizedPostLiteralFoldHomeCustodyError, OptimizedPostSelectedLoweringHomeCustodyError,
-    StagedOptimizedRegisterHomesAfterLiteralFolds,
-    StagedOptimizedRegisterHomesAfterSelectedLowering,
-};
 use super::projection::{
     literal_fold_pre_physical, literal_fold_transformations, selected_lowering_final_analysis,
     selected_lowering_transformations,
+};
+use super::{
+    OptimizedPostLiteralFoldHomeCustodyError, OptimizedPostSelectedLoweringHomeCustodyError,
+    StagedOptimizedRegisterHomesAfterLiteralFolds,
+    StagedOptimizedRegisterHomesAfterSelectedLowering,
 };
 
 pub(super) fn construct_register_homes_after_literal_folds(

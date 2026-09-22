@@ -4,7 +4,7 @@ mod work;
 
 use optimization_core::OptimizationWorkBudget;
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     FunctionHomedSpillPseudoInstructions, HomedSpillPseudoInstruction,
     HomedSpillPseudoInstructionError, HomedSpillPseudoInstructionPlan,
     HomedSpillPseudoInstructionPolicy, SpillPseudoInstruction, ValidatedRecursiveReloadValueHomes,
@@ -75,8 +75,8 @@ fn admit(
 
 fn project(
     function: usize,
-    source: &crate::FunctionSpillPseudoInstructions,
-    homes: &crate::FunctionRecursiveReloadValueHomes,
+    source: &crate::unsequenced_spill_stages::FunctionSpillPseudoInstructions,
+    homes: &crate::unsequenced_spill_stages::FunctionRecursiveReloadValueHomes,
 ) -> Result<FunctionHomedSpillPseudoInstructions, HomedSpillPseudoInstructionError> {
     if source.machine != homes.machine {
         return Err(HomedSpillPseudoInstructionError::FunctionMismatch { function });
@@ -162,7 +162,7 @@ fn project(
             .iter()
             .find(|home| !used.contains(&home.result))
             .map(|home| home.result)
-            .unwrap_or(crate::GeneralizedSpillActionId {
+            .unwrap_or(crate::unsequenced_spill_stages::GeneralizedSpillActionId {
                 epoch: 0,
                 ordinal: 0,
             });

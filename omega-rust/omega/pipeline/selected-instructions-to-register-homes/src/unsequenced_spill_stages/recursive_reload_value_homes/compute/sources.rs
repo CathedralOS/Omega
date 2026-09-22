@@ -2,9 +2,10 @@
 
 use std::collections::BTreeMap;
 
-use crate::{
-    GeneralizedReloadValueHomeOutcome, GeneralizedSpillActionId, LiveRangePoint,
-    RecursiveReloadValueHomeError, RecursiveSpillEvent, RecursiveSpillStoredValue,
+use crate::LiveRangePoint;
+use crate::unsequenced_spill_stages::{
+    GeneralizedReloadValueHomeOutcome, GeneralizedSpillActionId, RecursiveReloadValueHomeError,
+    RecursiveSpillEvent, RecursiveSpillStoredValue,
 };
 
 use super::{ReloadSpec, homes};
@@ -17,8 +18,8 @@ struct StoreRow {
 
 pub(super) fn reconstruct(
     function: usize,
-    recursive: &crate::FunctionRecursiveSpillInsertion,
-    prior: &crate::FunctionGeneralizedReloadValueHomes,
+    recursive: &crate::unsequenced_spill_stages::FunctionRecursiveSpillInsertion,
+    prior: &crate::unsequenced_spill_stages::FunctionGeneralizedReloadValueHomes,
     legality: &crate::FunctionAllocationLegality,
 ) -> Result<Vec<ReloadSpec>, RecursiveReloadValueHomeError> {
     let mut stores = BTreeMap::new();
@@ -111,7 +112,8 @@ pub(super) fn reconstruct(
                     &row.candidates,
                 ),
             };
-            if slot.source != crate::RecursiveSpillActionSource::Prior(source)
+            if slot.source
+                != crate::unsequenced_spill_stages::RecursiveSpillActionSource::Prior(source)
                 || block != slot.block
                 || old_start != start
                 || old_end != full_exclusive_end

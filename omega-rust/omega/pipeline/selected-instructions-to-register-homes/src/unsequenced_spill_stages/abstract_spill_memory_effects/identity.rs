@@ -2,10 +2,10 @@
 
 use sha2::{Digest, Sha256};
 
-use crate::{
+use crate::LogicalSpillStorageClass;
+use crate::unsequenced_spill_stages::{
     AbstractSpillMemoryEffect, AbstractSpillMemoryEffectPlan,
-    AbstractSpillMemoryEffectPlanIdentity, AbstractSpillMemoryEffectPolicy,
-    LogicalSpillStorageClass, SpillPseudoStoredValue,
+    AbstractSpillMemoryEffectPlanIdentity, AbstractSpillMemoryEffectPolicy, SpillPseudoStoredValue,
 };
 
 pub fn abstract_spill_memory_effect_plan_identity(
@@ -108,7 +108,7 @@ fn encode_effect(bytes: &mut Vec<u8>, effect: AbstractSpillMemoryEffect) {
 
 fn storage_geometry(
     bytes: &mut Vec<u8>,
-    storage: crate::GeneralizedSpillActionId,
+    storage: crate::unsequenced_spill_stages::GeneralizedSpillActionId,
     class: LogicalSpillStorageClass,
     offset: u64,
     size: u64,
@@ -140,12 +140,15 @@ fn stored_value(bytes: &mut Vec<u8>, value: SpillPseudoStoredValue) {
     }
 }
 
-fn action(bytes: &mut Vec<u8>, id: crate::GeneralizedSpillActionId) {
+fn action(bytes: &mut Vec<u8>, id: crate::unsequenced_spill_stages::GeneralizedSpillActionId) {
     bytes.extend_from_slice(&id.epoch.to_le_bytes());
     bytes.extend_from_slice(&id.ordinal.to_le_bytes());
 }
 
-fn option_pseudo(bytes: &mut Vec<u8>, id: Option<crate::SpillPseudoInstructionId>) {
+fn option_pseudo(
+    bytes: &mut Vec<u8>,
+    id: Option<crate::unsequenced_spill_stages::SpillPseudoInstructionId>,
+) {
     match id {
         None => bytes.push(0),
         Some(id) => {

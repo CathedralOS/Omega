@@ -2,7 +2,7 @@
 
 use sha2::{Digest, Sha256};
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     GeneralizedReloadCoexistingValue, GeneralizedSpillRecoveryChoiceIdentity,
     GeneralizedSpillRecoveryChoicePlan, GeneralizedSpillRecoveryChoicePolicy,
 };

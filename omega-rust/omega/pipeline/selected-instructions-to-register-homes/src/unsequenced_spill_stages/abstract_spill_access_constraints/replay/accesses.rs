@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     AbstractSpillAccessConstraintError, AbstractSpillAccessKind, AbstractSpillAccessPlacement,
     AbstractSpillMemoryEffect, FunctionAbstractSpillMemoryEffects,
 };
@@ -65,7 +65,7 @@ fn fields(
     effect: AbstractSpillMemoryEffect,
 ) -> (
     AbstractSpillAccessKind,
-    crate::GeneralizedSpillActionId,
+    crate::unsequenced_spill_stages::GeneralizedSpillActionId,
     u64,
     u64,
     u64,

@@ -2,7 +2,7 @@
 
 use sha2::{Digest, Sha256};
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     RecursiveReloadCoexistingValue, RecursiveReloadValueHomeIdentity, RecursiveReloadValueHomePlan,
     RecursiveReloadValueHomePolicy, RecursiveSpillActionSource,
 };
@@ -68,12 +68,15 @@ fn source(bytes: &mut Vec<u8>, value: RecursiveSpillActionSource) {
         RecursiveSpillActionSource::Prior(prior) => {
             bytes.push(0);
             match prior {
-                crate::GeneralizedSpillActionSource::EpochZero { storage, reload } => {
+                crate::unsequenced_spill_stages::GeneralizedSpillActionSource::EpochZero {
+                    storage,
+                    reload,
+                } => {
                     bytes.push(0);
                     bytes.extend_from_slice(&storage.0.to_le_bytes());
                     bytes.extend_from_slice(&reload.0.to_le_bytes());
                 }
-                crate::GeneralizedSpillActionSource::EpochOne {
+                crate::unsequenced_spill_stages::GeneralizedSpillActionSource::EpochOne {
                     work_item,
                     storage,
                     source_reload,
@@ -115,7 +118,7 @@ fn source(bytes: &mut Vec<u8>, value: RecursiveSpillActionSource) {
     }
 }
 
-fn action(bytes: &mut Vec<u8>, value: crate::GeneralizedSpillActionId) {
+fn action(bytes: &mut Vec<u8>, value: crate::unsequenced_spill_stages::GeneralizedSpillActionId) {
     bytes.extend_from_slice(&value.epoch.to_le_bytes());
     bytes.extend_from_slice(&value.ordinal.to_le_bytes());
 }

@@ -4,10 +4,11 @@ use std::collections::BTreeMap;
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-use crate::{
-    FunctionSyntheticReloadValues, LogicalReloadValueId, SyntheticReloadValueBinding,
-    SyntheticReloadValueError, SyntheticReloadValueId, SyntheticReloadValuePlan,
-    SyntheticReloadValuePolicy, ValidatedAbstractSpillInsertion, ValidatedReloadValueHomes,
+use crate::LogicalReloadValueId;
+use crate::unsequenced_spill_stages::{
+    FunctionSyntheticReloadValues, SyntheticReloadValueBinding, SyntheticReloadValueError,
+    SyntheticReloadValueId, SyntheticReloadValuePlan, SyntheticReloadValuePolicy,
+    ValidatedAbstractSpillInsertion, ValidatedReloadValueHomes,
 };
 
 struct PendingBinding {
@@ -96,7 +97,10 @@ pub(super) fn replay(
 fn index_homes(
     homes: &ValidatedReloadValueHomes,
 ) -> Result<
-    BTreeMap<(usize, LogicalReloadValueId), &crate::ReloadValueHomeAssignment>,
+    BTreeMap<
+        (usize, LogicalReloadValueId),
+        &crate::unsequenced_spill_stages::ReloadValueHomeAssignment,
+    >,
     SyntheticReloadValueError,
 > {
     let mut indexed = BTreeMap::new();
@@ -112,8 +116,8 @@ fn index_homes(
 
 fn reconstruct_binding(
     function: usize,
-    action: &crate::AbstractSpillInsertionAction,
-    home: &crate::ReloadValueHomeAssignment,
+    action: &crate::unsequenced_spill_stages::AbstractSpillInsertionAction,
+    home: &crate::unsequenced_spill_stages::ReloadValueHomeAssignment,
 ) -> Result<SyntheticReloadValueBinding, SyntheticReloadValueError> {
     let first = action
         .rewrites

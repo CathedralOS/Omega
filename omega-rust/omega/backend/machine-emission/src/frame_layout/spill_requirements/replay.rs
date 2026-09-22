@@ -1,7 +1,7 @@
 //! Independent indexed replay of spill geometry and ABI selection.
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use selected_instructions_to_register_homes::ValidatedAbstractSpillAccessConstraints;
+use selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedAbstractSpillAccessConstraints;
 
 use crate::frame_layout::ValidatedTargetRegisterEnvironment;
 use register_environment::selected_abi_preservation;
@@ -75,7 +75,7 @@ pub(super) fn reconstruct(
 }
 
 fn reconstruct_function(
-    function: &selected_instructions_to_register_homes::FunctionAbstractSpillAccessConstraints,
+    function: &selected_instructions_to_register_homes::unsequenced_spill_stages::FunctionAbstractSpillAccessConstraints,
     alignment: u64,
     abi: FrameAbiPreservationConvention,
     stack_alignment: u16,
@@ -96,7 +96,7 @@ pub(in crate::frame_layout::spill_requirements) fn replay_zero_access_requiremen
     machine: semantic_vocabulary::MachineId,
 ) -> FunctionSpillFrameRequirements {
     reconstruct_function(
-        &selected_instructions_to_register_homes::FunctionAbstractSpillAccessConstraints {
+        &selected_instructions_to_register_homes::unsequenced_spill_stages::FunctionAbstractSpillAccessConstraints {
             machine,
             spill_area_bytes: 0,
             placements: Vec::new(),

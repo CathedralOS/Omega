@@ -2,7 +2,7 @@
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     FunctionRecursiveSpillInsertion, FunctionSpillPseudoInstructions, RecursiveSpillEvent,
     RecursiveSpillStoredValue, SpillPseudoInstruction, SpillPseudoInstructionError,
     SpillPseudoInstructionId, SpillPseudoInstructionPlan, SpillPseudoInstructionPolicy,
@@ -193,7 +193,7 @@ fn project_function(
 fn storage_block(
     function: usize,
     storage: &[SpillPseudoStorage],
-    id: crate::GeneralizedSpillActionId,
+    id: crate::unsequenced_spill_stages::GeneralizedSpillActionId,
 ) -> Result<selected_instructions::SelectedBlockId, SpillPseudoInstructionError> {
     storage
         .iter()
@@ -208,11 +208,11 @@ fn storage_block(
 fn reload_id(
     function: usize,
     reloads: &[(
-        crate::GeneralizedSpillActionId,
-        crate::GeneralizedSpillActionId,
+        crate::unsequenced_spill_stages::GeneralizedSpillActionId,
+        crate::unsequenced_spill_stages::GeneralizedSpillActionId,
         SpillPseudoInstructionId,
     )],
-    action: crate::GeneralizedSpillActionId,
+    action: crate::unsequenced_spill_stages::GeneralizedSpillActionId,
 ) -> Result<SpillPseudoInstructionId, SpillPseudoInstructionError> {
     reloads
         .iter()
@@ -224,11 +224,11 @@ fn reload_id(
 fn result_id(
     function: usize,
     reloads: &[(
-        crate::GeneralizedSpillActionId,
-        crate::GeneralizedSpillActionId,
+        crate::unsequenced_spill_stages::GeneralizedSpillActionId,
+        crate::unsequenced_spill_stages::GeneralizedSpillActionId,
         SpillPseudoInstructionId,
     )],
-    result: crate::GeneralizedSpillActionId,
+    result: crate::unsequenced_spill_stages::GeneralizedSpillActionId,
 ) -> Result<SpillPseudoInstructionId, SpillPseudoInstructionError> {
     reloads
         .iter()

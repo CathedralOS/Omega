@@ -1,6 +1,6 @@
 //! Independent replay comparison and receipt sealing.
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     RecursiveSpillInsertionError, RecursiveSpillInsertionPlan, RecursiveSpillInsertionReceipt,
     ValidatedGeneralizedSpillInsertion, ValidatedGeneralizedSpillRecoveryActions,
     ValidatedRecursiveSpillInsertion, recursive_spill_insertion_identity,

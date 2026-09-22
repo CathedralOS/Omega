@@ -8,15 +8,18 @@ use register_model::RegisterOperandAccess;
 use selected_instructions::{SelectedInstruction, SelectedTerminator, VirtualRegisterOrigin};
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     GeneralizedReloadCoexistingValue, GeneralizedSpillEvent, GeneralizedSpillRecoveryActionError,
     GeneralizedSpillRecoveryActionPlan, GeneralizedSpillRecoveryActionPolicy,
     GeneralizedSpillRecoveryChoicePolicy, GeneralizedSpillRecoveryLogicalAction,
     GeneralizedSpillRecoveryLogicalReload, GeneralizedSpillRecoveryLogicalStorage,
     GeneralizedSpillRecoveryLogicalStore, GeneralizedSpillRecoveryLogicalUseRewrite,
-    GeneralizedSpillRecoveryVictim, LogicalSpillStorageClass, ValidatedGeneralizedReloadValueHomes,
+    GeneralizedSpillRecoveryVictim, ValidatedGeneralizedReloadValueHomes,
     ValidatedGeneralizedSpillInsertion, ValidatedGeneralizedSpillRecoveryChoices,
-    ValidatedLiveRanges, ValidatedSelectedAnalysis, VirtualFixedConstraintSite,
+};
+use crate::{
+    LogicalSpillStorageClass, ValidatedLiveRanges, ValidatedSelectedAnalysis,
+    VirtualFixedConstraintSite,
 };
 
 pub(super) fn replay<S: ValidatedSelectedAnalysis>(
@@ -286,7 +289,7 @@ pub(super) fn replay<S: ValidatedSelectedAnalysis>(
                 register,
             });
         }
-        let id = crate::GeneralizedSpillActionId {
+        let id = crate::unsequenced_spill_stages::GeneralizedSpillActionId {
             epoch: choice.work_item.epoch,
             ordinal: choice.work_item.ordinal,
         };

@@ -5,7 +5,7 @@ use super::super::{homed_spill_pseudo_instructions, recursive_reload_value_homes
 
 pub(super) struct EffectBundle {
     pub(super) homed:
-        selected_instructions_to_register_homes::ValidatedHomedSpillPseudoInstructions,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedHomedSpillPseudoInstructions,
 }
 
 pub(super) fn build(constructor: fn(NativeTarget) -> Bundle, target: NativeTarget) -> EffectBundle {
@@ -19,24 +19,24 @@ pub(super) fn lower(
     source: &EffectBundle,
     budget: OptimizationWorkBudget,
 ) -> Result<
-    selected_instructions_to_register_homes::ValidatedAbstractSpillMemoryEffects,
-    selected_instructions_to_register_homes::AbstractSpillMemoryEffectError,
-> {
-    selected_instructions_to_register_homes::derive_abstract_spill_memory_effects(
+    selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedAbstractSpillMemoryEffects,
+    selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillMemoryEffectError,
+>{
+    selected_instructions_to_register_homes::unsequenced_spill_stages::derive_abstract_spill_memory_effects(
         &source.homed,
-        selected_instructions_to_register_homes::AbstractSpillMemoryEffectPolicy::HomedPseudoReadWriteV1,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillMemoryEffectPolicy::HomedPseudoReadWriteV1,
         budget,
     )
 }
 
 pub(super) fn validate(
     source: &EffectBundle,
-    plan: selected_instructions_to_register_homes::AbstractSpillMemoryEffectPlan,
+    plan: selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillMemoryEffectPlan,
 ) -> Result<
-    selected_instructions_to_register_homes::ValidatedAbstractSpillMemoryEffects,
-    selected_instructions_to_register_homes::AbstractSpillMemoryEffectError,
-> {
-    selected_instructions_to_register_homes::validate_abstract_spill_memory_effects(
+    selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedAbstractSpillMemoryEffects,
+    selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillMemoryEffectError,
+>{
+    selected_instructions_to_register_homes::unsequenced_spill_stages::validate_abstract_spill_memory_effects(
         &source.homed,
         plan,
     )

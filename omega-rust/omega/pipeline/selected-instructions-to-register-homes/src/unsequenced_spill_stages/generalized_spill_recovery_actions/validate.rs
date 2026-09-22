@@ -1,12 +1,13 @@
 //! Independent replay comparison and epoch-two action receipt sealing.
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     GeneralizedSpillRecoveryActionError, GeneralizedSpillRecoveryActionPlan,
     GeneralizedSpillRecoveryActionPolicy, GeneralizedSpillRecoveryActionReceipt,
     ValidatedGeneralizedReloadValueHomes, ValidatedGeneralizedSpillInsertion,
     ValidatedGeneralizedSpillRecoveryActions, ValidatedGeneralizedSpillRecoveryChoices,
-    ValidatedLiveRanges, ValidatedSelectedAnalysis, generalized_spill_recovery_action_identity,
+    generalized_spill_recovery_action_identity,
 };
+use crate::{ValidatedLiveRanges, ValidatedSelectedAnalysis};
 
 pub fn validate_generalized_spill_recovery_actions(
     insertion: &ValidatedGeneralizedSpillInsertion,

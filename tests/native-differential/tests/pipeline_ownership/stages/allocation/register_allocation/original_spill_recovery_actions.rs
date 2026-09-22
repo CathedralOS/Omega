@@ -12,16 +12,16 @@ fn sources(
     target: NativeTarget,
 ) -> (
     Sources,
-    selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
-    selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryChoices,
-) {
+    selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedReloadValueHomes,
+    selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryChoices,
+){
     let sources = Sources::from_legality(
         staged_active_resident_original_victim_chain_two_view_legality(target),
     );
     let homes = sources.assign(selected_lowering_budget()).unwrap();
-    let worklist = selected_instructions_to_register_homes::seed_generalized_spill_recovery_worklist(
+    let worklist = selected_instructions_to_register_homes::unsequenced_spill_stages::seed_generalized_spill_recovery_worklist(
         &homes,
-        selected_instructions_to_register_homes::GeneralizedSpillRecoveryWorklistPolicy::EpochOnePressureToEpochTwoV1,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryWorklistPolicy::EpochOnePressureToEpochTwoV1,
         selected_lowering_budget(),
     )
     .unwrap();
@@ -29,7 +29,7 @@ fn sources(
         .choose_generalized_victim_with_policy(
             &homes,
             &worklist,
-            selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoicePolicy::EpochTwoEligibleOriginalBeforeReloadThenFarthestEndThenHighestValueV1,
+            selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryChoicePolicy::EpochTwoEligibleOriginalBeforeReloadThenFarthestEndThenHighestValueV1,
             selected_lowering_budget(),
         )
         .unwrap();
@@ -58,7 +58,7 @@ fn selected_original_becomes_exact_target_neutral_logical_obligations() {
         let mut detached = first.plan().clone();
         detached.selected = None;
         assert_ne!(
-            selected_instructions_to_register_homes::generalized_spill_recovery_action_identity(
+            selected_instructions_to_register_homes::unsequenced_spill_stages::generalized_spill_recovery_action_identity(
                 &detached
             ),
             first.receipt().identity()
@@ -66,7 +66,7 @@ fn selected_original_becomes_exact_target_neutral_logical_obligations() {
 
         let action = &first.plan().actions[0];
         let victim =
-            selected_instructions_to_register_homes::GeneralizedSpillRecoveryVictim::Original(
+            selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryVictim::Original(
                 VirtualRegisterId(6),
             );
         assert_eq!(action.source_work_item.epoch, 2);
@@ -99,61 +99,61 @@ fn independent_replay_rejects_every_new_root_and_action_surface_mutation() {
             .plan()
             .clone();
         for corrupt in [
-            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionPlan| {
                 plan.selected = Some(
                     selected_instructions::SelectedInstructionPlanIdentity::from_bytes(
                         [0xc1; 32],
                     ),
                 )
             },
-            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionPlan| {
                 plan.ranges = Some(selected_instructions::LiveRangeIdentity::from_bytes([0xc2; 32]))
             },
-            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| plan.selected = None,
-            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| plan.ranges = None,
-            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
-                plan.policy = selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPolicy::EpochTwoReloadVictimLaterGeneralizedRewritesV1
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionPlan| plan.selected = None,
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionPlan| plan.ranges = None,
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionPlan| {
+                plan.policy = selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionPolicy::EpochTwoReloadVictimLaterGeneralizedRewritesV1
             },
         ] {
             let mut changed = canonical.clone();
             corrupt(&mut changed);
             assert_eq!(
                 sources.validate_original_recovery_actions(&homes, &choices, changed),
-                Err(selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError::RootMismatch)
+                Err(selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionError::RootMismatch)
             );
         }
         for corrupt in [
-            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionPlan| {
                 plan.actions[0].victim =
-                    selected_instructions_to_register_homes::GeneralizedSpillRecoveryVictim::Original(VirtualRegisterId(7))
+                    selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryVictim::Original(VirtualRegisterId(7))
             },
-            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionPlan| {
                 plan.actions[0].store.source =
-                    selected_instructions_to_register_homes::GeneralizedSpillRecoveryVictim::Reload(id(0, 0))
+                    selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryVictim::Reload(id(0, 0))
             },
-            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionPlan| {
                 plan.actions[0].victim_class.0 += 1
             },
-            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionPlan| {
                 plan.actions[0].reload.before_instruction.0 += 1
             },
-            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionPlan| {
                 plan.actions[0].rewrites[0].operand += 1
             },
-            |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| plan.actions.clear(),
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionPlan| plan.actions.clear(),
         ] {
             let mut changed = canonical.clone();
             corrupt(&mut changed);
             assert_eq!(
                 sources.validate_original_recovery_actions(&homes, &choices, changed),
-                Err(selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError::NonCanonicalActions)
+                Err(selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionError::NonCanonicalActions)
             );
         }
         let mut usage = canonical;
         usage.usage.validation_steps += 1;
         assert_eq!(
             sources.validate_original_recovery_actions(&homes, &choices, usage),
-            Err(selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError::UsageMismatch)
+            Err(selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionError::UsageMismatch)
         );
     }
 }
@@ -176,7 +176,7 @@ fn exact_budget_cross_target_custody_and_recursive_refusal_are_typed() {
             .unwrap();
         assert!(matches!(
             sources.plan_original_recovery_actions(&homes, &choices, insufficient),
-            Err(selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError::BudgetExceeded {
+            Err(selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionError::BudgetExceeded {
                 required,
                 budget,
             }) if required == exact_usage() && budget == insufficient
@@ -184,10 +184,10 @@ fn exact_budget_cross_target_custody_and_recursive_refusal_are_typed() {
         assert_eq!(
             sources.schedule_recursive_spills(&actions, selected_lowering_budget()),
             Err(
-                selected_instructions_to_register_homes::RecursiveSpillInsertionError::UnsupportedRecoveryVictim {
+                selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillInsertionError::UnsupportedRecoveryVictim {
                     function: 0,
                     action: id(2, 0),
-                    victim: selected_instructions_to_register_homes::GeneralizedSpillRecoveryVictim::Original(
+                    victim: selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryVictim::Original(
                         VirtualRegisterId(6),
                     ),
                 }
@@ -204,15 +204,18 @@ fn exact_budget_cross_target_custody_and_recursive_refusal_are_typed() {
     let (arm, arm_homes, arm_choices) = sources(NativeTarget::linux_arm64());
     assert_eq!(
         arm.validate_original_recovery_actions(&arm_homes, &arm_choices, foreign),
-        Err(selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionError::RootMismatch)
+        Err(selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionError::RootMismatch)
     );
 }
 
 const fn id(
     epoch: u32,
     ordinal: u32,
-) -> selected_instructions_to_register_homes::GeneralizedSpillActionId {
-    selected_instructions_to_register_homes::GeneralizedSpillActionId { epoch, ordinal }
+) -> selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillActionId {
+    selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillActionId {
+        epoch,
+        ordinal,
+    }
 }
 
 fn exact_budget() -> OptimizationWorkBudget {

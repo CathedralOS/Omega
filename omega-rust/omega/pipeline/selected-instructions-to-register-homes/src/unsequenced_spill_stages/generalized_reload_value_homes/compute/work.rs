@@ -2,7 +2,7 @@
 
 use optimization_core::OptimizationWorkUsage;
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     FunctionGeneralizedReloadValueHomes, GeneralizedReloadValueHomeError,
     GeneralizedReloadValueHomeOutcome,
 };

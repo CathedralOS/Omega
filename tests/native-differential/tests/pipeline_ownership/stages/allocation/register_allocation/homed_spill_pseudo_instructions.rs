@@ -6,15 +6,15 @@ use super::recursive_reload_value_homes::{Bundle, original_bundle, reload_bundle
 
 pub(super) struct HomedBundle {
     pub(super) bundle: Bundle,
-    pub(super) pseudos: selected_instructions_to_register_homes::ValidatedSpillPseudoInstructions,
-    pub(super) homes: selected_instructions_to_register_homes::ValidatedRecursiveReloadValueHomes,
+    pub(super) pseudos: selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedSpillPseudoInstructions,
+    pub(super) homes: selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedRecursiveReloadValueHomes,
 }
 
 pub(super) fn build(constructor: fn(NativeTarget) -> Bundle, target: NativeTarget) -> HomedBundle {
     let bundle = constructor(target);
-    let pseudos = selected_instructions_to_register_homes::lower_recursive_spill_pseudos(
+    let pseudos = selected_instructions_to_register_homes::unsequenced_spill_stages::lower_recursive_spill_pseudos(
         &bundle.recursive,
-        selected_instructions_to_register_homes::SpillPseudoInstructionPolicy::RecursiveLogicalScheduleV1,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::SpillPseudoInstructionPolicy::RecursiveLogicalScheduleV1,
         selected_lowering_budget(),
     )
     .unwrap();
@@ -38,25 +38,25 @@ pub(super) fn lower(
     source: &HomedBundle,
     budget: OptimizationWorkBudget,
 ) -> Result<
-    selected_instructions_to_register_homes::ValidatedHomedSpillPseudoInstructions,
-    selected_instructions_to_register_homes::HomedSpillPseudoInstructionError,
-> {
-    selected_instructions_to_register_homes::lower_homed_recursive_spill_pseudos(
+    selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedHomedSpillPseudoInstructions,
+    selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstructionError,
+>{
+    selected_instructions_to_register_homes::unsequenced_spill_stages::lower_homed_recursive_spill_pseudos(
         &source.pseudos,
         &source.homes,
-        selected_instructions_to_register_homes::HomedSpillPseudoInstructionPolicy::RecursiveLogicalScheduleWithClosedReloadHomesV2,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstructionPolicy::RecursiveLogicalScheduleWithClosedReloadHomesV2,
         budget,
     )
 }
 
 fn validate(
     source: &HomedBundle,
-    plan: selected_instructions_to_register_homes::HomedSpillPseudoInstructionPlan,
+    plan: selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstructionPlan,
 ) -> Result<
-    selected_instructions_to_register_homes::ValidatedHomedSpillPseudoInstructions,
-    selected_instructions_to_register_homes::HomedSpillPseudoInstructionError,
-> {
-    selected_instructions_to_register_homes::validate_homed_spill_pseudo_instructions(
+    selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedHomedSpillPseudoInstructions,
+    selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstructionError,
+>{
+    selected_instructions_to_register_homes::unsequenced_spill_stages::validate_homed_spill_pseudo_instructions(
         &source.pseudos,
         &source.homes,
         plan,
@@ -103,7 +103,7 @@ fn both_recursive_paths_gain_exact_destination_views_on_both_targets() {
                     .instructions
                     .iter()
                     .copied()
-                    .map(selected_instructions_to_register_homes::HomedSpillPseudoInstruction::id)
+                    .map(selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstruction::id)
                     .map(|id| id.ordinal)
                     .collect::<Vec<_>>(),
                 vec![0, 1, 2, 3, 4, 5],
@@ -113,7 +113,7 @@ fn both_recursive_paths_gain_exact_destination_views_on_both_targets() {
                 .iter()
                 .filter_map(|instruction| {
                     match instruction {
-                    selected_instructions_to_register_homes::HomedSpillPseudoInstruction::Reload {
+                    selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstruction::Reload {
                         result,
                         destination_view,
                         ..
@@ -133,18 +133,18 @@ fn both_recursive_paths_gain_exact_destination_views_on_both_targets() {
             assert!(
                 matches!(
                     function.instructions[3],
-                    selected_instructions_to_register_homes::HomedSpillPseudoInstruction::Store {
+                    selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstruction::Store {
                         action,
-                        before_reload: Some(selected_instructions_to_register_homes::SpillPseudoInstructionId { ordinal: 4 }),
-                        source: selected_instructions_to_register_homes::SpillPseudoStoredValue::Reload { action: source, producer: selected_instructions_to_register_homes::SpillPseudoInstructionId { ordinal: 2 } },
+                        before_reload: Some(selected_instructions_to_register_homes::unsequenced_spill_stages::SpillPseudoInstructionId { ordinal: 4 }),
+                        source: selected_instructions_to_register_homes::unsequenced_spill_stages::SpillPseudoStoredValue::Reload { action: source, producer: selected_instructions_to_register_homes::unsequenced_spill_stages::SpillPseudoInstructionId { ordinal: 2 } },
                         ..
                     } if !original && action == id(2, 0) && source == id(0, 0)
                 ) || matches!(
                     function.instructions[3],
-                    selected_instructions_to_register_homes::HomedSpillPseudoInstruction::Store {
+                    selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstruction::Store {
                         action,
-                        before_reload: Some(selected_instructions_to_register_homes::SpillPseudoInstructionId { ordinal: 4 }),
-                        source: selected_instructions_to_register_homes::SpillPseudoStoredValue::Original(
+                        before_reload: Some(selected_instructions_to_register_homes::unsequenced_spill_stages::SpillPseudoInstructionId { ordinal: 4 }),
+                        source: selected_instructions_to_register_homes::unsequenced_spill_stages::SpillPseudoStoredValue::Original(
                             selected_instructions::VirtualRegisterId(6)
                         ),
                         ..
@@ -158,9 +158,9 @@ fn both_recursive_paths_gain_exact_destination_views_on_both_targets() {
 #[test]
 fn v1_spill_pseudos_bind_the_current_recursive_schedule() {
     let source = build(reload_bundle, NativeTarget::linux_x64());
-    let v1 = selected_instructions_to_register_homes::lower_recursive_spill_pseudos(
+    let v1 = selected_instructions_to_register_homes::unsequenced_spill_stages::lower_recursive_spill_pseudos(
         &source.bundle.recursive,
-        selected_instructions_to_register_homes::SpillPseudoInstructionPolicy::RecursiveLogicalScheduleV1,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::SpillPseudoInstructionPolicy::RecursiveLogicalScheduleV1,
         OptimizationWorkBudget::new(1, 6, 23, 10, 14).unwrap(),
     )
     .unwrap();
@@ -204,29 +204,29 @@ fn replay_rejects_every_root_destination_view_and_v1_surface_corruption() {
                 .plan()
                 .clone();
             for corrupt in [
-                |plan: &mut selected_instructions_to_register_homes::HomedSpillPseudoInstructionPlan| {
+                |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstructionPlan| {
                     plan.spill_pseudo_instructions =
-                        selected_instructions_to_register_homes::SpillPseudoInstructionPlanIdentity::from_bytes([0xc0; 32]);
+                        selected_instructions_to_register_homes::unsequenced_spill_stages::SpillPseudoInstructionPlanIdentity::from_bytes([0xc0; 32]);
                 },
-                |plan: &mut selected_instructions_to_register_homes::HomedSpillPseudoInstructionPlan| {
+                |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstructionPlan| {
                     plan.recursive_reload_value_homes =
-                        selected_instructions_to_register_homes::RecursiveReloadValueHomeIdentity::from_bytes([0xc1; 32]);
+                        selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomeIdentity::from_bytes([0xc1; 32]);
                 },
-                |plan: &mut selected_instructions_to_register_homes::HomedSpillPseudoInstructionPlan| {
+                |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstructionPlan| {
                     plan.register_environment =
                         register_model::TargetRegisterEnvironmentIdentity::from_bytes(
                             [0xc2; 32],
                         );
                 },
-                |plan: &mut selected_instructions_to_register_homes::HomedSpillPseudoInstructionPlan| {
+                |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstructionPlan| {
                     plan.allocator_availability =
                         register_homes::AllocatorAvailabilityIdentity::from_bytes([0xc3; 32]);
                 },
-                |plan: &mut selected_instructions_to_register_homes::HomedSpillPseudoInstructionPlan| {
+                |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstructionPlan| {
                     plan.optimization_unit =
                         optimization_core::OptimizationUnitIdentity::from_bytes([0xc4; 32]);
                 },
-                |plan: &mut selected_instructions_to_register_homes::HomedSpillPseudoInstructionPlan| {
+                |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstructionPlan| {
                     plan.fuel_schedule = semantic_vocabulary::FuelScheduleIdentity::new(99_990).unwrap();
                 },
             ] {
@@ -234,17 +234,17 @@ fn replay_rejects_every_root_destination_view_and_v1_surface_corruption() {
                 corrupt(&mut changed);
                 assert_eq!(
                     validate(&source, changed),
-                    Err(selected_instructions_to_register_homes::HomedSpillPseudoInstructionError::RootMismatch),
+                    Err(selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstructionError::RootMismatch),
                 );
             }
 
             let mutations: [fn(
-                &mut selected_instructions_to_register_homes::HomedSpillPseudoInstructionPlan,
+                &mut selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstructionPlan,
             ); 6] = [
                 |plan| plan.functions[0].storage[2].spill_area_offset += 8,
                 |plan| {
                     match &mut plan.functions[0].instructions[0] {
-                    selected_instructions_to_register_homes::HomedSpillPseudoInstruction::Store { source_view, .. } => {
+                    selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstruction::Store { source_view, .. } => {
                         source_view.0 += 1
                     }
                     _ => unreachable!(),
@@ -252,7 +252,7 @@ fn replay_rejects_every_root_destination_view_and_v1_surface_corruption() {
                 },
                 |plan| {
                     match &mut plan.functions[0].instructions[2] {
-                    selected_instructions_to_register_homes::HomedSpillPseudoInstruction::Reload {
+                    selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstruction::Reload {
                         destination_class,
                         ..
                     } => destination_class.0 += 1,
@@ -261,7 +261,7 @@ fn replay_rejects_every_root_destination_view_and_v1_surface_corruption() {
                 },
                 |plan| {
                     match &mut plan.functions[0].instructions[2] {
-                    selected_instructions_to_register_homes::HomedSpillPseudoInstruction::Reload {
+                    selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstruction::Reload {
                         destination_view,
                         ..
                     } => destination_view.0 += 1,
@@ -278,14 +278,14 @@ fn replay_rejects_every_root_destination_view_and_v1_surface_corruption() {
                 mutate(&mut changed);
                 assert_eq!(
                     validate(&source, changed),
-                    Err(selected_instructions_to_register_homes::HomedSpillPseudoInstructionError::NonCanonicalFunctions),
+                    Err(selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstructionError::NonCanonicalFunctions),
                 );
             }
             let mut usage = canonical;
             usage.usage.iterations += 1;
             assert_eq!(
                 validate(&source, usage),
-                Err(selected_instructions_to_register_homes::HomedSpillPseudoInstructionError::UsageMismatch),
+                Err(selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstructionError::UsageMismatch),
             );
         }
     }
@@ -348,7 +348,7 @@ fn exact_budgets_all_five_axes_and_cross_target_custody_fail_closed() {
                 assert_eq!(
                     lower(&source, actual),
                     Err(
-                        selected_instructions_to_register_homes::HomedSpillPseudoInstructionError::BudgetExceeded {
+                        selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstructionError::BudgetExceeded {
                             required: usage,
                             budget: actual
                         }
@@ -359,18 +359,18 @@ fn exact_budgets_all_five_axes_and_cross_target_custody_fail_closed() {
         let x86 = build(constructor, NativeTarget::linux_x64());
         let arm = build(constructor, NativeTarget::linux_arm64());
         assert_eq!(
-            selected_instructions_to_register_homes::lower_homed_recursive_spill_pseudos(
+            selected_instructions_to_register_homes::unsequenced_spill_stages::lower_homed_recursive_spill_pseudos(
                 &x86.pseudos,
                 &arm.homes,
-                selected_instructions_to_register_homes::HomedSpillPseudoInstructionPolicy::RecursiveLogicalScheduleWithClosedReloadHomesV2,
+                selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstructionPolicy::RecursiveLogicalScheduleWithClosedReloadHomesV2,
                 exact,
             ),
-            Err(selected_instructions_to_register_homes::HomedSpillPseudoInstructionError::RootMismatch),
+            Err(selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstructionError::RootMismatch),
         );
         let foreign = lower(&x86, exact).unwrap().plan().clone();
         assert_eq!(
             validate(&arm, foreign),
-            Err(selected_instructions_to_register_homes::HomedSpillPseudoInstructionError::RootMismatch),
+            Err(selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstructionError::RootMismatch),
         );
     }
 }
@@ -378,8 +378,11 @@ fn exact_budgets_all_five_axes_and_cross_target_custody_fail_closed() {
 const fn id(
     epoch: u32,
     ordinal: u32,
-) -> selected_instructions_to_register_homes::GeneralizedSpillActionId {
-    selected_instructions_to_register_homes::GeneralizedSpillActionId { epoch, ordinal }
+) -> selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillActionId {
+    selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillActionId {
+        epoch,
+        ordinal,
+    }
 }
 
 const fn exact_usage(original: bool) -> OptimizationWorkUsage {

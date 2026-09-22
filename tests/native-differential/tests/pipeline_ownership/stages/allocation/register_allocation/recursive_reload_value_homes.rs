@@ -10,10 +10,10 @@ use super::generalized_reload_value_homes::Sources;
 
 pub(super) struct Bundle {
     pub(super) sources: Sources,
-    pub(super) prior: selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
+    pub(super) prior: selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedReloadValueHomes,
     pub(super) actions:
-        selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryActions,
-    pub(super) recursive: selected_instructions_to_register_homes::ValidatedRecursiveSpillInsertion,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryActions,
+    pub(super) recursive: selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedRecursiveSpillInsertion,
 }
 
 pub(super) fn reload_bundle(target: NativeTarget) -> Bundle {
@@ -35,16 +35,16 @@ pub(super) fn original_bundle(target: NativeTarget) -> Bundle {
         staged_active_resident_original_victim_chain_two_view_legality(target),
     );
     let prior = sources.assign(selected_lowering_budget()).unwrap();
-    let worklist = selected_instructions_to_register_homes::seed_generalized_spill_recovery_worklist(
+    let worklist = selected_instructions_to_register_homes::unsequenced_spill_stages::seed_generalized_spill_recovery_worklist(
         &prior,
-        selected_instructions_to_register_homes::GeneralizedSpillRecoveryWorklistPolicy::EpochOnePressureToEpochTwoV1,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryWorklistPolicy::EpochOnePressureToEpochTwoV1,
         selected_lowering_budget(),
     )
     .unwrap();
     let choices = sources.choose_generalized_victim_with_policy(
         &prior,
         &worklist,
-        selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoicePolicy::EpochTwoEligibleOriginalBeforeReloadThenFarthestEndThenHighestValueV1,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryChoicePolicy::EpochTwoEligibleOriginalBeforeReloadThenFarthestEndThenHighestValueV1,
         selected_lowering_budget(),
     ).unwrap();
     let actions = sources
@@ -127,7 +127,7 @@ fn both_recursive_victim_paths_close_every_reload_segment_on_both_targets() {
             if original {
                 assert!(matches!(
                     rows[2].source,
-                    selected_instructions_to_register_homes::RecursiveSpillActionSource::EpochTwoOriginal {
+                    selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillActionSource::EpochTwoOriginal {
                         victim: VirtualRegisterId(6),
                         ..
                     }
@@ -140,23 +140,23 @@ fn both_recursive_victim_paths_close_every_reload_segment_on_both_targets() {
                     rows[0].coexisting_homes,
                     vec![
                         home(
-                            selected_instructions_to_register_homes::RecursiveReloadCoexistingValue::Original(
+                            selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadCoexistingValue::Original(
                                 VirtualRegisterId(5)
                             ),
                             high
                         ),
                         home(
-                            selected_instructions_to_register_homes::RecursiveReloadCoexistingValue::Original(
+                            selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadCoexistingValue::Original(
                                 VirtualRegisterId(6)
                             ),
                             high
                         ),
                         home(
-                            selected_instructions_to_register_homes::RecursiveReloadCoexistingValue::Reload(id(1, 0)),
+                            selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadCoexistingValue::Reload(id(1, 0)),
                             high
                         ),
                         home(
-                            selected_instructions_to_register_homes::RecursiveReloadCoexistingValue::Reload(id(2, 0)),
+                            selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadCoexistingValue::Reload(id(2, 0)),
                             high
                         ),
                     ]
@@ -164,33 +164,33 @@ fn both_recursive_victim_paths_close_every_reload_segment_on_both_targets() {
                 assert_eq!(
                     rows[1].coexisting_homes,
                     vec![home(
-                        selected_instructions_to_register_homes::RecursiveReloadCoexistingValue::Reload(id(0, 0)),
+                        selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadCoexistingValue::Reload(id(0, 0)),
                         low,
                     )]
                 );
                 assert_eq!(
                     rows[2].coexisting_homes,
                     vec![home(
-                        selected_instructions_to_register_homes::RecursiveReloadCoexistingValue::Reload(id(0, 0)),
+                        selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadCoexistingValue::Reload(id(0, 0)),
                         low,
                     )]
                 );
             } else {
                 assert!(
-                    matches!(rows[2].source, selected_instructions_to_register_homes::RecursiveSpillActionSource::EpochTwo { victim, .. } if victim == id(0, 0))
+                    matches!(rows[2].source, selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillActionSource::EpochTwo { victim, .. } if victim == id(0, 0))
                 );
                 assert!(rows.iter().all(|row| row.view == low));
                 assert_eq!(
                     rows[0].coexisting_homes,
                     vec![
                         home(
-                            selected_instructions_to_register_homes::RecursiveReloadCoexistingValue::Original(
+                            selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadCoexistingValue::Original(
                                 VirtualRegisterId(5)
                             ),
                             high
                         ),
                         home(
-                            selected_instructions_to_register_homes::RecursiveReloadCoexistingValue::Original(
+                            selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadCoexistingValue::Original(
                                 VirtualRegisterId(6)
                             ),
                             high
@@ -200,7 +200,7 @@ fn both_recursive_victim_paths_close_every_reload_segment_on_both_targets() {
                 assert_eq!(
                     rows[1].coexisting_homes,
                     vec![home(
-                        selected_instructions_to_register_homes::RecursiveReloadCoexistingValue::Original(
+                        selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadCoexistingValue::Original(
                             VirtualRegisterId(6)
                         ),
                         high,
@@ -230,48 +230,48 @@ fn independent_replay_rejects_roots_lineage_interval_domain_view_roster_order_an
                 .clone();
 
             for corrupt in [
-                |plan: &mut selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
+                |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomePlan| {
                     plan.recursive_spill_insertion =
-                        selected_instructions_to_register_homes::RecursiveSpillInsertionIdentity::from_bytes([0xb0; 32]);
+                        selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillInsertionIdentity::from_bytes([0xb0; 32]);
                 },
-                |plan: &mut selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
+                |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomePlan| {
                     plan.recovery_actions =
-                        selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionIdentity::from_bytes(
+                        selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionIdentity::from_bytes(
                             [0xb1; 32],
                         );
                 },
-                |plan: &mut selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
+                |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomePlan| {
                     plan.prior_reload_value_homes =
-                        selected_instructions_to_register_homes::GeneralizedReloadValueHomeIdentity::from_bytes([0xb2; 32]);
+                        selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadValueHomeIdentity::from_bytes([0xb2; 32]);
                 },
-                |plan: &mut selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
+                |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomePlan| {
                     plan.selected =
                         selected_instructions::SelectedInstructionPlanIdentity::from_bytes(
                             [0xb3; 32],
                         );
                 },
-                |plan: &mut selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
+                |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomePlan| {
                     plan.ranges = selected_instructions::LiveRangeIdentity::from_bytes([0xb4; 32]);
                 },
-                |plan: &mut selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
+                |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomePlan| {
                     plan.legality =
                         register_homes::AllocationLegalityIdentity::from_bytes([0xb5; 32]);
                 },
-                |plan: &mut selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
+                |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomePlan| {
                     plan.register_environment =
                         register_model::TargetRegisterEnvironmentIdentity::from_bytes(
                             [0xb6; 32],
                         );
                 },
-                |plan: &mut selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
+                |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomePlan| {
                     plan.allocator_availability =
                         register_homes::AllocatorAvailabilityIdentity::from_bytes([0xb7; 32]);
                 },
-                |plan: &mut selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
+                |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomePlan| {
                     plan.optimization_unit =
                         optimization_core::OptimizationUnitIdentity::from_bytes([0xb8; 32]);
                 },
-                |plan: &mut selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
+                |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomePlan| {
                     plan.fuel_schedule = semantic_vocabulary::FuelScheduleIdentity::new(99_980).unwrap();
                 },
             ] {
@@ -284,15 +284,15 @@ fn independent_replay_rejects_roots_lineage_interval_domain_view_roster_order_an
                         &bundle.prior,
                         changed,
                     ),
-                    Err(selected_instructions_to_register_homes::RecursiveReloadValueHomeError::RootMismatch),
+                    Err(selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomeError::RootMismatch),
                 );
             }
 
             for corrupt in [
-                |plan: &mut selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
+                |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomePlan| {
                     plan.functions[0].assignments[2].source =
-                        selected_instructions_to_register_homes::RecursiveSpillActionSource::EpochTwoOriginal {
-                            work_item: selected_instructions_to_register_homes::GeneralizedSpillRecoveryWorkItemId {
+                        selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillActionSource::EpochTwoOriginal {
+                            work_item: selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryWorkItemId {
                                 epoch: 2,
                                 ordinal: 0,
                             },
@@ -300,20 +300,20 @@ fn independent_replay_rejects_roots_lineage_interval_domain_view_roster_order_an
                             victim: VirtualRegisterId(99),
                         };
                 },
-                |plan: &mut selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
+                |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomePlan| {
                     plan.functions[0].assignments[2].exclusive_end.0 += 1;
                 },
-                |plan: &mut selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
+                |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomePlan| {
                     plan.functions[0].assignments[1].candidates.reverse();
                 },
-                |plan: &mut selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
+                |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomePlan| {
                     plan.functions[0].assignments[1].view =
                         register_model::RegisterViewId(999);
                 },
-                |plan: &mut selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
+                |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomePlan| {
                     plan.functions[0].assignments[0].coexisting_homes.clear();
                 },
-                |plan: &mut selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
+                |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomePlan| {
                     plan.functions[0].assignments.swap(0, 1);
                 },
             ] {
@@ -327,7 +327,7 @@ fn independent_replay_rejects_roots_lineage_interval_domain_view_roster_order_an
                         changed,
                     ),
                     Err(
-                        selected_instructions_to_register_homes::RecursiveReloadValueHomeError::NonCanonicalAssignments {
+                        selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomeError::NonCanonicalAssignments {
                             function: 0
                         }
                     ),
@@ -343,7 +343,7 @@ fn independent_replay_rejects_roots_lineage_interval_domain_view_roster_order_an
                     &bundle.prior,
                     usage,
                 ),
-                Err(selected_instructions_to_register_homes::RecursiveReloadValueHomeError::UsageMismatch),
+                Err(selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomeError::UsageMismatch),
             );
         }
     }
@@ -421,7 +421,7 @@ fn exact_envelopes_every_first_over_axis_and_cross_target_roots_fail_closed() {
                         actual,
                     ),
                     Err(
-                        selected_instructions_to_register_homes::RecursiveReloadValueHomeError::BudgetExceeded {
+                        selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomeError::BudgetExceeded {
                             required: usage,
                             budget: actual,
                         }
@@ -445,7 +445,7 @@ fn exact_envelopes_every_first_over_axis_and_cross_target_roots_fail_closed() {
                 &arm.prior,
                 foreign,
             ),
-            Err(selected_instructions_to_register_homes::RecursiveReloadValueHomeError::RootMismatch),
+            Err(selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadValueHomeError::RootMismatch),
         );
     }
 }
@@ -453,8 +453,11 @@ fn exact_envelopes_every_first_over_axis_and_cross_target_roots_fail_closed() {
 const fn id(
     epoch: u32,
     ordinal: u32,
-) -> selected_instructions_to_register_homes::GeneralizedSpillActionId {
-    selected_instructions_to_register_homes::GeneralizedSpillActionId { epoch, ordinal }
+) -> selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillActionId {
+    selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillActionId {
+        epoch,
+        ordinal,
+    }
 }
 
 const fn exact_usage(original: bool) -> OptimizationWorkUsage {
@@ -479,10 +482,11 @@ fn budget(usage: OptimizationWorkUsage) -> OptimizationWorkBudget {
 }
 
 fn home(
-    value: selected_instructions_to_register_homes::RecursiveReloadCoexistingValue,
+    value: selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadCoexistingValue,
     view: register_model::RegisterViewId,
-) -> selected_instructions_to_register_homes::RecursiveReloadCoexistingHome {
-    selected_instructions_to_register_homes::RecursiveReloadCoexistingHome {
+) -> selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadCoexistingHome
+{
+    selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveReloadCoexistingHome {
         value,
         class: register_model::RegisterClassId(0),
         view,

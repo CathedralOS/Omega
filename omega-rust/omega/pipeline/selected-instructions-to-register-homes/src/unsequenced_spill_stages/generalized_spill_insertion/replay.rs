@@ -4,11 +4,12 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-use crate::{
+use crate::LogicalSpillStorageClass;
+use crate::unsequenced_spill_stages::{
     FunctionGeneralizedSpillInsertion, GeneralizedSpillActionId, GeneralizedSpillActionSource,
     GeneralizedSpillEvent, GeneralizedSpillInsertionError, GeneralizedSpillInsertionPlan,
-    GeneralizedSpillInsertionPolicy, GeneralizedSpillSlot, LogicalSpillStorageClass,
-    ValidatedAbstractSpillInsertion, ValidatedSpillRecoveryActions,
+    GeneralizedSpillInsertionPolicy, GeneralizedSpillSlot, ValidatedAbstractSpillInsertion,
+    ValidatedSpillRecoveryActions,
 };
 
 const SLOT_BYTES: u64 = 8;
@@ -169,7 +170,7 @@ fn replay_roots(
 fn replay_first(
     function: usize,
     id: GeneralizedSpillActionId,
-    action: &crate::AbstractSpillInsertionAction,
+    action: &crate::unsequenced_spill_stages::AbstractSpillInsertionAction,
 ) -> Result<ReplayAction, GeneralizedSpillInsertionError> {
     let mut rewrites = action.rewrites.iter().collect::<Vec<_>>();
     rewrites.sort();
@@ -235,7 +236,7 @@ fn replay_first(
 fn replay_second(
     function: usize,
     dependency: GeneralizedSpillActionId,
-    action: &crate::SpillRecoveryLogicalAction,
+    action: &crate::unsequenced_spill_stages::SpillRecoveryLogicalAction,
 ) -> Result<ReplayAction, GeneralizedSpillInsertionError> {
     let id = GeneralizedSpillActionId {
         epoch: action.source_work_item.epoch,

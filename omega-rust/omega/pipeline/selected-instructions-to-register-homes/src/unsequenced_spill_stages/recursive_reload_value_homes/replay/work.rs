@@ -1,6 +1,8 @@
 //! Replay-local exact work reconstruction.
 
-use crate::{FunctionRecursiveReloadValueHomes, RecursiveReloadValueHomeError};
+use crate::unsequenced_spill_stages::{
+    FunctionRecursiveReloadValueHomes, RecursiveReloadValueHomeError,
+};
 use optimization_core::OptimizationWorkUsage;
 
 pub(super) fn reconstruct(

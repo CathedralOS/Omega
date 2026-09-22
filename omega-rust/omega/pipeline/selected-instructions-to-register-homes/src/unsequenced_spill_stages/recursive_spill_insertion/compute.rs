@@ -2,12 +2,12 @@
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-use crate::{
-    GeneralizedSpillActionId, GeneralizedSpillEvent, LogicalSpillStorageClass,
-    RecursiveSpillActionSource, RecursiveSpillEvent, RecursiveSpillInsertionError,
-    RecursiveSpillInsertionPlan, RecursiveSpillInsertionPolicy, RecursiveSpillSlot,
-    RecursiveSpillStoredValue, ValidatedGeneralizedSpillInsertion,
-    ValidatedGeneralizedSpillRecoveryActions,
+use crate::LogicalSpillStorageClass;
+use crate::unsequenced_spill_stages::{
+    GeneralizedSpillActionId, GeneralizedSpillEvent, RecursiveSpillActionSource,
+    RecursiveSpillEvent, RecursiveSpillInsertionError, RecursiveSpillInsertionPlan,
+    RecursiveSpillInsertionPolicy, RecursiveSpillSlot, RecursiveSpillStoredValue,
+    ValidatedGeneralizedSpillInsertion, ValidatedGeneralizedSpillRecoveryActions,
 };
 
 const SLOT_BYTES: u64 = 8;
@@ -124,8 +124,8 @@ pub(super) fn admit_roots(
 
 fn project_base_action(
     function: usize,
-    source: &crate::FunctionGeneralizedSpillInsertion,
-    slot: &crate::GeneralizedSpillSlot,
+    source: &crate::unsequenced_spill_stages::FunctionGeneralizedSpillInsertion,
+    slot: &crate::unsequenced_spill_stages::GeneralizedSpillSlot,
 ) -> Result<PendingAction, RecursiveSpillInsertionError> {
     if slot.class != LogicalSpillStorageClass::NonAddressUnsignedU64V1
         || slot.size_bytes != SLOT_BYTES
@@ -241,7 +241,7 @@ fn project_base_action(
 }
 
 fn project_recovery_action(
-    action: &crate::GeneralizedSpillRecoveryLogicalAction,
+    action: &crate::unsequenced_spill_stages::GeneralizedSpillRecoveryLogicalAction,
     policy: RecursiveSpillInsertionPolicy,
 ) -> Result<PendingAction, RecursiveSpillInsertionError> {
     let function = action.function;
@@ -255,8 +255,8 @@ fn project_recovery_action(
     let (source, stored_value) = match (policy, action.victim, action.store.source) {
         (
             RecursiveSpillInsertionPolicy::EpochTwoReloadVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV1,
-            crate::GeneralizedSpillRecoveryVictim::Reload(victim),
-            crate::GeneralizedSpillRecoveryVictim::Reload(stored),
+            crate::unsequenced_spill_stages::GeneralizedSpillRecoveryVictim::Reload(victim),
+            crate::unsequenced_spill_stages::GeneralizedSpillRecoveryVictim::Reload(stored),
         ) if victim == stored => (
             RecursiveSpillActionSource::EpochTwo {
                 work_item: action.source_work_item,
@@ -267,8 +267,8 @@ fn project_recovery_action(
         ),
         (
             RecursiveSpillInsertionPolicy::EpochTwoOriginalVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV2,
-            crate::GeneralizedSpillRecoveryVictim::Original(victim),
-            crate::GeneralizedSpillRecoveryVictim::Original(stored),
+            crate::unsequenced_spill_stages::GeneralizedSpillRecoveryVictim::Original(victim),
+            crate::unsequenced_spill_stages::GeneralizedSpillRecoveryVictim::Original(stored),
         ) if victim == stored => (
             RecursiveSpillActionSource::EpochTwoOriginal {
                 work_item: action.source_work_item,
@@ -343,7 +343,10 @@ fn build_function(
     function: usize,
     machine: semantic_vocabulary::MachineId,
     mut actions: Vec<PendingAction>,
-) -> Result<crate::FunctionRecursiveSpillInsertion, RecursiveSpillInsertionError> {
+) -> Result<
+    crate::unsequenced_spill_stages::FunctionRecursiveSpillInsertion,
+    RecursiveSpillInsertionError,
+> {
     actions.sort_by_key(|row| (row.block.0, row.from.0, row.through.0, row.id));
     let mut slots = Vec::with_capacity(actions.len());
     for action in &actions {
@@ -419,12 +422,14 @@ fn build_function(
         );
     }
     schedule.sort_by_key(event_key);
-    Ok(crate::FunctionRecursiveSpillInsertion {
-        machine,
-        spill_area_bytes,
-        slots,
-        schedule,
-    })
+    Ok(
+        crate::unsequenced_spill_stages::FunctionRecursiveSpillInsertion {
+            machine,
+            spill_area_bytes,
+            slots,
+            schedule,
+        },
+    )
 }
 
 pub(super) fn event_key(event: &RecursiveSpillEvent) -> (u32, u8, u32, u32, u32, u16) {
@@ -473,7 +478,7 @@ pub(super) fn event_key(event: &RecursiveSpillEvent) -> (u32, u8, u32, u32, u32,
 }
 
 pub(super) fn work_usage(
-    functions: &[crate::FunctionRecursiveSpillInsertion],
+    functions: &[crate::unsequenced_spill_stages::FunctionRecursiveSpillInsertion],
 ) -> Result<OptimizationWorkUsage, RecursiveSpillInsertionError> {
     let mut actions = 0_u64;
     let mut events = 0_u64;

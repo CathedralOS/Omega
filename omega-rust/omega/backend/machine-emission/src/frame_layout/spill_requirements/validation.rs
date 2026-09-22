@@ -1,4 +1,4 @@
-use selected_instructions_to_register_homes::ValidatedAbstractSpillAccessConstraints;
+use selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedAbstractSpillAccessConstraints;
 
 use crate::frame_layout::ValidatedTargetRegisterEnvironment;
 

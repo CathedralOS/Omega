@@ -1,6 +1,6 @@
 //! Independent replay comparison and generalized worklist receipt sealing.
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     GeneralizedSpillRecoveryWorklistError, GeneralizedSpillRecoveryWorklistPlan,
     GeneralizedSpillRecoveryWorklistReceipt, ValidatedGeneralizedReloadValueHomes,
     ValidatedGeneralizedSpillRecoveryWorklist, generalized_spill_recovery_worklist_identity,

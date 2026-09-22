@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use optimization_core::OptimizationWorkBudget;
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     AbstractSpillMemoryEffect, AbstractSpillMemoryEffectError, AbstractSpillMemoryEffectPlan,
     AbstractSpillMemoryEffectPolicy, FunctionAbstractSpillMemoryEffects,
     HomedSpillPseudoInstruction, SpillPseudoStorage, ValidatedHomedSpillPseudoInstructions,
@@ -50,7 +50,7 @@ pub(super) fn replay(
 
 fn reconstruct(
     function: usize,
-    source: &crate::FunctionHomedSpillPseudoInstructions,
+    source: &crate::unsequenced_spill_stages::FunctionHomedSpillPseudoInstructions,
 ) -> Result<FunctionAbstractSpillMemoryEffects, AbstractSpillMemoryEffectError> {
     let mut storage_by_id = BTreeMap::new();
     for storage in &source.storage {
@@ -85,7 +85,10 @@ fn reconstruct(
 
 fn rebuild(
     function: usize,
-    storage_by_id: &BTreeMap<crate::GeneralizedSpillActionId, &SpillPseudoStorage>,
+    storage_by_id: &BTreeMap<
+        crate::unsequenced_spill_stages::GeneralizedSpillActionId,
+        &SpillPseudoStorage,
+    >,
     instruction: HomedSpillPseudoInstruction,
 ) -> Result<AbstractSpillMemoryEffect, AbstractSpillMemoryEffectError> {
     let storage_id = match instruction {

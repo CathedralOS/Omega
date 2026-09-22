@@ -4,11 +4,11 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use register_model::ValidatedPhysicalRegisterModel;
 
-use crate::{
+use crate::LiveRangePoint;
+use crate::unsequenced_spill_stages::{
     GeneralizedReloadCoexistingValue, GeneralizedReloadValueHomeAssignment,
     GeneralizedReloadValueHomeError, GeneralizedReloadValueHomeOutcome,
     GeneralizedReloadValuePressure, GeneralizedSpillActionId, GeneralizedSpillActionSource,
-    LiveRangePoint,
 };
 
 use super::{Occupant, ReplaySpec, homes};
@@ -28,7 +28,7 @@ struct OriginalEvent<'a> {
 pub(super) fn reconstruct(
     function: usize,
     specs: &[ReplaySpec],
-    first: &crate::FunctionAbstractSpillInsertion,
+    first: &crate::unsequenced_spill_stages::FunctionAbstractSpillInsertion,
     legality: &crate::FunctionAllocationLegality,
     ranges: &crate::FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,

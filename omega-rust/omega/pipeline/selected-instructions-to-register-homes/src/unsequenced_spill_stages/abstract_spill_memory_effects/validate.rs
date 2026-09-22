@@ -1,6 +1,6 @@
 //! Independent replay comparison and receipt sealing.
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     AbstractSpillMemoryEffect, AbstractSpillMemoryEffectError, AbstractSpillMemoryEffectPlan,
     AbstractSpillMemoryEffectReceipt, ValidatedAbstractSpillMemoryEffects,
     ValidatedHomedSpillPseudoInstructions, abstract_spill_memory_effect_plan_identity,

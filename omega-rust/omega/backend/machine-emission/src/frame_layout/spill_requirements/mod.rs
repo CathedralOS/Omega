@@ -21,7 +21,7 @@ pub(in crate::frame_layout::spill_requirements) use compute::derive_zero_access_
 pub(in crate::frame_layout::spill_requirements) use replay::replay_zero_access_requirement_for_test;
 
 use optimization_core::OptimizationWorkBudget;
-use selected_instructions_to_register_homes::ValidatedAbstractSpillAccessConstraints;
+use selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedAbstractSpillAccessConstraints;
 
 use crate::frame_layout::ValidatedTargetRegisterEnvironment;
 

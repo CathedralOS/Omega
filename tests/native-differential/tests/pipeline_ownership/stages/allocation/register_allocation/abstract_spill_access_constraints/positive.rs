@@ -29,7 +29,7 @@ fn both_recursive_paths_gain_exact_block_local_dependencies_on_both_targets() {
             );
             assert_eq!(
                 first.receipt().identity(),
-                selected_instructions_to_register_homes::abstract_spill_access_constraint_plan_identity(first.plan()),
+                selected_instructions_to_register_homes::unsequenced_spill_stages::abstract_spill_access_constraint_plan_identity(first.plan()),
             );
             let function = &first.plan().functions[0];
             assert_eq!(
@@ -49,42 +49,42 @@ fn both_recursive_paths_gain_exact_block_local_dependencies_on_both_targets() {
                         0,
                         0,
                         11,
-                        selected_instructions_to_register_homes::AbstractSpillAccessKind::Write,
+                        selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillAccessKind::Write,
                         0
                     ),
                     (
                         1,
                         1,
                         14,
-                        selected_instructions_to_register_homes::AbstractSpillAccessKind::Write,
+                        selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillAccessKind::Write,
                         8
                     ),
                     (
                         2,
                         2,
                         14,
-                        selected_instructions_to_register_homes::AbstractSpillAccessKind::Read,
+                        selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillAccessKind::Read,
                         0
                     ),
                     (
                         3,
                         3,
                         16,
-                        selected_instructions_to_register_homes::AbstractSpillAccessKind::Write,
+                        selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillAccessKind::Write,
                         0
                     ),
                     (
                         4,
                         4,
                         16,
-                        selected_instructions_to_register_homes::AbstractSpillAccessKind::Read,
+                        selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillAccessKind::Read,
                         8
                     ),
                     (
                         5,
                         5,
                         18,
-                        selected_instructions_to_register_homes::AbstractSpillAccessKind::Read,
+                        selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillAccessKind::Read,
                         0
                     ),
                 ],
@@ -95,13 +95,13 @@ fn both_recursive_paths_gain_exact_block_local_dependencies_on_both_targets() {
 }
 
 fn assert_edges(
-    function: &selected_instructions_to_register_homes::FunctionAbstractSpillAccessConstraints,
+    function: &selected_instructions_to_register_homes::unsequenced_spill_stages::FunctionAbstractSpillAccessConstraints,
 ) {
     for (before, after) in [(0, 2), (1, 4), (3, 5)] {
         assert!(has(function, before, after, |reason| {
             matches!(
             reason,
-            selected_instructions_to_register_homes::AbstractSpillAccessDependencyReason::StoredValue { .. }
+            selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillAccessDependencyReason::StoredValue { .. }
         )
         }));
     }
@@ -109,7 +109,7 @@ fn assert_edges(
         assert!(has(function, before, after, |reason| {
             matches!(
             reason,
-            selected_instructions_to_register_homes::AbstractSpillAccessDependencyReason::DeclaredBeforeReload
+            selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillAccessDependencyReason::DeclaredBeforeReload
         )
         }));
     }
@@ -124,7 +124,7 @@ fn assert_edges(
     ] {
         assert!(has(function, before, after, |reason| matches!(
             reason,
-            selected_instructions_to_register_homes::AbstractSpillAccessDependencyReason::OverlappingAbstractSlice {
+            selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillAccessDependencyReason::OverlappingAbstractSlice {
                 spill_area_offset,
                 size_bytes: 8,
             } if *spill_area_offset == offset
@@ -133,11 +133,11 @@ fn assert_edges(
 }
 
 fn has(
-    function: &selected_instructions_to_register_homes::FunctionAbstractSpillAccessConstraints,
+    function: &selected_instructions_to_register_homes::unsequenced_spill_stages::FunctionAbstractSpillAccessConstraints,
     before: u32,
     after: u32,
     reason: impl Fn(
-        &selected_instructions_to_register_homes::AbstractSpillAccessDependencyReason,
+        &selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillAccessDependencyReason,
     ) -> bool,
 ) -> bool {
     function.dependencies.iter().any(|edge| {

@@ -2,7 +2,7 @@
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     FunctionSyntheticReloadValues, SyntheticReloadValueBinding, SyntheticReloadValueError,
     SyntheticReloadValueId, SyntheticReloadValuePlan, SyntheticReloadValuePolicy,
     ValidatedAbstractSpillInsertion, ValidatedReloadValueHomes,
@@ -85,8 +85,8 @@ fn validate_roots(
 
 fn binding(
     function: usize,
-    action: &crate::AbstractSpillInsertionAction,
-    home: &crate::ReloadValueHomeAssignment,
+    action: &crate::unsequenced_spill_stages::AbstractSpillInsertionAction,
+    home: &crate::unsequenced_spill_stages::ReloadValueHomeAssignment,
     synthetic: SyntheticReloadValueId,
 ) -> Result<SyntheticReloadValueBinding, SyntheticReloadValueError> {
     let first = action

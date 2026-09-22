@@ -7,10 +7,10 @@ use register_model::RegisterOperandAccess;
 use selected_instructions::{SelectedInstruction, SelectedTerminator, VirtualRegisterOrigin};
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
 
-use crate::{
-    GeneralizedSpillRecoveryChoiceError, GeneralizedSpillRecoveryResident, LiveRangePoint,
-    VirtualFixedConstraintSite,
+use crate::unsequenced_spill_stages::{
+    GeneralizedSpillRecoveryChoiceError, GeneralizedSpillRecoveryResident,
 };
+use crate::{LiveRangePoint, VirtualFixedConstraintSite};
 
 use super::{checked, to_u64};
 

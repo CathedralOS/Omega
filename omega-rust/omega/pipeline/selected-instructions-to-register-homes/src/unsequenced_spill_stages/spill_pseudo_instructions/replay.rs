@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     FunctionSpillPseudoInstructions, RecursiveSpillEvent, RecursiveSpillStoredValue,
     SpillPseudoInstruction, SpillPseudoInstructionError, SpillPseudoInstructionId,
     SpillPseudoInstructionPlan, SpillPseudoInstructionPolicy, SpillPseudoOperandRewrite,
@@ -74,7 +74,7 @@ pub(super) fn replay(
 
 fn replay_function(
     function: usize,
-    source: &crate::FunctionRecursiveSpillInsertion,
+    source: &crate::unsequenced_spill_stages::FunctionRecursiveSpillInsertion,
 ) -> Result<FunctionSpillPseudoInstructions, SpillPseudoInstructionError> {
     let mut storage_by_id = BTreeMap::new();
     for slot in &source.slots {

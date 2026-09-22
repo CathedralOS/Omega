@@ -5,13 +5,13 @@ use register_model::{
     ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
 };
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     GeneralizedSpillRecoveryChoiceError, GeneralizedSpillRecoveryChoicePlan,
-    GeneralizedSpillRecoveryChoiceReceipt, ValidatedAllocationLegality,
-    ValidatedGeneralizedReloadValueHomes, ValidatedGeneralizedSpillRecoveryChoices,
-    ValidatedGeneralizedSpillRecoveryWorklist, ValidatedLiveRanges, ValidatedSelectedAnalysis,
+    GeneralizedSpillRecoveryChoiceReceipt, ValidatedGeneralizedReloadValueHomes,
+    ValidatedGeneralizedSpillRecoveryChoices, ValidatedGeneralizedSpillRecoveryWorklist,
     generalized_spill_recovery_choice_identity,
 };
+use crate::{ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis};
 
 #[allow(clippy::too_many_arguments)]
 pub fn validate_generalized_spill_recovery_choices<S: ValidatedSelectedAnalysis>(

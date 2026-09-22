@@ -4,11 +4,12 @@ use std::collections::BTreeMap;
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-use crate::{
+use crate::LogicalSpillStorageClass;
+use crate::unsequenced_spill_stages::{
     GeneralizedSpillActionId, GeneralizedSpillActionSource, GeneralizedSpillEvent,
     GeneralizedSpillInsertionError, GeneralizedSpillInsertionPlan, GeneralizedSpillInsertionPolicy,
-    GeneralizedSpillSlot, LogicalSpillStorageClass, SpillRecoveryLogicalAction,
-    ValidatedAbstractSpillInsertion, ValidatedSpillRecoveryActions,
+    GeneralizedSpillSlot, SpillRecoveryLogicalAction, ValidatedAbstractSpillInsertion,
+    ValidatedSpillRecoveryActions,
 };
 
 const SLOT_BYTES: u64 = 8;
@@ -149,7 +150,7 @@ pub(super) fn admit_roots(
 fn first_action(
     function: usize,
     id: GeneralizedSpillActionId,
-    action: &crate::AbstractSpillInsertionAction,
+    action: &crate::unsequenced_spill_stages::AbstractSpillInsertionAction,
 ) -> Result<PendingAction, GeneralizedSpillInsertionError> {
     let Some(first_rewrite) = action.rewrites.first() else {
         return Err(GeneralizedSpillInsertionError::InvalidEpochZeroAction { function });
@@ -290,7 +291,10 @@ fn build_function(
     function: usize,
     machine: semantic_vocabulary::MachineId,
     mut actions: Vec<PendingAction>,
-) -> Result<crate::FunctionGeneralizedSpillInsertion, GeneralizedSpillInsertionError> {
+) -> Result<
+    crate::unsequenced_spill_stages::FunctionGeneralizedSpillInsertion,
+    GeneralizedSpillInsertionError,
+> {
     actions.sort_by_key(|action| {
         (
             action.block.0,
@@ -374,12 +378,14 @@ fn build_function(
         );
     }
     schedule.sort_by_key(event_key);
-    Ok(crate::FunctionGeneralizedSpillInsertion {
-        machine,
-        spill_area_bytes,
-        slots,
-        schedule,
-    })
+    Ok(
+        crate::unsequenced_spill_stages::FunctionGeneralizedSpillInsertion {
+            machine,
+            spill_area_bytes,
+            slots,
+            schedule,
+        },
+    )
 }
 
 fn event_key(event: &GeneralizedSpillEvent) -> (u32, u8, u32, u32, u32, u16) {
@@ -428,7 +434,7 @@ fn event_key(event: &GeneralizedSpillEvent) -> (u32, u8, u32, u32, u32, u16) {
 }
 
 pub(super) fn work_usage(
-    functions: &[crate::FunctionGeneralizedSpillInsertion],
+    functions: &[crate::unsequenced_spill_stages::FunctionGeneralizedSpillInsertion],
 ) -> Result<OptimizationWorkUsage, GeneralizedSpillInsertionError> {
     let function_count = to_u64(functions.len())?;
     let mut actions = 0_u64;

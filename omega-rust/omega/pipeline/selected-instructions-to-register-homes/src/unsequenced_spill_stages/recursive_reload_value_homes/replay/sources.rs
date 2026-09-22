@@ -2,9 +2,10 @@
 
 use std::collections::BTreeMap;
 
-use crate::{
-    GeneralizedReloadValueHomeOutcome, GeneralizedSpillActionId, LiveRangePoint,
-    RecursiveReloadValueHomeError, RecursiveSpillEvent, RecursiveSpillStoredValue,
+use crate::LiveRangePoint;
+use crate::unsequenced_spill_stages::{
+    GeneralizedReloadValueHomeOutcome, GeneralizedSpillActionId, RecursiveReloadValueHomeError,
+    RecursiveSpillEvent, RecursiveSpillStoredValue,
 };
 
 use super::{ReplaySpec, homes};
@@ -17,8 +18,8 @@ struct IndexedStore {
 
 pub(super) fn index(
     function: usize,
-    recursive: &crate::FunctionRecursiveSpillInsertion,
-    prior: &crate::FunctionGeneralizedReloadValueHomes,
+    recursive: &crate::unsequenced_spill_stages::FunctionRecursiveSpillInsertion,
+    prior: &crate::unsequenced_spill_stages::FunctionGeneralizedReloadValueHomes,
     legality: &crate::FunctionAllocationLegality,
 ) -> Result<Vec<ReplaySpec>, RecursiveReloadValueHomeError> {
     let slots = recursive
@@ -107,7 +108,10 @@ pub(super) fn index(
         });
         let candidates = match old {
             Some(GeneralizedReloadValueHomeOutcome::Assigned(row)) => {
-                if slot.source != crate::RecursiveSpillActionSource::Prior(row.source)
+                if slot.source
+                    != crate::unsequenced_spill_stages::RecursiveSpillActionSource::Prior(
+                        row.source,
+                    )
                     || row.block != slot.block
                     || row.start != start
                     || row.exclusive_end != full_exclusive_end
@@ -121,7 +125,10 @@ pub(super) fn index(
                 row.candidates.clone()
             }
             Some(GeneralizedReloadValueHomeOutcome::Pressure(row)) => {
-                if slot.source != crate::RecursiveSpillActionSource::Prior(row.source)
+                if slot.source
+                    != crate::unsequenced_spill_stages::RecursiveSpillActionSource::Prior(
+                        row.source,
+                    )
                     || row.block != slot.block
                     || row.start != start
                     || row.exclusive_end != full_exclusive_end
@@ -189,7 +196,7 @@ fn trace(
     function: usize,
     action: GeneralizedSpillActionId,
     remaining_stores: &BTreeMap<GeneralizedSpillActionId, IndexedStore>,
-    recursive: &crate::FunctionRecursiveSpillInsertion,
+    recursive: &crate::unsequenced_spill_stages::FunctionRecursiveSpillInsertion,
 ) -> Result<selected_instructions::VirtualRegisterId, RecursiveReloadValueHomeError> {
     let mut all = remaining_stores.clone();
     for event in &recursive.schedule {

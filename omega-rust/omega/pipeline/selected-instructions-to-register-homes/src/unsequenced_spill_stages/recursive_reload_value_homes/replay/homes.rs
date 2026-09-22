@@ -3,7 +3,8 @@
 use register_model::{RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::VirtualRegisterId;
 
-use crate::{LiveRangePoint, RecursiveReloadValueHomeError};
+use crate::LiveRangePoint;
+use crate::unsequenced_spill_stages::RecursiveReloadValueHomeError;
 
 pub(super) fn find_legality(
     function: usize,

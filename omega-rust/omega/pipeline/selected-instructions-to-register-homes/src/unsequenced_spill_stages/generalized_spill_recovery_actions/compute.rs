@@ -2,16 +2,16 @@
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     GeneralizedReloadCoexistingValue, GeneralizedSpillEvent, GeneralizedSpillRecoveryActionError,
     GeneralizedSpillRecoveryActionPlan, GeneralizedSpillRecoveryActionPolicy,
     GeneralizedSpillRecoveryLogicalAction, GeneralizedSpillRecoveryLogicalReload,
     GeneralizedSpillRecoveryLogicalStorage, GeneralizedSpillRecoveryLogicalStore,
     GeneralizedSpillRecoveryLogicalUseRewrite, GeneralizedSpillRecoveryVictim,
-    LogicalSpillStorageClass, ValidatedGeneralizedReloadValueHomes,
-    ValidatedGeneralizedSpillInsertion, ValidatedGeneralizedSpillRecoveryChoices,
-    ValidatedLiveRanges, ValidatedSelectedAnalysis,
+    ValidatedGeneralizedReloadValueHomes, ValidatedGeneralizedSpillInsertion,
+    ValidatedGeneralizedSpillRecoveryChoices,
 };
+use crate::{LogicalSpillStorageClass, ValidatedLiveRanges, ValidatedSelectedAnalysis};
 
 mod original;
 
@@ -164,8 +164,8 @@ pub(super) fn admit_roots(
 }
 
 fn build_action(
-    choice: &crate::GeneralizedSpillRecoveryVictimChoice,
-    function: &crate::FunctionGeneralizedSpillInsertion,
+    choice: &crate::unsequenced_spill_stages::GeneralizedSpillRecoveryVictimChoice,
+    function: &crate::unsequenced_spill_stages::FunctionGeneralizedSpillInsertion,
 ) -> Result<GeneralizedSpillRecoveryLogicalAction, GeneralizedSpillRecoveryActionError> {
     let function_index = choice.function;
     if function.machine != choice.machine || choice.work_item.epoch != 2 {
@@ -254,7 +254,7 @@ fn build_action(
                     point,
                     instruction,
                     operand,
-                    result: crate::GeneralizedSpillActionId {
+                    result: crate::unsequenced_spill_stages::GeneralizedSpillActionId {
                         epoch: choice.work_item.epoch,
                         ordinal: choice.work_item.ordinal,
                     },
@@ -294,7 +294,7 @@ fn build_action(
             action: victim,
         });
     }
-    let id = crate::GeneralizedSpillActionId {
+    let id = crate::unsequenced_spill_stages::GeneralizedSpillActionId {
         epoch: choice.work_item.epoch,
         ordinal: choice.work_item.ordinal,
     };
@@ -331,10 +331,13 @@ fn build_action(
 }
 
 fn unique_slot(
-    function: &crate::FunctionGeneralizedSpillInsertion,
-    action: crate::GeneralizedSpillActionId,
+    function: &crate::unsequenced_spill_stages::FunctionGeneralizedSpillInsertion,
+    action: crate::unsequenced_spill_stages::GeneralizedSpillActionId,
     function_index: usize,
-) -> Result<&crate::GeneralizedSpillSlot, GeneralizedSpillRecoveryActionError> {
+) -> Result<
+    &crate::unsequenced_spill_stages::GeneralizedSpillSlot,
+    GeneralizedSpillRecoveryActionError,
+> {
     let mut slots = function.slots.iter().filter(|slot| slot.action == action);
     let slot = slots
         .next()
