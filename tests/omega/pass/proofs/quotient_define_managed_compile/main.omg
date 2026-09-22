@@ -1,6 +1,6 @@
 // Compile canary: the managed `Quotient::define` admission shape under
 // package provenance. A standalone source rejects at hermetic symbol
-// identity; as an application package root the representative machine, its
+// identity; as a `builder.package` root the representative machine, its
 // congruence theorem, and the define request carry hermetic identities and
 // the checked-termination-gated admission accepts the batch proof-only. The
 // retained correspondence is never an executable callee.
