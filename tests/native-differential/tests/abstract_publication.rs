@@ -1,5 +1,10 @@
 //! Cross-stage abstract optimization publication and target-lowering controls.
 
+// The front end these fixtures run is named here rather than re-sequenced at
+// every site.
+#[path = "common/front_end.rs"]
+mod front_end;
+
 use abstract_operations_to_abstract_operations::*;
 use optimization_core::OptimizationWorkUsage;
 

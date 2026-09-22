@@ -2,10 +2,6 @@
 
 use super::CanonicalTerminalArtifact;
 use super::membership::execute;
-use package_compilation::{
-    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
-};
-use semantic_vocabulary::PackageKeyIdentity;
 use std::path::PathBuf;
 use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
@@ -40,21 +36,11 @@ fn foreign_domain_constant_helpers_execute_after_source_removal() {
          pub domain Point::Selected;",
     )
     .unwrap();
-    let identity = |marker| PackageKeyIdentity::from_digest([marker; 32]).unwrap();
     let inputs = || {
-        PackageCompilationInputs::new_package(
-            identity(1),
-            vec![
-                PackageSourceBinding::new(identity(1), "root", root.clone()),
-                PackageSourceBinding::new(identity(2), "shapes", shapes.clone()),
-            ],
-            vec![PackageDependencyBinding::new(
-                identity(1),
-                "shapes",
-                identity(2),
-            )],
-        )
-        .unwrap()
+        crate::fixture_package_inputs::scratch_package_inputs(&[
+            (1, "root", &root),
+            (2, "shapes", &shapes),
+        ])
     };
     let main = root.join("main.omg");
     let source = |constructor: &str| {
@@ -121,7 +107,6 @@ fn package_qualified_constructors_and_locals_execute_with_their_declaring_case()
         "module settings; pub data Choice { case Empty; case Some(value: u32); }",
     )
     .unwrap();
-    let identity = |marker| PackageKeyIdentity::from_digest([marker; 32]).unwrap();
     for (constructor, expected) in [
         ("shapes::settings::Choice::Empty", true),
         ("shapes::settings::Choice::Empty {}", true),
@@ -141,19 +126,10 @@ fn package_qualified_constructors_and_locals_execute_with_their_declaring_case()
             ),
         )
         .unwrap();
-        let inputs = PackageCompilationInputs::new_package(
-            identity(1),
-            vec![
-                PackageSourceBinding::new(identity(1), "root", root.clone()),
-                PackageSourceBinding::new(identity(2), "shapes", shapes.clone()),
-            ],
-            vec![PackageDependencyBinding::new(
-                identity(1),
-                "shapes",
-                identity(2),
-            )],
-        )
-        .unwrap();
+        let inputs = crate::fixture_package_inputs::scratch_package_inputs(&[
+            (1, "root", &root),
+            (2, "shapes", &shapes),
+        ]);
         let checked = compiler::compile_to_checked(compiler::CheckedCompileRequest {
             package_inputs: Some(inputs),
             ..compiler::CheckedCompileRequest::new(&root.join("main.omg"), None)

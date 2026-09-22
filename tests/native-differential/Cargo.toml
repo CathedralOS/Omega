@@ -86,6 +86,7 @@ selected-instructions = { path = "../../omega-rust/omega/representations/selecte
 source = { path = "../../omega-rust/psi/foundation/source" }
 source-files-to-tokens = { path = "../../omega-rust/psi/pipeline/source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees" }
+syntax-trees = { path = "../../omega-rust/psi/representations/syntax-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
 tokens-to-syntax-trees = { path = "../../omega-rust/psi/pipeline/tokens-to-syntax-trees" }
 typed-trees-to-checked-trees = { path = "../../omega-rust/psi/pipeline/typed-trees-to-checked-trees" }

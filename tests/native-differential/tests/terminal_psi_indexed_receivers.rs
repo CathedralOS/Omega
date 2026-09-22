@@ -1,6 +1,11 @@
 //! Source-produced projected borrows preserve their contracts through Omega admission.
 //! Native callers observe stores through the original projected referent.
 
+// The front end these fixtures run is named here rather than re-sequenced at
+// every site.
+#[path = "common/front_end.rs"]
+mod front_end;
+
 use target::NativeTarget;
 use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
@@ -65,21 +70,7 @@ fn artifact(source: &str) -> terminal_codec::CanonicalTerminalArtifact {
 }
 
 fn artifact_for(source: &str, entry: &str) -> terminal_codec::CanonicalTerminalArtifact {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap();
+    let checked = crate::front_end::checked_program(source);
     terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name(entry),

@@ -1,9 +1,8 @@
 //! Optimizer module role: test leaf. Exact ranked-loop invariant constant custody.
 
 use super::{
-    Lexer, OptimizationUnitValidationError, ResolutionRequest, VerifiedPsiOptimizationSession,
+    OptimizationUnitValidationError, VerifiedPsiOptimizationSession,
     build_verified_psi_optimization_unit, countdown_unit, lower_artifact,
-    lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
 };
 use abstract_operations_to_abstract_operations::validation::validate_transformed_psi_optimization_unit;
 use abstract_operations_to_abstract_operations::{
@@ -13,7 +12,6 @@ use abstract_operations_to_abstract_operations::{
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_unit::{ValueDefinitionSite, recompute_psi_optimization_unit_identity};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, MachineId};
-use typed_trees_to_checked_trees::CheckingRequest;
 
 #[test]
 fn source_countdown_yields_exact_certificate_owned_zero_and_one() {
@@ -226,14 +224,7 @@ pub(super) fn acyclic_unit() -> terminal_psi_to_abstract_operations::VerifiedPsi
         data Root {}
         machine Root::once() {}
     "#;
-    let tokens = Lexer::new(SOURCE)
-        .tokenize()
-        .expect("tokenize acyclic unit");
-    let syntax = parse_syntax_trees(&tokens).expect("parse acyclic unit");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve acyclic unit");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type acyclic unit");
-    let checked =
-        lower_typed_trees(typed, &CheckingRequest::settled()).expect("check acyclic unit");
+    let checked = crate::front_end::checked_program(SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::once"),

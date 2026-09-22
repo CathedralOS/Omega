@@ -1,5 +1,10 @@
 //! Real-source canaries for exact payloadless structural-call optimizer custody.
 
+// The front end these fixtures run is named here rather than re-sequenced at
+// every site.
+#[path = "common/front_end.rs"]
+mod front_end;
+
 use abstract_operations::AbstractOperation;
 use abstract_operations_to_abstract_operations::validation::validate_verified_psi_optimization_unit;
 use abstract_operations_to_target_operations::{TargetLoweringRequest, lower_to_target_operations};
@@ -13,16 +18,10 @@ use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     EvidenceTermId, ObligationId, PlaceId, Proposition, ScalarTerm, StructuralCaseId,
 };
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use target::NativeTarget;
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelSchedule;
 use terminal_psi_to_abstract_operations::{build_verified_psi_optimization_unit, lower_artifact};
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 const SOURCE: &str = r#"
     data Outcome [copy] {
@@ -58,11 +57,7 @@ const GUARDED_CALL_SOURCE: &str = r#"
 "#;
 
 fn lowered_source(source: &str, machine: &str) -> lowered_psi::LoweredPsi {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
-    let syntax = parse_syntax_trees(&tokens).expect("parse source");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
+    let checked = crate::front_end::checked_program(source);
     lower_machine(&checked, TerminalMachineSelection::Name(machine))
         .expect("lower exact payloadless source")
 }

@@ -1,6 +1,11 @@
 //! Native byte observations start from encoded, independently verified Terminal.
 //! Source-authored fixed-extent fill loops exercise caller-visible byte writes.
 
+// The front end these fixtures run is named here rather than re-sequenced at
+// every site.
+#[path = "common/front_end.rs"]
+mod front_end;
+
 use native_realization::{compiler_baseline_request_v1, optimize_artifact_sections};
 use optimization_core::OptimizationSelections;
 use proof_admission::AdmissionProfile;

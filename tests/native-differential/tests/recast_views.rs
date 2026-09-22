@@ -1,25 +1,25 @@
 //! Focused interpreter parity for programmable-layout recast views.
 
-use build_declarations::{BuildDeclaration, extract_build_declaration};
 use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 #[path = "../fixture_rosters/recast_views.rs"]
 mod fixture_roster;
-// The compiler test target owns the exact Console provider acceptance this
-// harness must replay; including it keeps both targets on one derivation.
-#[path = "../../../omega-rust/omega/compiler/compiler/tests/support/console_acceptance.rs"]
-mod console_acceptance;
+// One harness owns the bundled standard library's location, the fixture
+// package identities and the Console acceptance this target replays.
+#[path = "common/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
 
 use checked_interpreter::{InterpretOutcome, interpret_entry};
 use compiler::CheckedCompileRequest;
 use compiler::{CheckedCompilation, compile_to_checked};
 use diagnostics::Diagnostic;
-use package_compilation::{
-    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+use fixture_package_inputs::{
+    console_acceptance, declares_bundled_standard_library, fixture_package_identity, repo_root,
+    standard_library_package_inputs,
 };
-use semantic_vocabulary::PackageKeyIdentity;
+use package_compilation::PackageCompilationInputs;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
     interpret_entry(
@@ -30,75 +30,18 @@ fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
     )
 }
 
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(2)
-        .expect("native differential tests live under tests/native-differential")
-        .to_path_buf()
-}
-
-fn fixture_package_identity(marker: u8) -> PackageKeyIdentity {
-    PackageKeyIdentity::from_digest([marker; 32])
-        .expect("recast fixture package identity is nonzero")
-}
-
 /// Package inputs for a recast fixture that declares the ordinary std
 /// dependency in its `build.omg`; `None` for self-contained fixtures. The
 /// reconciled graph binds the root package to the fixture directory and std
 /// to the repository path, which is what `use omega_language_std::console`
 /// resolves against — the unmanaged route would instead look for a
 /// `omega_language_std/` module below the fixture root.
-fn fixture_package_inputs(root_path: &Path) -> Option<PackageCompilationInputs> {
+fn recast_fixture_package_inputs(root_path: &Path) -> Option<PackageCompilationInputs> {
     let project_root = root_path
         .parent()
         .expect("recast fixture source has a project root");
-    let declares_std = fs::read_to_string(project_root.join("build.omg")).is_ok_and(|build| {
-        build.contains("builder.depend(Source::Path") && build.contains("source/library/std")
-    });
-    if !declares_std {
-        return None;
-    }
-
-    let declaration = extract_build_declaration(project_root)
-        .unwrap_or_else(|error| panic!("recast fixture {}: {error}", project_root.display()));
-    let root_role = declaration.kind();
-    let root_name = match declaration {
-        BuildDeclaration::Application(application) => application.name,
-        BuildDeclaration::Package(package) => package.name,
-        BuildDeclaration::Workspace(_) => {
-            panic!(
-                "recast fixture {} cannot be a workspace root",
-                project_root.display()
-            )
-        }
-    };
-    let root_identity = fixture_package_identity(1);
-    let standard_library_identity = fixture_package_identity(2);
-    let packages = vec![
-        PackageSourceBinding::new(
-            root_identity,
-            root_name.into_string(),
-            project_root.to_path_buf(),
-        ),
-        PackageSourceBinding::new(
-            standard_library_identity,
-            "omega-language-std",
-            repo_root().join("source/library/std"),
-        ),
-    ];
-    let dependencies = vec![PackageDependencyBinding::new(
-        root_identity,
-        "omega_language_std",
-        standard_library_identity,
-    )];
-
-    Some(
-        PackageCompilationInputs::new(root_identity, root_role, packages, dependencies)
-            .unwrap_or_else(|errors| {
-                panic!("recast fixture {}: {errors:#?}", project_root.display())
-            }),
-    )
+    declares_bundled_standard_library(project_root)
+        .then(|| standard_library_package_inputs(project_root, 1, 2))
 }
 
 /// The package graph plus this harness's test acceptance of the exact std
@@ -108,7 +51,7 @@ fn fixture_package_inputs(root_path: &Path) -> Option<PackageCompilationInputs> 
 fn reviewed_fixture_package_inputs(
     root_path: &Path,
 ) -> Result<Option<PackageCompilationInputs>, Vec<Diagnostic>> {
-    let Some(package_inputs) = fixture_package_inputs(root_path) else {
+    let Some(package_inputs) = recast_fixture_package_inputs(root_path) else {
         return Ok(None);
     };
     let accepts_console_exit = fs::read_to_string(root_path).is_ok_and(|source| {

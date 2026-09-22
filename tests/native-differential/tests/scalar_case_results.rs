@@ -1,4 +1,14 @@
 //! Ordinary scalar-sum returns retain tags, full-width payloads, and caller storage.
+
+// The front end these fixtures run is named here rather than re-sequenced at
+// every site.
+#[path = "common/front_end.rs"]
+mod front_end;
+// One harness owns the bundled standard library's location and the fixture
+// package identities these tests bind.
+#[path = "common/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
+
 use native_realization::{compiler_baseline_request_v1, optimize_artifact_sections};
 use optimization_core::OptimizationSelections;
 use proof_admission::AdmissionProfile;
@@ -87,22 +97,7 @@ fn produce(entry: &str) -> CanonicalTerminalArtifact {
     produce_source(entry, include_str!("scalar_case_results/choose.omg"))
 }
 fn produce_source(entry: &str, source: &str) -> CanonicalTerminalArtifact {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize scalar-case source");
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse scalar-case source");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve scalar-case source");
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type scalar-case source");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("check scalar-case source");
+    let checked = crate::front_end::checked_program_named("scalar-case source", source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name(entry),

@@ -26,22 +26,8 @@ fn primitive_element_source_rejects_out_of_bounds_and_write_only_observation() {
         SOURCE.replace("bytes[1]", "bytes[3]"),
         SOURCE.replace("input: &u8", "input: &write u8"),
     ] {
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let typed =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
         assert!(
-            typed_trees_to_checked_trees::lower_typed_trees(
-                typed,
-                &typed_trees_to_checked_trees::CheckingRequest::settled()
-            )
-            .is_err(),
+            crate::front_end::checked_program_result(&source).is_err(),
             "invalid element access must not reach Terminal production"
         );
     }

@@ -1,4 +1,10 @@
 //! Incoming record values remain live across ordinary writes and calls.
+
+// The front end these fixtures run is named here rather than re-sequenced at
+// every site.
+#[path = "common/front_end.rs"]
+mod front_end;
+
 use target::NativeTarget;
 use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
@@ -28,21 +34,7 @@ fn optimized_record(
     effects: bool,
     field_bits: &[u16],
 ) -> abstract_operations_to_abstract_operations::ValidatedOptimizedAbstractPlan {
-    let tokens = source_files_to_tokens::Lexer::new(SOURCE)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap();
+    let checked = crate::front_end::checked_program(SOURCE);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("forward"),

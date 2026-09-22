@@ -1,4 +1,10 @@
 //! Source-produced primitive writes retain caller storage and scalar return ABI.
+
+// The front end these fixtures run is named here rather than re-sequenced at
+// every site.
+#[path = "common/front_end.rs"]
+mod front_end;
+
 use proof_admission::AdmissionProfile;
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_production::{
@@ -36,22 +42,7 @@ const STACK_REPLACE: &str = "machine replace(value: &mut u64, returned: u64,
 }";
 
 fn produce(source: &str, entry: &str) -> CanonicalTerminalArtifact {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize store-return source");
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse store-return source");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve store-return source");
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type store-return source");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("check store-return source");
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name(entry),

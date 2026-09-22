@@ -11,21 +11,7 @@ use terminal_production::{
 
 #[test]
 fn nested_record_replay_rejects_effectful_operand_and_projected_local_substitution() {
-    let tokens = source_files_to_tokens::Lexer::new(super::records::ORDERED_NESTED_RECORD_FIELDS)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap();
+    let checked = crate::front_end::checked_program(super::records::ORDERED_NESTED_RECORD_FIELDS);
     let machine = checked
         .machines()
         .iter()
@@ -212,20 +198,7 @@ fn projected_shared_receiver_rejects_overlapping_mutable_field_actual() {
         machine observe(value: &mut Outer) -> u64 {
             value.inner.inspect(&mut value.inner.right)
         }";
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = match typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    ) {
+    let diagnostics = match crate::front_end::checked_program_result(source) {
         Ok(_) => panic!("projected shared receiver cannot overlap an exclusive field argument"),
         Err(diagnostics) => diagnostics,
     };
@@ -244,21 +217,7 @@ fn projected_record_getter_replay_rejects_sibling_root_path_and_endpoint_substit
         CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
     };
 
-    let tokens = source_files_to_tokens::Lexer::new(super::records::PROJECTED_RECORD_GETTER)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("valid projected shared getter source");
+    let checked = crate::front_end::checked_program(super::records::PROJECTED_RECORD_GETTER);
     for entry in ["distinct_roots", "projected"] {
         let _artifact = terminal_production::TerminalProductionRequest::new(
             &checked,
@@ -412,21 +371,7 @@ fn local_record_getter_replay_rejects_substituted_receiver_custody() {
             let other: Pair = Pair { left: right, right: left };
             original.get_right()
         }";
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("valid local getter source");
+    let checked = crate::front_end::checked_program(source);
     let _artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("observe"),

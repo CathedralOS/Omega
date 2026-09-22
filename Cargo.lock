@@ -1445,6 +1445,7 @@ dependencies = [
  "source-files-to-tokens",
  "symbol-resolved-trees-to-typed-trees",
  "symbols",
+ "syntax-trees",
  "syntax-trees-to-symbol-resolved-trees",
  "target",
  "target-operations",
