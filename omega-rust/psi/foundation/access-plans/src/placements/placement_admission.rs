@@ -1,7 +1,7 @@
 use extents::{Extent, ExtentLoan};
 
 use crate::ResourceProfileReceiptId;
-use crate::access_plan::diagnostic::into_validated_access;
+use crate::access_plan::diagnostic::{access_plan_rejection, into_validated_access};
 use crate::placements::schema_correspondence::normalized_identity;
 use crate::{
     AccessPlanDiagnostic, AdmittedResourceProfile, OwnedPlacementAdmission,
@@ -26,18 +26,20 @@ pub struct PlacementAdmission<'extent> {
     pub(crate) loan: ExtentLoan<'extent>,
 }
 
-#[derive(Debug)]
-pub struct PlacementRejection<'extent> {
-    loan: ExtentLoan<'extent>,
-    diagnostic: AccessPlanDiagnostic,
+access_plan_rejection! {
+    PlacementRejection<'extent> {
+        loan: ExtentLoan<'extent>,
+        diagnostic: AccessPlanDiagnostic,
+    }
 }
 
+access_plan_rejection! {
 /// Failed borrowed placed-view establishment returns the highest valid
 /// loan-bearing admission intact for corrected retry or withdrawal.
-#[derive(Debug)]
-pub struct PlaceEstablishmentError<'extent> {
-    admission: PlacementAdmission<'extent>,
-    diagnostic: AccessPlanDiagnostic,
+    PlaceEstablishmentError<'extent> {
+        admission: PlacementAdmission<'extent>,
+        diagnostic: AccessPlanDiagnostic,
+    }
 }
 
 impl PlacementAdmissionId {
@@ -74,26 +76,6 @@ impl<'extent> PlacementAdmission<'extent> {
     /// makes no content, destruction, vacancy, or allocator-release claim.
     pub fn withdraw(self) -> ExtentLoan<'extent> {
         self.loan
-    }
-}
-
-impl<'extent> PlaceEstablishmentError<'extent> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (PlacementAdmission<'extent>, AccessPlanDiagnostic) {
-        (self.admission, self.diagnostic)
-    }
-}
-
-impl<'extent> PlacementRejection<'extent> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (ExtentLoan<'extent>, AccessPlanDiagnostic) {
-        (self.loan, self.diagnostic)
     }
 }
 

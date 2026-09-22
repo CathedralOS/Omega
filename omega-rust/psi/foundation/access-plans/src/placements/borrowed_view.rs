@@ -2,7 +2,7 @@ use extents::{ExtentLoan, LoanPolarity};
 
 use crate::AdmittedResourceProfile;
 use crate::ResourceProfileReceiptId;
-use crate::access_plan::diagnostic::into_validated_access;
+use crate::access_plan::diagnostic::{access_plan_rejection, into_validated_access};
 use crate::placements::placement_admission::validate_placement_admission;
 use crate::placements::placement_authority::PlacementAuthorityRef;
 use crate::primitive_access::field_projection::project_placed_field;
@@ -23,12 +23,13 @@ pub struct PlacedView<'extent> {
     pub(crate) admission: PlacementAdmissionId,
 }
 
+access_plan_rejection! {
 /// Failed ordinary borrowed-view retirement preserves the complete
 /// loan-bearing view for corrected retry.
-#[derive(Debug)]
-pub struct PlacedViewRetirementError<'extent> {
-    view: PlacedView<'extent>,
-    diagnostic: AccessPlanDiagnostic,
+    PlacedViewRetirementError<'extent> {
+        view: PlacedView<'extent>,
+        diagnostic: AccessPlanDiagnostic,
+    }
 }
 
 impl<'extent> PlacedView<'extent> {
@@ -118,15 +119,5 @@ impl<'extent> PlacedView<'extent> {
             )));
         }
         Ok(())
-    }
-}
-
-impl<'extent> PlacedViewRetirementError<'extent> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (PlacedView<'extent>, AccessPlanDiagnostic) {
-        (self.view, self.diagnostic)
     }
 }

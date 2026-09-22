@@ -12,7 +12,7 @@
 
 use extents::Extent;
 
-use crate::access_plan::diagnostic::into_validated_access;
+use crate::access_plan::diagnostic::{access_plan_rejection, into_validated_access};
 use crate::placements::owned_resident_custody::{
     replay_owned_admission_resources, validate_resident_observation,
 };
@@ -52,71 +52,32 @@ pub struct EstablishedOwnedExternalPlacement {
     pub(crate) occurrence: PlacedOccurrenceId,
 }
 
+access_plan_rejection! {
 /// Failed External adoption returns both non-Clone inputs unchanged.
-#[derive(Debug)]
-pub struct OwnedExternalAdoptionError {
-    admission: OwnedPlacementAdmission,
-    correspondence: AdmittedSchemaDeviceCorrespondence,
-    diagnostic: AccessPlanDiagnostic,
-}
-
-impl OwnedExternalAdoptionError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        OwnedPlacementAdmission,
-        AdmittedSchemaDeviceCorrespondence,
-        AccessPlanDiagnostic,
-    ) {
-        (self.admission, self.correspondence, self.diagnostic)
+    OwnedExternalAdoptionError {
+        admission: OwnedPlacementAdmission,
+        correspondence: AdmittedSchemaDeviceCorrespondence,
+        diagnostic: AccessPlanDiagnostic,
     }
 }
 
+access_plan_rejection! {
 /// Failed External view establishment preserves the complete dormant carrier
 /// and the exact requested occurrence for corrected retry.
-#[derive(Debug)]
-pub struct OwnedExternalViewEstablishmentError {
-    carrier: OwnedCorrespondedExternalAdmission,
-    occurrence: PlacedOccurrenceId,
-    diagnostic: AccessPlanDiagnostic,
-}
-
-impl OwnedExternalViewEstablishmentError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        OwnedCorrespondedExternalAdmission,
-        PlacedOccurrenceId,
-        AccessPlanDiagnostic,
-    ) {
-        (self.carrier, self.occurrence, self.diagnostic)
+    OwnedExternalViewEstablishmentError {
+        carrier: OwnedCorrespondedExternalAdmission,
+        occurrence: PlacedOccurrenceId,
+        diagnostic: AccessPlanDiagnostic,
     }
 }
 
+access_plan_rejection! {
 /// Failed External retirement returns the complete active carrier; no
 /// dormant claim is minted from drifted placement or correspondence
 /// authority.
-#[derive(Debug)]
-pub struct OwnedExternalRetirementError {
-    established: EstablishedOwnedExternalPlacement,
-    diagnostic: AccessPlanDiagnostic,
-}
-
-impl OwnedExternalRetirementError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (EstablishedOwnedExternalPlacement, AccessPlanDiagnostic) {
-        (self.established, self.diagnostic)
+    OwnedExternalRetirementError {
+        established: EstablishedOwnedExternalPlacement,
+        diagnostic: AccessPlanDiagnostic,
     }
 }
 

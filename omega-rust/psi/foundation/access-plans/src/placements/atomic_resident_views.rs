@@ -10,7 +10,7 @@ use extents::{
     ProviderExistingContentGrant, ResidentClaimId,
 };
 
-use crate::access_plan::diagnostic::into_validated_access;
+use crate::access_plan::diagnostic::{access_plan_rejection, into_validated_access};
 use crate::placements::owned_resident_custody::validate_owned_resident_authority;
 use crate::placements::owned_resident_custody::{
     validate_provider_content_binding, validate_resident_observation,
@@ -129,26 +129,12 @@ pub struct EstablishedBorrowedAtomicResidentPlacement<'resident> {
     occurrence: PlacedOccurrenceId,
 }
 
+access_plan_rejection! {
 /// Failed borrowed Atomic retirement returns the complete active carrier.
 /// No loan is released and no resident identity or receipt is reconstructed.
-#[derive(Debug)]
-pub struct BorrowedAtomicResidentRetirementError<'resident> {
-    established: EstablishedBorrowedAtomicResidentPlacement<'resident>,
-    diagnostic: AccessPlanDiagnostic,
-}
-
-impl<'resident> BorrowedAtomicResidentRetirementError<'resident> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        EstablishedBorrowedAtomicResidentPlacement<'resident>,
-        AccessPlanDiagnostic,
-    ) {
-        (self.established, self.diagnostic)
+    BorrowedAtomicResidentRetirementError<'resident> {
+        established: EstablishedBorrowedAtomicResidentPlacement<'resident>,
+        diagnostic: AccessPlanDiagnostic,
     }
 }
 

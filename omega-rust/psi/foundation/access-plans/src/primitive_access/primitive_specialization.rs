@@ -1,4 +1,4 @@
-use crate::access_plan::diagnostic::into_validated_access;
+use crate::access_plan::diagnostic::{access_plan_rejection, into_validated_access};
 use crate::plan_policy::authorization::validate_operation_ordering;
 use crate::{
     AccessOperation, AccessPlanDiagnostic, AdmittedSchemaDeviceCorrespondence,
@@ -86,21 +86,12 @@ impl<'view, 'extent> StablePrimitiveAccessRequest<'view, 'extent> {
     }
 }
 
+access_plan_rejection! {
 /// Failed specialization returns the exact sealed request so its authority
 /// and content-custody lifetime remain available to the caller.
-#[derive(Debug)]
-pub struct StablePrimitiveAccessRejection<'view, 'extent> {
-    request: PrimitiveAccessRequest<'view, 'extent>,
-    diagnostic: AccessPlanDiagnostic,
-}
-
-impl<'view, 'extent> StablePrimitiveAccessRejection<'view, 'extent> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (PrimitiveAccessRequest<'view, 'extent>, AccessPlanDiagnostic) {
-        (self.request, self.diagnostic)
+    StablePrimitiveAccessRejection<'view, 'extent> {
+        request: PrimitiveAccessRequest<'view, 'extent>,
+        diagnostic: AccessPlanDiagnostic,
     }
 }
 
@@ -208,21 +199,12 @@ impl<'view, 'extent> StableCompoundMutationAccessRequest<'view, 'extent> {
     }
 }
 
+access_plan_rejection! {
 /// Failed compound specialization returns the exact sealed request so its
 /// content-custody lifetime and exclusive authority remain available.
-#[derive(Debug)]
-pub struct StableCompoundMutationAccessRejection<'view, 'extent> {
-    request: PrimitiveAccessRequest<'view, 'extent>,
-    diagnostic: AccessPlanDiagnostic,
-}
-
-impl<'view, 'extent> StableCompoundMutationAccessRejection<'view, 'extent> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (PrimitiveAccessRequest<'view, 'extent>, AccessPlanDiagnostic) {
-        (self.request, self.diagnostic)
+    StableCompoundMutationAccessRejection<'view, 'extent> {
+        request: PrimitiveAccessRequest<'view, 'extent>,
+        diagnostic: AccessPlanDiagnostic,
     }
 }
 
@@ -359,22 +341,13 @@ impl<'view, 'extent> ExternalPrimitiveAccessRequest<'view, 'extent> {
     }
 }
 
+access_plan_rejection! {
 /// Failed External specialization returns the exact sealed request so its
 /// range authority and content-custody lifetime remain available to the
 /// caller.
-#[derive(Debug)]
-pub struct ExternalPrimitiveAccessRejection<'view, 'extent> {
-    request: PrimitiveAccessRequest<'view, 'extent>,
-    diagnostic: AccessPlanDiagnostic,
-}
-
-impl<'view, 'extent> ExternalPrimitiveAccessRejection<'view, 'extent> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (PrimitiveAccessRequest<'view, 'extent>, AccessPlanDiagnostic) {
-        (self.request, self.diagnostic)
+    ExternalPrimitiveAccessRejection<'view, 'extent> {
+        request: PrimitiveAccessRequest<'view, 'extent>,
+        diagnostic: AccessPlanDiagnostic,
     }
 }
 
@@ -529,21 +502,12 @@ impl<'view, 'extent> AtomicPrimitiveAccessRequest<'view, 'extent> {
     }
 }
 
+access_plan_rejection! {
 /// Failed Atomic specialization returns the exact sealed request so its range
 /// authority and operation-specific custody remain available to the caller.
-#[derive(Debug)]
-pub struct AtomicPrimitiveAccessRejection<'view, 'extent> {
-    request: PrimitiveAccessRequest<'view, 'extent>,
-    diagnostic: AccessPlanDiagnostic,
-}
-
-impl<'view, 'extent> AtomicPrimitiveAccessRejection<'view, 'extent> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (PrimitiveAccessRequest<'view, 'extent>, AccessPlanDiagnostic) {
-        (self.request, self.diagnostic)
+    AtomicPrimitiveAccessRejection<'view, 'extent> {
+        request: PrimitiveAccessRequest<'view, 'extent>,
+        diagnostic: AccessPlanDiagnostic,
     }
 }
 

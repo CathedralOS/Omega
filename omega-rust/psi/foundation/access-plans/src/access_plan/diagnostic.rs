@@ -11,6 +11,32 @@ impl std::fmt::Display for AccessPlanDiagnostic {
 
 impl std::error::Error for AccessPlanDiagnostic {}
 
+/// One carrier-plus-diagnostic error: the rejected inputs return intact
+/// beside the diagnostic, `diagnostic` borrows it, and `into_parts`
+/// destructures the whole error in field order ending at the diagnostic.
+macro_rules! access_plan_rejection {
+    ($(#[$meta:meta])* $name:ident $(<$($lt:lifetime),*>)? {
+        $($fv:vis $field:ident : $fty:ty),+ $(,)?
+    }) => {
+        $(#[$meta])*
+        #[derive(Debug)]
+        pub struct $name $(<$($lt),*>)? {
+            $($fv $field : $fty,)+
+        }
+
+        impl $(<$($lt),*>)? $name $(<$($lt),*>)? {
+            pub const fn diagnostic(&self) -> &$crate::AccessPlanDiagnostic {
+                &self.diagnostic
+            }
+
+            pub fn into_parts(self) -> ($($fty,)+) {
+                ($(self.$field,)+)
+            }
+        }
+    };
+}
+pub(crate) use access_plan_rejection;
+
 /// Routes one access-contract transition: `validate` inspects the carrier,
 /// then `accept` builds the validated carrier from it and its evidence, or
 /// `reject` returns the intact carrier with the diagnostic.

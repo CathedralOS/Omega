@@ -4,7 +4,7 @@ use extents::{
 };
 
 use crate::AdmittedResourceProfile;
-use crate::access_plan::diagnostic::into_validated_access;
+use crate::access_plan::diagnostic::{access_plan_rejection, into_validated_access};
 use crate::placements::owned_resident_custody::validate_owned_resident_authority;
 use crate::placements::placement_authority::PlacementAuthorityRef;
 use crate::primitive_access::field_projection::project_placed_field;
@@ -32,12 +32,13 @@ pub struct OwnedPlacementAdmission {
     pub(crate) extent: Extent,
 }
 
+access_plan_rejection! {
 /// Failed owned admission returns the exact moved Extent rather than losing
 /// or reconstructing its authority account.
-#[derive(Debug)]
-pub struct OwnedPlacementRejection {
-    pub(crate) extent: Extent,
-    pub(crate) diagnostic: AccessPlanDiagnostic,
+    OwnedPlacementRejection {
+        pub(crate) extent: Extent,
+        pub(crate) diagnostic: AccessPlanDiagnostic,
+    }
 }
 
 /// Dormant provider-validated Stable content whose exact Extent authority and
@@ -55,13 +56,14 @@ pub struct DormantOwnedResident {
     pub(crate) content: ProviderExistingContentGrant,
 }
 
+access_plan_rejection! {
 /// Failed owned resident-view establishment preserves the complete dormant
 /// content authority and the exact requested occurrence for corrected retry.
-#[derive(Debug)]
-pub struct OwnedResidentViewEstablishmentError {
-    resident: DormantOwnedResident,
-    occurrence: PlacedOccurrenceId,
-    diagnostic: AccessPlanDiagnostic,
+    OwnedResidentViewEstablishmentError {
+        resident: DormantOwnedResident,
+        occurrence: PlacedOccurrenceId,
+        diagnostic: AccessPlanDiagnostic,
+    }
 }
 
 /// One active owned view of provider-established Stable resident content.
@@ -75,21 +77,23 @@ pub struct EstablishedOwnedPlacement {
     pub(crate) occurrence: PlacedOccurrenceId,
 }
 
+access_plan_rejection! {
 /// Failed resident-preserving retirement returns the complete active carrier;
 /// no dormant claim is minted from drifted placement authority.
-#[derive(Debug)]
-pub struct OwnedResidentRetirementError {
-    established: EstablishedOwnedPlacement,
-    diagnostic: AccessPlanDiagnostic,
+    OwnedResidentRetirementError {
+        established: EstablishedOwnedPlacement,
+        diagnostic: AccessPlanDiagnostic,
+    }
 }
 
+access_plan_rejection! {
 /// Failed Stable adoption preserves both linear inputs for a corrected retry
 /// or explicit cancellation.
-#[derive(Debug)]
-pub struct OwnedStableAdoptionError {
-    pub(crate) admission: OwnedPlacementAdmission,
-    pub(crate) content: ProviderExistingContentGrant,
-    pub(crate) diagnostic: AccessPlanDiagnostic,
+    OwnedStableAdoptionError {
+        pub(crate) admission: OwnedPlacementAdmission,
+        pub(crate) content: ProviderExistingContentGrant,
+        pub(crate) diagnostic: AccessPlanDiagnostic,
+    }
 }
 
 impl OwnedPlacementAdmission {
@@ -117,32 +121,6 @@ impl OwnedPlacementAdmission {
     /// establishment, destruction, vacancy, or allocator release.
     pub fn withdraw(self) -> Extent {
         self.extent
-    }
-}
-
-impl OwnedPlacementRejection {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (Extent, AccessPlanDiagnostic) {
-        (self.extent, self.diagnostic)
-    }
-}
-
-impl OwnedResidentViewEstablishmentError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        DormantOwnedResident,
-        PlacedOccurrenceId,
-        AccessPlanDiagnostic,
-    ) {
-        (self.resident, self.occurrence, self.diagnostic)
     }
 }
 
@@ -208,16 +186,6 @@ impl DormantOwnedResident {
                 diagnostic,
             },
         )
-    }
-}
-
-impl OwnedResidentRetirementError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (EstablishedOwnedPlacement, AccessPlanDiagnostic) {
-        (self.established, self.diagnostic)
     }
 }
 
@@ -322,21 +290,5 @@ impl EstablishedOwnedPlacement {
             Some(ObservationModel::Stable),
             PlacementAuthorityRef::EstablishedOwned(self),
         )
-    }
-}
-
-impl OwnedStableAdoptionError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        OwnedPlacementAdmission,
-        ProviderExistingContentGrant,
-        AccessPlanDiagnostic,
-    ) {
-        (self.admission, self.content, self.diagnostic)
     }
 }
