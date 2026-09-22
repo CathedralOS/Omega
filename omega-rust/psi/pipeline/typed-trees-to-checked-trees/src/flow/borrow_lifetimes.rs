@@ -1,5 +1,5 @@
 use crate::flow::CanonicalPlace;
-use crate::flow::common;
+use crate::flow::reference_spans;
 use checked_trees::{
     BorrowFacts, FlowBorrowWeakeningFact, FlowBorrowWeakeningReason, FlowConstraintKind,
     FlowConstraintRef, FlowInvalidationSource,
@@ -13,10 +13,8 @@ pub(crate) fn filter_expired_borrow_loans(
     statement_index: usize,
     reason: FlowBorrowWeakeningReason,
 ) -> arena::HandleSpan<FlowConstraintRef> {
-    common::filter_constraint_refs(
-        constraint_refs,
-        source,
-        |constraint_ref| match constraint_ref.kind {
+    reference_spans::filter_constraint_refs(constraint_refs, source, |constraint_ref| {
+        match constraint_ref.kind {
             FlowConstraintKind::BorrowLoan { loan } => {
                 let loan_fact = borrow.loans.get(loan);
                 let keep = loan_fact.last_use_statement_index >= statement_index;
@@ -48,8 +46,8 @@ pub(crate) fn filter_expired_borrow_loans(
             | FlowConstraintKind::BorrowCall { .. }
             | FlowConstraintKind::BorrowWritableRoot { .. }
             | FlowConstraintKind::BorrowAccess { .. } => true,
-        },
-    )
+        }
+    })
 }
 
 pub(crate) fn filter_reassigned_borrow_loans(
@@ -69,10 +67,8 @@ pub(crate) fn filter_reassigned_borrow_loans(
         _ => return source,
     };
 
-    common::filter_constraint_refs(
-        constraint_refs,
-        source,
-        |constraint_ref| match constraint_ref.kind {
+    reference_spans::filter_constraint_refs(constraint_refs, source, |constraint_ref| {
+        match constraint_ref.kind {
             FlowConstraintKind::BorrowLoan { loan } => {
                 let active = borrow.loans.get(loan);
                 // Loans established by this assignment describe the replacement
@@ -100,8 +96,8 @@ pub(crate) fn filter_reassigned_borrow_loans(
             | FlowConstraintKind::BorrowCall { .. }
             | FlowConstraintKind::BorrowWritableRoot { .. }
             | FlowConstraintKind::BorrowAccess { .. } => true,
-        },
-    )
+        }
+    })
 }
 
 fn borrow_owner_path_overlaps_place(

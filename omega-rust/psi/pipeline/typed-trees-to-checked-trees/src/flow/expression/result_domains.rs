@@ -11,8 +11,8 @@
 //! Equality of exact instances is not a license to equate different open index
 //! expressions; those still require their selected normalization/equality proof.
 use crate::flow::append_constraint_ref;
-use crate::flow::common;
 use crate::flow::expression::Execution;
+use crate::flow::reference_spans;
 use arena::HandleSpan;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
@@ -72,7 +72,7 @@ impl Execution<'_, '_, '_> {
             self.semantic.append_ref(&mut refs, fact);
         }
         let context = self.semantic.append_context(point, refs);
-        common::append_flow_reference(
+        reference_spans::append_flow_reference(
             &mut self.context.contexts.semantic_context_refs,
             contexts,
             FlowSemanticContextRef { context },

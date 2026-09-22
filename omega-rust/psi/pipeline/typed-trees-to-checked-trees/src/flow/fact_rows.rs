@@ -1,3 +1,9 @@
+//! Row lookups into the already-built borrow and proof fact tables.
+//!
+//! A state's borrow row and a call's contract row are addressed by their
+//! recorded identity -- (machine, state) and the caller's statement/call
+//! coordinate -- rather than by position, so a consumer never re-derives the
+//! coordinate the producing pass already recorded.
 use arena::Handle;
 use checked_trees::{BorrowFacts, ContractCallFact, ProofFacts, StateBorrowFact};
 use symbols::SymbolHandle;

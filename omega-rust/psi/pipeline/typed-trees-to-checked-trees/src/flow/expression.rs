@@ -11,9 +11,9 @@ use crate::flow::CanonicalPlace;
 use crate::flow::FlowBuildContext;
 use crate::flow::build_call_flow_fact;
 use crate::flow::canonical_place_segments_may_overlap;
-use crate::flow::common;
 use crate::flow::filter_contexts_after_place_mutations;
 use crate::flow::project_constraint_refs_to_active_contexts;
+use crate::flow::reference_spans;
 use crate::semantic_calls::CallSite;
 use arena::HandleSpan;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -928,7 +928,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             .collect();
         *evaluated = HandleSpan::empty();
         for reference in retained {
-            common::append_flow_reference(
+            reference_spans::append_flow_reference(
                 &mut self.context.contexts.semantic_context_refs,
                 evaluated,
                 reference,
@@ -951,7 +951,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             .collect();
         *evaluated_constraints = HandleSpan::empty();
         for reference in retained {
-            common::append_flow_reference(
+            reference_spans::append_flow_reference(
                 &mut self.context.contexts.constraint_refs,
                 evaluated_constraints,
                 reference,

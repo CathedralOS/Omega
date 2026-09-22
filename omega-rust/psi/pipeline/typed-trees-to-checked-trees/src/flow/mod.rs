@@ -4,18 +4,19 @@ mod builder;
 mod call_phases;
 pub(crate) mod calls;
 mod carried_semantic_dependencies;
-mod common;
 mod constraints;
 mod context;
 mod domain;
 mod exits;
 mod expression;
+mod fact_rows;
 mod mutation;
 mod operator_calls;
 mod ownership;
 mod place;
 mod reach;
 mod reference_places;
+mod reference_spans;
 mod value_origins;
 pub(crate) use reference_places::{
     call_result_sources, local_reference_candidate_storages_at_call,
@@ -48,13 +49,6 @@ use calls::build_call_flow_fact;
 pub(crate) use calls::call_result_qualification_identities;
 pub(crate) use calls::call_target_return_type;
 pub(crate) use carried_semantic_dependencies::derive_checked_semantic_dependencies;
-pub(crate) use common::append_constraint_ref;
-pub(crate) use common::proof_contract_call;
-use common::{
-    append_flow_contexts, append_flow_contexts_for_points, append_place_segments,
-    appended_span_since, borrow_state_fact, project_constraint_refs_to_active_contexts,
-    retained_constraint_refs, retained_flow_contexts,
-};
 use constraints::{
     append_contiguous_borrow_access_constraints, append_contiguous_borrow_root_constraints,
 };
@@ -63,6 +57,8 @@ pub(crate) use domain::build_domain_facts;
 use domain::filter_contexts_after_place_mutations;
 pub(crate) use domain::relative_place_segments_from_expression;
 use exits::append_state_exit_facts;
+use fact_rows::borrow_state_fact;
+pub(crate) use fact_rows::proof_contract_call;
 pub(crate) use mutation::close_storage_places_over_aliases_with_resolver;
 pub(crate) use mutation::origin_place;
 pub(crate) use mutation::rebase_exact_local_place;
@@ -76,6 +72,12 @@ use operator_calls::{
     resolve_operator_for_call, resolve_operator_statement_call,
 };
 pub(crate) use place::contextual_canonical_place_from_expression;
+pub(crate) use reference_spans::append_constraint_ref;
+use reference_spans::{
+    append_flow_contexts, append_flow_contexts_for_points, append_place_segments,
+    appended_span_since, project_constraint_refs_to_active_contexts, retained_constraint_refs,
+    retained_flow_contexts,
+};
 
 /// One `CallFrameResolver` serves an entire immutable program window of the
 /// check pass: construction rebuilds the top-level symbol index, so every
