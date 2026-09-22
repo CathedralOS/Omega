@@ -145,11 +145,15 @@ pub(crate) fn retain_additional_structural_types(
             }
             CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {}
             CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
-            // Terminal Psi carries no runtime-length view descriptor, so a
-            // borrowed `&[T]` view rejects here instead of losing its extent.
-            CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => {
-                return unsupported("borrowed slice view has no Terminal descriptor");
+            // A `&[T]` view borrows its element's contiguous storage, so the
+            // retained ElementView descriptor keeps the element identity live.
+            CheckedUnitStructuralTypeShape::BorrowedSliceView {
+                element_type_identity,
             }
+            | CheckedUnitStructuralTypeShape::FixedArray {
+                element_type_identity,
+                ..
+            } => collect(plans, element_type_identity, active, selected)?,
             CheckedUnitStructuralTypeShape::Record { fields } => {
                 for field in fields {
                     if let CheckedUnitStructuralFieldType::Structural { type_identity } =
@@ -159,10 +163,6 @@ pub(crate) fn retain_additional_structural_types(
                     }
                 }
             }
-            CheckedUnitStructuralTypeShape::FixedArray {
-                element_type_identity,
-                ..
-            } => collect(plans, element_type_identity, active, selected)?,
             CheckedUnitStructuralTypeShape::Sum { cases } => {
                 for field in cases.iter().flat_map(|case| &case.fields) {
                     if let CheckedUnitStructuralFieldType::Structural { type_identity } =
@@ -292,11 +292,13 @@ pub(crate) fn retain_additional_structural_types(
             CheckedUnitStructuralTypeShape::ByteSequence(carrier) => {
                 StructuralTypeShape::ByteSequence(terminal_byte_sequence_carrier(*carrier))
             }
-            // Terminal Psi carries no runtime-length view descriptor, so a
-            // borrowed `&[T]` view rejects here instead of losing its extent.
-            CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => {
-                return unsupported("borrowed slice view has no Terminal descriptor");
-            }
+            // A `&[T]` view carries its extent as a stored runtime length, so
+            // its descriptor names only the borrowed element type.
+            CheckedUnitStructuralTypeShape::BorrowedSliceView {
+                element_type_identity,
+            } => StructuralTypeShape::ElementView {
+                element: lookup_type_id(&type_ids, element_type_identity)?,
+            },
             CheckedUnitStructuralTypeShape::Record { fields } => {
                 let mut identities = BTreeSet::new();
                 let fields = fields
@@ -480,11 +482,13 @@ pub(crate) fn lower_structural_type_plans(
                 CheckedUnitStructuralTypeShape::ByteSequence(carrier) => {
                     StructuralTypeShape::ByteSequence(terminal_byte_sequence_carrier(*carrier))
                 }
-                // Terminal Psi carries no runtime-length view descriptor, so a
-                // borrowed `&[T]` view rejects here instead of losing its extent.
-                CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => {
-                    return unsupported("borrowed slice view has no Terminal descriptor");
-                }
+                // A `&[T]` view carries its extent as a stored runtime length,
+                // so its descriptor names only the borrowed element type.
+                CheckedUnitStructuralTypeShape::BorrowedSliceView {
+                    element_type_identity,
+                } => StructuralTypeShape::ElementView {
+                    element: lookup_type_id(&type_ids, element_type_identity)?,
+                },
                 CheckedUnitStructuralTypeShape::Record { fields } => {
                     let mut identities = BTreeSet::new();
                     let fields = fields

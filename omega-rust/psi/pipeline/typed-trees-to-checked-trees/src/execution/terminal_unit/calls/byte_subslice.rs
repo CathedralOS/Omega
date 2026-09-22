@@ -104,6 +104,46 @@ pub(in crate::execution::terminal_unit) fn source(
     expression: ExpressionHandle,
     statement_index: usize,
 ) -> Option<(u32, String)> {
+    let spelling = language_core::OperatorSpelling::Range;
+    if facts
+        .operators
+        .expression_use(expression)
+        .is_some_and(|selected| {
+            selected.spelling != spelling
+                || selected.selected_operator_symbol.is_valid()
+                || selected.candidate_count != 0
+                || !matches!(
+                    selected.status,
+                    checked_trees::CheckedOperatorResolutionStatus::Missing
+                        | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                )
+        })
+    {
+        return None;
+    }
+    shape(
+        program,
+        machine,
+        state,
+        parameters,
+        target,
+        expression,
+        statement_index,
+    )
+}
+
+/// Byte-view range admission without the operator-resolution veto. Lanes that
+/// replay emitted subslice endpoint bindings inherit that veto through the
+/// bindings' presence: no builtin range means no endpoints to rebind.
+pub(in crate::execution) fn shape(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    parameters: &[CheckedUnitStructuralParameterPlan],
+    target: TypeReferenceHandle,
+    expression: ExpressionHandle,
+    statement_index: usize,
+) -> Option<(u32, String)> {
     if !exact_borrowed_byte_view(program, target) {
         return None;
     }
@@ -146,23 +186,6 @@ pub(in crate::execution::terminal_unit) fn source(
         || !parameter.qualifications.is_empty()
         || parameter.type_identity != type_identity
         || !exact_borrowed_byte_view(program, source_type)
-    {
-        return None;
-    }
-    let spelling = language_core::OperatorSpelling::Range;
-    if facts
-        .operators
-        .expression_use(expression)
-        .is_some_and(|selected| {
-            selected.spelling != spelling
-                || selected.selected_operator_symbol.is_valid()
-                || selected.candidate_count != 0
-                || !matches!(
-                    selected.status,
-                    checked_trees::CheckedOperatorResolutionStatus::Missing
-                        | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-                )
-        })
     {
         return None;
     }

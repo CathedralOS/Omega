@@ -223,6 +223,10 @@ pub(super) fn validate_bindings(
             checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
                 parameter_index,
                 ..
+            }
+            | checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
+                parameter_index,
+                ..
             } => parameter_index,
         };
         let source = state
@@ -266,6 +270,11 @@ pub(super) fn validate_bindings(
                     source.position,
                     expression,
                 )?;
+            }
+            checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
+                ..
+            } => {
+                return unsupported("element view subslice transfer has no Terminal descriptor");
             }
         }
     }

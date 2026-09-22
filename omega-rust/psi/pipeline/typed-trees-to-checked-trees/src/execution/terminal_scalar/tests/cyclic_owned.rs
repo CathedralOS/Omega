@@ -184,6 +184,7 @@ fn owned_countdown_retains_mixed_positions_and_exact_nat_judgment() {
         let mut retained = plans.clone();
         finalize_checked_scalar_graph_plans(
             &checked,
+            &checked.facts.values.scalar_expressions,
             &checked.facts.flow.ownership,
             &checked.facts.values.scalar_computations,
             &mut retained,
@@ -271,6 +272,7 @@ fn cyclic_successor_rejects_substituted_argument_rows_and_rank_coordinates() {
         }
         finalize_checked_scalar_graph_plans(
             &checked,
+            &checked.facts.values.scalar_expressions,
             &checked.facts.flow.ownership,
             &checked.facts.values.scalar_computations,
             &mut plans,
@@ -346,6 +348,7 @@ fn cyclic_owned_permissions_reject_missing_duplicate_or_substituted_transfer_and
             let mut plans = checked.facts.flow.terminal_scalar_graphs.clone();
             finalize_checked_scalar_graph_plans(
                 &checked,
+                &checked.facts.values.scalar_expressions,
                 &ownership,
                 &checked.facts.values.scalar_computations,
                 &mut plans,

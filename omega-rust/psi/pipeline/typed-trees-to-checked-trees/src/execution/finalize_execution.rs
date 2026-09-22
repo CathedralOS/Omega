@@ -24,6 +24,7 @@ pub(crate) fn finalize_execution(
     // Finalize the discovered graph shapes against completed ownership facts.
     crate::execution::terminal_scalar::finalize_checked_scalar_graph_plans_with_call_frames(
         program,
+        &facts.values.scalar_expressions,
         &facts.flow.ownership,
         &facts.values.scalar_computations,
         &mut facts.flow.terminal_scalar_graphs,

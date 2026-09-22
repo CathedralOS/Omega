@@ -90,6 +90,7 @@ fn affine_graph_rejoins_discard_eligibility_and_whole_transfers() {
                 let mut retained = checked.facts.flow.terminal_scalar_graphs.clone();
                 crate::execution::terminal_scalar::finalize_checked_scalar_graph_plans(
                     &checked,
+                    &checked.facts.values.scalar_expressions,
                     &ownership,
                     &checked.facts.values.scalar_computations,
                     &mut retained,
@@ -132,6 +133,7 @@ fn affine_graph_rejects_reordered_discard_eligibility() {
     let mut retained = checked.facts.flow.terminal_scalar_graphs.clone();
     crate::execution::terminal_scalar::finalize_checked_scalar_graph_plans(
         &checked,
+        &checked.facts.values.scalar_expressions,
         &ownership,
         &checked.facts.values.scalar_computations,
         &mut retained,

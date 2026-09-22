@@ -273,16 +273,9 @@ fn reconcile_operands(
                     target_state,
                     structural_arguments,
                     claim_transfers,
+                    is_scalar,
                 ) = match operation {
                     CheckedUnitEffectOperationPlan::CallUnit {
-                        coordinate,
-                        target_machine,
-                        target_state,
-                        structural_arguments,
-                        claim_transfers,
-                        ..
-                    }
-                    | CheckedUnitEffectOperationPlan::ScalarCall {
                         coordinate,
                         target_machine,
                         target_state,
@@ -295,6 +288,22 @@ fn reconcile_operands(
                         target_state,
                         structural_arguments,
                         Some(claim_transfers),
+                        false,
+                    ),
+                    CheckedUnitEffectOperationPlan::ScalarCall {
+                        coordinate,
+                        target_machine,
+                        target_state,
+                        structural_arguments,
+                        claim_transfers,
+                        ..
+                    } => (
+                        coordinate,
+                        target_machine,
+                        target_state,
+                        structural_arguments,
+                        Some(claim_transfers),
+                        true,
                     ),
                     CheckedUnitEffectOperationPlan::StructuralCall {
                         coordinate,
@@ -308,9 +317,30 @@ fn reconcile_operands(
                         target_state,
                         structural_arguments,
                         None,
+                        false,
                     ),
                     _ => continue,
                 };
+                // A borrowed `self` stays ambient on the attachment carrier
+                // for a scalar-graph callee: its graph keeps no receiver
+                // slot, so calls dispatched there take no receiver operand.
+                if is_scalar
+                    && facts
+                        .flow
+                        .terminal_scalar_graphs
+                        .for_machine(*target_machine)
+                        .is_some_and(|graph| {
+                            graph.states.iter().any(|state| {
+                                state.state == *target_state
+                                    && state
+                                        .structural_parameters
+                                        .iter()
+                                        .all(|parameter| !parameter.is_self)
+                            })
+                        })
+                {
+                    continue;
+                }
                 let Some((_, _, receiver_index, target, count)) =
                     retained.iter().find(|(machine, state, ..)| {
                         machine == target_machine && state == target_state
