@@ -1,4 +1,7 @@
-use build_declarations::{BuildDeclaration, extract_build_declaration};
+use build_declarations::{
+    BuildDeclaration, DependencyPurpose, extract_build_declaration, is_dependency_call_name,
+    project_build_entry_syntax, project_dependency_rows,
+};
 use compiler::CheckedCompileRequest;
 use compiler::{
     CheckedCompilation, CompileOptions as CompilerOptions, CompileReport, CompileRequest,
@@ -9,7 +12,13 @@ use package_compilation::{
     PackageSourceBinding,
 };
 use semantic_vocabulary::PackageKeyIdentity;
+use source_files_to_tokens::Lexer;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
+use syntax_trees::statement::StatementNode;
+use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CanaryCompileProduct {
@@ -3456,22 +3465,239 @@ fn repo_root() -> PathBuf {
         .to_path_buf()
 }
 
-fn fixture_declares_ordinary_std(project_root: &Path) -> bool {
-    fs::read_to_string(project_root.join("build.omg")).is_ok_and(|build| {
-        build.contains("builder.depend(Source::Path") && build.contains("source/library/std")
-    })
-}
-
 fn fixture_package_identity(marker: u8) -> PackageKeyIdentity {
     PackageKeyIdentity::from_digest([marker; 32])
         .expect("repository fixture package identity is nonzero")
 }
 
+/// The bundled standard library's root.
+///
+/// Package mode is never decided from this path. It is named here only so the
+/// standard library keeps one fixed fixture identity (marker 2), which the
+/// entry and dangerous-service acceptance below must be able to name.
+fn bundled_standard_library_root() -> PathBuf {
+    repo_root().join("source/library/std")
+}
+
+/// One dependency a fixture authored in its own `build.omg`, resolved against
+/// the project that declared it.
+#[derive(Debug)]
+struct FixturePathDependency {
+    /// The alias the requester imports this dependency under: the explicit
+    /// `depend_as` literal when the fixture authored one, otherwise the
+    /// dependency package's declared name with `-` replaced by `_`.
+    alias: String,
+    /// Whether the fixture authored the alias itself.
+    explicit_alias: bool,
+    /// The name the dependency's own `build.omg` declares.
+    package_name: String,
+    /// The dependency root the authored location resolved to, canonicalized.
+    location: PathBuf,
+    /// Which scope the authored row authorizes.
+    purpose: DependencyPurpose,
+}
+
+/// The reader's entry to fixture package mode: exactly the dependencies a
+/// fixture authored, read through the build vocabulary that owns them.
+///
+/// A fixture compiles in package mode when — and only when — its `build.omg`
+/// authors at least one unconditional `builder.depend`, `depend_as`,
+/// `build_depend` or `build_depend_as` row. A project with no `build.omg`, or
+/// one with no dependency row, compiles without package inputs. Every row must
+/// name `Source::Path { location: "<path>" }`; that location must resolve
+/// relative to the declaring project; and the directory it names must itself
+/// declare `builder.package(...)`. Nothing else is admitted: the harness never
+/// supplies a location, a package name or an alias the fixture did not author,
+/// and every such departure panics with the fixture and the authored text
+/// rather than quietly dropping the edge. Conditional `*_when` vocabulary
+/// never projects a row, so a fixture that authors it is rejected here too.
+///
+/// A `build.omg` that does not lex, parse, or project a build entry or its
+/// rows is not the harness's to judge: the compiler rejects it with the
+/// diagnostic the fixture exists to pin (`fail/build/*`), so such a fixture
+/// wires nothing and compiles without package inputs.
+fn fixture_path_dependencies(project_root: &Path) -> Vec<FixturePathDependency> {
+    let Ok(source) = fs::read_to_string(project_root.join("build.omg")) else {
+        return Vec::new();
+    };
+    let Ok(tokens) = Lexer::new(&source).tokenize() else {
+        return Vec::new();
+    };
+    let Ok(trees) = parse_syntax_trees(&tokens) else {
+        return Vec::new();
+    };
+    let Ok(build) = project_build_entry_syntax(&trees) else {
+        return Vec::new();
+    };
+    let Ok(rows) = project_dependency_rows(&trees, &build) else {
+        return Vec::new();
+    };
+    // Conditional `*_when` vocabulary is recognized but never projects a row,
+    // so a fixture authoring it would compile without that edge; refuse it the
+    // way the package manager does, by name, over the entry's own statements.
+    let entry = trees.items.state(build.build_entry());
+    for statement_handle in trees.items.statements(entry.statements) {
+        let StatementNode::Call(call) = trees.statements.statement(*statement_handle) else {
+            continue;
+        };
+        assert!(
+            !is_dependency_call_name(call.target.as_str())
+                || rows.iter().any(|row| row.statement() == *statement_handle),
+            "fixture {} authors `{}`, conditional dependency vocabulary that projects no row the harness could wire",
+            project_root.display(),
+            call.target.as_str()
+        );
+    }
+    rows.into_iter()
+        .map(|row| {
+            let location = fixture_dependency_location(&trees, project_root, row.source());
+            let package_name = fixture_dependency_package_name(project_root, &location);
+            let authored_alias = row
+                .alias()
+                .map(|handle| fixture_build_string_literal(&trees, project_root, handle));
+            FixturePathDependency {
+                alias: authored_alias
+                    .clone()
+                    .unwrap_or_else(|| package_name.replace('-', "_")),
+                explicit_alias: authored_alias.is_some(),
+                package_name,
+                location,
+                purpose: row.purpose(),
+            }
+        })
+        .collect()
+}
+
+/// Read one authored `Source::Path { location }` and resolve it against the
+/// declaring project. Every other source kind is a fixture the harness cannot
+/// acquire, so it fails loudly instead of compiling without the edge.
+fn fixture_dependency_location(
+    trees: &SyntaxTrees,
+    project_root: &Path,
+    source: ExpressionHandle,
+) -> PathBuf {
+    let ExpressionNode::StructLiteral(literal) = trees.expressions.expression(source) else {
+        panic!(
+            "fixture {} declares an unsupported dependency source: the canary harness wires only a direct `Source::Path` literal",
+            project_root.display()
+        )
+    };
+    let constructor = literal.constructor_name.as_str();
+    let (type_name, case_name) = constructor
+        .rsplit_once("::")
+        .map_or((constructor, None), |(owner, case)| (owner, Some(case)));
+    assert!(
+        type_name == "Source" && case_name == Some("Path"),
+        "fixture {} declares an unsupported dependency source `{constructor}`: the canary harness wires only `Source::Path`",
+        project_root.display()
+    );
+    let [field] = trees.expressions.struct_fields(literal.fields) else {
+        panic!(
+            "fixture {}: `Source::Path` takes exactly a `location` field",
+            project_root.display()
+        )
+    };
+    assert_eq!(
+        field.name.as_str(),
+        "location",
+        "fixture {}: `Source::Path` takes exactly a `location` field",
+        project_root.display()
+    );
+    let authored = fixture_build_string_literal(trees, project_root, field.value);
+    fs::canonicalize(project_root.join(&authored)).unwrap_or_else(|error| {
+        panic!(
+            "fixture {} declares dependency location `{authored}`, which does not resolve: {error}",
+            project_root.display()
+        )
+    })
+}
+
+/// The dependency's own declared package name. A fixture cannot depend on a
+/// directory that declares no package, and the harness never types the name in.
+fn fixture_dependency_package_name(project_root: &Path, location: &Path) -> String {
+    match extract_build_declaration(location) {
+        Ok(BuildDeclaration::Package(package)) => package.name.into_string(),
+        Ok(_) => panic!(
+            "fixture {} depends on {}, which declares no package",
+            project_root.display(),
+            location.display()
+        ),
+        Err(error) => panic!(
+            "fixture {} depends on {}: {error}",
+            project_root.display(),
+            location.display()
+        ),
+    }
+}
+
+fn fixture_build_string_literal(
+    trees: &SyntaxTrees,
+    project_root: &Path,
+    handle: ExpressionHandle,
+) -> String {
+    let ExpressionNode::String(bytes) = trees.expressions.expression(handle) else {
+        panic!(
+            "fixture {}: dependency arguments must be direct string literals",
+            project_root.display()
+        )
+    };
+    std::str::from_utf8(bytes)
+        .unwrap_or_else(|_| {
+            panic!(
+                "fixture {}: dependency literal is not utf8",
+                project_root.display()
+            )
+        })
+        .to_owned()
+}
+
+/// Restate a fixture's authored dependency rows for a scratch copy of its
+/// source.
+///
+/// A scratch copy loses the fixture's directory, so each authored location is
+/// restated as the absolute path it resolved to; the operation and an
+/// explicitly authored alias are preserved exactly as the fixture wrote them.
+fn fixture_dependency_declarations(project_root: &Path) -> String {
+    fixture_path_dependencies(project_root)
+        .iter()
+        .map(|dependency| {
+            let location = dependency.location.to_string_lossy().replace('\\', "/");
+            let operation = if dependency.purpose.is_product() {
+                "depend"
+            } else {
+                "build_depend"
+            };
+            if dependency.explicit_alias {
+                format!(
+                    "    builder.{operation}_as(\"{}\", Source::Path {{\n        location: \"{location}\"\n    }});\n",
+                    dependency.alias
+                )
+            } else {
+                format!(
+                    "    builder.{operation}(Source::Path {{\n        location: \"{location}\"\n    }});\n"
+                )
+            }
+        })
+        .collect()
+}
+
+/// Package inputs for a repository fixture, or `None` when it authored no
+/// dependency at all.
+///
+/// Identities: the compilation root takes marker 1 and the bundled standard
+/// library marker 2 — pinned so entry and dangerous-service acceptance can
+/// name it — and every other package takes the next free marker in the order
+/// the walk reaches it. Edges project transitively: a dependency's own
+/// authored rows join the same inputs. Product edges authorize imports for
+/// every package in scope, while a build edge authorizes only the compilation
+/// root's build entry, exactly as the package manager's compiler input does,
+/// because a dependency's build context resolves in its own compilation where
+/// that package is the root.
 fn repository_fixture_package_inputs(root_path: &Path) -> Option<PackageCompilationInputs> {
     let project_root = root_path
         .parent()
         .expect("fixture source has a project root");
-    if !fixture_declares_ordinary_std(project_root) {
+    if fixture_path_dependencies(project_root).is_empty() {
         return None;
     }
 
@@ -3489,29 +3715,131 @@ fn repository_fixture_package_inputs(root_path: &Path) -> Option<PackageCompilat
         }
     };
     let root_identity = fixture_package_identity(1);
-    let standard_library_identity = fixture_package_identity(2);
-    let packages = vec![
-        PackageSourceBinding::new(
-            root_identity,
-            root_name.into_string(),
-            project_root.to_path_buf(),
-        ),
-        PackageSourceBinding::new(
-            standard_library_identity,
-            "omega-language-std",
-            repo_root().join("source/library/std"),
-        ),
-    ];
-    let dependencies = vec![PackageDependencyBinding::new(
+    let standard_library_root = fs::canonicalize(bundled_standard_library_root())
+        .expect("bundled standard library root resolves");
+
+    let mut packages = vec![PackageSourceBinding::new(
         root_identity,
-        "omega_language_std",
-        standard_library_identity,
+        root_name.into_string(),
+        project_root.to_path_buf(),
     )];
+    let mut dependencies = Vec::new();
+    let mut bound: HashMap<PathBuf, PackageKeyIdentity> = HashMap::new();
+    bound.insert(
+        fs::canonicalize(project_root)
+            .unwrap_or_else(|error| panic!("fixture {}: {error}", project_root.display())),
+        root_identity,
+    );
+    let mut next_marker: u8 = 3;
+    let mut pending = vec![(project_root.to_path_buf(), root_identity)];
+    while let Some((requester_root, requester)) = pending.pop() {
+        for dependency in fixture_path_dependencies(&requester_root) {
+            if !dependency.purpose.is_product() && requester != root_identity {
+                continue;
+            }
+            let target = match bound.get(&dependency.location) {
+                Some(bound_target) => *bound_target,
+                None => {
+                    let identity = if dependency.location == standard_library_root {
+                        fixture_package_identity(2)
+                    } else {
+                        let marker = next_marker;
+                        next_marker = next_marker
+                            .checked_add(1)
+                            .expect("fixture package markers stay distinct");
+                        fixture_package_identity(marker)
+                    };
+                    packages.push(PackageSourceBinding::new(
+                        identity,
+                        dependency.package_name.clone(),
+                        dependency.location.clone(),
+                    ));
+                    bound.insert(dependency.location.clone(), identity);
+                    pending.push((dependency.location.clone(), identity));
+                    identity
+                }
+            };
+            dependencies.push(PackageDependencyBinding::for_purpose(
+                requester,
+                dependency.alias.as_str(),
+                target,
+                dependency.purpose,
+            ));
+        }
+    }
 
     Some(
         PackageCompilationInputs::new(root_identity, root_role, packages, dependencies)
             .unwrap_or_else(|errors| panic!("fixture {}: {errors:#?}", project_root.display())),
     )
+}
+
+#[test]
+fn fixture_dependency_projection_rejects_an_unresolvable_authored_location() {
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-canary-missing-dependency-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+    fs::create_dir_all(&scratch).expect("create missing-dependency scratch project");
+    fs::write(
+        scratch.join("build.omg"),
+        "machine build(builder: &mut Build) {\n    builder.application(\"missing-dependency-fixture\");\n    builder.depend(Source::Path { location: \"does-not-exist\" });\n}\n",
+    )
+    .expect("write missing-dependency build");
+    let failure = std::panic::catch_unwind(|| fixture_path_dependencies(&scratch))
+        .expect_err("an unresolvable authored location must fail loudly");
+    let message = failure
+        .downcast_ref::<String>()
+        .cloned()
+        .or_else(|| {
+            failure
+                .downcast_ref::<&str>()
+                .map(|text| (*text).to_owned())
+        })
+        .expect("panic payload is a message");
+    assert!(
+        message.contains("declares dependency location `does-not-exist`"),
+        "unexpected rejection: {message}"
+    );
+    let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
+fn fixture_dependency_projection_keeps_the_authored_alias_and_declared_name() {
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-canary-aliased-dependency-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+    fs::create_dir_all(&scratch).expect("create aliased-dependency scratch project");
+    let standard_library = bundled_standard_library_root()
+        .to_string_lossy()
+        .replace('\\', "/");
+    fs::write(
+        scratch.join("build.omg"),
+        format!(
+            "machine build(builder: &mut Build) {{\n    builder.application(\"aliased-dependency-fixture\");\n    builder.depend_as(\"stdlib\", Source::Path {{ location: \"{standard_library}\" }});\n}}\n"
+        ),
+    )
+    .expect("write aliased-dependency build");
+    let projected = fixture_path_dependencies(&scratch);
+    let [dependency] = projected.as_slice() else {
+        panic!("one authored dependency projects one row")
+    };
+    assert_eq!(dependency.alias, "stdlib");
+    assert!(dependency.explicit_alias);
+    assert_eq!(dependency.package_name, "omega-language-std");
+    assert_eq!(
+        dependency.location,
+        fs::canonicalize(bundled_standard_library_root())
+            .expect("bundled standard library root resolves")
+    );
+    assert!(
+        fixture_dependency_declarations(&scratch).contains("builder.depend_as(\"stdlib\","),
+        "a scratch copy restates the authored alias"
+    );
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 fn fixture_uses_std(source: &str, package_name: &str, bundled_path: &str) -> bool {
@@ -3581,40 +3909,52 @@ fn reviewed_repository_fixture_package_inputs(
     let Some(mut package_inputs) = repository_fixture_package_inputs(root_path) else {
         return Ok(None);
     };
+    // Entry and dangerous-service acceptance admit declarations the bundled
+    // standard library owns, so they apply only to a fixture that authored a
+    // dependency on it. `repository_fixture_package_inputs` pins that
+    // package's fixture identity for exactly this reason; nothing else here
+    // decides package mode.
+    let standard_library_identity = fixture_package_identity(2);
+    let declares_standard_library = package_inputs
+        .packages()
+        .any(|(identity, _)| identity == standard_library_identity);
+    let standard_library_root = bundled_standard_library_root();
     let mut bindings = Vec::new();
-    if target_name == Some("macos_arm64") {
-        bindings.push(macos_entry_acceptance::candidate_macos_entry_binding(
-            &repo_root().join("source/library/std"),
-            fixture_package_identity(2),
-        )?);
-    }
-    if target_name == Some("linux_x86_64") {
-        bindings.push(
-            linux_entry_acceptance::candidate_linux_x86_64_entry_binding(
-                &repo_root().join("source/library/std"),
-                fixture_package_identity(2),
-            )?,
-        );
-    }
-    if target_name == Some("linux_arm64") {
-        bindings.push(linux_entry_acceptance::candidate_linux_arm64_entry_binding(
-            &repo_root().join("source/library/std"),
-            fixture_package_identity(2),
-        )?);
-    }
-    if target_name == Some("windows_x86_64") {
-        bindings.push(
-            windows_entry_acceptance::candidate_windows_x86_64_entry_binding(
-                &repo_root().join("source/library/std"),
-                fixture_package_identity(2),
-            )?,
-        );
-    }
-    if target_name == Some("uefi_x86_64") {
-        bindings.push(uefi_entry_acceptance::candidate_uefi_entry_binding(
-            &repo_root().join("source/library/std"),
-            fixture_package_identity(2),
-        )?);
+    if declares_standard_library {
+        if target_name == Some("macos_arm64") {
+            bindings.push(macos_entry_acceptance::candidate_macos_entry_binding(
+                &standard_library_root,
+                standard_library_identity,
+            )?);
+        }
+        if target_name == Some("linux_x86_64") {
+            bindings.push(
+                linux_entry_acceptance::candidate_linux_x86_64_entry_binding(
+                    &standard_library_root,
+                    standard_library_identity,
+                )?,
+            );
+        }
+        if target_name == Some("linux_arm64") {
+            bindings.push(linux_entry_acceptance::candidate_linux_arm64_entry_binding(
+                &standard_library_root,
+                standard_library_identity,
+            )?);
+        }
+        if target_name == Some("windows_x86_64") {
+            bindings.push(
+                windows_entry_acceptance::candidate_windows_x86_64_entry_binding(
+                    &standard_library_root,
+                    standard_library_identity,
+                )?,
+            );
+        }
+        if target_name == Some("uefi_x86_64") {
+            bindings.push(uefi_entry_acceptance::candidate_uefi_entry_binding(
+                &standard_library_root,
+                standard_library_identity,
+            )?);
+        }
     }
     if !bindings.is_empty() {
         package_inputs = package_inputs
@@ -3638,6 +3978,12 @@ fn reviewed_repository_fixture_package_inputs(
     {
         return Ok(Some(package_inputs));
     }
+    if !declares_standard_library {
+        return Err(vec![Diagnostic::error(format!(
+            "fixture {} accepts a dangerous standard-library service but authors no dependency on the bundled standard library",
+            root_path.display()
+        ))]);
+    }
 
     // These canaries explicitly exercise and accept dangerous standard-library
     // services. Source spelling selects only this repository's test policy;
@@ -3653,7 +3999,7 @@ fn reviewed_repository_fixture_package_inputs(
             preliminary
                 .candidate_service_binding(
                     AcceptedSemanticBindingRole::FilesystemHostService,
-                    fixture_package_identity(2),
+                    standard_library_identity,
                     "FilesystemHost",
                 )
                 .map_err(|diagnostic| vec![diagnostic])?,
@@ -3662,7 +4008,7 @@ fn reviewed_repository_fixture_package_inputs(
     if accepts_console_exit || accepts_console_output || accepts_console_input {
         bindings.push(console_acceptance::candidate_console_exit_binding(
             &preliminary,
-            fixture_package_identity(2),
+            standard_library_identity,
             accepts_console_output,
             accepts_console_input,
         )?);
@@ -3670,7 +4016,7 @@ fn reviewed_repository_fixture_package_inputs(
     if accepts_process_exit {
         bindings.push(process_exit_acceptance::candidate_process_exit_binding(
             &preliminary,
-            fixture_package_identity(2),
+            standard_library_identity,
         )?);
     }
     package_inputs
@@ -3712,49 +4058,27 @@ fn hosted_main_program_entry_build(target: &str) -> String {
     )
 }
 
-fn hosted_main_program_entry_build_with_std(target: &str) -> String {
-    let root_owner = hosted_program_entry_owner(target);
-    let standard_library = repo_root()
-        .join("source/library/std")
-        .to_string_lossy()
-        .replace('\\', "/");
+/// An entry-free application build for a fixture copied without its authored
+/// `build.omg`: restates every dependency the fixture authored so its source
+/// still resolves the aliases it imports, while leaving every ProgramEntry
+/// slot unbound on purpose.
+fn entry_free_fixture_build(canary: &Path) -> String {
     format!(
-        "machine build(builder: &mut Build) {{\n    builder.application(\"hosted-main-program-entry\");\n    builder.depend(Source::Path {{\n        location: \"{standard_library}\"\n    }});\n    builder.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n"
+        "machine build(builder: &mut Build) {{\n    builder.application(\"entry-free-fixture\");\n{}}}\n",
+        fixture_dependency_declarations(canary)
     )
 }
 
-/// An entry-free application build for a fixture copied without its authored
-/// `build.omg`: keeps the ordinary standard-library dependency by absolute
-/// repository path so the source still resolves `omega_language_std`, while
-/// leaving every ProgramEntry slot unbound on purpose.
-fn entry_free_fixture_build(canary: &Path) -> String {
-    let mut build =
-        "machine build(builder: &mut Build) {\n    builder.application(\"entry-free-fixture\");\n"
-            .to_owned();
-    if fixture_declares_ordinary_std(canary) {
-        let standard_library = repo_root()
-            .join("source/library/std")
-            .to_string_lossy()
-            .replace('\\', "/");
-        build.push_str(&format!(
-            "    builder.depend(Source::Path {{\n        location: \"{standard_library}\"\n    }});\n"
-        ));
-    }
-    build.push_str("}\n");
-    build
-}
-
 /// The hosted ProgramEntry build for a fixture copied into a scratch project:
-/// fixtures whose authored `build.omg` declares the ordinary standard library
-/// keep that dependency through an absolute repository path, so module
-/// resolution finds `omega_language_std` instead of probing a sibling
-/// directory of the copied source.
+/// the copy restates whatever dependencies the fixture authored, through
+/// absolute paths, so module resolution finds those packages instead of
+/// probing a sibling directory of the copied source.
 fn hosted_main_program_entry_build_for(canary: &Path, target: &str) -> String {
-    if fixture_declares_ordinary_std(canary) {
-        hosted_main_program_entry_build_with_std(target)
-    } else {
-        hosted_main_program_entry_build(target)
-    }
+    let root_owner = hosted_program_entry_owner(target);
+    format!(
+        "machine build(builder: &mut Build) {{\n    builder.application(\"hosted-main-program-entry\");\n{}    builder.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n",
+        fixture_dependency_declarations(canary)
+    )
 }
 
 fn hosted_program_entry_owner(target: &str) -> &'static str {
@@ -3769,10 +4093,9 @@ fn hosted_program_entry_owner(target: &str) -> &'static str {
 
 /// The cross-target application build written for a fixture copied into a
 /// scratch project: binds the compiled target's `ProgramEntry` to `Main::main`
-/// so native production passes exact entry admission, keeps the ordinary
-/// standard-library dependency by absolute repository path when the authored
-/// fixture declares it, and mirrors the authored freestanding EFI profile for
-/// `uefi_x86_64`.
+/// so native production passes exact entry admission, restates the
+/// dependencies the fixture authored through absolute paths, and mirrors the
+/// authored freestanding EFI profile for `uefi_x86_64`.
 fn cross_target_program_entry_build(canary: &Path, target: &str) -> String {
     let root_owner = match target {
         "uefi_x86_64" => "uefi_x86_64",
@@ -3781,15 +4104,7 @@ fn cross_target_program_entry_build(canary: &Path, target: &str) -> String {
     let mut build =
         "machine build(builder: &mut Build) {\n    builder.application(\"cross-target-canary\");\n"
             .to_owned();
-    if fixture_declares_ordinary_std(canary) {
-        let standard_library = repo_root()
-            .join("source/library/std")
-            .to_string_lossy()
-            .replace('\\', "/");
-        build.push_str(&format!(
-            "    builder.depend(Source::Path {{\n        location: \"{standard_library}\"\n    }});\n"
-        ));
-    }
+    build.push_str(&fixture_dependency_declarations(canary));
     if target == "uefi_x86_64" {
         build.push_str(
             "    builder.subsystem = Subsystem::EfiApplication;\n    builder.freestanding = true;\n",
@@ -3896,8 +4211,8 @@ fn bump_allocator_canary_consumes_the_alloc_package_through_the_depend_edge() {
     // than a copied contract.
     let pass = pass_canary(fixture_roster::ALLOC_BUMP_ALLOCATOR_CANARY);
     let root = pass.join("main.omg");
-    let package_inputs = task_runtime::depend_edge_package_inputs(&root)
-        .expect("the depend edge wires package inputs");
+    let package_inputs =
+        repository_fixture_package_inputs(&root).expect("the depend edge wires package inputs");
     let checked = compile_to_checked(CheckedCompileRequest {
         package_inputs: Some(package_inputs),
         ..CheckedCompileRequest::new(&root, None)
