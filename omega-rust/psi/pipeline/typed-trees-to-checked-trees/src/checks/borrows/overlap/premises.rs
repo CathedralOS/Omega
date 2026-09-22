@@ -163,6 +163,16 @@ impl PremiseScope<'_> {
                                 (facts::PlaceRoot::Symbol(symbol), []) => {
                                     Some(NormalizedBound::Storage { symbol })
                                 }
+                                // A member-of-self actual (`&mut self.cut`)
+                                // writes the projected coordinate: the bound
+                                // is that coordinate's post-call contents.
+                                (
+                                    facts::PlaceRoot::Symbol(symbol),
+                                    [segment @ facts::PlaceSegment::Field { .. }],
+                                ) => Some(NormalizedBound::StorageProjected {
+                                    symbol,
+                                    segment: *segment,
+                                }),
                                 _ => None,
                             }
                         }),
