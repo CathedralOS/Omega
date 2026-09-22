@@ -3850,47 +3850,114 @@ fn fixture_dependency_projection_keeps_the_authored_alias_and_declared_name() {
     let _ = fs::remove_dir_all(&scratch);
 }
 
-fn fixture_uses_std(source: &str, package_name: &str, bundled_path: &str) -> bool {
-    source.contains(&format!("omega_language_std::{package_name}"))
-        || source.contains(&format!("omega::language::std::{bundled_path}"))
-        || source.contains(&format!("platform::{bundled_path}"))
+/// A scratch fixture depending on the bundled standard library under `alias`,
+/// with the given `main.omg`, compiled to its preliminary checked graph and
+/// projected for the dangerous services it requires.
+fn dangerous_service_projection_of_scratch_fixture(
+    scratch_name: &str,
+    alias: Option<&str>,
+    main: &str,
+) -> dangerous_service_acceptance::RequiredDangerousServices {
+    let scratch = std::env::temp_dir().join(format!("{scratch_name}-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&scratch);
+    fs::create_dir_all(&scratch).expect("create dangerous-service scratch project");
+    let standard_library = bundled_standard_library_root()
+        .to_string_lossy()
+        .replace('\\', "/");
+    let dependency = match alias {
+        Some(alias) => format!(
+            "    builder.depend_as(\"{alias}\", Source::Path {{ location: \"{standard_library}\" }});\n"
+        ),
+        None => {
+            format!("    builder.depend(Source::Path {{ location: \"{standard_library}\" }});\n")
+        }
+    };
+    fs::write(
+        scratch.join("build.omg"),
+        format!(
+            "machine build(builder: &mut Build) {{\n    builder.application(\"{scratch_name}\");\n{dependency}}}\n"
+        ),
+    )
+    .expect("write dangerous-service scratch build");
+    let root = scratch.join("main.omg");
+    fs::write(&root, main).expect("write dangerous-service scratch main");
+    let package_inputs = repository_fixture_package_inputs(&root)
+        .expect("the authored standard-library dependency wires package inputs");
+    let preliminary = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs),
+        ..CheckedCompileRequest::new(&root, None)
+    })
+    .unwrap_or_else(|diagnostics| {
+        panic!(
+            "dangerous-service scratch fixture should reach checked trees:\n{}",
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+    let required = dangerous_service_acceptance::required_dangerous_services(
+        &preliminary,
+        fixture_package_identity(2),
+    );
+    let _ = fs::remove_dir_all(&scratch);
+    required
 }
 
-fn fixture_accepts_filesystem_service(root_path: &Path) -> bool {
-    fs::read_to_string(root_path).is_ok_and(|source| {
-        fixture_uses_std(&source, "filesystem", "filesystem")
-            || fixture_uses_std(&source, "filesystem_host", "filesystem_host")
-    })
+#[test]
+fn dangerous_service_projection_ignores_a_service_named_only_in_a_comment() {
+    // Both spellings the retired substring policy keyed on appear here, but
+    // only in a comment: the program selects no standard-library provider and
+    // resolves no call against one, so it accepts nothing.
+    let required = dangerous_service_projection_of_scratch_fixture(
+        "omega-canary-commented-console",
+        None,
+        "// Mentions omega_language_std::console and .exit_process( without using either.\n\
+         data Main { value: i32; }\n\
+         machine Main::main(&mut self) {\n\
+             self.value = 70;\n\
+         }\n",
+    );
+    assert_eq!(
+        required,
+        dangerous_service_acceptance::RequiredDangerousServices::default(),
+        "a service named only in a comment projects no requirement"
+    );
 }
 
-fn fixture_accepts_console_exit(root_path: &Path) -> bool {
-    fs::read_to_string(root_path).is_ok_and(|source| {
-        fixture_uses_std(&source, "console", "console") && source.contains(".exit_process(")
-    })
+#[test]
+fn dangerous_service_projection_reads_console_exit_through_a_package_alias() {
+    // The standard library is imported under the authored alias `stdlib`, a
+    // spelling the retired substring policy never matched; the checked graph
+    // still selects its Console provider and resolves `exit_process` against
+    // it, and nothing else.
+    let required = dangerous_service_projection_of_scratch_fixture(
+        "omega-canary-aliased-console-exit",
+        Some("stdlib"),
+        "use stdlib::console;\n\
+         use omega::language::core::service;\n\
+         data Main { console: Service<Console>; }\n\
+         machine Main::main(&mut self) reaches Console {\n\
+             self.console.exit_process(70);\n\
+         }\n",
+    );
+    assert_eq!(
+        required,
+        dangerous_service_acceptance::RequiredDangerousServices {
+            filesystem: false,
+            console: Some(dangerous_service_acceptance::ConsoleUse {
+                exit: true,
+                output: false,
+                input: false,
+            }),
+            process_exit: false,
+        }
+    );
 }
 
-fn fixture_accepts_console_output(root_path: &Path) -> bool {
-    fs::read_to_string(root_path).is_ok_and(|source| {
-        fixture_uses_std(&source, "console", "console")
-            && (source.contains(".write_byte(")
-                || source.contains(".write_line(")
-                || source.contains(".write("))
-    })
-}
-
-fn fixture_accepts_console_input(root_path: &Path) -> bool {
-    fs::read_to_string(root_path).is_ok_and(|source| {
-        fixture_uses_std(&source, "console", "console")
-            && (source.contains(".read_byte(") || source.contains(".read_line("))
-    })
-}
-
-fn fixture_accepts_process_exit(root_path: &Path) -> bool {
-    fs::read_to_string(root_path).is_ok_and(|source| {
-        fixture_uses_std(&source, "process_exit", "process_exit")
-            && source.contains(".exit_process(")
-    })
-}
+#[path = "support/dangerous_service_acceptance.rs"]
+mod dangerous_service_acceptance;
 
 #[path = "support/console_acceptance.rs"]
 mod console_acceptance;
@@ -3981,36 +4048,29 @@ fn reviewed_repository_fixture_package_inputs(
                 ))]
             })?;
     }
-    let accepts_filesystem = fixture_accepts_filesystem_service(root_path);
-    let accepts_console_exit = fixture_accepts_console_exit(root_path);
-    let accepts_console_output = fixture_accepts_console_output(root_path);
-    let accepts_console_input = fixture_accepts_console_input(root_path);
-    let accepts_process_exit = fixture_accepts_process_exit(root_path);
-    if !accepts_filesystem
-        && !accepts_console_exit
-        && !accepts_console_output
-        && !accepts_console_input
-        && !accepts_process_exit
-    {
+    // Dangerous-service acceptance is this repository's test policy, decided
+    // by the program rather than its spelling: the preliminary checked graph
+    // says which standard-library services the fixture selected and which
+    // operations it resolved against them, and every admitted row is then
+    // derived from and replayed against that same graph. A fixture that
+    // authored no dependency on the bundled standard library cannot require
+    // a service it owns, so it is not compiled twice. This is not evidence
+    // that an audit occurred and is not production accepted-lock recovery.
+    if !declares_standard_library {
         return Ok(Some(package_inputs));
     }
-    if !declares_standard_library {
-        return Err(vec![Diagnostic::error(format!(
-            "fixture {} accepts a dangerous standard-library service but authors no dependency on the bundled standard library",
-            root_path.display()
-        ))]);
-    }
-
-    // These canaries explicitly exercise and accept dangerous standard-library
-    // services. Source spelling selects only this repository's test policy;
-    // every admitted row is then derived from and replayed against the exact
-    // preliminary checked graph. This is not evidence that an audit occurred
-    // and is not production accepted-lock recovery.
     let preliminary = compile_to_checked(CheckedCompileRequest {
         package_inputs: Some(package_inputs.clone()),
         ..CheckedCompileRequest::new(root_path, target_name)
     })?;
-    if accepts_filesystem {
+    let required = dangerous_service_acceptance::required_dangerous_services(
+        &preliminary,
+        standard_library_identity,
+    );
+    if !required.any() {
+        return Ok(Some(package_inputs));
+    }
+    if required.filesystem {
         bindings.push(
             preliminary
                 .candidate_service_binding(
@@ -4021,15 +4081,15 @@ fn reviewed_repository_fixture_package_inputs(
                 .map_err(|diagnostic| vec![diagnostic])?,
         );
     }
-    if accepts_console_exit || accepts_console_output || accepts_console_input {
+    if let Some(console) = required.console {
         bindings.push(console_acceptance::candidate_console_exit_binding(
             &preliminary,
             standard_library_identity,
-            accepts_console_output,
-            accepts_console_input,
+            console.output,
+            console.input,
         )?);
     }
-    if accepts_process_exit {
+    if required.process_exit {
         bindings.push(process_exit_acceptance::candidate_process_exit_binding(
             &preliminary,
             standard_library_identity,
