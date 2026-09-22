@@ -143,16 +143,35 @@ impl TypedTrees {
                 if types::PrimitiveType::from_name(name.as_str()).is_some() {
                     return Multiplicity::Unrestricted;
                 }
+                // A resolved symbol is the exact selected declaration: spelled
+                // names such as `shapes::Choice` do not textually equal the
+                // declared leaf `Choice`, and a leaf name can collide across
+                // modules. Match by symbol first; retain the name lookup only
+                // for references whose symbol never resolved.
                 self.data_definitions()
                     .iter()
-                    .find(|definition| definition.name.as_str() == name.as_str())
+                    .find(|definition| symbol.is_valid() && definition.symbol == *symbol)
+                    .or_else(|| {
+                        self.data_definitions()
+                            .iter()
+                            .find(|definition| definition.name.as_str() == name.as_str())
+                    })
                     .map(|definition| definition.properties.multiplicity)
                     .unwrap_or(Multiplicity::Affine)
             }
-            TypeReferenceNode::Generic { base_name, .. } => self
+            TypeReferenceNode::Generic {
+                base_symbol,
+                base_name,
+                ..
+            } => self
                 .data_definitions()
                 .iter()
-                .find(|definition| definition.name.as_str() == base_name.as_str())
+                .find(|definition| base_symbol.is_valid() && definition.symbol == *base_symbol)
+                .or_else(|| {
+                    self.data_definitions()
+                        .iter()
+                        .find(|definition| definition.name.as_str() == base_name.as_str())
+                })
                 .map(|definition| definition.properties.multiplicity)
                 .unwrap_or(Multiplicity::Affine),
             TypeReferenceNode::DynamicTrait { .. } | TypeReferenceNode::Slice { .. } => {

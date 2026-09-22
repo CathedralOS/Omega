@@ -41,6 +41,54 @@ fn lower_case_membership_expression_from_members(
     type_symbol: symbols::SymbolHandle,
     case_symbol: symbols::SymbolHandle,
 ) -> Option<typed::expression::ExpressionHandle> {
+    case_membership_test(
+        program,
+        target,
+        value,
+        domain_members,
+        type_symbol,
+        case_symbol,
+        typed::expression::BinaryOperator::Equal,
+    )
+}
+
+/// A declared-domain fact replayed into an executable membership is a
+/// generated tag observation, not an authored equality use: the fact's tokens
+/// belong to the domain declaration, and the consumer's authored `in`
+/// selection lands on whatever node this replay returns. Keeping the
+/// `CaseMembership` operation explicit -- the same contract structural
+/// equality synthesis uses for its generated tag guards -- lets validation
+/// rejoin the exact subject and carrier without demanding an authored
+/// membership roster, and without letting an attached domain-membership
+/// occurrence reinterpret the node as value equality.
+fn replayed_case_membership_test(
+    program: &resolved::SymbolResolvedTrees,
+    target: &mut typed::TypedTrees,
+    value: typed::expression::ExpressionHandle,
+    domain_members: &[resolved::name::DiagnosticName],
+    type_symbol: symbols::SymbolHandle,
+    case_symbol: symbols::SymbolHandle,
+) -> Option<typed::expression::ExpressionHandle> {
+    case_membership_test(
+        program,
+        target,
+        value,
+        domain_members,
+        type_symbol,
+        case_symbol,
+        typed::expression::BinaryOperator::CaseMembership,
+    )
+}
+
+fn case_membership_test(
+    program: &resolved::SymbolResolvedTrees,
+    target: &mut typed::TypedTrees,
+    value: typed::expression::ExpressionHandle,
+    domain_members: &[resolved::name::DiagnosticName],
+    type_symbol: symbols::SymbolHandle,
+    case_symbol: symbols::SymbolHandle,
+    operator: typed::expression::BinaryOperator,
+) -> Option<typed::expression::ExpressionHandle> {
     let [.., type_name, case_name] = domain_members else {
         return None;
     };
@@ -95,7 +143,7 @@ fn lower_case_membership_expression_from_members(
             .insert(typed::expression::ExpressionNode::Binary(
                 typed::expression::TableBinaryExpression {
                     left: value,
-                    operator: typed::expression::BinaryOperator::Equal,
+                    operator,
                     right: case_reference,
                 },
             )),
@@ -157,13 +205,58 @@ fn lower_atomic_domain_membership_expression(
     for fact in program.proof_facts(domain_definition.facts) {
         let lowered = match fact {
             resolved::domain::ProofFact::Expression(expression) => {
-                lower_expression_handle_from_table_with_self_substitution(
-                    Some(program),
-                    source,
-                    target,
-                    *expression,
-                    Some(value),
-                )?
+                // A normalized case-membership fact replays as a generated
+                // tag test, not the authored `==` form: the authored roster
+                // on the domain-site membership stays bound to the domain's
+                // own lowered fact, while the consumer's `in` selection lands
+                // on this replay root.
+                match source.expression(*expression) {
+                    resolved::expression::ExpressionNode::Membership(membership)
+                        if membership.case_type_symbol.is_valid()
+                            && membership.case_symbol.is_valid() =>
+                    {
+                        let nested_value =
+                            lower_expression_handle_from_table_with_self_substitution(
+                                Some(program),
+                                source,
+                                target,
+                                membership.value,
+                                Some(value),
+                            )?;
+                        let generated = replayed_case_membership_test(
+                            program,
+                            target,
+                            nested_value,
+                            source.name_path_members(membership.domain),
+                            membership.case_type_symbol,
+                            membership.case_symbol,
+                        )
+                        .ok_or_else(|| {
+                            Diagnostic::error(
+                                "replayed domain case membership lost its selected owner or case",
+                            )
+                        })?;
+                        target
+                            .expression_table
+                            .set_source_span(generated, source.source_span(*expression));
+                        target
+                            .expression_table
+                            .attach_authored_selection_occurrences(
+                                generated,
+                                source
+                                    .authored_selection_occurrences(*expression)
+                                    .collect::<Vec<_>>(),
+                            );
+                        generated
+                    }
+                    _ => lower_expression_handle_from_table_with_self_substitution(
+                        Some(program),
+                        source,
+                        target,
+                        *expression,
+                        Some(value),
+                    )?,
+                }
             }
             resolved::domain::ProofFact::Membership(membership) => {
                 let nested_value = lower_expression_handle_from_table_with_self_substitution(
@@ -175,7 +268,7 @@ fn lower_atomic_domain_membership_expression(
                 )?;
                 let (case_type_symbol, case_symbol) =
                     case_symbols_for_domain_fact(program, membership.domain);
-                if let Some(case_membership) = lower_case_membership_expression_from_members(
+                if let Some(case_membership) = replayed_case_membership_test(
                     program,
                     target,
                     nested_value,
