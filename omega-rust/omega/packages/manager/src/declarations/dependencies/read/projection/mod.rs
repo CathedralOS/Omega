@@ -1,9 +1,9 @@
 use super::error::DependencyProjectionError;
-use super::model::{
+use super::policy::{reject_authored_toolchain_vocabulary, reject_unprojected_dependency_syntax};
+use super::{
     BuildDependencyProjection, DependencyProjections, DependencyPurpose, DependencySourceRequest,
     ProjectedDependencies,
 };
-use super::policy::{reject_authored_toolchain_vocabulary, reject_unprojected_dependency_syntax};
 use crate::declarations::roles::convert_shared_declaration;
 use build_declarations as shared;
 use source_files_to_tokens::Lexer;

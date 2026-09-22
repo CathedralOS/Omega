@@ -1,4 +1,4 @@
-use super::model::{
+use super::{
     HistoricalPackagePolicyDecision, HistoricalPackagePolicyDecisionSubject,
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyError as Error,
     HistoricalPackagePolicyLimits, HistoricalPackagePolicyRecoveryUsage,

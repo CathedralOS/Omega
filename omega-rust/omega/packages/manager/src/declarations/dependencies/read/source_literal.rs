@@ -1,5 +1,5 @@
 use super::error::DependencyProjectionError;
-use super::model::{DependencySourceRequest, PackageSelection};
+use super::{DependencySourceRequest, PackageSelection};
 use crate::declarations::{AliasName, PackageName};
 
 use syntax_trees::SyntaxTrees;

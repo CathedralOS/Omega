@@ -2,8 +2,8 @@
 
 use std::fmt;
 
+use super::ReviewSetRole;
 use super::format::review_role_token;
-use super::model::ReviewSetRole;
 use crate::declarations::PackageKey;
 
 #[derive(Debug)]

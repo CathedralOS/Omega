@@ -3,7 +3,10 @@
 use super::format::{
     change_tag, row_kind_tag, row_risk_tag, source_location_role_tag, synthetic_source_kind_tag,
 };
-use super::model::*;
+use super::{
+    ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflictChange,
+    ReviewOnlyCapabilityConflictError, ReviewOnlyCapabilityConflictFingerprint,
+};
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
 use crate::resolution::graph::{

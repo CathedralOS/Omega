@@ -1,7 +1,7 @@
 //! One borrowed predecessor tree for a batch of package explanation paths.
 
 use super::ResolvedPackageSourceClosure;
-use super::model::{DependencyRequestPath, DependencyRequestPathStep};
+use super::{DependencyRequestPath, DependencyRequestPathStep};
 use crate::declarations::PackageKey;
 
 /// Local to a comparison over an immutable closure. Entries name graph-owned

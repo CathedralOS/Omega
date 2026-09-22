@@ -1,6 +1,6 @@
 //! Build edit planning and source-qualified update selection.
 
-use super::model::{PackageCommandError, PackageCommandKind, failure};
+use super::{PackageCommandError, PackageCommandKind, failure};
 use crate::declarations::{
     AliasName, BuildDependencyEditPlan, BuildFileReplacement, DependencySourceRequest, PackageKey,
     PackageName, PackageSelection, plan_dependency_addition_from_source,

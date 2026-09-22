@@ -1,12 +1,12 @@
 # Install and update
 
-Enter through [`../package_manager.rs`](../package_manager.rs). The CLI at
+Enter through [`../package_manager.rs`](../package_manager.rs), which also
+declares the commands and outcomes. The CLI at
 `omega/src/cli/arguments/packages.rs` parses arguments; this operation owns resolution,
 checking, review, and publication.
 
 ```text
 package_manager/
-├── model.rs       commands and outcomes
 ├── planning.rs    dependency edits and exact update selections
 ├── change_decisions.rs  compiler findings rendered and the per-change decisions loaded
 ├── source_review.rs  separate bounded source-code diagnostics
