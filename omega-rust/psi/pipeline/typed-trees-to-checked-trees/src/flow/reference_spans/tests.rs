@@ -1,9 +1,9 @@
 use crate::flow::append_constraint_ref;
 use crate::flow::append_flow_contexts;
 use crate::flow::append_flow_contexts_for_points;
-use crate::flow::common::append_flow_reference;
-use crate::flow::common::filter_constraint_refs;
 use crate::flow::project_constraint_refs_to_active_contexts;
+use crate::flow::reference_spans::append_flow_reference;
+use crate::flow::reference_spans::filter_constraint_refs;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
 use crate::tests::front_end::checked_program;

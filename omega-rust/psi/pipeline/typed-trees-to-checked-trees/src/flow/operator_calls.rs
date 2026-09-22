@@ -2,7 +2,7 @@ use crate::flow::CanonicalPlace;
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
 use crate::flow::canonical_place_from_expression;
-use crate::flow::common;
+use crate::flow::reference_spans;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
 use crate::flow::symbol_type_symbol;
@@ -615,7 +615,7 @@ fn append_operator_ensures_context(
     let context = semantic.append_context(point, refs);
     let mut next_contexts =
         retained_flow_contexts(&build.contexts.semantic_context_refs, *active_contexts);
-    common::append_flow_reference(
+    reference_spans::append_flow_reference(
         &mut build.contexts.semantic_context_refs,
         &mut next_contexts,
         FlowSemanticContextRef { context },

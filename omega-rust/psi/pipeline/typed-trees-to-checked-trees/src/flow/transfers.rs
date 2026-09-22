@@ -1,7 +1,7 @@
 use crate::flow::CanonicalPlace;
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
-use crate::flow::common;
+use crate::flow::reference_spans;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
 use arena::HandleSpan;
@@ -823,7 +823,7 @@ pub(super) fn propagate_statement_transfers(
             semantic.refs.append_to_span(&mut group_refs, reference);
         }
         let context = semantic.append_context(point, group_refs);
-        common::append_flow_reference(
+        reference_spans::append_flow_reference(
             &mut build.contexts.semantic_context_refs,
             &mut next_contexts,
             FlowSemanticContextRef { context },

@@ -7,8 +7,8 @@ use crate::flow::apply_call_invalidations;
 use crate::flow::build_call_entry_contexts;
 use crate::flow::build_call_exit_contexts;
 use crate::flow::build_call_requires_contexts;
-use crate::flow::common;
 use crate::flow::proof_contract_call;
+use crate::flow::reference_spans;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
 use arena::HandleSpan;
@@ -338,7 +338,7 @@ fn append_one_to_one_call_carry_facts<'plans>(
         semantic.append_ref(&mut refs, fact);
     }
     let context = semantic.append_context(point, refs);
-    common::append_flow_reference(
+    reference_spans::append_flow_reference(
         &mut build.contexts.semantic_context_refs,
         &mut exit.contexts,
         FlowSemanticContextRef { context },
@@ -430,7 +430,7 @@ fn append_call_result_field_domain_facts<'plans>(
         semantic.append_ref(&mut refs, fact);
     }
     let context = semantic.append_context(point, refs);
-    common::append_flow_reference(
+    reference_spans::append_flow_reference(
         &mut build.contexts.semantic_context_refs,
         &mut exit.contexts,
         FlowSemanticContextRef { context },

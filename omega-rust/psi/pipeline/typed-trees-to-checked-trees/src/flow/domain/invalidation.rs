@@ -1,6 +1,6 @@
 use crate::flow::CanonicalPlace;
 use crate::flow::append_place_segments;
-use crate::flow::common;
+use crate::flow::reference_spans;
 use checked_trees::{
     DomainFacts, FlowInvalidationFact, FlowInvalidationSource, FlowSemanticContextRef,
 };
@@ -24,7 +24,7 @@ pub(crate) fn filter_contexts_after_place_mutations(
         return source;
     }
 
-    common::filter_flow_references(semantic_context_refs, source, |context_ref| {
+    reference_spans::filter_flow_references(semantic_context_refs, source, |context_ref| {
         let context = semantic.contexts.get(context_ref.context);
         let mut invalidated_any = false;
         for fact_ref in semantic.refs.span_or_empty(context.facts) {

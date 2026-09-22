@@ -13,7 +13,7 @@
 use crate::flow::CallFlowContexts;
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
-use crate::flow::common;
+use crate::flow::reference_spans;
 use arena::HandleSpan;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::{BorrowCallFact, FlowConstraintKind, FlowSemanticContextRef};
@@ -236,7 +236,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts(
     }
     for (_, refs) in contexts {
         let context = semantic.append_context(point, refs);
-        common::append_flow_reference(
+        reference_spans::append_flow_reference(
             &mut build.contexts.semantic_context_refs,
             &mut exit.contexts,
             FlowSemanticContextRef { context },

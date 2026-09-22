@@ -1,6 +1,6 @@
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
-use crate::flow::common;
+use crate::flow::reference_spans;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
 use arena::{Handle, HandleSpan};
@@ -267,7 +267,7 @@ fn append_guard_bounds_context(
         retained_flow_contexts(&build.contexts.semantic_context_refs, *active_contexts);
     *active_constraints =
         retained_constraint_refs(&build.contexts.constraint_refs, *active_constraints);
-    common::append_flow_reference(
+    reference_spans::append_flow_reference(
         &mut build.contexts.semantic_context_refs,
         active_contexts,
         FlowSemanticContextRef { context },
@@ -383,7 +383,7 @@ fn append_case_constraint_context(
         retained_flow_contexts(&build.contexts.semantic_context_refs, *active_contexts);
     *active_constraints =
         retained_constraint_refs(&build.contexts.constraint_refs, *active_constraints);
-    common::append_flow_reference(
+    reference_spans::append_flow_reference(
         &mut build.contexts.semantic_context_refs,
         active_contexts,
         FlowSemanticContextRef { context },
@@ -673,7 +673,7 @@ fn append_observation_context(
         retained_flow_contexts(&build.contexts.semantic_context_refs, *active_contexts);
     *active_constraints =
         retained_constraint_refs(&build.contexts.constraint_refs, *active_constraints);
-    common::append_flow_reference(
+    reference_spans::append_flow_reference(
         &mut build.contexts.semantic_context_refs,
         active_contexts,
         FlowSemanticContextRef { context },

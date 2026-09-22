@@ -1,6 +1,6 @@
 //! Exact reference and immutable scalar origins across named-state arguments.
 use crate::flow::FlowBuildContext;
-use crate::flow::common;
+use crate::flow::reference_spans;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use checked_trees::expression::ExpressionNode;
@@ -393,7 +393,7 @@ pub(super) fn rebase_contexts(
             // Global and already state-local contexts are immutable shared
             // evidence. Republishing them at their original point makes the
             // next sibling collect every previous copy again.
-            common::append_flow_reference(
+            reference_spans::append_flow_reference(
                 &mut build.contexts.semantic_context_refs,
                 &mut rebased,
                 source,
@@ -484,7 +484,7 @@ pub(super) fn rebase_contexts(
         }
         if complete || !assumptions {
             let context = semantic.append_context(scoped_point, refs);
-            common::append_flow_reference(
+            reference_spans::append_flow_reference(
                 &mut build.contexts.semantic_context_refs,
                 &mut rebased,
                 FlowSemanticContextRef { context },
