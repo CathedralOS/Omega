@@ -1075,6 +1075,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
             ieee_float_fma: &[],
             native_callbacks: &[],
             callback_thunks: &[],
+            behavior_exclusions: &build_evaluation::BehaviorExclusions::default(),
         },
     )
     .expect("retained Terminal product should realize natively without frontend state")

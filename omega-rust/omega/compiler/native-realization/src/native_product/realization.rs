@@ -141,12 +141,9 @@ pub(super) fn realize(
         ieee_float_fma: &[],
         native_callbacks: &[],
         callback_thunks: &[],
+        behavior_exclusions: &behavior_exclusions,
     };
-    // The retained exclusion union goes to realization as it is: a union
-    // carrying no physical-authority row leaves mechanism adjudication with
-    // nothing to reject, and that judgement belongs to the closure review, not
-    // to a caller choosing between entrances.
-    crate::realize_native_artifact_with_behavior_exclusions(artifact, request, &behavior_exclusions)
+    crate::realize_native_artifact(artifact, request)
         .map_err(|error| error.into_parts().1)?
         .into_direct()
         .map_err(|_| {
@@ -308,6 +305,7 @@ mod tests {
         optimizations: &'request optimization_core::PostTerminalOptimizationSelections,
         providers: &'request effects::SelectedProviderPlanFacts,
         builtins: &'request [NativeCompilerBuiltinSettlement<'request>],
+        behavior_exclusions: &'request BehaviorExclusions,
     ) -> NativeRealizationRequest<'request> {
         NativeRealizationRequest {
             checked_scope: None,
@@ -333,6 +331,7 @@ mod tests {
             ieee_float_fma: &[],
             native_callbacks: &[],
             callback_thunks: &[],
+            behavior_exclusions,
         }
     }
 
@@ -359,7 +358,7 @@ mod tests {
             BehaviorExclusions::from_selections([BehaviorExclusion::PhysicalAuthorityClass(
                 TerminalAuthorityClass::ProcessOutput,
             )]);
-        let error = crate::realize_native_artifact_with_behavior_exclusions(
+        let error = crate::realize_native_artifact(
             terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
                 .expect("artifact bytes replay"),
             exclusion_request(
@@ -370,25 +369,25 @@ mod tests {
                 &optimizations,
                 &providers,
                 &builtins,
+                &exclusions,
             ),
-            &exclusions,
         )
         .expect_err("the admitted intrinsic exercises the excluded class");
         let message = format!("{:?}", error.diagnostics());
         assert!(message.contains("Sink::emit"), "{message}");
         assert!(message.contains("ProcessOutput"), "{message}");
 
-        // Excluding a class no leaf exercises — and the default empty-union
-        // route alike — passes adjudication and proceeds to later stages,
-        // where this minimal fixture then fails the hosted-exit shape check.
-        // The union, not the mechanism inventory, decides the verdict.
+        // Excluding a class no leaf exercises — and the default empty union
+        // alike — passes adjudication and proceeds to later stages, where
+        // this minimal fixture then fails the hosted-exit shape check. The
+        // union, not the mechanism inventory, decides the verdict.
         for excluded in [
             BehaviorExclusions::from_selections([BehaviorExclusion::PhysicalAuthorityClass(
                 TerminalAuthorityClass::PortIo,
             )]),
             BehaviorExclusions::default(),
         ] {
-            let error = crate::realize_native_artifact_with_behavior_exclusions(
+            let error = crate::realize_native_artifact(
                 terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
                     .expect("artifact bytes replay"),
                 exclusion_request(
@@ -399,8 +398,8 @@ mod tests {
                     &optimizations,
                     &providers,
                     &builtins,
+                    &excluded,
                 ),
-                &excluded,
             )
             .expect_err("the fixture entry stops at hosted-exit shape checking");
             let message = format!("{:?}", error.diagnostics());

@@ -1,20 +1,18 @@
 //! Native publication: validate Terminal custody, admit providers, emit, and replay.
 //!
-//! The request supplies realization authority separately from the portable program.
-//! Entry and callback adapters call this same lifecycle; selected optimizations do
-//! not choose a different publication route.
+//! The request supplies realization authority separately from the portable
+//! program, including the retained behavior-exclusion union; selected
+//! optimizations do not choose a different publication route.
 
 mod artifact_assembly;
 mod behavior_exclusions;
 mod boundary_applications;
-mod callback_custody;
 mod callback_thunks;
 mod input_preparation;
 mod object_emission;
 mod optimization_stage;
 mod optimized_fragment_projection;
 mod physical_stage;
-mod program_entry;
 pub(crate) mod providers;
 mod realization_diagnostics;
 mod realization_request;
@@ -24,19 +22,11 @@ pub mod terminal_authority_permissions;
 mod terminal_authority_policy;
 mod terminal_authority_review;
 
-pub use callback_custody::{
-    CallbackCustodyNativeRealizationError, RealizedNativeArtifactWithCallbackCustody,
-    realize_native_artifact_with_callback_custody,
-};
-pub use input_preparation::{
-    PreparedNativeRealizationInput, prepare_native_realization_input,
-    prepare_native_realization_input_with_placed_view_establishments,
-};
-pub use program_entry::realize_program_entry_native_artifact;
+pub use input_preparation::{PreparedNativeRealizationInput, prepare_native_realization_input};
 pub use realization_request::{
     NativeBoundaryRealization, NativeCallbackThunkSettlement, NativeCompilerBuiltinSettlement,
     NativeProviderSettlement, NativeRealizationRequest, RequestedNativeArtifact,
-    RequestedNativeArtifactError, SettledNativeArtifact,
+    RequestedNativeArtifactError,
 };
 pub use terminal_authority_permission_policy::{
     MissingTerminalAuthorityPermission, TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION,
@@ -70,56 +60,26 @@ use self::{
     realization_diagnostics::realization_error,
 };
 
-/// Realize one Terminal artifact using explicit image, custody, and reuse inputs
-/// and no retained behavior exclusions: the no-exclusion form of
-/// [`realize_native_artifact_with_behavior_exclusions`], which is the one
-/// realization entrance. Failure returns the exact image request; no product
-/// is silently substituted.
+/// Realize one Terminal artifact using explicit image, custody, reuse, and
+/// behavior-exclusion inputs. The request's retained behavior-exclusion union
+/// is adjudicated against the mechanism-closure review inside `realize_image`,
+/// so a requested absence holds whether or not the request carries a receiver
+/// permission policy, and a violated exclusion publishes no product. Failure
+/// returns the exact image request; no product is silently substituted.
 pub fn realize_native_artifact(
     artifact: terminal_codec::CanonicalTerminalArtifact,
     request: NativeRealizationRequest<'_>,
 ) -> Result<RequestedNativeArtifact, RequestedNativeArtifactError> {
-    realize_native_artifact_with_behavior_exclusions(
-        artifact,
-        request,
-        &build_evaluation::BehaviorExclusions::default(),
-    )
+    realize_image(artifact, &request).map_err(|diagnostics| RequestedNativeArtifactError {
+        image_request: request.image_request,
+        diagnostics,
+    })
 }
 
-/// Realize one Terminal artifact honoring the retained behavior-exclusion
-/// union its production carried. The physical-authority axis is adjudicated
-/// against the mechanism-closure review inside `realize_image`, so a
-/// requested absence holds whether or not the request carries a receiver
-/// permission policy; a violated exclusion publishes no product. Failure
-/// returns the exact image request; no product is silently substituted.
-pub fn realize_native_artifact_with_behavior_exclusions(
-    artifact: terminal_codec::CanonicalTerminalArtifact,
-    request: NativeRealizationRequest<'_>,
-    behavior_exclusions: &build_evaluation::BehaviorExclusions,
-) -> Result<RequestedNativeArtifact, RequestedNativeArtifactError> {
-    // The semantic-entry custody can only exist when the request carried a
-    // checked ProgramEntry settlement — the program-entry route below retains
-    // it; callers on this route cannot produce one, and the validated join has
-    // already enforced every invariant before this map.
-    realize_image(artifact, &request, behavior_exclusions)
-        .map(|(artifact, _semantic_wrapper_object)| artifact)
-        .map_err(|diagnostics| RequestedNativeArtifactError {
-            image_request: request.image_request,
-            diagnostics,
-        })
-}
-
-pub(crate) fn realize_image(
+fn realize_image(
     artifact: terminal_codec::CanonicalTerminalArtifact,
     request: &NativeRealizationRequest<'_>,
-    behavior_exclusions: &build_evaluation::BehaviorExclusions,
-) -> Result<
-    (
-        RequestedNativeArtifact,
-        Option<crate::StagedValidatedOptimizedProgramStorageSemanticWrapperObject>,
-    ),
-    Vec<Diagnostic>,
-> {
+) -> Result<RequestedNativeArtifact, Vec<Diagnostic>> {
     if let Some(scope) = request.checked_scope {
         scope
             .validate_for_artifact(&artifact)
@@ -148,7 +108,7 @@ pub(crate) fn realize_image(
     let terminal_artifact_identity = *artifact.manifest().identity().as_bytes();
     let input = match request.prepared_input {
         Some(prepared) => prepared.reopen(&artifact, request)?,
-        None => lower_realization_input(semantic_bytes, proof_bytes, request.profile)?,
+        None => lower_realization_input(semantic_bytes, proof_bytes, request.profile, &[])?,
     };
     let receiver_settlement = validate_executable_entry_receiver(
         input.plan(),
@@ -176,7 +136,7 @@ pub(crate) fn realize_image(
     // the review's exercised dispositions whether or not the request carries
     // a permission policy, and a violation publishes no product.
     behavior_exclusions::admit_behavior_exclusion_closure(
-        behavior_exclusions,
+        request.behavior_exclusions,
         &terminal_authority_closure_review,
     )?;
     let emitted = emit_realization_object(
@@ -193,7 +153,6 @@ pub(crate) fn realize_image(
         emitted.semantic_wrapper_object.is_some(),
         receiver_settlement.as_ref(),
     )?;
-    let semantic_wrapper_object = emitted.semantic_wrapper_object;
     assemble_requested_native_artifact(
         artifact,
         emitted.object,
@@ -206,7 +165,6 @@ pub(crate) fn realize_image(
         request.image_request.clone(),
         request,
     )
-    .map(|artifact| (artifact, semantic_wrapper_object))
 }
 
 fn validate_executable_entry_receiver(

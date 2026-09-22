@@ -1,5 +1,9 @@
+use crate::tests::fixtures::NO_BEHAVIOR_EXCLUSIONS;
 use crate::tests::fixtures::checked_source::checked;
-use crate::{NativeProgramEntrySettlement, NativeRealizationRequest};
+use crate::{
+    NativeProgramEntrySettlement, NativeRealizationRequest, RequestedNativeArtifact,
+    RequestedNativeArtifactError,
+};
 
 const RECEIVER_STORE: &str = r#"
     data Main { value: i32; }
@@ -111,7 +115,39 @@ fn request<'request>(
         ieee_float_fma: &[],
         native_callbacks: &[],
         callback_thunks: &[],
+        behavior_exclusions: &NO_BEHAVIOR_EXCLUSIONS,
     }
+}
+
+/// The product route for a receipt-coupled checked `ProgramEntry` artifact:
+/// validate the checked entry settlement against the request, then realize
+/// with the checked scope and entry receipt attached.
+fn realize_checked_entry(
+    produced: terminal_production::ProducedProgramEntryTerminalArtifact,
+    request: NativeRealizationRequest<'_>,
+) -> Result<RequestedNativeArtifact, RequestedNativeArtifactError> {
+    let (artifact, checked_entry, checked_scope, _, _, _) = produced.into_parts();
+    if let Err(error) = crate::validate_native_program_entry_settlement(
+        &artifact,
+        &checked_entry,
+        request.program_entry,
+        request.target,
+    ) {
+        return Err(RequestedNativeArtifactError {
+            image_request: request.image_request,
+            diagnostics: vec![diagnostics::Diagnostic::error(format!(
+                "checked ProgramEntry settlement: {error}"
+            ))],
+        });
+    }
+    crate::realize_native_artifact(
+        artifact,
+        NativeRealizationRequest {
+            checked_scope: Some(&checked_scope),
+            program_entry: request.program_entry.with_checked_entry(&checked_entry),
+            ..request
+        },
+    )
 }
 
 #[test]
@@ -122,9 +158,13 @@ fn executable_entry_rejects_lost_source_receiver_projection() {
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
     let artifact = produced.artifact();
-    let input =
-        super::lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
-            .expect("checked receiver input");
+    let input = super::lower_realization_input(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &profile,
+        &[],
+    )
+    .expect("checked receiver input");
     let mut plan = input.plan().clone();
     let entry = plan
         .functions
@@ -188,7 +228,7 @@ fn erased_receiver_cannot_discard_nominal_cleanup() {
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
-    let error = crate::realize_program_entry_native_artifact(
+    let error = realize_checked_entry(
         produced,
         request(
             &signature,
@@ -219,8 +259,9 @@ fn erased_receiver_eligibility_is_required_for_fresh_and_prepared_inputs() {
         let (produced, signature, plans) = entry_fixture(source, target::TargetProfile::WindowsX64);
         let (artifact, receipt, scope, _, _, _) = produced.into_parts();
         assert!(receipt.receiver_eligibility().is_none());
-        let prepared = crate::prepare_native_realization_input(&artifact, &profile, &optimizations)
-            .expect("callable preparation does not provision an entry receiver");
+        let prepared =
+            crate::prepare_native_realization_input(&artifact, &profile, &optimizations, &[])
+                .expect("callable preparation does not provision an entry receiver");
         for prepared_input in [None, Some(&prepared)] {
             let result = crate::realize_native_artifact(
                 terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
@@ -281,7 +322,7 @@ fn provisioned_receiver_erased_before_realization_still_realizes_an_executable()
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
-    let native = crate::realize_program_entry_native_artifact(
+    let native = realize_checked_entry(
         produced,
         request(
             &signature,
@@ -293,7 +334,6 @@ fn provisioned_receiver_erased_before_realization_still_realizes_an_executable()
     )
     .expect("checked erasure preserves the source receiver mode without storage");
     native
-        .artifact()
         .as_direct()
         .expect("direct image requested")
         .validate()
@@ -311,6 +351,7 @@ fn erased_provisioned_receiver_must_retain_its_attached_type() {
         produced.artifact().semantic_bytes(),
         produced.artifact().proof_bytes(),
         &profile,
+        &[],
     )
     .expect("checked erased-receiver input");
     let mut plan = input.plan().clone();
@@ -348,9 +389,13 @@ fn retained_receiver_entry_must_preserve_its_checked_receiver_identity() {
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
-    let input =
-        super::lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
-            .expect("checked receiver input");
+    let input = super::lower_realization_input(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &profile,
+        &[],
+    )
+    .expect("checked receiver input");
     let request = NativeRealizationRequest {
         program_entry: NativeProgramEntrySettlement::new(
             &signature,
@@ -448,9 +493,13 @@ fn free_source_entry_cannot_acquire_a_receiver() {
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
-    let input =
-        super::lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
-            .expect("checked receiver input");
+    let input = super::lower_realization_input(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &profile,
+        &[],
+    )
+    .expect("checked receiver input");
     let free_signature =
         program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
             signature.target_slot(),
@@ -524,8 +573,9 @@ fn unprovisioned_receiver_entry_rejects_fresh_and_prepared_executable_realizatio
         settlement.expect(
             "source-entry declaration settlement remains valid without executable provisioning",
         );
-        let prepared = crate::prepare_native_realization_input(&artifact, &profile, &optimizations)
-            .expect("verified callable input remains preparable");
+        let prepared =
+            crate::prepare_native_realization_input(&artifact, &profile, &optimizations, &[])
+                .expect("verified callable input remains preparable");
         let fresh = crate::realize_native_artifact(
             terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
                 .expect("replay the same canonical artifact for fresh realization"),
@@ -612,6 +662,7 @@ fn admitted_receiver_entry_rejects_callback_occupancy() {
         NativeRealizationRequest {
             checked_scope: Some(&scope),
             callback_thunks: &thunks,
+            behavior_exclusions: &build_evaluation::BehaviorExclusions::default(),
             program_entry: NativeProgramEntrySettlement::new(
                 &signature,
                 plans
@@ -681,6 +732,7 @@ fn callback_thunk_signature_must_match_its_boundary_entry_plan() {
         artifact,
         NativeRealizationRequest {
             callback_thunks: &thunks,
+            behavior_exclusions: &build_evaluation::BehaviorExclusions::default(),
             ..request(
                 &signature,
                 plans.as_ref(),
@@ -728,9 +780,13 @@ fn admitted_receiver_provisioning_must_reach_the_emitted_object() {
     };
     // Emitting without the admitted settlement is the bypass shape: the entry
     // code keeps its self parameter while no bridge constructs its receiver.
-    let input =
-        super::lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
-            .expect("checked receiver input");
+    let input = super::lower_realization_input(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &profile,
+        &[],
+    )
+    .expect("checked receiver input");
     let admitted_providers = super::providers::admit_native_providers(
         &input,
         artifact.semantic_bytes(),
@@ -809,9 +865,13 @@ fn emitted_receiver_binding_rejects_unadmitted_and_substituted_identities() {
             &providers,
         )
     };
-    let input =
-        super::lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
-            .expect("checked receiver input");
+    let input = super::lower_realization_input(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &profile,
+        &[],
+    )
+    .expect("checked receiver input");
     let admitted_providers = super::providers::admit_native_providers(
         &input,
         artifact.semantic_bytes(),
@@ -934,7 +994,7 @@ fn namespace_attachment_without_receiver_still_realizes_an_executable() {
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
-    let native = crate::realize_program_entry_native_artifact(
+    let native = realize_checked_entry(
         produced,
         request(
             &signature,
@@ -946,7 +1006,6 @@ fn namespace_attachment_without_receiver_still_realizes_an_executable() {
     )
     .expect("namespace attachment does not require receiver provisioning");
     native
-        .artifact()
         .as_direct()
         .expect("direct image requested")
         .validate()
@@ -964,7 +1023,7 @@ fn native_request_scope_and_reuse_preserve_direct_image_bytes() {
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
     let prepared =
-        crate::prepare_native_realization_input(&artifact, &profile, &optimizations).unwrap();
+        crate::prepare_native_realization_input(&artifact, &profile, &optimizations, &[]).unwrap();
     let mut expected_bytes = None;
     for checked_scope in [None, Some(&scope)] {
         for prepared_input in [None, Some(&prepared)] {
@@ -1016,7 +1075,8 @@ fn native_request_rejects_substituted_scope_or_prepared_input_and_returns_image_
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
     let other_prepared =
-        crate::prepare_native_realization_input(&other_artifact, &profile, &optimizations).unwrap();
+        crate::prepare_native_realization_input(&other_artifact, &profile, &optimizations, &[])
+            .unwrap();
     for (checked_scope, prepared_input, expected) in [
         (Some(&other_scope), None, "checked boundary-operator scope"),
         (Some(&scope), Some(&other_prepared), "prepared native input"),
@@ -1048,42 +1108,6 @@ fn native_request_rejects_substituted_scope_or_prepared_input_and_returns_image_
             "{diagnostics:?}"
         );
     }
-}
-
-#[test]
-fn program_entry_adapter_does_not_ignore_supplied_scope() {
-    let (produced, signature, plans) = entry_fixture(
-        "data Main {} machine Main::launch() {}",
-        target::TargetProfile::WindowsX64,
-    );
-    let (other, ..) = entry_fixture(
-        "data Main {} machine Main::launch() { Main::work(); } machine Main::work() {}",
-        target::TargetProfile::WindowsX64,
-    );
-    let (_, _, other_scope, _, _, _) = other.into_parts();
-    let profile = proof_admission::AdmissionProfile::default();
-    let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
-    let providers = effects::SelectedProviderPlanFacts::default();
-    let mut request = request(
-        &signature,
-        plans.as_ref(),
-        &profile,
-        &optimizations,
-        &providers,
-    );
-    request.checked_scope = Some(&other_scope);
-    let error = crate::realize_program_entry_native_artifact(produced, request)
-        .expect_err("owned entry custody cannot hide substituted request custody");
-    let (image, diagnostics) = error.into_parts();
-    assert!(matches!(
-        image,
-        image_emission::ExecutableImageEmissionRequest::Direct { subsystem: 3, .. }
-    ));
-    assert!(
-        diagnostics[0]
-            .message
-            .contains("checked boundary-operator scope")
-    );
 }
 
 /// A bound placed-view establishment fixture: executable-input custody shape
@@ -1131,9 +1155,13 @@ fn bound_placed_view_establishments_ride_the_admitted_entry_settlement() {
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
-    let input =
-        super::lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
-            .expect("checked receiver input");
+    let input = super::lower_realization_input(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &profile,
+        &[],
+    )
+    .expect("checked receiver input");
     let establishments = [bound_placed_view_establishment()];
     let settlement = super::validate_executable_entry_receiver(
         input.plan(),
@@ -1179,9 +1207,13 @@ fn receiverless_entry_boundaries_reject_bound_placed_view_establishments() {
         target::TargetProfile::WindowsX64,
     );
     let artifact = produced.artifact();
-    let input =
-        super::lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
-            .expect("checked free-entry input");
+    let input = super::lower_realization_input(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &profile,
+        &[],
+    )
+    .expect("checked free-entry input");
     let diagnostics = super::validate_executable_entry_receiver(
         input.plan(),
         input.context().module(),
@@ -1210,9 +1242,13 @@ fn receiverless_entry_boundaries_reject_bound_placed_view_establishments() {
     let (produced, signature, plans) =
         entry_fixture(ERASED_RECEIVER, target::TargetProfile::WindowsX64);
     let (artifact, receipt, _, _, _, _) = produced.into_parts();
-    let input =
-        super::lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
-            .expect("checked erased-receiver input");
+    let input = super::lower_realization_input(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &profile,
+        &[],
+    )
+    .expect("checked erased-receiver input");
     let diagnostics = super::validate_executable_entry_receiver(
         input.plan(),
         input.context().module(),

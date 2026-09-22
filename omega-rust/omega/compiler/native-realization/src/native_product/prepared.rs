@@ -65,6 +65,7 @@ impl PreparedNativeCompilation {
             self.terminal.artifact(),
             &self.request.terminal_admission_profile,
             post_terminal.selections(),
+            &[],
         )
     }
 

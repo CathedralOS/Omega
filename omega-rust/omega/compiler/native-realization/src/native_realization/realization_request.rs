@@ -2,9 +2,7 @@
 //! builtin, and callback-thunk settlements, the request itself, and the
 //! requested or settled artifact results.
 
-use crate::entry_settlement::{
-    NativeProgramEntrySettlement, ValidatedNativeProgramEntrySettlement,
-};
+use crate::entry_settlement::NativeProgramEntrySettlement;
 use installation_evidence::ProviderExecutionEvidence;
 use native_artifact::{DynamicElfNativeArtifact, NativeArtifact};
 use target_operations::BoundaryRealization;
@@ -128,6 +126,12 @@ pub struct NativeRealizationRequest<'request> {
     /// Isolated executable bodies paired one-to-one with `native_callbacks`.
     /// Their Terminal machine identities live in separate artifact namespaces.
     pub callback_thunks: &'request [NativeCallbackThunkSettlement<'request>],
+    /// The retained behavior-exclusion union the production carried, resolved
+    /// against this artifact's own module; `BehaviorExclusions::default()`
+    /// for a production that carried none. A requested physical-authority
+    /// absence is adjudicated against the admitted mechanism closure whether
+    /// or not the request carries a receiver permission policy.
+    pub behavior_exclusions: &'request build_evaluation::BehaviorExclusions,
 }
 
 /// Source-free native result selected by the exact object-bound image request.
@@ -177,50 +181,5 @@ impl RequestedNativeArtifactError {
 
     pub fn diagnostics(&self) -> &[diagnostics::Diagnostic] {
         &self.diagnostics
-    }
-}
-
-/// Native result retaining its independently validated ProgramEntry settlement.
-#[derive(Debug)]
-pub struct SettledNativeArtifact {
-    pub(crate) artifact: RequestedNativeArtifact,
-    pub(crate) program_entry: ValidatedNativeProgramEntrySettlement,
-    /// Validated semantic-entry wrapper object custody when the admitted entry
-    /// is a source-authored semantic shell (the UEFI receiver route); `None`
-    /// on the hosted receiver route and for ordinary (receiver-free) entries.
-    pub(crate) semantic_wrapper_object:
-        Option<crate::StagedValidatedOptimizedProgramStorageSemanticWrapperObject>,
-}
-
-impl SettledNativeArtifact {
-    pub const fn artifact(&self) -> &RequestedNativeArtifact {
-        &self.artifact
-    }
-
-    pub const fn program_entry(&self) -> &ValidatedNativeProgramEntrySettlement {
-        &self.program_entry
-    }
-
-    /// The staged semantic-entry wrapper object custody, when the settled
-    /// entry emitted one. The staged join owns the object plan, container,
-    /// manifest and custody receipt over the exact emitted child.
-    pub const fn semantic_wrapper_object(
-        &self,
-    ) -> Option<&crate::StagedValidatedOptimizedProgramStorageSemanticWrapperObject> {
-        self.semantic_wrapper_object.as_ref()
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        RequestedNativeArtifact,
-        ValidatedNativeProgramEntrySettlement,
-        Option<crate::StagedValidatedOptimizedProgramStorageSemanticWrapperObject>,
-    ) {
-        (
-            self.artifact,
-            self.program_entry,
-            self.semantic_wrapper_object,
-        )
     }
 }

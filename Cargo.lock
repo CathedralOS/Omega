@@ -1389,6 +1389,7 @@ dependencies = [
  "artifacts",
  "boundary-applications",
  "build-declarations",
+ "build-evaluation",
  "calling-conventions",
  "checked-compilation-to-terminal-artifact",
  "checked-interpreter",

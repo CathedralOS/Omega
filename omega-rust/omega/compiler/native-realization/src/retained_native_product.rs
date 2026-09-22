@@ -261,7 +261,7 @@ pub fn realize_retained_native_artifact(
             proposal.program_entry().fused_service_establishments(),
         )
         .with_checked_entry(proposal.checked_program_entry());
-        crate::realize_native_artifact_with_behavior_exclusions(
+        crate::realize_native_artifact(
             artifact,
             crate::NativeRealizationRequest {
                 checked_scope: Some(proposal.checked_boundary_operator_scope()),
@@ -281,8 +281,8 @@ pub fn realize_retained_native_artifact(
                 ieee_float_fma: &ieee_float_fma,
                 native_callbacks: &native_callbacks,
                 callback_thunks: &callback_thunks,
+                behavior_exclusions: proposal.behavior_exclusions(),
             },
-            proposal.behavior_exclusions(),
         )
         .map_err(|error| error.into_parts().1)
     })();

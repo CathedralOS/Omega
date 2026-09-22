@@ -58,6 +58,7 @@ effects = { path = "../../omega-rust/omega/representations/effects" }
 
 [dev-dependencies]
 package-compilation = { path = "../../omega-rust/omega/build/package-compilation" }
+build-evaluation = { path = "../../omega-rust/omega/build/build-evaluation" }
 build-declarations = { path = "../../omega-rust/omega/build/build-declarations" }
 boundary-applications = { path = "../../omega-rust/omega/representations/boundary-applications" }
 object-file = { path = "../../omega-rust/omega/backend/object/object-file", features = ["test-support"] }

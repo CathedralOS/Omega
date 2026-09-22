@@ -59,6 +59,7 @@ fn lower_callback_thunk(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),
         request.profile,
+        &[],
     )?;
     let optimized = crate::optimize_verified_abstract_input(
         input.into_optimization_input(),
