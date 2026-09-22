@@ -348,7 +348,7 @@ fn checked_provider_empty_path_reborrow_rejects_retained_source_substitution() {
         let result = lower_machine(&changed, "Record::run").map(|_| ());
         assert!(
             matches!(&result, Err(LoweringError::Unsupported(message))
-            if *message == "mutable boundary byte argument differs from its authored destination"),
+            if *message == "boundary byte loan differs from its authored backing"),
             "mutation {mutation} must fail exact authored source custody: {result:?}"
         );
     }

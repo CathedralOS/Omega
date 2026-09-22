@@ -321,10 +321,7 @@ impl<'a> Position<'a> {
 }
 
 /// The declared structural shape of `type_id` in `unit`.
-fn shape<'a>(
-    unit: &'a PsiOptimizationUnit,
-    type_id: StructuralTypeId,
-) -> Option<&'a StructuralTypeShape> {
+fn shape(unit: &PsiOptimizationUnit, type_id: StructuralTypeId) -> Option<&StructuralTypeShape> {
     unit.structural_types
         .as_slice()
         .iter()

@@ -85,10 +85,9 @@ fn folded_const_arguments(program: &TypedTrees) -> Vec<String> {
         {
             if let TypeReferenceNode::Named { name, .. } =
                 program.type_reference_table.type_reference(*argument)
+                && name.chars().next().is_some_and(|c| c.is_ascii_digit())
             {
-                if name.chars().next().is_some_and(|c| c.is_ascii_digit()) {
-                    folded.push(name.as_str().to_owned());
-                }
+                folded.push(name.as_str().to_owned());
             }
         }
     }

@@ -45,7 +45,7 @@ fn index_is_within_unknown_length_proven(
     index: ExpressionHandle,
 ) -> bool {
     let index_label = program.expression_table.display_name(index);
-    facts.index_is_proven(&collection_label, &index_label)
+    facts.index_is_proven(collection_label, &index_label)
         || expression_integer_value(program, facts, index)
             .is_some_and(|index| facts.index_value_is_proven(collection_label, index))
         || ensured_call_result_bounds(program, index)
@@ -482,7 +482,7 @@ fn range_bound_is_proven(
     bound: ExpressionHandle,
 ) -> bool {
     let bound_label = program.expression_table.display_name(bound);
-    facts.range_bound_is_proven(&collection_label, &bound_label)
+    facts.range_bound_is_proven(collection_label, &bound_label)
         || expression_integer_value(program, facts, bound)
             .is_some_and(|bound| facts.range_bound_value_is_proven(collection_label, bound))
         || facts

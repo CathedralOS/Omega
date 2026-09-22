@@ -466,8 +466,7 @@ fn drop_subslice_sources(checked: &mut CheckedTrees) {
     for machine in effects
         .machines
         .iter_mut()
-        .map(|machine| machine.operations.iter_mut())
-        .flatten()
+        .flat_map(|machine| machine.operations.iter_mut())
         .chain(effects.composed_machines.iter_mut().flat_map(|machine| {
             machine
                 .states

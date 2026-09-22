@@ -97,19 +97,18 @@ pub(super) fn validate(
             "optimized semantic ProgramStorage wrapper frame or source custody drifted".into(),
         ));
     }
-    if let Some(receiver) = plan.receiver {
-        if receiver.outgoing_stack_byte_offset != RECEIVER_SLOT_BYTE_OFFSET
+    if let Some(receiver) = plan.receiver
+        && (receiver.outgoing_stack_byte_offset != RECEIVER_SLOT_BYTE_OFFSET
             || receiver.slot_byte_count & 15 != 0
             || receiver.slot_byte_count < receiver.byte_count
             || receiver.slot_byte_count < 16
             || receiver.byte_count == 0
             || !receiver.alignment.is_power_of_two()
-            || receiver.alignment > 16
-        {
-            return Err(ProgramStorageEntryDiagnostic(
-                "optimized semantic ProgramStorage wrapper receiver residence drifted".into(),
-            ));
-        }
+            || receiver.alignment > 16)
+    {
+        return Err(ProgramStorageEntryDiagnostic(
+            "optimized semantic ProgramStorage wrapper receiver residence drifted".into(),
+        ));
     }
     replay_steps(plan)?;
     let call_step_index = plan

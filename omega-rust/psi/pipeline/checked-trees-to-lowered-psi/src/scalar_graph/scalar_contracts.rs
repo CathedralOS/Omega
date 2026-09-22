@@ -293,62 +293,15 @@ fn strict_result_bound(left: ScalarTerm, right: ScalarTerm) -> Proposition {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::super::{IntegerType, ScalarType};
-    use super::{Proposition, ScalarTerm, strict_result_bound};
-    use semantic_vocabulary::IntegerSign;
-    use semantic_vocabulary::ValueId;
-
-    mod parameter_namespace;
-
-    #[test]
-    fn strict_integer_endpoints_never_wrap() {
-        for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
-            for bits in [8, 16, 32, 64, 128] {
-                let scalar_type = IntegerType::new(sign, bits).unwrap();
-                let value = ScalarTerm::Value {
-                    id: ValueId::new(1).unwrap(),
-                    scalar_type: ScalarType::Integer(scalar_type),
-                };
-                let minimum = ScalarTerm::Integer {
-                    scalar_type,
-                    value: scalar_type.minimum_value(),
-                };
-                let maximum = ScalarTerm::Integer {
-                    scalar_type,
-                    value: scalar_type.maximum_value(),
-                };
-                assert_eq!(
-                    strict_result_bound(value.clone(), minimum.clone()),
-                    Proposition::LessThan(value.clone(), minimum.clone())
-                );
-                assert_eq!(
-                    strict_result_bound(maximum.clone(), value.clone()),
-                    Proposition::LessThan(maximum.clone(), value.clone())
-                );
-                assert!(matches!(
-                    strict_result_bound(minimum, value.clone()),
-                    Proposition::LessOrEqual(_, _)
-                ));
-                assert!(matches!(
-                    strict_result_bound(value, maximum),
-                    Proposition::LessOrEqual(_, _)
-                ));
-            }
-        }
-    }
-}
-
 /// The erased-proof roster the caller machine's given state exposes to its
 /// lowered terms: the scalar-graph state's own roster when the caller is a
 /// scalar machine, the dynamic lane's own roster when the caller dispatches
 /// dynamically, otherwise the unit machine's published roster.
-pub(crate) fn caller_erased_proof_roster<'a>(
-    checked: &'a CheckedTrees,
+pub(crate) fn caller_erased_proof_roster(
+    checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
-) -> Result<&'a [CheckedErasedProofParameterPlan], LoweringError> {
+) -> Result<&[CheckedErasedProofParameterPlan], LoweringError> {
     if let Some(roster) = checked
         .facts
         .flow
@@ -409,4 +362,51 @@ fn dynamic_caller_erased_proof_roster(
         .flat_map(|continuation| continuation.leaves.iter())
         .find(|leaf| leaf.state == state)
         .map(|leaf| leaf.erased_proof_parameters.as_slice())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::{IntegerType, ScalarType};
+    use super::{Proposition, ScalarTerm, strict_result_bound};
+    use semantic_vocabulary::IntegerSign;
+    use semantic_vocabulary::ValueId;
+
+    mod parameter_namespace;
+
+    #[test]
+    fn strict_integer_endpoints_never_wrap() {
+        for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+            for bits in [8, 16, 32, 64, 128] {
+                let scalar_type = IntegerType::new(sign, bits).unwrap();
+                let value = ScalarTerm::Value {
+                    id: ValueId::new(1).unwrap(),
+                    scalar_type: ScalarType::Integer(scalar_type),
+                };
+                let minimum = ScalarTerm::Integer {
+                    scalar_type,
+                    value: scalar_type.minimum_value(),
+                };
+                let maximum = ScalarTerm::Integer {
+                    scalar_type,
+                    value: scalar_type.maximum_value(),
+                };
+                assert_eq!(
+                    strict_result_bound(value.clone(), minimum.clone()),
+                    Proposition::LessThan(value.clone(), minimum.clone())
+                );
+                assert_eq!(
+                    strict_result_bound(maximum.clone(), value.clone()),
+                    Proposition::LessThan(maximum.clone(), value.clone())
+                );
+                assert!(matches!(
+                    strict_result_bound(minimum, value.clone()),
+                    Proposition::LessOrEqual(_, _)
+                ));
+                assert!(matches!(
+                    strict_result_bound(value, maximum),
+                    Proposition::LessOrEqual(_, _)
+                ));
+            }
+        }
+    }
 }

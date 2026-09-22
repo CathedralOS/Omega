@@ -412,6 +412,20 @@ fn dead_scalar_elimination_keeps_the_transitive_returned_value_chain() {
     assert_eq!(optimized.lowered(), &lowered);
 }
 
+/// A dead comparison, a dead constant, four forwarded copies per arm, and a
+/// merge parameter bound to a different constant on each incoming edge: the
+/// shape the rewrite tests below consume.
+///
+/// The arm constants are the declared type's endpoints on purpose. A join whose
+/// actual scalar arrivals are all same-type literals proposes their interval
+/// hull as a scalar block invariant, and a retained invariant makes the module
+/// proof-bearing: both rewrites then refuse, because removing a header
+/// parameter or its arrival arguments cannot carry the reconstructed question
+/// verbatim. A hull equal to the whole declared type is no narrower than the
+/// parameter's own type, so no invariant is proposed and this fixture stays in
+/// the non-proof-bearing lane these tests exercise. The refusal itself has its
+/// own coverage in `dead_scalar_selection_preserves_proof_questions_and_rejects_unchecked_context_changes`
+/// and `copy_propagation_preserves_proof_questions_and_keeps_proof_bearing_identities`.
 fn dead_block_parameter_fixture() -> LoweredPsi {
     let checked = checked_source(
         "data Main { value: i32; }\n\
@@ -419,8 +433,8 @@ fn dead_block_parameter_fixture() -> LoweredPsi {
              let unused: bool = a < b;\n\
              let dead_const: i32 = 7;\n\
              transition {\n\
-                 a == b -> (1)\n\
-                 _ -> (2)\n\
+                 a == b -> (-2147483648)\n\
+                 _ -> (2147483647)\n\
              }\n\
          }\n\
          machine Main::main(&mut self) {\n\

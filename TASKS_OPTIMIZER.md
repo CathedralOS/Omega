@@ -143,6 +143,38 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
 ## Psi optimization and loops
 
+- **JOIN-INVARIANT-REWRITE-TRANSPORT.** (new-scope) Decide whether a scalar
+  block invariant can be rewritten alongside the parameters it names, or
+  whether its presence must keep refusing the rewrite. `a0cc5b2830` began
+  proposing an interval from literal arrivals at a scalar join
+  (`checked-trees-to-lowered-psi/src/proofs/scalar_block_invariants/joins.rs`),
+  so a merge block joining two same-type integer literals now retains a
+  `ScalarBlockInvariant`. That makes the machine proof-bearing, and both
+  copy propagation and dead pure scalar elimination then propose their full
+  rewrite, fail validation with `ChangedProofQuestion`, and fall back to the
+  authored module. The refusal is the documented boundary working, not a
+  defect: the rewrite would move a question the invariant row still names.
+  The cost is that an ordinary two-arm `transition` returning constants now
+  disables both passes for its whole machine, silently and with no
+  diagnostic.
+
+  Remaining work:
+
+  - Establish which of the two routes the boundary takes: transport the proof
+    context with the rewrite so the invariant row follows its renamed values,
+    or state that an invariant-bearing header is deliberately frozen and give
+    the refusal an observable report so the loss is not silent.
+  - Either way, cover the shape at the corpus level. The only fixture that
+    exercised it is `dead_block_parameter_fixture` in
+    `checked-trees-to-lowered-psi/src/tests/preterminal_optimization.rs`,
+    which now spells its arm constants at the declared type's endpoints
+    precisely so no invariant is proposed and the non-proof-bearing lane stays
+    reachable.
+
+  Acceptance: a two-arm transition returning constants either keeps both
+  passes, or refuses them through a reported decision an owner can read, and a
+  fixture pins whichever holds.
+
 - **GENERAL-CYCLIC-EXECUTION.** Complete the receiving/native half of
   [ranked callees on projected receivers](wiki/spec/language/termination.md#ranked-callees-on-projected-receivers).
   The same-name TASKS.md item owns source production and verifier coverage.

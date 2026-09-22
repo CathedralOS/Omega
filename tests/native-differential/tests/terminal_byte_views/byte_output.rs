@@ -1,7 +1,13 @@
 //! A generated Unit function invokes the real returning hosted byte-output leaf.
+#[cfg(any(
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "linux", target_arch = "aarch64"),
+    all(target_os = "macos", target_arch = "aarch64"),
+))]
+use super::native_function;
 use super::{
     AdmissionProfile, NativeTarget, OperationId, OperationKind, ProofBundle, TerminalModule,
-    ValueId, calls, fixtures, native_function,
+    ValueId, calls, fixtures,
 };
 use abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement,

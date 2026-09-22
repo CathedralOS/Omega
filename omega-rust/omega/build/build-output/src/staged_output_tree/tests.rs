@@ -333,7 +333,7 @@ fn staged_output_tree_rejects_every_one_field_substitution() {
             commitment_for_retained_entries(&executable.entries).expect("recomputed");
         assert_ne!(executable.commitment, baseline_commitment);
         let error = executable
-            .materialize_into(&session.destination("executable-mode"))
+            .materialize_into(session.destination("executable-mode"))
             .expect_err("an unrepresentable mode rejects");
         assert!(
             error
@@ -348,7 +348,7 @@ fn staged_output_tree_rejects_every_one_field_substitution() {
         linked.commitment = commitment_for_retained_entries(&linked.entries).expect("recomputed");
         assert_ne!(linked.commitment, baseline_commitment);
         let error = linked
-            .materialize_into(&session.destination("symlink-kind"))
+            .materialize_into(session.destination("symlink-kind"))
             .expect_err("an unrepresentable kind rejects");
         assert!(
             error

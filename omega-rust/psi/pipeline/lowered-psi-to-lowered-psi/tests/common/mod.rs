@@ -868,7 +868,10 @@ pub fn suspension_rows(
         .find(|candidate| candidate.id == operation)
         .map(|candidate| candidate.suspension_crossing = Some(crossing))
         .is_some();
-    assert!(marked, "the suspension row names an operation in the module");
+    assert!(
+        marked,
+        "the suspension row names an operation in the module"
+    );
     let plan = TerminalSuspensionCallPlan {
         operation,
         crossing,

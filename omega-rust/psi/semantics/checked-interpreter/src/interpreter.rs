@@ -716,6 +716,17 @@ fn interpret_on_current_thread(
     }
 }
 
+fn build_time_result_custody(values: &[crate::build_time::BuildTimeValue]) -> Option<(u64, u64)> {
+    values
+        .iter()
+        .try_fold((0u64, 0u64), |(cells, text_bytes), value| {
+            Some((
+                cells.checked_add(value.retained_cell_count()?)?,
+                text_bytes.checked_add(value.retained_text_byte_count()?)?,
+            ))
+        })
+}
+
 #[cfg(test)]
 mod atomic_fence_tests {
     use super::{BuildMachineEntry, interpret_on_current_thread};
@@ -760,15 +771,4 @@ mod atomic_fence_tests {
             Some("observing single-attempt compare-exchange has no runtime result carrier")
         );
     }
-}
-
-fn build_time_result_custody(values: &[crate::build_time::BuildTimeValue]) -> Option<(u64, u64)> {
-    values
-        .iter()
-        .try_fold((0u64, 0u64), |(cells, text_bytes), value| {
-            Some((
-                cells.checked_add(value.retained_cell_count()?)?,
-                text_bytes.checked_add(value.retained_text_byte_count()?)?,
-            ))
-        })
 }
