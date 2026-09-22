@@ -9,7 +9,10 @@ use crate::capture::contracts::facts::{
 use crate::capture::semantics::facts::exactly_one;
 use crate::capture::semantics::signatures::policy_crashes;
 use crate::capture::semantics::types::signature_type_identity;
-use crate::record::*;
+use crate::record::{
+    PackagePolicyTraitRequirement, PackagePolicyTraitShape, PackageReviewTraitRequirement,
+    PackageReviewTraitRequirementParameter,
+};
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use symbols::SymbolHandle;

@@ -1,7 +1,4 @@
-use super::{
-    Error, PackageReviewBooleanExpression, PackageReviewPrimitiveType,
-    PackageReviewScalarExpression,
-};
+use super::Error;
 use crate::encoding::recovery::policy::structural_expressions::Reader;
 use crate::encoding::recovery::policy::structural_expressions::boolean_expression;
 use crate::encoding::recovery::policy::structural_expressions::scalar_expression;
@@ -10,17 +7,17 @@ use crate::encoding::{
     encode::{encode_boolean_expression, encode_scalar_expression, encoder::Encoder},
 };
 use crate::record::PackageReviewArithmeticDomain;
+use crate::record::PackageReviewBooleanExpression as Boolean;
 use crate::record::PackageReviewIeeeFloatComparisonKind;
 use crate::record::PackageReviewIntegerBinaryKind;
 use crate::record::PackageReviewIntegerComparisonKind;
 use crate::record::PackageReviewIntegerLiteral;
 use crate::record::PackageReviewIntegerLiteralLanding;
 use crate::record::PackageReviewIntegerRange;
+use crate::record::PackageReviewPrimitiveType as Primitive;
+use crate::record::PackageReviewScalarExpression as Scalar;
 use crate::record::PackageReviewStructuralParameterField;
 use crate::record::PackageReviewStructuralPredicatePathSegment;
-use PackageReviewBooleanExpression as Boolean;
-use PackageReviewPrimitiveType as Primitive;
-use PackageReviewScalarExpression as Scalar;
 
 const PRIMITIVES: [Primitive; 12] = [
     Primitive::Bool,

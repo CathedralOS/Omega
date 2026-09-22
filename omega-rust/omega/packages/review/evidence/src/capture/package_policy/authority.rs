@@ -3,7 +3,10 @@
 use crate::capture::PackageReviewInput;
 use crate::capture::authority::dangerous_authority_class;
 use crate::capture::semantics::declarations::nominal_identity;
-use crate::record::*;
+use crate::record::{
+    PackagePolicyCallable, PackagePolicyCallables, PackageReviewDangerousAuthority,
+    PackageReviewDangerousAuthoritySlack, PackageReviewNominalIdentity,
+};
 use diagnostics::Diagnostic;
 
 pub(super) fn project(

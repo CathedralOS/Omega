@@ -1,5 +1,9 @@
 use super::{signature::*, signature_expressions::expression};
-use crate::record::*;
+use crate::record::{
+    PackageReviewCallableContract, PackageReviewContractFact, PackageReviewContractKind,
+    PackageReviewEvidenceInterface, PackageReviewPropositionApplication,
+    PackageReviewPropositionBinderKind, PackageReviewPropositionEvidence,
+};
 
 pub(in crate::record) fn contract(
     value: &PackageReviewCallableContract,
@@ -71,7 +75,7 @@ fn proposition(
         expression(argument, scope, nesting)?;
     }
     for (binder, argument) in value.binders.iter().zip(&value.binder_arguments) {
-        use PackageReviewPropositionBinderArgumentKind as Kind;
+        use crate::record::PackageReviewPropositionBinderArgumentKind as Kind;
         let expected = match &binder.kind {
             PackageReviewPropositionBinderKind::Type => Kind::Type,
             PackageReviewPropositionBinderKind::Const(value) => {
@@ -83,7 +87,7 @@ fn proposition(
         if argument.kind != expected {
             return Err("proposition argument changes its binder kind");
         }
-        use PackageReviewPropositionBinderValue as Value;
+        use crate::record::PackageReviewPropositionBinderValue as Value;
         match &argument.value {
             Value::Type(value) if expected == Kind::Type => value_type(value)?,
             Value::Machine(value) if expected == Kind::Machine => nominal(value)?,

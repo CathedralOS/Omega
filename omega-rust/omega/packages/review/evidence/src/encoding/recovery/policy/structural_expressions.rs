@@ -1,12 +1,16 @@
 //! Typed structural runtime requirements under the enclosing policy budget.
 
+use crate::record::{
+    PackageReviewBooleanExpression, PackageReviewIeeeFloatComparisonKind,
+    PackageReviewIntegerComparisonKind, PackageReviewStructuralParameterField,
+    PackageReviewStructuralPredicatePathSegment,
+};
 mod scalars;
 mod tags;
 #[cfg(test)]
 mod tests;
 
 use super::{Error, reader::Reader};
-use crate::record::*;
 use scalars::scalar_expression;
 use tags::primitive_type;
 

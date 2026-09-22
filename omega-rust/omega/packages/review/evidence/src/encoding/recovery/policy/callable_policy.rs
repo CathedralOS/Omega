@@ -1,5 +1,11 @@
 //! Typed callable recovery under one bounded policy reader.
 
+use crate::record::{
+    PackagePolicyCallable, PackagePolicyCallableConformance, PackagePolicyCallableRole,
+    PackagePolicyCallables, PackagePolicyServiceReachDependency, PackageReviewCallableParameter,
+    PackageReviewCallableSupply, PackageReviewCheckedServiceReach, PackageReviewInstallationReach,
+    PackageReviewOperatorRealization,
+};
 mod behavior;
 pub(super) use behavior::{crash_route, termination};
 #[cfg(test)]
@@ -20,7 +26,6 @@ use super::{
     signatures::conformance_bound,
 };
 use crate::encoding::{CALLABLE_POLICY_MAGIC, PACKAGE_CALLABLE_POLICY_VERSION};
-use crate::record::*;
 
 impl PackagePolicyCallables {
     pub fn recover_canonical(

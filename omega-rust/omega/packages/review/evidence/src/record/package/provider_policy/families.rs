@@ -1,4 +1,7 @@
-use crate::record::*;
+use crate::record::{
+    PackageReviewNominalIdentity, PackageReviewProviderFamilyCoverage,
+    PackageReviewProviderSelectionAuthority,
+};
 use target::TargetProfile;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,4 +1,9 @@
-use crate::record::*;
+use crate::record::{
+    PackagePolicyCrashRoute, PackagePolicyTermination, PackageReviewCallableContract,
+    PackageReviewDataProperties, PackageReviewMachineParameterValue, PackageReviewNominalIdentity,
+    PackageReviewPropositionParameterSignature, PackageReviewSynchronousInvocation,
+    PackageReviewTypeIdentity,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyTypeParameter {

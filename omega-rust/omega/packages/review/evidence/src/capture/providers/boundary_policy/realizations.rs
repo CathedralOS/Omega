@@ -5,7 +5,11 @@ use crate::capture::semantics::conformances::policy_callable_identity;
 use crate::capture::semantics::declarations::{
     nominal_identity, policy_provider_requirement_identity,
 };
-use crate::record::*;
+use crate::record::{
+    PackagePolicyBoundaryApplicationRealization, PackagePolicyBoundaryApplications,
+    PackagePolicyBoundaryRealization, PackagePolicySelectedProviders,
+    PackageReviewBoundaryApplicationRealization, PackageReviewOperatorCoordinate,
+};
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 

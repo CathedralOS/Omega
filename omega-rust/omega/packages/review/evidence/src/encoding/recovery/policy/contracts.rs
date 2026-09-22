@@ -5,7 +5,15 @@ use super::expressions::expression;
 use super::identity::{nominal, type_identity};
 use super::reader::Reader;
 use super::signatures::data_properties;
-use crate::record::*;
+use crate::record::{
+    PackageReviewCallableContract, PackageReviewContractFact, PackageReviewContractKind,
+    PackageReviewEvidenceInterface, PackageReviewEvidenceRequirement,
+    PackageReviewPropositionApplication, PackageReviewPropositionBinder,
+    PackageReviewPropositionBinderArgument, PackageReviewPropositionBinderArgumentKind,
+    PackageReviewPropositionBinderKind, PackageReviewPropositionBinderValue,
+    PackageReviewPropositionEvidence, PackageReviewPropositionParameterApplication,
+    PackageReviewResultCaseIdentity,
+};
 
 #[cfg(test)]
 mod tests;

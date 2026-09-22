@@ -1,10 +1,15 @@
 //! Scope-preserving public static telescopes and typed policy values.
 
+use crate::record::{
+    PackagePolicyMachineParameterContract, PackagePolicyMachineParameterSignature,
+    PackagePolicyTypeParameter, PackagePolicyTypeParameterKind,
+    PackageReviewMachineParameterContract, PackageReviewTypeParameter,
+    PackageReviewTypeParameterKind,
+};
 pub(crate) mod values;
 use crate::capture::PackageReviewInput;
 use crate::capture::calling::application::signature::instantiate_static_parameters;
 use crate::capture::semantics::signatures::parameters::project_policy_type_parameters_after;
-use crate::record::*;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::{

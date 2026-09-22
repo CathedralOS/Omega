@@ -1,4 +1,8 @@
-use crate::record::*;
+use crate::record::{
+    PackagePolicyEvaluatedBindingProducer, PackageReviewCompilerIntrinsicExecution,
+    PackageReviewForeignLocator, PackageReviewNominalIdentity,
+    PackageReviewSelectedInstallationReach,
+};
 use semantic_vocabulary::PackageKeyIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,7 +1,11 @@
 use super::super::{Error, identity::nominal, reader::Reader};
 #[cfg(test)]
 use super::super::{contracts::contract_fact, identity::type_identity, signatures::type_parameter};
-use crate::record::*;
+use crate::record::{PackageReviewDomainAliasAtom, PackageReviewDomainEstablishmentRoute};
+#[cfg(test)]
+use crate::record::{
+    PackageReviewDomainClassification, PackageReviewDomainSemanticRole, PackageReviewDomainShape,
+};
 
 #[cfg(test)]
 pub(in crate::encoding::recovery::policy) fn domain_shape(

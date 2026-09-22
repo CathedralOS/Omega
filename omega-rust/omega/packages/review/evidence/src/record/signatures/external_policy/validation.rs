@@ -5,7 +5,11 @@ use crate::record::public_policy::validation::{
     scope,
     signatures::{bounds, parameters},
 };
-use crate::record::*;
+use crate::record::{
+    PackagePolicyExternalBinding, PackagePolicyExternalCallableSignature,
+    PackagePolicyExternalExecutableSupply, PackagePolicyExternalRequirement,
+    PackageReviewNominalOwner,
+};
 
 impl PackagePolicyExternalExecutableSupply {
     pub(crate) fn validate_canonical_structure(&self) -> Result {

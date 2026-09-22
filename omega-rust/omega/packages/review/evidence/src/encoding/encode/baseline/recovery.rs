@@ -1,6 +1,7 @@
 //! Canonical verification uses only the scratch already charged by recovery.
 
-use super::{Encoder, PackagePolicyBaseline, PackageReviewEncodingError, framed_policy};
+use super::{Encoder, PackageReviewEncodingError, framed_policy};
+use crate::record::PackagePolicyBaseline;
 
 impl PackagePolicyBaseline {
     pub(in crate::encoding) fn canonical_bytes_for_recovery(

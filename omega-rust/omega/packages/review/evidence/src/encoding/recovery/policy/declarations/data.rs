@@ -5,7 +5,9 @@ use super::super::{
     identity::nominal,
     signatures::{data_properties, type_parameter},
 };
-use crate::record::*;
+use crate::record::{PackageReviewDataField, PackageReviewDataMember};
+#[cfg(test)]
+use crate::record::{PackageReviewDataKind, PackageReviewDataShape};
 
 #[cfg(test)]
 pub(in crate::encoding::recovery::policy) fn data_shape(

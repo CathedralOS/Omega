@@ -1,5 +1,10 @@
 //! Full inert selected-provider policy, sharing one bounded writer.
 
+use crate::record::{
+    PackagePolicyProviderFamily, PackagePolicyProviderPlan, PackagePolicyProviderRow,
+    PackagePolicySelectedProviders, PackageReviewProviderFamilyCoverage,
+    PackageReviewProviderGrantSelectorKind, PackageReviewProviderSelectionAuthority,
+};
 mod authority;
 mod bindings;
 mod service;
@@ -14,7 +19,6 @@ use crate::encoding::{
     PACKAGE_SELECTED_PROVIDER_POLICY_VERSION, PackageReviewEncodingError,
     SELECTED_PROVIDER_POLICY_MAGIC,
 };
-use crate::record::*;
 
 impl PackagePolicySelectedProviders {
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {

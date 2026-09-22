@@ -6,7 +6,11 @@ use crate::capture::semantics::declarations::{
     nominal_identity, trait_requirement_identity_from_symbols,
 };
 use crate::capture::semantics::facts::exactly_one;
-use crate::record::*;
+use crate::record::{
+    PackagePolicyCrashGuard, PackagePolicyCrashRoute, PackagePolicyProgressPremise,
+    PackagePolicyServiceProgressRoute, PackagePolicyTermination, PackageReviewCrashRoute,
+    PackageReviewCrashRouteGuard, PackageReviewTermination,
+};
 use diagnostics::Diagnostic;
 
 pub(crate) fn crashes(

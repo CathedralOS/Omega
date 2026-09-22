@@ -1,5 +1,11 @@
 //! Full typed selected-provider recovery with one aggregate reader budget.
 
+use crate::record::{
+    PackagePolicyProviderFamily, PackagePolicyProviderFamilyCoordinate, PackagePolicyProviderPlan,
+    PackagePolicyProviderRow, PackagePolicySelectedProviders, PackageReviewProviderFamilyCoverage,
+    PackageReviewProviderGrantSelectorKind, PackageReviewProviderSelectionAuthority,
+    PackageReviewSelectedInstallationReach,
+};
 mod authority;
 #[cfg(test)]
 mod authority_tests;
@@ -29,7 +35,6 @@ use super::{
     reader::Reader,
 };
 use crate::encoding::{PACKAGE_SELECTED_PROVIDER_POLICY_VERSION, SELECTED_PROVIDER_POLICY_MAGIC};
-use crate::record::*;
 
 impl PackagePolicySelectedProviders {
     pub fn recover_canonical(

@@ -4,7 +4,11 @@ use crate::capture::PackageReviewInput;
 use crate::capture::semantics::conformances::policy_callable_identity;
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::capture::semantics::facts::exactly_one;
-use crate::record::*;
+use crate::record::{
+    PackagePolicyCallables, PackagePolicySemanticDependency,
+    PackagePolicySemanticDependencyConsumer, PackageReviewSemanticDependencyExposure,
+    PackageReviewSemanticDependencyKind,
+};
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 

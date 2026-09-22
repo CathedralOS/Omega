@@ -1,9 +1,9 @@
 //! Full policy declarations share the enclosing baseline writer and budgets.
 
+use crate::record::PackagePolicyPublicApi;
 pub(super) mod declarations;
 mod signatures;
 use super::{PackageReviewEncodingError, encoder::Encoder};
-use crate::record::*;
 pub(in crate::encoding) use declarations::conformance_shape;
 #[cfg(test)]
 pub(in crate::encoding) use signatures::machine_contract;

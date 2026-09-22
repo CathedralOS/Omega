@@ -1,5 +1,16 @@
 use super::tests::{fixture, nominal_fixture, recover, unchecked_bytes};
-use crate::record::*;
+use crate::record::{
+    PackagePolicyCallables, PackagePolicyCrashGuard, PackagePolicyCrashRoute,
+    PackagePolicyMachineParameterContract, PackagePolicyMachineParameterSignature,
+    PackagePolicyTermination, PackagePolicyTypeParameter, PackagePolicyTypeParameterKind,
+    PackageReviewCallableContract, PackageReviewContractBinaryOperator,
+    PackageReviewContractCallTarget, PackageReviewContractExpression, PackageReviewContractFact,
+    PackageReviewContractKind, PackageReviewContractOperatorMeaning,
+    PackageReviewContractStaticArgument, PackageReviewCrashCause, PackageReviewDataProperties,
+    PackageReviewMachineParameterValue, PackageReviewPropositionParameterApplication,
+    PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
+    PackageReviewSynchronousInvocation, PackageReviewTypeIdentity,
+};
 
 fn value_type() -> PackageReviewTypeIdentity {
     PackageReviewTypeIdentity {

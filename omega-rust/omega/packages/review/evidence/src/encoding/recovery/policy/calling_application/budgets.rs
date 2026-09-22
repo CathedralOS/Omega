@@ -3,7 +3,12 @@ use super::{Error, application};
 use crate::encoding::CALLING_POLICY_MAGIC;
 use crate::encoding::PackagePolicyRecoveryLimits;
 use crate::encoding::recovery::policy::reader::Reader;
-use crate::record::*;
+use crate::record::{
+    PackagePolicyCallingParameter, PackagePolicyCallingPlan,
+    PackagePolicyClosedConformanceApplication, PackagePolicyMachineState,
+    PackagePolicyNativeParameter, PackageReviewBoundaryShape, PackageReviewBoundaryValueLocation,
+    PackageReviewBoundaryValuePlacement, PackageReviewMachineRegister,
+};
 
 // These fixtures have only nominal machine statics, so each machine contract
 // charges one node in addition to its outer list element.

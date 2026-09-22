@@ -1,12 +1,15 @@
 //! Structural policy consistency, not compiler proof or acceptance authority.
 
+use crate::record::{
+    PackagePolicyCallableRole, PackagePolicyCallables, PackageReviewCallableSupply,
+    PackageReviewCheckedServiceReach, PackageReviewNominalIdentity, PackageReviewNominalOwner,
+};
 mod behavior;
 pub(in crate::record) mod signature;
 pub(in crate::record) mod signature_contracts;
 pub(in crate::record) mod signature_expressions;
 mod signature_parameters;
 mod structural;
-use crate::record::*;
 
 impl PackagePolicyCallables {
     pub(crate) fn validate_canonical_structure(&self) -> Result<(), &'static str> {

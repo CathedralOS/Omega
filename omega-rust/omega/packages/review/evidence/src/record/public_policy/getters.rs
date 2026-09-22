@@ -1,4 +1,15 @@
-use crate::record::*;
+use crate::record::{
+    PackagePolicyConformanceShape, PackagePolicyCrashRoute, PackagePolicyDataShape,
+    PackagePolicyDomainShape, PackagePolicyOperatorShape, PackagePolicyTermination,
+    PackagePolicyTraitRequirement, PackagePolicyTraitShape, PackagePolicyTypeParameter,
+    PackageReviewCallableContract, PackageReviewCallableParameter, PackageReviewConformanceBound,
+    PackageReviewConformanceSubject, PackageReviewContractFact, PackageReviewDataKind,
+    PackageReviewDataMember, PackageReviewDataProperties, PackageReviewDomainAliasAtom,
+    PackageReviewDomainClassification, PackageReviewDomainEstablishmentRoute,
+    PackageReviewDomainSemanticRole, PackageReviewEvidenceInterface, PackageReviewNominalIdentity,
+    PackageReviewOperatorCoordinate, PackageReviewSynchronousInvocation, PackageReviewTraitParent,
+    PackageReviewTraitRequirementParameter, PackageReviewTypeIdentity,
+};
 
 impl PackagePolicyTraitShape {
     pub const fn identity(&self) -> &PackageReviewNominalIdentity {

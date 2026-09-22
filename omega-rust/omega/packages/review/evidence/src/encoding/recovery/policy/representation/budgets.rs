@@ -1,6 +1,6 @@
 use super::{Error, PackagePolicyRecoveryLimits, fixtures};
 use crate::encoding::recovery::policy::calling_application::budgets::fixture_elements;
-use crate::record::*;
+use crate::record::{PackagePolicyRepresentation, PackageReviewNominalIdentity};
 
 #[test]
 fn aggregate_byte_field_and_element_boundaries_include_every_nested_application() {

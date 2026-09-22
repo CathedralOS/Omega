@@ -7,7 +7,7 @@ use super::super::{
     signatures::data_properties,
 };
 use super::signatures::type_parameter;
-use crate::record::*;
+use crate::record::{PackagePolicyDataShape, PackageReviewDataKind};
 
 pub(super) fn data_shape(reader: &mut Reader<'_>) -> Result<PackagePolicyDataShape, Error> {
     Ok(PackagePolicyDataShape {

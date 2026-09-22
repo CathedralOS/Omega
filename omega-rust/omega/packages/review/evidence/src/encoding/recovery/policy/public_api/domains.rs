@@ -6,7 +6,9 @@ use super::super::{
     reader::Reader,
 };
 use super::signatures::type_parameter;
-use crate::record::*;
+use crate::record::{
+    PackagePolicyDomainShape, PackageReviewDomainClassification, PackageReviewDomainSemanticRole,
+};
 
 pub(super) fn domain_shape(reader: &mut Reader<'_>) -> Result<PackagePolicyDomainShape, Error> {
     Ok(PackagePolicyDomainShape {

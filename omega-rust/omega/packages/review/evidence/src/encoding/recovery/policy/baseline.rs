@@ -1,5 +1,6 @@
 //! Inert baseline recovery under one shared reader and allocation budget.
 
+use crate::record::PackagePolicyBaseline;
 mod boundary;
 mod dependencies;
 #[cfg(test)]
@@ -20,7 +21,6 @@ use super::{
     terminal_permissions,
 };
 use crate::encoding::{PACKAGE_POLICY_BASELINE_MAGIC, PACKAGE_POLICY_BASELINE_VERSION};
-use crate::record::*;
 
 impl PackagePolicyBaseline {
     /// Recover comparison meaning without old source, proof, or native replay.

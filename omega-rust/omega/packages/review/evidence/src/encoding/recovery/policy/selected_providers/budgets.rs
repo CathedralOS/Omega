@@ -1,6 +1,6 @@
 use super::{Error, PackagePolicyRecoveryLimits, fixtures};
 use crate::encoding::recovery::policy::calling_application::budgets::fixture_elements;
-use crate::record::*;
+use crate::record::PackagePolicySelectedProviders;
 
 fn elements(policy: &PackagePolicySelectedProviders) -> usize {
     policy.plans.len()
