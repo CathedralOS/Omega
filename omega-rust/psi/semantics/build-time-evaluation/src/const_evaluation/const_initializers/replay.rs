@@ -1112,7 +1112,6 @@ fn pair(
 }
 
 #[cfg(test)]
-#[path = "tests/noncall_float_replay.rs"]
 mod noncall_float_replay;
 
 fn decode_scalar(
