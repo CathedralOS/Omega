@@ -2198,12 +2198,14 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let compiler_native = std::fs::read_to_string(&compiler_native_path).unwrap_or_else(|error| {
         panic!("failed to read {}: {error}", compiler_native_path.display())
     });
+    let compact_compiler_terminal = compiler_terminal.split_whitespace().collect::<String>();
     assert!(
         compiler_terminal.contains(".project_psi()")
             && compiler_terminal
                 .contains("optimization_selections: psi_optimizations.selections().clone()")
             && compiler_terminal.contains("entry_identity: Some(source_signature_identity)")
-            && compiler_terminal.contains("callback_custody: callback_placements")
+            && compact_compiler_terminal
+                .contains("selections,callback_placements,\"terminal-artifact\",)?;")
             && compiler_terminal.contains(".project_post_terminal()"),
         "the retained Terminal-product route must project executed Psi selections into publication and pending physical selections into its companion, carrying the checked ProgramEntry receipt"
     );
@@ -2867,9 +2869,11 @@ fn retained_native_product_enters_only_terminal_realization() {
         !legacy_driver_path.exists(),
         "the StateGraph compatibility compiler must stay deleted"
     );
+    let compact_terminal = terminal.split_whitespace().collect::<String>();
     assert!(
-        terminal
-            .contains("entry_identity: Some(program_entry.source_signature().identity().bytes())")
+        compact_terminal.contains(
+            "produce_admitted_entry_artifact(checked,&mutstage_timings,program_entry.source_signature().machine_symbol(),program_entry.source_signature().identity().bytes(),"
+        ) && terminal.contains("entry_identity: Some(source_signature_identity)")
             && !native.contains("TerminalProductionRequest"),
         "the program-entry Terminal artifact is produced by the Terminal stage, not by native realization"
     );
