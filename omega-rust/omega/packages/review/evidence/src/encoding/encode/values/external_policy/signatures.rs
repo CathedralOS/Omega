@@ -6,7 +6,7 @@ use crate::encoding::encode::{
     encoder::Encoder,
     public_api::type_parameter,
 };
-use crate::record::*;
+use crate::record::{PackagePolicyExternalCallableSignature, PackagePolicyExternalRequirement};
 
 pub(super) fn signature(
     encoder: &mut Encoder,

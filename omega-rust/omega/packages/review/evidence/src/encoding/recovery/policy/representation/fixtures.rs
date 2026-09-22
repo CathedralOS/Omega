@@ -1,4 +1,12 @@
-use crate::record::*;
+use crate::record::{
+    PackagePolicyConformanceShape, PackagePolicyRepresentation,
+    PackagePolicyRepresentationAvailability, PackagePolicyRepresentationDemand,
+    PackagePolicyRepresentationSelection, PackageReviewConformanceSubject,
+    PackageReviewEvidenceInterface, PackageReviewNominalIdentity, PackageReviewNominalOwner,
+    PackageReviewOpaqueRepresentationCopyDisposition, PackageReviewRepresentationArchitecture,
+    PackageReviewRepresentationObjectFormat, PackageReviewRepresentationTarget,
+    PackageReviewRepresentationTargetProfile,
+};
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) fn nominal(path: &str) -> PackageReviewNominalIdentity {

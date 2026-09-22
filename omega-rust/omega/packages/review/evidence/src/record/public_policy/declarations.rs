@@ -1,4 +1,13 @@
-use crate::record::*;
+use crate::record::{
+    PackagePolicyCrashRoute, PackagePolicyTermination, PackagePolicyTypeParameter,
+    PackageReviewCallableContract, PackageReviewCallableParameter, PackageReviewConformanceBound,
+    PackageReviewConformanceSubject, PackageReviewContractFact, PackageReviewDataKind,
+    PackageReviewDataMember, PackageReviewDataProperties, PackageReviewDomainAliasAtom,
+    PackageReviewDomainClassification, PackageReviewDomainEstablishmentRoute,
+    PackageReviewDomainSemanticRole, PackageReviewEvidenceInterface, PackageReviewNominalIdentity,
+    PackageReviewOperatorCoordinate, PackageReviewSynchronousInvocation, PackageReviewTraitParent,
+    PackageReviewTraitRequirementParameter, PackageReviewTypeIdentity,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyTraitShape {

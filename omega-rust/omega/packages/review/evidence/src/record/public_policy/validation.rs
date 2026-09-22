@@ -1,5 +1,9 @@
 //! Canonical public meaning and explicit binder scopes, never compiler proof.
 
+use crate::record::{
+    PackagePolicyConformanceShape, PackagePolicyPublicApi, PackagePolicyTypeParameter,
+    PackageReviewNominalIdentity, PackageReviewNominalOwner,
+};
 mod behavior;
 mod data;
 mod declarations;
@@ -11,7 +15,6 @@ use crate::record::package::callable_policy::validation::{
     signature::{self as shared, *},
     signature_contracts as contracts, signature_expressions as expressions,
 };
-use crate::record::*;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(in crate::record) fn validate_conformance_shape(

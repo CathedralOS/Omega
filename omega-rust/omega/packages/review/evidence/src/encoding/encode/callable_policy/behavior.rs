@@ -2,11 +2,16 @@
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::encoder::Encoder;
 use crate::encoding::encode::values::identity::encode_nominal;
+use crate::record::{
+    PackagePolicyCapabilityFlow, PackagePolicyCrash, PackagePolicyCrashGuard,
+    PackagePolicyCrashRoute, PackagePolicyInferredCrash, PackagePolicyMutation,
+    PackagePolicyTermination, PackageReviewCrashCause, PackageReviewCrashInterface,
+    PackageReviewProgressSubject, PackageReviewWriteFrameCompleteness,
+};
 
 use super::super::values::{
     crashes::encode_boolean_expression, expressions::encode_contract_expression,
 };
-use crate::record::*;
 
 pub(super) fn capability(
     encoder: &mut Encoder,

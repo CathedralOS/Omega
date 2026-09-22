@@ -8,12 +8,16 @@ use crate::encoding::encode::public_api;
 use crate::encoding::encode::representation;
 use crate::encoding::encode::selected_providers;
 use crate::encoding::encode::terminal_permissions;
+use crate::record::{
+    PackagePolicyCallables, PackagePolicyCallingPlan, PackagePolicyExternalExecutableSupply,
+    PackagePolicyPhysicalCallingContract, PackagePolicyPublicApi, PackagePolicyRepresentation,
+    PackagePolicySelectedProviders, PackagePolicyTerminalPermissions,
+};
 
 use super::encoder::text::Writer;
 use crate::encoding::{
     PackagePolicyRecoveryLimits, recovery::decode_policy_text_scalars as binary,
 };
-use crate::record::*;
 
 pub(in crate::encoding) enum Component<'value> {
     PublicApi(&'value PackagePolicyPublicApi),

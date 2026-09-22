@@ -1,5 +1,10 @@
 //! One envelope and resource budget for the composed package policy.
 
+use crate::record::{
+    PackagePolicyBaseline, PackagePolicySemanticDependency,
+    PackagePolicySemanticDependencyConsumer, PackageReviewSemanticDependencyExposure,
+    PackageReviewSemanticDependencyKind,
+};
 pub(super) mod boundary;
 mod recovery;
 pub(super) mod restricted_build;
@@ -11,7 +16,6 @@ use super::{
 use crate::encoding::{
     PACKAGE_POLICY_BASELINE_MAGIC, PACKAGE_POLICY_BASELINE_VERSION, PackageReviewEncodingError,
 };
-use crate::record::*;
 
 impl PackagePolicyBaseline {
     /// Deterministic comparison payload. These bytes grant no acceptance or

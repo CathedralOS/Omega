@@ -7,7 +7,11 @@ use super::super::{
     reader::Reader,
     signatures::data_properties,
 };
-use crate::record::*;
+use crate::record::{
+    PackagePolicyMachineParameterContract, PackagePolicyMachineParameterSignature,
+    PackagePolicyTypeParameter, PackagePolicyTypeParameterKind, PackageReviewMachineParameterValue,
+    PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
+};
 
 pub(in crate::encoding::recovery::policy) fn type_parameter(
     reader: &mut Reader<'_>,

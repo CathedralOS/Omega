@@ -1,5 +1,11 @@
-use super::signature::*;
-use crate::record::*;
+use crate::record::package::callable_policy::validation::signature::Scope;
+use crate::record::package::callable_policy::validation::signature::{
+    BinderKind, Result, depth, lifetimes, nominal, operator, owned_pair, text, value_type,
+};
+use crate::record::{
+    PackageReviewContractCallTarget, PackageReviewContractExpression,
+    PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,
+};
 
 pub(in crate::record) fn expression(
     value: &PackageReviewContractExpression,
@@ -219,10 +225,11 @@ pub(in crate::record) fn static_argument(
 
 #[cfg(test)]
 mod tests {
-    use super::{Scope, expression};
+    use super::expression;
     use crate::record::PackageReviewContractExpression;
     use crate::record::PackageReviewNominalIdentity;
     use crate::record::PackageReviewNominalOwner;
+    use crate::record::package::callable_policy::validation::signature::Scope;
 
     #[test]
     fn membership_requires_a_scoped_subject_and_exact_classifier_owner() {

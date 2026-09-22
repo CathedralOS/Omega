@@ -1,6 +1,10 @@
 //! Lossless policy signatures cannot be reconstructed from legacy review rows.
-use crate::record::*;
 
+use crate::record::{
+    PackagePolicyCallableConformance, PackagePolicyTypeParameter, PackageReviewConformanceBound,
+    PackageReviewExternalCallableParameter, PackageReviewNominalIdentity,
+    PackageReviewOperatorCoordinate, PackageReviewTypeIdentity,
+};
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyExternalCallableSignature {
     pub(crate) lifetime_parameter_count: usize,

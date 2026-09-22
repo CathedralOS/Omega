@@ -5,7 +5,9 @@ use crate::capture::semantics::{
     conformances::project_conformance_bounds, signatures::policy::project_type_parameters,
     types::review_signature_type_identity_with_binders,
 };
-use crate::record::*;
+use crate::record::{
+    PackagePolicyExternalCallableSignature, PackageReviewExternalCallableParameter,
+};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::machine::Machine;

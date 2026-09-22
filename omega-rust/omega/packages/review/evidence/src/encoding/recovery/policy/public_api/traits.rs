@@ -9,7 +9,11 @@ use super::super::{
     signatures::conformance_bound,
 };
 use super::signatures::type_parameter;
-use crate::record::*;
+use crate::record::{
+    PackagePolicyConformanceShape, PackagePolicyOperatorShape, PackagePolicyTraitRequirement,
+    PackagePolicyTraitShape, PackageReviewCallableParameter, PackageReviewConformanceSubject,
+    PackageReviewTraitRequirementParameter,
+};
 
 pub(super) fn trait_shape(reader: &mut Reader<'_>) -> Result<PackagePolicyTraitShape, Error> {
     Ok(PackagePolicyTraitShape {

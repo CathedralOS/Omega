@@ -4,7 +4,10 @@ use super::{signatures, values};
 use crate::capture::PackageReviewInput;
 use crate::capture::api;
 use crate::capture::semantics::facts::exactly_one;
-use crate::record::*;
+use crate::record::{
+    PackagePolicyConformanceShape, PackagePolicyDataShape, PackagePolicyDomainShape,
+    PackagePolicyOperatorShape,
+};
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 

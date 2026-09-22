@@ -9,7 +9,11 @@ use super::super::{
     behavior::crash_route, contracts::callable_contract, identity::operator_coordinate,
     signatures::type_parameter,
 };
-use crate::record::*;
+#[cfg(test)]
+use crate::record::{PackageReviewCallableParameter, PackageReviewOperatorShape};
+use crate::record::{
+    PackageReviewConstShape, PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
+};
 
 pub(in crate::encoding::recovery::policy) fn proposition_shape(
     reader: &mut Reader<'_>,

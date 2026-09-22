@@ -2,7 +2,11 @@ use super::{
     Error,
     tests::{fixture, recover},
 };
-use crate::record::*;
+use crate::record::{
+    PackagePolicyTerminalPermissions, PackagePolicyTypeParameter, PackagePolicyTypeParameterKind,
+    PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
+    PackageReviewTypeIdentity,
+};
 
 pub(super) fn generic_fixture() -> PackagePolicyTerminalPermissions {
     let mut policy = fixture();

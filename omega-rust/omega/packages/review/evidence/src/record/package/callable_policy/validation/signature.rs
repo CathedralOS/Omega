@@ -4,7 +4,13 @@ use super::{
     signature_contracts as contracts, signature_expressions as expressions,
     signature_parameters as parameters,
 };
-use crate::record::*;
+use crate::record::{
+    PackagePolicyCallable, PackagePolicyTypeParameter, PackagePolicyTypeParameterKind,
+    PackageReviewContractExpression, PackageReviewNominalIdentity, PackageReviewNominalOwner,
+    PackageReviewOperatorCoordinate, PackageReviewPropositionBinder,
+    PackageReviewPropositionBinderKind, PackageReviewPropositionParameterSignature,
+    PackageReviewTypeIdentity, PackageReviewTypeParameter, PackageReviewTypeParameterKind,
+};
 
 pub(in crate::record) type Result = std::result::Result<(), &'static str>;
 

@@ -15,7 +15,15 @@ use super::conformances::project_callable_conformances;
 use super::signatures::project_external_callable_signature;
 use crate::capture::PackageReviewInput;
 use crate::capture::source::ProjectedReviewRow;
-use crate::record::*;
+use crate::record::{
+    PackagePolicyCallableConformance, PackagePolicyExternalRequirement, PackagePolicyTypeParameter,
+    PackageReviewCallableConformance, PackageReviewCallableContract,
+    PackageReviewCallableParameter, PackageReviewCallableRole, PackageReviewCallableSupply,
+    PackageReviewCheckedServiceReach, PackageReviewConformanceBound,
+    PackageReviewExternalExecutableSupply, PackageReviewInstallationReach,
+    PackageReviewNominalIdentity, PackageReviewOperatorRealization,
+    PackageReviewSynchronousInvocation, PackageReviewTypeIdentity, PackageReviewTypeParameter,
+};
 use diagnostics::Diagnostic;
 use language_semantics::MachineSupplyMode;
 use symbols::SymbolHandle;

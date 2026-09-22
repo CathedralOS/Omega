@@ -9,7 +9,10 @@ use crate::capture::{
         types::review_signature_type_identity_with_binders,
     },
 };
-use crate::record::*;
+use crate::record::{
+    PackagePolicyCallableConformance, PackagePolicyExternalRequirement,
+    PackageReviewExternalBinding,
+};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::machine::{Machine, SatisfiedDeclaration, TraitConformance};

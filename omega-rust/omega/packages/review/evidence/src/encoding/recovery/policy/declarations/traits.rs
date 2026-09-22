@@ -11,7 +11,12 @@ use super::super::{
 };
 #[cfg(test)]
 use super::values::operator_spelling;
-use crate::record::*;
+#[cfg(test)]
+use crate::record::{
+    PackageReviewConformanceShape, PackageReviewConformanceSubject, PackageReviewTraitRequirement,
+    PackageReviewTraitRequirementParameter, PackageReviewTraitShape,
+};
+use crate::record::{PackageReviewTraitCompositionKind, PackageReviewTraitParent};
 
 #[cfg(test)]
 pub(in crate::encoding::recovery::policy) fn trait_shape(

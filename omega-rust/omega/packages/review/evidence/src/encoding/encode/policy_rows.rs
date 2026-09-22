@@ -1,12 +1,15 @@
 //! Total receipt-free row projection under one sizing and emission budget.
 
+use crate::record::{
+    PackagePolicyBaseline, PackagePolicyRow, PackagePolicyRowKind, PackagePolicyRowLimits,
+    PackagePolicyRowUsage,
+};
 mod assembly;
 mod builder;
 mod components;
 mod declarations;
 
 use super::{PackageReviewEncodingError, baseline, encoder::Encoder};
-use crate::record::*;
 use builder::Builder;
 use semantic_vocabulary::PackageKeyIdentity;
 

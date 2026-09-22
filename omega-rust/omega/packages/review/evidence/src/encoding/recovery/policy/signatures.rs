@@ -9,7 +9,14 @@ use super::{
     behavior::{crash_route, synchronous_invocation, termination},
     contracts::callable_contract,
 };
-use crate::record::*;
+use crate::record::{PackageReviewConformanceBound, PackageReviewDataProperties};
+#[cfg(test)]
+use crate::record::{
+    PackageReviewMachineParameterContract, PackageReviewMachineParameterSignature,
+    PackageReviewMachineParameterValue, PackageReviewPropositionParameterSignature,
+    PackageReviewPropositionParameterValue, PackageReviewTypeParameter,
+    PackageReviewTypeParameterKind,
+};
 
 #[cfg(test)]
 pub(super) fn machine_contract(

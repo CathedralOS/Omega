@@ -1,6 +1,21 @@
-use crate::record::*;
-use effects::provider_plan::*;
-use language_semantics::*;
+use crate::record::{
+    PackagePolicyEvaluatedBindingProducer, PackagePolicyProviderBinding,
+    PackagePolicyProviderFamily, PackagePolicyProviderFamilyCoordinate, PackagePolicyProviderPlan,
+    PackagePolicyProviderRow, PackagePolicySelectedProviders, PackagePolicyServiceAuthority,
+    PackagePolicyServiceMethod, PackagePolicyServiceProgressPremise,
+    PackagePolicyServiceProgressRoute, PackagePolicyServiceSignature, PackageReviewNominalIdentity,
+    PackageReviewNominalOwner, PackageReviewProviderFamilyCoverage,
+    PackageReviewProviderGrantSelectorKind, PackageReviewProviderSelectionAuthority,
+    PackageReviewSelectedInstallationReach, PackageReviewSynchronousInvocation,
+    PackageReviewTraitRequirementParameter,
+};
+use effects::provider_plan::{
+    ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceProgressEstablishmentRoute,
+    ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject,
+};
+use language_semantics::{
+    CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension, DomainPredicateBody,
+};
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
