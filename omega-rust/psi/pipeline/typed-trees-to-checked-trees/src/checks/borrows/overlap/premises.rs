@@ -56,6 +56,10 @@ enum PremiseScope<'program> {
     Call {
         guarantee: &'program AvailableGuarantee<'program>,
         result: symbols::SymbolHandle,
+        /// Whether the bound storage is mutable: premise operands then mint
+        /// the storage bound, matching the query coordinate a mutable
+        /// selector contributes at this scope.
+        result_mutable: bool,
     },
     /// A transparent proposition formula evaluated in the machine scope of
     /// the requires row: `parameters`/`arguments` pair the proposition's
@@ -104,11 +108,21 @@ impl PremiseScope<'_> {
         expression: ExpressionHandle,
     ) -> Option<NormalizedBound> {
         match self {
-            Self::Call { guarantee, result } => {
+            Self::Call {
+                guarantee,
+                result,
+                result_mutable,
+            } => {
                 if guarantee.is_result(program, expression) {
-                    result.is_valid().then_some(NormalizedBound::Symbol {
-                        symbol: result,
-                        offset: 0,
+                    result.is_valid().then(|| {
+                        if result_mutable {
+                            NormalizedBound::Storage { symbol: result }
+                        } else {
+                            NormalizedBound::Symbol {
+                                symbol: result,
+                                offset: 0,
+                            }
+                        }
                     })
                 } else {
                     normalized_bound(program, guarantee.actual(program, expression)?)
@@ -313,8 +327,8 @@ pub(in crate::checks::borrows) fn append_call_premises(
     for guarantee in
         call_guarantees::available(program, facts, state_flow, statement, &contexts, frames)
     {
-        let result = guarantee
-            .immutable_result_binding(program, &facts.semantic, &contexts, state)
+        let (result, result_mutable) = guarantee
+            .result_binding(program, &facts.semantic, &contexts, state)
             .unwrap_or_default();
         let (statement_index, call_ordinal) = guarantee.coordinates();
         decompose_premise_expression(
@@ -322,6 +336,7 @@ pub(in crate::checks::borrows) fn append_call_premises(
             PremiseScope::Call {
                 guarantee: &guarantee,
                 result,
+                result_mutable,
             },
             guarantee.expression,
             false,
@@ -510,6 +525,9 @@ fn transport_query_bound(
         NormalizedBound::Symbol { symbol, offset } => NormalizedBound::Symbol {
             symbol: argument(symbol)?,
             offset,
+        },
+        NormalizedBound::Storage { symbol } => NormalizedBound::Storage {
+            symbol: argument(symbol)?,
         },
         NormalizedBound::SymbolSum {
             first,
@@ -741,6 +759,17 @@ fn bound_shift(value: NormalizedBound, base: NormalizedBound) -> Option<i64> {
                 offset: base_offset,
             },
         ) if value_symbol == base_symbol => value_offset.checked_sub(base_offset),
+        // Two storage rows in one premise evaluation name the same pinned
+        // occurrence: the minting binding verified the storage's version at
+        // this scope, so the rows share one zero-offset line.
+        (
+            NormalizedBound::Storage {
+                symbol: value_symbol,
+            },
+            NormalizedBound::Storage {
+                symbol: base_symbol,
+            },
+        ) if value_symbol == base_symbol => Some(0),
         (
             NormalizedBound::SymbolSum {
                 first: value_first,

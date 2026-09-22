@@ -96,8 +96,12 @@ pub(super) fn substitute_bound(
                 offset: offset + actual_offset,
             }),
             NormalizedBound::Integer(value) => Some(NormalizedBound::Integer(offset + value)),
-            NormalizedBound::SymbolSum { .. } => None,
+            NormalizedBound::SymbolSum { .. } | NormalizedBound::Storage { .. } => None,
         },
+        // Storage bounds are scope-local coordinates; substitution through a
+        // proposition's immutable argument bounds cannot preserve the pinned
+        // occurrence the storage name requires.
+        NormalizedBound::Storage { .. } => None,
         NormalizedBound::SymbolSum {
             first,
             second,

@@ -15,6 +15,23 @@ const RETURNED_WINDOW: &str = r#"
     }
 "#;
 
+// The same establishment through a mutable result binding: the guarantee
+// holds while the recorded assignment still pins `split_point` to the call.
+const MUTABLE_RESULT_WINDOW: &str = r#"
+    data Main { items: [i32; 4]; }
+    machine choose(value: u64 [2..=4]) -> u64 [0..=4]
+        ensures result >= 2;
+    { value }
+    machine take(slot: &mut i32) { slot = 7; }
+    machine Main::main(&mut self, seed: u64 [2..=4]) -> u64 {
+        let mut split_point: u64 [0..=4] = choose(seed);
+        let held: &mut [i32] = self.items[split_point..4];
+        self.items[0] = 3;
+        take(&mut self.items[1]);
+        held.len
+    }
+"#;
+
 #[test]
 fn returned_guarantee_certifies_disjoint_window_write_and_call() {
     let mut checked = checked_program(RETURNED_WINDOW);
@@ -72,7 +89,13 @@ fn absent_weak_or_unrelated_guarantees_cannot_separate_windows() {
         assert_conflict(&RETURNED_WINDOW.replace("ensures result >= 2;", predicate));
     }
     assert_conflict(&RETURNED_WINDOW.replace("self.items[1]", "self.items[split_point]"));
-    assert_conflict(&RETURNED_WINDOW.replace("let split_point:", "let mut split_point:"));
+    // A mutable result binding supplies the guarantee only while its pinned
+    // occurrence survives: reassigning `split_point` retires the version
+    // evidence, so the window can no longer separate.
+    assert_conflict(&RETURNED_WINDOW.replace(
+        "let split_point: u64 [0..=4] = choose(seed);",
+        "let mut split_point: u64 [0..=4] = choose(seed); split_point = 0;",
+    ));
     assert_conflict(&RETURNED_WINDOW.replace("ensures result >= 2;", "ensures value >= 2;"));
     assert_conflict(&RETURNED_WINDOW
         .replace("machine take", "machine forget(value: u64 [0..=4]) -> u64 [0..=4] { value } machine take")
@@ -102,11 +125,39 @@ fn immutable_result_copies_and_boolean_decomposition_preserve_call_identity() {
 }
 
 #[test]
-fn premise_evidence_cannot_retarget_to_a_mutable_result_binding() {
+fn mutable_result_binding_retains_call_establishment_while_pinned() {
+    let mut checked = checked_program(MUTABLE_RESULT_WINDOW);
+    assert!(
+        checked
+            .facts
+            .borrow
+            .mutation_certificates
+            .iter()
+            .any(|(_, certificate)| certificate.derivation
+                == checked_trees::BorrowCompatibilityDerivation::Premised)
+    );
+    assert!(
+        checked
+            .facts
+            .borrow
+            .call_compatibility_certificates
+            .iter()
+            .any(|(_, certificate)| certificate.derivation
+                == checked_trees::BorrowCompatibilityDerivation::Premised)
+    );
+    crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+        .expect("mutable result binding replays its established premise");
+    // Reassigning the binding retires the pinned occurrence: the guarantee no
+    // longer describes the stored value and the conflict returns.
+    assert_conflict(&MUTABLE_RESULT_WINDOW.replace("let held:", "split_point = 0; let held:"));
+}
+
+#[test]
+fn premise_evidence_cannot_retarget_to_a_mutable_binding_without_pinned_occurrence() {
     // `split_point` supplies the `ensures result >= 2` premise only while its
-    // recorded binding stays immutable: mutable storage has no version evidence
-    // pinning which occurrence the guarantee spoke about, so replaying the
-    // certificate against a mutable spelling must reject.
+    // recorded assignment still pins the storage to the call's occurrence:
+    // replaying the certificate against a mutable spelling whose pinned
+    // provenance is gone must reject.
     let mut checked = checked_program(RETURNED_WINDOW);
     let spans: Vec<_> = checked
         .typed
@@ -127,6 +178,27 @@ fn premise_evidence_cannot_retarget_to_a_mutable_result_binding() {
         }
     }
     assert!(flipped, "fixture local split_point");
+    let assignments: Vec<_> = checked
+        .facts
+        .semantic
+        .facts
+        .iter()
+        .filter_map(|(handle, fact)| {
+            matches!(fact.payload, facts::FactPayload::AssignedValue { value }
+                if matches!(checked.typed.expression_table.expression(value),
+                    typed_trees::expression::ExpressionNode::Call(_)))
+            .then_some(handle)
+        })
+        .collect();
+    assert!(!assignments.is_empty(), "pinned call assignment");
+    for handle in assignments {
+        let facts::FactPayload::AssignedValue { value } =
+            &mut checked.facts.semantic.facts.get_mut(handle).payload
+        else {
+            unreachable!();
+        };
+        *value = typed_trees::expression::ExpressionHandle::invalid();
+    }
     assert_replay_rejects(&mut checked);
 }
 
