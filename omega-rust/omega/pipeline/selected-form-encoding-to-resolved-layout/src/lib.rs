@@ -10,4 +10,12 @@
 
 mod resolved_selected_form_layout;
 
-pub use resolved_selected_form_layout::*;
+pub use resolved_selected_form_layout::{
+    OptimizedResolvedSelectedFormLayoutError, ResolvedBranchEvidence,
+    ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate, ResolvedJumpEvidence,
+    ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFormRow,
+    ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy,
+    StagedOptimizedResolvedSelectedFormLayout, admit_resolved_machine_layout,
+    stage_optimized_resolved_selected_form_layout,
+    validate_optimized_resolved_selected_form_layout,
+};

@@ -86,7 +86,13 @@ pub use placement::{
     FrozenPlacementError, MaterializationError, MaterializationReceipt, PlacementClaimError,
     ValidatedPlacement,
 };
-pub use post_handoff_writer::*;
+pub use post_handoff_writer::{
+    DestinationClaimError, DestinationPreparationReceipt, DestinationWriteError,
+    PreparedPostHandoffWriterDestination, PreparedPostHandoffWriterDestinationValidationError,
+    ResolvedPostHandoffEntryWriterContext, ValidatedPreparedPostHandoffWriterDestination,
+    ValidatedWrittenPostHandoffWriterDestination, WrittenPostHandoffWriterConsumerValidationError,
+    WrittenPostHandoffWriterDestination,
+};
 pub use retirement::quarantine::{
     MappingQuarantineCause, MappingQuarantineError, MappingQuarantineReceipt,
     QuarantinedInstallation, StaleEntryFault, quarantine_installed,
