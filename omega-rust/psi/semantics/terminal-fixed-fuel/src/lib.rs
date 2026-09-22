@@ -3,11 +3,14 @@
 //! Recomputable restricted fixed-fuel certificates for terminal Psi.
 //!
 //! Ordinary terminal verification accepts acyclic control flow, so the checker
-//! derives an exact maximum entry-to-terminal-exit cost without precondition
-//! assumptions and partitions the complete reachable graph at every reachable
-//! explicit edge. A verified `Natural`-ranked machine also admits a whole-entry
-//! ceiling: the components partition the cyclic topology, every cycle crosses a
-//! strict rank descent, and the condensed graph is acyclic.
+//! derives an exact maximum entry-to-terminal-exit cost and partitions the
+//! complete reachable graph at every reachable explicit edge. A verified
+//! `Natural`-ranked machine also admits a whole-entry ceiling: the components
+//! partition the cyclic topology, every cycle crosses a strict rank descent,
+//! and the condensed graph is acyclic. A component's visit bound is the rank
+//! carrier's type maximum unless the machine contract places a literal ceiling
+//! on every rank arriving at the component's first entry — the consulted
+//! `requires` clauses then become the certificate's `relevant_preconditions`.
 //!
 //! The design rule is recompute-and-compare, never trust. Every certificate
 //! arrives as a `derive_*`/`validate_*` pair: `validate_*` recomputes the
