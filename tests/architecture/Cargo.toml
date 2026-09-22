@@ -104,5 +104,9 @@ name = "catch_all_modules"
 path = "catch_all_modules.rs"
 
 [[test]]
+name = "glob_imports"
+path = "glob_imports.rs"
+
+[[test]]
 name = "integration_test_suites"
 path = "integration_test_suites.rs"
