@@ -20,10 +20,10 @@ pub(crate) fn validate_object_shape(
 }
 
 /// Every `validate_object_shape` conjunct below the identity seal. Callers
-/// that assigned `object.identity` from `recomputed_identity()` on the same
-/// in-memory value know the digest conjunct cannot differ, so they validate
-/// through this instead of re-deriving the seal.
-fn validate_object_shape_content(
+/// that assigned or verified `object.identity` against `recomputed_identity()`
+/// on the same unchanged in-memory value know the digest conjunct cannot
+/// differ, so they validate through this instead of re-deriving the seal.
+pub(crate) fn validate_object_shape_content(
     object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
 ) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectError> {
     if object.target != NativeTarget::uefi_x64()

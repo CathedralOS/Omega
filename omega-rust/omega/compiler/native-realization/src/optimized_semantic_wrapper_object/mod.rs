@@ -45,6 +45,7 @@ pub use validation::{
     validate_optimized_program_storage_semantic_wrapper_object,
 };
 
+use codec::encode_optimized_program_storage_semantic_wrapper_object_preserving_seal;
 use custody::custody;
 use object::{construct_manifest, construct_object};
 use validation::{
@@ -72,8 +73,12 @@ pub fn stage_validated_optimized_program_storage_semantic_wrapper_object(
     let contract = replay_semantic_contract(&settlement, &encoding, &source)?;
     validate_entry_shape(&source, &settlement, &contract)?;
     let object = construct_object(&settlement, &source, &encoding)?;
-    let container =
-        encode_optimized_program_storage_semantic_wrapper_object(&object, encoding.template())?;
+    // `construct_object` sealed the plan one statement ago; the encode join
+    // re-runs every shape and template check without reserializing the seal.
+    let container = encode_optimized_program_storage_semantic_wrapper_object_preserving_seal(
+        &object,
+        encoding.template(),
+    )?;
     let manifest = construct_manifest(&object, &container)?;
     let custody = custody(&object, &container, &manifest);
     let staged = StagedValidatedOptimizedProgramStorageSemanticWrapperObject {

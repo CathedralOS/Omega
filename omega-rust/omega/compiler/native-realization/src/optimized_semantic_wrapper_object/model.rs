@@ -80,6 +80,15 @@ pub struct OptimizedProgramStorageSemanticWrapperObjectPlan {
     pub relocation_record_count: u64,
 }
 
+// Test-only count of plan-identity serializations on the calling thread:
+// the staging-route test asserts each produced plan value is sealed once.
+// Thread-local so parallel tests in one process cannot interleave counts.
+#[cfg(test)]
+thread_local! {
+    pub(crate) static TEST_PLAN_IDENTITY_RECOMPUTATIONS: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
+}
+
 impl OptimizedProgramStorageSemanticWrapperObjectPlan {
     pub fn recomputed_identity(
         &self,
@@ -87,6 +96,8 @@ impl OptimizedProgramStorageSemanticWrapperObjectPlan {
         OptimizedProgramStorageSemanticWrapperObjectIdentity,
         OptimizedProgramStorageSemanticWrapperObjectError,
     > {
+        #[cfg(test)]
+        TEST_PLAN_IDENTITY_RECOMPUTATIONS.with(|count| count.set(count.get() + 1));
         let mut canonical = PLAN_SCHEMA.to_vec();
         canonical.extend_from_slice(&encode_plan_content(self)?);
         Ok(OptimizedProgramStorageSemanticWrapperObjectIdentity::from_canonical_bytes(&canonical))

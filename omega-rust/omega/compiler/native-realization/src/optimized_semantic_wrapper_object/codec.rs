@@ -1,7 +1,9 @@
 use crate::optimized_semantic_wrapper_object::error::*;
 use crate::optimized_semantic_wrapper_object::model::*;
 use crate::optimized_semantic_wrapper_object::model::{CODEC_VERSION, CONTAINER_MAGIC};
-use crate::optimized_semantic_wrapper_object::object::{validate_object, validate_object_shape};
+use crate::optimized_semantic_wrapper_object::object::{
+    validate_object, validate_object_preserving_seal, validate_object_shape_content,
+};
 use isa_x86_64::ValidatedX86_64SemanticUnitWrapperTemplate;
 use object_file::ObjectLocalSymbolId;
 use optimization_core::{
@@ -22,6 +24,31 @@ pub fn encode_optimized_program_storage_semantic_wrapper_object(
     OptimizedProgramStorageSemanticWrapperObjectError,
 > {
     validate_object(object, wrapper)?;
+    encode_validated_container(object)
+}
+
+/// The encode join for an object the caller just sealed: `object.identity`
+/// was assigned from `recomputed_identity()` on this unchanged in-memory
+/// value, so the digest conjunct cannot differ and is not reserialized;
+/// every other shape and template check still runs. The standalone encode
+/// above keeps the full recompute for caller-supplied objects.
+pub(crate) fn encode_optimized_program_storage_semantic_wrapper_object_preserving_seal(
+    object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
+    wrapper: &ValidatedX86_64SemanticUnitWrapperTemplate,
+) -> Result<
+    OptimizedProgramStorageSemanticWrapperObjectContainer,
+    OptimizedProgramStorageSemanticWrapperObjectError,
+> {
+    validate_object_preserving_seal(object, wrapper)?;
+    encode_validated_container(object)
+}
+
+fn encode_validated_container(
+    object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
+) -> Result<
+    OptimizedProgramStorageSemanticWrapperObjectContainer,
+    OptimizedProgramStorageSemanticWrapperObjectError,
+> {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(CONTAINER_MAGIC);
     bytes.extend_from_slice(&CODEC_VERSION.to_le_bytes());
@@ -59,7 +86,10 @@ pub fn decode_optimized_program_storage_semantic_wrapper_object(
     if cursor.remaining() != 0 {
         return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::TrailingBytes);
     }
-    validate_object_shape(&object)
+    // `decode_plan_content` verified this in-memory plan's seal against the
+    // wire-carried identity; the digest conjunct cannot differ, so only the
+    // shape conjuncts below it run here.
+    validate_object_shape_content(&object)
         .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectDecodeError::InvalidObject)?;
     Ok(object)
 }

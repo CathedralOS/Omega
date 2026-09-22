@@ -1,4 +1,5 @@
 use super::{
+    OptimizedProgramStorageSemanticWrapperObjectDecodeError,
     OptimizedProgramStorageSemanticWrapperObjectError,
     OptimizedProgramStorageSemanticWrapperObjectManifest,
     OptimizedProgramStorageSemanticWrapperObjectPlan,
@@ -7,7 +8,12 @@ use super::{
     construct_manifest, decode_optimized_program_storage_semantic_wrapper_object,
     encode_optimized_program_storage_semantic_wrapper_object, validate_object,
 };
-use crate::optimized_semantic_wrapper_object::model::WRAPPER_SYMBOL_NAME;
+use crate::optimized_semantic_wrapper_object::codec::encode_optimized_program_storage_semantic_wrapper_object_preserving_seal;
+use crate::optimized_semantic_wrapper_object::custody::custody;
+use crate::optimized_semantic_wrapper_object::model::{
+    TEST_PLAN_IDENTITY_RECOMPUTATIONS, WRAPPER_SYMBOL_NAME,
+};
+use crate::optimized_semantic_wrapper_object::object::validate_object_preserving_seal;
 use calling_conventions::{
     CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
 };
@@ -26,7 +32,8 @@ use object_file::{
 };
 use optimization_core::{
     OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifestIdentity,
-    RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
+    OptimizedProgramStorageSemanticWrapperObjectIdentity, RelocationFreeObjectContainerIdentity,
+    RelocationFreeObjectPlanIdentity,
 };
 use program_entry_plan::{
     OptimizedProgramStorageSemanticCallingApplication, ProgramEntryPhysicalContractPlan,
@@ -309,5 +316,95 @@ fn retained_object_identity_rejects_text_drift() {
     assert_eq!(
         validate_object(&object, encoding().template()),
         Err(OptimizedProgramStorageSemanticWrapperObjectError::InvalidObject)
+    );
+}
+
+/// The stage's object join and its trailing validator drive exactly these
+/// calls — `construct_object`/`compose_object`, the preserving-seal encode,
+/// manifest and custody construction, then the validator's recomposed
+/// `expected`, retained-object shape/template check, container decode, and
+/// re-encode — on inputs the module can fabricate (the settlement/source
+/// replay joins are upstream records, not plan-identity work). Each produced
+/// plan value — joined, replayed, wire-decoded — is sealed exactly once.
+#[test]
+fn staging_route_seals_each_produced_plan_exactly_once() {
+    TEST_PLAN_IDENTITY_RECOMPUTATIONS.with(|count| count.set(0));
+
+    // `stage_validated_...`: construct_object seals the joined plan, the
+    // sealed-encoding join emits the container without reserializing it.
+    let object = composed();
+    let container = encode_optimized_program_storage_semantic_wrapper_object_preserving_seal(
+        &object,
+        encoding().template(),
+    )
+    .unwrap();
+    let manifest = construct_manifest(&object, &container).unwrap();
+    let receipt = custody(&object, &container, &manifest);
+
+    // `validate_optimized_...`: the honest replay recomposes and seals a fresh
+    // `expected`, the retained plan's checks trust its assigned seal, the
+    // container decode re-derives identity from the wire, and the re-encode
+    // trusts the replayed seal.
+    let expected = composed();
+    validate_object_preserving_seal(&object, encoding().template()).unwrap();
+    assert_eq!(object, expected);
+    let decoded =
+        decode_optimized_program_storage_semantic_wrapper_object(&container.bytes).unwrap();
+    let replayed_container =
+        encode_optimized_program_storage_semantic_wrapper_object_preserving_seal(
+            &expected,
+            encoding().template(),
+        )
+        .unwrap();
+    assert_eq!(decoded, expected);
+    assert_eq!(container, replayed_container);
+    assert_eq!(receipt, custody(&expected, &replayed_container, &manifest));
+
+    assert_eq!(
+        TEST_PLAN_IDENTITY_RECOMPUTATIONS.with(|count| count.get()),
+        3,
+        "joined, replayed, and decoded plans are each sealed once; \
+         the stage previously reserialized an unchanged plan at encode, \
+         at retained-object validation, in the decode shape gate after the \
+         wire check, and at the replayed re-encode",
+    );
+}
+
+/// The preserving-seal joins used by the staging route trust the
+/// construction-time seal — a stale identity proves they did not reserialize
+/// it — while the public encode boundary keeps the full recompute and the
+/// wire decode still rejects the substituted seal.
+#[test]
+fn preserving_seal_joins_trust_the_assigned_seal_while_boundaries_still_check_it() {
+    let object = composed();
+    let mut stale = object.clone();
+    stale.identity =
+        OptimizedProgramStorageSemanticWrapperObjectIdentity::from_canonical_bytes(b"stale-object");
+
+    assert_eq!(
+        encode_optimized_program_storage_semantic_wrapper_object(&stale, encoding().template()),
+        Err(OptimizedProgramStorageSemanticWrapperObjectError::InvalidObject),
+        "the standalone encode boundary still recomputes the plan identity",
+    );
+    let container = encode_optimized_program_storage_semantic_wrapper_object_preserving_seal(
+        &stale,
+        encoding().template(),
+    )
+    .expect("the just-sealed encode trusts the assigned seal");
+    assert_eq!(
+        decode_optimized_program_storage_semantic_wrapper_object(&container.bytes),
+        Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::IdentityMismatch),
+        "the wire boundary still rejects a substituted plan identity",
+    );
+
+    // The validator's `staged.object != expected` join rejects a stale seal
+    // against the freshly recomposed plan with the same `InvalidObject` the
+    // full recompute produced.
+    let expected = composed();
+    assert_ne!(stale, expected);
+    assert_eq!(
+        validate_object_preserving_seal(&stale, encoding().template()),
+        Ok(()),
+        "shape and template checks are unaffected by the stale seal",
     );
 }
