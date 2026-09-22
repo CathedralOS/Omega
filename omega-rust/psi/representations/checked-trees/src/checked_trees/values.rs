@@ -4,11 +4,23 @@ use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::TypeReferenceHandle;
 
 mod computations;
-pub use computations::*;
+pub use computations::{
+    CheckedScalarCaseComputationField, CheckedScalarCaseConstruction, CheckedScalarComputation,
+    CheckedScalarComputationHandle, CheckedScalarComputationKind, CheckedScalarComputationPlans,
+    CheckedScalarComputationRoot, CheckedScalarComputationStructuralArgument,
+    CheckedScalarDispatchArm, CheckedScalarDispatchPattern,
+};
 mod proof_terms;
-pub use proof_terms::*;
+pub use proof_terms::{
+    CheckedErasedProofParameterPlan, CheckedLocatedProofTerm, CheckedProofTerm,
+    CheckedProofTermField, CheckedProofTermRole, CheckedProofTerms,
+};
 mod structural_values;
-pub use structural_values::*;
+pub use structural_values::{
+    CheckedStructuralDispatchArm, CheckedStructuralRecordField, CheckedStructuralRecordFieldValue,
+    CheckedStructuralValue, CheckedStructuralValueHandle, CheckedStructuralValueKind,
+    CheckedStructuralValuePlans, CheckedStructuralValueRoot,
+};
 mod array_construction_source;
 pub use array_construction_source::CheckedArrayConstructionSource;
 
