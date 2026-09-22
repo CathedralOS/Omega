@@ -12,6 +12,7 @@ use crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarEff
 pub(crate) fn emit(
     effects: &[LoweredScalarEffect],
     values: &[ValueDeclaration],
+    erased: &[ValueDeclaration],
     next_value: &mut u64,
     operations: &mut OperationBuffer,
     calls: &mut CallEmissionContext<'_>,
@@ -93,6 +94,15 @@ pub(crate) fn emit(
                     call.target_state,
                     values,
                 )?;
+                let erased_proof_arguments = call
+                    .erased_proof_arguments
+                    .iter()
+                    .map(|term| {
+                        crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                            term, values, erased,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, LoweringError>>()?;
                 operations.push(Operation {
                     static_reach_binding: None,
                     suspension_crossing: None,
@@ -102,7 +112,7 @@ pub(crate) fn emit(
                         callee: lookup_machine_id(calls.machine_ids, call.target_machine)?,
                         arguments: arguments.iter().map(|argument| argument.id).collect(),
                         erased_arguments: Vec::new(),
-                        erased_proof_arguments: call.erased_proof_arguments.clone(),
+                        erased_proof_arguments,
                         structural_arguments: call.structural_arguments.clone(),
                         claim_transfers: Vec::new(),
                         requirement_obligations: Vec::new(),

@@ -40,7 +40,6 @@ pub(crate) use call_arguments::is_scalar_return_call;
 pub(crate) use call_arguments::{
     nested_structural_call_return_type, retain_nested_structural_call_arguments,
 };
-pub(crate) use call_lowering::lower_proof_term;
 #[cfg(test)]
 pub(crate) use call_lowering::scalar_qualified_call_expression;
 #[cfg(test)]

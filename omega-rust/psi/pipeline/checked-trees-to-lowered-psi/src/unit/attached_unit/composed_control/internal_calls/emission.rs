@@ -117,6 +117,13 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_call_operation(
                 term,
                 &state.erased_proof_parameters,
             )
+            .and_then(|term| {
+                crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                    &term,
+                    caller_values,
+                    caller_erased_formals,
+                )
+            })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let mut calls = scalar_calls.emission_context();

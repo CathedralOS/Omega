@@ -383,6 +383,14 @@ impl MachineEmission<'_> {
                             term,
                             caller_proof_parameters,
                         )
+                        .and_then(|term| {
+                            crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                                &term,
+                                &self.scalar_result_values,
+                                &signatures::find(self.machine_signatures, plan.machine)?
+                                    .erased_scalar_parameters,
+                            )
+                        })
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?
             }

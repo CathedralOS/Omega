@@ -231,6 +231,7 @@ pub(super) fn validate_call_unit(
     }
     crate::validation::validate_erased_argument_terms(machine, operation.id, erased_arguments)?;
     crate::validation::validate_erased_proof_terms(
+        machine,
         crate::validation::proof_formals_in_scope(machine, operation.id),
         &callee.contract.erased_proof_formals,
         erased_proof_arguments,

@@ -1713,20 +1713,24 @@ fn successor_bindings(
             })
             .collect::<Option<Vec<_>>>()?;
     mark(SuccessorGuard::ErasedProofArguments);
-    // Erased proof-only formals carry proof terms, not scalar expressions:
-    // each actual lowers to a construction or a forwarded caller formal.
-    let proof_only = typed_trees::proof_only::classify(program);
+    // Erased contract-term formals carry proof terms, not scalar
+    // expressions: each actual is the term recorded under this edge's exact
+    // coordinate by the scalar expression pass.
     let erased_proof_arguments =
         crate::execution::terminal_unit::types::erased_proof_parameter_plans(program, target)?
             .iter()
             .map(|target| {
-                let argument = argument_at(target.source_position)?;
-                crate::values::lower_proof_term(
-                    program,
-                    argument,
-                    program.state_parameters(source),
-                    &proof_only,
-                )
+                facts
+                    .values
+                    .proof_terms
+                    .term_at(
+                        source.symbol,
+                        ordinal,
+                        checked_trees::CheckedProofTermRole::TransitionArgument {
+                            argument_ordinal: target.source_position,
+                        },
+                    )
+                    .cloned()
             })
             .collect::<Option<Vec<_>>>()?;
     Some(CheckedStructuralControlSuccessorPlan {

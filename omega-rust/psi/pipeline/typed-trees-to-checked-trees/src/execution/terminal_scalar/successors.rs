@@ -75,6 +75,7 @@ pub(super) fn retain(
     structural: &mut Arena<CheckedStructuralControlTransferPlan>,
     scalar: &mut Arena<CheckedStructuralScalarArgumentPlan>,
     proof: &mut Arena<CheckedProofTerm>,
+    proof_terms: &checked_trees::CheckedProofTerms,
 ) -> Option<()> {
     // Resolve all edges before mutating their spans. Working rows are private;
     // only the completed argument partition enters the durable arenas.
@@ -83,8 +84,9 @@ pub(super) fn retain(
         .states
         .iter()
         .flat_map(|source| {
-            iter(&source.terminator)
-                .map(move |successor| arguments(program, graph_view, source, successor))
+            iter(&source.terminator).map(move |successor| {
+                arguments(program, proof_terms, graph_view, source, successor)
+            })
         })
         .collect::<Option<Vec<_>>>()?;
     for (successor, rows) in graph
@@ -107,10 +109,11 @@ pub(super) fn validate(
     structural: &Arena<CheckedStructuralControlTransferPlan>,
     scalar: &Arena<CheckedStructuralScalarArgumentPlan>,
     proof: &Arena<CheckedProofTerm>,
+    proof_terms: &checked_trees::CheckedProofTerms,
 ) -> Option<()> {
     for source in &graph.states {
         for successor in iter(&source.terminator) {
-            let expected = arguments(program, graph, source, successor)?;
+            let expected = arguments(program, proof_terms, graph, source, successor)?;
             if structural.span(successor.structural_transfers)? != expected.structural
                 || scalar.span(successor.scalar_arguments)? != expected.scalar
                 || scalar.span(successor.erased_arguments)? != expected.erased
@@ -125,6 +128,7 @@ pub(super) fn validate(
 
 fn arguments(
     program: &TypedTrees,
+    proof_terms: &checked_trees::CheckedProofTerms,
     graph: &CheckedScalarMachineGraph,
     source: &CheckedScalarStateGraph,
     successor: &CheckedScalarSuccessor,
@@ -215,23 +219,27 @@ fn arguments(
         if formal.relevance.is_erased() {
             let Some(primitive_type) = program.primitive_type_reference(formal.type_reference)
             else {
-                // Proof-only erased formals index the contract term lane;
-                // the actual lowers to a proof term rather than an
-                // expression marker.
+                // Contract-term erased formals index the contract term lane;
+                // the recorded proof term at this edge's exact coordinate is
+                // the actual — relowering here would drop scalar leaves.
                 let retained = target.erased_proof_parameters.get(rows.proof.len())?;
                 if retained.source_position != argument_ordinal
-                    || proof_only
-                        .proof_only_mention(program, formal.type_reference)
-                        .is_none()
+                    || !proof_only.contract_term_carrier(program, formal.type_reference)
                 {
                     return None;
                 }
-                rows.proof.push(crate::values::lower_proof_term(
-                    program,
-                    *actual,
-                    source_parameters,
-                    &proof_only,
-                )?);
+                let role = if successor.is_continuation {
+                    checked_trees::CheckedProofTermRole::TransitionContinuationArgument {
+                        argument_ordinal,
+                    }
+                } else {
+                    checked_trees::CheckedProofTermRole::TransitionArgument { argument_ordinal }
+                };
+                rows.proof.push(
+                    proof_terms
+                        .term_at(source.state, successor.statement_ordinal, role)?
+                        .clone(),
+                );
                 continue;
             };
             let target_erased_parameter_index = u32::try_from(rows.erased.len()).ok()?;

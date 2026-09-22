@@ -513,6 +513,11 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
                 }
             }
         }
+        // The value scope an erased actual on an edge may name: every value
+        // the source machine admits, including its erased scalar formals.
+        let admitted: BTreeSet<ValueId> = crate::validation::machine_value_types(machine)
+            .map(|(id, _)| id)
+            .collect();
         for block in &machine.blocks {
             for operation in &block.operations {
                 match &operation.kind {
@@ -655,6 +660,12 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
                     });
                     if !in_scope {
                         return Err(invalid("erased proof argument out of scope"));
+                    }
+                    // A `Scalar` leaf inside a record/enum carrier names the
+                    // source machine's own values — the admitted scope is
+                    // the same one erased scalar actuals draw on.
+                    if !term.visit_scalar_value_ids(|value| admitted.contains(&value)) {
+                        return Err(invalid("erased proof argument scalar value out of scope"));
                     }
                     match term {
                         semantic_vocabulary::ProofTerm::Construction { type_identity, .. }

@@ -92,7 +92,7 @@ pub(super) fn wire_offsets(
     let pointer_size = cursor + 2;
     let pointer_alignment = cursor + 10;
     cursor += 18;
-    assert_eq!(&bytes[vocabulary..vocabulary + 2], &107_u16.to_le_bytes());
+    assert_eq!(&bytes[vocabulary..vocabulary + 2], &108_u16.to_le_bytes());
     assert_eq!(bytes[architecture], 1);
     assert_eq!(bytes[object_format], 1);
 

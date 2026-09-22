@@ -612,6 +612,13 @@ impl StateGraphEmission<'_, '_> {
                         term,
                         &self.state_erased_proof[position],
                     )
+                    .and_then(|term| {
+                        crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                            &term,
+                            &edge_values,
+                            &self.state_erased[position],
+                        )
+                    })
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?;
             let arriving_rank = if current_rank.is_some() {

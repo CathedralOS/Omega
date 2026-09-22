@@ -1,16 +1,20 @@
-//! Proof terms: the erased proof-only terms a contract's erased lane
-//! carries for formals whose carriers have no scalar or runtime shape.
+//! Proof terms: the erased terms a contract's erased lane carries for
+//! formals whose carriers admit no scalar or runtime argument slot.
 
-use crate::proposition::PropositionError;
+use crate::ValueId;
+use crate::proposition::{PropositionError, ScalarTerm};
 
-/// One proof-only erased term in a call's or edge's erased lane. Proof
-/// terms carry semantic identity only — they own no runtime value, storage,
-/// or evaluation. A `Construction` is a closed proof-only data value such as
-/// `Nat::Zero`; a `Formal` names the caller's own erased proof formal so a
-/// proof binding passes through a nested call unchanged.
+/// One erased term in a call's or edge's erased lane. Proof terms carry
+/// semantic identity only — they own no runtime value, storage, or
+/// evaluation. A `Construction` is a closed data value such as `Nat::Zero`
+/// or an erased record carrier's exact literal; a `Formal` names the
+/// caller's own erased proof formal so a proof binding passes through a
+/// nested call unchanged; a `Scalar` is one primitive payload leaf inside a
+/// record/enum construction, expressed over the caller's scalar namespace
+/// like any erased scalar actual.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ProofTerm {
-    /// A closed proof-only data construction. Fields stay in authored
+    /// A closed data construction. Fields stay in authored
     /// declaration order so the canonical encoding is stable.
     Construction {
         /// Canonical semantic identity of the constructed data type.
@@ -24,6 +28,10 @@ pub enum ProofTerm {
     /// One erased proof formal of the enclosing scope. `position` is the
     /// dense index into the enclosing block's `erased_proof_formals` roster.
     Formal { position: u32 },
+    /// A primitive payload leaf of an erased record/enum construction. The
+    /// scalar term's `ValueId`s refer to the caller's own admitted scalar
+    /// scope — the same namespace erased scalar actuals name.
+    Scalar(ScalarTerm),
 }
 
 impl ProofTerm {
@@ -56,6 +64,7 @@ impl ProofTerm {
                     }
                 }
                 Step::Term(ProofTerm::Formal { .. }) => {}
+                Step::Term(ProofTerm::Scalar(term)) => term.validate()?,
                 Step::Field(field) => {
                     if field.field_identity.is_empty() {
                         return Err(PropositionError::EmptyProofTermFieldIdentity);
@@ -80,8 +89,34 @@ impl ProofTerm {
                     }
                 }
                 Self::Formal { position } => visit(*position),
+                // A scalar leaf names caller scalar values, never erased
+                // proof formals — no position to visit.
+                Self::Scalar(_) => {}
             }
         }
+    }
+
+    /// Visit every `ValueId` a `Scalar` leaf carries. Returning `false` from
+    /// `visit` short-circuits the traversal and propagates `false`, matching
+    /// `ScalarTerm::visit_value_ids`.
+    pub fn visit_scalar_value_ids(&self, mut visit: impl FnMut(ValueId) -> bool) -> bool {
+        let mut pending = vec![self];
+        while let Some(term) = pending.pop() {
+            match term {
+                Self::Construction { fields, .. } => {
+                    for field in fields.iter().rev() {
+                        pending.push(&field.term);
+                    }
+                }
+                Self::Formal { .. } => {}
+                Self::Scalar(scalar) => {
+                    if !scalar.visit_value_ids(&mut visit) {
+                        return false;
+                    }
+                }
+            }
+        }
+        true
     }
 }
 

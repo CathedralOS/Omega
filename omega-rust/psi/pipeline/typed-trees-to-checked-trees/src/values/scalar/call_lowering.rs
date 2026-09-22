@@ -149,13 +149,18 @@ pub(crate) fn lower_call_arguments(
                         ));
                     }
                     scalar_erased_index = scalar_erased_index.checked_add(1)?;
-                } else if proof_only
-                    .proof_only_mention(program, target.type_reference)
-                    .is_some()
-                {
-                    if let Some(term) =
-                        lower_proof_term(program, argument, authored_parameters, &proof_only)
-                    {
+                } else if proof_only.contract_term_carrier(program, target.type_reference) {
+                    if let Some(term) = lower_proof_term(
+                        program,
+                        operators,
+                        argument,
+                        parameters,
+                        authored_parameters,
+                        parameter_types,
+                        locals,
+                        exact_integer_casts,
+                        &proof_only,
+                    ) {
                         proof_terms.push(CheckedLocatedProofTerm {
                             state: state.symbol,
                             statement_ordinal,
@@ -290,13 +295,55 @@ pub(crate) fn lower_call_arguments(
     })
 }
 
-/// Lower one erased proof actual: a proof-only construction (or a bare
-/// reference to the caller's own erased proof formal) becomes the checked
-/// proof term the callee's contract lane carries.
+/// The declared type of one struct-literal field: the data member carrying
+/// `field_symbol`, or the selected case's payload field when the literal
+/// constructs a case.
+fn proof_field_type(
+    program: &TypedTrees,
+    data_symbol: symbols::SymbolHandle,
+    case_symbol: Option<symbols::SymbolHandle>,
+    field_symbol: symbols::SymbolHandle,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    let definition = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == data_symbol)?;
+    program
+        .data_members(definition)
+        .iter()
+        .find_map(|member| match member {
+            typed_trees::data::DataMember::Field(field) if case_symbol.is_none() => {
+                (field.symbol == field_symbol).then_some(field.type_reference)
+            }
+            typed_trees::data::DataMember::Variant(variant)
+                if Some(variant.symbol) == case_symbol =>
+            {
+                program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .find(|field| field.symbol == field_symbol)
+                    .map(|field| field.type_reference)
+            }
+            _ => None,
+        })
+}
+
+/// Lower one erased contract-term actual: a construction (or a bare
+/// reference to the caller's own erased proof-lane formal) becomes the
+/// checked proof term the callee's contract lane carries. A construction
+/// field whose declared type is primitive lowers through the scalar lane
+/// into a `Scalar` leaf — the erased record carrier's runtime payload is
+/// retained as a term, not a runtime operand.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_proof_term(
     program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
+    parameters: &[StateParameter],
     authored_parameters: &[StateParameter],
+    parameter_types: &[PrimitiveType],
+    locals: &[ScalarLocal],
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
     proof_only: &typed_trees::proof_only::ProofOnlyClassification,
 ) -> Option<CheckedProofTerm> {
     match program.expression_table.expression(expression) {
@@ -310,9 +357,40 @@ pub(crate) fn lower_proof_term(
                 .struct_fields(literal.fields)
                 .iter()
             {
+                let declared = proof_field_type(
+                    program,
+                    literal.type_symbol,
+                    literal.case_symbol,
+                    field.field_symbol,
+                )?;
+                let term = if let Some(primitive) = program.primitive_type_reference(declared) {
+                    CheckedProofTerm::Scalar(lower_return_expression(
+                        program,
+                        operators,
+                        field.value,
+                        parameters,
+                        authored_parameters,
+                        parameter_types,
+                        locals,
+                        primitive,
+                        exact_integer_casts,
+                    )?)
+                } else {
+                    lower_proof_term(
+                        program,
+                        operators,
+                        field.value,
+                        parameters,
+                        authored_parameters,
+                        parameter_types,
+                        locals,
+                        exact_integer_casts,
+                        proof_only,
+                    )?
+                };
                 fields.push(CheckedProofTermField {
                     field_symbol: field.field_symbol,
-                    term: lower_proof_term(program, field.value, authored_parameters, proof_only)?,
+                    term,
                 });
             }
             let type_identity = program
@@ -340,9 +418,7 @@ pub(crate) fn lower_proof_term(
             )?;
             let parameter = authored_parameters.get(position)?;
             (parameter.relevance.is_erased()
-                && proof_only
-                    .proof_only_mention(program, parameter.type_reference)
-                    .is_some())
+                && proof_only.contract_term_carrier(program, parameter.type_reference))
             .then_some(CheckedProofTerm::Formal {
                 parameter_symbol: parameter.symbol,
             })
@@ -402,13 +478,11 @@ pub(crate) fn lower_direct_call_binding_arguments(
     for (argument, target_parameter) in arguments.iter().zip(target_parameters) {
         let Some(expected_type) = program.primitive_type_reference(target_parameter.type_reference)
         else {
-            // A proof-only erased carrier feeds the contract term lane with
-            // its own dense ordinal; every other non-scalar callee shape
-            // stays outside this direct-binding plan.
+            // A contract-term erased carrier feeds the term lane with its own
+            // dense ordinal; every other non-scalar callee shape stays
+            // outside this direct-binding plan.
             if !target_parameter.relevance.is_erased()
-                || proof_only
-                    .proof_only_mention(program, target_parameter.type_reference)
-                    .is_none()
+                || !proof_only.contract_term_carrier(program, target_parameter.type_reference)
             {
                 return None;
             }
@@ -422,7 +496,17 @@ pub(crate) fn lower_direct_call_binding_arguments(
                     erased_ordinal: ordinal,
                 },
                 expression: *argument,
-                term: lower_proof_term(program, *argument, authored_parameters, &proof_only)?,
+                term: lower_proof_term(
+                    program,
+                    operators,
+                    *argument,
+                    parameters,
+                    authored_parameters,
+                    parameter_types,
+                    locals,
+                    exact_integer_casts,
+                    &proof_only,
+                )?,
             });
             continue;
         };

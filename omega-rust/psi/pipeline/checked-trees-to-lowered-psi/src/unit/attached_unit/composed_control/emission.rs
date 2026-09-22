@@ -978,6 +978,13 @@ fn emit_scalar_call_operation(
                 term,
                 &state.erased_proof_parameters,
             )
+            .and_then(|term| {
+                crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                    &term,
+                    values.as_slice(),
+                    caller_erased_formals,
+                )
+            })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     if checked

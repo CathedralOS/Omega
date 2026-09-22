@@ -203,6 +203,7 @@ pub(crate) fn build_check_facts(
             &values.scalar_expressions,
             &values.scalar_computations,
             &values.structural_values,
+            &values.proof_terms,
             call_frames.as_ref(),
         );
     flow.terminal_machines =

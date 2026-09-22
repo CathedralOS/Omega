@@ -63,7 +63,7 @@ pub(crate) use scalar::{
     evaluate_closed_boolean_expression, exclusive_reference, is_scalar_return_call,
     lower_integer_parameter_range_requirements, lower_machine_entry_boolean_expression,
     lower_machine_entry_crash_contract_expression, lower_machine_parameter_boolean_expression,
-    lower_operator_crash_contract_expression, lower_proof_term, lower_scalar_contract_predicate,
+    lower_operator_crash_contract_expression, lower_scalar_contract_predicate,
     lower_scalar_parameter_range_requirements, lower_signature_crash_contract_expression,
     lower_state_scalar_contract_predicate, lower_state_scalar_expression,
     lower_unit_scalar_argument, nested_structural_call_return_type, occupies_scalar_position,

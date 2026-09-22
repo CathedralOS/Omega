@@ -50,6 +50,7 @@ pub const ERASED_PARAMETER_BETWEEN_RUNTIME_VALUES_EXIT: &str =
     "relevance/erased_parameter_between_runtime_values_exit";
 pub const ERASED_PROOF_ONLY_TYPED_PARAMETER_EXIT: &str =
     "relevance/erased_proof_only_typed_parameter_exit";
+pub const ERASED_RECORD_PARAMETER_EXIT: &str = "relevance/erased_record_parameter_exit";
 
 pub const PASS_CANARIES: &[&str] = &[
     RUNTIME_PLAN_LAID_VALUE_FIELD_EXIT,
@@ -80,4 +81,5 @@ pub const PASS_CANARIES: &[&str] = &[
     ERASED_PARAMETER_PROOF_ONLY,
     ERASED_PARAMETER_NAMED_TRANSITION_FORWARD,
     ERASED_PROOF_ONLY_TYPED_PARAMETER_EXIT,
+    ERASED_RECORD_PARAMETER_EXIT,
 ];

@@ -7,11 +7,11 @@ use super::{
     validate_direct_parameter_types,
 };
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::scalar_graph::scalar_contracts::LoweredProofTerm;
 use crate::scalar_graph::scalar_graph_lowering::call_lowering::lower_scalar_graph_successor;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
-use semantic_vocabulary::ProofTerm;
 
 pub(crate) fn validate_coordinates(
     guard: u32,
@@ -62,7 +62,7 @@ pub(super) fn lower_destination(
         usize,
         Vec<LoweredDirectExpression>,
         Vec<LoweredDirectExpression>,
-        Vec<ProofTerm>,
+        Vec<LoweredProofTerm>,
     ),
     LoweringError,
 > {

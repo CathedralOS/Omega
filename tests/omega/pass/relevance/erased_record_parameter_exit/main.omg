@@ -1,0 +1,35 @@
+// PROOF-RELEVANCE-MIGRATION: a closed checked-shape record whose fields are
+// term-expressible is a contract term carrier, so `witness` — though `Proof`
+// carries runtime layout — rides the erased proof-term lane: it publishes
+// as an erased proof formal, `Proof { tag: 1 }` lowers to a
+// `ProofTerm::Construction` whose `tag` field is a `Scalar` leaf, and the
+// lane adds no scalar signature position, call operand, or runtime storage.
+// Non-carrier shapes still refuse by name (pinned by
+// fail/relevance/erased_nonscalar_parameter). The dedicated legs are
+// canary_suite layouts_and_pending::erased_record_parameter_*. Native run:
+// exit 70 = the retained runtime argument reached the callee intact;
+// 71 = an erased-position slide displaced it.
+use omega_language_std::console;
+use omega::language::core::service;
+
+data Proof {
+    tag: i32;
+}
+
+machine keep(n: i32, witness [erased]: Proof) -> i32 {
+    n
+}
+
+data Main {
+    console: Service<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let result: i32 = keep(70, Proof { tag: 1 });
+    transition result == 70 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
