@@ -24,10 +24,19 @@
 
 mod support;
 
+#[path = "custody_substitution/request_custody_fields.rs"]
+mod request_custody_fields;
+
 use std::borrow::Borrow;
+use std::cell::Cell;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
+use mutation_matrix::{OneFieldSubstitutionMatrix, run_one_field_substitution_matrix};
+use request_custody_fields::{
+    RequestCustodyCheck, TopologyRequestCustodyFieldForTest, classify_rebound,
+    foreign_request_donor, request_custody_outcome, substitute_request_custody_for_test,
+};
 use support::*;
 use topology_plan::topology_installation::{
     AdmittedArtifact, InstallationLifecycle, InstallationRejection, InstallationRequest,
@@ -294,130 +303,6 @@ fn assert_plan_decode_rejected(
         ),
         "{name}: replay must surface the same rejection as a malformed plan"
     );
-}
-
-// ---- request-side drivers ------------------------------------------------
-
-/// How an honestly re-committed plan fares under the mutated request.
-enum Rebound {
-    /// The re-committed plan still rejects, for this semantic reason.
-    Rejected(fn(&PlanRejection) -> bool),
-    /// The substitution widens or restates intent without contradicting the
-    /// plan's evidence: the re-committed plan verifies under a divergent
-    /// subject, and both cross-pairings still reject.
-    Verifies,
-}
-
-/// One owner-request field substitution through the whole custody chain:
-/// divergent recomputed commitment, the baseline plan stale under it, the
-/// installer's authorization join refusing the baseline plan in the opposite
-/// direction, and the honestly re-committed plan meeting its classified
-/// replay outcome.
-fn assert_request_substitution(name: &str, mutated: &TopologyRequest, rebound: Rebound) {
-    let (request, request_bytes, plan, plan_bytes, components) = baseline();
-    let baseline_commitment = request_commitment(&request_bytes);
-    let baseline_subject = plan_subject(&plan_bytes);
-    assert_ne!(
-        mutated, &request,
-        "{name}: the substitution must change the request"
-    );
-    let mutated_bytes = encode_request(mutated)
-        .unwrap_or_else(|error| panic!("{name}: the substitution must stay encodable: {error}"));
-    let decoded = decode_request(&mutated_bytes)
-        .unwrap_or_else(|error| panic!("{name}: the substitution must stay decodable: {error}"));
-    assert_eq!(&decoded, mutated, "{name}: decode(encode) equivalence");
-    assert_eq!(
-        encode_request(&decoded).expect("re-encode"),
-        mutated_bytes,
-        "{name}: encode(decode) equivalence"
-    );
-    let mutated_commitment = request_commitment(&mutated_bytes);
-    assert_ne!(
-        mutated_commitment, baseline_commitment,
-        "{name}: the recomputed commitment must diverge"
-    );
-
-    // The baseline plan answers the baseline request only: under mutated
-    // intent its recorded commitment is stale before any semantic check.
-    let error = verify_plan(&plan_bytes, &mutated_bytes, &components)
-        .expect_err("the baseline plan must be stale under mutated intent");
-    assert!(
-        matches!(
-            error,
-            PlanRejection::StaleRequest { expected, found }
-                if expected == mutated_commitment && found == baseline_commitment
-        ),
-        "{name}: unexpected rejection: {error}"
-    );
-
-    // The installer's independent commitment replay refuses the baseline
-    // checked plan when the current authorization names the mutated intent.
-    assert_unauthorized_request(
-        name,
-        checked_baseline(&plan_bytes, &request_bytes),
-        mutated_commitment,
-        baseline_commitment,
-        &components,
-    );
-
-    // Honestly re-commit the plan's records to the mutated request: the
-    // containing identity recomputes, and the same plan bytes are stale
-    // against the baseline request too — custody binds in both directions.
-    let mut rebound_plan = plan.clone();
-    rebound_plan.request_commitment = mutated_commitment;
-    let rebound_bytes = encode_plan(&rebound_plan).expect("the rebound plan encodes");
-    assert_ne!(
-        plan_subject(&rebound_bytes),
-        baseline_subject,
-        "{name}: the rebound plan's subject must diverge"
-    );
-    let error = verify_plan(&rebound_bytes, &request_bytes, &components)
-        .expect_err("a rebound plan must be stale under the baseline request");
-    assert!(
-        matches!(
-            error,
-            PlanRejection::StaleRequest { expected, found }
-                if expected == baseline_commitment && found == mutated_commitment
-        ),
-        "{name}: unexpected rejection: {error}"
-    );
-
-    match rebound {
-        Rebound::Rejected(expected) => {
-            let error = verify_plan(&rebound_bytes, &mutated_bytes, &components).expect_err(
-                "the honestly re-committed substitution must still reject semantically",
-            );
-            assert!(expected(&error), "{name}: unexpected rejection: {error}");
-        }
-        Rebound::Verifies => {
-            let checked = verify_plan(&rebound_bytes, &mutated_bytes, &components)
-                .expect("an intent-widening substitution verifies under its own commitment");
-            assert_eq!(
-                checked.plan.request_commitment, mutated_commitment,
-                "{name}: the checked plan binds the mutated request"
-            );
-            // The verified substitution still cannot pose as the baseline:
-            // an authorization for the original intent refuses it.
-            assert_unauthorized_request(
-                name,
-                checked,
-                baseline_commitment,
-                mutated_commitment,
-                &components,
-            );
-        }
-    }
-}
-
-/// A request mutation the encoder refuses: non-canonical intent has no wire
-/// identity to commit at all.
-fn assert_request_encode_rejected(
-    name: &str,
-    mutated: &TopologyRequest,
-    expected: impl Fn(&CodecError) -> bool,
-) {
-    let error = encode_request(mutated).expect_err("non-canonical intent must not encode");
-    assert!(expected(&error), "{name}: unexpected rejection: {error}");
 }
 
 // ---- the plan matrix -----------------------------------------------------
@@ -1553,227 +1438,155 @@ fn deployment_plan_rejects_every_one_field_substitution() {
 
 // ---- the request matrix --------------------------------------------------
 
+/// Every representable field of the owner `TopologyRequest` — each instance
+/// name and component subject, the roster's membership and canonical order,
+/// every policy argument and predicate/via pair, the selected verifier, the
+/// transport profile, and the accepted-assumption set — is substituted
+/// independently through the shared `run_one_field_substitution_matrix`
+/// driver. The inventory is declared in
+/// `custody_substitution/request_custody_fields.rs`; the independent checker
+/// is the chain the honest record already survives: the canonical codec
+/// round-trip, the recomputed `request_commitment` diverging, the baseline
+/// plan going stale under the mutated intent, the installer's authorization
+/// join refusing each cross-pairing, and the honestly re-committed plan's
+/// `verify_plan` replay.
 #[test]
 fn topology_request_rejects_every_one_field_substitution() {
     // Control: the baseline request commits and its plan verifies.
     let (request, request_bytes, plan, plan_bytes, components) = baseline();
     let baseline_commitment = request_commitment(&request_bytes);
+    let baseline_subject = plan_subject(&plan_bytes);
     assert_eq!(plan.request_commitment, baseline_commitment);
     checked_baseline(&plan_bytes, &request_bytes);
 
-    // ── `instances[i]`: the required roster of names bound to component
-    //    subjects. ──
-    for (name, index, renamed) in [
-        ("instances[0].name", 0usize, "aqi"),
-        ("instances[1].name", 1, "authorizatior"),
-        ("instances[2].name", 2, "billing2"),
-    ] {
-        let mut mutated = request.clone();
-        mutated.instances[index].name = support::name(renamed);
-        assert_request_substitution(
-            name,
-            &mutated,
-            Rebound::Rejected(|e| matches!(e, PlanRejection::RosterMismatch { .. })),
-        );
-    }
-    for (name, index, subject) in [
-        ("instances[0].subject", 0usize, identity(0x12)),
-        ("instances[1].subject", 1, identity(0x23)),
-        ("instances[2].subject::zeroed", 2, [0u8; 32]),
-    ] {
-        let mut mutated = request.clone();
-        mutated.instances[index].subject = subject;
-        assert_request_substitution(
-            name,
-            &mutated,
-            Rebound::Rejected(|e| matches!(e, PlanRejection::RosterMismatch { .. })),
-        );
-    }
-    let mut mutated = request.clone();
-    mutated.instances.remove(2);
-    assert_request_substitution(
-        "instances::dropped",
-        &mutated,
-        Rebound::Rejected(|e| matches!(e, PlanRejection::RosterMismatch { .. })),
-    );
-    let mut mutated = request.clone();
-    mutated.instances.insert(
-        1,
-        RequestedInstance {
-            name: support::name("auditor"),
-            subject: identity(0x44),
-        },
-    );
-    assert_request_substitution(
-        "instances::inserted",
-        &mutated,
-        Rebound::Rejected(|e| matches!(e, PlanRejection::RosterMismatch { .. })),
-    );
-    let mut mutated = request.clone();
-    mutated.instances.swap(0, 1);
-    assert_request_encode_rejected("instances::reordered", &mutated, |error| {
-        matches!(error, CodecError::NotCanonical { .. })
-    });
-    let mut mutated = request.clone();
-    mutated.instances.insert(1, mutated.instances[0].clone());
-    assert_request_encode_rejected("instances::duplicated", &mutated, |error| {
-        matches!(error, CodecError::Duplicate { .. })
-    });
-
-    // ── `policies[i]`: the required policy set. Mutating any argument moves
-    //    the canonical key; the rebound plan's rows become unexpected or
-    //    the new requirement unmet. ──
-    let mut mutated = request.clone();
-    mutated.policies[0].sources = PolicySelector::new([support::name("api")]);
-    assert_request_substitution(
-        "policies[0].sources",
-        &mutated,
-        Rebound::Rejected(|e| matches!(e, PlanRejection::UnexpectedPolicy { .. })),
-    );
-    let mut mutated = request.clone();
-    mutated.policies[0].targets = PolicySelector::new([support::name("authorization")]);
-    assert_request_substitution(
-        "policies[0].targets",
-        &mutated,
-        Rebound::Rejected(|e| matches!(e, PlanRejection::UnexpectedPolicy { .. })),
-    );
-    let mut mutated = request.clone();
-    mutated.policies[1].via = PolicySelector::new([support::name("billing")]);
-    assert_request_substitution(
-        "policies[1].via",
-        &mutated,
-        Rebound::Rejected(|e| matches!(e, PlanRejection::UnexpectedPolicy { .. })),
-    );
-    // Relaxing `only_via` to `no_route` keeps the sources/targets but drops
-    // the routing obligation: the plan's recorded row is now unrequired. The
-    // mutated call re-sorts ahead of the other `no_route` row, so the
-    // request stays canonical.
-    let mut mutated = request.clone();
-    mutated.policies[1].predicate = PolicyPredicate::NoRoute;
-    mutated.policies[1].via = PolicySelector {
-        members: Vec::new(),
+    // The driver substitutes before every check, so `leg` always names the
+    // lane an internal invariant failure belongs to.
+    let leg = Cell::new(TopologyRequestCustodyFieldForTest::Instance0Name);
+    let honest = request;
+    let substitute = |mutated: &mut TopologyRequest,
+                      field: TopologyRequestCustodyFieldForTest,
+                      _donor: &TopologyRequest| {
+        leg.set(field);
+        substitute_request_custody_for_test(mutated, field, baseline_subject);
     };
-    mutated.policies.sort_by_key(|call| call.canonical_key());
-    assert_request_substitution(
-        "policies[1].predicate::relaxed",
-        &mutated,
-        Rebound::Rejected(|e| matches!(e, PlanRejection::UnexpectedPolicy { .. })),
-    );
-    // Strengthening `no_route` to `only_via` adds an obligation the plan
-    // never recorded.
-    let mut mutated = request.clone();
-    mutated.policies[0].predicate = PolicyPredicate::OnlyVia;
-    mutated.policies[0].via = PolicySelector::new([support::name("authorization")]);
-    assert_request_encode_rejected("policies[0].predicate::strengthened", &mutated, |error| {
-        matches!(error, CodecError::NotCanonical { .. })
-    });
-    let mut mutated = request.clone();
-    mutated.policies.remove(0);
-    assert_request_substitution(
-        "policies::dropped",
-        &mutated,
-        Rebound::Rejected(|e| matches!(e, PlanRejection::UnexpectedPolicy { .. })),
-    );
-    let mut mutated = request.clone();
-    mutated.policies.insert(
-        0,
-        PolicyCall::no_route(
-            PolicySelector::new([support::name("api")]),
-            PolicySelector::new([support::name("authorization")]),
-        ),
-    );
-    assert_request_substitution(
-        "policies::inserted",
-        &mutated,
-        Rebound::Rejected(|e| matches!(e, PlanRejection::MissingRequiredPolicy { .. })),
-    );
-    let mut mutated = request.clone();
-    mutated.policies.swap(0, 1);
-    assert_request_encode_rejected("policies::reordered", &mutated, |error| {
-        matches!(error, CodecError::NotCanonical { .. })
-    });
-    let mut mutated = request.clone();
-    mutated.policies.insert(1, mutated.policies[0].clone());
-    assert_request_encode_rejected("policies::duplicated", &mutated, |error| {
-        matches!(error, CodecError::Duplicate { .. })
-    });
-    // `via` arity on the request's own wire: encodable, never decodable.
-    let mut mutated = request.clone();
-    mutated.policies[0].via = PolicySelector::new([support::name("api")]);
-    let bytes = encode_request(&mutated).expect("the writer carries the arity violation");
-    assert!(
-        matches!(decode_request(&bytes), Err(CodecError::ViaArity)),
-        "policies[0].via::arity must reject at decode"
-    );
-    assert!(
-        matches!(
-            verify_plan(&plan_bytes, &bytes, &components),
-            Err(PlanRejection::MalformedRequest(CodecError::ViaArity))
-        ),
-        "policies[0].via::arity must surface as a malformed request"
-    );
-
-    // ── `verifier`: the one selected policy executable. ──
-    for (name, selected) in [
-        ("verifier::other", identity(0x51)),
-        ("verifier::zeroed", [0u8; 32]),
-        ("verifier::plan-subject", plan_subject(&plan_bytes)),
-    ] {
-        let mut mutated = request.clone();
-        mutated.verifier = selected;
-        assert_request_substitution(
-            name,
-            &mutated,
-            Rebound::Rejected(|e| matches!(e, PlanRejection::UnselectedPolicyExecutable { .. })),
+    // The family's independent checker. A non-canonical record has no wire
+    // identity and classifies at the encoder; a record the wire rules refuse
+    // classifies at the decoder with replay surfacing the same refusal; a
+    // representable substitution runs the whole commitment chain — stale
+    // baseline under mutated intent, the installer's refusal of the crossed
+    // pairings, then the honestly re-committed plan's own verdict, which
+    // classifies either the semantic rejection or the admissible widening
+    // whose divergent commitment is the rejection.
+    let check = |mutated: &TopologyRequest| -> Result<TopologyRequest, RequestCustodyCheck> {
+        let name = format!("{leg:?}", leg = leg.get());
+        let mutated_bytes = match encode_request(mutated) {
+            Ok(bytes) => bytes,
+            Err(error) => return Err(RequestCustodyCheck::Encode(error)),
+        };
+        let decoded = match decode_request(&mutated_bytes) {
+            Ok(decoded) => decoded,
+            Err(error) => {
+                assert!(
+                    matches!(
+                        verify_plan(&plan_bytes, &mutated_bytes, &components),
+                        Err(PlanRejection::MalformedRequest(inner)) if inner == error
+                    ),
+                    "{name}: a decode refusal surfaces at replay as a malformed request"
+                );
+                return Err(RequestCustodyCheck::Decode(error));
+            }
+        };
+        assert_eq!(&decoded, mutated, "{name}: decode(encode) equivalence");
+        assert_eq!(
+            encode_request(&decoded).expect("re-encode"),
+            mutated_bytes,
+            "{name}: encode(decode) equivalence"
         );
-    }
+        let mutated_commitment = request_commitment(&mutated_bytes);
+        assert_ne!(
+            mutated_commitment, baseline_commitment,
+            "{name}: the recomputed commitment must diverge"
+        );
 
-    // ── `transports`: the allowed binding realizations. Narrowing the
-    //    profile strands the plan's bindings; widening it is admissible
-    //    intent the plan already satisfies — under a divergent commitment. ──
-    let mut mutated = request.clone();
-    mutated.transports = vec![identity(0x78)];
-    assert_request_substitution(
-        "transports::substituted",
-        &mutated,
-        Rebound::Rejected(|e| matches!(e, PlanRejection::UnselectedTransport { .. })),
-    );
-    let mut mutated = request.clone();
-    mutated.transports = Vec::new();
-    assert_request_substitution(
-        "transports::emptied",
-        &mutated,
-        Rebound::Rejected(|e| matches!(e, PlanRejection::UnselectedTransport { .. })),
-    );
-    let mut mutated = request.clone();
-    mutated.transports = vec![identity(0x78), transport()];
-    assert_request_substitution("transports::widened", &mutated, Rebound::Verifies);
-    let mut mutated = request.clone();
-    mutated.transports = vec![transport(), identity(0x78)];
-    assert_request_encode_rejected("transports::reordered", &mutated, |error| {
-        matches!(error, CodecError::NotCanonical { .. })
-    });
-    let mut mutated = request.clone();
-    mutated.transports = vec![transport(), transport()];
-    assert_request_encode_rejected("transports::duplicated", &mutated, |error| {
-        matches!(error, CodecError::Duplicate { .. })
-    });
+        // The baseline plan answers the baseline request only: under mutated
+        // intent its recorded commitment is stale before any semantic check.
+        match verify_plan(&plan_bytes, &mutated_bytes, &components) {
+            Err(PlanRejection::StaleRequest { expected, found }) => {
+                assert_eq!(expected, mutated_commitment, "{name}");
+                assert_eq!(found, baseline_commitment, "{name}");
+            }
+            other => {
+                panic!("{name}: the baseline plan must be stale under mutated intent: {other:?}")
+            }
+        }
 
-    // ── `accepted_assumptions`: widening the owner's acceptance set cannot
-    //    contradict a plan that demands none of it — admissible under a
-    //    divergent commitment; unordered or repeated sets are unencodable. ──
-    let mut mutated = request.clone();
-    mutated.accepted_assumptions = vec![identity(0xAA)];
-    assert_request_substitution("accepted_assumptions::added", &mutated, Rebound::Verifies);
-    let mut mutated = request.clone();
-    mutated.accepted_assumptions = vec![identity(0xBB), identity(0xAA)];
-    assert_request_encode_rejected("accepted_assumptions::reordered", &mutated, |error| {
-        matches!(error, CodecError::NotCanonical { .. })
-    });
-    let mut mutated = request.clone();
-    mutated.accepted_assumptions = vec![identity(0xAA), identity(0xAA)];
-    assert_request_encode_rejected("accepted_assumptions::duplicated", &mutated, |error| {
-        matches!(error, CodecError::Duplicate { .. })
+        // The installer's independent commitment replay refuses the baseline
+        // checked plan when the current authorization names mutated intent.
+        assert_unauthorized_request(
+            &name,
+            checked_baseline(&plan_bytes, &request_bytes),
+            mutated_commitment,
+            baseline_commitment,
+            &components,
+        );
+
+        // Honestly re-commit the plan's records to the mutated request: the
+        // containing identity recomputes, and the same plan bytes are stale
+        // against the baseline request too — custody binds in both
+        // directions.
+        let mut rebound_plan = plan.clone();
+        rebound_plan.request_commitment = mutated_commitment;
+        let rebound_bytes = encode_plan(&rebound_plan).expect("the rebound plan encodes");
+        assert_ne!(
+            plan_subject(&rebound_bytes),
+            baseline_subject,
+            "{name}: the rebound plan's subject must diverge"
+        );
+        match verify_plan(&rebound_bytes, &request_bytes, &components) {
+            Err(PlanRejection::StaleRequest { expected, found }) => {
+                assert_eq!(expected, baseline_commitment, "{name}");
+                assert_eq!(found, mutated_commitment, "{name}");
+            }
+            other => {
+                panic!("{name}: a rebound plan must be stale under the baseline request: {other:?}")
+            }
+        }
+
+        match verify_plan(&rebound_bytes, &mutated_bytes, &components) {
+            Err(rejection) => Err(RequestCustodyCheck::Rebound(classify_rebound(&rejection))),
+            Ok(checked) => {
+                assert_eq!(
+                    checked.plan.request_commitment, mutated_commitment,
+                    "{name}: the checked plan binds the mutated request"
+                );
+                // The verified substitution still cannot pose as the
+                // baseline: an authorization for the original intent
+                // refuses it.
+                assert_unauthorized_request(
+                    &name,
+                    checked,
+                    baseline_commitment,
+                    mutated_commitment,
+                    &components,
+                );
+                Err(RequestCustodyCheck::ForeignIntentAdmitted)
+            }
+        }
+    };
+
+    // Canonical-encoding families have no lazier comparable custody view:
+    // encode-rejected substitutions have no commitment, so the view is the
+    // record itself.
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "owner topology request",
+        fields: TopologyRequestCustodyFieldForTest::INVENTORY,
+        honest: &move || honest.clone(),
+        donor: foreign_request_donor(),
+        custody: &|request: &TopologyRequest| request.clone(),
+        substitute: &substitute,
+        check: &check,
+        outcome: &request_custody_outcome,
+        joined_replay: None,
     });
 }
 
