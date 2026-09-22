@@ -146,6 +146,49 @@ fn mutable_membership_subject_needs_preservation_evidence() {
     assert_conflict(&DOMAIN_WINDOW.replace("split_point: u64", "mut split_point: u64"));
 }
 
+const PROJECTED_DOMAIN_WINDOW: &str = r#"
+    domain u64::Upper requires self >= 2;
+    data Pair { first: u64 [0..=4]; second: u64; }
+    data Main { items: [i32; 4]; }
+    machine Main::main(&mut self, pair: Pair) -> u64
+        requires pair.first in u64::Upper;
+    {
+        let held: &mut [i32] = self.items[pair.first..4];
+        self.items[0] = 3;
+        held.len
+    }
+"#;
+
+#[test]
+fn projected_membership_subject_certifies_disjoint_window_write() {
+    let mut checked = checked_program(PROJECTED_DOMAIN_WINDOW);
+    assert!(
+        checked
+            .facts
+            .borrow
+            .mutation_certificates
+            .iter()
+            .any(|(_, certificate)| certificate.derivation
+                == checked_trees::BorrowCompatibilityDerivation::Premised)
+    );
+    crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+        .expect("projected membership evidence replays");
+}
+
+#[test]
+fn projected_membership_subjects_reject_foreign_weakened_or_absent() {
+    let source = PROJECTED_DOMAIN_WINDOW.replace(
+        "requires pair.first in u64::Upper;",
+        "requires pair.second in u64::Upper;",
+    );
+    assert_conflict(&source);
+    for predicate in ["self >= 0", "self >= 2 || self == 0"] {
+        assert_conflict(&PROJECTED_DOMAIN_WINDOW.replace("self >= 2", predicate));
+    }
+    assert_conflict(&PROJECTED_DOMAIN_WINDOW.replace("requires pair.first in u64::Upper;", ""));
+    assert_conflict(&PROJECTED_DOMAIN_WINDOW.replace("pair: Pair", "mut pair: Pair"));
+}
+
 fn assert_conflict(source: &str) {
     let diagnostics = checked_program_result(source).expect_err("unproven separation rejects");
     assert!(
