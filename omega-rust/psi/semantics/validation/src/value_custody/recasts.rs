@@ -69,7 +69,7 @@ pub(crate) use representation_types::{exact_primitive_type, exact_scalar_represe
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::statement::StatementNode;
+use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use typed_trees::types::TypeReferenceNode;
 
 use qualification::{judge_qualification_cast, judge_statement_qualification_casts};
@@ -87,6 +87,9 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
     // range discharge needs the value's declared type); the positional
     // sweep below only judges strays (literal-only).
     let mut judged_qualifications: Vec<ExpressionHandle> = Vec::new();
+    // Inline positions judged under the same relation: the cast's own
+    // stated type is the source of truth (there is no let to restate it).
+    let mut judged_inline: Vec<ExpressionHandle> = Vec::new();
     let dynamic_rebindings =
         crate::declarations::traits::collect_dynamic_conformance_selections(program)
             .unwrap_or_default();
@@ -128,27 +131,74 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
                         blessed.push(value);
                     }
                 }
-                let StatementNode::LocalData(local) = statement else {
-                    continue;
-                };
-                if !local.type_reference.is_valid() || !local.initial_value.is_valid() {
-                    continue;
+                if let StatementNode::LocalData(local) = statement
+                    && local.type_reference.is_valid()
+                    && local.initial_value.is_valid()
+                    && let TypeReferenceNode::Reference {
+                        referee, access, ..
+                    } = program
+                        .type_reference_table
+                        .type_reference(local.type_reference)
+                {
+                    // The `&mut x as &mut T` spelling parses as
+                    // Mutable(Cast(..)): the unary `&mut` wraps the postfix
+                    // chain. Look through it so the blessed root is the CAST
+                    // node the sweep checks.
+                    let initializer = strip_mutable(program, local.initial_value);
+                    match program.expression_table.expression(initializer) {
+                        ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+                            blessed.push(initializer);
+                            if crate::declarations::traits::dynamic_trait_symbol(
+                                program,
+                                cast.target_type,
+                            )
+                            .is_none()
+                            {
+                                judge_scalar_recast(
+                                    program,
+                                    machine,
+                                    state,
+                                    cast,
+                                    initializer,
+                                    *referee,
+                                    access.is_exclusive(),
+                                    diagnostics,
+                                );
+                            }
+                        }
+                        _ => {
+                            report_unspelled_reference_pun(
+                                program,
+                                machine,
+                                state,
+                                local.initial_value,
+                                *referee,
+                                diagnostics,
+                            );
+                        }
+                    }
                 }
-                let TypeReferenceNode::Reference {
-                    referee, access, ..
-                } = program
-                    .type_reference_table
-                    .type_reference(local.type_reference)
-                else {
-                    continue;
-                };
-                // The `&mut x as &mut T` spelling parses as Mutable(Cast(..)):
-                // the unary `&mut` wraps the postfix chain. Look through it
-                // so the blessed root is the CAST node the sweep checks.
-                let initializer = strip_mutable(program, local.initial_value);
-                match program.expression_table.expression(initializer) {
-                    ExpressionNode::Cast(cast) if cast.form.is_recast() => {
-                        blessed.push(initializer);
+
+                // The recast contract judges representation compatibility,
+                // not source position (§5b): a recast nested in an ordinary
+                // statement expression -- a guard operand, a call argument,
+                // a binary operand -- is the SAME judgment, with the cast's
+                // own stated type as the referee restatement and the `as &`
+                // / `as &mut` spelling as the access polarity. Judge each
+                // statement-reachable recast in place so a stray cast cannot
+                // route around the relation. Proof-only assembly facts are
+                // excluded: they do not produce runtime borrows.
+                let mut roots: Vec<ExpressionHandle> = Vec::new();
+                statement_expression_roots(program, statement, &mut roots);
+                let mut pending = roots;
+                while let Some(handle) = pending.pop() {
+                    let node = program.expression_table.expression(handle);
+                    if let ExpressionNode::Cast(cast) = node
+                        && cast.form.is_recast()
+                        && !blessed.contains(&handle)
+                        && !judged_inline.contains(&handle)
+                    {
+                        judged_inline.push(handle);
                         if crate::declarations::traits::dynamic_trait_symbol(
                             program,
                             cast.target_type,
@@ -160,36 +210,34 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
                                 machine,
                                 state,
                                 cast,
-                                initializer,
-                                *referee,
-                                access.is_exclusive(),
+                                handle,
+                                cast.target_type,
+                                cast.form
+                                    == language_core::cast_form::CastForm::RecastMutable,
                                 diagnostics,
                             );
                         }
                     }
-                    _ => {
-                        report_unspelled_reference_pun(
-                            program,
-                            machine,
-                            state,
-                            local.initial_value,
-                            *referee,
-                            diagnostics,
-                        );
-                    }
+                    crate::value_custody::literals::expression_children::children(
+                        program,
+                        node,
+                        |child| pending.push(child),
+                    );
                 }
             }
         }
     }
 
-    // Position sweep: a recast anywhere but a blessed root refuses. (The
-    // parser builds recast nodes only from the `as &` spelling, and every
-    // expression is reachable from some statement, so this catches guard /
-    // argument / nested positions uniformly.)
+    // Position sweep: a recast that no statement walk reached refuses. The
+    // parser builds recast nodes only from the `as &` spelling; the per-
+    // statement walk above covers ordinary execution positions, so a stray
+    // here sits in proof-only ground (assembly facts, contract expressions)
+    // or is unreachable.
     for (handle, node) in program.expression_table.expression_entries() {
         if let ExpressionNode::Cast(cast) = node
             && cast.form.is_recast()
             && !blessed.contains(&handle)
+            && !judged_inline.contains(&handle)
         {
             diagnostics.push(
                 Diagnostic::error(
@@ -212,6 +260,68 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
             && !judged_qualifications.contains(&handle)
         {
             judge_qualification_cast(program, None, cast, diagnostics);
+        }
+    }
+}
+
+/// The expression roots of one executable statement -- every position an
+/// authored expression can occupy in ordinary sequencing (assignment halves,
+/// bare expressions, call and transition-target arguments, guards, let
+/// initializers, binding operands). `AssemblyFact` is proof-only ground and
+/// stays outside the walk: a recast there produces no runtime borrow, so the
+/// positional sweep below keeps it fenced.
+fn statement_expression_roots(
+    program: &TypedTrees,
+    statement: &StatementNode,
+    roots: &mut Vec<ExpressionHandle>,
+) {
+    match statement {
+        StatementNode::RootBinding(binding) => {
+            roots.push(binding.receiver);
+            roots.push(binding.implementation_operand);
+        }
+        StatementNode::AssemblyFact(_) => {}
+        StatementNode::Assignment(assignment) => {
+            roots.push(assignment.target);
+            roots.push(assignment.value);
+        }
+        StatementNode::Call(call) => {
+            roots.extend(
+                program
+                    .statement_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .copied(),
+            );
+        }
+        StatementNode::Expression(expression) => roots.push(*expression),
+        StatementNode::LocalData(local) => {
+            if local.initial_value.is_valid() {
+                roots.push(local.initial_value);
+            }
+        }
+        StatementNode::Transition(transition) => {
+            if let TransitionGuardNode::When(guard) = transition.guard {
+                roots.push(guard);
+            }
+            for target in [transition.target, transition.continuation] {
+                if !program.statement_table.transition_target_is_valid(target) {
+                    continue;
+                }
+                match program.statement_table.transition_target(target) {
+                    TransitionTargetNode::Named { arguments, .. } => {
+                        roots.extend(
+                            program
+                                .statement_table
+                                .expression_handles(*arguments)
+                                .iter()
+                                .copied(),
+                        );
+                    }
+                    TransitionTargetNode::Value(value) => roots.push(*value),
+                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                }
+            }
         }
     }
 }

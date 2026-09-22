@@ -3,10 +3,10 @@
 // land with the byte-view rung. The position sweep in validation
 // recasts.rs mirrors the D14 literal gate: blessed roots first, then a
 // whole-table sweep refuses strays.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::service;
 data Main { console: Service<Console>; bits: i32; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.bits = 1078530011;
     transition (&self.bits as &f32) > 3.14 { true -> good() _ -> bad() }
     state good(&mut self) { self.console.exit_process(70); }
