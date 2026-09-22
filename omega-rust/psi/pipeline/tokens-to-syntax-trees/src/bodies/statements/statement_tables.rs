@@ -16,9 +16,9 @@ use syntax_trees::statement::TableCall;
 /// appear on the left-hand side of an assignment.
 pub(crate) fn copy_expression_as_place(
     syntax_trees: &mut SyntaxTrees,
-    expr: ExpressionHandle,
+    expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
-    let node = syntax_trees.expressions.expression(expr).clone();
+    let node = syntax_trees.expressions.expression(expression).clone();
     let copied = match node {
         ExpressionNode::SelfValue => ExpressionNode::SelfValue,
         ExpressionNode::Member(m) => {

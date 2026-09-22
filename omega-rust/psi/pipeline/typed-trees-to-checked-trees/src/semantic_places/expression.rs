@@ -228,7 +228,8 @@ fn instantiate_call_contract_name_path_place(
                 || path.head_symbol == parameter.symbol
                 || path.symbol == parameter.symbol
             {
-                matched = argument.and_then(|expr| call_argument_place(program, facts, call, expr));
+                matched = argument
+                    .and_then(|expression| call_argument_place(program, facts, call, expression));
                 break;
             }
         }
