@@ -793,7 +793,7 @@ fn assert_native_result(artifact: &terminal_codec::CanonicalTerminalArtifact, _d
     native_function::assert_c_text(
         &image.output().final_text_bytes,
         object.entry_function().text_offset,
-        driver,
+        _driver,
     );
     #[cfg(not(any(
         all(

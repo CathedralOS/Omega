@@ -1,6 +1,6 @@
 //! Publication retains borrowed pointer transport and the realized spill frame.
 use super::super::native_text_for;
-use super::{NativeTarget, native_text, receiver_source, register_prefix, source};
+use super::{NativeTarget, native_function, native_text, receiver_source, register_prefix, source};
 use machine_code::StructuralSourceLocation;
 
 fn container(

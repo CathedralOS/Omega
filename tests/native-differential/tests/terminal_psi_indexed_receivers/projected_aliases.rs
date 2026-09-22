@@ -1,6 +1,6 @@
 //! Captured alias projections preserve the original caller storage.
 
-use super::{NativeTarget, primitive_stores};
+use super::{NativeTarget, native_function, primitive_stores};
 const PROJECTED_RECEIVER: &str = "data Record [copy] { value: u16; }
     machine Record::replace(&write self, value: u16) { self.value = value; }
     machine forward(records: &write [Record; 2], value: u16) {

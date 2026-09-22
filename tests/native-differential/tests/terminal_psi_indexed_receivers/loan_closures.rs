@@ -1,6 +1,6 @@
 //! Closed projected loans restore the borrowed parent for later calls.
 
-use super::{NativeTarget, primitive_stores};
+use super::{NativeTarget, native_function, primitive_stores};
 
 /// A `&write` subloan of one element closes at its last use; the restored
 /// parent then writes a disjoint element through the original referent.

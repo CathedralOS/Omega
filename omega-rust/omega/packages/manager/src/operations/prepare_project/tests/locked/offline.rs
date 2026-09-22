@@ -1,7 +1,8 @@
-use super::super::super::PreparedLocalProject;
+use super::super::super::{Path, PreparedLocalProject};
+use super::super::PathBuf;
 use super::{
-    LocalProjectPreparationOptions, PrepareLocalProjectError, Project, fs, preparation_target,
-    prepare_local_project_in_storage,
+    LocalProjectPreparationOptions, LocalSourceLimits, PrepareLocalProjectError, Project, fs,
+    preparation_target, prepare_local_project_in_storage,
 };
 fn prepare(project: &Project) -> Result<Option<PreparedLocalProject>, PrepareLocalProjectError> {
     prepare_local_project_in_storage(

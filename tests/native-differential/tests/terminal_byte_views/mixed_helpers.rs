@@ -8,8 +8,9 @@
 ))]
 use super::native_function;
 use super::{
-    NativeTarget, OperationId, OperationKind, TerminalModule, assert_byte_read_proof_rejected,
-    stage_byte_view,
+    AdmissionProfile, NativeTarget, OperationId, OperationKind, OptimizationSelections,
+    TerminalModule, assert_byte_read_proof_rejected, compiler_baseline_request_v1,
+    optimize_artifact_sections, stage_byte_view,
 };
 #[path = "mixed_helpers/calls.rs"]
 mod calls;

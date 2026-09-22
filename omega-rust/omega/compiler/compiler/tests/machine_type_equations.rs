@@ -317,7 +317,7 @@ fn assert_native_execution(artifact: &terminal_codec::CanonicalTerminalArtifact,
                 &image.output().final_text_bytes,
                 object.entry_function().text_offset,
                 &format!(
-                    "#include <stdint.h>\nextern uint64_t omega_entry(void);\nint main(void) {{ return omega_entry() == {expected} ? 0 : 1; }}"
+                    "#include <stdint.h>\nextern uint64_t omega_entry(void);\nint main(void) {{ return omega_entry() == {_expected} ? 0 : 1; }}"
                 ),
             );
             #[cfg(not(any(
