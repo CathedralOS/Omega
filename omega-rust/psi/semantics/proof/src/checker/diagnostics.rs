@@ -7,6 +7,7 @@ use crate::obligations::{
     ProofPlan,
 };
 pub(crate) use diagnostics::Diagnostic;
+use language_core::receiver_place_label;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::name::Identifier;
 
@@ -17,10 +18,11 @@ pub(crate) fn cannot_prove_dependent_call_bound(
     max_field: &Identifier,
     max_offset: i64,
 ) -> Diagnostic {
+    let max_field_place = receiver_place_label(max_field.as_str());
     let bound_spelling = match max_offset {
-        0 => format!("self.{max_field}"),
-        offset if offset < 0 => format!("self.{max_field} - {}", -offset),
-        offset => format!("self.{max_field} + {offset}"),
+        0 => max_field_place,
+        offset if offset < 0 => format!("{max_field_place} - {}", -offset),
+        offset => format!("{max_field_place} + {offset}"),
     };
     Diagnostic::error(format!(
         "cannot prove call argument `{}` satisfies dependent parameter `{}` for `{}` in `{}.{}`; expected {minimum}..={bound_spelling} -- a call has no co-located guard, so only an argument within the field's declared minimum discharges here; route the call through a guarded transition to relate them",
@@ -39,10 +41,11 @@ pub(crate) fn cannot_prove_dependent_transition_bound(
     max_field: &Identifier,
     max_offset: i64,
 ) -> Diagnostic {
+    let max_field_place = receiver_place_label(max_field.as_str());
     let bound_spelling = match max_offset {
-        0 => format!("self.{max_field}"),
-        offset if offset < 0 => format!("self.{max_field} - {}", -offset),
-        offset => format!("self.{max_field} + {offset}"),
+        0 => max_field_place,
+        offset if offset < 0 => format!("{max_field_place} - {}", -offset),
+        offset => format!("{max_field_place} + {offset}"),
     };
     Diagnostic::error(format!(
         "cannot prove transition argument `{}` satisfies dependent parameter `{}` in `{}.{}`; expected {minimum}..={bound_spelling} -- relate them on the arm (`{} <= {bound_spelling}` or a `<` guard), or tighten the argument below the field's declared minimum",

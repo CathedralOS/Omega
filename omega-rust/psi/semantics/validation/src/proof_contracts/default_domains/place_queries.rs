@@ -3,7 +3,7 @@
 //! These are read-only structural queries shared by the default-domain write
 //! engine and reader hypotheses. They do not own flow state or diagnostics.
 
-use language_core::is_self_receiver;
+use language_core::{is_receiver_rooted, is_self_receiver};
 use typed_trees::TypedTrees;
 use typed_trees::data::DataDefinition;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -51,7 +51,7 @@ pub(super) fn self_place_spelling(
 /// Slice 6: the born-zero valuation model applies only to machine-owned
 /// (self-rooted) storage.
 pub(super) fn is_self_rooted(spelling: &str) -> bool {
-    is_self_receiver(spelling) || spelling.starts_with("self.")
+    is_receiver_rooted(spelling)
 }
 
 /// The write-target analogue of [`self_place_spelling`]: a non-literal index

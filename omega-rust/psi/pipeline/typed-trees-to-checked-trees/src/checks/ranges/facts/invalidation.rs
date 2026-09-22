@@ -1,6 +1,6 @@
 use super::RangeFacts;
 use crate::flow::CanonicalPlace;
-use language_core::is_self_receiver;
+use language_core::{is_self_receiver, receiver_place_field};
 use typed_trees::{TypedTrees, machine::Machine, state::State, statement::StatementNode};
 
 impl RangeFacts<'_> {
@@ -349,8 +349,7 @@ fn write_affects_bound(name: &str, path: &str) -> bool {
                 .chars()
                 .all(|character| character.is_alphanumeric() || character == '_')
     }) || validation::frame_paths_overlap(name, path)
-        || path
-            .strip_prefix("self.")
+        || receiver_place_field(path)
             .is_some_and(|path| validation::frame_paths_overlap(name, path))
         || (is_self_receiver(path) && !name.contains('.'))
 }

@@ -6,6 +6,7 @@ use super::{
     PrimitiveType, State, TypedTrees, declared_place_type_raw, guard_narrowing, literal_i64,
 };
 use crate::proof_contracts::arithmetic_domains::integer_ranges::primitive_range;
+use language_core::receiver_place_label;
 
 /// R3's ONE closed bounded-product rule: `a * self.Fb + c` where
 /// `a <= self.Fa - 1` (a STRICT dependent atom), `c <= self.Fb - 1` (strict,
@@ -115,8 +116,8 @@ fn requires_product_coupling(
     fa: &typed_trees::name::Identifier,
     fb: &typed_trees::name::Identifier,
 ) -> Option<i64> {
-    let fa_label = format!("self.{}", fa.as_str());
-    let fb_label = format!("self.{}", fb.as_str());
+    let fa_label = receiver_place_label(fa.as_str());
+    let fb_label = receiver_place_label(fb.as_str());
     for contract in program.machine_contracts(machine) {
         if contract.kind != typed_trees::signature::SignatureContractKind::Requires {
             continue;

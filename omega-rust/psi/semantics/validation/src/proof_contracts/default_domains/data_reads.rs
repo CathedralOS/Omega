@@ -7,7 +7,7 @@ use crate::proof_contracts::default_domains::place_queries::{
 };
 use crate::proof_contracts::default_domains::{InvariantWindow, TrackedPlace};
 use diagnostics::Diagnostic;
-use language_core::is_self_receiver;
+use language_core::{is_self_receiver, receiver_place_label};
 use typed_trees::TypedTrees;
 use typed_trees::data::DataDefinition;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -621,7 +621,7 @@ pub(crate) fn attached_value_established(
                 return false;
             }
         } else {
-            let child = format!("self.{}", field.name.as_str());
+            let child = receiver_place_label(field.name.as_str());
             if !direct_place_established(&child, tracked, entry_established, call_established) {
                 return false;
             }

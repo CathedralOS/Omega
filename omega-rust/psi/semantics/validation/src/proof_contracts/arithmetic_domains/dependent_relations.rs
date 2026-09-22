@@ -2,6 +2,8 @@ use super::{
     ArithmeticDomain, ExpressionHandle, ExpressionNode, Interval, Machine, State,
     TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
 };
+use language_core::receiver_place_label;
+
 /// R1 relational refinement (the ONE closed subtraction rule): `self.F - i`
 /// where `i`'s DECLARED range carries the dependent maximum `self.F + k`
 /// (recognizer class) satisfies `F - i >= -k` -- at k=0 the
@@ -119,7 +121,7 @@ pub(super) fn validation_state_preserves_field(
     field: &typed_trees::name::Identifier,
 ) -> bool {
     use typed_trees::statement::StatementNode;
-    let field_path = format!("self.{}", field.as_str());
+    let field_path = receiver_place_label(field.as_str());
     let call_frames = crate::machine_calls::calls::CallFrameResolver::new(program);
 
     for statement in program.statement_table.statements(state.statement_nodes) {
