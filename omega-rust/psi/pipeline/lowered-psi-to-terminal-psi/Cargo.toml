@@ -9,5 +9,6 @@ checked-trees = { path = "../../representations/checked-trees" }
 lowered-psi = { path = "../../representations/lowered-psi" }
 terminal-psi = { path = "../../representations/terminal-psi" }
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
+symbols = { path = "../../foundation/symbols" }
 lowered-psi-to-lowered-psi = { path = "../lowered-psi-to-lowered-psi" }
 terminal-codec = { path = "../../semantics/terminal-codec" }

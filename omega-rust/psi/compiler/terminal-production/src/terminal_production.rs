@@ -587,4 +587,353 @@ mod tests {
             ]
         );
     }
+
+    /// One source-produced rebound dynamic scalar call: the checked plan's
+    /// `CallDynamicScalar` materializes a descriptor table (one rebound
+    /// descriptor joining an initial and a latest conformance selection) and
+    /// dispatches through it. The boundary-operator scope replays that exact
+    /// occurrence back to its checked plan.
+    const REBOUND_DYNAMIC_SOURCE: &str = r#"
+        trait Measure {
+            machine measure(&self) -> i32;
+        }
+
+        data Item [copy] {
+            value: i32;
+        }
+
+        Primary: Item satisfies Measure {
+            machine measure(&self) -> i32 {
+                transition { _ -> self.value }
+            }
+        }
+
+        data Main [copy] {
+            decoy: Item;
+            selected: Item;
+        }
+
+        machine Main::run(&mut self) {
+            let mut erased: &dyn Measure = &self.decoy as &dyn Item::Primary;
+            erased = &self.selected as &dyn Item::Primary;
+            let result: i32 = erased.measure();
+        }
+    "#;
+
+    /// The same descriptor-table materialization on the Unit-result lane:
+    /// `CallDynamicUnit` instead of `CallDynamicScalar`.
+    const REBOUND_DYNAMIC_UNIT_SOURCE: &str = r#"
+        trait Touch {
+            machine touch(&self);
+        }
+
+        data Item {
+            value: i32;
+        }
+
+        Primary: Item satisfies Touch {
+            machine touch(&self) {}
+        }
+
+        data Main {
+            decoy: Item;
+            selected: Item;
+        }
+
+        machine Main::run(&mut self) {
+            let mut erased: &dyn Touch = &self.decoy as &dyn Item::Primary;
+            erased = &self.selected as &dyn Item::Primary;
+            erased.touch();
+        }
+    "#;
+
+    /// The rebound whose two selections name different checked conformances,
+    /// so the descriptor retains two distinct closed applications.
+    const CHANGED_CONFORMANCE_REBOUND_SOURCE: &str = r#"
+        trait Touch { machine touch(&self); }
+        data Item { value: i32; }
+
+        Primary: Item satisfies Touch { machine touch(&self) {} }
+        Secondary: Item satisfies Touch { machine touch(&self) {} }
+
+        data Main { decoy: Item; selected: Item; }
+
+        machine Main::run(&mut self) {
+            let mut erased: &dyn Touch = &self.decoy as &dyn Item::Primary;
+            erased = &self.selected as &dyn Item::Secondary;
+            erased.touch();
+        }
+    "#;
+
+    fn rebound_dynamic_produced(
+        source: &str,
+    ) -> (
+        checked_trees::CheckedTrees,
+        crate::ProducedTerminalArtifact<()>,
+    ) {
+        let checked = check_source(source);
+        let produced =
+            TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("Main::run"))
+                .produce(TerminalProductionCustody {
+                    retain_unoptimized: true,
+                    entry_identity: None,
+                    callback_custody: (),
+                    timings: &mut TerminalProductionTimings::default(),
+                })
+                .expect("rebound dynamic production publishes");
+        (checked, produced)
+    }
+
+    /// The lowered module production retained beside the artifact: under the
+    /// default identity optimization it is the module the boundary scope
+    /// replayed, kept here so tests can mutate its sidecars without lowering
+    /// again.
+    fn retained_lowered(produced: &crate::ProducedTerminalArtifact<()>) -> lowered_psi::LoweredPsi {
+        produced
+            .unoptimized()
+            .expect("custody retained the lowered module")
+            .clone()
+    }
+
+    fn published_module(
+        produced: &crate::ProducedTerminalArtifact<()>,
+    ) -> terminal_psi::TerminalModule {
+        terminal_codec::decode_module(produced.artifact().semantic_bytes())
+            .expect("published Terminal module decodes")
+    }
+
+    #[test]
+    fn a_rebound_dynamic_call_rejoins_one_exact_descriptor_table_occurrence() {
+        use lowered_psi_to_terminal_psi::CheckedDynamicCallLane;
+        let (checked, produced) = rebound_dynamic_produced(REBOUND_DYNAMIC_SOURCE);
+        let module = published_module(&produced);
+        let catalog = &module.dynamic_dispatch;
+        let [dispatch] = catalog.indirect_dispatches.as_slice() else {
+            panic!("one indirect dispatch row");
+        };
+        let [descriptor] = catalog.rebound_descriptors.as_slice() else {
+            panic!("one rebound descriptor");
+        };
+        assert_eq!(catalog.selections.len(), 2);
+        assert_eq!(catalog.stored_descriptors.len(), 0);
+        assert!(catalog.direct_dispatches.is_empty());
+        assert!(catalog.stored_dispatches.is_empty());
+        assert!(catalog.parameter_dispatches.is_empty());
+        assert_eq!(produced.source_call_occurrences().len(), 1);
+        let operation = module
+            .machines
+            .iter()
+            .flat_map(|machine| machine.blocks.iter())
+            .flat_map(|block| block.operations.iter())
+            .find(|operation| operation.id == dispatch.operation)
+            .expect("the dispatch names an emitted operation");
+        assert!(matches!(
+            operation.kind,
+            terminal_psi::OperationKind::CallDynamicScalar { .. }
+        ));
+        let scope = produced.boundary_operator_scope();
+        let [occurrence] = scope.dynamic_call_occurrences() else {
+            panic!("one replayed dynamic call occurrence");
+        };
+        assert_eq!(occurrence.lane(), CheckedDynamicCallLane::ReboundScalar);
+        assert_eq!(occurrence.plan_index(), 0);
+        assert_eq!(occurrence.terminal_machine(), dispatch.owner);
+        assert_eq!(occurrence.terminal_operation(), dispatch.operation);
+        assert_eq!(occurrence.descriptor_ordinal(), dispatch.descriptor_ordinal);
+        assert_eq!(occurrence.descriptor_ordinal(), descriptor.ordinal,);
+        assert_eq!(
+            produced.source_call_occurrences()[0].terminal_operation,
+            dispatch.operation
+        );
+        // The same roster replays directly against the published artifact.
+        let lowered = retained_lowered(&produced);
+        let replayed = lowered_psi_to_terminal_psi::checked_boundary_operator_scope(
+            &checked,
+            produced.artifact(),
+            &lowered,
+        )
+        .expect("the recorded roster rejoins its checked rebound plan");
+        assert_eq!(
+            replayed.dynamic_call_occurrences(),
+            scope.dynamic_call_occurrences()
+        );
+    }
+
+    #[test]
+    fn a_rebound_dynamic_unit_call_rejoins_its_descriptor_table_occurrence() {
+        use lowered_psi_to_terminal_psi::CheckedDynamicCallLane;
+        let (_checked, produced) = rebound_dynamic_produced(REBOUND_DYNAMIC_UNIT_SOURCE);
+        let module = published_module(&produced);
+        let catalog = &module.dynamic_dispatch;
+        let [dispatch] = catalog.indirect_dispatches.as_slice() else {
+            panic!("one indirect dispatch row");
+        };
+        let operation = module
+            .machines
+            .iter()
+            .flat_map(|machine| machine.blocks.iter())
+            .flat_map(|block| block.operations.iter())
+            .find(|operation| operation.id == dispatch.operation)
+            .expect("the dispatch names an emitted operation");
+        assert!(matches!(
+            operation.kind,
+            terminal_psi::OperationKind::CallDynamicUnit { .. }
+        ));
+        let scope = produced.boundary_operator_scope();
+        let [occurrence] = scope.dynamic_call_occurrences() else {
+            panic!("one replayed dynamic call occurrence");
+        };
+        assert_eq!(occurrence.lane(), CheckedDynamicCallLane::ReboundUnit);
+        assert_eq!(occurrence.plan_index(), 0);
+        assert_eq!(occurrence.terminal_operation(), dispatch.operation);
+    }
+
+    #[test]
+    fn a_changed_conformance_rebound_rejoins_two_closed_applications() {
+        let (_checked, produced) = rebound_dynamic_produced(CHANGED_CONFORMANCE_REBOUND_SOURCE);
+        let module = published_module(&produced);
+        let catalog = &module.dynamic_dispatch;
+        assert_eq!(catalog.selections.len(), 2);
+        assert_ne!(
+            catalog.selections[0].conformance_application_commitment,
+            catalog.selections[1].conformance_application_commitment,
+            "the changed conformance keeps two distinct closed applications",
+        );
+        let scope = produced.boundary_operator_scope();
+        let [occurrence] = scope.dynamic_call_occurrences() else {
+            panic!("one replayed dynamic call occurrence");
+        };
+        assert_eq!(occurrence.plan_index(), 0);
+    }
+
+    #[test]
+    fn a_stale_or_duplicated_dynamic_occurrence_rejects() {
+        use semantic_vocabulary::OperationId;
+        let (checked, produced) = rebound_dynamic_produced(REBOUND_DYNAMIC_SOURCE);
+        let lowered = retained_lowered(&produced);
+        let replay = |corrupted: &lowered_psi::LoweredPsi| {
+            lowered_psi_to_terminal_psi::checked_boundary_operator_scope(
+                &checked,
+                produced.artifact(),
+                corrupted,
+            )
+            .unwrap_err()
+        };
+        // A row naming an operation the module no longer carries.
+        let mut corrupted = lowered.clone();
+        corrupted.source_call_occurrences[0].terminal_operation =
+            OperationId::new(u64::MAX).expect("unused operation identity");
+        assert_eq!(
+            replay(&corrupted),
+            "rebound dynamic call does not name one exact Terminal operation"
+        );
+        // A duplicated occurrence row.
+        let mut corrupted = lowered.clone();
+        let duplicate = corrupted.source_call_occurrences[0].clone();
+        corrupted.source_call_occurrences.push(duplicate);
+        assert_eq!(
+            replay(&corrupted),
+            "rebound dynamic call maps to duplicate Terminal occurrences"
+        );
+        // A stale coordinate leaves the surviving indirect dispatch unchecked.
+        let mut corrupted = lowered.clone();
+        corrupted.source_call_occurrences[0].call_ordinal += 1;
+        assert_eq!(
+            replay(&corrupted),
+            "Terminal indirect dispatch does not rejoin one checked rebound call"
+        );
+    }
+
+    #[test]
+    fn a_substituted_dynamic_selection_identity_rejects() {
+        let (checked, produced) = rebound_dynamic_produced(REBOUND_DYNAMIC_SOURCE);
+        let lowered = retained_lowered(&produced);
+        let replay = |corrupted: &checked_trees::CheckedTrees| {
+            lowered_psi_to_terminal_psi::checked_boundary_operator_scope(
+                corrupted,
+                produced.artifact(),
+                &lowered,
+            )
+            .unwrap_err()
+        };
+        let drifted = "rebound dynamic dispatch drifted from its checked selection";
+        // A checked plan whose requirement identity no longer matches the
+        // emitted dispatch row.
+        let mut corrupted = checked.clone();
+        corrupted
+            .facts
+            .flow
+            .terminal_unit_effects
+            .dynamic_dispatch
+            .rebound_scalar_calls[0]
+            .latest
+            .requirement_identity = "foreign".to_owned();
+        assert_eq!(replay(&corrupted), drifted);
+        // A checked plan whose family tuple is substituted.
+        let mut corrupted = checked.clone();
+        corrupted
+            .facts
+            .flow
+            .terminal_unit_effects
+            .dynamic_dispatch
+            .rebound_scalar_calls[0]
+            .latest
+            .family_tuple = Box::from(["foreign".to_owned()]);
+        assert_eq!(replay(&corrupted), drifted);
+        // A stale checked coordinate leaves the indirect dispatch unrejoined.
+        let mut corrupted = checked.clone();
+        corrupted
+            .facts
+            .flow
+            .terminal_unit_effects
+            .dynamic_dispatch
+            .rebound_scalar_calls[0]
+            .latest
+            .coordinate
+            .statement_index += 1;
+        assert_eq!(
+            replay(&corrupted),
+            "Terminal indirect dispatch does not rejoin one checked rebound call"
+        );
+        // A retained conformance row whose requirement identity drifted.
+        let mut corrupted = checked.clone();
+        corrupted
+            .facts
+            .flow
+            .terminal_unit_effects
+            .dynamic_dispatch
+            .rebound_scalar_calls[0]
+            .latest
+            .selection
+            .rows[0]
+            .requirement_identity = "foreign".to_owned();
+        assert_eq!(
+            replay(&corrupted),
+            "rebound dynamic conformance application drifted from its checked selection"
+        );
+    }
+
+    #[test]
+    fn a_foreign_dynamic_call_scope_rejects() {
+        let (_checked, produced) = rebound_dynamic_produced(REBOUND_DYNAMIC_SOURCE);
+        let lowered = retained_lowered(&produced);
+        // A program whose rebound plan names a different requirement symbol:
+        // replaying the published roster under foreign checked custody either
+        // drifts on the row identities or leaves the dispatch unrejoined.
+        let foreign = check_source(&REBOUND_DYNAMIC_SOURCE.replace("measure", "gauge"));
+        let error = lowered_psi_to_terminal_psi::checked_boundary_operator_scope(
+            &foreign,
+            produced.artifact(),
+            &lowered,
+        )
+        .unwrap_err();
+        assert!(
+            [
+                "rebound dynamic dispatch drifted from its checked selection",
+                "Terminal indirect dispatch does not rejoin one checked rebound call",
+            ]
+            .contains(&error),
+            "unexpected replay failure: {error}"
+        );
+    }
 }
