@@ -42,7 +42,6 @@ const GLOB_REEXPORT_CEILINGS: &[(&str, usize)] = &[
         1,
     ),
     ("omega-rust/omega/backend/runtime/runtime-abi", 1),
-    ("omega-rust/omega/build/provider-planning", 2),
     (
         "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations",
         11,

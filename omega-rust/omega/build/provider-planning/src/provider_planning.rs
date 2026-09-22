@@ -41,7 +41,18 @@ pub use external_binding_rows::{
     settle_external_binding_rows,
 };
 #[cfg(feature = "installed-writer")]
-pub use installed_writer::*;
+pub use installed_writer::{
+    AdmittedExternalRootEntryFactHandoff, BoundExternalRootPostHandoffWriterInvocation,
+    BoundExternalRootWriterExecutionError, ExternalRootPostHandoffWriterBindingError,
+    SelectedExternalRootEntryFactBinding, SelectedExternalRootPostHandoffWriterPreparation,
+    SelectedExternalRootProviderPlan, SelectedExternalRootWriterPreparationError,
+    ValidatedWrittenBoundExternalRootPostHandoffWriterDestination,
+    WrittenBoundExternalRootConsumerValidationError,
+    WrittenBoundExternalRootPostHandoffWriterDestination,
+    WrittenBoundExternalRootWriterRecoveryError, bind_external_root_post_handoff_writer_invocation,
+    optional_selected_external_root_provider_plan, selected_external_root_entry_fact_bindings,
+    selected_external_root_provider_plan, selected_external_root_provider_plan_id,
+};
 pub use intrinsic_execution::{
     primitive_float_binary_intrinsic_execution_identity,
     primitive_float_binary_intrinsic_execution_identity_for,
@@ -52,7 +63,14 @@ pub use operator_provider_evidence::{
     compiler_intrinsic_diagnostic_label, compiler_intrinsic_diagnostic_label_for,
     intrinsic_realization_matches_operator,
 };
-pub use provenance_replay::*;
+#[cfg(test)]
+pub(crate) use provenance_replay::exact_checked_adapter_invocations;
+pub use provenance_replay::{
+    DerivedProviderPlan, ProviderPlanDerivation, ProviderPlanProvenance, ProviderSchemaDeclaration,
+    SelectedTargetMachineOrigin, derive_satisfies_plans, exact_checked_adapter,
+    satisfied_requirement_identity, satisfies_plan_name, validate_derived_provider_plan_candidates,
+    validate_provider_plan_candidates,
+};
 pub use selected_plan_bindings::SelectedProviderPlanBinding;
 pub use selection_provenance::{
     ProviderSelectionProvenance, SelectedProviderPlanWithProvenance,
