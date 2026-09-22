@@ -4,6 +4,9 @@
 //! pipeline stages and consume these data types.
 
 mod functions;
-pub use functions::*;
+pub use functions::{AbstractBlockEntry, AbstractFunction};
 mod edges;
-pub use edges::*;
+pub use edges::{
+    AbstractStructuralBinding, AbstractStructuralCasePayloadBinding,
+    AbstractStructuralCaseSuccessor, AbstractSuccessor,
+};
