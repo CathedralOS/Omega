@@ -6,7 +6,8 @@ use super::super::{
     OrderedRuleRegistry, budget, built_in_psi_registry, verified_empty_unit,
     verified_exact_add_unit,
 };
-use crate::{run_psi_pipeline, run_psi_pipeline_for_projection, run_psi_registry};
+use crate::abstract_optimization::run_psi_pipeline_for_projection;
+use crate::{run_psi_pipeline, run_psi_registry};
 #[test]
 fn public_run_requires_and_retains_verified_optimizer_context() {
     let selections = OptimizationSelections::default();

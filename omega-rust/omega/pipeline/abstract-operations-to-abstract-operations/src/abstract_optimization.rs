@@ -19,7 +19,9 @@
 //! built-in registry for the selection. [`replay_psi_pipeline`] and
 //! [`replay_psi_registry`] are the same runs with the action after each
 //! candidate's validation taken from a canonical external decision log,
-//! decoded strictly at this byte boundary.
+//! decoded strictly at this byte boundary. `run_psi_pipeline_for_projection`
+//! is crate-private -- the phase's own leg -- and `replay_psi_registry` is the
+//! test-only single-registry replay this crate's replay tests drive.
 
 use optimization_core::{
     ExternalDecisionLog, OptimizationSelections, OptimizationWorkBudget,
@@ -107,7 +109,8 @@ pub fn run_psi_registry(
 /// Replay a canonical external decision log through one exact selected Psi
 /// registry. The byte boundary is intentional: strict schema decoding is part
 /// of accepting external policy input.
-pub fn replay_psi_registry(
+#[cfg(test)]
+pub(crate) fn replay_psi_registry(
     verified: VerifiedPsiOptimizationUnit,
     selections: &OptimizationSelections,
     registry: &OrderedRuleRegistry,
@@ -163,7 +166,7 @@ pub fn run_psi_pipeline(
 /// Execute the Psi schedule from the coordinator's one bound projection.
 /// The complete selection is retained for cross-phase custody but is never
 /// rescanned to rediscover this phase's schedule.
-pub fn run_psi_pipeline_for_projection(
+pub(crate) fn run_psi_pipeline_for_projection(
     verified: VerifiedPsiOptimizationUnit,
     selections: &OptimizationSelections,
     projection: &PsiOptimizationSelectionProjection,
