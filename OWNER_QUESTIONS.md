@@ -362,6 +362,54 @@ ruling or at least a note so later legs make the same choice:
   upstream unit-struct namespaces became `[copy]` marker data (e.g.
   `ScannerScalarSingleElement`).
 
+7. **Which half owns the step from a materialization plan to the post-handoff
+   writer program?** (named decision: `post-handoff-writer-ownership`).
+   The [Psi/Omega firewall](AGENTS.md#the-psiomega-ownership-firewall) gives
+   Omega "provider selection, ... target realization, ABI, native emission,
+   and execution machinery" and keeps Psi target-neutral. The post-handoff
+   writer carriers (`PostHandoffWriterPlan`,
+   `GeneratedPostHandoffWriterFragmentPlan`, `PostHandoffWriterInvocationPlan`,
+   the step rows) live in `psi/foundation/layout-plans/src/post_handoff_writer/`,
+   whose own doc calls them "the step/plan carriers a provider replays after
+   control leaves the loader", and that crate both derives them
+   (`SymbolicMaterializationPlan::derive_post_handoff_writer` maps
+   `MaterializationAction::{ResolvedWrite, RuntimeWriter}` into writer steps)
+   and executes them (`PostHandoffWriterPlan::{lower_reusable_fragment,
+   validate, execute}` and `apply_post_handoff_writes_atomically` over the
+   crate-private stored-integer write and fit validators). Five Omega
+   consumers then each re-own a same-named module (`program-entry-plan`,
+   `isa-x86_64`, `isa-aarch64`, `executable-installation`, plus the
+   `external-roots`/`provider-planning` readers). No other Psi crate reads
+   the carriers. An architecture sweep (2026-09-21) stopped here because the
+   move is not mechanical: either the writer program is a Psi layout artifact
+   (a target-neutral description of writes a loader-independent replayer
+   performs, in which case only the *execution* and the ISA-specific fragment
+   encodings belong to Omega), or it is Omega execution machinery (in which
+   case Psi's materialization plan stops at `MaterializationAction` rows and
+   Omega derives, validates, and executes the writer, taking the
+   stored-integer write/fit validation with it). Options:
+
+   - (a) Psi owns the writer *plan* (derivation and validation stay in
+     `layout-plans`, as a layout artifact keyed on placement vocabulary);
+     Omega owns its *execution* and fragment encoding: `execute`,
+     `apply_post_handoff_writes_atomically` and the reusable-fragment ABI move
+     to `backend/plans/program-entry-plan` as the root concept, and the ISA
+     and installation modules are renamed to what they contribute. Keeps
+     Psi target-neutral without duplicating validation. Recommended default.
+   - (b) Omega owns the whole step: `derive_post_handoff_writer` and the
+     carriers move to Omega, Psi's materialization plan ends at
+     `MaterializationAction`, and the stored-integer validators become a
+     public `layout-plans` query API that Omega calls. Simplest crate graph,
+     but Psi then exports validation for a program it never sees.
+   - (c) Status quo, documented: the writer program is declared a Psi layout
+     artifact end to end, the five Omega same-named modules are renamed to
+     their contributions, and the firewall text gains the sentence that
+     loader-replayed layout writes are Psi-owned. No move.
+
+   Until answered, the sweep leaves the carriers where they are and renames
+   nothing; the crate-root roster keeps `post_handoff_writer` as a
+   `layout-plans` area.
+
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
 [foundation](wiki/spec/proofs/foundation.md). Their implementation and required
