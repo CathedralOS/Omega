@@ -430,6 +430,99 @@ fn installed_subject_establishes_exact_capacity_lineage_once_and_pins_the_epoch(
 }
 
 #[test]
+fn receiver_cleanup_occupancy_tracks_the_active_extent_until_retirement() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_root_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [prebinding] = installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
+        .expect("verified installed prebinding")
+        .try_into()
+        .expect("one producer schema");
+    let mut lifecycle = program_local_lifecycle(
+        750,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let lease = program_local_epoch_lease(&mut lifecycle, 850, 10, "TestRoot::entry");
+    let cohort = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                lease,
+            )],
+        )
+        .expect("exact epoch cohort");
+    let mut runtime = cohort.into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 950, 10);
+
+    // A still-pending occurrence has not proven its extent: cleanup cannot
+    // occupy it through the ledger.
+    let pending_identity = runtime
+        .pending_occurrences()
+        .next()
+        .expect("the sealed cohort carries a pending occurrence")
+        .identity;
+    assert!(
+        installation
+            .track_receiver_cleanup_occupancy(pending_identity)
+            .is_err(),
+        "cleanup occupancy cannot attach to a pending occurrence"
+    );
+
+    let established = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            &activation,
+            program_local_subject(&root, &activation, 1050, Some(8)),
+        )
+        .expect("exact installed subject establishes its root");
+    let identity = established.occurrence_identity();
+
+    // A receiver whose cleanup must occupy its hosted extent keeps that
+    // extent tracked through the ledger for the occupancy's active lifetime.
+    installation
+        .track_receiver_cleanup_occupancy(identity)
+        .expect("the established occurrence tracks its cleanup occupancy");
+    assert!(
+        installation
+            .cleanup_occupancies()
+            .any(|occupancy| *occupancy == identity),
+        "the occupancy is tracked against the exact occurrence"
+    );
+    // Retracking the same extent records no second occupancy row.
+    installation
+        .track_receiver_cleanup_occupancy(identity)
+        .expect("occupancy tracking is idempotent");
+    assert_eq!(installation.cleanup_occupancies().count(), 1);
+
+    installation
+        .retire_established(established, &mut lifecycle)
+        .expect("the exact lifecycle retires the root");
+    // Completion discharges the occupancy; a retired extent cannot occupy.
+    assert_eq!(installation.cleanup_occupancies().count(), 0);
+    assert!(
+        installation
+            .track_receiver_cleanup_occupancy(identity)
+            .is_err(),
+        "a retired extent cannot host cleanup occupancy"
+    );
+}
+
+#[test]
 fn aggregate_capacity_reconstruction_sums_the_live_group_for_one_epoch() {
     let entry = entry_id(1);
     let mut code = installed_code(1, entry);

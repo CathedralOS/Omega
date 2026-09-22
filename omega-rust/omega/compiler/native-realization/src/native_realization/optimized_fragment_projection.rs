@@ -159,12 +159,25 @@ pub(super) fn emit_optimized_fragments(
                         error,
                     )
                 })?;
+            // The checked eligibility decides whether the receiver's nominal
+            // cleanup must occupy its hosted extent through completion. The
+            // binding records that occupancy so the extent is tracked through
+            // the installation ledger rather than silently dropping it.
+            let cleanup_occupancy =
+                entry
+                    .checked_entry()
+                    .receiver_eligibility()
+                    .is_some_and(|eligibility| {
+                        eligibility.cleanup()
+                        == terminal_psi::CheckedProgramEntryReceiverCleanup::OccupiesHostedExtent
+                    });
             image_emission::bind_hosted_receiver(
                 &mut object,
                 entry.source(),
                 contract,
                 entry.fused_service_establishments(),
                 &demand,
+                cleanup_occupancy,
             )
             .map_err(|diagnostic| vec![diagnostic])?;
         }

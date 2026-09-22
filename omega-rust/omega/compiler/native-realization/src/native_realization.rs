@@ -385,6 +385,19 @@ fn validate_emitted_receiver_binding(
             "emitted hosted receiver binding does not carry the admitted source signature and physical contract",
         ));
     }
+    let admitted_occupancy = settlement
+        .checked_entry()
+        .receiver_eligibility()
+        .is_some_and(|eligibility| {
+            eligibility.cleanup()
+                == terminal_psi::CheckedProgramEntryReceiverCleanup::OccupiesHostedExtent
+        });
+    if binding.cleanup_occupancy() != admitted_occupancy {
+        return Err(realization_error(
+            "ProgramEntry receiver provisioning",
+            "emitted hosted receiver binding does not track the admitted cleanup occupancy",
+        ));
+    }
     Ok(())
 }
 

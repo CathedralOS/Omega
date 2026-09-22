@@ -91,6 +91,7 @@ fn bind_receiver(
     artifact: &mut image_emission::ObjectArtifact,
     signature: &program_entry_plan::SelectedProgramEntrySourceSignature,
     profile: TargetProfile,
+    cleanup_occupancy: bool,
 ) {
     let demand = derive_stack_demand(artifact, artifact.entry()).expect("entry stack demand");
     bind_hosted_receiver(
@@ -99,6 +100,7 @@ fn bind_receiver(
         &physical_contract(profile),
         &[],
         &demand,
+        cleanup_occupancy,
     )
     .expect("the exact admitted bridge binds the emitted object");
 }
@@ -122,7 +124,7 @@ fn hosted_receiver_binds_and_replays_through_emission_on_all_bridge_targets() {
             "{profile:?} the object retains the exact staged container custody",
         );
         let unbound = emit_direct_executable_image(&artifact, 3).expect("unbound image");
-        bind_receiver(&mut artifact, &compiled.signature, profile);
+        bind_receiver(&mut artifact, &compiled.signature, profile, false);
         let binding = artifact
             .hosted_receiver_binding()
             .expect("the binding is retained on the sealed object");
@@ -167,10 +169,10 @@ fn hosted_receiver_binding_fails_closed_before_bytes_exist() {
 
     // A binding is unique: a second bind on an already-bound object rejects.
     let mut artifact = compiled.artifact;
-    bind_receiver(&mut artifact, &signature, profile);
+    bind_receiver(&mut artifact, &signature, profile, false);
     let demand = derive_stack_demand(&artifact, artifact.entry()).expect("demand");
     assert!(
-        bind_hosted_receiver(&mut artifact, &signature, &physical, &[], &demand).is_err(),
+        bind_hosted_receiver(&mut artifact, &signature, &physical, &[], &demand, false).is_err(),
         "a second hosted receiver binding must reject",
     );
 
@@ -184,6 +186,7 @@ fn hosted_receiver_binding_fails_closed_before_bytes_exist() {
             &physical_contract(TargetProfile::MacosArm64),
             &[],
             &demand,
+            false,
         )
         .is_err(),
         "a substituted physical contract rejects before binding",
@@ -199,7 +202,15 @@ fn hosted_receiver_binding_fails_closed_before_bytes_exist() {
     };
     let mut unbound = compile_attached_entry(RECEIVER_STORE, "Main::launch", profile).artifact;
     assert!(
-        bind_hosted_receiver(&mut unbound, &darwin_signature, &physical, &[], &demand).is_err(),
+        bind_hosted_receiver(
+            &mut unbound,
+            &darwin_signature,
+            &physical,
+            &[],
+            &demand,
+            false
+        )
+        .is_err(),
         "a target-slot-substituted source signature rejects",
     );
 
@@ -219,7 +230,15 @@ fn hosted_receiver_binding_fails_closed_before_bytes_exist() {
         .expect("free declaration is valid alone");
     let mut unbound = compile_attached_entry(RECEIVER_STORE, "Main::launch", profile).artifact;
     assert!(
-        bind_hosted_receiver(&mut unbound, &free_signature, &physical, &[], &demand).is_err(),
+        bind_hosted_receiver(
+            &mut unbound,
+            &free_signature,
+            &physical,
+            &[],
+            &demand,
+            false
+        )
+        .is_err(),
         "a receiver source substitution rejects",
     );
 
@@ -228,7 +247,7 @@ fn hosted_receiver_binding_fails_closed_before_bytes_exist() {
     let mut unbound = compile_attached_entry(RECEIVER_STORE, "Main::launch", profile).artifact;
     unbound.clear_fragment_replay_for_test();
     assert!(
-        bind_hosted_receiver(&mut unbound, &signature, &physical, &[], &demand).is_err(),
+        bind_hosted_receiver(&mut unbound, &signature, &physical, &[], &demand, false).is_err(),
         "an object without fragment replay custody cannot bind a receiver",
     );
 }
@@ -242,7 +261,7 @@ fn hosted_receiver_emission_replays_binding_custody_exactly() {
     ] {
         let compiled = compile_attached_entry(RECEIVER_STORE, "Main::launch", profile);
         let mut artifact = compiled.artifact;
-        bind_receiver(&mut artifact, &compiled.signature, profile);
+        bind_receiver(&mut artifact, &compiled.signature, profile, false);
         match mutate {
             // A substituted receiver source after binding is a custody
             // replacement, not an alias.
@@ -296,7 +315,7 @@ fn hosted_receiver_emission_rejects_mutated_fragment_custody() {
     // A byte substitution in the object's current text breaks the exact
     // staged-container replay the emission gate performs first.
     let mut artifact = compiled.artifact.clone();
-    bind_receiver(&mut artifact, &compiled.signature, profile);
+    bind_receiver(&mut artifact, &compiled.signature, profile, false);
     artifact.text_bytes_mut_for_test()[0] ^= 0xff;
     assert!(
         emit_direct_executable_image(&artifact, 3).is_err(),
@@ -306,7 +325,7 @@ fn hosted_receiver_emission_rejects_mutated_fragment_custody() {
     // Dropping custody after binding removes the current entry graph the
     // receiver layout is derived from.
     let mut artifact = compiled.artifact;
-    bind_receiver(&mut artifact, &compiled.signature, profile);
+    bind_receiver(&mut artifact, &compiled.signature, profile, false);
     artifact.clear_fragment_replay_for_test();
     assert!(
         emit_direct_executable_image(&artifact, 3).is_err(),
@@ -319,7 +338,7 @@ fn hosted_receiver_image_replay_rejects_mutated_bridge_bytes() {
     let profile = TargetProfile::LinuxX64;
     let compiled = compile_attached_entry(RECEIVER_STORE, "Main::launch", profile);
     let mut artifact = compiled.artifact;
-    bind_receiver(&mut artifact, &compiled.signature, profile);
+    bind_receiver(&mut artifact, &compiled.signature, profile, false);
     let image = emit_direct_executable_image(&artifact, 3).expect("receiver image emits");
     validate_direct_executable_image(&artifact, &image).expect("exact image replays");
 
@@ -350,11 +369,41 @@ fn hosted_receiver_image_replay_rejects_mutated_bridge_bytes() {
         &mut other_artifact,
         &other.signature,
         TargetProfile::LinuxArm64,
+        false,
     );
     assert!(
         validate_direct_executable_image(&other_artifact, &image).is_err(),
         "an image cannot be rejoined to a substituted object",
     );
+}
+
+/// A receiver whose cleanup must occupy its hosted extent binds with the
+/// occupancy tracked on the binding: the emitted partitions and bridge bytes
+/// are unchanged, and the occupancy follows the sealed binding exactly.
+#[test]
+fn hosted_receiver_cleanup_occupancy_is_tracked_on_the_binding() {
+    for profile in [
+        TargetProfile::LinuxX64,
+        TargetProfile::LinuxArm64,
+        TargetProfile::MacosArm64,
+    ] {
+        let compiled = compile_attached_entry(RECEIVER_STORE, "Main::launch", profile);
+        let mut artifact = compiled.artifact;
+        bind_receiver(&mut artifact, &compiled.signature, profile, true);
+        let binding = artifact
+            .hosted_receiver_binding()
+            .expect("the binding is retained on the sealed object");
+        assert!(
+            binding.cleanup_occupancy(),
+            "{profile:?} the binding tracks the admitted cleanup occupancy",
+        );
+        assert_eq!(binding.source(), &compiled.signature);
+
+        let image = emit_direct_executable_image(&artifact, 3).expect("receiver image emits");
+        validate_direct_executable_image(&artifact, &image).unwrap_or_else(|error| {
+            panic!("{profile:?} occupancy-tracked binding must replay: {error:?}")
+        });
+    }
 }
 
 /// The same admitted bridge on the Darwin target is a returning dyld entry:
@@ -364,7 +413,7 @@ fn hosted_receiver_darwin_image_replay_rejects_mutated_bridge_bytes() {
     let profile = TargetProfile::MacosArm64;
     let compiled = compile_attached_entry(RECEIVER_STORE, "Main::launch", profile);
     let mut artifact = compiled.artifact;
-    bind_receiver(&mut artifact, &compiled.signature, profile);
+    bind_receiver(&mut artifact, &compiled.signature, profile, false);
     let image = emit_direct_executable_image(&artifact, 0).expect("Darwin receiver image emits");
     validate_direct_executable_image(&artifact, &image).expect("exact image replays");
 

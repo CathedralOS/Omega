@@ -24,6 +24,23 @@ pub enum CheckedProgramEntryReceiverProjection {
     },
 }
 
+/// Whether the receiver's nominal cleanup must occupy its hosted extent.
+///
+/// An erased receiver occupies no hosted extent at all, so source cleanup can
+/// never acquire ledger residence there. A retained receiver's BSS partition
+/// remains occupied for the whole hosted activation; nominal cleanup on that
+/// receiver must therefore occupy the same hosted installation ledger extent
+/// and stay tracked through it until actual completion retires it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedProgramEntryReceiverCleanup {
+    /// The receiver carries no nominal cleanup obligation.
+    None,
+    /// Nominal cleanup must occupy the receiver's hosted installation ledger
+    /// extent: the extent stays tracked through the ledger's aggregate
+    /// accounting until completion retires the occupancy.
+    OccupiesHostedExtent,
+}
+
 /// An exact source Bound-service field requiring separate root establishment.
 /// This correspondence carries no selected-plan or installation authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -58,6 +75,7 @@ pub struct CheckedProgramEntryReceiverEligibility {
     projection: CheckedProgramEntryReceiverProjection,
     terminal_receiver_type: StructuralTypeId,
     fused_service_fields: Vec<CheckedProgramEntryFusedServiceField>,
+    cleanup: CheckedProgramEntryReceiverCleanup,
 }
 
 impl CheckedProgramEntryReceiverEligibility {
@@ -67,6 +85,7 @@ impl CheckedProgramEntryReceiverEligibility {
         projection: CheckedProgramEntryReceiverProjection,
         terminal_receiver_type: StructuralTypeId,
         fused_service_fields: Vec<CheckedProgramEntryFusedServiceField>,
+        cleanup: CheckedProgramEntryReceiverCleanup,
     ) -> Self {
         Self {
             source_receiver_type_identity,
@@ -74,6 +93,7 @@ impl CheckedProgramEntryReceiverEligibility {
             projection,
             terminal_receiver_type,
             fused_service_fields,
+            cleanup,
         }
     }
 
@@ -95,6 +115,12 @@ impl CheckedProgramEntryReceiverEligibility {
 
     pub fn fused_service_fields(&self) -> &[CheckedProgramEntryFusedServiceField] {
         &self.fused_service_fields
+    }
+
+    /// Whether this receiver's nominal cleanup must occupy its hosted
+    /// installation ledger extent through completion.
+    pub const fn cleanup(&self) -> CheckedProgramEntryReceiverCleanup {
+        self.cleanup
     }
 }
 
