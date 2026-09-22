@@ -10,7 +10,6 @@ mod physical_requirement;
 pub(crate) mod validate;
 
 #[cfg(test)]
-#[path = "tests/mod.rs"]
 mod tests;
 
 use crate::TargetRegisterEnvironmentIdentity;
