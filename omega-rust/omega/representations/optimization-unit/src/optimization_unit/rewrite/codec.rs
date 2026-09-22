@@ -443,14 +443,23 @@ pub(super) fn encode_candidate(
                         .unwrap_or(0)
                         .to_le_bytes(),
                 );
-                match row.value {
-                    FoldedFieldValue::Boolean(constant) => {
+                match &row.resolution {
+                    FieldValueResolution::Constant(FoldedFieldValue::Boolean(constant)) => {
                         bytes.push(1);
-                        bytes.push(u8::from(constant));
+                        bytes.push(u8::from(*constant));
                     }
-                    FoldedFieldValue::Integer(constant) => {
+                    FieldValueResolution::Constant(FoldedFieldValue::Integer(constant)) => {
                         bytes.push(2);
-                        encode_integer_value(&mut bytes, constant);
+                        encode_integer_value(&mut bytes, *constant);
+                    }
+                    FieldValueResolution::Forward(forwarded) => {
+                        bytes.push(3);
+                        bytes.extend_from_slice(&forwarded.initializer.get().to_le_bytes());
+                        encode_scalar_type(&mut bytes, forwarded.scalar_type);
+                        encode_len(&mut bytes, forwarded.uses.len());
+                        for site in &forwarded.uses {
+                            encode_location(&mut bytes, *site);
+                        }
                     }
                 }
             }

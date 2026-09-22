@@ -7,15 +7,21 @@
 //! `BoundedInteger` singleton bound at the position each observation
 //! resolves to — replays the admissible observation set for that place,
 //! requires the claimed rows to equal the replayed rows exactly, rebuilds
-//! the output itself, and reconstructs the exact node custody the folded
-//! observations carry.
+//! the output itself, and reconstructs the exact node custody the resolved
+//! observations carry. A `Constant` row folds its read in place; a `Forward`
+//! row rebinds every covered scalar-operand use of the read's result to the
+//! proven nonconstant initializer and retires the observation node, so the
+//! replay also recomputes the substitution set, the exact use-site roster,
+//! initializer dominance, and the shifted-custody provenance ledger.
 
 use crate::BTreeMap;
+use crate::BTreeSet;
+use crate::FieldValueResolution;
+use crate::FieldValueRow;
 use crate::FoldedFieldValue;
-use crate::FoldedFieldValueRow;
+use crate::ForwardedFieldValue;
 use crate::O;
 use crate::OperationId;
-use crate::OptimizationFact;
 use crate::OptimizationNode;
 use crate::OptimizationUnitValidationError;
 use crate::OptimizationValidatorIdentity;
@@ -24,16 +30,25 @@ use crate::ProvenanceDisposition;
 use crate::ProvenanceRewrite;
 use crate::PsiOptimizationFunction;
 use crate::PsiOptimizationUnit;
-use crate::PsiProvenance;
 use crate::PsiRealizationSite;
 use crate::PsiRewriteCandidate;
 use crate::PsiRewritePatch;
+use crate::ScalarSubstitution;
 use crate::ScalarType;
 use crate::StructuralPlaceKind;
 use crate::StructuralTypeId;
 use crate::ValidatedPsiRewrite;
+use crate::ValueDefinition;
+use crate::ValueDefinitionSite;
 use crate::candidates::state_specialization::cyclic_machines;
+use crate::preserve_edge_custody;
 use crate::recompute_psi_optimization_unit_identity;
+use crate::rewrite_scalar_value_uses;
+use crate::unit_validation::derived_metadata::{
+    dominators, expected_definitions, expected_ownership, expected_uses,
+    reconstruct_declared_places,
+};
+use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::validate_psi_optimization_unit;
 use semantic_vocabulary::{
     BlockId, CanonicalStructuralPathSegment, StructuralCaseId, StructuralFieldId, ValueId,
@@ -161,7 +176,7 @@ fn declared_structural_type(
     }
 }
 
-/// The scalar kind a folded observation must carry: `Boolean` for a
+/// The scalar kind a resolved observation must carry: `Boolean` for a
 /// `BooleanStructuralField` result, `Integer` for an `IntegerStructuralField`
 /// result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -170,13 +185,60 @@ enum ObservedFieldKind {
     Integer,
 }
 
+/// The per-function value graph a forward admission resolves against: every
+/// value's defining site and scalar type, plus the block dominator tree the
+/// initializer must dominate each rewritten use under.
+struct FunctionAnalysis {
+    definitions: BTreeMap<ValueId, ValueDefinition>,
+    dominators: BTreeMap<BlockId, BTreeSet<BlockId>>,
+}
+
+/// Independently derived value definitions and block dominators for
+/// `function`, matching the shape unit validation itself reconstructs.
+fn function_analysis(function: &PsiOptimizationFunction) -> FunctionAnalysis {
+    let mut predecessors: BTreeMap<BlockId, BTreeSet<BlockId>> = function
+        .blocks
+        .iter()
+        .map(|block| (block.id, BTreeSet::new()))
+        .collect();
+    let mut definitions: BTreeMap<ValueId, ValueDefinition> = BTreeMap::new();
+    for parameter in &function.parameters {
+        definitions.insert(parameter.value, *parameter);
+    }
+    for block in &function.blocks {
+        for parameter in &block.parameters {
+            definitions.insert(parameter.value, *parameter);
+        }
+        for node in &block.nodes {
+            for definition in &node.definitions {
+                definitions.insert(definition.value, *definition);
+            }
+            for edge in &node.successors {
+                predecessors
+                    .get_mut(&edge.target)
+                    .expect("validated successor target")
+                    .insert(block.id);
+            }
+        }
+    }
+    FunctionAnalysis {
+        definitions,
+        dominators: dominators(
+            function.entry,
+            function.blocks.iter().map(|block| block.id),
+            &predecessors,
+        ),
+    }
+}
+
 /// The proven stored value of one field observation plus the witness it was
-/// proven under: `Some(producer)` for an establishment basis, `None` for a
-/// declared singleton bound.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// proven under: `Some(producer)` for an establishment basis — whether the
+/// initializer folds to a literal or forwards as a substitution — `None` for
+/// a declared singleton bound.
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct ProvenFieldValue {
     producer: Option<OperationId>,
-    value: FoldedFieldValue,
+    resolution: FieldValueResolution,
 }
 
 /// The admissibility of one node under `evidence`: a `BooleanStructuralField`
@@ -186,11 +248,12 @@ fn admit_field_node(
     unit: &PsiOptimizationUnit,
     evidence: &FieldEvidence<'_>,
     function: &PsiOptimizationFunction,
-    block: BlockId,
+    analysis: &FunctionAnalysis,
+    block: &optimization_unit::OptimizationBlock,
     node_index: usize,
     node: &OptimizationNode,
-) -> Option<FoldedFieldValueRow> {
-    let (psi_operation, result, source, path, field, kind) = match &node.operation {
+) -> Option<FieldValueRow> {
+    let (psi_operation, result, scalar_type, source, path, field, kind) = match &node.operation {
         O::BooleanStructuralField {
             psi_operation,
             result,
@@ -200,6 +263,7 @@ fn admit_field_node(
         } => (
             psi_operation,
             *result,
+            ScalarType::Boolean,
             source,
             path,
             field,
@@ -218,6 +282,7 @@ fn admit_field_node(
             (
                 psi_operation,
                 result.value,
+                result.scalar_type,
                 source,
                 path,
                 field,
@@ -229,11 +294,24 @@ fn admit_field_node(
     if *source != evidence.declaration.id {
         return None;
     }
-    let proven = proven_field_value(unit, evidence, function, path, *field, kind)?;
-    Some(FoldedFieldValueRow {
+    let proven = proven_field_value(
+        unit,
+        evidence,
+        function,
+        analysis,
+        block,
+        node_index,
+        node,
+        result,
+        scalar_type,
+        path,
+        *field,
+        kind,
+    )?;
+    Some(FieldValueRow {
         site: crate::NodeLocation {
             machine: function.machine,
-            block,
+            block: block.id,
             node: u32::try_from(node_index).ok()?,
         },
         psi_operation: *psi_operation,
@@ -242,22 +320,30 @@ fn admit_field_node(
         path: path.clone(),
         field: *field,
         producer: proven.producer,
-        value: proven.value,
+        resolution: proven.resolution,
     })
 }
 
 /// The stored value the unit proves for `field` at `path` under `place`'s
-/// evidence, or `None` when no basis applies. The establishment basis is
-/// tried first — an `EstablishRecord` producer at an empty path or an
-/// `EstablishScalarCase` producer whose `result_case` matches a lone `Case`
-/// path, each proving the value when the field's initializer scalar is a
-/// same-function constant — then the declared `BoundedInteger` singleton
-/// bound, which proves the value at any resolvable path independently of
-/// producer.
+/// evidence, or `None` when no basis applies. An establishment basis — an
+/// `EstablishRecord` producer at an empty path or an `EstablishScalarCase`
+/// producer whose `result_case` matches a lone `Case` path — proves the
+/// field's initializer scalar directly: a same-function constant folds the
+/// read to a literal, while a nonconstant initializer forwards to the read's
+/// uses when the substitution lane covers every use site and the initializer
+/// dominates them all. A declared `BoundedInteger` singleton bound proves a
+/// literal at any resolvable path independently of producer and outranks a
+/// nonconstant initializer — the literal is strictly more resolved.
 fn proven_field_value(
     unit: &PsiOptimizationUnit,
     evidence: &FieldEvidence<'_>,
     function: &PsiOptimizationFunction,
+    analysis: &FunctionAnalysis,
+    block: &optimization_unit::OptimizationBlock,
+    node_index: usize,
+    node: &OptimizationNode,
+    result: ValueId,
+    scalar_type: ScalarType,
     path: &[CanonicalStructuralPathSegment],
     field: StructuralFieldId,
     kind: ObservedFieldKind,
@@ -266,10 +352,34 @@ fn proven_field_value(
     if !matches_observed_kind(declaration, kind) {
         return None;
     }
-    if let Some(proven) = establishment_value(evidence, function, path, field, kind) {
+    let establishment = establishment_scalar(evidence, function, path, field);
+    if let Some((producer, initializer)) = establishment
+        && let Some(value) = constant_definition(function, initializer)
+        && matches_constant_kind(value, kind)
+    {
+        return Some(ProvenFieldValue {
+            producer: Some(producer),
+            resolution: FieldValueResolution::Constant(value),
+        });
+    }
+    if let Some(proven) = bound_value(declaration, kind) {
         return Some(proven);
     }
-    bound_value(declaration, kind)
+    let (producer, initializer) = establishment?;
+    forwarded_resolution(
+        function,
+        analysis,
+        block,
+        node_index,
+        node,
+        result,
+        scalar_type,
+        initializer,
+    )
+    .map(|forwarded| ProvenFieldValue {
+        producer: Some(producer),
+        resolution: FieldValueResolution::Forward(forwarded),
+    })
 }
 
 /// The declared field the observation resolves to: the `path` descends from
@@ -400,27 +510,25 @@ fn matches_observed_kind(
 }
 
 /// The establishment basis: the place's producer proves the field's stored
-/// scalar and that scalar is a same-function constant. `None` when the
-/// producer does not establish the observed position or the initializer is
-/// not a constant.
-fn establishment_value(
+/// scalar by name. `Some((producer, initializer))` when the producer
+/// establishes the observed position and the field's initializer is a scalar;
+/// `None` when the producer does not establish the observed position. The
+/// caller decides what the initializer proves — a literal fold when it
+/// resolves to a same-function constant, a use substitution when it does
+/// not.
+fn establishment_scalar(
     evidence: &FieldEvidence<'_>,
     function: &PsiOptimizationFunction,
     path: &[CanonicalStructuralPathSegment],
     field: StructuralFieldId,
-    kind: ObservedFieldKind,
-) -> Option<ProvenFieldValue> {
+) -> Option<(OperationId, ValueId)> {
     match (evidence.root_producer, path) {
         (RootProducer::Record(producer), []) => {
             // An `EstablishRecord` proves its declaration-ordered field
             // initializers: the observed field's scalar initializer fixes
             // the stored value permanently.
-            let value = record_initializer(function, producer, evidence, field)
-                .and_then(|value| constant_definition(function, value))?;
-            matches_constant_kind(value, kind).then_some(ProvenFieldValue {
-                producer: Some(producer),
-                value,
-            })
+            record_initializer(function, producer, evidence, field)
+                .map(|initializer| (producer, initializer))
         }
         (
             RootProducer::Variant(producer, result_case),
@@ -428,15 +536,130 @@ fn establishment_value(
         ) if result_case == *observed_case => {
             // An `EstablishScalarCase` proves its scalar case-field
             // initializers for exactly the case it establishes.
-            let value = case_field_initializer(function, producer, evidence, field)
-                .and_then(|value| constant_definition(function, value))?;
-            matches_constant_kind(value, kind).then_some(ProvenFieldValue {
-                producer: Some(producer),
-                value,
-            })
+            case_field_initializer(function, producer, evidence, field)
+                .map(|initializer| (producer, initializer))
         }
         _ => None,
     }
+}
+
+/// The `Forward` resolution for one nonconstant-initialized read, or `None`
+/// when the substitution cannot retire the observation exactly: the
+/// initializer must resolve to a same-function definition of the read's own
+/// scalar type and dominate every use site, every scalar-operand use of the
+/// read's result must sit in an operation the substitution lane rewrites,
+/// and the observation node itself must be cleanly removable — exactly its
+/// result definition, no successors, no ownership events, a following node
+/// to absorb its custody, and no shared provenance with that receiver. Field
+/// observations emit no optimization facts, so no fact custody is owed.
+fn forwarded_resolution(
+    function: &PsiOptimizationFunction,
+    analysis: &FunctionAnalysis,
+    block: &optimization_unit::OptimizationBlock,
+    node_index: usize,
+    node: &OptimizationNode,
+    result: ValueId,
+    scalar_type: ScalarType,
+    initializer: ValueId,
+) -> Option<ForwardedFieldValue> {
+    if initializer == result {
+        return None;
+    }
+    let definition = analysis.definitions.get(&initializer)?;
+    if definition.scalar_type != scalar_type {
+        return None;
+    }
+    let node_index_u32 = u32::try_from(node_index).ok()?;
+    if node.definitions
+        != [ValueDefinition {
+            value: result,
+            scalar_type,
+            site: ValueDefinitionSite::Node {
+                block: block.id,
+                node: node_index_u32,
+            },
+        }]
+        || !node.successors.is_empty()
+        || !node.ownership.is_empty()
+    {
+        return None;
+    }
+    let receiver = block.nodes.get(node_index.checked_add(1)?)?;
+    if receiver
+        .provenance
+        .iter()
+        .any(|source| node.provenance.contains(source))
+    {
+        return None;
+    }
+    // Every site that references the read's result: the tracked scalar-operand
+    // uses plus `WriteOnlyIndexedPrimitiveStore` operands — the substitution
+    // lane rewrites those positions even though the use index does not track
+    // them. A use inside a byte-sequence operation is outside the lane, so
+    // the row is inadmissible rather than partially substituted.
+    let mut uses = BTreeSet::new();
+    for use_block in &function.blocks {
+        for (use_index, use_node) in use_block.nodes.iter().enumerate() {
+            let referenced = use_node
+                .uses
+                .iter()
+                .any(|use_site| use_site.value == result)
+                || matches!(
+                    &use_node.operation,
+                    O::WriteOnlyIndexedPrimitiveStore { index, value, .. }
+                        if index.value == result || value.value == result
+                );
+            if !referenced {
+                continue;
+            }
+            if matches!(
+                &use_node.operation,
+                O::ByteSequenceRead { .. }
+                    | O::ByteSequenceWrite { .. }
+                    | O::ByteSequenceSubslice { .. }
+                    | O::StructuralByteSequenceFieldStore { .. }
+                    | O::StructuralByteSequenceFieldByteStore { .. }
+            ) {
+                return None;
+            }
+            let site = crate::NodeLocation {
+                machine: function.machine,
+                block: use_block.id,
+                node: u32::try_from(use_index).ok()?,
+            };
+            let dominates = match definition.site {
+                ValueDefinitionSite::FunctionParameter(_) => true,
+                ValueDefinitionSite::BlockParameter {
+                    block: defining, ..
+                } => analysis
+                    .dominators
+                    .get(&use_block.id)
+                    .is_some_and(|set| set.contains(&defining)),
+                ValueDefinitionSite::Node {
+                    block: defining,
+                    node: defined_at,
+                } => {
+                    if defining == use_block.id {
+                        defined_at < site.node
+                    } else {
+                        analysis
+                            .dominators
+                            .get(&use_block.id)
+                            .is_some_and(|set| set.contains(&defining))
+                    }
+                }
+            };
+            if !dominates {
+                return None;
+            }
+            uses.insert(site);
+        }
+    }
+    Some(ForwardedFieldValue {
+        initializer,
+        scalar_type,
+        uses: uses.into_iter().collect(),
+    })
 }
 
 /// The `ValueId` the `EstablishRecord` producer stores into `field`, or
@@ -585,22 +808,24 @@ fn bound_value(
     };
     (bound.minimum() == bound.maximum()).then_some(ProvenFieldValue {
         producer: None,
-        value: FoldedFieldValue::Integer(bound.minimum()),
+        resolution: FieldValueResolution::Constant(FoldedFieldValue::Integer(bound.minimum())),
     })
 }
 
-/// The independently derived fold roster for `place`: every
+/// The independently derived resolution roster for `place`: every
 /// `BooleanStructuralField`/`IntegerStructuralField` observing it whose
 /// stored value the per-site basis proves, sorted by site.
 fn plan_reads(
     unit: &PsiOptimizationUnit,
     evidence: &FieldEvidence<'_>,
     function: &PsiOptimizationFunction,
-) -> Vec<FoldedFieldValueRow> {
+) -> Vec<FieldValueRow> {
+    let analysis = function_analysis(function);
     let mut reads = Vec::new();
     for block in &function.blocks {
         for (node_index, node) in block.nodes.iter().enumerate() {
-            let Some(row) = admit_field_node(unit, evidence, function, block.id, node_index, node)
+            let Some(row) =
+                admit_field_node(unit, evidence, function, &analysis, block, node_index, node)
             else {
                 continue;
             };
@@ -611,13 +836,14 @@ fn plan_reads(
     reads
 }
 
-/// The folded node a row admits at its site: a
+/// The folded node a `Constant` row admits at its site: a
 /// `BooleanConstant`/`IntegerConstant` with the read's own custody identity
-/// and result value, checked against the claimed basis — the claimed
-/// producer and value must equal the basis the row's own site re-derives.
+/// and result value. The roster equality check has already proven the
+/// claimed basis — this construction only re-verifies the site's shape.
+/// `Forward` rows retire their node instead of folding it, so this
+/// construction never applies to them.
 fn folded_node(
-    row: &FoldedFieldValueRow,
-    unit: &PsiOptimizationUnit,
+    row: &FieldValueRow,
     function: &PsiOptimizationFunction,
 ) -> Result<OptimizationNode, OptimizationUnitValidationError> {
     let index = usize::try_from(row.site.node)
@@ -628,35 +854,21 @@ fn folded_node(
         .find(|block| block.id == row.site.block)
         .and_then(|block| block.nodes.get(index))
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let (psi_operation, result, source, path, field, kind) = match &node.operation {
+    let (psi_operation, result, source, path, field) = match &node.operation {
         O::BooleanStructuralField {
             psi_operation,
             result,
             source,
             path,
             field,
-        } => (
-            psi_operation,
-            *result,
-            source,
-            path,
-            field,
-            ObservedFieldKind::Boolean,
-        ),
+        } => (psi_operation, *result, source, path, field),
         O::IntegerStructuralField {
             psi_operation,
             result,
             source,
             path,
             field,
-        } => (
-            psi_operation,
-            result.value,
-            source,
-            path,
-            field,
-            ObservedFieldKind::Integer,
-        ),
+        } => (psi_operation, result.value, source, path, field),
         _ => return Err(OptimizationUnitValidationError::CandidatePatchMismatch),
     };
     if row.site.machine != function.machine
@@ -668,31 +880,24 @@ fn folded_node(
     {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    // The claimed basis must re-derive under the place's own evidence: the
-    // establishment witness and proven value must equal the row's.
-    let Some(evidence) = field_evidence(function, row.source) else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    };
-    let proven = proven_field_value(unit, &evidence, function, path, *field, kind)
-        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
-    if proven.producer != row.producer || proven.value != row.value {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    }
-    let operation = match row.value {
-        FoldedFieldValue::Boolean(value) => O::BooleanConstant {
+    let operation = match &row.resolution {
+        FieldValueResolution::Constant(FoldedFieldValue::Boolean(value)) => O::BooleanConstant {
             psi_operation: *psi_operation,
             result,
-            value,
+            value: *value,
         },
-        FoldedFieldValue::Integer(value) => O::IntegerConstant {
+        FieldValueResolution::Constant(FoldedFieldValue::Integer(value)) => O::IntegerConstant {
             psi_operation: *psi_operation,
             result,
             scalar_type: match &node.operation {
                 O::IntegerStructuralField { result, .. } => result.scalar_type,
                 _ => return Err(OptimizationUnitValidationError::CandidatePatchMismatch),
             },
-            value,
+            value: *value,
         },
+        FieldValueResolution::Forward(_) => {
+            return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+        }
     };
     Ok(OptimizationNode {
         operation,
@@ -706,84 +911,118 @@ fn folded_node(
     })
 }
 
-/// Rebuilds a function's retained optimization-fact index after folding.
-/// Every fact row carries its emitting node's `support` custody, so the walk
-/// consumes each untouched node's retained rows in order and pushes one
-/// constant fact at each folded site.
-fn refresh_facts(
-    function: &mut PsiOptimizationFunction,
-    rows: &[FoldedFieldValueRow],
-) -> Result<(), OptimizationUnitValidationError> {
-    let folded = rows
+/// The substitution set a roster of rows carries: exactly one
+/// `result` → `initializer` pair per `Forward` row, in canonical order.
+fn expected_substitutions(rows: &[FieldValueRow]) -> Vec<ScalarSubstitution> {
+    let mut substitutions = rows
         .iter()
-        .map(|row| ((row.site.block, row.site.node), row))
-        .collect::<BTreeMap<_, _>>();
-    let mut retained = std::mem::take(&mut function.facts).into_iter().peekable();
-    let mut next_facts = Vec::new();
-    for block in &function.blocks {
-        for (node_index, node) in block.nodes.iter().enumerate() {
-            if let Some(PsiProvenance::Operation(operation)) = node.provenance.first() {
-                while let Some(fact) = retained.peek() {
-                    let support = match fact {
-                        OptimizationFact::OperationObligationReference { support, .. }
-                        | OptimizationFact::BooleanConstant { support, .. }
-                        | OptimizationFact::IntegerConstant { support, .. } => *support,
-                    };
-                    if support != *operation {
-                        break;
-                    }
-                    next_facts.push(retained.next().expect("peeked fact exists"));
-                }
+        .filter_map(|row| match &row.resolution {
+            FieldValueResolution::Forward(forwarded) => Some(ScalarSubstitution {
+                from: row.result,
+                to: forwarded.initializer,
+                scalar_type: forwarded.scalar_type,
+            }),
+            FieldValueResolution::Constant(_) => None,
+        })
+        .collect::<Vec<_>>();
+    substitutions.sort();
+    substitutions
+}
+
+/// The exact block region and node custody a row roster carries. A `Constant`
+/// row folds its observation in place: the read's own provenance and fuel
+/// stay realized at the same node. A `Forward` row retires its observation
+/// node: the read's custody lands at the node that inherits the vacated
+/// index — the next surviving input node — and every later node in the block
+/// shifts down one coordinate per earlier retirement. Because effects are a
+/// function-wide sequence, every block at or after the earliest retired-node
+/// block is inside the region, and every provenance-bearing node in a
+/// region block whose custody moved — or whose own operation changed — gets
+/// one ledger row.
+fn expected_accounting(
+    function: &PsiOptimizationFunction,
+    rows: &[FieldValueRow],
+) -> Result<(Vec<BlockId>, Vec<ProvenanceRewrite>), OptimizationUnitValidationError> {
+    let mut removals: BTreeMap<BlockId, BTreeSet<u32>> = BTreeMap::new();
+    let mut fold_sites: BTreeSet<(BlockId, u32)> = BTreeSet::new();
+    let mut use_sites: BTreeSet<(BlockId, u32)> = BTreeSet::new();
+    for row in rows {
+        match &row.resolution {
+            FieldValueResolution::Constant(_) => {
+                fold_sites.insert((row.site.block, row.site.node));
             }
-            if let Some(row) = folded.get(&(
-                block.id,
-                u32::try_from(node_index)
-                    .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?,
-            )) {
-                next_facts.push(match row.value {
-                    FoldedFieldValue::Boolean(constant) => OptimizationFact::BooleanConstant {
-                        value: row.result,
-                        constant,
-                        support: row.psi_operation,
-                    },
-                    FoldedFieldValue::Integer(constant) => OptimizationFact::IntegerConstant {
-                        value: row.result,
-                        constant,
-                        support: row.psi_operation,
-                    },
-                });
+            FieldValueResolution::Forward(forwarded) => {
+                removals
+                    .entry(row.site.block)
+                    .or_default()
+                    .insert(row.site.node);
+                for site in &forwarded.uses {
+                    use_sites.insert((site.block, site.node));
+                }
             }
         }
     }
-    next_facts.extend(retained);
-    function.facts = next_facts;
-    Ok(())
-}
-
-/// The exact node custody the folded observations carry: each folded site
-/// retains the read's own provenance and fuel settlement, realized at the
-/// same node.
-fn accepted_provenance(
-    function: &PsiOptimizationFunction,
-    rows: &[FoldedFieldValueRow],
-) -> Result<Vec<ProvenanceRewrite>, OptimizationUnitValidationError> {
+    let earliest_removal = function
+        .blocks
+        .iter()
+        .position(|block| removals.contains_key(&block.id));
+    let mut affected = BTreeSet::new();
     let mut provenance = Vec::new();
-    for row in rows {
-        let index = usize::try_from(row.site.node)
-            .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-        let node = function
-            .blocks
-            .iter()
-            .find(|block| block.id == row.site.block)
-            .and_then(|block| block.nodes.get(index))
-            .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-        let site = PsiRealizationSite::Node(row.site);
-        provenance.push(ProvenanceRewrite {
-            input: site,
-            disposition: ProvenanceDisposition::RealizedAt(site),
-            sources: node.provenance.clone(),
-            fuel: node.fuel.clone(),
-        });
+    for (block_position, block) in function.blocks.iter().enumerate() {
+        let removal = removals.get(&block.id);
+        let first_removed = removal.and_then(|set| set.iter().next().copied());
+        let in_suffix = earliest_removal.is_some_and(|position| block_position > position);
+        let mut block_affected = removal.is_some() || in_suffix;
+        for (index, node) in block.nodes.iter().enumerate() {
+            let node_index = u32::try_from(index)
+                .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
+            let coordinate = (block.id, node_index);
+            if fold_sites.contains(&coordinate) || use_sites.contains(&coordinate) {
+                block_affected = true;
+            }
+            let retired = removal.is_some_and(|set| set.contains(&node_index));
+            let shifted = first_removed.is_some_and(|first| node_index > first);
+            if !retired
+                && !shifted
+                && !in_suffix
+                && !fold_sites.contains(&coordinate)
+                && !use_sites.contains(&coordinate)
+            {
+                continue;
+            }
+            if !retired && node.provenance.is_empty() {
+                continue;
+            }
+            let input_site = PsiRealizationSite::Node(crate::NodeLocation {
+                machine: function.machine,
+                block: block.id,
+                node: node_index,
+            });
+            let output_index = node_index
+                .checked_sub(
+                    u32::try_from(
+                        removal
+                            .map(|set| set.iter().filter(|removed| **removed < node_index).count())
+                            .unwrap_or(0),
+                    )
+                    .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?,
+                )
+                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+            let output_site = PsiRealizationSite::Node(crate::NodeLocation {
+                machine: function.machine,
+                block: block.id,
+                node: output_index,
+            });
+            provenance.push(ProvenanceRewrite {
+                input: input_site,
+                disposition: ProvenanceDisposition::RealizedAt(output_site),
+                sources: node.provenance.clone(),
+                fuel: node.fuel.clone(),
+            });
+        }
+        if block_affected {
+            affected.insert(block.id);
+        }
     }
     provenance.sort_by_key(|row| {
         (
@@ -792,7 +1031,7 @@ fn accepted_provenance(
             row.disposition.site(),
         )
     });
-    Ok(provenance)
+    Ok((affected.into_iter().collect(), provenance))
 }
 
 pub(super) fn validate(
@@ -832,14 +1071,10 @@ pub(super) fn validate(
     if replayed.is_empty() || patch.reads != replayed {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let mut expected_blocks = patch
-        .reads
-        .iter()
-        .map(|row| row.site.block)
-        .collect::<Vec<_>>();
-    expected_blocks.sort_unstable();
-    expected_blocks.dedup();
-    let expected_provenance = accepted_provenance(function, &patch.reads)?;
+    if candidate.substitutions() != expected_substitutions(&patch.reads) {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    }
+    let (expected_blocks, expected_provenance) = expected_accounting(function, &patch.reads)?;
     if candidate.affected_blocks() != expected_blocks
         || candidate.provenance() != expected_provenance
     {
@@ -850,7 +1085,8 @@ pub(super) fn validate(
     let folded = patch
         .reads
         .iter()
-        .map(|row| folded_node(row, input, input_function).map(|node| (row.site, node)))
+        .filter(|row| matches!(row.resolution, FieldValueResolution::Constant(_)))
+        .map(|row| folded_node(row, input_function).map(|node| (row.site, node)))
         .collect::<Result<Vec<_>, _>>()?;
     let mut output = input.clone();
     let output_function = output
@@ -871,7 +1107,70 @@ pub(super) fn validate(
         };
         *slot = node;
     }
-    refresh_facts(output_function, &patch.reads)?;
+    // Rebind every covered use of each forwarded result to its proven
+    // initializer before retiring the observation nodes.
+    for row in &patch.reads {
+        let FieldValueResolution::Forward(forwarded) = &row.resolution else {
+            continue;
+        };
+        for node in output_function
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.nodes)
+        {
+            rewrite_scalar_value_uses(&mut node.operation, row.result, forwarded.initializer);
+        }
+    }
+    // Retire each forwarded observation in descending node order inside its
+    // block so earlier removals never shift a pending coordinate, and fuse
+    // the retired custody into the node inheriting the vacated index.
+    let mut removals: BTreeMap<BlockId, BTreeSet<u32>> = BTreeMap::new();
+    for row in &patch.reads {
+        if matches!(row.resolution, FieldValueResolution::Forward(_)) {
+            removals
+                .entry(row.site.block)
+                .or_default()
+                .insert(row.site.node);
+        }
+    }
+    for (block_id, sites) in removals {
+        let block = output_function
+            .blocks
+            .iter_mut()
+            .find(|block| block.id == block_id)
+            .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+        for site in sites.iter().rev() {
+            let index = usize::try_from(*site)
+                .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
+            let removed = block.nodes.remove(index);
+            let receiver = block
+                .nodes
+                .get_mut(index)
+                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+            receiver.provenance.extend_from_slice(&removed.provenance);
+            receiver.fuel.extend_from_slice(&removed.fuel);
+        }
+    }
+    let mut effect = 0u64;
+    for block in &mut output_function.blocks {
+        for (node_index, node) in block.nodes.iter_mut().enumerate() {
+            let node_index = u32::try_from(node_index)
+                .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
+            node.definitions = expected_definitions(&node.operation, block.id, node_index);
+            node.uses = expected_uses(&node.operation, block.id, node_index);
+            node.successors = preserve_edge_custody(node);
+            node.ownership = expected_ownership(&node.operation);
+            node.effect = optimization_unit::EffectLink {
+                input: effect,
+                output: effect
+                    .checked_add(1)
+                    .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?,
+            };
+            effect = node.effect.output;
+        }
+    }
+    output_function.facts = reconstruct_fact_index(output_function);
+    output_function.declared_places = reconstruct_declared_places(output_function)?;
     output.identity = recompute_psi_optimization_unit_identity(&output);
     validate_psi_optimization_unit(&output)?;
     let output_function = output

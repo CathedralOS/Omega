@@ -32,7 +32,8 @@ pub(super) use division_and_remainder::{
 pub(super) use exact_add::{verified_exact_add_unit, verified_exact_add_zero_unit};
 pub(super) use representation_specialization::{
     verified_cyclic_field_value_unit, verified_cyclic_membership_unit,
-    verified_field_value_decline_unit, verified_field_value_unit, verified_membership_decline_unit,
+    verified_field_value_decline_unit, verified_field_value_unit,
+    verified_forwarded_field_value_unit, verified_membership_decline_unit,
     verified_representation_specialization_unit,
 };
 pub(super) use scalars::{

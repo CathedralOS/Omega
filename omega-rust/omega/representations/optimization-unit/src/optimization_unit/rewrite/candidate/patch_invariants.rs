@@ -1,8 +1,9 @@
 //! Patch-family shape, witness, substitution, and provenance invariants.
 
 use super::super::{
-    BlockId, NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PsiRealizationSite,
-    PsiRewriteCandidateError, PsiRewritePatch, PsiRewriteWitness, ScalarSubstitution, ScalarType,
+    BlockId, FieldValueResolution, NodeLocation, ProvenanceDisposition, ProvenanceRewrite,
+    PsiRealizationSite, PsiRewriteCandidateError, PsiRewritePatch, PsiRewriteWitness,
+    ScalarSubstitution, ScalarType,
 };
 use std::collections::BTreeSet;
 
@@ -438,6 +439,23 @@ pub(super) fn validate(
             }
         }
         PsiRewritePatch::SpecializeFieldValue(patch) => {
+            // Each `Forward` row carries exactly one substitution: the read's
+            // result rebinds to the proven initializer at every listed use
+            // site. The candidate's substitution set is exactly those pairs
+            // in canonical order.
+            let mut expected_substitutions = patch
+                .reads
+                .iter()
+                .filter_map(|row| match &row.resolution {
+                    FieldValueResolution::Forward(forwarded) => Some(ScalarSubstitution {
+                        from: row.result,
+                        to: forwarded.initializer,
+                        scalar_type: forwarded.scalar_type,
+                    }),
+                    FieldValueResolution::Constant(_) => None,
+                })
+                .collect::<Vec<_>>();
+            expected_substitutions.sort();
             if patch.reads.is_empty()
                 || patch
                     .reads
@@ -447,6 +465,17 @@ pub(super) fn validate(
                     row.site.machine != patch.machine
                         || row.source != patch.place
                         || !affected_blocks.contains(&row.site.block)
+                        || match &row.resolution {
+                            FieldValueResolution::Constant(_) => false,
+                            FieldValueResolution::Forward(forwarded) => {
+                                forwarded.initializer == row.result
+                                    || forwarded.uses.windows(2).any(|pair| pair[0] >= pair[1])
+                                    || forwarded.uses.iter().any(|site| {
+                                        site.machine != patch.machine
+                                            || !affected_blocks.contains(&site.block)
+                                    })
+                            }
+                        }
                 })
                 || provenance.is_empty()
                 || provenance.iter().any(|row| {
@@ -458,7 +487,7 @@ pub(super) fn validate(
                             .node()
                             .is_some_and(|location| !affected_blocks.contains(&location.block))
                 })
-                || !substitutions.is_empty()
+                || substitutions != expected_substitutions
                 || !matches!(witness, PsiRewriteWitness::StructuralIdentity)
             {
                 return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);

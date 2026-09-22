@@ -52,6 +52,19 @@ const PARAMETER_FIELD_SOURCE: &str = r#"
     }
 "#;
 
+/// Two scalar field reads observe one established place under the
+/// `EstablishRecord` basis, but only `flag`'s initializer is a literal: `x`'s
+/// initializer is the nonconstant machine parameter, so `p.x` forwards the
+/// parameter to its compare use and retires while `p.flag` folds to `true` —
+/// one mixed-resolution candidate, one commit.
+const FORWARDED_FIELD_SOURCE: &str = r#"
+    data Point { x: u32; flag: bool; }
+    machine probe(x: u32) -> bool {
+        let p: Point = Point { x: x, flag: true };
+        (p.x == 7) == p.flag
+    }
+"#;
+
 fn lowered_module(
     source: &str,
     label: &str,
@@ -123,6 +136,15 @@ pub(in crate::pass_manager::tests) fn verified_field_value_decline_unit()
 -> VerifiedPsiOptimizationUnit {
     let (module, proof) =
         lowered_module(PARAMETER_FIELD_SOURCE, "parameter field decline", "probe");
+    verified_unit(&module, &proof)
+}
+
+/// The forwarded-initializer positive: `p.x`'s proven nonconstant initializer
+/// substitutes at its uses and retires the read while `p.flag` folds, in one
+/// candidate under the `EstablishRecord` basis.
+pub(in crate::pass_manager::tests) fn verified_forwarded_field_value_unit()
+-> VerifiedPsiOptimizationUnit {
+    let (module, proof) = lowered_module(FORWARDED_FIELD_SOURCE, "forwarded field value", "probe");
     verified_unit(&module, &proof)
 }
 

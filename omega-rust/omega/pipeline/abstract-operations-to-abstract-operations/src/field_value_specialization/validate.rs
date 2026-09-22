@@ -58,27 +58,25 @@ pub(super) fn candidate(
     }) {
         return Err(FieldValueSpecializationError::CandidateMismatch);
     }
+    let analysis = admission::function_analysis(function);
     for declared in &candidate.reads {
         if declared.site().machine != candidate.machine {
             return Err(FieldValueSpecializationError::CandidateMismatch);
         }
         let index = usize::try_from(declared.site().node)
             .map_err(|_| FieldValueSpecializationError::CandidateMismatch)?;
-        let node = function
+        let block = function
             .blocks
             .iter()
             .find(|block| block.id == declared.site().block)
-            .and_then(|block| block.nodes.get(index))
             .ok_or(FieldValueSpecializationError::CandidateMismatch)?;
-        let admitted = admission::admit_field_node(
-            unit,
-            &evidence,
-            function,
-            declared.site().block,
-            index,
-            node,
-        )
-        .ok_or(FieldValueSpecializationError::CandidateMismatch)?;
+        let node = block
+            .nodes
+            .get(index)
+            .ok_or(FieldValueSpecializationError::CandidateMismatch)?;
+        let admitted =
+            admission::admit_field_node(unit, &evidence, function, &analysis, block, index, node)
+                .ok_or(FieldValueSpecializationError::CandidateMismatch)?;
         if admitted != *declared {
             return Err(FieldValueSpecializationError::CandidateMismatch);
         }
@@ -114,10 +112,10 @@ pub(super) fn candidate(
 }
 
 /// Replays the admitted difference: the transformed machine's function must
-/// equal the input function except at each folded observation site, where the
-/// replacement node is rebuilt independently. The ledger rows then record
-/// each folded site's retained custody — the read's operation provenance and
-/// fuel settlement realized at the same node.
+/// equal the input function transformed by exactly the plan's admitted rows —
+/// constant folds in place, forwarded substitutions, retired observation
+/// nodes, custody fusion, and restamped derived metadata. The ledger rows
+/// then record the exact node custody the roster carries.
 fn reconstruct_provenance(
     input: &PsiOptimizationUnit,
     output: &PsiOptimizationUnit,
@@ -135,68 +133,126 @@ fn reconstruct_provenance(
         .find(|function| function.machine == machine)
         .ok_or(FieldValueSpecializationError::UnknownPlace)?;
     let mut expected_function = input_function.clone();
-    for row in &plan.reads {
-        let index = usize::try_from(row.site.node)
-            .map_err(|_| FieldValueSpecializationError::CoordinateOverflow)?;
-        let Some(slot) = expected_function
-            .blocks
-            .iter_mut()
-            .find(|block| block.id == row.site.block)
-            .and_then(|block| block.nodes.get_mut(index))
-        else {
-            return Err(FieldValueSpecializationError::MissingSite {
-                machine,
-                block: row.site.block,
-                node: row.site.node,
-            });
-        };
-        *slot = apply::folded_node(row, input_function, input)?;
-    }
-    apply::refresh_facts(&mut expected_function, plan)?;
+    apply::transform_function(input, &mut expected_function, plan)?;
     if *output_function != expected_function {
         return Err(FieldValueSpecializationError::CandidateMismatch);
     }
-    provenance_rows(input_function, plan)
+    let (_, provenance) = plan_accounting(input_function, plan)?;
+    Ok(provenance)
 }
 
-/// The exact node custody a plan's folded observations carry: each folded
-/// site retains the read's own provenance and fuel settlement, realized at
-/// the same node. Proposal and validation share this reconstruction so a
-/// published candidate names exactly the custody the walk independently
-/// derives.
-pub(crate) fn provenance_rows(
+/// The exact block region and node custody a plan's rows carry, computed from
+/// the input function's coordinates. A `Constant` row folds its observation
+/// in place: the read's own provenance and fuel stay realized at the same
+/// node. A `Forward` row retires its observation node: the read's custody
+/// lands at the node that inherits the vacated index — the next surviving
+/// input node — and every later node in the block shifts down one coordinate
+/// per earlier retirement. Because effects are a function-wide sequence,
+/// every block at or after the earliest retired-node block is inside the
+/// region, and every provenance-bearing node in a region block whose custody
+/// moved — or whose own operation changed — gets one ledger row. Proposal and
+/// validation share this reconstruction so a published candidate names
+/// exactly the custody the walk independently derives.
+pub(crate) fn plan_accounting(
     input_function: &optimization_unit::PsiOptimizationFunction,
     plan: &FieldValuePlan,
-) -> Result<Vec<ProvenanceRewrite>, FieldValueSpecializationError> {
+) -> Result<
+    (Vec<semantic_vocabulary::BlockId>, Vec<ProvenanceRewrite>),
+    FieldValueSpecializationError,
+> {
     let machine = plan.machine;
-    let mut rows = Vec::new();
+    let mut removals: std::collections::BTreeMap<
+        semantic_vocabulary::BlockId,
+        std::collections::BTreeSet<u32>,
+    > = std::collections::BTreeMap::new();
+    let mut fold_sites: std::collections::BTreeSet<(semantic_vocabulary::BlockId, u32)> =
+        std::collections::BTreeSet::new();
+    let mut use_sites: std::collections::BTreeSet<(semantic_vocabulary::BlockId, u32)> =
+        std::collections::BTreeSet::new();
     for row in &plan.reads {
-        let index = usize::try_from(row.site.node)
-            .map_err(|_| FieldValueSpecializationError::CoordinateOverflow)?;
-        let node = input_function
-            .blocks
-            .iter()
-            .find(|block| block.id == row.site.block)
-            .and_then(|block| block.nodes.get(index))
-            .ok_or(FieldValueSpecializationError::MissingSite {
-                machine,
-                block: row.site.block,
-                node: row.site.node,
-            })?;
-        let site = PsiRealizationSite::Node(row.site);
-        rows.push(ProvenanceRewrite {
-            input: site,
-            disposition: ProvenanceDisposition::RealizedAt(site),
-            sources: node.provenance.clone(),
-            fuel: node.fuel.clone(),
-        });
+        match row.resolution() {
+            optimization_unit::FieldValueResolution::Constant(_) => {
+                fold_sites.insert((row.site().block, row.site().node));
+            }
+            optimization_unit::FieldValueResolution::Forward(forwarded) => {
+                removals
+                    .entry(row.site().block)
+                    .or_default()
+                    .insert(row.site().node);
+                for site in &forwarded.uses {
+                    use_sites.insert((site.block, site.node));
+                }
+            }
+        }
     }
-    rows.sort_by_key(|row| {
+    let earliest_removal = input_function
+        .blocks
+        .iter()
+        .position(|block| removals.contains_key(&block.id));
+    let mut affected = std::collections::BTreeSet::new();
+    let mut provenance = Vec::new();
+    for (block_position, block) in input_function.blocks.iter().enumerate() {
+        let removal = removals.get(&block.id);
+        let first_removed = removal.and_then(|set| set.iter().next().copied());
+        let in_suffix = earliest_removal.is_some_and(|position| block_position > position);
+        let mut block_affected = removal.is_some() || in_suffix;
+        for (index, node) in block.nodes.iter().enumerate() {
+            let node_index = u32::try_from(index)
+                .map_err(|_| FieldValueSpecializationError::CoordinateOverflow)?;
+            let coordinate = (block.id, node_index);
+            if fold_sites.contains(&coordinate) || use_sites.contains(&coordinate) {
+                block_affected = true;
+            }
+            let retired = removal.is_some_and(|set| set.contains(&node_index));
+            let shifted = first_removed.is_some_and(|first| node_index > first);
+            if !retired
+                && !shifted
+                && !in_suffix
+                && !fold_sites.contains(&coordinate)
+                && !use_sites.contains(&coordinate)
+            {
+                continue;
+            }
+            if !retired && node.provenance.is_empty() {
+                continue;
+            }
+            let input_site = PsiRealizationSite::Node(super::NodeLocation {
+                machine,
+                block: block.id,
+                node: node_index,
+            });
+            let output_index = node_index
+                .checked_sub(
+                    u32::try_from(
+                        removal
+                            .map(|set| set.iter().filter(|removed| **removed < node_index).count())
+                            .unwrap_or(0),
+                    )
+                    .map_err(|_| FieldValueSpecializationError::CoordinateOverflow)?,
+                )
+                .ok_or(FieldValueSpecializationError::CoordinateOverflow)?;
+            let output_site = PsiRealizationSite::Node(super::NodeLocation {
+                machine,
+                block: block.id,
+                node: output_index,
+            });
+            provenance.push(ProvenanceRewrite {
+                input: input_site,
+                disposition: ProvenanceDisposition::RealizedAt(output_site),
+                sources: node.provenance.clone(),
+                fuel: node.fuel.clone(),
+            });
+        }
+        if block_affected {
+            affected.insert(block.id);
+        }
+    }
+    provenance.sort_by_key(|row| {
         (
             row.input,
             row.disposition.canonical_tag(),
             row.disposition.site(),
         )
     });
-    Ok(rows)
+    Ok((affected.into_iter().collect(), provenance))
 }

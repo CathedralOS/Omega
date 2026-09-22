@@ -5,7 +5,8 @@ use optimization_core::{
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
 use optimization_unit::{
-    FieldValueSpecializationRewrite, FoldedFieldValueRow, PsiOptimizationUnit, PsiRewriteCandidate,
+    FieldValueResolution, FieldValueRow, FieldValueSpecializationRewrite, PsiOptimizationUnit,
+    PsiRewriteCandidate, ScalarSubstitution,
 };
 
 use crate::rules::REPRESENTATION_SPECIALIZATION_PASS_NAME;
@@ -15,16 +16,17 @@ use crate::{
     field_value_specialization,
 };
 
-/// Folds a `BooleanStructuralField`/`IntegerStructuralField` observation to
-/// a `BooleanConstant`/`IntegerConstant` carrying the stored value the unit
-/// itself proves: an `EstablishRecord` producer on the observed
-/// operation-result place at an empty path, an `EstablishScalarCase`
-/// producer whose `result_case` matches at a lone `Case` path, or a declared
-/// `BoundedInteger` singleton bound at the position the observation's path
-/// resolves to. Each folded node keeps its operation custody identity,
-/// result value, successors, definitions, uses, ownership events, and fuel
-/// settlement; only the operation and the recomputed unit identity differ.
-/// Machines holding an authenticated cyclic component stay frozen.
+/// Resolves a `BooleanStructuralField`/`IntegerStructuralField` observation
+/// whose stored value the unit itself proves: an `EstablishRecord` producer
+/// on the observed operation-result place at an empty path, an
+/// `EstablishScalarCase` producer whose `result_case` matches at a lone
+/// `Case` path, or a declared `BoundedInteger` singleton bound at the
+/// position the observation's path resolves to. A constant initializer or
+/// bound folds the read to a `BooleanConstant`/`IntegerConstant` in place,
+/// keeping the read's custody; a proven nonconstant initializer substitutes
+/// itself at every use of the read's result and retires the observation
+/// node, fusing the read's custody into the following node. Machines holding
+/// an authenticated cyclic component stay frozen.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FieldValueSpecializationRule;
 
@@ -84,7 +86,7 @@ impl PsiOptimizationRule for FieldValueSpecializationRule {
                 let reads = plan
                     .reads
                     .iter()
-                    .map(|row| FoldedFieldValueRow {
+                    .map(|row| FieldValueRow {
                         site: row.site(),
                         psi_operation: row.psi_operation(),
                         result: row.result(),
@@ -92,18 +94,30 @@ impl PsiOptimizationRule for FieldValueSpecializationRule {
                         path: row.path().to_vec(),
                         field: row.field(),
                         producer: row.producer(),
-                        value: row.value(),
+                        resolution: row.resolution().clone(),
                     })
                     .collect::<Vec<_>>();
-                let Ok(provenance) =
-                    field_value_specialization::validate::provenance_rows(function, &plan)
+                // Every `Forward` row carries exactly one substitution — the
+                // read's result rebinds to the proven initializer — and the
+                // candidate's region and custody ledger come from the same
+                // accounting the independent replay recomputes.
+                let mut substitutions = reads
+                    .iter()
+                    .filter_map(|row| match &row.resolution {
+                        FieldValueResolution::Forward(forwarded) => Some(ScalarSubstitution {
+                            from: row.result,
+                            to: forwarded.initializer,
+                            scalar_type: forwarded.scalar_type,
+                        }),
+                        FieldValueResolution::Constant(_) => None,
+                    })
+                    .collect::<Vec<_>>();
+                substitutions.sort();
+                let Ok((affected_blocks, provenance)) =
+                    field_value_specialization::validate::plan_accounting(function, &plan)
                 else {
                     continue;
                 };
-                let mut affected_blocks =
-                    reads.iter().map(|row| row.site.block).collect::<Vec<_>>();
-                affected_blocks.sort_unstable();
-                affected_blocks.dedup();
                 let patch = FieldValueSpecializationRewrite {
                     machine: plan.machine,
                     place: plan.place,
@@ -116,6 +130,7 @@ impl PsiOptimizationRule for FieldValueSpecializationRule {
                         unit.identity,
                         Self::contract(),
                         affected_blocks,
+                        substitutions,
                         provenance,
                         predicted_cost_delta,
                         patch,

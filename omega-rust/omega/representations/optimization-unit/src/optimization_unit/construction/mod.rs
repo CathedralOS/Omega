@@ -8,9 +8,12 @@ mod control_flow;
 mod facts;
 mod function;
 mod provenance;
+mod restamp;
 mod scalar_dataflow;
 mod structural_custody;
 use function::build_function;
+
+pub use restamp::restamp_psi_function_derived_metadata;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizationUnitBuildError {

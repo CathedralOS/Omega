@@ -29,7 +29,10 @@ mod rewrite;
 mod tests;
 
 pub use attachment::*;
-pub use construction::{OptimizationUnitBuildError, reconstruct_psi_optimization_unit_seed};
+pub use construction::{
+    OptimizationUnitBuildError, reconstruct_psi_optimization_unit_seed,
+    restamp_psi_function_derived_metadata,
+};
 pub use cycles::*;
 pub use evidence::*;
 pub use graph::*;
@@ -51,12 +54,12 @@ pub use range::*;
 pub use rewrite::{
     AdjacentBlockMergeRewrite, BlockParameterIncomingBinding, BooleanConstantRewrite,
     CaseMembershipSpecializationRewrite, ConstantConditionalRewrite, DeadScalarNodeRewrite,
-    DominatingScalarCommonSubexpressionRewrite, FieldValueSpecializationRewrite,
-    FoldedCaseMembershipRow, FoldedFieldValue, FoldedFieldValueRow, IntegerConstantRewrite,
-    IntegerEvaluationWitness, LinearEmptyBlockRewrite, LocalScalarCommonSubexpressionRewrite,
-    NodeLocation, NonAdjacentBlockMergeRewrite, OwnershipFrontierWitness,
-    OwnershipFrontierWitnessRow, PathQualifiedEmptyBlockRewrite, PhiTranslatedScalarGvnRewrite,
-    PhiTranslatedScalarIncoming, ProofCertifiedScalarIdentityKind,
+    DominatingScalarCommonSubexpressionRewrite, FieldValueResolution, FieldValueRow,
+    FieldValueSpecializationRewrite, FoldedCaseMembershipRow, FoldedFieldValue,
+    ForwardedFieldValue, IntegerConstantRewrite, IntegerEvaluationWitness, LinearEmptyBlockRewrite,
+    LocalScalarCommonSubexpressionRewrite, NodeLocation, NonAdjacentBlockMergeRewrite,
+    OwnershipFrontierWitness, OwnershipFrontierWitnessRow, PathQualifiedEmptyBlockRewrite,
+    PhiTranslatedScalarGvnRewrite, PhiTranslatedScalarIncoming, ProofCertifiedScalarIdentityKind,
     ProofCertifiedScalarIdentityRewrite, ProvenanceDisposition, ProvenanceRewrite,
     PsiRealizationSite, PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewriteDecisionPoint,
     PsiRewritePatch, RedundantBlockParameterRewrite, RedundantBlockParameterWitness,
