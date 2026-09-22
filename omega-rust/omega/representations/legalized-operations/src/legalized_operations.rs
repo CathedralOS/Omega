@@ -39,15 +39,26 @@ impl LegalizedOperationPlanIdentity {
 }
 
 pub mod legality;
-pub use legality::*;
+pub use legality::LegalizedExactIntegerOperator;
 pub mod calls;
-pub use calls::*;
+pub use calls::{
+    LegalizedBoundarySettlement, LegalizedCallSourceError, LegalizedCallUnitParameter,
+    LegalizedStructuralContract, NativeCallOrigin,
+};
 pub mod control_flow;
-pub use control_flow::*;
+pub use control_flow::{
+    LegalizedDynamicParameterCall, LegalizedNormalizedForeignCall, LegalizedScalarArgument,
+    LegalizedScalarBlock, LegalizedScalarCall, LegalizedScalarComparison, LegalizedScalarFunction,
+    LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedScalarParameter,
+    LegalizedScalarReturn, LegalizedScalarReturnValue, LegalizedScalarSuccessor,
+    LegalizedScalarTerminator, LegalizedStructuralCasePayload, LegalizedStructuralCaseSource,
+    LegalizedStructuralCaseSuccessor, LegalizedValueDefinition, SaturatingCarrier,
+    SaturatingOperation,
+};
 
 pub mod identity;
 mod validation;
-pub use identity::*;
+pub use identity::{encode_hosted_read_byte_identity, legalized_operation_plan_identity};
 pub use validation::{LegalizedDynamicParameterCallShapeError, LegalizedScalarCallShapeError};
 
 #[cfg(test)]

@@ -4,4 +4,7 @@
 //! Transformation and independent source-to-target replay remain in pipeline.
 
 mod structural;
-pub use structural::*;
+pub use structural::{
+    LegalizedBoundarySettlement, LegalizedCallSourceError, LegalizedCallUnitParameter,
+    LegalizedStructuralContract, NativeCallOrigin,
+};
