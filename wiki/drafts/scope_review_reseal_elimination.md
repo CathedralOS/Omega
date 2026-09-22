@@ -1,6 +1,8 @@
 # Scope review — REVIEW-RESEAL-ELIMINATION (NEW-SV-REVIEW-RESEAL-ELIMINATION-SCOPE)
 
 Reviewed at `72fc66d6c3` (origin/main). Claims scope: this document only.
+Delete this review once the wrapper-object plan and its manifest are sealed
+once per produced artifact.
 
 ## What "reseal" means here
 

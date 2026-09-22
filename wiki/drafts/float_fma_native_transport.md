@@ -4,6 +4,9 @@ Re-verified at `75650d2e94` on linux x86-64 (cargo; `mbx` absent on this
 host). The row re-mines the transport legs enumerated on canonical sibling
 X86-FMA-PROVIDER-TRANSPORT; measured state at tip:
 
+Delete this record once legs (b) and (c) land and the three
+native-realization FMA transport fences are removed.
+
 ## Leg (a) — landed
 
 `legalize scalar-FMA unit operations against exact constant sources`

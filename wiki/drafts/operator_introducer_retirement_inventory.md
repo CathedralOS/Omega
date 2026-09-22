@@ -7,7 +7,8 @@ must retire — the separate `operator` source introducer — once the
 source migrations close. The token-binding law already spans both
 introducers (`9913f44891`), so what remains is spelled out below:
 source census, introducer surfaces, migration routing, and removal
-order.
+order. Delete this inventory once the `operator` introducer,
+`Item::Operator`, and `MachineSupplyMode::Boundary` are gone.
 
 ## Source census: 212 `operator`-introduced declarations
 

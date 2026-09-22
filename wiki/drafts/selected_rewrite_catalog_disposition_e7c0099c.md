@@ -4,6 +4,8 @@ Scope: the retain-or-delete decision over the 38 `Orphaned` rewrite modules in
 `selected-instructions-to-selected-instructions/src/rewrites/module_catalog.rs`
 (upstream bullet: `TASKS_OPTIMIZER.md` PIPELINE-OWNER-CONSOLIDATION — "Give each
 retained rewrite a catalog entry executed by the stage entrance, or delete it").
+Delete this record once every retained rewrite carries a catalog entry the
+stage entrance executes, or its module is deleted.
 
 ## Audit result: retain all 38; no delete candidates; no drift
 

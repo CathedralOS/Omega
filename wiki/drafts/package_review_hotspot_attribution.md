@@ -9,6 +9,8 @@ is unchanged across that delta.
 
 Subject: `samples/cli/basics/cli_mvp` — the smallest real project, a
 2-package graph (`cli-mvp` → `omega-language-std` via a local path edge).
+Delete this record once the arena span-validation and symbol-lookup hotspots
+are repaired or carried on their own board rows.
 
 ## Headline measurement
 

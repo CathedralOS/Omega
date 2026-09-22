@@ -4,7 +4,9 @@ Mechanical sweep at `37d18e2104` of code placement against the
 [placement and semantic ownership](../../omega-rust/pipeline.md) table. Scope:
 which ownership bucket each retained construct sits in, not whether the
 construct itself is correct. A finding means the code lives in the wrong
-bucket; it does not mean the code is wrong.
+bucket; it does not mean the code is wrong. Delete this audit once every open
+row-1 violation it lists moves to `representations/` or is recorded on
+DURABLE-CODEC-RELOCATION.
 
 Re-swept at `be496d9a90` — see [Re-sweep](#re-sweep-at-be496d9a90) and
 [Rulings](#rulings) below.

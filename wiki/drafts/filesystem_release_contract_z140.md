@@ -1,7 +1,9 @@
 # FILESYSTEM-RELEASE-CONTRACT — scope verification and paused-closure plan (z140)
 
 Verified at `069276b986dc` on linux x86-64. Item row: `TASKS.md` FILESYSTEM-RELEASE-CONTRACT
-board line ~4713.
+board line ~4713. Delete this plan once the program-side occurrence derivation
+lands and the structural field-store closure clears the customer's recorded
+stop.
 
 ## What the item owns
 

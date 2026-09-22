@@ -5,7 +5,9 @@ Devin / w10-w10-19-general-cyclic-execution under claim ticket `a18cdb9b`.
 The item re-mines the optimizer half of GENERAL-CYCLIC-EXECUTION:
 `TASKS_OPTIMIZER.md:421` carries the same-named item owning the post-Terminal
 stages (receiving graph, native selection, replay) starting at admitted cyclic
-input; `TASKS.md:2207` owns the Psi half.
+input; `TASKS.md:2207` owns the Psi half. Delete this ledger once the Psi half
+admits scalar results and an admitted ranked call cycle reaches the optimizer
+half.
 
 ## Witnessed customer state
 

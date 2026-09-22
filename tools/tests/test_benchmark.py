@@ -23,7 +23,7 @@ RECORDS = ROOT / "tools" / "benchmark" / "records"
 MATRIX_DOC = ROOT / "wiki" / "drafts" / "benchmarks.md"
 TARGET_SOURCE = (
     ROOT / "omega-rust" / "omega" / "representations" / "target"
-    / "src" / "lib.rs"
+    / "src" / "target_profile.rs"
 )
 
 
@@ -101,13 +101,13 @@ class CommittedRecords(unittest.TestCase):
         records = sorted(RECORDS.glob("*.json"))
         self.assertTrue(records, "records/ must not be empty")
         for path in records:
-            record = json.loads(path.read_text())
+            record = json.loads(path.read_text(encoding="utf-8"))
             problems = benchmark.validate_record(record, str(path))
             self.assertEqual(problems, [])
 
     def test_record_filenames_match_row_key(self):
         for path in sorted(RECORDS.glob("*.json")):
-            record = json.loads(path.read_text())
+            record = json.loads(path.read_text(encoding="utf-8"))
             label = benchmark.selection_label(record["key"]["selection"])
             expected = (
                 f"{record['subject']['name']}__{record['key']['target']}"
@@ -118,11 +118,11 @@ class CommittedRecords(unittest.TestCase):
 
 class SchemaDocumentation(unittest.TestCase):
     def test_readme_declares_current_schema(self):
-        text = README.read_text()
+        text = README.read_text(encoding="utf-8")
         self.assertIn(benchmark.SCHEMA, text)
 
     def test_readme_documents_every_metric(self):
-        text = README.read_text()
+        text = README.read_text(encoding="utf-8")
         for name in benchmark.METRIC_NAMES:
             self.assertIn(f"metrics.{name}", text)
 
@@ -217,8 +217,11 @@ class SelectionIdentity(unittest.TestCase):
 def catalogued_target_names():
     """Profile names from TargetProfile::target_name() — the catalog the
     matrix's host-leg table must stay in step with."""
-    text = TARGET_SOURCE.read_text()
-    section = text[text.index("const fn target_name"):]
+    text = TARGET_SOURCE.read_text(encoding="utf-8")
+    # `HostedIntrinsicBundle` declares a delegating `target_name` above this
+    # one; the profile's own is the arm table, so anchor on the match.
+    anchor = "const fn target_name(self) -> &'static str {\n        match self {"
+    section = text[text.index(anchor):]
     section = section[: section.index("\n    }\n")]
     return set(re.findall(r'=> "([a-z][a-z0-9_]*)",', section))
 
@@ -277,7 +280,7 @@ class HostRowMatrix(unittest.TestCase):
         self.assertIn("default", row)
 
     def test_doc_embeds_the_current_matrix(self):
-        lines = MATRIX_DOC.read_text().splitlines()
+        lines = MATRIX_DOC.read_text(encoding="utf-8").splitlines()
         start = lines.index("<!-- benchmark-matrix:start -->")
         end = lines.index("<!-- benchmark-matrix:end -->")
         self.assertEqual("\n".join(lines[start + 1 : end]), self.matrix())

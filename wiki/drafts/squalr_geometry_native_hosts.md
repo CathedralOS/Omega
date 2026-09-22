@@ -5,6 +5,8 @@ application's parity acceptance. Source of truth for the acceptance itself is
 the app-board row `GEOMETRY-PARITY` in `samples/apps/squalr/TASKS.md`
 (submodule pin `5b0307c352`); Omega-side tracking lives under
 `SQUALR-GEOMETRY-PARITY` and the `GEOMETRY-*` sibling rows in TASKS.md.
+Delete this record once the Windows x86-64 and Linux ARM64 legs are recorded
+and the host ledger carries no UNRECORDED row.
 
 ## Acceptance leg
 

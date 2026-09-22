@@ -6,7 +6,9 @@ standard-library package (`source/library/std`, package
 `uname -m` = x86_64). Recorded 2026-09-21 at worktree revision
 `37bcdfa0ccc0e` (origin/main `5bb9a74842dd1` plus one board-stamp commit);
 the `omega` binary was rebuilt immediately before measurement
-(`cargo build -p omega`, dev profile, 59.1s).
+(`cargo build -p omega`, dev profile, 59.1s). Delete this record once the
+`Filesystem::host` join regression closes and the std package check is
+remeasured past that diagnostic.
 
 | Command | Wall clock | User time | Exit | Outcome |
 | --- | --- | --- | --- | --- |

@@ -1,7 +1,9 @@
 # Canary package-mode signal — design
 
 Design record for **CANARY-PACKAGE-MODE-SIGNAL** (TASKS.md, new-scope row).
-Audited at `6f918986063` on linux x86-64.
+Audited at `6f918986063` on linux x86-64. Delete this design once
+`fixture_declares_ordinary_std` selects on the parsed build declaration and
+the `repository_build_declarations.rs` named exception is gone.
 
 ## Problem
 

@@ -3,7 +3,8 @@
 Planner-scoped item: pin the member-call admission of a `self`-receiver
 callee that never reads its receiver (`tests/omega/pass/calls/
 member_call_unused_self_receiver` + `canary_suite/roster.rs` + this
-record).
+record). Delete this record once the fixture and its
+`CHECKED_ONLY_PASS_CANARIES` seat land.
 
 ## Scope verified at `d650f2e45a` (linux x86-64, `omega --check`)
 

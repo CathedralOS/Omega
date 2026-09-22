@@ -12,7 +12,9 @@ recovery; `tests/architecture/optimizer_source_organization/retired_paths.rs:227
 pins their old park paths as retired. Finding 1's "zero production entrances"
 no longer covers those two rows. This audit fixes the entrance inventory and
 its caller graph; it authorizes no sequencing and no deletion — disposition
-belongs to POC-SPILL-FAMILY-SEQUENCING and the allocation owners.
+belongs to POC-SPILL-FAMILY-SEQUENCING and the allocation owners. Delete this
+audit once that row disposes of the park — every family sequenced into
+`stage_register_allocation` or deleted.
 
 Affected subject: executable spill recovery in
 [register allocation](../../omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/register_allocation.rs).

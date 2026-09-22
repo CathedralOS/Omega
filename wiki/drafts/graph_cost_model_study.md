@@ -7,7 +7,9 @@ candidates before expensive measurement. This study authorizes no
 implementation and no model; it inventories the existing structural seams and
 states what a measurement would have to show. Any future learned policy belongs
 to the Omega-written product compiler and chooses through the existing
-candidate and validation boundaries, not a second compiler path.
+candidate and validation boundaries, not a second compiler path. Delete this
+study once a measured workload corpus shows whether graph features beat
+`predicted_cost_delta`, or when the learned-policy question closes.
 
 Affected subject: [optimization selection and validation](../spec/build/optimizations.md).
 

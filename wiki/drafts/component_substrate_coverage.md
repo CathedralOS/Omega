@@ -3,6 +3,9 @@
 Census of the `COMPONENT-SUBSTRATE` carrier (TASKS.md): which description
 facts have a producer, which have an independent replayer, and which the
 `Remaining work` bullets still owe. Audited on `9e80227d2b`, linux x86-64.
+Delete this census once the row's named legs land — native facts on the Psi
+path, a product carrier for a settled `Independent` edge, and an
+installation/replacement consumer.
 
 ## Carrier and producers
 

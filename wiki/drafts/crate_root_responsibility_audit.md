@@ -8,6 +8,9 @@ discoverability contract: every crate has an obvious starting point that
 explains its responsibility through code.
 
 Counts: 117 crate roots (116 lib.rs + 1 main.rs), all under `omega-rust/`.
+Delete this audit once F3's three representation roots move their vocabulary
+into named domain files and F5's "Start at" pointer recommendation is adopted
+or dropped.
 
 ## What now holds
 

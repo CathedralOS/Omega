@@ -11,7 +11,9 @@ have no bracketed range-annotation suffix; bounds come from `requires`,
 `ensures`, guards and arithmetic as ordinary proof facts, and a published
 reusable bound is declared as a predicate domain and spelled `T in Domain`.
 There is no compatibility mode and no new compiler-provided range domain —
-this document is the mechanical recipe for migrating the corpus.
+this document is the mechanical recipe for migrating the corpus. Delete this
+recipe once REMOVE-BRACKETED-RANGE-ANNOTATIONS closes — no corpus file spells
+the suffix and the parse path is gone.
 
 ## Decision table by position
 

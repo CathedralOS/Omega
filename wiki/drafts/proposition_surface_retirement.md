@@ -7,7 +7,9 @@ PROOF-KERNEL-CORE terms; `wiki/spec/proofs/mathematical_bindings.md:8` already
 records the settled direction — "No `forall`, `exists`, `claim`, `proposition`,
 or proposition-returning machines remain optional, unaccepted naming
 proposals." This note inventories every surface the retirement must drain. It
-authorizes no new gate and changes no fence.
+authorizes no new gate and changes no fence. Delete this inventory once
+PROOF-CONTRACT-MIGRATION drains every surface listed here and no `proposition`
+declaration remains.
 
 ## 1. Source grammar
 

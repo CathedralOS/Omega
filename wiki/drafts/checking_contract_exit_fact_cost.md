@@ -7,7 +7,9 @@ reading the code.
 
 This records a **checking**-stage cost centre. It is distinct from
 [the C2L conjunct-lowering cliff](c2l_conjunct_lowering_cliff.md), which is a
-lowering-stage record; `proof/src/checker` is not involved in either.
+lowering-stage record; `proof/src/checker` is not involved in either. Delete
+this record once both open candidates — the domain-identity memo and the
+symbol-parent answer for `payload_variant_for_field` — land or are ruled out.
 
 ## The profile
 

@@ -3,7 +3,9 @@
 Status: recovery ledger for the parked computed-IEEE-stores slice of
 WRITE-ONLY-BORROW (TASKS.md). This note records whether the unpublished
 branch survives, what it carried, and the two sanctioned paths forward. It
-authorizes no new gate and changes no fence.
+authorizes no new gate and changes no fence. Delete this ledger once the
+computed-IEEE-store slice lands and the frontier pin stops asserting its
+rejection.
 
 ## The parked slice
 

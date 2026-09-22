@@ -5,7 +5,9 @@ choices. The current work is only to keep candidate construction, deterministic
 selection, and independent validation separate. No model or training framework
 is planned for the Rust reference compiler. These notes authorize no
 implementation; any future investigation belongs to the Omega-written product
-compiler and needs its own concrete justification.
+compiler and needs its own concrete justification. Delete these notes when a
+measured workload justifies a concrete proposal or the product compiler takes
+the question.
 
 Affected subject: [optimization selection and validation](../spec/build/optimizations.md).
 

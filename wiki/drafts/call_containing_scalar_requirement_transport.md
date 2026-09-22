@@ -10,7 +10,9 @@ Audited at `6f918986063` on linux x86-64; re-verified at `661a4d50c0af`
 `scalar_contracts.rs:57`, the five `ClosedScalarContractValue` variants at
 `contract_plans/scalar_contracts.rs:40` (enumerated in `covered_requires` at
 `scalar_graph/scalar_contracts.rs:44-93`), and the reproducer at
-`contract_application_terms.rs:172`.
+`contract_application_terms.rs:172`. Delete this design once cited-call
+transport lands and the reproducer's artifact passes independent terminal
+verification.
 
 ## The reproducer and where it breaks
 

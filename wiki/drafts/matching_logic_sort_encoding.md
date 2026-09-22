@@ -7,7 +7,8 @@ It answers one bullet of the
 matching logic Chen and Rosu prove complete for, and record what the encoding
 moves rather than what it discharges. No checker, translation, or axiom set in
 this note is admitted authority; every encoding clause is an axiom admission
-unless a checked producer can derive it.
+unless a checked producer can derive it. Delete this draft once the bounded
+comparison rules on the encoding, or when the matching-logic route is dropped.
 
 ## Setting
 

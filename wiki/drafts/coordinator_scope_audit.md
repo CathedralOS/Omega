@@ -13,7 +13,9 @@ coordination surfaces (`lowering/coordination.rs`,
 (`main.rs`, `compiler.rs`, `terminal_artifact.rs`, both `checking.rs`
 drivers), and the swarm-coordinator tooling. For each: does the file contain
 domain decisions (representation computation, semantic checks, generated
-content, ISA/format detail) or only sequencing?
+content, ISA/format detail) or only sequencing? Delete this audit once the F3
+watch item moves the product fences to the admission owner, or when a later
+sweep supersedes it.
 
 ## Findings
 

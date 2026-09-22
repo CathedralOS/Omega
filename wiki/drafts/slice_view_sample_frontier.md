@@ -3,7 +3,9 @@
 Board row: `TASKS.md` **SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT** (:13407,
 split-of:SAMPLES-COMPILE-MULTI-HOST) and its vocabulary leg
 **TERMINAL-SLICE-VIEW-VOCABULARY** (:13358). Recorded from `163618c895` on
-linux x86-64.
+linux x86-64. Delete this record once the twelve samples reach selected
+ProgramEntry establishment, or when the vocabulary leg publishes the missing
+spec section.
 
 ## The failure class
 

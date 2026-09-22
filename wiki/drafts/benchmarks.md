@@ -5,7 +5,9 @@ measurements of the reference compiler, one JSON record per (subject,
 target, exact rule selection) row. The harness and schema live in
 [tools/benchmark](../../tools/benchmark/README.md); committed rows live
 in `tools/benchmark/records/`. This note holds methodology and host
-coverage; it is not a leaderboard.
+coverage; it is not a leaderboard. Delete this note once
+`tools/benchmark/README.md` owns the method and the host-coverage
+account.
 
 ## Method
 
