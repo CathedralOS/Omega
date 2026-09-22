@@ -13,9 +13,7 @@ use crate::{
     ResolvedConditionalBranchPredicate, ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout,
 };
 
-use super::super::{
-    error::OptimizedX86BranchRelaxationError, model::X86BranchRelaxationAttemptOutcome,
-};
+use super::super::{X86BranchRelaxationAttemptOutcome, error::OptimizedX86BranchRelaxationError};
 use super::work::checked_delta;
 
 pub(super) fn inspect_production_branch(

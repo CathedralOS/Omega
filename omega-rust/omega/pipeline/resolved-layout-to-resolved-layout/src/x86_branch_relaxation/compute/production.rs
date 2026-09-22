@@ -12,11 +12,9 @@ use selected_instructions::{MachineAlternativeFamily, MachineAlternativeKey};
 use crate::{ResolvedConditionalBranchPredicate, StagedOptimizedResolvedSelectedFormLayout};
 
 use super::super::{
+    X86BranchRelaxationAction, X86BranchRelaxationAttempt, X86BranchRelaxationAttemptOutcome,
     error::{OptimizedX86BranchRelaxationError, X86BranchRelaxationWorkAxis},
     identity::{RevisionRoots, revision_identity},
-    model::{
-        X86BranchRelaxationAction, X86BranchRelaxationAttempt, X86BranchRelaxationAttemptOutcome,
-    },
 };
 use super::{
     RelaxationTrace,

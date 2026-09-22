@@ -4,10 +4,8 @@ use target::{Architecture, NativeTarget};
 use crate::StagedOptimizedResolvedSelectedFormLayout;
 
 use super::{
+    StagedOptimizedX86BranchRelaxation, X86BranchRelaxationAction, X86BranchRelaxationAttempt,
     error::OptimizedX86BranchRelaxationError,
-    model::{
-        StagedOptimizedX86BranchRelaxation, X86BranchRelaxationAction, X86BranchRelaxationAttempt,
-    },
 };
 
 pub(super) fn validate_roots(
