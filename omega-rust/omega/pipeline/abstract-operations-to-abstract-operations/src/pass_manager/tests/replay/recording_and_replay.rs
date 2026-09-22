@@ -6,7 +6,8 @@ use super::super::{
     verified_exact_self_divide_unit, verified_exact_self_remainder_unit,
     verified_exact_signed_remainder_by_negative_one_unit,
 };
-use crate::{replay_psi_pipeline, replay_psi_registry, run_psi_pipeline, run_psi_registry};
+use crate::abstract_optimization::replay_psi_registry;
+use crate::{replay_psi_pipeline, run_psi_pipeline, run_psi_registry};
 
 #[test]
 fn external_decision_recording_rejects_detached_valid_context() {

@@ -21,8 +21,8 @@ mod state_specialization;
 pub mod validation;
 
 pub use abstract_optimization::{
-    AbstractOptimizationError, optimize_abstract_operations, replay_psi_pipeline,
-    replay_psi_registry, run_psi_pipeline, run_psi_pipeline_for_projection, run_psi_registry,
+    AbstractOptimizationError, optimize_abstract_operations, replay_psi_pipeline, run_psi_pipeline,
+    run_psi_registry,
 };
 pub use publication::{
     AppliedDecisionCustodyAxis, OptimizedAbstractProjectionError, ValidatedOptimizedAbstractPlan,
