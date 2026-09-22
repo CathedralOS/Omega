@@ -414,8 +414,7 @@ fn dependency_free_package_inputs_bound_to(
     authored_root: &Path,
     bound_root: &Path,
 ) -> Option<PackageCompilationInputs> {
-    let Ok(BuildDeclaration::Package(package)) = extract_build_declaration(authored_root)
-    else {
+    let Ok(BuildDeclaration::Package(package)) = extract_build_declaration(authored_root) else {
         return None;
     };
     Some(dependency_free_inputs(
