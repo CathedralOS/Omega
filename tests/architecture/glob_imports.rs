@@ -22,19 +22,18 @@ use std::path::{Path, PathBuf};
 /// `src/` tree carrying a glob import).
 const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[
     ("omega-rust/omega/backend/artifacts/native-artifact", 3),
-    ("omega-rust/omega/backend/images/image-emission", 1),
     (
         "omega-rust/omega/backend/instruction_set_architectures/isa-aarch64",
         2,
     ),
     (
         "omega-rust/omega/backend/instruction_set_architectures/isa-x86_64",
-        4,
+        2,
     ),
     ("omega-rust/omega/backend/layout", 1),
     ("omega-rust/omega/backend/machine-emission", 23),
     ("omega-rust/omega/backend/object/object-file", 1),
-    ("omega-rust/omega/backend/plans/program-entry-plan", 4),
+    ("omega-rust/omega/backend/plans/program-entry-plan", 3),
     ("omega-rust/omega/backend/register-environment", 1),
     ("omega-rust/omega/backend/runtime/component-publication", 1),
     (
@@ -79,7 +78,7 @@ const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[
     ),
     (
         "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions",
-        42,
+        18,
     ),
     (
         "omega-rust/omega/pipeline/target-operations-to-selected-instructions",
@@ -99,7 +98,7 @@ const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[
     ("omega-rust/omega/semantics/optimization-unit-semantics", 16),
     (
         "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees",
-        4,
+        3,
     ),
     ("omega-rust/psi/pipeline/typed-trees-to-checked-trees", 2),
     ("omega-rust/psi/representations/facts", 1),
@@ -107,10 +106,7 @@ const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[
     ("omega-rust/psi/representations/lowered-psi", 2),
     ("omega-rust/psi/representations/optimization", 1),
     ("omega-rust/psi/representations/symbol-resolved-trees", 1),
-    ("omega-rust/psi/representations/typed-trees", 1),
-    ("omega-rust/psi/semantics/build-time-evaluation", 2),
-    ("omega-rust/psi/semantics/checked-interpreter", 1),
-    ("omega-rust/psi/semantics/validation", 2),
+    ("omega-rust/psi/semantics/build-time-evaluation", 1),
 ];
 
 fn workspace_root() -> PathBuf {
@@ -121,10 +117,13 @@ fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
-/// Whether one line is a private glob import: `use path::*;` with any
-/// path. Re-exports (`pub use path::*;`) belong to `glob_reexports`, and the
-/// self-import forms belong to `glob_self_imports`, which already holds them
-/// at zero; both are counted here too, since either is also a glob import.
+/// Whether one line is a module glob import: `use path::*;` whose last
+/// segment names a module (snake case). `use SelectedInstructionKind::*;`
+/// opens an enum's variants for a match and names the enum on the same
+/// line, so it hides nothing and is not counted. Re-exports
+/// (`pub use path::*;`) belong to `glob_reexports`, and the self-import
+/// forms belong to `glob_self_imports`, which already holds them at zero;
+/// both are counted here too, since either is also a glob import.
 fn is_glob_import(line: &str) -> bool {
     let line = line.trim();
     let Some(rest) = line
@@ -138,7 +137,14 @@ fn is_glob_import(line: &str) -> bool {
     let Some(path) = rest.strip_suffix("*;") else {
         return false;
     };
-    path.split("::").any(|segment| !segment.is_empty())
+    let Some(last) = path
+        .split("::")
+        .filter(|segment| !segment.is_empty())
+        .last()
+    else {
+        return false;
+    };
+    !last.starts_with(|first: char| first.is_ascii_uppercase())
 }
 
 fn is_test_file(path: &Path) -> bool {
@@ -281,6 +287,8 @@ fn glob_import_detection_matches_the_documented_forms() {
         assert!(is_glob_import(line), "{line}");
     }
     for line in [
+        "use SelectedInstructionKind::*;",
+        "    use selected_instructions::SelectedInstructionKind::*;",
         "use super::{A, B};",
         "use semantic_vocabulary::ValueId;",
         "// use super::*;",
