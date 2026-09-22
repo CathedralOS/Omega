@@ -28,6 +28,7 @@ mod fixed_byte_array_views;
 mod guarded_scalar_returns;
 mod indexed_primitive_storage;
 mod integer_comparison_replay;
+mod linear_local_consumers;
 mod literal_byte_extent;
 mod local_record_reads;
 mod operation_crash_contracts;
