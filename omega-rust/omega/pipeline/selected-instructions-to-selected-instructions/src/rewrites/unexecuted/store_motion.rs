@@ -70,13 +70,19 @@
 //! The walk is not confined to one block: reaching a block's end without a
 //! stop continues through its terminator's successor edges when every edge
 //! names one block and that block's only predecessor is the crossed block.
-//! Both directions of uniqueness are required — a fork out of the crossed
-//! block would drop the write from the paths that leave it, and a join into
-//! the successor would add the write to paths that never carried it. The
+//! A fork crosses too when its edges reconverge: each lands on one join
+//! directly or enters an arm the crossed block alone feeds whose own edges
+//! all reach that join, the join's only predecessor blocks are the crossed
+//! block and those arms, and every arm stays walkable end to end — a stop
+//! inside an arm could only land the store inside that arm, dropping the
+//! write on the paths the other arms carry. Every traversal of the crossed
+//! block then reaches the join exactly once, so the write runs once there
+//! as it ran once here: no path gains or drops it. The
 //! terminator's roster rows and register definitions decide before each
 //! crossed edge's transports, which may not redefine the carried registers or
-//! write the moved storage. Returns and hosted exits, forked or
-//! joined targets, and re-entered blocks each bound the motion at the crossed
+//! write the moved storage. Returns and hosted exits, forks whose targets
+//! never reconverge on one fed join, joined targets fed from outside the
+//! region, and re-entered blocks each bound the motion at the crossed
 //! block's end.
 //!
 //! The store's roster row names the instruction by identity, not position, so
