@@ -451,3 +451,28 @@ fn build_operations_map_onto_their_intrinsic_selection_targets() {
         ]
     );
 }
+
+#[test]
+fn marker_operands_are_read_only_after_the_operation_spelling_and_separator() {
+    use super::BuildOperation;
+    assert_eq!(
+        BuildOperation::BoundaryAcceptance.marker_operands("accept_boundary#pkg::Root"),
+        Some("pkg::Root")
+    );
+    assert_eq!(
+        BuildOperation::WireCompatibilityRequest.marker_operands("wire_compatibility#a#b"),
+        Some("a#b")
+    );
+    assert_eq!(
+        BuildOperation::BoundaryAcceptance.marker_operands("accept_boundary"),
+        None
+    );
+    assert_eq!(
+        BuildOperation::BoundaryAcceptance.marker_operands("wire_compatibility#x"),
+        None
+    );
+    assert_eq!(
+        BuildOperation::ProviderSelection.marker_operands("select_provider#x"),
+        None
+    );
+}

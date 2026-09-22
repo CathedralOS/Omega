@@ -6,6 +6,7 @@ use crate::admission::behavior_exclusions::{
 };
 use crate::admission::vocabulary::is_exact_toolchain_build_prelude_data;
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::BuildOperation;
 use provider_planning::{ProviderSelection, ProviderSelectionIdentity};
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
@@ -34,7 +35,7 @@ pub(crate) fn harvest_wire_compatibility_demands(
     let mut demands = Vec::new();
     let mut diagnostics = Vec::new();
     let mut record = |target: &str| {
-        let Some(encoded) = target.strip_prefix("wire_compatibility#") else {
+        let Some(encoded) = BuildOperation::WireCompatibilityRequest.marker_operands(target) else {
             return;
         };
         let parts = encoded.split('#').collect::<Vec<_>>();
@@ -630,7 +631,9 @@ pub fn harvest_root_grants(
                 }
                 typed_trees::statement::StatementNode::Call(call) => {
                     // A statement-level call keeps the marker in its target.
-                    if let Some(path) = call.target.as_str().strip_prefix("accept_boundary#") {
+                    if let Some(path) =
+                        BuildOperation::BoundaryAcceptance.marker_operands(call.target.as_str())
+                    {
                         record(path, authored_root_grant_statement_span(typed, call)?);
                     }
                     Vec::new()
@@ -640,7 +643,8 @@ pub fn harvest_root_grants(
             for handle in handles {
                 if let typed_trees::expression::ExpressionNode::Call(call) =
                     typed.expression_table.expression(handle)
-                    && let Some(path) = call.target.as_str().strip_prefix("accept_boundary#")
+                    && let Some(path) =
+                        BuildOperation::BoundaryAcceptance.marker_operands(call.target.as_str())
                 {
                     record(path, authored_root_grant_expression_span(typed, handle)?);
                 }
