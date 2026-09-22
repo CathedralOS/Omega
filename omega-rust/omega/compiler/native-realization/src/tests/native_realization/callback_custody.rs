@@ -9,9 +9,10 @@ use crate::{
     current_terminal_authority_permission_policy,
 };
 
-/// One checked `u64 -> u64` identity body lowered through the same isolated
-/// callback production the native proposal uses: bounded callback lowering,
-/// empty Psi optimization, canonical Terminal packaging. The artifact is the
+/// One checked `u64 -> u64` identity body produced through the same Terminal
+/// production body the native proposal uses for a thunk: ordinary machine
+/// lowering, empty Psi optimization, canonical packaging, and the callback
+/// lowering receipt joined on the unoptimized module. The artifact is the
 /// real replayable input the thunk settlement carries.
 pub(crate) fn callback_thunk_artifact() -> (
     terminal_codec::CanonicalTerminalArtifact,
@@ -21,20 +22,28 @@ pub(crate) fn callback_thunk_artifact() -> (
         "data Callback {}\nmachine Callback::identity(input: u64) -> u64 { input }",
     );
     let graph = &checked.facts.flow.terminal_scalar_graphs.machines[0];
-    let lowered = checked_trees_to_lowered_psi::lower_bounded_callback_identity_machine(
+    let mut timings = terminal_production::TerminalProductionTimings::default();
+    let produced = terminal_production::TerminalProductionRequest::new(
         &checked,
+        terminal_production::TerminalMachineSelection::Symbol(graph.machine),
+    )
+    .produce(terminal_production::TerminalProductionCustody {
+        entry_identity: None,
+        callback_custody: (),
+        retain_unoptimized: true,
+        timings: &mut timings,
+    })
+    .expect("callback body produces through the shared Terminal production body");
+    let receipt = checked_trees_to_lowered_psi::callback_lowering_receipt(
+        &checked,
+        produced
+            .unoptimized()
+            .expect("callback production retained its unoptimized module"),
         graph.machine,
         graph.states[0].state,
     )
-    .expect("bounded callback body lowers");
-    let optimized = lowered_psi_to_lowered_psi::run_psi_optimization(
-        lowered.terminal,
-        optimization::PsiOptimizationSelections::default(),
-    )
-    .expect("callback body survives empty Psi optimization");
-    let artifact = lowered_psi_to_terminal_psi::finalize_terminal_artifact(&optimized)
-        .expect("callback body canonicalizes");
-    (artifact, lowered.receipt)
+    .expect("callback coordinate joins the lowered entry machine");
+    (produced.into_artifact(), receipt)
 }
 
 pub(crate) fn callback_boundary_entry_plan(

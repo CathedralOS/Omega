@@ -183,13 +183,18 @@ fn selected_callback_identity_preserves_its_normal_contract() {
             "data Callback {{}}\nmachine Callback::identity(input: u64) -> u64\n{clauses}\n{{ input }}"
         ));
         let graph = &original.facts.flow.terminal_scalar_graphs.machines[0];
-        let lowered = checked_trees_to_lowered_psi::lower_bounded_callback_identity_machine(
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
             &original,
+            TerminalMachineSelection::Symbol(graph.machine),
+        )
+        .expect("selected identity body");
+        checked_trees_to_lowered_psi::callback_lowering_receipt(
+            &original,
+            &lowered,
             graph.machine,
             graph.states[0].state,
         )
-        .expect("selected identity body")
-        .terminal;
+        .expect("selected identity joins its callback coordinate");
         let contract = &lowered.semantic_module.machines[0].contract;
         let expected_count = usize::from(!clauses.is_empty());
         assert_eq!(contract.requires.len(), expected_count);

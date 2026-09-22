@@ -6,10 +6,10 @@
 //! its shape, then sequences the work every selected module still needs: retained custody, float-meaning projections, evidence and proof
 //! recursion, proof-only quotient correspondence rows, operand proof
 //! completion or module validation, and the debug companion.
-//! [`lower_bounded_callback_identity_machine`] is the callback-body entrance:
-//! it lowers the selected machine through this same ordinary route rooted at
-//! the callback entry, then joins the checked callback coordinate onto the
-//! module's entry machine. Unsupported source constructs fail closed.
+//! A callback body is not a second entrance: it lowers through this same
+//! route rooted at the callback entry, and [`callback_lowering_receipt`] then
+//! joins the checked callback coordinate onto the module's entry machine.
+//! Unsupported source constructs fail closed.
 
 pub(crate) mod bounded_callbacks;
 pub(crate) mod conformance_publication;
@@ -20,7 +20,7 @@ pub(crate) mod machine_dispatch;
 pub(crate) mod reborrow_handoffs;
 pub(crate) mod specialization_commitments;
 
-pub use bounded_callbacks::lower_bounded_callback_identity_machine;
+pub use bounded_callbacks::callback_lowering_receipt;
 
 use checked_trees::{CheckedTerminalSignatureEligibility, CheckedTrees};
 use lowered_psi::LoweredPsi;

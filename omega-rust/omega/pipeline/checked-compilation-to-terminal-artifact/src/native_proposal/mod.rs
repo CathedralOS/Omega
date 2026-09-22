@@ -7,6 +7,7 @@ use crate::terminal_artifact::verification::verify_terminal_artifact;
 use crate::{float_comparisons, integer_comparisons};
 use assembled_syntax_to_checked_compilation::CheckedCompilation;
 use diagnostics::Diagnostic;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 mod callback_registrars;
 
@@ -306,22 +307,47 @@ fn produce_callback_thunk_artifact(
     profile: &proof_admission::AdmissionProfile,
     placement: &backend_plan::BoundNominalCallbackPlacement,
 ) -> Result<compilation_report::TerminalCallbackThunkArtifact, Vec<Diagnostic>> {
-    let matching = checked
-        .facts
-        .flow
-        .terminal_machines
-        .machines
-        .iter()
-        .filter(|selection| selection.machine == placement.selected_machine)
-        .collect::<Vec<_>>();
-    let [_selection] = matching.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "callback selection resolves to {} Terminal-lowerable machines; exactly one is required",
-            matching.len(),
-        ))]);
-    };
-    let lowered = checked_trees_to_lowered_psi::lower_bounded_callback_identity_machine(
+    // The thunk body leaves through the same production body as the program
+    // entry: one lowering, the selected Psi optimization, canonical
+    // publication. It carries no entry identity, so no `ProgramEntry`
+    // receipt is minted; the callback placement binds its own evidence to
+    // the lowering receipt instead.
+    let psi_optimizations = checked.optimization_selections().project_psi();
+    let mut production_timings = TerminalProductionTimings::default();
+    let produced = terminal_production::TerminalProductionRequest {
+        checked: checked.terminal_production_trees(),
+        machine: terminal_production::TerminalMachineSelection::Symbol(placement.selected_machine),
+        optimization_selections: psi_optimizations.selections().clone(),
+    }
+    .produce(TerminalProductionCustody {
+        entry_identity: None,
+        callback_custody: (),
+        // The authored exclusions and the lowering receipt are judged on the
+        // unoptimized composition the thunk was published from.
+        retain_unoptimized: true,
+        timings: &mut production_timings,
+    })
+    .map_err(|error| {
+        vec![Diagnostic::error(format!(
+            "callback thunk Terminal production failed: {error}",
+        ))]
+    })?;
+    // The callback body is part of the admitted composition; the authored
+    // exclusions apply to its unoptimized module exactly as to the program
+    // entry's.
+    crate::terminal_artifact::behavior_exclusions::verify_entry_behavior_exclusions(
         checked,
+        produced.unoptimized(),
+        placement.selected_machine,
+    )?;
+    let unoptimized = produced.unoptimized().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "callback thunk production retained no unoptimized Terminal lowering to join the checked coordinate onto",
+        )]
+    })?;
+    let receipt = checked_trees_to_lowered_psi::callback_lowering_receipt(
+        checked,
+        unoptimized,
         placement.selected_machine,
         placement.selected_entry,
     )
@@ -330,42 +356,13 @@ fn produce_callback_thunk_artifact(
             "callback thunk Terminal lowering failed: {error}",
         ))]
     })?;
-    // The callback body is part of the admitted composition; the authored
-    // exclusions apply to its unoptimized module exactly as to the program
-    // entry's.
-    let provenance =
-        crate::terminal_artifact::behavior_exclusions::MachineProvenance::from_lowering(
-            checked,
-            &lowered.terminal,
-            placement.selected_machine,
-        );
-    crate::terminal_artifact::behavior_exclusions::verify_module_behavior_exclusions(
-        checked,
-        &lowered.terminal.semantic_module,
-        &provenance,
-    )?;
-    let psi_optimizations = checked.optimization_selections().project_psi();
-    let optimized = lowered_psi_to_lowered_psi::run_psi_optimization(
-        lowered.terminal,
-        psi_optimizations.selections().clone(),
-    );
-    let optimized = optimized.map_err(|error| {
-        vec![Diagnostic::error(format!(
-            "callback thunk Psi optimization failed: {error}",
-        ))]
-    })?;
-    let artifact =
-        lowered_psi_to_terminal_psi::finalize_terminal_artifact(&optimized).map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "callback thunk canonicalization failed: {error}",
-            ))]
-        })?;
+    let artifact = produced.into_artifact();
     verify_terminal_artifact(&artifact, profile)?;
     validate_direct_callback_thunk_shape(&artifact, placement)?;
     compilation_report::TerminalCallbackThunkArtifact::new(
         backend_plan::canonical_callback_private_symbol(placement),
         artifact,
-        lowered.receipt,
+        receipt,
     )
     .map_err(|message| vec![Diagnostic::error(message)])
 }

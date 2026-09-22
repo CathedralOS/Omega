@@ -37,7 +37,7 @@ use std::collections::BTreeMap;
 /// nearest named caller on the walk from the entry, and reported by its
 /// Terminal identity when no caller is named either.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub(crate) struct MachineProvenance {
+struct MachineProvenance {
     machines: BTreeMap<MachineId, (String, symbols::SymbolHandle)>,
     /// First caller reached from the entry on the static call graph.
     callers: BTreeMap<MachineId, MachineId>,
@@ -49,7 +49,7 @@ impl MachineProvenance {
     /// call operation and the checked callee symbol; the operation's callee
     /// is the Terminal machine that symbol lowered to. The entry is named by
     /// its selected symbol.
-    pub(crate) fn from_lowering(
+    fn from_lowering(
         checked: &CheckedCompilation,
         lowered: &lowered_psi::LoweredPsi,
         entry_machine_symbol: symbols::SymbolHandle,
@@ -243,7 +243,7 @@ pub(crate) fn verify_entry_behavior_exclusions(
 /// module's own `entry` is the walk's root. `provenance` names the module's
 /// machines where the lowering joined them to checked declarations; a
 /// callback thunk body carries none.
-pub(crate) fn verify_module_behavior_exclusions(
+fn verify_module_behavior_exclusions(
     checked: &CheckedCompilation,
     module: &terminal_psi::TerminalModule,
     provenance: &MachineProvenance,

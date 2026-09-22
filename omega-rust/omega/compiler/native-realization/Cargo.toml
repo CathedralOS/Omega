@@ -12,7 +12,6 @@ path = "src/lib.rs"
 artifacts = { path = "../../tooling/artifacts" }
 selected-instructions-to-selected-instructions = { path = "../../pipeline/selected-instructions-to-selected-instructions" }
 lowered-psi = { path = "../../../psi/representations/lowered-psi" }
-lowered-psi-to-lowered-psi = { path = "../../../psi/pipeline/lowered-psi-to-lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../../../psi/pipeline/lowered-psi-to-terminal-psi" }
 terminal-production = { path = "../../../psi/compiler/terminal-production" }
 abstract-operations-to-abstract-operations = { path = "../../pipeline/abstract-operations-to-abstract-operations" }

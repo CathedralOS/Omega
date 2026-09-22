@@ -492,9 +492,8 @@ pub(crate) fn validate(
                 };
                 let expected = validation::unwrapped_type_reference(&checked.typed, reference)
                     .ok_or(LoweringError::Unsupported("array carrier missing"))?;
-                let checked_trees::types::TypeReferenceNode::FixedArray {
-                    element_type, ..
-                } = checked.type_reference_table.type_reference(expected)
+                let checked_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
+                    checked.type_reference_table.type_reference(expected)
                 else {
                     return unsupported("array establishment substituted its carrier");
                 };

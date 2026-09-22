@@ -1,6 +1,6 @@
 use super::{nominal_schema_forwarding_module, service_names};
-use crate::lower_bounded_callback_identity_machine;
 use crate::tests::checked_source;
+use crate::{TerminalMachineSelection, callback_lowering_receipt, lower_machine};
 use lowered_psi_to_lowered_psi::run_psi_optimization;
 use lowered_psi_to_terminal_psi::finalize_terminal_artifact;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
@@ -848,10 +848,12 @@ fn isolated_callback_publication_replays_its_specialization() {
         .find(|machine| machine.symbol == instance)
         .expect("instance");
     let entry = checked.machine_states(machine)[0].symbol;
-    let callback = lower_bounded_callback_identity_machine(&checked, instance, entry)
+    let callback = lower_machine(&checked, TerminalMachineSelection::Symbol(instance))
         .expect("valid isolated generic callback");
+    callback_lowering_receipt(&checked, &callback, instance, entry)
+        .expect("isolated generic callback joins its checked coordinate");
     assert!(
-        callback.terminal.semantic_module.machines[0]
+        callback.semantic_module.machines[0]
             .closed_reach_application
             .is_some(),
         "isolated callbacks retain the same closed application as ordinary publication"
@@ -859,7 +861,7 @@ fn isolated_callback_publication_replays_its_specialization() {
     let mut invalid = checked.clone();
     invalid.typed.machine_specializations[0].commitment = Default::default();
     assert!(
-        lower_bounded_callback_identity_machine(&invalid, instance, entry).is_err(),
+        lower_machine(&invalid, TerminalMachineSelection::Symbol(instance)).is_err(),
         "isolating a callback cannot bypass specialization custody"
     );
 }
@@ -893,10 +895,12 @@ fn isolated_callback_retains_unused_selections_without_emitting_their_bodies() {
             .find(|machine| machine.symbol == instance)
             .expect("closed identity owner");
         let entry = checked.machine_states(source_machine)[0].symbol;
-        let lowered = lower_bounded_callback_identity_machine(&checked, instance, entry)
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Symbol(instance))
             .expect("isolated closed identity");
+        callback_lowering_receipt(&checked, &lowered, instance, entry)
+            .expect("isolated closed identity joins its checked coordinate");
         drop(checked);
-        let optimized = run_psi_optimization(lowered.terminal, Default::default())
+        let optimized = run_psi_optimization(lowered, Default::default())
             .expect("ordinary callback optimization boundary");
         let artifact = finalize_terminal_artifact(&optimized).expect("publish isolated callback");
         let mut module = terminal_codec::decode_module(artifact.semantic_bytes())
