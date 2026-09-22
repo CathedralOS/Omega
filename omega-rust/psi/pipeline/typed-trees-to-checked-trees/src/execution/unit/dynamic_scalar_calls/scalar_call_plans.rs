@@ -118,14 +118,12 @@ pub(crate) fn build_checked_dynamic_scalar_call(
         || !dispatch_flow_call.has_receiver
         || !dispatch_flow_call.receiver_symbol.is_valid()
         || !dispatch_flow_call.target_symbol.is_valid()
-        || dispatch_call.static_requirement_dispatch.is_some()
+        || !dispatch_call.selects_only_nominal_route()
         || !program
             .expression_table
             .expression_handles(dispatch_call.arguments)
             .is_empty()
         || !dispatch_call.evidence_arguments.is_empty()
-        || dispatch_call.quotient_operation.is_some()
-        || dispatch_call.private_layout_operation.is_some()
     {
         return None;
     }

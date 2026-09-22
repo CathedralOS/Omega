@@ -128,11 +128,8 @@ pub(crate) fn validate_external_via_expression(
         .is_empty();
     let invalid_call_shape = call.receiver.is_valid()
         || has_value_arguments
-        || !call.machine_arguments.is_empty()
-        || !call.evidence_arguments.is_empty()
-        || call.static_requirement_dispatch.is_some()
-        || call.quotient_operation.is_some()
-        || call.private_layout_operation.is_some()
+        || !call.carries_only_positional_arguments()
+        || !call.selects_only_nominal_route()
         || !call.target_symbol.is_valid();
     if invalid_call_shape {
         diagnostics.push(

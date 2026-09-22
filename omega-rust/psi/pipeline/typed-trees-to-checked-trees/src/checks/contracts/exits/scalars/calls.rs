@@ -205,9 +205,7 @@ impl ExitScalars<'_, '_> {
         };
         if authored.receiver.is_valid()
             || !authored.evidence_arguments.is_empty()
-            || authored.static_requirement_dispatch.is_some()
-            || authored.quotient_operation.is_some()
-            || authored.private_layout_operation.is_some()
+            || !authored.selects_only_nominal_route()
         {
             return None;
         }

@@ -75,12 +75,11 @@ pub(crate) fn build_payloadless_guarded_call_return_machine(
     else {
         return None;
     };
-    if !call.machine_arguments.is_empty()
+    if !call.carries_only_positional_arguments()
         || !program
             .expression_table
             .expression_handles(call.arguments)
             .is_empty()
-        || !call.evidence_arguments.is_empty()
         || call.quotient_operation.is_some()
         || call.private_layout_operation.is_some()
     {

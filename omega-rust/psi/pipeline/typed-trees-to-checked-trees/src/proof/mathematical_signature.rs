@@ -793,10 +793,8 @@ impl<'a> Elaborator<'a> {
                         .any(|entry| entry.symbol == Some(target_symbol))
                 {
                     if call.static_machine_parameter.is_valid()
-                        || call.static_requirement_dispatch.is_some()
+                        || !call.selects_only_nominal_route()
                         || !call.evidence_arguments.is_empty()
-                        || call.quotient_operation.is_some()
-                        || call.private_layout_operation.is_some()
                         || call.operational_acknowledgement.acknowledges_suspend
                         || call.operational_acknowledgement.acknowledges_block
                     {
@@ -818,10 +816,8 @@ impl<'a> Elaborator<'a> {
                     )));
                 }
                 if call.static_machine_parameter.is_valid()
-                    || call.static_requirement_dispatch.is_some()
+                    || !call.selects_only_nominal_route()
                     || !call.evidence_arguments.is_empty()
-                    || call.quotient_operation.is_some()
-                    || call.private_layout_operation.is_some()
                     || call.operational_acknowledgement.acknowledges_suspend
                     || call.operational_acknowledgement.acknowledges_block
                 {

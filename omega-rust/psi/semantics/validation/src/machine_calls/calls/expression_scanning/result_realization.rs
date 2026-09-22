@@ -119,11 +119,8 @@ fn reference_result_nested_operand_call_is_supported(
     };
     if !call.target_symbol.is_valid()
         || call.receiver.is_valid()
-        || !call.machine_arguments.is_empty()
-        || !call.evidence_arguments.is_empty()
-        || call.static_requirement_dispatch.is_some()
-        || call.quotient_operation.is_some()
-        || call.private_layout_operation.is_some()
+        || !call.carries_only_positional_arguments()
+        || !call.selects_only_nominal_route()
     {
         return false;
     }
@@ -198,11 +195,8 @@ fn reference_result_nested_operand_call_is_supported(
     };
     if !nested.target_symbol.is_valid()
         || nested.receiver.is_valid()
-        || !nested.machine_arguments.is_empty()
-        || !nested.evidence_arguments.is_empty()
-        || nested.static_requirement_dispatch.is_some()
-        || nested.quotient_operation.is_some()
-        || nested.private_layout_operation.is_some()
+        || !nested.carries_only_positional_arguments()
+        || !nested.selects_only_nominal_route()
     {
         return false;
     }
@@ -505,11 +499,8 @@ fn initializer_target_is_supported(
         return false;
     };
     if !call.target_symbol.is_valid()
-        || !call.machine_arguments.is_empty()
-        || !call.evidence_arguments.is_empty()
-        || call.static_requirement_dispatch.is_some()
-        || call.quotient_operation.is_some()
-        || call.private_layout_operation.is_some()
+        || !call.carries_only_positional_arguments()
+        || !call.selects_only_nominal_route()
     {
         return false;
     }
@@ -684,11 +675,8 @@ fn unit_store_call_result_primitive(
         return None;
     };
     if call.receiver.is_valid()
-        || !call.machine_arguments.is_empty()
-        || !call.evidence_arguments.is_empty()
-        || call.static_requirement_dispatch.is_some()
-        || call.quotient_operation.is_some()
-        || call.private_layout_operation.is_some()
+        || !call.carries_only_positional_arguments()
+        || !call.selects_only_nominal_route()
     {
         return None;
     }

@@ -8,6 +8,7 @@ use std::sync::Arc;
 use symbols::SymbolHandle;
 
 mod display;
+mod shape;
 #[cfg(test)]
 mod tests;
 

@@ -49,11 +49,8 @@ pub(crate) fn plain_value_call_target<'program>(
 ) -> Option<(&'program Machine, &'program State)> {
     if !call.target_symbol.is_valid()
         || call.receiver.is_valid()
-        || !call.machine_arguments.is_empty()
-        || !call.evidence_arguments.is_empty()
-        || call.static_requirement_dispatch.is_some()
-        || call.quotient_operation.is_some()
-        || call.private_layout_operation.is_some()
+        || !call.carries_only_positional_arguments()
+        || !call.selects_only_nominal_route()
     {
         return None;
     }
