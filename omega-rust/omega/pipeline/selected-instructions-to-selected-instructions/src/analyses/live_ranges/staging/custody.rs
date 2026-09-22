@@ -2,7 +2,7 @@ use crate::LiveRangeValidationReceipt;
 
 use crate::StagedOptimizedLivenessCustodyReceipt;
 
-use super::model::StagedOptimizedLiveRangeCustodyReceipt;
+use super::StagedOptimizedLiveRangeCustodyReceipt;
 
 pub(super) fn live_range_custody_receipt(
     upstream: StagedOptimizedLivenessCustodyReceipt,

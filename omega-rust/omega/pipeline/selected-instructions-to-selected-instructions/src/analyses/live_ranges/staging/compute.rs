@@ -2,7 +2,7 @@ use crate::{ValidatedLiveRanges, analyze_live_ranges};
 
 use crate::StagedOptimizedLiveness;
 
-use super::model::OptimizedLiveRangeCustodyError;
+use super::OptimizedLiveRangeCustodyError;
 
 pub(super) fn compute_live_ranges(
     liveness: &StagedOptimizedLiveness,

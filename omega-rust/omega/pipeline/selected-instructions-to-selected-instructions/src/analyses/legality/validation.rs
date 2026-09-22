@@ -6,7 +6,7 @@ use crate::{
 use crate::{StagedOptimizedLiveRanges, validate_optimized_live_range_custody};
 
 use super::custody::custody_receipt;
-use super::model::{
+use super::{
     OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegalityCustodyReceipt,
 };
 

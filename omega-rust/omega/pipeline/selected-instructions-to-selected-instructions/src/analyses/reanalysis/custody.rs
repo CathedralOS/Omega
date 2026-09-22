@@ -2,7 +2,7 @@ use crate::{ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness}
 
 use crate::StagedOptimizedFixedViewCopyCustodyReceipt;
 
-use super::model::StagedOptimizedSelectedReanalysisCustodyReceipt;
+use super::StagedOptimizedSelectedReanalysisCustodyReceipt;
 
 pub(super) fn selected_reanalysis_custody_receipt(
     source: StagedOptimizedFixedViewCopyCustodyReceipt,

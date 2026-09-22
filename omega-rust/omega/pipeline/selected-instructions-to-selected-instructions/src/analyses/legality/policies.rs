@@ -5,7 +5,7 @@ use register_homes::AllocatorAvailabilityPolicy;
 
 use crate::StagedOptimizedLiveRanges;
 
-use super::model::OptimizedAllocationLegalityCustodyError;
+use super::OptimizedAllocationLegalityCustodyError;
 
 pub(super) fn all_environment_allocatable_views(
     ranges: &StagedOptimizedLiveRanges,

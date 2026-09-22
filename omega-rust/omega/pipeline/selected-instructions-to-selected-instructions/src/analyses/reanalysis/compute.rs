@@ -5,8 +5,8 @@ use crate::{
 
 use crate::StagedOptimizedFixedViewCopies;
 
+use super::OptimizedSelectedReanalysisError;
 use super::invariants::require_no_transitions;
-use super::model::OptimizedSelectedReanalysisError;
 
 pub(super) fn compute_selected_reanalysis(
     transformation: &StagedOptimizedFixedViewCopies,

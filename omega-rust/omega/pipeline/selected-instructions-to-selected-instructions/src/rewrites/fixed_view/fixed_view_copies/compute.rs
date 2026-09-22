@@ -4,7 +4,7 @@ use optimization_core::OptimizationWorkBudget;
 
 use crate::StagedOptimizedFixedPrecoloredSegmentHomes;
 
-use super::model::OptimizedFixedViewCopyCustodyError;
+use super::OptimizedFixedViewCopyCustodyError;
 
 pub(super) fn compute_fixed_view_copies(
     source: &StagedOptimizedFixedPrecoloredSegmentHomes,

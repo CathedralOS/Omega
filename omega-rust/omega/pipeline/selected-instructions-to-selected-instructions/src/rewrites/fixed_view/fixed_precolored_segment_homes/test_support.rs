@@ -1,4 +1,4 @@
-use super::model::StagedOptimizedFixedPrecoloredSegmentHomes;
+use super::StagedOptimizedFixedPrecoloredSegmentHomes;
 
 /// One substitutable field of [`StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt`](super::StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt).
 /// The custody matrix substitutes exactly one field per leg so a rejection

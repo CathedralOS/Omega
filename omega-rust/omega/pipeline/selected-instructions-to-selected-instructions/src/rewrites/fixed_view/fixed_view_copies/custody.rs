@@ -2,7 +2,7 @@ use crate::FixedViewCopyValidationReceipt;
 
 use crate::StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt;
 
-use super::model::StagedOptimizedFixedViewCopyCustodyReceipt;
+use super::StagedOptimizedFixedViewCopyCustodyReceipt;
 
 pub(super) fn fixed_view_copy_custody_receipt(
     segment_homes: StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,

@@ -2,7 +2,7 @@ use crate::LivenessValidationReceipt;
 
 use target_operations_to_selected_instructions::StagedOptimizedSelectionCustodyReceipt;
 
-use super::model::StagedOptimizedLivenessCustodyReceipt;
+use super::StagedOptimizedLivenessCustodyReceipt;
 
 pub(super) fn liveness_custody_receipt(
     upstream: StagedOptimizedSelectionCustodyReceipt,

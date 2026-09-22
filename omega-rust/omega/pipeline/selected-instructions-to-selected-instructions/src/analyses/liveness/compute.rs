@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::analyses::liveness::model::LivenessError;
+use crate::analyses::liveness::LivenessError;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
     BlockLiveness, EntryDefinition, FunctionLiveness, InstructionLiveness, LivenessPlan,

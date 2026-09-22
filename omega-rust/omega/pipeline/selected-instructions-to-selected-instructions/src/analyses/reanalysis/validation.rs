@@ -10,9 +10,7 @@ use crate::{
 
 use super::custody::selected_reanalysis_custody_receipt;
 use super::invariants::require_no_transitions;
-use super::model::{
-    OptimizedSelectedReanalysisError, StagedOptimizedSelectedReanalysisCustodyReceipt,
-};
+use super::{OptimizedSelectedReanalysisError, StagedOptimizedSelectedReanalysisCustodyReceipt};
 
 pub fn validate_optimized_selected_reanalysis_custody(
     transformation: &StagedOptimizedFixedViewCopies,
