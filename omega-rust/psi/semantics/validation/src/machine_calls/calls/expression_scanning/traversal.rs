@@ -570,8 +570,7 @@ fn scan_expression_calls_at_position(
             != 1
             || !path.head_symbol.is_valid()
             || path.head_symbol == path.symbol;
-        if name != "true"
-            && name != "false"
+        if language_semantics::const_value::boolean_literal_spelling(name).is_none()
             && (!bare_identity_matches
                 || !crate::value_custody::locals::state_value_root_is_known(
                     program,

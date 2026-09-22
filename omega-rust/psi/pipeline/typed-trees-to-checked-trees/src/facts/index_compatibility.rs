@@ -6,6 +6,7 @@ use checked_trees::{
 use diagnostics::Diagnostic;
 use facts::{FactHandle, FactPayload, FactPlan, ProgramPoint};
 use language_semantics::SemanticDomainId;
+use language_semantics::const_value::boolean_literal_spelling;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::data::{DataMember, TypeParameterKind};
@@ -1494,11 +1495,7 @@ fn bound_index_named_matches_expression(
         }
         ExpressionNode::Integer(literal) => named_integer_value(name.as_str())
             .is_some_and(|expected| literal.value_bignum() == Some(expected)),
-        ExpressionNode::Boolean(value) => match name.as_str() {
-            "true" => *value,
-            "false" => !*value,
-            _ => false,
-        },
+        ExpressionNode::Boolean(value) => boolean_literal_spelling(name.as_str()) == Some(*value),
         _ => false,
     }
 }
@@ -1698,11 +1695,9 @@ fn substituted_expression_matches_index_argument(
                 }
                 ExpressionNode::Integer(literal) => named_integer_value(name.as_str())
                     .is_some_and(|expected| literal.value_bignum() == Some(expected)),
-                ExpressionNode::Boolean(value) => match name.as_str() {
-                    "true" => *value,
-                    "false" => !*value,
-                    _ => false,
-                },
+                ExpressionNode::Boolean(value) => {
+                    boolean_literal_spelling(name.as_str()) == Some(*value)
+                }
                 _ => false,
             }
         }
@@ -1786,8 +1781,7 @@ fn substituted_expressions_equal(
         (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) => left == right,
         (ExpressionNode::Boolean(left), ExpressionNode::Name(right))
         | (ExpressionNode::Name(right), ExpressionNode::Boolean(left)) => {
-            matches!(expression_name_atom(program, right), Some("true") if *left)
-                || matches!(expression_name_atom(program, right), Some("false") if !*left)
+            expression_name_atom(program, right).and_then(boolean_literal_spelling) == Some(*left)
         }
         (ExpressionNode::String(left), ExpressionNode::String(right)) => left == right,
         (ExpressionNode::Float(left), ExpressionNode::Float(right)) => left == right,

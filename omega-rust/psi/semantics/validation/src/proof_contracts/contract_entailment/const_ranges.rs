@@ -656,9 +656,11 @@ fn static_const_value(
                 .map(|_| Polynomial::atom(format!("const:{:?}", parameter.symbol))),
         );
     }
-    use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+    use language_semantics::const_value::{
+        CanonicalConstValue, DecodedCanonicalConstValue, boolean_literal_spelling,
+    };
     if !argument.symbol.is_valid()
-        && matches!(argument.path.as_ref(), [name] if matches!(name.as_str(), "true" | "false"))
+        && matches!(argument.path.as_ref(), [name] if boolean_literal_spelling(name.as_str()).is_some())
     {
         return Some(None);
     }

@@ -461,6 +461,23 @@ impl BuiltinFunction {
         matches!(self, Self::Min | Self::Max | Self::Sqrt)
     }
 
+    /// Whether this builtin is one of the value-position asm intrinsics
+    /// (`in`, `pushfq`, `rdmsr`): the parser desugars the instruction to
+    /// `<dest> = asm#...(..)`, so the call yields a value in expression
+    /// position where every other asm intrinsic is a statement call. A
+    /// receiverless value call to one of these is therefore not an unresolved
+    /// machine call. The control- and system-register reads (`read_crN`,
+    /// `read_<sysreg>`) are value-position too, but their names, mnemonics and
+    /// operand contracts are owned by `language_core::inline_assembly`'s
+    /// register catalogs, which the same sites ask beside this predicate; this
+    /// set is exactly the three value intrinsics that are not register reads.
+    pub const fn is_value_position_asm_intrinsic(self) -> bool {
+        matches!(
+            self,
+            Self::AsmPortIn | Self::AsmSnapshotFlags | Self::AsmReadMsr
+        )
+    }
+
     pub fn name(self) -> &'static str {
         match self {
             Self::Max => "max",
@@ -1519,6 +1536,34 @@ mod builtin_ordinal_tests {
                 BuiltinFunction::Min,
                 BuiltinFunction::Sqrt
             ]
+        );
+    }
+
+    #[test]
+    fn value_position_asm_intrinsics_are_exactly_port_in_pushfq_rdmsr() {
+        let value_position: Vec<BuiltinFunction> = BuiltinFunction::ALL
+            .into_iter()
+            .filter(|function| function.is_value_position_asm_intrinsic())
+            .collect();
+        assert_eq!(
+            value_position,
+            [
+                BuiltinFunction::AsmPortIn,
+                BuiltinFunction::AsmSnapshotFlags,
+                BuiltinFunction::AsmReadMsr
+            ]
+        );
+        assert_eq!(
+            value_position
+                .iter()
+                .map(|function| function.name())
+                .collect::<Vec<_>>(),
+            ["asm#port_in", "asm#pushfq", "asm#rdmsr"]
+        );
+        assert!(
+            value_position
+                .iter()
+                .all(|function| function.is_asm_intrinsic())
         );
     }
 

@@ -57,6 +57,25 @@ pub struct CanonicalConstValue {
     pub display: String,
 }
 
+/// The Boolean literal a bare name spells, or `None` when the name is not one
+/// of the two literal spellings.
+///
+/// Trees keep the literal keywords as names in three positions rather than
+/// folding them to an `ExpressionNode::Boolean`: a single-member name path in
+/// value or transition position, a path-shaped static (generic) argument, and
+/// the case name of a `bool` constructor term. Every consumer which meets a
+/// bare name in one of those positions asks here instead of re-spelling the
+/// keywords, and the canonical `boolean` encoding decodes through the same
+/// map. Only the exact lowercase keywords are literals: `True` and `TRUE` are
+/// ordinary declaration names.
+pub fn boolean_literal_spelling(name: &str) -> Option<bool> {
+    match name {
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
+    }
+}
+
 /// Display-independent semantic identity of one evaluated const value.
 ///
 /// The declared typed carrier remains separate compiler custody. This value
@@ -224,11 +243,7 @@ fn decode_node(
         if !rest.is_empty() {
             return None;
         }
-        return match spelling {
-            "true" => Some(DecodedCanonicalConstValue::Boolean(true)),
-            "false" => Some(DecodedCanonicalConstValue::Boolean(false)),
-            _ => None,
-        };
+        return boolean_literal_spelling(spelling).map(DecodedCanonicalConstValue::Boolean);
     }
 
     if let Some(mut rest) = encoding.strip_prefix("array") {
@@ -333,7 +348,7 @@ fn take_length_delimited(rest: &mut &str) -> Option<String> {
 mod tests {
     use super::{
         CanonicalConstIdentity, CanonicalConstValue, DecodedCanonicalConstValue, MAX_DECODE_DEPTH,
-        MAX_DECODED_NODES, MAX_ENCODING_BYTES,
+        MAX_DECODED_NODES, MAX_ENCODING_BYTES, boolean_literal_spelling,
     };
 
     fn framed(tag: &str, pieces: impl IntoIterator<Item = impl AsRef<str>>) -> String {
@@ -357,6 +372,33 @@ mod tests {
         let value =
             CanonicalConstValue::new("pkg::Unit", "record(2:a=1:b)", "Unit { symbol: \"μ:m\" }");
         assert_eq!(CanonicalConstValue::from_atom(&value.atom()), Some(value));
+    }
+
+    #[test]
+    fn boolean_literal_spellings_round_trip_through_the_canonical_atom() {
+        for value in [true, false] {
+            let spelling = value.to_string();
+            assert_eq!(boolean_literal_spelling(&spelling), Some(value));
+            let atom = CanonicalConstValue::boolean(value);
+            assert_eq!(atom.display, spelling);
+            assert_eq!(
+                atom.decode_encoding(),
+                Some(DecodedCanonicalConstValue::Boolean(value))
+            );
+        }
+    }
+
+    #[test]
+    fn only_the_exact_lowercase_keywords_spell_boolean_literals() {
+        for name in [
+            "True", "TRUE", "False", "FALSE", "tru", "true ", "", "0", "1", "bool",
+        ] {
+            assert_eq!(
+                boolean_literal_spelling(name),
+                None,
+                "`{name}` names a declaration, not a boolean literal"
+            );
+        }
     }
 
     #[test]

@@ -5,6 +5,7 @@ use super::{
     structural_term, term_contains,
 };
 use crate::proof_contracts::contract_entailment::law_conformance::collect_equality_conjuncts;
+use language_semantics::const_value::boolean_literal_spelling;
 use typed_trees::types::TypeReferenceHandle;
 
 pub(super) enum StructuralJudgment {
@@ -1595,12 +1596,16 @@ impl<'program> StructuralJudge<'program> {
             };
             return match self.resolve(term) {
                 StructuralTerm::Constructor { data, case, fields }
-                    if data == "bool" && case == "true" && fields.is_empty() =>
+                    if data == "bool"
+                        && fields.is_empty()
+                        && boolean_literal_spelling(&case) == Some(true) =>
                 {
                     StructuralJudgment::Proven
                 }
                 StructuralTerm::Constructor { data, case, fields }
-                    if data == "bool" && case == "false" && fields.is_empty() =>
+                    if data == "bool"
+                        && fields.is_empty()
+                        && boolean_literal_spelling(&case) == Some(false) =>
                 {
                     StructuralJudgment::Refuted
                 }

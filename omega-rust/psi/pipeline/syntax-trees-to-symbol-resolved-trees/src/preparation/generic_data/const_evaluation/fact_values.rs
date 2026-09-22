@@ -94,11 +94,7 @@ impl ConstScalarSpelling {
         if let Ok(value) = name.parse::<i128>() {
             return Some(Self::Integer(value));
         }
-        match name {
-            "true" => Some(Self::Boolean(true)),
-            "false" => Some(Self::Boolean(false)),
-            _ => None,
-        }
+        language_semantics::const_value::boolean_literal_spelling(name).map(Self::Boolean)
     }
 }
 
