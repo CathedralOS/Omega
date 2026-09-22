@@ -44,7 +44,7 @@ fn nested_predicate_denotation_preserves_exact_child_and_current_markers() {
     // The codec retains evidence structure; semantic equivalence and premise
     // availability are checked by the proof owner, not invented by decoding.
     let bytes = encode_proof_bundle(&original).unwrap();
-    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
     assert_eq!(&bytes[31..33], &5_u16.to_le_bytes());
     assert_eq!(bytes[34], 22);
     let decoded = decode_proof_bundle(&bytes).unwrap();

@@ -1,7 +1,8 @@
 //! Validation of proof check elision rewrites.
 
 use crate::{
-    ModuleError, reconstruct_optimizable_terminal_obligations, validate_module_for_optimization,
+    ModuleError, reconstruct_optimizable_crash_obligations,
+    reconstruct_optimizable_terminal_obligations, validate_module_for_optimization,
 };
 use semantic_vocabulary::{MachineId, ObligationId, OperationId, Proposition, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -234,6 +235,18 @@ pub fn validate_proof_check_elision(
         }
     }
     if remaining.next().is_some() {
+        return Err(RewriteError::ChangedProofQuestion);
+    }
+    // Crash obligations are checked the strict way: the supplied roster is
+    // byte-preserved by the bundle comparison below, so its certificates only
+    // remain answers when the reconstructed crash question is identical. An
+    // elision that would substitute inside a crash site's path axioms or a
+    // continuation goal is refused rather than transported.
+    let old_crash = reconstruct_optimizable_crash_obligations(before_valid)
+        .map_err(RewriteError::InvalidModule)?;
+    let new_crash = reconstruct_optimizable_crash_obligations(after_valid)
+        .map_err(RewriteError::InvalidModule)?;
+    if old_crash != new_crash {
         return Err(RewriteError::ChangedProofQuestion);
     }
     // The consumed obligations' evidence rows leave with them; every other

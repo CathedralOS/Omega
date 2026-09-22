@@ -44,6 +44,7 @@ fn proof_format_canonically_encodes_content_certificates() {
         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
     };
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -71,7 +72,7 @@ fn proof_format_canonically_encodes_content_certificates() {
         .expect("reflexive content certificate");
 
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -84,6 +85,7 @@ fn proof_format_canonically_encodes_closed_saturating_arithmetic() {
     let clamped = ScalarTerm::integer(integer, IntegerValue::Unsigned(255)).unwrap();
     let goal = Proposition::Equal(sum, clamped);
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -112,7 +114,7 @@ fn proof_format_canonically_encodes_closed_saturating_arithmetic() {
     )
     .expect("closed u8 saturating addition proves 255");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -125,6 +127,7 @@ fn proof_format_canonically_encodes_closed_wrapping_subtraction() {
     let reduced = ScalarTerm::integer(integer, IntegerValue::Unsigned(251)).unwrap();
     let goal = Proposition::Equal(difference, reduced);
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -153,7 +156,7 @@ fn proof_format_canonically_encodes_closed_wrapping_subtraction() {
     )
     .expect("closed u8 wrapping subtraction proves 251");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -166,6 +169,7 @@ fn proof_format_canonically_encodes_closed_saturating_subtraction() {
     let clamped = ScalarTerm::integer(integer, IntegerValue::Unsigned(0)).unwrap();
     let goal = Proposition::Equal(difference, clamped);
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -194,7 +198,7 @@ fn proof_format_canonically_encodes_closed_saturating_subtraction() {
     )
     .expect("closed u8 saturating subtraction proves zero");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -207,6 +211,7 @@ fn proof_format_canonically_encodes_closed_wrapping_multiplication() {
     let reduced = ScalarTerm::integer(integer, IntegerValue::Unsigned(4)).unwrap();
     let goal = Proposition::Equal(product, reduced);
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -235,7 +240,7 @@ fn proof_format_canonically_encodes_closed_wrapping_multiplication() {
     )
     .expect("closed u8 wrapping multiplication proves four");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -269,6 +274,7 @@ fn proof_format_canonically_encodes_sum_case_content_certificates() {
         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
     };
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -283,7 +289,7 @@ fn proof_format_canonically_encodes_sum_case_content_certificates() {
     };
 
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -296,6 +302,7 @@ fn proof_format_canonically_encodes_closed_saturating_multiplication() {
     let clamped = ScalarTerm::integer(integer, IntegerValue::Unsigned(255)).unwrap();
     let goal = Proposition::Equal(product, clamped);
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -324,7 +331,7 @@ fn proof_format_canonically_encodes_closed_saturating_multiplication() {
     )
     .expect("closed u8 saturating multiplication proves 255");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -351,6 +358,7 @@ fn proof_evidence_order_and_proof_depth_fail_closed() {
         };
     }
     let too_deep = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -386,6 +394,7 @@ fn proof_evidence_order_and_proof_depth_fail_closed() {
         };
     }
     let too_deep_substitution = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -410,6 +419,7 @@ fn proof_evidence_order_and_proof_depth_fail_closed() {
         term = ScalarTerm::wrapping_integer_add(integer, term, literal()).unwrap();
     }
     let deep_term = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -545,6 +555,7 @@ fn proof_replacement_and_attached_sections_change_only_their_identities() {
 
 fn bundle_with_proof(proof: ProofNode) -> ProofBundle {
     ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),

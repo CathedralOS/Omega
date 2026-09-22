@@ -995,6 +995,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
             }],
         };
         let bundle = ProofBundle {
+            crash_obligations: Vec::new(),
             recursive_components: Vec::new(),
             control_cycles: Vec::new(),
             evidence_producers: Vec::new(),
@@ -1056,6 +1057,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
 fn content_conservation_accepts_a_replaceable_certificate() {
     let (module, goal, obligation) = reflexive_content_module();
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -1081,6 +1083,7 @@ fn content_conservation_accepts_a_replaceable_certificate() {
 fn identity_reshuffle_reconstructs_content_equality_as_a_semantic_axiom() {
     let (module, goal, obligation) = identity_reshuffle_module();
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),

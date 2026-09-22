@@ -17,7 +17,8 @@ pub use debug_map::{
 };
 pub use proof_bundle::{
     AdmissionEvidence, AdmissionKind, CertificateEnvelope, ControlCycleEvidence,
-    CorrelatedAffineBranchWitness, CorrelatedAffineStepWitness, EvidenceProducerProvenance,
+    CorrelatedAffineBranchWitness, CorrelatedAffineStepWitness, CrashCertificate,
+    CrashObligationEvidence, CrashObligationOwner, EvidenceProducerProvenance,
     EvidenceProducerRealization, EvidenceProducerRowSource, EvidenceRoute, IntegerAffineWitness,
     IntegerCastChainWitness, IntegerCorrelatedForbiddenRootWitness, ObligationEvidence,
     PrimitiveJudgment, ProofBundle, ProofNode, ProofRule, ProofSystemMarker,

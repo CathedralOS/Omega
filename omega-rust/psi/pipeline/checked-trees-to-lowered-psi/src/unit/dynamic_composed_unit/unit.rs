@@ -315,6 +315,7 @@ fn lower_dynamic_unit_machine(
             },
         },
         proof_bundle: ProofBundle {
+            crash_obligations: Vec::new(),
             recursive_components: Vec::new(),
             control_cycles: Vec::new(),
             evidence_producers: Vec::new(),

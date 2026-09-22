@@ -390,10 +390,25 @@ fn cyclic_structural_scalar_call_preserves_surviving_crash_continuations() {
         Err(ModuleError::CallCrashContinuationsMismatch { .. })
     ));
     module.machines[0].contract.crash_routes.clear();
-    assert!(matches!(
-        validate_module(&module),
-        Err(ModuleError::CallCrashContinuationUncovered { .. })
-    ));
+    // Coverage is a certificate check now: the module stays structurally
+    // valid, and both the missing row and the producer's undischarged supply
+    // reject under interpretation verification.
+    validate_module(&module).expect("an uncovered continuation is still a module");
+    let owner = crate::support::rejected_crash_owner_under(
+        &module,
+        &ProofBundle::default(),
+        |module, bundle| {
+            verify_module_for_interpretation(module, bundle, &AdmissionProfile::default())
+                .map(|_| ())
+        },
+    );
+    assert!(
+        matches!(
+            owner,
+            terminal_psi::CrashObligationOwner::Continuation { .. }
+        ),
+        "expected a continuation question, got {owner:?}"
+    );
 }
 
 #[test]

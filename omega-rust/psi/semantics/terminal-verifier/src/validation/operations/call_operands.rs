@@ -132,7 +132,7 @@ pub(super) fn validate_call_structural_with_scalar_arguments(
 }
 
 pub(super) fn validate_boundary_call(
-    machine: &TerminalMachine,
+    _machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
     boundary_machines: &[BoundaryMachineDeclaration],
     value_types: &BTreeMap<ValueId, ScalarType>,
@@ -158,11 +158,13 @@ pub(super) fn validate_boundary_call(
         defined,
         ScalarCallKind::Boundary,
     )?;
-    super::super::crash::validate_boundary_call_crash_coverage(
-        machine,
-        boundary,
-        arguments,
-        operation.id,
-    )?;
+    // The invocation's crash continuations are reconstructed — and covered by
+    // certificate evidence — at verification, not searched during validation.
+    // The formal telescope must still form so the reconstruction can bind it.
+    if !boundary.crash_routes.is_empty() {
+        boundary
+            .scalar_contract_parameters()
+            .ok_or(ModuleError::InvalidBoundaryCrashParameters(boundary.id))?;
+    }
     Ok(())
 }

@@ -16,7 +16,7 @@ use proof_admission::{
     AcceptedFact, AdmissionProfile, EvidenceError, RecursiveComponentAcceptance,
     RecursiveComponentError, verify_obligation_with_machine_parameters, verify_recursive_component,
 };
-use semantic_vocabulary::{EvidenceIdentity, EvidenceTermId, ObligationId};
+use semantic_vocabulary::{EvidenceIdentity, EvidenceTermId, ObligationId, Proposition};
 use terminal_psi::TerminalModule;
 
 use crate::{
@@ -45,17 +45,21 @@ pub(crate) use float_meaning_projection::{
     verify_direct_operation_float_result, verify_direct_structural_float_leaf,
 };
 pub use proof_bundle::{
-    ControlCycleEvidence, EvidenceProducerProvenance, EvidenceProducerRealization,
-    EvidenceProducerRowSource, ObligationEvidence, ProofBundle, RecursiveComponentEvidence,
+    ControlCycleEvidence, CrashCertificate, CrashObligationEvidence, CrashObligationOwner,
+    EvidenceProducerProvenance, EvidenceProducerRealization, EvidenceProducerRowSource,
+    ObligationEvidence, ProofBundle, RecursiveComponentEvidence,
 };
-pub(crate) use reconstruction::reconstruct_validated_crash_site_facts;
+use reconstruction::reconstruct_validated_crash_obligations;
 use reconstruction::reconstruct_validated_terminal_obligations;
 pub use reconstruction::{
-    ReconstructedOperationObligation, ReconstructedTerminalObligation,
-    ReconstructedTerminalObligationOwner, ReconstructedTerminalObligationSet,
-    reconstruct_execution_terminal_obligations, reconstruct_interpretable_operation_obligations,
+    CrashObligationQuestion, ReconstructedCrashObligation, ReconstructedOperationObligation,
+    ReconstructedTerminalObligation, ReconstructedTerminalObligationOwner,
+    ReconstructedTerminalObligationSet, reconstruct_crash_obligations,
+    reconstruct_execution_crash_obligations, reconstruct_execution_terminal_obligations,
+    reconstruct_interpretable_crash_obligations, reconstruct_interpretable_operation_obligations,
     reconstruct_interpretable_terminal_obligations, reconstruct_operation_obligations,
-    reconstruct_optimizable_terminal_obligations, reconstruct_terminal_obligations,
+    reconstruct_optimizable_crash_obligations, reconstruct_optimizable_terminal_obligations,
+    reconstruct_terminal_obligations,
 };
 pub(crate) use substitution::{
     substitute_proposition_structural_places, substitute_proposition_values,
@@ -401,6 +405,40 @@ fn verify_validated_module<'module>(
     if let Some(component) = cycle_evidence.keys().next().copied() {
         return Err(VerificationError::UnknownControlCycleEvidence(component));
     }
+    // Crash obligations are reconstructed from the module alone — every
+    // asserted crash-site guard against each reconstructed path, and every
+    // uncovered call continuation's coverage or refutation goal. The supplied
+    // roster is matched by owner and each certificate is re-decided under
+    // the question's own goal, requirements, and axioms; nothing here
+    // searches or trusts producer claims.
+    let crash_questions =
+        reconstruct_validated_crash_obligations(module).map_err(VerificationError::Module)?;
+    let mut crash_evidence = BTreeMap::new();
+    let mut previous_crash = None;
+    for entry in &proof_bundle.crash_obligations {
+        if previous_crash.is_some_and(|previous| previous >= entry.owner) {
+            return Err(VerificationError::NonCanonicalCrashObligationEvidence);
+        }
+        previous_crash = Some(entry.owner);
+        if crash_evidence.insert(entry.owner, entry).is_some() {
+            return Err(VerificationError::DuplicateCrashObligationEvidence(
+                entry.owner,
+            ));
+        }
+    }
+    for question in &crash_questions {
+        let evidence = crash_evidence.remove(&question.owner).ok_or(
+            VerificationError::MissingCrashObligationEvidence(question.owner),
+        )?;
+        if !crash_obligation_discharged(question, evidence) {
+            return Err(VerificationError::RejectedCrashObligationEvidence {
+                owner: question.owner,
+            });
+        }
+    }
+    if let Some(owner) = crash_evidence.keys().next().copied() {
+        return Err(VerificationError::UnknownCrashObligationEvidence(owner));
+    }
     Ok(VerifiedTerminalModuleState {
         validated,
         proof_bundle: proof_bundle.clone(),
@@ -412,9 +450,97 @@ fn verify_validated_module<'module>(
     })
 }
 
+/// Whether the supplied crash-certificate roster discharges one reconstructed
+/// obligation. Slot arity is part of the canonical row shape: a `Site` row
+/// carries one coverage roster per asserted guard and one refutation roster
+/// per reconstructed path; a `Continuation` row carries one coverage roster
+/// per formed coverage goal and a refutation roster exactly when the
+/// uncovered routes formed a complement goal. Every check replays the
+/// certificate's recorded denotation lane; no search runs here.
+///
+/// Producers replay this same predicate to refuse emitting a roster their own
+/// receiver would reject; verification runs it again on untrusted input.
+pub fn crash_obligation_discharged(
+    question: &ReconstructedCrashObligation,
+    evidence: &CrashObligationEvidence,
+) -> bool {
+    let Some(context) = &question.context else {
+        return false;
+    };
+    let check = |goal: &Proposition,
+                 semantic_axioms: &[Proposition],
+                 certificate: &terminal_psi::CrashCertificate| {
+        proof_admission::check_denotation_certificate(
+            context,
+            goal,
+            &question.requirements,
+            semantic_axioms,
+            certificate,
+        )
+    };
+    match &question.question {
+        CrashObligationQuestion::Site { guards, paths } => {
+            // A site with no reconstructed path is not vacuously true: the
+            // missing-path row is exactly what proof supply must not erase.
+            if paths.is_empty()
+                || evidence.coverage.len() != guards.len()
+                || evidence.refutation.len() != paths.len()
+            {
+                return false;
+            }
+            guards.iter().enumerate().all(|(guard_index, guard)| {
+                paths.iter().enumerate().all(|(path_index, axioms)| {
+                    evidence.coverage[guard_index].iter().any(|certificate| {
+                        check(guard, axioms, certificate)
+                    })
+                        // An infeasible path cannot reach this terminator, but
+                        // only a kernel-checked contradiction certificate
+                        // discharges it — missing supply never removes a path.
+                        || evidence.refutation[path_index].iter().any(|certificate| {
+                            check(&Proposition::Falsehood, axioms, certificate)
+                        })
+                })
+            })
+        }
+        CrashObligationQuestion::Continuation {
+            coverage_goals,
+            refutation_goal,
+        } => {
+            if evidence.coverage.len() != coverage_goals.len()
+                || evidence.refutation.len() != usize::from(refutation_goal.is_some())
+            {
+                return false;
+            }
+            // Entry-requirement questions cite no reconstructed CFG facts.
+            let covered =
+                coverage_goals
+                    .iter()
+                    .zip(&evidence.coverage)
+                    .any(|(goal, certificates)| {
+                        certificates
+                            .iter()
+                            .any(|certificate| check(goal, &[], certificate))
+                    });
+            covered
+                || refutation_goal.as_ref().is_some_and(|goal| {
+                    evidence.refutation[0]
+                        .iter()
+                        .any(|certificate| check(goal, &[], certificate))
+                })
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VerificationError {
     Module(ModuleError),
+    NonCanonicalCrashObligationEvidence,
+    DuplicateCrashObligationEvidence(CrashObligationOwner),
+    MissingCrashObligationEvidence(CrashObligationOwner),
+    UnknownCrashObligationEvidence(CrashObligationOwner),
+    RejectedCrashObligationEvidence {
+        owner: CrashObligationOwner,
+    },
     NonCanonicalControlCycleEvidence,
     MissingControlCycleEvidence(semantic_vocabulary::CycleComponentId),
     UnknownControlCycleEvidence(semantic_vocabulary::CycleComponentId),

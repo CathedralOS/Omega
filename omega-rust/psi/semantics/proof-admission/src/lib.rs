@@ -8,6 +8,11 @@
 //! The crate also owns the common mathematical core: the shared dependent
 //! term model and its independent checker for the reference predicative
 //! calculus with stratified relevant and strict universes.
+//!
+//! `certificate_search.rs` is separate producer machinery, not part of the
+//! checker: it runs the bounded denotation-lane search once at production
+//! time and emits nodes whose only authority is that the checker re-decides
+//! them. Verification consumes certificates; it never runs this search.
 
 #![forbid(unsafe_code)]
 //!
@@ -19,6 +24,7 @@
 //! `admission/` the evidence routes.
 
 mod admission;
+mod certificate_search;
 mod classicality;
 mod integer_rules;
 mod kernel;
@@ -43,6 +49,7 @@ pub use admission::recursion::{
     RecursiveEdgeObligation, verify_recursive_component,
     verify_recursive_component_with_machine_parameters,
 };
+pub use certificate_search::{check_denotation_certificate, produce_denotation_certificates};
 pub use classicality::ProofRuleFoundation;
 pub use integer_rules::closed_integer::{
     ClosedIntegerEvaluationError, ClosedIntegerEvaluator, compare_integer_math_terms,

@@ -10,6 +10,7 @@ use crate::validation::exact_payloadless_case_return_exits;
 use crate::{ModuleError, ValidatedInterpretableTerminalModule, validate_module};
 
 mod crash_field_origins;
+mod crash_obligations;
 mod crash_paths;
 mod machine_context;
 mod machine_flow;
@@ -155,6 +156,47 @@ pub(crate) fn reconstruct_validated_crash_site_facts(
         }
     }
     Ok(sites)
+}
+
+pub(crate) use crash_obligations::reconstruct_validated_crash_obligations;
+pub use crash_obligations::{CrashObligationQuestion, ReconstructedCrashObligation};
+
+/// Reconstruct the complete crash-obligation question replayed by
+/// [`crate::verify_module`]: every asserted crash-site guard against every
+/// reconstructed path into its terminator, and every uncovered call
+/// continuation's coverage or refutation goal. The producer builds its
+/// certificate roster against exactly this set; a proof bundle cannot add,
+/// remove, or retarget a question. The module is validated before any
+/// reconstruction occurs.
+pub fn reconstruct_crash_obligations(
+    module: &TerminalModule,
+) -> Result<Vec<ReconstructedCrashObligation>, ModuleError> {
+    reconstruct_validated_crash_obligations(validate_module(module)?.module())
+}
+
+/// Reuse execution validation of the same immutably borrowed module when
+/// reconstructing its crash obligations. This does not verify evidence.
+pub fn reconstruct_execution_crash_obligations(
+    validated: crate::ValidatedTerminalModule<'_>,
+) -> Result<Vec<ReconstructedCrashObligation>, ModuleError> {
+    reconstruct_validated_crash_obligations(validated.module())
+}
+
+/// Reconstruct the crash-obligation question for a module admitted by the
+/// interpreter profile, binding the same canonical artifact rows the
+/// execution profile consumes.
+pub fn reconstruct_interpretable_crash_obligations(
+    validated: ValidatedInterpretableTerminalModule<'_>,
+) -> Result<Vec<ReconstructedCrashObligation>, ModuleError> {
+    reconstruct_validated_crash_obligations(validated.module())
+}
+
+/// Preserve the complete crash-obligation question across an optimization.
+/// This consumes structural validation, not execution authority.
+pub fn reconstruct_optimizable_crash_obligations(
+    validated: crate::ValidatedOptimizableTerminalModule<'_>,
+) -> Result<Vec<ReconstructedCrashObligation>, ModuleError> {
+    reconstruct_validated_crash_obligations(validated.module())
 }
 
 /// Reconstruct proof obligations owned by executable operation sites. This is

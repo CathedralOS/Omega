@@ -69,7 +69,7 @@ fn strict_and_mixed_chains_roundtrip_and_replay_both_citations() {
             let (context, premises, proof) = fixture(strict, mathematical);
             let original = bundle(proof.clone());
             let bytes = encode_proof_bundle(&original).unwrap();
-            assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+            assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
             assert_eq!(&bytes[31..33], &5_u16.to_le_bytes());
             let decoded = decode_proof_bundle(&bytes).unwrap();
             assert_eq!(decoded, original);

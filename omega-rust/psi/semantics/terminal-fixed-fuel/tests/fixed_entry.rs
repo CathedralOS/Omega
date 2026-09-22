@@ -1065,6 +1065,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
         }],
     };
     let proof = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),

@@ -53,7 +53,7 @@ fn control_cycle_certificates_round_trip_after_proof_recursion_with_exact_identi
         ..ProofBundle::default()
     };
     let bytes = encode_proof_bundle(&bundle).unwrap();
-    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
     let identity = proof_bundle_fingerprint(&bundle).unwrap();
     for changed in [
@@ -128,8 +128,9 @@ fn control_cycle_evidence_rejects_noncanonical_components_and_edges() {
         Err(ProofCodecError::ZeroIdentity("CycleComponentId")),
     );
     // Equal-size certificates make the second component start exactly halfway
-    // through the two component payloads (excluding the final producer count).
-    let component_size = (bytes.len() - 22 - 4) / 2;
+    // through the two component payloads (excluding the final crash-roster
+    // and producer counts).
+    let component_size = (bytes.len() - 22 - 8) / 2;
     let mut duplicate_wire = bytes.clone();
     duplicate_wire[22 + component_size..30 + component_size].copy_from_slice(&31_u64.to_le_bytes());
     assert_eq!(

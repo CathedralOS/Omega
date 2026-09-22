@@ -31,7 +31,7 @@ fn proof_bundle_uses_one_current_canonical_vocabulary() {
     let bytes = encode_proof_bundle(&bundle).expect("representative proof bundle should encode");
 
     assert_eq!(&bytes[..8], b"PSIPRF\0\0");
-    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 
     let mut noncanonical = bytes.clone();
@@ -86,13 +86,14 @@ fn grouped_recursive_component_evidence_round_trips_and_rejects_reordering() {
         },
     };
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         evidence: Vec::new(),
         recursive_components: vec![component(301, 401, 501), component(302, 411, 511)],
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
     };
     let bytes = encode_proof_bundle(&bundle).expect("grouped recursion evidence encodes");
-    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 
     let mut reordered = bundle;
@@ -225,6 +226,7 @@ fn proof_format_round_trips_terminal_proposition_disjunction() {
         },
     };
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -257,7 +259,7 @@ fn proof_format_round_trips_terminal_proposition_disjunction() {
     assert_eq!(accepted.assumptions[0].proposition, Proposition::Truth);
 
     let bytes = encode_proof_bundle(&bundle).expect("disjunction proof bytes encode");
-    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
     assert_eq!(bytes[40], 9, "canonical disjunction-introduction tag");
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 
@@ -301,6 +303,7 @@ fn proof_format_assigns_tag_ten_to_integer_order_transitivity() {
         rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
     };
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -321,7 +324,7 @@ fn proof_format_assigns_tag_ten_to_integer_order_transitivity() {
     };
 
     let bytes = encode_proof_bundle(&bundle).expect("integer-order proof node encodes");
-    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
     assert_eq!(bytes[34], 10, "canonical integer-order-transitivity tag");
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 
@@ -340,6 +343,7 @@ fn proof_format_assigns_tag_eleven_to_integer_order_substitution() {
         rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
     };
     let wire_bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -361,7 +365,7 @@ fn proof_format_assigns_tag_eleven_to_integer_order_substitution() {
     };
 
     let bytes = encode_proof_bundle(&wire_bundle).expect("integer substitution node encodes");
-    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
     assert_eq!(bytes[34], 11, "canonical integer-order-substitution tag");
     assert_eq!(&bytes[41..45], &1_u32.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(wire_bundle));
@@ -388,6 +392,7 @@ fn proof_format_assigns_tag_eleven_to_integer_order_substitution() {
     let equality = Proposition::Equal(literal(5), divisor.clone());
     let conclusion = Proposition::LessOrEqual(literal(1), divisor);
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -415,7 +420,9 @@ fn proof_format_assigns_tag_eleven_to_integer_order_substitution() {
     };
     let mut corrupt_endpoint =
         encode_proof_bundle(&bundle).expect("checked substitution certificate encodes");
-    let trailing_empty_section_counts = 3 * std::mem::size_of::<u32>();
+    // Recursive components, control cycles, crash obligations and evidence
+    // producers each end the bundle as an empty count in this fixture.
+    let trailing_empty_section_counts = 4 * std::mem::size_of::<u32>();
     let endpoint =
         corrupt_endpoint.len() - trailing_empty_section_counts - std::mem::size_of::<u32>();
     corrupt_endpoint[endpoint..endpoint + 4].copy_from_slice(&2_u32.to_le_bytes());
@@ -445,6 +452,7 @@ fn proof_format_assigns_tag_twelve_to_integer_affine_bound() {
     let root = ScalarTerm::value(value_id(76), ScalarType::Integer(integer));
     let target = ScalarTerm::value(value_id(77), ScalarType::Integer(integer));
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -473,7 +481,7 @@ fn proof_format_assigns_tag_twelve_to_integer_affine_bound() {
     };
 
     let bytes = encode_proof_bundle(&bundle).expect("integer affine bound node encodes");
-    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
     assert_eq!(bytes[34], 12, "canonical integer-affine-bound tag");
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 
@@ -508,6 +516,7 @@ fn proof_format_assigns_tag_thirteen_to_integer_cast_chain_bound() {
     let source = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
     let target = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -535,7 +544,7 @@ fn proof_format_assigns_tag_thirteen_to_integer_cast_chain_bound() {
     };
 
     let bytes = encode_proof_bundle(&bundle).expect("integer cast bound node encodes");
-    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
     assert_eq!(bytes[34], 13, "canonical integer-cast-bound tag");
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 
@@ -555,6 +564,7 @@ fn proof_format_assigns_tag_fourteen_to_integer_correlated_forbidden_roots() {
     let divisor = ScalarTerm::value(value_id(82), ScalarType::Integer(integer));
     let conclusion = Proposition::Truth;
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -595,7 +605,7 @@ fn proof_format_assigns_tag_fourteen_to_integer_correlated_forbidden_roots() {
     };
 
     let bytes = encode_proof_bundle(&bundle).expect("integer correlated proof node encodes");
-    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
     assert_eq!(bytes[34], 14, "canonical correlated-forbidden-roots tag");
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 
@@ -651,6 +661,7 @@ fn proof_format_round_trips_negative_nonzero_certificate() {
         },
     };
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -676,7 +687,7 @@ fn proof_format_round_trips_negative_nonzero_certificate() {
     .expect("negative nonzero certificate checks before encoding");
 
     let bytes = encode_proof_bundle(&bundle).expect("negative nonzero proof encodes");
-    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
     let decoded = decode_proof_bundle(&bytes).expect("negative nonzero proof decodes");
     assert_eq!(decoded, bundle);
     let EvidenceRoute::CertificateDerived(certificate) = &decoded.evidence[0].route else {
@@ -711,6 +722,7 @@ fn proof_format_round_trips_atomic_ieee_structural_equality() {
         right,
     };
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -727,7 +739,7 @@ fn proof_format_round_trips_atomic_ieee_structural_equality() {
         }],
     };
     let bytes = encode_proof_bundle(&bundle).expect("IEEE proof bytes encode");
-    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 
     let mut inequality = bundle.clone();
@@ -775,6 +787,7 @@ fn proof_format_round_trips_atomic_byte_sequence_equality() {
     )
     .expect("right byte-sequence field");
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -791,7 +804,7 @@ fn proof_format_round_trips_atomic_byte_sequence_equality() {
         }],
     };
     let bytes = encode_proof_bundle(&bundle).expect("byte-sequence proof bytes encode");
-    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 
     let mut noncanonical = bundle;

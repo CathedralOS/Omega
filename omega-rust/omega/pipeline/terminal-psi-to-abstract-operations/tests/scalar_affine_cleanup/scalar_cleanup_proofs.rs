@@ -505,6 +505,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
         .position(|premise| premise == &question.obligation.proposition)
         .expect("owned readiness remains valid at this cleanup site");
     let proof = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),

@@ -5,6 +5,7 @@ use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
     Proposition, PropositionError, ScalarTerm, ScalarType, ValueId,
 };
+use terminal_psi::CrashObligationOwner;
 use terminal_psi::{
     Block, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, MachineContract,
     Operation, OperationKind, OperationResult, TerminalMachine, TerminalMachineResult,
@@ -182,6 +183,27 @@ fn row_error(module: &TerminalModule) -> ModuleError {
     validate_module(module).expect_err("the operation crash contract must reject")
 }
 
+/// Coverage is a certificate check now: the module stays structurally valid,
+/// the missing roster row rejects, and the producer's own supply cannot
+/// discharge the reconstructed continuation question.
+fn uncovered(module: &TerminalModule) {
+    validate_module(module).expect("an uncovered continuation stays structurally valid");
+    let owner = crate::support::rejected_crash_owner(module);
+    assert!(
+        matches!(
+            owner,
+            CrashObligationOwner::Continuation { operation, cause: CrashCause::Trap, .. }
+                if operation == id(1, OperationId::new)
+        ),
+        "expected the contract's continuation question, got {owner:?}"
+    );
+}
+
+/// A covered or disproved continuation discharges under the produced roster.
+fn verify(module: &TerminalModule) {
+    crate::support::verify_with_crash_supply(module);
+}
+
 #[test]
 fn operation_contract_substitutes_formals_with_the_operations_operands() {
     validate_module(&module())
@@ -218,24 +240,20 @@ fn continuations_must_equal_the_exact_operand_substitution() {
 
 #[test]
 fn substituted_continuations_need_same_cause_caller_coverage() {
-    let uncovered = ModuleError::CallCrashContinuationUncovered {
-        operation: id(1, OperationId::new),
-        cause: CrashCause::Trap,
-    };
     let mut silent = module();
     silent.machines[0].contract.crash_routes.clear();
-    assert_eq!(row_error(&silent), uncovered);
+    uncovered(&silent);
     let mut other_operand = module();
     other_operand.machines[0].contract.crash_routes =
         vec![guarded(CrashCause::Trap, negative(LEFT))];
-    assert_eq!(row_error(&other_operand), uncovered);
+    uncovered(&other_operand);
     let mut other_cause = module();
     other_cause.machines[0].contract.crash_routes =
         vec![guarded(CrashCause::Abort, negative(RIGHT))];
-    assert_eq!(row_error(&other_cause), uncovered);
+    uncovered(&other_cause);
     let mut ceiling = module();
     ceiling.machines[0].contract.crash_routes = vec![unconditional(CrashCause::Trap)];
-    validate_module(&ceiling).expect("an unconditional caller route covers the guarded one");
+    verify(&ceiling);
 }
 
 #[test]
@@ -246,7 +264,7 @@ fn entry_requirements_disprove_exact_substituted_continuations() {
         ScalarTerm::integer(i32_type(), IntegerValue::Signed(0)).unwrap(),
         integer(RIGHT),
     )];
-    validate_module(&safe).expect("the exact right operand cannot be negative");
+    verify(&safe);
     let retained = safe.operation_crash_contracts.clone();
     assert!(!retained[0].published_routes.is_empty());
     assert!(!retained[0].crash_continuations.is_empty());
@@ -256,22 +274,13 @@ fn entry_requirements_disprove_exact_substituted_continuations() {
         ScalarTerm::integer(i32_type(), IntegerValue::Signed(0)).unwrap(),
         integer(LEFT),
     )];
-    assert!(matches!(
-        row_error(&wrong_operand),
-        ModuleError::CallCrashContinuationUncovered { .. }
-    ));
+    uncovered(&wrong_operand);
     let mut wrong_polarity = safe.clone();
     wrong_polarity.machines[0].contract.requires = vec![negative(RIGHT)];
-    assert!(matches!(
-        row_error(&wrong_polarity),
-        ModuleError::CallCrashContinuationUncovered { .. }
-    ));
+    uncovered(&wrong_polarity);
     let mut missing = safe.clone();
     missing.machines[0].contract.requires.clear();
-    assert!(matches!(
-        row_error(&missing),
-        ModuleError::CallCrashContinuationUncovered { .. }
-    ));
+    uncovered(&missing);
     assert_eq!(safe.operation_crash_contracts, retained);
 }
 
@@ -290,19 +299,13 @@ fn each_alternative_needs_coverage_or_disproof() {
     contract(&mut checked).crash_continuations[0].alternatives = actuals;
     checked.machines[0].contract.crash_routes.clear();
     checked.machines[0].contract.requires = vec![nonnegative(LEFT), nonnegative(RIGHT)];
-    validate_module(&checked).expect("both alternatives are disproved");
+    verify(&checked);
     checked.machines[0].contract.requires = vec![nonnegative(RIGHT)];
-    assert!(matches!(
-        row_error(&checked),
-        ModuleError::CallCrashContinuationUncovered { .. }
-    ));
+    uncovered(&checked);
     checked.machines[0].contract.crash_routes = vec![guarded(CrashCause::Trap, negative(LEFT))];
-    validate_module(&checked).expect("left is covered and right is disproved");
+    verify(&checked);
     checked.machines[0].contract.crash_routes = vec![guarded(CrashCause::Abort, negative(LEFT))];
-    assert!(matches!(
-        row_error(&checked),
-        ModuleError::CallCrashContinuationUncovered { .. }
-    ));
+    uncovered(&checked);
 }
 
 #[test]
@@ -319,10 +322,7 @@ fn current_body_value_cannot_borrow_an_entry_disproof() {
     // Even its known zero must not be inferred from unrelated entry facts.
     checked.machines[0].blocks[0].operations.swap(0, 1);
     contract(&mut checked).crash_continuations = vec![guarded(CrashCause::Trap, negative(50))];
-    assert!(matches!(
-        row_error(&checked),
-        ModuleError::CallCrashContinuationUncovered { .. }
-    ));
+    uncovered(&checked);
 }
 
 #[test]
@@ -348,18 +348,15 @@ fn compound_route_disproof_preserves_boolean_connectives() {
         checked.machines[0].contract.crash_routes.clear();
         checked.machines[0].contract.requires = vec![nonnegative(RIGHT)];
         if conjunction {
-            validate_module(&checked).expect("one false conjunct disproves the route");
+            verify(&checked);
         } else {
-            assert!(matches!(
-                row_error(&checked),
-                ModuleError::CallCrashContinuationUncovered { .. }
-            ));
+            uncovered(&checked);
         }
         checked.machines[0]
             .contract
             .requires
             .push(nonnegative(LEFT));
-        validate_module(&checked).expect("both negative operands are impossible");
+        verify(&checked);
     }
 }
 
@@ -405,16 +402,13 @@ fn entry_disproof_requires_the_same_formal_on_every_incoming_edge() {
         call_block,
     ];
     contract(&mut checked).crash_continuations = vec![guarded(CrashCause::Trap, negative(60))];
-    validate_module(&checked).expect("both arrivals forward the exact right formal");
+    verify(&checked);
     let Terminator::Conditional { when_false, .. } = &mut checked.machines[0].blocks[0].terminator
     else {
         panic!("conditional");
     };
     when_false.arguments[0] = id(LEFT, ValueId::new);
-    assert!(matches!(
-        row_error(&checked),
-        ModuleError::CallCrashContinuationUncovered { .. }
-    ));
+    uncovered(&checked);
 }
 
 #[test]
@@ -422,15 +416,9 @@ fn unconditional_published_routes_survive_unconditionally() {
     let mut module = module();
     contract(&mut module).published_routes = vec![unconditional(CrashCause::Trap)];
     contract(&mut module).crash_continuations = vec![unconditional(CrashCause::Trap)];
-    assert_eq!(
-        row_error(&module),
-        ModuleError::CallCrashContinuationUncovered {
-            operation: id(1, OperationId::new),
-            cause: CrashCause::Trap,
-        }
-    );
+    uncovered(&module);
     module.machines[0].contract.crash_routes = vec![unconditional(CrashCause::Trap)];
-    validate_module(&module).unwrap();
+    verify(&module);
 }
 
 #[test]

@@ -123,6 +123,7 @@ fn two_returns(late_value: u64) -> TerminalModule {
 
 fn return_equality_certificate(value: u64) -> ProofBundle {
     ProofBundle {
+        crash_obligations: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: id(1, ObligationId::new),
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {

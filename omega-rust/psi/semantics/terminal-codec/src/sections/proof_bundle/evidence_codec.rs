@@ -9,9 +9,11 @@ use proof_admission::{
     AdmissionEvidence, AdmissionKind, CertificateEnvelope, EvidenceRoute, ProofSystemMarker,
     RecursiveComponentCertificate, RecursiveEdgeCertificate,
 };
+use terminal_psi::{CrashCause, CrashObligationOwner};
 use terminal_verifier::{
-    EvidenceProducerProvenance, EvidenceProducerRealization, EvidenceProducerRowSource,
-    ObligationEvidence, RecursiveComponentEvidence,
+    CrashCertificate, CrashObligationEvidence, EvidenceProducerProvenance,
+    EvidenceProducerRealization, EvidenceProducerRowSource, ObligationEvidence,
+    RecursiveComponentEvidence,
 };
 
 pub(crate) fn encode_evidence_producer(
@@ -236,4 +238,122 @@ fn decode_admission_kind(reader: &mut Reader<'_>) -> Result<AdmissionKind, Proof
         3 => Ok(AdmissionKind::CheckedAssemblyClaim),
         tag => Err(ProofCodecError::InvalidTag("AdmissionKind", tag)),
     }
+}
+
+pub(crate) fn encode_crash_obligation_evidence(
+    writer: &mut Writer,
+    evidence: &CrashObligationEvidence,
+    format_marker: u16,
+) -> Result<(), ProofCodecError> {
+    encode_crash_obligation_owner(writer, evidence.owner);
+    encode_crash_certificate_rosters(writer, &evidence.coverage, format_marker)?;
+    encode_crash_certificate_rosters(writer, &evidence.refutation, format_marker)
+}
+
+fn encode_crash_obligation_owner(writer: &mut Writer, owner: CrashObligationOwner) {
+    match owner {
+        CrashObligationOwner::Site {
+            machine,
+            block,
+            edge,
+        } => {
+            writer.u8(1);
+            writer.id(machine);
+            writer.id(block);
+            writer.id(edge);
+        }
+        CrashObligationOwner::Continuation {
+            machine,
+            operation,
+            cause,
+        } => {
+            writer.u8(2);
+            writer.id(machine);
+            writer.id(operation);
+            encode_crash_cause(writer, cause);
+        }
+    }
+}
+
+fn encode_crash_cause(writer: &mut Writer, cause: CrashCause) {
+    writer.u8(match cause {
+        CrashCause::Trap => 1,
+        CrashCause::Abort => 2,
+    });
+}
+
+fn encode_crash_certificate_rosters(
+    writer: &mut Writer,
+    rosters: &[Vec<CrashCertificate>],
+    format_marker: u16,
+) -> Result<(), ProofCodecError> {
+    writer.len("crash certificate rosters", rosters.len())?;
+    for roster in rosters {
+        writer.len("crash certificates", roster.len())?;
+        for certificate in roster {
+            writer.u8(u8::from(certificate.with_value_equalities));
+            encode_proof_node(writer, &certificate.proof, 0, format_marker)?;
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn decode_crash_obligation_evidence(
+    reader: &mut Reader<'_>,
+    format_marker: u16,
+) -> Result<CrashObligationEvidence, ProofCodecError> {
+    let owner = decode_crash_obligation_owner(reader)?;
+    let coverage = decode_crash_certificate_rosters(reader, format_marker)?;
+    let refutation = decode_crash_certificate_rosters(reader, format_marker)?;
+    Ok(CrashObligationEvidence {
+        owner,
+        coverage,
+        refutation,
+    })
+}
+
+fn decode_crash_obligation_owner(
+    reader: &mut Reader<'_>,
+) -> Result<CrashObligationOwner, ProofCodecError> {
+    Ok(match reader.u8()? {
+        1 => CrashObligationOwner::Site {
+            machine: reader.id("MachineId")?,
+            block: reader.id("BlockId")?,
+            edge: reader.id("EdgeId")?,
+        },
+        2 => CrashObligationOwner::Continuation {
+            machine: reader.id("MachineId")?,
+            operation: reader.id("OperationId")?,
+            cause: decode_crash_cause(reader)?,
+        },
+        tag => return Err(ProofCodecError::InvalidTag("CrashObligationOwner", tag)),
+    })
+}
+
+fn decode_crash_cause(reader: &mut Reader<'_>) -> Result<CrashCause, ProofCodecError> {
+    match reader.u8()? {
+        1 => Ok(CrashCause::Trap),
+        2 => Ok(CrashCause::Abort),
+        tag => Err(ProofCodecError::InvalidTag("CrashCause", tag)),
+    }
+}
+
+fn decode_crash_certificate_rosters(
+    reader: &mut Reader<'_>,
+    format_marker: u16,
+) -> Result<Vec<Vec<CrashCertificate>>, ProofCodecError> {
+    let roster_count = reader.count()?;
+    let mut rosters = Vec::new();
+    for _ in 0..roster_count {
+        let certificate_count = reader.count()?;
+        let mut roster = Vec::new();
+        for _ in 0..certificate_count {
+            roster.push(CrashCertificate {
+                with_value_equalities: reader.boolean()?,
+                proof: decode_proof_node(reader, 0, format_marker)?,
+            });
+        }
+        rosters.push(roster);
+    }
+    Ok(rosters)
 }

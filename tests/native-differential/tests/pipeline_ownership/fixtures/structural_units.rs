@@ -84,6 +84,7 @@ pub(crate) fn unit_return_parts() -> (TerminalModule, ProofBundle) {
     let proof = ProofBundle {
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
+        crash_obligations: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     };

@@ -417,6 +417,7 @@ fn verified_natural_cycle() -> VerifiedPsiOptimizationUnit {
         })
         .collect();
     let proof = ProofBundle {
+        crash_obligations: Vec::new(),
         evidence: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: vec![ControlCycleEvidence {
@@ -690,6 +691,7 @@ fn verified_countdown() -> VerifiedPsiOptimizationUnit {
         })
         .collect();
     let proof = ProofBundle {
+        crash_obligations: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: reconstructed.obligation.id,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {

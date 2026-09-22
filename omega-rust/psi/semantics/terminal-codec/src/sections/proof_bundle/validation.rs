@@ -53,6 +53,18 @@ pub(super) fn validate_bundle(bundle: &ProofBundle) -> Result<(), ProofCodecErro
             validate_evidence_route(&edge.evidence)?;
         }
     }
+    let mut previous_owner = None;
+    for obligation in &bundle.crash_obligations {
+        if previous_owner.is_some_and(|previous| previous >= obligation.owner) {
+            return Err(ProofCodecError::NonCanonicalCrashObligationEvidence);
+        }
+        previous_owner = Some(obligation.owner);
+        for roster in obligation.coverage.iter().chain(&obligation.refutation) {
+            for certificate in roster {
+                validate_proof_node(&certificate.proof)?;
+            }
+        }
+    }
     let mut previous_term = None;
     for (index, producer) in bundle.evidence_producers.iter().enumerate() {
         let expected = EvidenceIdentity::new(

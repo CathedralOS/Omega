@@ -5,6 +5,7 @@ use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, Proposition,
     ScalarTerm, ScalarType, ValueId,
 };
+use terminal_psi::CrashObligationOwner;
 use terminal_psi::{
     Block, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, MachineContract,
     Operation, OperationKind, OperationResult, SuccessorEdge, TerminalMachine,
@@ -157,12 +158,7 @@ fn module(parameter: u64, expected: bool) -> TerminalModule {
 }
 
 fn verify(module: &TerminalModule) {
-    verify_module(
-        module,
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .unwrap();
+    crate::support::verify_with_crash_supply(module);
 }
 
 fn unconditional_ceiling(module: &mut TerminalModule) {
@@ -170,18 +166,13 @@ fn unconditional_ceiling(module: &mut TerminalModule) {
 }
 
 fn rejects_guard(module: &TerminalModule) {
-    let error = verify_module(
-        module,
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .expect_err("an asserted site predicate needs independent entry or control-flow evidence");
+    // Guard truth is decided by a supplied certificate now: the missing row
+    // rejects, and even the producer's best supply cannot answer a question
+    // no entry or control-flow fact discharges.
+    let owner = crate::support::rejected_crash_owner(module);
     assert!(
-        matches!(
-            error,
-            VerificationError::Module(ModuleError::CrashSiteGuardUnproved { .. })
-        ),
-        "expected a crash-site truth failure, got {error:?}"
+        matches!(owner, CrashObligationOwner::Site { .. }),
+        "expected a crash-site question, got {owner:?}"
     );
 }
 

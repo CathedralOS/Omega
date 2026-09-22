@@ -3,9 +3,9 @@
 use super::{
     BTreeMap, BTreeSet, BoundaryMachineDeclaration, CanonicalStructuralPathSegment,
     ContractClauseKind, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, IntegerSign,
-    IntegerType, IntegerValue, ModuleError, OperationId, PlaceId, Proposition, PropositionContext,
-    ScalarTerm, ScalarType, StructuralFieldType, StructuralTypeId, StructuralTypeShape,
-    TerminalMachine, TerminalModule, Terminator, ValueId, contracts, structural_leaf_type,
+    IntegerType, IntegerValue, ModuleError, PlaceId, Proposition, PropositionContext, ScalarTerm,
+    ScalarType, StructuralFieldType, StructuralTypeId, StructuralTypeShape, TerminalMachine,
+    TerminalModule, Terminator, ValueId, contracts, structural_leaf_type,
     substitute_proposition_values,
 };
 use numerics::{
@@ -13,15 +13,12 @@ use numerics::{
     integer_policy::{IntegerFormationCondition, IntegerPolicyPrimitive, integer_policy_bridge},
 };
 
-mod entry_requirements;
 mod operation_contracts;
 mod outcome;
-mod site_truth;
 
 pub use outcome::{BoundaryCrashOutcomeError, validate_boundary_crash_outcome};
 
 pub(super) use operation_contracts::validate_operation_crash_contracts;
-pub(super) use site_truth::validate_site_guard_truth;
 
 pub(super) fn validate_boundary_crash_routes(
     boundary: &BoundaryMachineDeclaration,
@@ -66,31 +63,6 @@ pub(super) fn validate_boundary_crash_routes(
     Ok(())
 }
 
-pub(super) fn validate_boundary_call_crash_coverage(
-    caller: &TerminalMachine,
-    boundary: &BoundaryMachineDeclaration,
-    arguments: &[ValueId],
-    operation: OperationId,
-) -> Result<(), ModuleError> {
-    if boundary.crash_routes.is_empty() {
-        return Ok(());
-    }
-    let substitutions = boundary
-        .scalar_contract_parameters()
-        .ok_or(ModuleError::InvalidBoundaryCrashParameters(boundary.id))?
-        .iter()
-        .zip(arguments)
-        .map(|(parameter, argument)| {
-            (
-                parameter.id,
-                ScalarTerm::value(*argument, parameter.scalar_type),
-            )
-        })
-        .collect::<BTreeMap<_, _>>();
-    let continuations = substitute_crash_routes(&boundary.crash_routes, &substitutions);
-    validate_call_crash_coverage(caller, &continuations, operation)
-}
-
 /// Replace formal value identities inside published crash routes with the
 /// invocation's actual scalar terms. This is the one substitution the
 /// verifier reconstructs at boundary calls and operation-level contracts;
@@ -131,67 +103,6 @@ pub fn substitute_crash_routes(
             })
         })
         .collect()
-}
-
-pub(super) fn validate_call_crash_coverage(
-    caller: &TerminalMachine,
-    continuations: &[CrashRouteBucket],
-    operation: OperationId,
-) -> Result<(), ModuleError> {
-    let published_routes = normalized_crash_routes(&caller.contract.crash_routes);
-    let covered = |continuation: &CrashRouteBucket| {
-        published_routes.iter().any(|published| {
-            published.cause == continuation.cause
-                && (published.alternatives == [CrashRouteGuard::Truth]
-                    || continuation
-                        .alternatives
-                        .iter()
-                        .all(|route| published.alternatives.contains(route)))
-        })
-    };
-    if normalized_crash_routes(continuations).iter().all(covered) {
-        return Ok(());
-    }
-    // Invocation routes remain exact in the caller's actual-value namespace.
-    // Only ceiling coverage may follow independently reconstructed CFG copies.
-    let forwarded = forwarded_formal_values(caller);
-    for continuation in normalized_crash_routes(&substitute_crash_routes(continuations, &forwarded))
-    {
-        // Each surviving alternative needs coverage or an independent disproof
-        // under invocation-entry requirements. Keep the original continuation
-        // roster: disproving this use must not rewrite the callee's ceiling.
-        if covered(&continuation) {
-            continue;
-        }
-        let uncovered: Vec<&CrashRouteGuard> = continuation
-            .alternatives
-            .iter()
-            .filter(|route| {
-                !published_routes.iter().any(|published| {
-                    published.cause == continuation.cause
-                        && (published.alternatives == [CrashRouteGuard::Truth]
-                            || published.alternatives.contains(route))
-                })
-            })
-            .collect();
-        // The producer stage runs the bounded searches for every entry-
-        // requirement question this continuation asks; the consumer
-        // re-derives each goal and only re-decides supplied certificates.
-        let certificates = entry_requirements::certify_continuation(
-            caller,
-            published_routes
-                .iter()
-                .filter(|published| published.cause == continuation.cause),
-            &uncovered,
-        );
-        if !certificates.discharges(caller) {
-            return Err(ModuleError::CallCrashContinuationUncovered {
-                operation,
-                cause: continuation.cause,
-            });
-        }
-    }
-    Ok(())
 }
 
 /// A checked provider may publish crash routes only where the boundary ceiling
@@ -270,7 +181,10 @@ pub(super) fn crash_routes_match(
     actual == expected || normalized_crash_routes(actual) == normalized_crash_routes(expected)
 }
 
-fn normalized_crash_routes(routes: &[CrashRouteBucket]) -> Vec<CrashRouteBucket> {
+/// Comparison normalization shared by route-matching validation and the
+/// crash-obligation reconstruction: continuation questions are emitted over
+/// normalized rosters only.
+pub(crate) fn normalized_crash_routes(routes: &[CrashRouteBucket]) -> Vec<CrashRouteBucket> {
     fn normalize(proposition: &Proposition) -> Proposition {
         match proposition {
             Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
@@ -328,7 +242,11 @@ fn normalized_crash_routes(routes: &[CrashRouteBucket]) -> Vec<CrashRouteBucket>
         .collect()
 }
 
-fn forwarded_formal_values(machine: &TerminalMachine) -> BTreeMap<ValueId, ScalarTerm> {
+/// The caller's formal-value forwarding map: parameters plus block
+/// parameters that provably carry an identical entry formal on every
+/// predecessor edge. Continuation questions substitute through it so the
+/// caller's entry requirements are cited in the formal namespace.
+pub(crate) fn forwarded_formal_values(machine: &TerminalMachine) -> BTreeMap<ValueId, ScalarTerm> {
     let mut incoming = machine
         .blocks
         .iter()

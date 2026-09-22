@@ -25,6 +25,7 @@ fn fixture() -> (PropositionContext, Proposition, ProofBundle) {
         },
     };
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -44,7 +45,7 @@ fn fixture() -> (PropositionContext, Proposition, ProofBundle) {
 fn scalar_symmetry_roundtrips_both_directions_without_canonicalizing_proof_citations() {
     let (context, premise, bundle) = fixture();
     let bytes = encode_proof_bundle(&bundle).unwrap();
-    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
     let decoded = decode_proof_bundle(&bytes).unwrap();
     assert_eq!(decoded, bundle);
     let EvidenceRoute::CertificateDerived(certificate) = &decoded.evidence[0].route else {

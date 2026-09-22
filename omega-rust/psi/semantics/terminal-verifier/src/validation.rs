@@ -69,7 +69,7 @@ mod conformance_applications;
 mod content;
 mod contracts;
 mod control_flow;
-mod crash;
+pub(crate) mod crash;
 mod dynamic_dispatch;
 mod error;
 mod evidence;
@@ -969,7 +969,6 @@ fn validate_module_with_policy(
     }
     root_service_reach::validate_root_service_reach_exact(module)?;
 
-    crash::validate_site_guard_truth(module)?;
     qualification_establishments::validate(module)?;
     Ok(registry)
 }

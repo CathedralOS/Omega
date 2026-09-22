@@ -1670,7 +1670,7 @@ table. The installation record `PSIINST\0` is emitted outside this codec.
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
 | semantic module | `PSITERM\0` | 106 | yes |
-| proof bundle | `PSIPRF\0\0` | 33 | no |
+| proof bundle | `PSIPRF\0\0` | 34 | no |
 | sealed proof section | `PSIPSC\0\0` | 1 | yes |
 | obligation ledger | `PSIOBLG\0` | 3 | yes |
 | canonical artifact | `PSIART\0\0` | 2 | no |

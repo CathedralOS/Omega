@@ -257,6 +257,7 @@ fn sum_case_identity_reshuffle_reconstructs_content_equality() {
         .expect("one projection yields one proposition");
     module.machines[0].contract.ensures[0].proposition = goal.clone();
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -497,6 +498,7 @@ fn exact_payloadless_guard_rebases_result_case_and_replays_only_matching_unnamed
             })
     );
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -692,6 +694,7 @@ fn multi_exit_payloadless_guards_intersect_only_exits_of_the_same_case() {
     );
 
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -785,6 +788,7 @@ fn multi_exit_payloadless_guards_activate_named_producers_by_reached_case_set() 
         rows: Vec::new(),
     };
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: vec![producer(1), producer(2)],
@@ -812,6 +816,7 @@ fn partition_composition_is_available_after_its_exact_successful_call() {
     let (module, goal, obligation) = partition_composition_module();
     validate_module(&module).expect("the partition substitution remains valid replay evidence");
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),

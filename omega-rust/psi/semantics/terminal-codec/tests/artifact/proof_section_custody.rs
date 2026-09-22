@@ -7,8 +7,9 @@
 //! counted obligation-evidence roster (obligation identity plus each evidence
 //! route payload), the grouped recursive-component certificates (component
 //! identity, certificate identity, ranking relation, well-foundedness route,
-//! and each decrease-edge route), the counted control-cycle certificates, and
-//! the counted evidence-producer provenance roster (dense identity, term,
+//! and each decrease-edge route), the counted control-cycle certificates, the
+//! counted crash-obligation roster (owner and each certificate lane and proof
+//! node), and the counted evidence-producer provenance roster (dense identity, term,
 //! conformance and trait identities, and each realization row) — are each
 //! substituted independently. A substitution either fails canonical decoding
 //! or encoding, or decodes to a different bundle whose honestly recomputed
@@ -25,8 +26,9 @@
 use std::ops::Range;
 
 use super::{
-    canonical_artifact, evidence_id, evidence_term_id, i32_type, machine_id, obligation_id,
-    proof_recursive_component, proof_recursive_evidence, proposition_id, semantic_module,
+    block_id, canonical_artifact, edge_id, evidence_id, evidence_term_id, i32_type, machine_id,
+    obligation_id, proof_recursive_component, proof_recursive_evidence, proposition_id,
+    semantic_module,
 };
 use proof_admission::{
     AdmissionEvidence, AdmissionKind, AdmissionProfile, CertificateEnvelope, EvidenceRoute,
@@ -44,7 +46,8 @@ use terminal_codec::{
     validate_artifact_manifest, verify_terminal_artifact_proof,
 };
 use terminal_psi::{
-    ContractClause, EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,
+    ContractClause, CrashCertificate, CrashObligationEvidence, CrashObligationOwner,
+    EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,
     EvidenceRequirementIdentity, EvidenceTermDeclaration, PropositionApplicationIdentity,
     PropositionDeclaration, PropositionEvidence, TerminalModule,
 };
@@ -67,6 +70,7 @@ struct SectionSpans {
     component_count: Range<usize>,
     components: Vec<ComponentSpan>,
     cycle_count: Range<usize>,
+    crash_count: Range<usize>,
     producer_count: Range<usize>,
     producers: Vec<ProducerSpan>,
     end: usize,
@@ -357,6 +361,11 @@ fn section_spans(encoded: &[u8]) -> SectionSpans {
     }
     let (cycle_count, cycle_rows) = walker.take_count();
     assert_eq!(cycle_rows, 0, "the fixture carries no control-cycle rows");
+    let (crash_count, crash_rows) = walker.take_count();
+    assert_eq!(
+        crash_rows, 0,
+        "the fixture carries no crash-obligation rows"
+    );
     let (producer_count, producer_rows) = walker.take_count();
     let mut producers = Vec::with_capacity(usize::try_from(producer_rows).expect("producers fit"));
     for _ in 0..producer_rows {
@@ -405,6 +414,7 @@ fn section_spans(encoded: &[u8]) -> SectionSpans {
         component_count,
         components,
         cycle_count,
+        crash_count,
         producer_count,
         producers,
         end: walker.offset,
@@ -481,6 +491,7 @@ fn custody_bundle(module: &TerminalModule) -> ProofBundle {
         rule,
     };
     ProofBundle {
+        crash_obligations: Vec::new(),
         evidence: vec![
             ObligationEvidence {
                 obligation: obligation_id(1),
@@ -711,6 +722,7 @@ fn sealed_proof_section_rejects_every_one_field_substitution() {
         spans.component_count.end - 1,
         spans.components[0].row.end - 1,
         spans.cycle_count.end - 1,
+        spans.crash_count.end - 1,
         spans.producer_count.end - 1,
         spans.producers[0].row.end - 1,
         spans.end - 1,
@@ -1230,6 +1242,72 @@ fn sealed_proof_section_rejects_every_one_field_substitution() {
         "a reordered control-cycle roster",
         &changed,
         ProofCodecError::NonCanonicalControlCycleEvidence,
+    );
+
+    // --- crash-obligation certificates: the module reconstructs no crash
+    // question, so a substituted roster row is representable surplus
+    // authority that replay refuses as unknown evidence; the owner,
+    // certificate lane and proof node are still bound into the recomputed
+    // identity ---
+
+    let surplus_crash = |machine: u64| -> CrashObligationEvidence {
+        CrashObligationEvidence {
+            owner: CrashObligationOwner::Site {
+                machine: machine_id(machine),
+                block: block_id(81),
+                edge: edge_id(82),
+            },
+            coverage: vec![vec![CrashCertificate {
+                with_value_equalities: false,
+                proof: ProofNode {
+                    conclusion: Proposition::Truth,
+                    rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
+                },
+            }]],
+            refutation: Vec::new(),
+        }
+    };
+    let mut changed = bundle.clone();
+    changed.crash_obligations.push(surplus_crash(83));
+    representable("an inserted crash-obligation row", &changed, false);
+    let crash_fields: [(&'static str, Box<dyn Fn(&mut CrashObligationEvidence)>); 3] = [
+        (
+            "a crash-obligation owner",
+            Box::new(|row| {
+                row.owner = CrashObligationOwner::Site {
+                    machine: machine_id(84),
+                    block: block_id(81),
+                    edge: edge_id(82),
+                };
+            }),
+        ),
+        (
+            "a crash certificate's denotation lane",
+            Box::new(|row| {
+                row.coverage[0][0].with_value_equalities = true;
+            }),
+        ),
+        (
+            "a crash certificate's proof rule",
+            Box::new(|row| {
+                row.coverage[0][0].proof.rule =
+                    ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation);
+            }),
+        ),
+    ];
+    for (name, mutate) in crash_fields {
+        let mut changed = bundle.clone();
+        let mut row = surplus_crash(83);
+        mutate(&mut row);
+        changed.crash_obligations.push(row);
+        representable(name, &changed, false);
+    }
+    let mut changed = bundle.clone();
+    changed.crash_obligations = vec![surplus_crash(84), surplus_crash(83)];
+    encode_rejected(
+        "a reordered crash-obligation roster",
+        &changed,
+        ProofCodecError::NonCanonicalCrashObligationEvidence,
     );
 
     // --- evidence producer provenance: the dense identity is canonicality-

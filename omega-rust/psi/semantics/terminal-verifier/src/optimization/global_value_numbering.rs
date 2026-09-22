@@ -1,7 +1,8 @@
 //! Validation of global value numbering rewrites.
 
 use crate::{
-    ModuleError, reconstruct_optimizable_terminal_obligations, validate_module_for_optimization,
+    ModuleError, reconstruct_optimizable_crash_obligations,
+    reconstruct_optimizable_terminal_obligations, validate_module_for_optimization,
 };
 use semantic_vocabulary::{BlockId, MachineId, OperationId, ValueId};
 use std::collections::BTreeMap;
@@ -146,6 +147,18 @@ pub fn validate_global_value_numbering(
     let new_question = reconstruct_optimizable_terminal_obligations(after_valid)
         .map_err(GlobalValueNumberingRewriteError::InvalidModule)?;
     if old_question != new_question {
+        return Err(GlobalValueNumberingRewriteError::ChangedProofQuestion);
+    }
+    // The crash-obligation roster is a second reconstructed question: a
+    // rewrite that leaves every terminal obligation intact may still retarget
+    // a crash site's reconstructed paths or a continuation's coverage goal,
+    // and the supplied certificates answer only the questions they were
+    // produced against.
+    let old_crash = reconstruct_optimizable_crash_obligations(before_valid)
+        .map_err(GlobalValueNumberingRewriteError::InvalidModule)?;
+    let new_crash = reconstruct_optimizable_crash_obligations(after_valid)
+        .map_err(GlobalValueNumberingRewriteError::InvalidModule)?;
+    if old_crash != new_crash {
         return Err(GlobalValueNumberingRewriteError::ChangedProofQuestion);
     }
     Ok(())

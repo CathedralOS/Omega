@@ -2,6 +2,9 @@
 //! shared support modules are declared once, and `cargo nextest run -p <crate> --test suite`
 //! runs them all. A new `tests/<topic>.rs` joins by one `mod` line below.
 
+#[allow(dead_code)]
+mod support;
+
 mod borrowed_storage_windows;
 mod calls;
 mod crash_site_truth;

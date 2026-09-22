@@ -217,6 +217,7 @@ fn contextual_scalar_return_materializes_then_executes_reverse_ordered_cleanups(
         .collect::<Vec<_>>();
     evidence.sort_by_key(|evidence| evidence.obligation);
     let proof_bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),

@@ -377,6 +377,7 @@ fn ranked_countdown_proof(module: &TerminalModule) -> ProofBundle {
         panic!("ranked countdown has exactly one proof obligation")
     };
     ProofBundle {
+        crash_obligations: Vec::new(),
         evidence: vec![countdown_decrement_evidence(
             module,
             &reconstructed.obligation,

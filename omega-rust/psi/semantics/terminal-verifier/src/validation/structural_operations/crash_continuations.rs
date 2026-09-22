@@ -71,7 +71,9 @@ pub(crate) fn validate_unit_call_crash_continuations(
             callee: callee.id,
         });
     }
-    crate::validation::crash::validate_call_crash_coverage(caller, continuations, operation)
+    // Coverage of the exact continuations is a reconstructed crash obligation
+    // answered by the proof bundle at verification, not searched here.
+    Ok(())
 }
 
 fn substitute_crash_route_places(

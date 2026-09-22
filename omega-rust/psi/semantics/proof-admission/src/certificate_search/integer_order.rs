@@ -2,7 +2,7 @@
 //! The existing kernel rule checks the conversion; this is certificate search,
 //! not an additional source of numeric facts or a normalization rule.
 
-use proof_admission::{ProofNode, ProofRule};
+use crate::{ProofNode, ProofRule};
 use semantic_vocabulary::{IntegerCarrier, IntegerValue, Proposition, ScalarTerm};
 
 pub(super) fn from_premise(goal: &Proposition, premise: &ProofNode) -> Option<ProofNode> {

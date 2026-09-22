@@ -77,6 +77,9 @@ const DISCRETE_PATH_FACTS_SOURCE: &[u8] = include_bytes!(
 );
 const SUBSTITUTION_SOURCE: &[u8] =
     include_bytes!("../../../terminal-verifier/src/verification/substitution.rs");
+const CRASH_OBLIGATION_RECONSTRUCTION_SOURCE: &[u8] = include_bytes!(
+    "../../../terminal-verifier/src/verification/reconstruction/crash_obligations.rs"
+);
 const PROOF_ADMISSION_LIB_SOURCE: &[u8] = include_bytes!("../../../proof-admission/src/lib.rs");
 const PROOF_ADMISSION_EVIDENCE_SOURCE: &[u8] =
     include_bytes!("../../../proof-admission/src/admission/evidence.rs");
@@ -85,6 +88,8 @@ const PROOF_ADMISSION_JUDGMENT_SOURCE: &[u8] =
 const PROOF_ADMISSION_CLOSED_INTEGER_SOURCE: &[u8] =
     include_bytes!("../../../proof-admission/src/integer_rules/closed_integer.rs");
 const PROOF_ADMISSION_PROOF_SOURCE: &[u8] = include_bytes!("../../../proof-admission/src/proof.rs");
+const PROOF_ADMISSION_CERTIFICATE_SEARCH_SOURCE: &[u8] =
+    include_bytes!("../../../proof-admission/src/certificate_search.rs");
 const PROOF_ADMISSION_ORDER_DISCRETENESS_SOURCE: &[u8] =
     include_bytes!("../../../proof-admission/src/proof/order_discreteness.rs");
 const PROOF_ADMISSION_STRICT_ORDER_SOURCE: &[u8] =

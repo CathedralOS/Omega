@@ -138,6 +138,7 @@ pub(super) fn proof_certified_local_cse_verified() -> VerifiedPsiOptimizationUni
         ProofBundle {
             recursive_components: Vec::new(),
             control_cycles: Vec::new(),
+            crash_obligations: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: vec![
                 ObligationEvidence {
@@ -229,6 +230,7 @@ pub(super) fn compatible_policy_local_cse_verified() -> VerifiedPsiOptimizationU
         ProofBundle {
             recursive_components: Vec::new(),
             control_cycles: Vec::new(),
+            crash_obligations: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation: redundant_obligation,
@@ -510,6 +512,7 @@ pub(super) fn phi_translated_gvn_verified_fixture(
         ProofBundle {
             recursive_components: Vec::new(),
             control_cycles: Vec::new(),
+            crash_obligations: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: [redundant_obligation, left_obligation, right_obligation]
                 .into_iter()
@@ -523,6 +526,7 @@ pub(super) fn phi_translated_gvn_verified_fixture(
         ProofBundle {
             recursive_components: Vec::new(),
             control_cycles: Vec::new(),
+            crash_obligations: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation: redundant_obligation,

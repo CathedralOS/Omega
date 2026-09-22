@@ -1,13 +1,12 @@
 use super::{
     AdmissionProfile, CrashCause, CrashRouteBucket, CrashRouteGuard, IntegerSign, IntegerType,
-    ModuleError, OperationKind, ProofBundle, Proposition, PropositionId, ScalarTerm, ScalarType,
-    StructuralMultiplicity, StructuralTypeId, TerminalModule, VerificationError, block_id,
-    boolean_declaration, boolean_value, boundary_call_module, boundary_id, machine_id,
-    operation_id, place_id, provider_candidate_module, structural_type_id, validate_module,
-    value_id, verify_module,
+    ModuleError, OperationKind, Proposition, PropositionId, ScalarTerm, ScalarType,
+    StructuralMultiplicity, StructuralTypeId, TerminalModule, block_id, boolean_declaration,
+    boolean_value, boundary_call_module, boundary_id, machine_id, operation_id, place_id,
+    provider_candidate_module, structural_type_id, validate_module, value_id, verify_module,
 };
 use semantic_vocabulary::{ClaimId, StructuralPlaceKind};
-use terminal_psi::{CompletionReceipt, CrashPredicateTerm, StructuralAccess};
+use terminal_psi::{CompletionReceipt, CrashObligationOwner, CrashPredicateTerm, StructuralAccess};
 use terminal_verifier::{BoundaryCrashOutcomeError, validate_boundary_crash_outcome};
 
 #[test]
@@ -540,7 +539,7 @@ fn boundary_crash_contract_substitutes_positional_formals_simultaneously() {
     validate_module(&module).expect("swapped actuals do not recursively substitute each other");
     verify_module(
         &module,
-        &ProofBundle::default(),
+        &crate::support::produced_crash_bundle(&module),
         &AdmissionProfile::default(),
     )
     .expect("boundary crash coverage is independently reconstructed");
@@ -564,16 +563,11 @@ fn boundary_crash_contract_rejects_actual_and_cause_drift_without_new_evidence()
             2 => changed.machines[0].contract.crash_routes.clear(),
             _ => unreachable!(),
         }
-        assert!(matches!(
-            verify_module(
-                &changed,
-                &ProofBundle::default(),
-                &AdmissionProfile::default()
-            ),
-            Err(VerificationError::Module(
-                ModuleError::CallCrashContinuationUncovered { .. }
-            ))
-        ));
+        let owner = crate::support::rejected_crash_owner(&changed);
+        assert!(
+            matches!(owner, CrashObligationOwner::Continuation { .. }),
+            "mutation {mutation}: expected a continuation question, got {owner:?}"
+        );
     }
 }
 
@@ -664,17 +658,18 @@ fn noncrashing_provider_does_not_narrow_boundary_crash_permission() {
         cause: CrashCause::Trap,
         alternatives: vec![CrashRouteGuard::Truth],
     }];
-    assert!(matches!(
-        validate_module(&module),
-        Err(ModuleError::CallCrashContinuationUncovered { .. })
-    ));
+    let owner = crate::support::rejected_crash_owner(&module);
+    assert!(
+        matches!(owner, CrashObligationOwner::Continuation { .. }),
+        "expected a continuation question, got {owner:?}"
+    );
     module.machines[0].contract.crash_routes = module.boundary_machines[0].crash_routes.clone();
-    validate_module(&module).expect("crash-free provider refines wider boundary permission");
+    crate::support::verify_with_crash_supply(&module);
 
     // A candidate publishing exactly the ceiling is the tightest conforming
     // provider; guarded refinement admits it without narrowing callers.
     module.machines[1].contract.crash_routes = module.boundary_machines[0].crash_routes.clone();
-    validate_module(&module).expect("ceiling-identical provider crash routes refine the boundary");
+    crate::support::verify_with_crash_supply(&module);
     module.machines[1].contract.crash_routes[0].cause = CrashCause::Abort;
     assert_eq!(
         validate_module(&module).unwrap_err(),

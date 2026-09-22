@@ -83,6 +83,7 @@ fn wrapping_add_axiom_proves_the_return_contract() {
         },
     };
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -148,6 +149,7 @@ fn saturating_add_axiom_proves_the_return_contract() {
         },
     };
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -213,6 +215,7 @@ fn wrapping_subtract_axiom_proves_the_return_contract() {
         },
     };
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -278,6 +281,7 @@ fn saturating_subtract_axiom_proves_the_return_contract() {
         },
     };
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -343,6 +347,7 @@ fn wrapping_multiply_axiom_proves_the_return_contract() {
         },
     };
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
@@ -408,6 +413,7 @@ fn saturating_multiply_axiom_proves_the_return_contract() {
         },
     };
     let bundle = ProofBundle {
+        crash_obligations: Vec::new(),
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
         evidence_producers: Vec::new(),

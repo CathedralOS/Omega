@@ -57,7 +57,7 @@ fn transport_roundtrip_preserves_nested_premise_and_ordered_equations() {
         vec![equation(2, 7), equation(1, 3)],
     ));
     let bytes = encode_proof_bundle(&original).unwrap();
-    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
     assert_eq!(&bytes[31..33], &5_u16.to_le_bytes());
     assert_eq!(bytes[34], 23);
     let decoded = decode_proof_bundle(&bytes).unwrap();
