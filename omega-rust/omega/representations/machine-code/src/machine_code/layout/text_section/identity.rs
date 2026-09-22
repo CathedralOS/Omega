@@ -1,10 +1,9 @@
 use super::{
-    InternalMachineCallResolutionKind, InternalMachineCallResolutionState, MachineAlternativeKey,
-    NativeTarget, NormalizedForeignCallResolutionKind, NormalizedForeignCallResolutionState,
+    InternalMachineCallResolutionKind, InternalMachineCallResolutionState, NativeTarget,
+    NormalizedForeignCallResolutionKind, NormalizedForeignCallResolutionState,
     RelocationFreeTextSectionPlacement, TerminalRelocationFreeTextSectionIdentity,
     TextSectionPlacementPolicy, TextSectionRelocationRequirements,
 };
-use selected_instructions::{MachineAlternativeFamily, SaturatingOperation};
 use sha2::{Digest, Sha256};
 use target::{Architecture, ObjectFormat};
 
@@ -44,7 +43,10 @@ pub fn relocation_free_text_section_identity(
             hasher.update((block.instructions.len() as u64).to_le_bytes());
             for instruction in &block.instructions {
                 hasher.update(instruction.instruction.0.to_le_bytes());
-                encode_alternative(&mut hasher, instruction.alternative);
+                selected_instructions::encode_machine_alternative_key_identity(
+                    &mut hasher,
+                    instruction.alternative,
+                );
                 hasher.update(instruction.function_offset.to_le_bytes());
                 hasher.update(instruction.section_offset.to_le_bytes());
                 hasher.update(instruction.byte_count.to_le_bytes());
@@ -132,101 +134,6 @@ fn encode_bytes(hasher: &mut Sha256, bytes: &[u8]) {
     hasher.update(bytes);
 }
 
-fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
-    hasher.update([match alternative.family {
-        MachineAlternativeFamily::CompareI64Zero => 0,
-        MachineAlternativeFamily::MaterializeI64 => 1,
-        MachineAlternativeFamily::CopyI64 => 2,
-        MachineAlternativeFamily::Float32ToBits => 26,
-        MachineAlternativeFamily::Float64ToBits => 27,
-        MachineAlternativeFamily::BitsToFloat32 => 28,
-        MachineAlternativeFamily::BitsToFloat64 => 29,
-        MachineAlternativeFamily::ZeroExtendU8 => 15,
-        MachineAlternativeFamily::ZeroExtendU32 => 20,
-        MachineAlternativeFamily::ZeroExtendU16 => 37,
-        MachineAlternativeFamily::SignExtendI8 => 38,
-        MachineAlternativeFamily::SignExtendI16 => 39,
-        MachineAlternativeFamily::SignExtendI32 => 40,
-        MachineAlternativeFamily::MaterializeBooleanEqual => 41,
-        MachineAlternativeFamily::MaterializeBooleanU64LessThan => 42,
-        MachineAlternativeFamily::MaterializeBooleanI64LessThan => 43,
-        MachineAlternativeFamily::MaterializeBooleanU64LessOrEqual => 44,
-        MachineAlternativeFamily::MaterializeBooleanI64LessOrEqual => 45,
-        MachineAlternativeFamily::ExactAddI64 => 3,
-        MachineAlternativeFamily::ExactAddI64Immediate => 4,
-        MachineAlternativeFamily::ExactSubtractI64 => 5,
-        MachineAlternativeFamily::ConditionalBranchNonZero => 6,
-        MachineAlternativeFamily::ReturnScalar => 7,
-        MachineAlternativeFamily::ExactSubtractI64Immediate => 8,
-        MachineAlternativeFamily::ReturnUnit => 9,
-        MachineAlternativeFamily::CompareI64 => 10,
-        MachineAlternativeFamily::CompareI64Immediate => 53,
-        MachineAlternativeFamily::ConditionalBranchU64LessThan => 11,
-        MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
-        MachineAlternativeFamily::CallScalar => 13,
-        MachineAlternativeFamily::Jump => 14,
-        MachineAlternativeFamily::Store => 24,
-        MachineAlternativeFamily::AddressOffset => 25,
-        MachineAlternativeFamily::Load64 => 16,
-        MachineAlternativeFamily::LoadPacked3 => 46,
-        MachineAlternativeFamily::LoadPacked5 => 47,
-        MachineAlternativeFamily::LoadPacked6 => 48,
-        MachineAlternativeFamily::LoadPacked7 => 49,
-        MachineAlternativeFamily::StorePacked => 50,
-        MachineAlternativeFamily::BitwiseAndI64 => 51,
-        MachineAlternativeFamily::BitwiseXorI64 => 52,
-        MachineAlternativeFamily::ExactDivideU64 => 56,
-        MachineAlternativeFamily::WrappingRemainderI64 => 57,
-        MachineAlternativeFamily::WrappingAddI64 => 58,
-        MachineAlternativeFamily::SaturatingAdd(carrier) => {
-            selected_instructions::saturating_family_tag(SaturatingOperation::Add, carrier)
-        }
-        MachineAlternativeFamily::SaturatingSubtract(carrier) => {
-            selected_instructions::saturating_family_tag(SaturatingOperation::Subtract, carrier)
-        }
-        MachineAlternativeFamily::SaturatingDivide(carrier) => {
-            selected_instructions::saturating_family_tag(SaturatingOperation::Divide, carrier)
-        }
-        MachineAlternativeFamily::SaturatingRemainder(carrier) => {
-            selected_instructions::saturating_family_tag(SaturatingOperation::Remainder, carrier)
-        }
-        MachineAlternativeFamily::Load8 => 33,
-        MachineAlternativeFamily::Load16 => 34,
-        MachineAlternativeFamily::Load32 => 30,
-        MachineAlternativeFamily::HostedExitProcessI32 => 31,
-        MachineAlternativeFamily::Crash => 111,
-        MachineAlternativeFamily::HostedReadByte => 32,
-        MachineAlternativeFamily::HostedWriteByteI32 => 23,
-        MachineAlternativeFamily::ByteViewAddress => 22,
-        MachineAlternativeFamily::Load8Indexed => 21,
-        MachineAlternativeFamily::CopyBytes => 59,
-        MachineAlternativeFamily::Store64 => 17,
-        MachineAlternativeFamily::FrameAddress => 18,
-        MachineAlternativeFamily::CallUnit => 19,
-        MachineAlternativeFamily::CallAggregate => 35,
-        MachineAlternativeFamily::ReturnAggregate => 36,
-        MachineAlternativeFamily::NormalizedForeignCall => 87,
-        MachineAlternativeFamily::ExactMultiplyI64 => 88,
-        MachineAlternativeFamily::ExactRemainderU64 => 89,
-        MachineAlternativeFamily::WrappingSubtractI64 => 90,
-        MachineAlternativeFamily::WrappingMultiplyI64 => 91,
-        MachineAlternativeFamily::WrappingDivideI64 => 92,
-        MachineAlternativeFamily::ExactDivideI64 => 112,
-        MachineAlternativeFamily::ExactRemainderI64 => 113,
-        MachineAlternativeFamily::BitwiseOrI64 => 93,
-        MachineAlternativeFamily::BitwiseNotI64 => 94,
-        MachineAlternativeFamily::SaveFloatingControl => 103,
-        MachineAlternativeFamily::RestoreFloatingControl => 104,
-        MachineAlternativeFamily::WrappingShiftLeftI64 => 105,
-        MachineAlternativeFamily::WrappingShiftRightI64 => 106,
-        MachineAlternativeFamily::WrappingShiftRightU64 => 107,
-        MachineAlternativeFamily::ExactShiftLeftI64 => 108,
-        MachineAlternativeFamily::ExactShiftRightI64 => 109,
-        MachineAlternativeFamily::ExactShiftRightU64 => 110,
-    }]);
-    hasher.update(alternative.variant.to_le_bytes());
-}
-
 #[cfg(test)]
 mod tests {
     use super::super::{
@@ -236,11 +143,11 @@ mod tests {
         SelectedInstructionPlanIdentity, TerminalPsiIdentity,
     };
     use super::{
-        InternalMachineCallResolutionKind, InternalMachineCallResolutionState,
-        MachineAlternativeFamily, MachineAlternativeKey, NativeTarget,
+        InternalMachineCallResolutionKind, InternalMachineCallResolutionState, NativeTarget,
         RelocationFreeTextSectionPlacement, TerminalRelocationFreeTextSectionIdentity,
         TextSectionPlacementPolicy, TextSectionRelocationRequirements,
     };
+    use selected_instructions::{MachineAlternativeFamily, MachineAlternativeKey};
     use terminal_psi::{SemanticFingerprint, VocabularyMarker};
 
     #[test]

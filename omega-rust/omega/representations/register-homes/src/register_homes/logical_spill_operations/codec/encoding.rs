@@ -1,8 +1,9 @@
 use super::super::{
     LogicalSpillOperationPlan, LogicalSpillOperationPolicy, LogicalSpillStorageClass,
 };
-use super::values::{encode_definition_site, encode_len, encode_origin, encode_scalar_type};
+use super::values::{encode_len, encode_origin, encode_scalar_type};
 use super::{MAGIC, VERSION};
+use optimization_unit::encode_value_definition_site_identity;
 
 pub(super) fn encode(plan: &LogicalSpillOperationPlan) -> Vec<u8> {
     let content = encode_content(plan);
@@ -47,7 +48,7 @@ pub(in crate::register_homes::logical_spill_operations) fn encode_content(
         bytes.extend_from_slice(&action.victim_class.0.to_le_bytes());
         encode_scalar_type(&mut bytes, action.victim_scalar_type);
         encode_origin(&mut bytes, action.victim_origin);
-        encode_definition_site(&mut bytes, action.victim_definition_site);
+        encode_value_definition_site_identity(&mut bytes, action.victim_definition_site);
         bytes.extend_from_slice(&action.current_view.0.to_le_bytes());
         bytes.extend_from_slice(&action.reclaimed_view.0.to_le_bytes());
         bytes.extend_from_slice(&action.storage.id.0.to_le_bytes());

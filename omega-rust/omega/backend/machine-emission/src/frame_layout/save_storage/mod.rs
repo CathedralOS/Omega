@@ -31,8 +31,8 @@ use register_model::{
 };
 use selected_instructions_to_register_homes::{
     AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirementPlan,
-    AllocatedCalleeSavedUnitRequirement, CalleeSavedModificationWitness,
-    FunctionAllocatedCalleeSavedRequirements, ValidatedAllocatedCalleeSavedRequirements,
+    AllocatedCalleeSavedUnitRequirement, FunctionAllocatedCalleeSavedRequirements,
+    ValidatedAllocatedCalleeSavedRequirements, encode_callee_saved_modification_witness_identity,
 };
 use target::NativeTarget;
 

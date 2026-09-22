@@ -7,7 +7,7 @@ use super::scalar::{encode_integer, encode_integer_type, encode_scalar_type};
 use super::structural::encode_provider_execution;
 use super::structural_types::{encode_string, encode_target_structural_argument};
 use crate::legalized_operations::LegalizedNormalizedForeignCall;
-use calling_conventions::{EntryStack, MachineRegime, Preemption, StatePlan};
+use calling_conventions::encode_state_plan_identity;
 use target::ForeignLocatorCandidate;
 use target_operations::{
     NormalizedForeignCallBinding, TargetUnitScalarArgumentSource, TargetUnitScalarHomeRequirement,
@@ -59,7 +59,7 @@ fn encode_native_callback_argument(
     encode_shape(bytes, callback.application.shape);
     encode_placement(bytes, &callback.application.placement);
     encode_call_plan(bytes, &callback.registrar_boundary_entry_plan.call);
-    encode_state_plan(bytes, &callback.registrar_boundary_entry_plan.state);
+    encode_state_plan_identity(bytes, &callback.registrar_boundary_entry_plan.state);
     encode_len(bytes, callback.registrar_context.binders.len());
     for row in &callback.registrar_context.binders {
         bytes.extend_from_slice(&row.binder.get().to_le_bytes());
@@ -104,7 +104,7 @@ fn encode_machine_function_identity(
 fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallBinding) {
     encode_locator(bytes, &binding.locator);
     encode_call_plan(bytes, &binding.boundary_entry_plan.call);
-    encode_state_plan(bytes, &binding.boundary_entry_plan.state);
+    encode_state_plan_identity(bytes, &binding.boundary_entry_plan.state);
     let contribution = &binding.same_stack_contribution;
     bytes.extend_from_slice(
         &contribution
@@ -161,41 +161,6 @@ fn encode_locator(bytes: &mut Vec<u8>, locator: &target::NormalizedForeignLocato
 fn encode_bytes(bytes: &mut Vec<u8>, value: &[u8]) {
     encode_len(bytes, value.len());
     bytes.extend_from_slice(value);
-}
-
-fn encode_state_plan(bytes: &mut Vec<u8>, state: &StatePlan) {
-    match state.initial_regime {
-        MachineRegime::X86Long64 => bytes.push(1),
-        MachineRegime::Aarch64A64 { exception_level } => {
-            bytes.push(2);
-            bytes.push(exception_level);
-        }
-    }
-    for set in [
-        state.interrupted_state,
-        state.saved_state,
-        state.restored_state,
-        state.permitted_transitive_use,
-    ] {
-        bytes.extend_from_slice(&set.bits().to_le_bytes());
-    }
-    match state.stack {
-        EntryStack::Interrupted => bytes.push(1),
-        EntryStack::Dedicated { class } => {
-            bytes.push(2);
-            bytes.extend_from_slice(&class.to_le_bytes());
-        }
-        EntryStack::ProviderSelected => bytes.push(3),
-    }
-    match state.preemption {
-        Preemption::NotApplicable => bytes.push(1),
-        Preemption::Masked => bytes.push(2),
-        Preemption::Nestable { maximum_depth } => {
-            bytes.push(3);
-            bytes.extend_from_slice(&maximum_depth.to_le_bytes());
-        }
-        Preemption::ProviderDefined => bytes.push(4),
-    }
 }
 
 fn encode_scalar_home(bytes: &mut Vec<u8>, home: &TargetUnitScalarHomeRequirement) {

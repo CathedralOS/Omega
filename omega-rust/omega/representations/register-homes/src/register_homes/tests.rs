@@ -1,11 +1,17 @@
 use super::register_home_identity;
+use crate::CalleeSavedModificationWitness;
 use crate::{
     AllocationLegalityIdentity, FunctionRegisterHomes, RegisterHomeDecodeError, RegisterHomePlan,
     VirtualRegisterHome,
 };
-use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::{LiveRangeIdentity, VirtualRegisterId};
+use register_model::{
+    RegisterClassId, RegisterViewId, RegisterWriteSemantics, TargetRegisterEnvironmentIdentity,
+};
+use selected_instructions::{
+    LiveRangeIdentity, SelectedBlockId, SelectedInstructionId, VirtualRegisterId,
+};
 use semantic_vocabulary::MachineId;
+use sha2::Digest;
 
 type Mutation = fn(&mut RegisterHomePlan);
 
@@ -130,5 +136,69 @@ fn canonical_home_codec_rejects_framing_and_identity_corruption() {
     assert_eq!(
         RegisterHomePlan::decode(&invalid_machine),
         Err(RegisterHomeDecodeError::InvalidMachineId(0))
+    );
+}
+
+/// The callee-saved witness encoder feeds a hasher, so its bytes are pinned by
+/// hashing the expected byte table and comparing digests: a single changed
+/// byte in the encoder changes the digest.
+fn witness_digest(witness: CalleeSavedModificationWitness) -> [u8; 32] {
+    let mut hasher = sha2::Sha256::new();
+    crate::encode_callee_saved_modification_witness_identity(&mut hasher, witness);
+    hasher.finalize().into()
+}
+
+fn digest_of(bytes: &[u8]) -> [u8; 32] {
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(bytes);
+    hasher.finalize().into()
+}
+
+#[test]
+fn callee_saved_modification_witness_identity_bytes_are_pinned() {
+    // Expected bytes ported from the copies of this encoder that
+    // `selected-instructions-to-register-homes` and `machine-emission`
+    // carried before de-duplication: a variant tag, then `u32` block,
+    // `u32` instruction, `u16` operand, `u32` virtual register, `u16` home
+    // view and the write-semantics tag, all little-endian.
+    let operand_definition = |write_semantics| CalleeSavedModificationWitness::OperandDefinition {
+        block: SelectedBlockId(0x0403_0201),
+        instruction: SelectedInstructionId(0x0807_0605),
+        operand: 0x0a09,
+        virtual_register: VirtualRegisterId(0x0e0d_0c0b),
+        home_view: RegisterViewId(0x100f),
+        write_semantics,
+    };
+    let write_semantics_tags: [(RegisterWriteSemantics, u8); 6] = [
+        (RegisterWriteSemantics::ExactView, 0),
+        (RegisterWriteSemantics::PreservesUnwritten, 1),
+        (RegisterWriteSemantics::ZeroExtendsParent, 2),
+        (RegisterWriteSemantics::ZeroExtendsWithinUnit, 3),
+        (RegisterWriteSemantics::Discards, 4),
+        (RegisterWriteSemantics::InstructionDefined, 5),
+    ];
+    for (write_semantics, tag) in write_semantics_tags {
+        assert_eq!(
+            witness_digest(operand_definition(write_semantics)),
+            digest_of(&[
+                0, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+                0x0e, 0x0f, 0x10, tag,
+            ]),
+            "{write_semantics:?}",
+        );
+    }
+    assert_eq!(
+        witness_digest(CalleeSavedModificationWitness::ImplicitDefinition {
+            block: SelectedBlockId(0x0403_0201),
+            instruction: SelectedInstructionId(0x0807_0605),
+        }),
+        digest_of(&[1, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]),
+    );
+    assert_eq!(
+        witness_digest(CalleeSavedModificationWitness::ImplicitClobber {
+            block: SelectedBlockId(0x0403_0201),
+            instruction: SelectedInstructionId(0x0807_0605),
+        }),
+        digest_of(&[2, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]),
     );
 }

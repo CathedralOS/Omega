@@ -1,6 +1,7 @@
 //! Exact case custody and the physical transport of edge-produced payloads.
 use super::{LocalStorageSlotId, VirtualRegisterId};
 use legalized_operations::LegalizedStructuralCasePayload;
+use optimization_unit::encode_value_definition_site_identity;
 use semantic_vocabulary::{PlaceId, StructuralCaseId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,7 +45,10 @@ impl SelectedStructuralCaseEdge {
             bytes.extend_from_slice(&payload.semantic.field_byte_offset.to_le_bytes());
             bytes.extend_from_slice(&payload.semantic.parameter.value.get().to_le_bytes());
             encode_scalar_type(bytes, payload.semantic.parameter.scalar_type);
-            encode_definition_site(bytes, payload.semantic.parameter.definition_site);
+            encode_value_definition_site_identity(
+                bytes,
+                payload.semantic.parameter.definition_site,
+            );
             match payload.transport {
                 SelectedCasePayloadTransport::Unused => bytes.push(0),
                 SelectedCasePayloadTransport::Unmaterialized { parameter } => {
@@ -88,25 +92,6 @@ fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: semantic_vocabulary::Sca
                 semantic_vocabulary::IeeeFloatFormat::Binary32 => 0,
                 semantic_vocabulary::IeeeFloatFormat::Binary64 => 1,
             });
-        }
-    }
-}
-
-fn encode_definition_site(bytes: &mut Vec<u8>, site: optimization_unit::ValueDefinitionSite) {
-    match site {
-        optimization_unit::ValueDefinitionSite::FunctionParameter(position) => {
-            bytes.push(0);
-            bytes.extend_from_slice(&position.to_le_bytes());
-        }
-        optimization_unit::ValueDefinitionSite::BlockParameter { block, position } => {
-            bytes.push(1);
-            bytes.extend_from_slice(&block.get().to_le_bytes());
-            bytes.extend_from_slice(&position.to_le_bytes());
-        }
-        optimization_unit::ValueDefinitionSite::Node { block, node } => {
-            bytes.push(2);
-            bytes.extend_from_slice(&block.get().to_le_bytes());
-            bytes.extend_from_slice(&node.to_le_bytes());
         }
     }
 }

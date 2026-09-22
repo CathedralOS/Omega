@@ -9,6 +9,31 @@ use crate::{
     SaturatingCarrier, SaturatingOperation,
 };
 
+/// The sink a canonical machine identity encoding writes its bytes into.
+///
+/// Every encoder below produces one exact byte sequence. Whether the consumer
+/// accumulates that sequence in a buffer or feeds it straight into a hasher
+/// must not be able to change it, so consumers implement this sink instead of
+/// keeping a second, hasher-shaped copy of the encoder. A second copy is how
+/// two stages that are required to agree drift apart silently: both keep
+/// compiling, both keep producing bytes, and only a rejected artifact identity
+/// ever reveals it.
+pub trait MachineIdentityBytes {
+    fn identity_bytes(&mut self, bytes: &[u8]);
+}
+
+impl MachineIdentityBytes for Vec<u8> {
+    fn identity_bytes(&mut self, bytes: &[u8]) {
+        self.extend_from_slice(bytes);
+    }
+}
+
+impl MachineIdentityBytes for sha2::Sha256 {
+    fn identity_bytes(&mut self, bytes: &[u8]) {
+        sha2::Digest::update(self, bytes);
+    }
+}
+
 pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
@@ -104,86 +129,116 @@ pub fn machine_effect_catalog_identity(
         });
         encode_len(&mut bytes, declaration.alternatives.len());
         for alternative in &declaration.alternatives {
-            bytes.push(alternative_family_tag(alternative.key.family));
-            bytes.extend_from_slice(&alternative.key.variant.to_le_bytes());
-            match alternative.applicability {
-                MachineAlternativeApplicability::Always => bytes.push(0),
-                MachineAlternativeApplicability::ResultAliasesOperand { result, operand } => {
-                    bytes.push(1);
-                    bytes.extend_from_slice(&result.to_le_bytes());
-                    bytes.extend_from_slice(&operand.to_le_bytes());
-                }
-                MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
-                    result,
-                    aliased_operand,
-                    distinct_operand,
-                } => {
-                    bytes.push(2);
-                    bytes.extend_from_slice(&result.to_le_bytes());
-                    bytes.extend_from_slice(&aliased_operand.to_le_bytes());
-                    bytes.extend_from_slice(&distinct_operand.to_le_bytes());
-                }
-                MachineAlternativeApplicability::ResultAliasesOperands {
-                    result,
-                    left,
-                    right,
-                } => {
-                    bytes.push(3);
-                    bytes.extend_from_slice(&result.to_le_bytes());
-                    bytes.extend_from_slice(&left.to_le_bytes());
-                    bytes.extend_from_slice(&right.to_le_bytes());
-                }
-                MachineAlternativeApplicability::ResultDistinctFromOperands {
-                    result,
-                    left,
-                    right,
-                } => {
-                    bytes.push(4);
-                    bytes.extend_from_slice(&result.to_le_bytes());
-                    bytes.extend_from_slice(&left.to_le_bytes());
-                    bytes.extend_from_slice(&right.to_le_bytes());
-                }
-                MachineAlternativeApplicability::AtLeastOneOperandDoesNotAliasView {
-                    left,
-                    right,
-                    excluded_view,
-                } => {
-                    bytes.push(5);
-                    bytes.extend_from_slice(&left.to_le_bytes());
-                    bytes.extend_from_slice(&right.to_le_bytes());
-                    bytes.extend_from_slice(&excluded_view.0.to_le_bytes());
-                }
-            }
-            match alternative.size {
-                MachineSizeKnowledge::ExactBytes(count) => {
-                    bytes.push(0);
-                    bytes.extend_from_slice(&count.to_le_bytes());
-                }
-                MachineSizeKnowledge::EncoderResolved {
-                    minimum_bytes,
-                    maximum_bytes,
-                } => {
-                    bytes.push(1);
-                    bytes.extend_from_slice(&minimum_bytes.to_le_bytes());
-                    match maximum_bytes {
-                        None => bytes.push(0),
-                        Some(maximum) => {
-                            bytes.push(1);
-                            bytes.extend_from_slice(&maximum.to_le_bytes());
-                        }
-                    }
-                }
-            }
-            bytes.push(match alternative.latency {
-                MachineLatencyKnowledge::StableBaselineUnavailable => 0,
-            });
-            encode_encoded_effects(&mut bytes, &alternative.encoded);
+            encode_machine_alternative_identity(&mut bytes, alternative);
         }
     }
     MachineEffectCatalogIdentity::from_canonical_bytes(&bytes)
 }
 
-fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) {
+/// The canonical identity encoding of a [`crate::MachineAlternative`]: its
+/// key, applicability, size knowledge, latency knowledge and encoded effects,
+/// in that order.
+///
+/// Every tag and field order here *is* the identity of the machine-effect
+/// catalog, the selected-effect program identity and the in-memory
+/// physical-instruction identity. Those three derived exactly these bytes from
+/// three separate copies of this body; a fourth copy would let them drift
+/// apart the next time an applicability, size or latency variant is added,
+/// without anything failing to compile.
+pub fn encode_machine_alternative_identity<Sink: MachineIdentityBytes + ?Sized>(
+    bytes: &mut Sink,
+    alternative: &crate::MachineAlternative,
+) {
+    encode_machine_alternative_key_identity(bytes, alternative.key);
+    match alternative.applicability {
+        MachineAlternativeApplicability::Always => bytes.identity_bytes(&[0]),
+        MachineAlternativeApplicability::ResultAliasesOperand { result, operand } => {
+            bytes.identity_bytes(&[1]);
+            bytes.identity_bytes(&result.to_le_bytes());
+            bytes.identity_bytes(&operand.to_le_bytes());
+        }
+        MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
+            result,
+            aliased_operand,
+            distinct_operand,
+        } => {
+            bytes.identity_bytes(&[2]);
+            bytes.identity_bytes(&result.to_le_bytes());
+            bytes.identity_bytes(&aliased_operand.to_le_bytes());
+            bytes.identity_bytes(&distinct_operand.to_le_bytes());
+        }
+        MachineAlternativeApplicability::ResultAliasesOperands {
+            result,
+            left,
+            right,
+        } => {
+            bytes.identity_bytes(&[3]);
+            bytes.identity_bytes(&result.to_le_bytes());
+            bytes.identity_bytes(&left.to_le_bytes());
+            bytes.identity_bytes(&right.to_le_bytes());
+        }
+        MachineAlternativeApplicability::ResultDistinctFromOperands {
+            result,
+            left,
+            right,
+        } => {
+            bytes.identity_bytes(&[4]);
+            bytes.identity_bytes(&result.to_le_bytes());
+            bytes.identity_bytes(&left.to_le_bytes());
+            bytes.identity_bytes(&right.to_le_bytes());
+        }
+        MachineAlternativeApplicability::AtLeastOneOperandDoesNotAliasView {
+            left,
+            right,
+            excluded_view,
+        } => {
+            bytes.identity_bytes(&[5]);
+            bytes.identity_bytes(&left.to_le_bytes());
+            bytes.identity_bytes(&right.to_le_bytes());
+            bytes.identity_bytes(&excluded_view.0.to_le_bytes());
+        }
+    }
+    match alternative.size {
+        MachineSizeKnowledge::ExactBytes(count) => {
+            bytes.identity_bytes(&[0]);
+            bytes.identity_bytes(&count.to_le_bytes());
+        }
+        MachineSizeKnowledge::EncoderResolved {
+            minimum_bytes,
+            maximum_bytes,
+        } => {
+            bytes.identity_bytes(&[1]);
+            bytes.identity_bytes(&minimum_bytes.to_le_bytes());
+            match maximum_bytes {
+                None => bytes.identity_bytes(&[0]),
+                Some(maximum) => {
+                    bytes.identity_bytes(&[1]);
+                    bytes.identity_bytes(&maximum.to_le_bytes());
+                }
+            }
+        }
+    }
+    bytes.identity_bytes(&[match alternative.latency {
+        MachineLatencyKnowledge::StableBaselineUnavailable => 0,
+    }]);
+    encode_machine_encoded_effects_identity(bytes, &alternative.encoded);
+}
+
+/// The canonical identity encoding of [`MachineEncodedEffects`].
+///
+/// Every list length, every variant tag and the little-endian field order that
+/// follows each tag *is* the identity: the machine-effect catalog identity, the
+/// selected-effect program identity, the in-memory physical-instruction
+/// identity and the machine-code fragment, encoding, text-section and
+/// relaxation identities all hash exactly this byte stream. Changing one tag
+/// changes every artifact and replay record that embeds an encoded effect.
+///
+/// Consumers must call this function rather than repeat the table, over
+/// whichever [`MachineIdentityBytes`] sink they accumulate into.
+pub fn encode_machine_encoded_effects_identity<Sink: MachineIdentityBytes + ?Sized>(
+    bytes: &mut Sink,
+    effects: &MachineEncodedEffects,
+) {
     encode_u16s(bytes, &effects.external_operand_reads);
     encode_u16s(bytes, &effects.external_operand_writes);
     encode_units(bytes, &effects.implicit_unit_uses);
@@ -191,134 +246,137 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
     encode_units(bytes, &effects.implicit_unit_clobbers);
     match effects.memory {
         MachineEncodedMemoryEffect::HostedReadByteV1 { stack_pointer } => {
-            bytes.push(8);
-            bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
+            bytes.identity_bytes(&[8]);
+            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
         }
         MachineEncodedMemoryEffect::HostedWriteByteV1 { stack_pointer } => {
-            bytes.push(6);
-            bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
+            bytes.identity_bytes(&[6]);
+            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
         }
         MachineEncodedMemoryEffect::CopyBytesV1 {
             source_pointer_operand,
             destination_pointer_operand,
             count_operand,
         } => {
-            bytes.push(9);
-            bytes.extend_from_slice(&source_pointer_operand.to_le_bytes());
-            bytes.extend_from_slice(&destination_pointer_operand.to_le_bytes());
-            bytes.extend_from_slice(&count_operand.to_le_bytes());
+            bytes.identity_bytes(&[9]);
+            bytes.identity_bytes(&source_pointer_operand.to_le_bytes());
+            bytes.identity_bytes(&destination_pointer_operand.to_le_bytes());
+            bytes.identity_bytes(&count_operand.to_le_bytes());
         }
-        MachineEncodedMemoryEffect::NoneV1 => bytes.push(0),
+        MachineEncodedMemoryEffect::NoneV1 => bytes.identity_bytes(&[0]),
         MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand } => {
-            bytes.push(7);
-            bytes.extend_from_slice(&pointer_operand.to_le_bytes());
+            bytes.identity_bytes(&[7]);
+            bytes.identity_bytes(&pointer_operand.to_le_bytes());
         }
         MachineEncodedMemoryEffect::ReadPointerV1 {
             pointer_operand,
             byte_count,
         } => {
-            bytes.push(3);
-            bytes.extend_from_slice(&pointer_operand.to_le_bytes());
-            bytes.extend_from_slice(&byte_count.to_le_bytes());
+            bytes.identity_bytes(&[3]);
+            bytes.identity_bytes(&pointer_operand.to_le_bytes());
+            bytes.identity_bytes(&byte_count.to_le_bytes());
         }
         MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
             pointer_operand,
             index_operand,
             byte_count,
         } => {
-            bytes.push(5);
-            bytes.extend_from_slice(&pointer_operand.to_le_bytes());
-            bytes.extend_from_slice(&index_operand.to_le_bytes());
-            bytes.extend_from_slice(&byte_count.to_le_bytes());
+            bytes.identity_bytes(&[5]);
+            bytes.identity_bytes(&pointer_operand.to_le_bytes());
+            bytes.identity_bytes(&index_operand.to_le_bytes());
+            bytes.identity_bytes(&byte_count.to_le_bytes());
         }
         MachineEncodedMemoryEffect::WriteFrameStorageV1 {
             stack_pointer,
             byte_count,
         } => {
-            bytes.push(4);
-            bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
-            bytes.extend_from_slice(&byte_count.to_le_bytes());
+            bytes.identity_bytes(&[4]);
+            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
+            bytes.identity_bytes(&byte_count.to_le_bytes());
         }
         MachineEncodedMemoryEffect::ReadFrameStorageV1 {
             stack_pointer,
             byte_count,
         } => {
-            bytes.push(10);
-            bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
-            bytes.extend_from_slice(&byte_count.to_le_bytes());
+            bytes.identity_bytes(&[10]);
+            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
+            bytes.identity_bytes(&byte_count.to_le_bytes());
         }
         MachineEncodedMemoryEffect::ReadActivationStackV1 {
             stack_pointer,
             byte_count,
         } => {
-            bytes.push(1);
-            bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
-            bytes.extend_from_slice(&byte_count.to_le_bytes());
+            bytes.identity_bytes(&[1]);
+            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
+            bytes.identity_bytes(&byte_count.to_le_bytes());
         }
         MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
             stack_pointer,
             byte_count,
         } => {
-            bytes.push(2);
-            bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
-            bytes.extend_from_slice(&byte_count.to_le_bytes());
+            bytes.identity_bytes(&[2]);
+            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
+            bytes.identity_bytes(&byte_count.to_le_bytes());
         }
     }
     match effects.stack {
-        MachineEncodedStackEffect::UnchangedV1 => bytes.push(0),
+        MachineEncodedStackEffect::UnchangedV1 => bytes.identity_bytes(&[0]),
         MachineEncodedStackEffect::PopBytesV1 {
             stack_pointer,
             byte_count,
         } => {
-            bytes.push(1);
-            bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
-            bytes.extend_from_slice(&byte_count.to_le_bytes());
+            bytes.identity_bytes(&[1]);
+            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
+            bytes.identity_bytes(&byte_count.to_le_bytes());
         }
         MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
             stack_pointer,
             return_address_byte_count,
         } => {
-            bytes.push(2);
-            bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
-            bytes.extend_from_slice(&return_address_byte_count.to_le_bytes());
+            bytes.identity_bytes(&[2]);
+            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
+            bytes.identity_bytes(&return_address_byte_count.to_le_bytes());
         }
     }
-    bytes.push(match effects.trap {
+    bytes.identity_bytes(&[match effects.trap {
         MachineEncodedTrapBehavior::ExplicitCrashV1 => 5,
         MachineEncodedTrapBehavior::NeverV1 => 0,
         MachineEncodedTrapBehavior::HostedExitReturnedV1 => 3,
         MachineEncodedTrapBehavior::HostedReadFailureV1 => 4,
         MachineEncodedTrapBehavior::HostedWriteFailureV1 => 2,
         MachineEncodedTrapBehavior::MayArchitecturalFaultV1 => 1,
-    });
+    }]);
     match effects.control {
-        MachineEncodedControlEffect::CrashV1 => bytes.push(9),
-        MachineEncodedControlEffect::HostedExitOrTrapV1 => bytes.push(7),
-        MachineEncodedControlEffect::HostedReadReturnOrTrapV1 => bytes.push(8),
-        MachineEncodedControlEffect::HostedWriteReturnOrTrapV1 => bytes.push(6),
-        MachineEncodedControlEffect::FallThroughV1 => bytes.push(0),
-        MachineEncodedControlEffect::ConditionalRelativeBranchV1 => bytes.push(1),
-        MachineEncodedControlEffect::ReturnFromActivationStackV1 => bytes.push(2),
+        MachineEncodedControlEffect::CrashV1 => bytes.identity_bytes(&[9]),
+        MachineEncodedControlEffect::HostedExitOrTrapV1 => bytes.identity_bytes(&[7]),
+        MachineEncodedControlEffect::HostedReadReturnOrTrapV1 => bytes.identity_bytes(&[8]),
+        MachineEncodedControlEffect::HostedWriteReturnOrTrapV1 => bytes.identity_bytes(&[6]),
+        MachineEncodedControlEffect::FallThroughV1 => bytes.identity_bytes(&[0]),
+        MachineEncodedControlEffect::ConditionalRelativeBranchV1 => bytes.identity_bytes(&[1]),
+        MachineEncodedControlEffect::ReturnFromActivationStackV1 => bytes.identity_bytes(&[2]),
         MachineEncodedControlEffect::ReturnIndirectRegisterV1 { target } => {
-            bytes.push(3);
-            bytes.extend_from_slice(&target.0.to_le_bytes());
+            bytes.identity_bytes(&[3]);
+            bytes.identity_bytes(&target.0.to_le_bytes());
         }
-        MachineEncodedControlEffect::DirectRelativeCallV1 => bytes.push(4),
-        MachineEncodedControlEffect::UnconditionalRelativeBranchV1 => bytes.push(5),
+        MachineEncodedControlEffect::DirectRelativeCallV1 => bytes.identity_bytes(&[4]),
+        MachineEncodedControlEffect::UnconditionalRelativeBranchV1 => bytes.identity_bytes(&[5]),
     }
 }
 
-fn encode_u16s(bytes: &mut Vec<u8>, values: &[u16]) {
+fn encode_u16s<Sink: MachineIdentityBytes + ?Sized>(bytes: &mut Sink, values: &[u16]) {
     encode_len(bytes, values.len());
     for value in values {
-        bytes.extend_from_slice(&value.to_le_bytes());
+        bytes.identity_bytes(&value.to_le_bytes());
     }
 }
 
-fn encode_units(bytes: &mut Vec<u8>, units: &[register_model::RegisterUnitId]) {
+fn encode_units<Sink: MachineIdentityBytes + ?Sized>(
+    bytes: &mut Sink,
+    units: &[register_model::RegisterUnitId],
+) {
     encode_len(bytes, units.len());
     for unit in units {
-        bytes.extend_from_slice(&unit.0.to_le_bytes());
+        bytes.identity_bytes(&unit.0.to_le_bytes());
     }
 }
 
@@ -449,7 +507,20 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
     }
 }
 
-pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> u8 {
+/// The canonical identity tag of a [`MachineAlternativeFamily`].
+///
+/// This table *is* the identity: the machine-effect catalog identity, the
+/// selected-effect program identity, the in-memory physical-instruction
+/// identity and the machine-code fragment, layout, text-section, relaxation and
+/// encoding identities all write exactly this byte for an alternative family.
+/// The values are deliberately not the declaration order — they were assigned
+/// as families were added and renumbering any of them would invalidate every
+/// artifact already keyed by it.
+///
+/// Consumers must call this function rather than repeat the table. A second
+/// copy of eighty-one arms is how two stages that must agree drift apart
+/// silently: adding a family to one copy and not the other still compiles.
+pub const fn alternative_family_tag(family: MachineAlternativeFamily) -> u8 {
     match family {
         MachineAlternativeFamily::CopyBytes => 59,
         MachineAlternativeFamily::CallAggregate => 35,
@@ -543,8 +614,8 @@ pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> 
     }
 }
 
-fn encode_len(bytes: &mut Vec<u8>, value: usize) {
-    bytes.extend_from_slice(
+fn encode_len<Sink: MachineIdentityBytes + ?Sized>(bytes: &mut Sink, value: usize) {
+    bytes.identity_bytes(
         &u64::try_from(value)
             .expect("machine-effect catalog length fits u64")
             .to_le_bytes(),
@@ -560,6 +631,18 @@ mod tests;
 /// their tags (u64 subtract 54, u64 add 55, i32 add/subtract/divide 60, 61,
 /// 62); every other carrier takes its ordinal above a per-operation base
 /// (add 63, subtract 71, divide 79). Tags are appended, never reused.
+/// The canonical identity encoding of a [`crate::MachineAlternativeKey`]: the
+/// family tag from [`alternative_family_tag`] followed by the little-endian
+/// variant number. Machine-code fragment, layout, text-section, relaxation and
+/// encoding identities all hash exactly these bytes.
+pub fn encode_machine_alternative_key_identity<Sink: MachineIdentityBytes + ?Sized>(
+    bytes: &mut Sink,
+    key: crate::MachineAlternativeKey,
+) {
+    bytes.identity_bytes(&[alternative_family_tag(key.family)]);
+    bytes.identity_bytes(&key.variant.to_le_bytes());
+}
+
 pub const fn saturating_family_tag(
     operation: SaturatingOperation,
     carrier: SaturatingCarrier,

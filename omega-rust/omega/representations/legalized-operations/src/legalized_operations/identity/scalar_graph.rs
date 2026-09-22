@@ -1,9 +1,6 @@
 use super::calling::{encode_call_plan, encode_placement};
 use super::encoding::{encode_fuel, encode_ids, encode_len, encode_option_id};
-use super::scalar::{
-    encode_bindings, encode_definition_site, encode_integer, encode_integer_type,
-    encode_scalar_type,
-};
+use super::scalar::{encode_bindings, encode_integer, encode_integer_type, encode_scalar_type};
 use super::structural::{encode_effect, encode_ownership_roster};
 use crate::legalized_operations::{
     LegalizedExactIntegerOperator, LegalizedScalarComparison, LegalizedScalarFunction,
@@ -11,6 +8,7 @@ use crate::legalized_operations::{
     LegalizedScalarTerminator,
 };
 use crate::{SaturatingCarrier, SaturatingOperation};
+use optimization_unit::encode_value_definition_site_identity;
 pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
     bytes.extend_from_slice(&function.machine.get().to_le_bytes());
     encode_option_id(bytes, function.attachment.map(|value| value.get()));
@@ -39,7 +37,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
     for parameter in &function.parameters {
         bytes.extend_from_slice(&parameter.value.get().to_le_bytes());
         encode_scalar_type(bytes, parameter.scalar_type);
-        encode_definition_site(bytes, parameter.definition_site);
+        encode_value_definition_site_identity(bytes, parameter.definition_site);
         encode_placement(bytes, &parameter.placement);
     }
     bytes.extend_from_slice(&function.entry_block.get().to_le_bytes());
@@ -54,7 +52,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
         for parameter in &block.parameters {
             bytes.extend_from_slice(&parameter.value.get().to_le_bytes());
             encode_scalar_type(bytes, parameter.scalar_type);
-            encode_definition_site(bytes, parameter.site);
+            encode_value_definition_site_identity(bytes, parameter.site);
         }
         encode_len(bytes, block.instructions.len());
         for instruction in &block.instructions {
@@ -64,7 +62,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.push(1);
                     bytes.extend_from_slice(&result.value.get().to_le_bytes());
                     encode_scalar_type(bytes, result.scalar_type);
-                    encode_definition_site(bytes, result.definition_site);
+                    encode_value_definition_site_identity(bytes, result.definition_site);
                 }
                 None => bytes.push(0),
             }
@@ -704,7 +702,7 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
                     bytes.extend_from_slice(&payload.field_byte_offset.to_le_bytes());
                     bytes.extend_from_slice(&payload.parameter.value.get().to_le_bytes());
                     encode_scalar_type(bytes, payload.parameter.scalar_type);
-                    encode_definition_site(bytes, payload.parameter.definition_site);
+                    encode_value_definition_site_identity(bytes, payload.parameter.definition_site);
                 }
                 encode_ids(
                     bytes,

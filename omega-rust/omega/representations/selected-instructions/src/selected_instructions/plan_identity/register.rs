@@ -2,7 +2,7 @@
 use super::encode_option_u16;
 use super::encode_scalar_type;
 use crate::{VirtualRegister, VirtualRegisterOrigin};
-use optimization_unit::ValueDefinitionSite;
+use optimization_unit::encode_value_definition_site_identity;
 
 pub(super) fn encode(bytes: &mut Vec<u8>, register: &VirtualRegister) {
     bytes.extend_from_slice(&register.id.0.to_le_bytes());
@@ -93,28 +93,9 @@ pub(super) fn encode(bytes: &mut Vec<u8>, register: &VirtualRegister) {
     match register.definition_site {
         Some(site) => {
             bytes.push(1);
-            encode_definition_site(bytes, site);
+            encode_value_definition_site_identity(bytes, site);
         }
         None => bytes.push(0),
     }
     encode_option_u16(bytes, register.entry_fixed_view.map(|view| view.0));
-}
-
-fn encode_definition_site(bytes: &mut Vec<u8>, site: ValueDefinitionSite) {
-    match site {
-        ValueDefinitionSite::FunctionParameter(position) => {
-            bytes.push(0);
-            bytes.extend_from_slice(&position.to_le_bytes());
-        }
-        ValueDefinitionSite::BlockParameter { block, position } => {
-            bytes.push(1);
-            bytes.extend_from_slice(&block.get().to_le_bytes());
-            bytes.extend_from_slice(&position.to_le_bytes());
-        }
-        ValueDefinitionSite::Node { block, node } => {
-            bytes.push(2);
-            bytes.extend_from_slice(&block.get().to_le_bytes());
-            bytes.extend_from_slice(&node.to_le_bytes());
-        }
-    }
 }

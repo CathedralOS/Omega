@@ -404,6 +404,56 @@ pub struct StatePlan {
     pub preemption: Preemption,
 }
 
+/// The canonical byte-stream identity encoding of [`StatePlan`].
+///
+/// The one-based variant tags written here and the little-endian field order
+/// that follows them *are* the identity: legalized normalized-foreign-call
+/// identities and the register-home fixed-view-copy wire rows that replay them
+/// hash exactly these bytes, so a changed tag or a reordered field changes
+/// every artifact that carries a boundary-entry state plan. Consumers must
+/// call this function rather than repeat the table; a second copy is how two
+/// crates that must agree drift apart silently, since both keep compiling and
+/// only a mismatched identity ever reveals it.
+///
+/// This is deliberately *not* the same table as
+/// [`super::plan_identity::Fnv1a::state_plan`], which writes zero-based tags
+/// into the compact call-plan identity. Both encodings are already ratified;
+/// merging them would change one of the two.
+pub fn encode_state_plan_identity(bytes: &mut Vec<u8>, state: &StatePlan) {
+    match state.initial_regime {
+        MachineRegime::X86Long64 => bytes.push(1),
+        MachineRegime::Aarch64A64 { exception_level } => {
+            bytes.push(2);
+            bytes.push(exception_level);
+        }
+    }
+    for set in [
+        state.interrupted_state,
+        state.saved_state,
+        state.restored_state,
+        state.permitted_transitive_use,
+    ] {
+        bytes.extend_from_slice(&set.bits().to_le_bytes());
+    }
+    match state.stack {
+        EntryStack::Interrupted => bytes.push(1),
+        EntryStack::Dedicated { class } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&class.to_le_bytes());
+        }
+        EntryStack::ProviderSelected => bytes.push(3),
+    }
+    match state.preemption {
+        Preemption::NotApplicable => bytes.push(1),
+        Preemption::Masked => bytes.push(2),
+        Preemption::Nestable { maximum_depth } => {
+            bytes.push(3);
+            bytes.extend_from_slice(&maximum_depth.to_le_bytes());
+        }
+        Preemption::ProviderDefined => bytes.push(4),
+    }
+}
+
 pub(crate) const fn system_v_eightbyte_class_code(class: SystemVEightbyteClass) -> u8 {
     match class {
         SystemVEightbyteClass::Integer => 0,

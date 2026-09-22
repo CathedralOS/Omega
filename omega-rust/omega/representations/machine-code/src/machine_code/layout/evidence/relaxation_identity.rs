@@ -1,9 +1,4 @@
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use selected_instructions::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
-    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, SaturatingOperation,
-};
 use sha2::{Digest, Sha256};
 use target::{Architecture, NativeTarget, ObjectFormat};
 
@@ -126,7 +121,10 @@ fn encode_functions(hasher: &mut Sha256, functions: &[ResolvedSelectedFunctionLa
             hasher.update((block.instructions.len() as u64).to_le_bytes());
             for row in &block.instructions {
                 hasher.update(row.instruction.0.to_le_bytes());
-                encode_alternative(hasher, row.alternative);
+                selected_instructions::encode_machine_alternative_key_identity(
+                    hasher,
+                    row.alternative,
+                );
                 hasher.update(row.offset.to_le_bytes());
                 hasher.update((row.bytes.len() as u64).to_le_bytes());
                 hasher.update(&row.bytes);
@@ -147,7 +145,10 @@ fn encode_functions(hasher: &mut Sha256, functions: &[ResolvedSelectedFunctionLa
                         hasher.update(branch.when_fallthrough_block.0.to_le_bytes());
                         hasher.update(branch.when_fallthrough_offset.to_le_bytes());
                         hasher.update(branch.byte_displacement.to_le_bytes());
-                        encode_effects(hasher, &branch.decoded_effects);
+                        selected_instructions::encode_machine_encoded_effects_identity(
+                            hasher,
+                            &branch.decoded_effects,
+                        );
                     }
                     Some(crate::ResolvedBranchEvidence::Jump(jump)) => {
                         hasher.update([2]);
@@ -156,244 +157,13 @@ fn encode_functions(hasher: &mut Sha256, functions: &[ResolvedSelectedFunctionLa
                         hasher.update(jump.target_block.0.to_le_bytes());
                         hasher.update(jump.target_offset.to_le_bytes());
                         hasher.update(jump.byte_displacement.to_le_bytes());
-                        encode_effects(hasher, &jump.decoded_effects);
+                        selected_instructions::encode_machine_encoded_effects_identity(
+                            hasher,
+                            &jump.decoded_effects,
+                        );
                     }
                 }
             }
         }
-    }
-}
-
-fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
-    hasher.update([match alternative.family {
-        MachineAlternativeFamily::CompareI64Zero => 0,
-        MachineAlternativeFamily::MaterializeI64 => 1,
-        MachineAlternativeFamily::CopyI64 => 2,
-        MachineAlternativeFamily::Float32ToBits => 26,
-        MachineAlternativeFamily::Float64ToBits => 27,
-        MachineAlternativeFamily::BitsToFloat32 => 28,
-        MachineAlternativeFamily::BitsToFloat64 => 29,
-        MachineAlternativeFamily::ZeroExtendU8 => 15,
-        MachineAlternativeFamily::ZeroExtendU32 => 20,
-        MachineAlternativeFamily::ZeroExtendU16 => 37,
-        MachineAlternativeFamily::SignExtendI8 => 38,
-        MachineAlternativeFamily::SignExtendI16 => 39,
-        MachineAlternativeFamily::SignExtendI32 => 40,
-        MachineAlternativeFamily::MaterializeBooleanEqual => 41,
-        MachineAlternativeFamily::MaterializeBooleanU64LessThan => 42,
-        MachineAlternativeFamily::MaterializeBooleanI64LessThan => 43,
-        MachineAlternativeFamily::MaterializeBooleanU64LessOrEqual => 44,
-        MachineAlternativeFamily::MaterializeBooleanI64LessOrEqual => 45,
-        MachineAlternativeFamily::ExactAddI64 => 3,
-        MachineAlternativeFamily::ExactAddI64Immediate => 4,
-        MachineAlternativeFamily::ExactSubtractI64 => 5,
-        MachineAlternativeFamily::ConditionalBranchNonZero => 6,
-        MachineAlternativeFamily::ReturnScalar => 7,
-        MachineAlternativeFamily::ExactSubtractI64Immediate => 8,
-        MachineAlternativeFamily::ReturnUnit => 9,
-        MachineAlternativeFamily::CompareI64 => 10,
-        MachineAlternativeFamily::CompareI64Immediate => 53,
-        MachineAlternativeFamily::ConditionalBranchU64LessThan => 11,
-        MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
-        MachineAlternativeFamily::CallScalar => 13,
-        MachineAlternativeFamily::Jump => 14,
-        MachineAlternativeFamily::Store => 24,
-        MachineAlternativeFamily::AddressOffset => 25,
-        MachineAlternativeFamily::Load64 => 16,
-        MachineAlternativeFamily::LoadPacked3 => 46,
-        MachineAlternativeFamily::LoadPacked5 => 47,
-        MachineAlternativeFamily::LoadPacked6 => 48,
-        MachineAlternativeFamily::LoadPacked7 => 49,
-        MachineAlternativeFamily::StorePacked => 50,
-        MachineAlternativeFamily::BitwiseAndI64 => 51,
-        MachineAlternativeFamily::BitwiseXorI64 => 52,
-        MachineAlternativeFamily::ExactDivideU64 => 56,
-        MachineAlternativeFamily::WrappingRemainderI64 => 57,
-        MachineAlternativeFamily::WrappingAddI64 => 58,
-        MachineAlternativeFamily::SaturatingAdd(carrier) => {
-            selected_instructions::saturating_family_tag(SaturatingOperation::Add, carrier)
-        }
-        MachineAlternativeFamily::SaturatingSubtract(carrier) => {
-            selected_instructions::saturating_family_tag(SaturatingOperation::Subtract, carrier)
-        }
-        MachineAlternativeFamily::SaturatingDivide(carrier) => {
-            selected_instructions::saturating_family_tag(SaturatingOperation::Divide, carrier)
-        }
-        MachineAlternativeFamily::SaturatingRemainder(carrier) => {
-            selected_instructions::saturating_family_tag(SaturatingOperation::Remainder, carrier)
-        }
-        MachineAlternativeFamily::Load8 => 33,
-        MachineAlternativeFamily::Load16 => 34,
-        MachineAlternativeFamily::Load32 => 30,
-        MachineAlternativeFamily::HostedExitProcessI32 => 31,
-        MachineAlternativeFamily::Crash => 111,
-        MachineAlternativeFamily::HostedReadByte => 32,
-        MachineAlternativeFamily::HostedWriteByteI32 => 23,
-        MachineAlternativeFamily::ByteViewAddress => 22,
-        MachineAlternativeFamily::Load8Indexed => 21,
-        MachineAlternativeFamily::CopyBytes => 59,
-        MachineAlternativeFamily::Store64 => 17,
-        MachineAlternativeFamily::FrameAddress => 18,
-        MachineAlternativeFamily::CallUnit => 19,
-        MachineAlternativeFamily::CallAggregate => 35,
-        MachineAlternativeFamily::ReturnAggregate => 36,
-        MachineAlternativeFamily::NormalizedForeignCall => 87,
-        MachineAlternativeFamily::ExactMultiplyI64 => 88,
-        MachineAlternativeFamily::ExactRemainderU64 => 89,
-        MachineAlternativeFamily::WrappingSubtractI64 => 90,
-        MachineAlternativeFamily::WrappingMultiplyI64 => 91,
-        MachineAlternativeFamily::WrappingDivideI64 => 92,
-        MachineAlternativeFamily::ExactDivideI64 => 112,
-        MachineAlternativeFamily::ExactRemainderI64 => 113,
-        MachineAlternativeFamily::BitwiseOrI64 => 93,
-        MachineAlternativeFamily::BitwiseNotI64 => 94,
-        MachineAlternativeFamily::SaveFloatingControl => 103,
-        MachineAlternativeFamily::RestoreFloatingControl => 104,
-        MachineAlternativeFamily::WrappingShiftLeftI64 => 105,
-        MachineAlternativeFamily::WrappingShiftRightI64 => 106,
-        MachineAlternativeFamily::WrappingShiftRightU64 => 107,
-        MachineAlternativeFamily::ExactShiftLeftI64 => 108,
-        MachineAlternativeFamily::ExactShiftRightI64 => 109,
-        MachineAlternativeFamily::ExactShiftRightU64 => 110,
-    }]);
-    hasher.update(alternative.variant.to_le_bytes());
-}
-
-fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
-    encode_u16s(hasher, &effects.external_operand_reads);
-    encode_u16s(hasher, &effects.external_operand_writes);
-    encode_units(hasher, &effects.implicit_unit_uses);
-    encode_units(hasher, &effects.implicit_unit_defs);
-    encode_units(hasher, &effects.implicit_unit_clobbers);
-    match effects.memory {
-        MachineEncodedMemoryEffect::CopyBytesV1 {
-            source_pointer_operand,
-            destination_pointer_operand,
-            count_operand,
-        } => {
-            hasher.update([9]);
-            hasher.update(source_pointer_operand.to_le_bytes());
-            hasher.update(destination_pointer_operand.to_le_bytes());
-            hasher.update(count_operand.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
-            pointer_operand,
-            index_operand,
-            byte_count,
-        } => {
-            hasher.update([5]);
-            hasher.update(pointer_operand.to_le_bytes());
-            hasher.update(index_operand.to_le_bytes());
-            hasher.update(byte_count.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::HostedReadByteV1 { stack_pointer } => {
-            hasher.update([8]);
-            hasher.update(stack_pointer.0.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::HostedWriteByteV1 { stack_pointer } => {
-            hasher.update([6]);
-            hasher.update(stack_pointer.0.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand } => {
-            hasher.update([7]);
-            hasher.update(pointer_operand.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::NoneV1 => hasher.update([0]),
-        MachineEncodedMemoryEffect::ReadPointerV1 {
-            pointer_operand,
-            byte_count,
-        } => {
-            hasher.update([3]);
-            hasher.update(pointer_operand.to_le_bytes());
-            hasher.update(byte_count.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::WriteFrameStorageV1 {
-            stack_pointer,
-            byte_count,
-        } => {
-            hasher.update([4]);
-            hasher.update(stack_pointer.0.to_le_bytes());
-            hasher.update(byte_count.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::ReadFrameStorageV1 {
-            stack_pointer,
-            byte_count,
-        } => {
-            hasher.update([10]);
-            hasher.update(stack_pointer.0.to_le_bytes());
-            hasher.update(byte_count.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::ReadActivationStackV1 {
-            stack_pointer,
-            byte_count,
-        } => {
-            hasher.update([1]);
-            hasher.update(stack_pointer.0.to_le_bytes());
-            hasher.update(byte_count.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
-            stack_pointer,
-            byte_count,
-        } => {
-            hasher.update([2]);
-            hasher.update(stack_pointer.0.to_le_bytes());
-            hasher.update(byte_count.to_le_bytes());
-        }
-    }
-    match effects.stack {
-        MachineEncodedStackEffect::UnchangedV1 => hasher.update([0]),
-        MachineEncodedStackEffect::PopBytesV1 {
-            stack_pointer,
-            byte_count,
-        } => {
-            hasher.update([1]);
-            hasher.update(stack_pointer.0.to_le_bytes());
-            hasher.update(byte_count.to_le_bytes());
-        }
-        MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
-            stack_pointer,
-            return_address_byte_count,
-        } => {
-            hasher.update([2]);
-            hasher.update(stack_pointer.0.to_le_bytes());
-            hasher.update(return_address_byte_count.to_le_bytes());
-        }
-    }
-    hasher.update([match effects.trap {
-        MachineEncodedTrapBehavior::NeverV1 => 0,
-        MachineEncodedTrapBehavior::HostedExitReturnedV1 => 3,
-        MachineEncodedTrapBehavior::ExplicitCrashV1 => 5,
-        MachineEncodedTrapBehavior::HostedReadFailureV1 => 4,
-        MachineEncodedTrapBehavior::HostedWriteFailureV1 => 2,
-        MachineEncodedTrapBehavior::MayArchitecturalFaultV1 => 1,
-    }]);
-    match effects.control {
-        MachineEncodedControlEffect::HostedExitOrTrapV1 => hasher.update([7]),
-        MachineEncodedControlEffect::CrashV1 => hasher.update([9]),
-        MachineEncodedControlEffect::HostedReadReturnOrTrapV1 => hasher.update([8]),
-        MachineEncodedControlEffect::HostedWriteReturnOrTrapV1 => hasher.update([6]),
-        MachineEncodedControlEffect::FallThroughV1 => hasher.update([0]),
-        MachineEncodedControlEffect::ConditionalRelativeBranchV1 => hasher.update([1]),
-        MachineEncodedControlEffect::ReturnFromActivationStackV1 => hasher.update([2]),
-        MachineEncodedControlEffect::ReturnIndirectRegisterV1 { target } => {
-            hasher.update([3]);
-            hasher.update(target.0.to_le_bytes());
-        }
-        MachineEncodedControlEffect::DirectRelativeCallV1 => hasher.update([4]),
-        MachineEncodedControlEffect::UnconditionalRelativeBranchV1 => hasher.update([5]),
-    }
-}
-
-fn encode_u16s(hasher: &mut Sha256, values: &[u16]) {
-    hasher.update((values.len() as u64).to_le_bytes());
-    for value in values {
-        hasher.update(value.to_le_bytes());
-    }
-}
-
-fn encode_units(hasher: &mut Sha256, values: &[register_model::RegisterUnitId]) {
-    hasher.update((values.len() as u64).to_le_bytes());
-    for value in values {
-        hasher.update(value.0.to_le_bytes());
     }
 }

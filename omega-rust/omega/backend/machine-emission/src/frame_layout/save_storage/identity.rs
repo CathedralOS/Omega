@@ -1,7 +1,7 @@
 use sha2::{Digest, Sha256};
 
 use crate::frame_layout::save_storage::{
-    CalleeSavedModificationWitness, FrameAbiPreservationConvention,
+    FrameAbiPreservationConvention, encode_callee_saved_modification_witness_identity,
 };
 
 use super::{
@@ -42,7 +42,7 @@ pub fn non_authoritative_callee_save_storage_identity(
                 hasher.update(requirement.unit.0.to_le_bytes());
                 length(&mut hasher, requirement.witnesses.len());
                 for witness in &requirement.witnesses {
-                    encode_witness(&mut hasher, *witness);
+                    encode_callee_saved_modification_witness_identity(&mut hasher, *witness);
                 }
             }
             hasher.update(slot.abstract_offset_bytes.to_le_bytes());
@@ -51,37 +51,6 @@ pub fn non_authoritative_callee_save_storage_identity(
         }
     }
     NonAuthoritativeCalleeSaveStorageIdentity::from_bytes(hasher.finalize().into())
-}
-
-fn encode_witness(hasher: &mut Sha256, witness: CalleeSavedModificationWitness) {
-    match witness {
-        CalleeSavedModificationWitness::OperandDefinition {
-            block,
-            instruction,
-            operand,
-            virtual_register,
-            home_view,
-            write_semantics,
-        } => {
-            hasher.update([0]);
-            hasher.update(block.0.to_le_bytes());
-            hasher.update(instruction.0.to_le_bytes());
-            hasher.update(operand.to_le_bytes());
-            hasher.update(virtual_register.0.to_le_bytes());
-            hasher.update(home_view.0.to_le_bytes());
-            hasher.update([write_semantics_tag(write_semantics)]);
-        }
-        CalleeSavedModificationWitness::ImplicitDefinition { block, instruction } => {
-            hasher.update([1]);
-            hasher.update(block.0.to_le_bytes());
-            hasher.update(instruction.0.to_le_bytes());
-        }
-        CalleeSavedModificationWitness::ImplicitClobber { block, instruction } => {
-            hasher.update([2]);
-            hasher.update(block.0.to_le_bytes());
-            hasher.update(instruction.0.to_le_bytes());
-        }
-    }
 }
 
 fn target(hasher: &mut Sha256, target: target::NativeTarget) {
@@ -104,17 +73,6 @@ fn abi_tag(abi: FrameAbiPreservationConvention) -> u8 {
         FrameAbiPreservationConvention::MicrosoftX64 => 1,
         FrameAbiPreservationConvention::Aapcs64 => 2,
         FrameAbiPreservationConvention::DarwinAapcs64 => 3,
-    }
-}
-
-fn write_semantics_tag(value: register_model::RegisterWriteSemantics) -> u8 {
-    match value {
-        register_model::RegisterWriteSemantics::ExactView => 0,
-        register_model::RegisterWriteSemantics::PreservesUnwritten => 1,
-        register_model::RegisterWriteSemantics::ZeroExtendsParent => 2,
-        register_model::RegisterWriteSemantics::ZeroExtendsWithinUnit => 3,
-        register_model::RegisterWriteSemantics::Discards => 4,
-        register_model::RegisterWriteSemantics::InstructionDefined => 5,
     }
 }
 

@@ -8,8 +8,9 @@ use crate::FixedViewCopyDecodeError;
 
 use crate::register_homes::recovery::fixed_view_copy::codec::{
     primitives::{Cursor, decode_id, decode_option_u16, encode_option_u16, length},
-    values::{decode_definition_site, decode_scalar, encode_definition_site, encode_scalar},
+    values::{decode_definition_site, decode_scalar, encode_scalar},
 };
+use optimization_unit::encode_value_definition_site_identity;
 
 pub(super) fn encode_register(bytes: &mut Vec<u8>, register: &VirtualRegister) {
     bytes.extend_from_slice(&register.id.0.to_le_bytes());
@@ -100,7 +101,7 @@ pub(super) fn encode_register(bytes: &mut Vec<u8>, register: &VirtualRegister) {
         None => bytes.push(0),
         Some(site) => {
             bytes.push(1);
-            encode_definition_site(bytes, site);
+            encode_value_definition_site_identity(bytes, site);
         }
     }
     encode_option_u16(bytes, register.entry_fixed_view.map(|view| view.0));

@@ -3,9 +3,9 @@ use crate::plans::{
     BoundaryPlanDiagnostic, BoundaryPlanResult, CallSignature, CallingPolicy,
     CallingPolicyRejection, EntryControl, EntryStack, MachineRegime, MachineRegister, MachineState,
     MachineStateSet, Preemption, ProviderExitRealization, RegisterSet, StateFootprintEvidence,
-    SystemVEightbyteClass, ValueShape, evaluate_freestanding_program_entry_plan,
-    evaluate_ordinary_boundary_entry_plan, validate_boundary_entry_plan,
-    validate_boundary_plan_result, validate_composed_state_footprint,
+    StatePlan, SystemVEightbyteClass, ValueShape, encode_state_plan_identity,
+    evaluate_freestanding_program_entry_plan, evaluate_ordinary_boundary_entry_plan,
+    validate_boundary_entry_plan, validate_boundary_plan_result, validate_composed_state_footprint,
     validate_provider_exit_realization, validate_runtime_value_guard_footprint,
     validate_state_footprint,
 };
@@ -390,4 +390,69 @@ fn call_clobbers_must_fit_the_entry_state_ceiling() {
     let error = validate_boundary_entry_plan(plan, &integer_signature(1))
         .expect_err("unsaved SIMD clobber must reject");
     assert!(error.0.contains("clobbers exceed"));
+}
+
+/// A state plan whose every field carries a distinguishable value, so a
+/// reordered field shows up in the pinned bytes below.
+fn pinned_state_plan(
+    initial_regime: MachineRegime,
+    stack: EntryStack,
+    preemption: Preemption,
+) -> StatePlan {
+    StatePlan {
+        initial_regime,
+        interrupted_state: MachineStateSet::new([MachineState::GeneralRegisters]),
+        saved_state: MachineStateSet::new([MachineState::VectorRegisters]),
+        restored_state: MachineStateSet::new([MachineState::Flags]),
+        permitted_transitive_use: MachineStateSet::new([MachineState::InstructionPointer]),
+        stack,
+        preemption,
+    }
+}
+
+/// The four state sets, each a little-endian `u16` bitmask, in their pinned
+/// order: interrupted, saved, restored, permitted transitive use.
+const PINNED_STATE_SETS: [u8; 8] = [0x01, 0, 0x02, 0, 0x04, 0, 0x08, 0];
+
+#[test]
+fn state_plan_identity_bytes_are_pinned_for_every_variant() {
+    // Expected bytes ported from the copies of this encoder that
+    // `legalized_operations::identity::normalized_foreign` and the
+    // register-home fixed-view-copy codec carried before de-duplication.
+    let regimes: [(MachineRegime, &[u8]); 2] = [
+        (MachineRegime::X86Long64, &[1]),
+        (MachineRegime::Aarch64A64 { exception_level: 2 }, &[2, 2]),
+    ];
+    let stacks: [(EntryStack, &[u8]); 3] = [
+        (EntryStack::Interrupted, &[1]),
+        (EntryStack::Dedicated { class: 0x0403 }, &[2, 0x03, 0x04]),
+        (EntryStack::ProviderSelected, &[3]),
+    ];
+    let preemptions: [(Preemption, &[u8]); 4] = [
+        (Preemption::NotApplicable, &[1]),
+        (Preemption::Masked, &[2]),
+        (
+            Preemption::Nestable {
+                maximum_depth: 0x0605,
+            },
+            &[3, 0x05, 0x06],
+        ),
+        (Preemption::ProviderDefined, &[4]),
+    ];
+    for (regime, regime_bytes) in regimes {
+        for (stack, stack_bytes) in stacks {
+            for (preemption, preemption_bytes) in preemptions {
+                let mut expected = regime_bytes.to_vec();
+                expected.extend_from_slice(&PINNED_STATE_SETS);
+                expected.extend_from_slice(stack_bytes);
+                expected.extend_from_slice(preemption_bytes);
+                let mut bytes = Vec::new();
+                encode_state_plan_identity(
+                    &mut bytes,
+                    &pinned_state_plan(regime, stack, preemption),
+                );
+                assert_eq!(bytes, expected, "{regime:?} {stack:?} {preemption:?}");
+            }
+        }
+    }
 }

@@ -3,7 +3,6 @@
 //! Root identities, ordinary CFG rows, and structural-unit rows are appended
 //! here in their identity-defining order. Named leaves own each row vocabulary.
 
-mod alternative;
 mod instruction;
 mod ownership;
 mod provenance;
