@@ -51,10 +51,9 @@ impl ExitScalars<'_, '_> {
         let (result_operand, argument, result_on_left) =
             if let Some(operand) = self.result_bound_operand(binary.left) {
                 (operand, binary.right, true)
-            } else if let Some(operand) = self.result_bound_operand(binary.right) {
-                (operand, binary.left, false)
             } else {
-                return None;
+                let operand = self.result_bound_operand(binary.right)?;
+                (operand, binary.left, false)
             };
         let (result_expression, result_type) = result_operand;
         let entry = self.program.machine_states(self.machine).first()?;

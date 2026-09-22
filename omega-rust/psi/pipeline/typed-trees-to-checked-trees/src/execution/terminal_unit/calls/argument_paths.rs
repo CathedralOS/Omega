@@ -349,7 +349,7 @@ fn bounded_runtime_index(
         return None;
     };
     let parameters = program.state_parameters(state);
-    let authored_position = crate::values::parameter_position(program, name, &parameters)?;
+    let authored_position = crate::values::parameter_position(program, name, parameters)?;
     let authored = &parameters[authored_position];
     let primitive_type = program.primitive_type_reference(authored.type_reference)?;
     // `CheckedScalarExpression::Parameter` positions skip erased primitive

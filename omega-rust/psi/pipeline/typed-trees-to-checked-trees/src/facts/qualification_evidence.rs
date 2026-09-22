@@ -41,10 +41,7 @@ pub(crate) fn boundary_qualification_authorization(
     let ProofFact::Membership(membership) = program.proof_facts.get(fact) else {
         return None;
     };
-    let Some(subject_carrier) = ensured_subject_carrier(program, signature, membership.value)
-    else {
-        return None;
-    };
+    let subject_carrier = ensured_subject_carrier(program, signature, membership.value)?;
     if membership_carry_permission(program, membership).is_some() {
         return Some(BoundaryQualificationAuthorization {
             requirement_symbol: owner_symbol,
