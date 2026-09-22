@@ -497,5 +497,4 @@ fn recover_over(
 }
 
 #[cfg(test)]
-#[path = "candidate_tests.rs"]
 mod candidate_tests;

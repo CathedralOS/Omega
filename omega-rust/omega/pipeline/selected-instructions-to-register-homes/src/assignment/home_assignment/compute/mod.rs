@@ -6,7 +6,6 @@ mod placement;
 mod prepared_conflicts;
 
 #[cfg(test)]
-#[path = "../tests/scan_reference.rs"]
 pub(super) mod scan_reference;
 
 use register_model::{
