@@ -145,7 +145,27 @@ impl PremiseScope<'_> {
                 } else {
                     let (actual, remaining) = guarantee.actual_projection(program, expression)?;
                     match remaining.as_slice() {
-                        [] => normalized_bound(program, actual),
+                        [] => normalized_bound(program, actual).or_else(|| {
+                            // An exclusive-borrow actual hands the callee the
+                            // caller's storage: the operand resolves to that
+                            // place's post-call contents, not an immutable
+                            // value.
+                            if !matches!(
+                                program.expression_table.expression(actual),
+                                ExpressionNode::Borrow(borrow)
+                                    if borrow.access.is_exclusive()
+                            ) {
+                                return None;
+                            }
+                            let place =
+                                crate::flow::canonical_place_from_expression(program, actual)?;
+                            match (place.root, place.segments.as_slice()) {
+                                (facts::PlaceRoot::Symbol(symbol), []) => {
+                                    Some(NormalizedBound::Storage { symbol })
+                                }
+                                _ => None,
+                            }
+                        }),
                         [facts::PlaceSegment::Field { .. }] => {
                             match normalized_bound(program, actual)? {
                                 // `value.first` binds the actual's projected
