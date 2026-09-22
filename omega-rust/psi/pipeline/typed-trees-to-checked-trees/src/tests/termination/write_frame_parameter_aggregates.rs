@@ -1,6 +1,6 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::typed_program;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
@@ -23,10 +23,7 @@ fn parameter_aggregate_program(
         machine foreign(input: View) {{}}
         "#
     );
-    let syntax =
-        parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
+    typed_program(&source)
 }
 
 #[test]
@@ -503,10 +500,7 @@ fn parameter_aggregate_helper_move_invalidates_literal_caller_storage() {
             self.value = self.value + 1;
         }
     "#;
-    let syntax =
-        parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let program = lower_symbol_resolved_trees(&resolved).expect("type");
+    let program = typed_program(source);
     match validation::validate_program(&program) {
         Err(diagnostics)
             if diagnostics.iter().any(|diagnostic| {
@@ -552,10 +546,7 @@ fn parameter_aggregate_unknown_shapes_and_empty_arrays_cannot_supply_leaves() {
             }}
         "#
         );
-        let syntax =
-            parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let program = lower_symbol_resolved_trees(&resolved).expect("type");
+        let program = typed_program(&source);
         let machine = program
             .machines()
             .iter()
@@ -597,10 +588,7 @@ fn parameter_aggregate_move_survives_named_state_cycle() {
             }
         }
     "#;
-    let syntax =
-        parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let program = lower_symbol_resolved_trees(&resolved).expect("type");
+    let program = typed_program(source);
     let machine = program
         .machines()
         .iter()

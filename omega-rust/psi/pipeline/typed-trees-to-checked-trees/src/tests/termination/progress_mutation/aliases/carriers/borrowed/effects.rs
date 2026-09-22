@@ -1,8 +1,8 @@
 use super::TerminationGuarantee;
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::typed_program;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::source;
-use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::typed_source;
 use crate::tests::termination::progress_mutation::check_source;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
@@ -25,7 +25,7 @@ fn assert_prefix_effect(inner_access: &str, operation: &str, extra: &str, retain
         "carrier: &mut Carrier)",
         "carrier: &mut Carrier, replacement: &Context)",
     );
-    let mut program = typed_source(&source);
+    let mut program = typed_program(&source);
     crate::lookup::resolve_projected_receiver_calls(&mut program).unwrap();
     let machine = program
         .machines()
@@ -137,7 +137,7 @@ fn earlier_operand_exposure_is_not_exempted_by_an_empty_frame() {
             "touch",
         ),
     ] {
-        let mut program = typed_source(&source(
+        let mut program = typed_program(&source(
             "mut ",
             "",
             &format!(
@@ -239,8 +239,9 @@ fn earlier_operand_writes_distinguish_counter_and_scheduler_qualifications() {
                 ["Carrier::context", "Context::scheduler"]
             );
         } else {
-            let diagnostics = lower_typed_trees(typed_source(&source), &CheckingRequest::settled())
-                .expect_err("an earlier scheduler write retires the qualification");
+            let diagnostics =
+                lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
+                    .expect_err("an earlier scheduler write retires the qualification");
             assert!(
                 diagnostics.iter().any(|diagnostic| diagnostic
                     .message

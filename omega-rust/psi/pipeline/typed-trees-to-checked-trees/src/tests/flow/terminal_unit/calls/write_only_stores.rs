@@ -3,9 +3,9 @@ use crate::lower_typed_trees;
 use crate::tests::flow::terminal_unit::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypeShape, Lexer, Multiplicity, PrimitiveType, ResolutionRequest, checked,
-    lower_symbol_resolved_trees, machine_named, parse_syntax_trees, resolve,
+    CheckedUnitStructuralTypeShape, Multiplicity, PrimitiveType, checked, machine_named,
 };
+use crate::tests::front_end::typed_program;
 
 #[test]
 fn retains_explicit_mutable_to_write_only_attenuation() {
@@ -1070,10 +1070,7 @@ fn write_only_common_field_subloans_retain_independent_roots() {
     }
 
     let overlapping = source.replace("&write right.leaf", "&write left.leaf");
-    let tokens = Lexer::new(&overlapping).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(&overlapping);
     assert!(
         lower_typed_trees(typed, &CheckingRequest::settled()).is_err(),
         "overlapping exclusive arguments must reject"

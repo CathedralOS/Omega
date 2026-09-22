@@ -1,11 +1,12 @@
-use super::{rendered_rejection, typed};
+use super::rendered_rejection;
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::typed_program;
 
 #[test]
 fn direct_write_only_byte_slice_length_metadata_is_readable() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             machine observe_length(bytes: &write [u8]) {
                 let length: u64 = bytes.len;
@@ -36,7 +37,7 @@ fn direct_write_only_byte_slice_other_metadata_remains_rejected() {
 #[test]
 fn direct_write_only_fixed_array_length_metadata_is_readable() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             machine observe_length(bytes: &write [u8; 4]) {
                 let length: u64 = bytes.len;
@@ -51,7 +52,7 @@ fn direct_write_only_fixed_array_length_metadata_is_readable() {
 #[test]
 fn direct_write_only_fixed_array_length_supports_a_proven_element_store() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             machine fill(bytes: &write [u8; 4], index: u64 [0..bytes.len]) {
                 let length: u64 = bytes.len;
@@ -85,7 +86,7 @@ fn direct_write_only_record_field_named_len_remains_content() {
 #[test]
 fn record_held_fixed_array_length_metadata_is_readable() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             data Holder { bytes: [u8; 4]; }
 
@@ -102,7 +103,7 @@ fn record_held_fixed_array_length_metadata_is_readable() {
 #[test]
 fn nested_plain_record_fixed_array_length_metadata_is_readable() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             data Inner {
                 bytes: [u8; 4];
@@ -126,7 +127,7 @@ fn nested_plain_record_fixed_array_length_metadata_is_readable() {
 #[test]
 fn nested_plain_record_non_byte_fixed_array_length_metadata_is_readable() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             data Inner { words: [u16; 4]; }
             data Holder { inner: Inner; }
@@ -245,7 +246,7 @@ fn direct_write_only_byte_slice_content_read_remains_rejected() {
 #[test]
 fn direct_write_only_byte_slice_proven_element_is_writable() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             machine fill(bytes: &write [u8], index: u64 [0..bytes.len]) {
                 bytes[index] = 7;

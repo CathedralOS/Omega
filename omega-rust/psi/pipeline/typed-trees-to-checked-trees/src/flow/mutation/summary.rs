@@ -515,23 +515,12 @@ mod cache_tests {
     use crate::flow::mutation::summary::state_mutation_summary_places;
     use crate::flow::mutation::summary::state_summary_exposes_place;
     use crate::flow::mutation::summary::summary_index_from;
-
-    fn typed(source: &str) -> typed_trees::TypedTrees {
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
-    }
+    use crate::tests::front_end::{typed_program, typed_program_from_source_map};
 
     #[test]
     fn vec_method_spelling_cannot_complete_a_signature_only_body() {
         for method in ["push", "pop", "as_mut_slice", "index_mut"] {
-            let mut program = typed(&format!(
+            let mut program = typed_program(&format!(
                 "data Vec {{ value: u64; }} machine Vec::{method}(&mut self) {{ self.value = 1; }}"
             ));
             program.machines_mut()[0].body_is_present = false;
@@ -553,8 +542,9 @@ mod cache_tests {
 
     #[test]
     fn vec_named_concrete_method_retains_only_its_actual_write() {
-        let program =
-            typed("data Vec { value: u64; } machine Vec::push(&mut self) { self.value = 1; }");
+        let program = typed_program(
+            "data Vec { value: u64; } machine Vec::push(&mut self) { self.value = 1; }",
+        );
         let borrows = crate::borrow::build_borrow_facts(&program);
         let state = &program.machine_states(&program.machines()[0])[0];
         let cache = StateMutationSummaryCache::default();
@@ -583,22 +573,7 @@ mod cache_tests {
             let source_id = sources
                 .add_with_metadata(root.join("vec.omg"), source.clone(), root, None, origin)
                 .source_id;
-            let tokens = source_files_to_tokens::Lexer::new(&source)
-                .tokenize()
-                .unwrap();
-            let syntax =
-                tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
-            let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-                syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                    syntax: &syntax,
-                    sources: Some(std::sync::Arc::new(sources)),
-                    top_level_bindings: Vec::new(),
-                },
-            )
-            .unwrap();
-            let program =
-                symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-                    .unwrap();
+            let program = typed_program_from_source_map(sources, &[(source_id, &source)]);
             let borrow = crate::borrow::build_borrow_facts(&program);
             let machine = program
                 .machines()
@@ -745,7 +720,7 @@ mod cache_tests {
 
     #[test]
     fn dirty_rounds_preserve_discovery_order_without_replaying_unrelated_owners() {
-        let program = typed(
+        let program = typed_program(
             r#"
             machine outer(first: &mut u64, second: &mut u64) { middle(first); leaf(second); }
             machine middle(value: &mut u64) { leaf(value); }
@@ -779,7 +754,7 @@ mod cache_tests {
 
     #[test]
     fn dirty_rounds_match_full_sweeps_for_cycles_and_late_opaque_dependencies() {
-        let program = typed(
+        let program = typed_program(
             r#"
             machine first(value: &mut u64) { second(value); }
             machine second(value: &mut u64) { first(value); leaf(value); }
@@ -809,16 +784,7 @@ mod cache_tests {
     #[test]
     fn shared_cache_publishes_one_complete_table_on_first_demand() {
         let source = "machine fill(values: &write [u16; 4]) { values[1..3] = [7, 8]; }";
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let program =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let program = typed_program(source);
         let borrows = crate::borrow::build_borrow_facts(&program);
         let state = &program.machine_states(&program.machines()[0])[0];
         let cache = StateMutationSummaryCache::default();

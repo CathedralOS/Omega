@@ -1,17 +1,9 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
-
-fn typed(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
+use crate::tests::front_end::{checked_program_result, typed_program};
 
 fn rejected(source: &str, expected: &str) {
-    let diagnostics = lower_typed_trees(typed(source), &CheckingRequest::settled())
-        .expect_err("program should be rejected");
+    let diagnostics = checked_program_result(source).expect_err("program should be rejected");
     assert!(
         diagnostics
             .iter()
@@ -27,7 +19,7 @@ fn rejected(source: &str, expected: &str) {
 #[test]
 fn transparent_record_accepts_explicit_erased_initializer() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
         data Certified {
             value: i32;
@@ -49,7 +41,7 @@ fn transparent_record_accepts_explicit_erased_initializer() {
 #[test]
 fn erased_proof_only_containment_does_not_poison_runtime_holder() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
         data Nat {
             case Zero;
@@ -90,7 +82,7 @@ fn construction_still_requires_erased_initializer() {
 #[test]
 fn unique_nullary_constructor_supplies_omitted_erased_initializer() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
         data Nat {
             case Zero;
@@ -112,7 +104,7 @@ fn unique_nullary_constructor_supplies_omitted_erased_initializer() {
 #[test]
 fn selected_case_payload_gets_unique_nullary_erased_initializer() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
         data Evidence { case Only; case WithPayload(value: i32); }
         data Certified {
@@ -198,7 +190,7 @@ fn generic_evidence_does_not_supply_an_erased_initializer() {
 #[test]
 fn ambiguous_nullary_evidence_remains_legal_when_explicitly_supplied() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
         data Evidence { case First; case Second; }
         data Certified { value: i32; proof [erased]: Evidence; }
@@ -267,7 +259,7 @@ fn runtime_projection_of_erased_field_is_rejected() {
 #[test]
 fn checked_attached_machine_accepts_erased_record_and_reads_material_self_field() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
         data Certified { value: i32; proof [erased]: i32; }
         machine Certified::read(&self) -> i32 { self.value }
@@ -314,7 +306,7 @@ fn erased_linear_field_on_attached_record_retains_its_obligation() {
 #[test]
 fn unused_generic_erased_record_with_attached_machine_is_schema_only() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
         data Box<T> { value: T; proof [erased]: i32; }
         machine Box::read<T>(&self) -> i32 { 0 }
@@ -351,7 +343,7 @@ fn erased_record_with_generic_attached_machine_remains_fenced() {
 #[test]
 fn case_bearing_erased_data_with_attached_machine_is_accepted() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
         data Certified {
             proof [erased]: i32;
@@ -380,7 +372,7 @@ fn boundary_attached_machine_on_erased_record_remains_fenced() {
 #[test]
 fn exact_case_payload_accepts_explicit_erased_initializer() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
         data Certified {
             case First(value: i32, first_proof [erased]: i32);
@@ -447,7 +439,7 @@ fn runtime_projection_of_erased_payload_is_rejected() {
 #[test]
 fn erased_payload_may_flow_into_another_erased_payload() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
         data Source { case Proven(value: i32, proof [erased]: i32); }
         data Target { case Proven(value: i32, proof [erased]: i32); }
@@ -481,7 +473,7 @@ fn proof_machine_result_cannot_determine_runtime_data() {
 #[test]
 fn proof_machine_result_may_determine_proof_computation() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
         data Nat { case Zero; case Succ(previous: Nat); }
         machine proof_value(value: Nat) -> i32 [0..=7] { 7 }
@@ -498,7 +490,7 @@ fn proof_machine_result_may_determine_proof_computation() {
 #[test]
 fn proof_machine_result_may_initialize_an_erased_binding() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
         data Nat { case Zero; case Succ(previous: Nat); }
         data Certified { value: i32; proof [erased]: i32; }
@@ -666,7 +658,7 @@ fn erased_nonscalar_parameter_on_runtime_machine_refuses_the_lane() {
 
 #[test]
 fn erased_scalar_parameter_stays_admitted() {
-    typed(
+    typed_program(
         r#"
         data Main { value: i32; }
 

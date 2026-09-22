@@ -1,24 +1,12 @@
-use super::super::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
+use crate::tests::front_end::checked_program_result;
 
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
 use crate::tests::termination::progress_mutation::assert_subjects;
 use crate::tests::termination::progress_mutation::assert_unproved_tail_requirement;
 use crate::tests::termination::progress_mutation::fixture_source;
 
-fn checks(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = Lexer::new(source).tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    lower_typed_trees(typed, &CheckingRequest::settled())
-}
-
 fn reject_requires(source: &str) {
-    let diagnostics =
-        checks(source).expect_err("reference identity cannot establish a missing domain fact");
+    let diagnostics = checked_program_result(source)
+        .expect_err("reference identity cannot establish a missing domain fact");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -38,7 +26,7 @@ fn an_alias_requires_an_existing_fact_for_its_actual_referent() {
              {{ wait_context(selected) }}"
         );
         assert_subjects(
-            &checks(&fixture_source(&body, true, false, "")).unwrap(),
+            &checked_program_result(&fixture_source(&body, true, false, "")).unwrap(),
             &["context"],
         );
         reject_requires(&fixture_source(&body, false, false, ""));
@@ -109,7 +97,10 @@ fn rebinding_a_shared_alias_cannot_keep_its_old_referents_fact() {
         requires selected.scheduler in WeakFair
         { wait_context(selected) }";
     let qualified = fixture_source(body, true, false, "");
-    assert_subjects(&checks(&qualified).unwrap(), &["replacement"]);
+    assert_subjects(
+        &checked_program_result(&qualified).unwrap(),
+        &["replacement"],
+    );
     let missing = qualified.replace("requires replacement.scheduler in WeakFair", "");
     reject_requires(&missing);
 }
@@ -123,7 +114,10 @@ fn a_reference_does_not_restore_a_fact_invalidated_by_a_store() {
         requires selected.scheduler in WeakFair
         { wait_context(selected) }";
     let qualified = fixture_source(body, true, false, "");
-    assert_subjects(&checks(&qualified).unwrap(), &["replacement"]);
+    assert_subjects(
+        &checked_program_result(&qualified).unwrap(),
+        &["replacement"],
+    );
     reject_requires(&qualified.replace(
         "borrowed.scheduler = replacement.scheduler;",
         "borrowed.scheduler = SchedulerHandle {};",
@@ -146,7 +140,7 @@ fn earlier_argument_effects_must_preserve_a_reference_domain_fact() {
         let extra = format!("machine change(context: &mut Context) -> u64 {{ {assignment} 0 }}");
         let source = fixture_source(body, true, false, &extra);
         if field == "counter" {
-            assert_subjects(&checks(&source).unwrap(), &["context"]);
+            assert_subjects(&checked_program_result(&source).unwrap(), &["context"]);
         } else {
             reject_requires(&source);
         }

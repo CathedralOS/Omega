@@ -1,4 +1,5 @@
 use super::{Multiplicity, PermissionAccess, PermissionEventKind, SymbolHandle, validate};
+use crate::tests::front_end::checked_program_result;
 fn checked() -> checked_trees::CheckedTrees {
     let source = "data Limits { limit: u64; divisor: u64 [3..=5]; }
         machine reset(value: &mut u64) -> u64 { value = 0; 0 }
@@ -9,18 +10,7 @@ fn checked() -> checked_trees::CheckedTrees {
         machine enter(spare: Limits, other: Limits, limits: Limits, marker: u64) -> u64 {
             let answer: u64 = inspect(marker, limits); answer
         }";
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
-        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"))
+    checked_program_result(source).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"))
 }
 
 #[test]

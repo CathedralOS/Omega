@@ -1,3 +1,4 @@
+use crate::tests::front_end::{checked_program_result, typed_program};
 use checked_trees::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};
 
 #[test]
@@ -187,16 +188,7 @@ fn source_rejects_record_rebinding_and_invalid_bounds() {
         let source = format!(
             "data Value {{ value: {field_type}; }} machine enter() -> {result_type} {{ {body} }}"
         );
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let typed =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let typed = typed_program(&source);
         assert!(
             crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).is_err(),
             "{source}"
@@ -250,17 +242,7 @@ fn checked(copy: &str, prefix: &str, initializer: &str) -> checked_trees::Checke
 }
 
 fn check_source(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+    checked_program_result(source)
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
 }
 

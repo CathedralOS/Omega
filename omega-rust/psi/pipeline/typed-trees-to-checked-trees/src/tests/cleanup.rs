@@ -1,14 +1,7 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
+use crate::tests::front_end::{checked_program, checked_program_result};
 
 fn diagnostics(source: &str) -> Vec<diagnostics::Diagnostic> {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("invalid cleanup declaration must reject")
+    checked_program_result(source).expect_err("invalid cleanup declaration must reject")
 }
 
 fn rejects(source: &str, expected: &str) {
@@ -19,14 +12,6 @@ fn rejects(source: &str, expected: &str) {
             .any(|diagnostic| diagnostic.message.contains(expected)),
         "expected diagnostic containing `{expected}`, got {diagnostics:?}"
     );
-}
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
 }
 
 fn machine_symbol(checked: &checked_trees::CheckedTrees, name: &str) -> symbols::SymbolHandle {
@@ -44,12 +29,7 @@ fn accepts_reserved_cleanup_shape() {
         data Wrapper { value: i32; }
         machine Wrapper::drop(&mut self) {}
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("reserved cleanup shape should check");
+    checked_program(source);
 }
 
 #[test]
@@ -60,12 +40,7 @@ fn accepts_exact_one_call_executable_cleanup_shape() {
         data Wrapper { value: i32; }
         machine Wrapper::drop(&mut self) { Helper::touch(); }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("exact one-call cleanup shape should check");
+    checked_program(source);
 }
 
 #[test]
@@ -81,12 +56,7 @@ fn accepts_exact_two_call_executable_cleanup_shape() {
             Second::touch();
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("exact two-call cleanup shape should check");
+    checked_program(source);
 }
 
 #[test]
@@ -111,12 +81,7 @@ fn accepts_exact_five_call_executable_cleanup_shape() {
             Fifth::touch();
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("exact five-call cleanup shape should check");
+    checked_program(source);
 }
 
 #[test]
@@ -201,12 +166,7 @@ fn ordinary_drop_spelling_remains_callable() {
             accept<drop>();
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("ordinary drop spellings should remain callable");
+    checked_program(source);
 }
 
 #[test]
@@ -241,12 +201,7 @@ fn accepts_repeated_nonempty_or_argumented_hook_bodies() {
             machine Wrapper::drop(&mut self) { Helper::touch(1u8); }
         "#,
     ] {
-        let tokens = Lexer::new(source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        lower_typed_trees(typed, &CheckingRequest::settled())
-            .expect("an ordinary hook body is checked like any Unit machine");
+        checked_program(source);
     }
 }
 
@@ -256,12 +211,7 @@ fn accepts_cleanup_for_generic_attached_data() {
         data Wrapper<T> { value: T; }
         machine Wrapper::drop(&mut self) {}
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("attached-data generics are inherited through exact Self");
+    checked_program(source);
 }
 
 #[test]
@@ -317,12 +267,7 @@ fn bodyless_cleanup_requires_published_termination() {
         pub data Wrapper { value: i32; }
         boundary machine Wrapper::drop(&mut self) terminates; ensures true;
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("terminating bodyless cleanup should check");
+    checked_program(source);
 }
 
 #[test]
@@ -355,7 +300,7 @@ fn erased_nominal_cleanup_member_leaves_the_owner_trivially_affine() {
     // whose only nominal-cleanup member is erased stays an ordinary affine
     // record: `enter` admits a Unit body and its `c` parameter dies as a
     // plain discard on the return edge.
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Evidence { tag: i32; }
         machine Evidence::drop(&mut self) {}
@@ -399,7 +344,7 @@ fn erased_nominal_cleanup_member_leaves_the_owner_trivially_affine() {
 fn relevant_nominal_cleanup_member_without_the_hook_admits_no_body() {
     // The same owner with a relevant `proof` member requires nominal drop and
     // has no `Carrier::drop`, so `enter` can enter no Unit lane.
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Evidence { tag: i32; }
         machine Evidence::drop(&mut self) {}

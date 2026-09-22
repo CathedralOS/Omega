@@ -1,6 +1,4 @@
-use super::super::super::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
+use crate::tests::front_end::typed_program;
 
 use crate::tests::termination::progress_mutation::fixture_source;
 use symbols::SymbolHandle;
@@ -14,10 +12,7 @@ pub(super) fn typed_fixture(body: &str, extra: &str) -> typed_trees::TypedTrees 
         false,
         extra,
     );
-    let tokens = Lexer::new(&source).tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    lower_symbol_resolved_trees(&resolved).unwrap()
+    typed_program(&source)
 }
 
 pub(super) fn assert_origin(program: &typed_trees::TypedTrees, expected: Option<&str>) {

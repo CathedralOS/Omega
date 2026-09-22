@@ -3,8 +3,8 @@ use crate::checks::ranges::RangeFacts;
 use crate::checks::ranges::facts::RangeCallContext;
 use crate::checks::ranges::facts::dependencies::tests::initializer;
 use crate::checks::ranges::facts::dependencies::tests::parameter_place;
-use crate::checks::ranges::facts::dependencies::tests::typed_source;
 use crate::flow::CanonicalPlace;
+use crate::tests::front_end::typed_program;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
@@ -64,7 +64,7 @@ fn record_label(
 /// is whatever evaluating `compute(seed)` read — no more and no less.
 #[test]
 fn a_call_receiver_member_reads_the_call_footprint() {
-    let program = typed_source(
+    let program = typed_program(
         "data Pair { a: i64; b: i64; }
         machine compute(seed: i64) -> Pair { Pair { a: seed, b: 0 } }
         machine window(seed: i64, other: i64, unrelated: i64) {
@@ -103,7 +103,7 @@ fn a_call_receiver_member_reads_the_call_footprint() {
 /// even though the projection selects only one field.
 #[test]
 fn a_literal_receiver_member_reads_each_initializer() {
-    let program = typed_source(
+    let program = typed_program(
         "data Pair { a: i64; b: i64; }
         machine window(left: i64, right: i64, unrelated: i64) {
             let cut: i64 = Pair { a: left, b: right }.a;
@@ -142,7 +142,7 @@ fn a_literal_receiver_member_reads_each_initializer() {
 /// neither projection names caller storage.
 #[test]
 fn a_nested_temporary_member_reads_the_producing_footprint() {
-    let program = typed_source(
+    let program = typed_program(
         "data Inner { a: i64; b: i64; }
         data Outer { inner: Inner; other: i64; }
         machine compute(seed: i64) -> Outer { Outer { inner: Inner { a: seed, b: 0 }, other: 0 } }
@@ -179,7 +179,7 @@ fn a_nested_temporary_member_reads_the_producing_footprint() {
 /// can observe.
 #[test]
 fn a_self_call_receiver_member_reads_the_receiver_footprint() {
-    let program = typed_source(
+    let program = typed_program(
         "data Pair { a: i64; b: i64; }
         data Main { seed: i64; other: i64; }
         machine Main::compute(&self) -> Pair { Pair { a: self.seed, b: 0 } }
@@ -223,7 +223,7 @@ fn a_self_call_receiver_member_reads_the_receiver_footprint() {
 /// element place it selects.
 #[test]
 fn a_temporary_member_inside_a_selector_keeps_both_footprints() {
-    let program = typed_source(
+    let program = typed_program(
         "data Pair { a: i64; b: i64; }
         machine compute(seed: i64) -> Pair { Pair { a: seed, b: 0 } }
         machine window(seed: i64, items: &[i64; 4], unrelated: i64) {
@@ -266,7 +266,7 @@ fn a_temporary_member_inside_a_selector_keeps_both_footprints() {
 /// callee's reads — the read set stays incomplete.
 #[test]
 fn a_call_receiver_member_without_call_custody_stays_incomplete() {
-    let program = typed_source(
+    let program = typed_program(
         "data Pair { a: i64; b: i64; }
         machine compute(seed: i64) -> Pair { Pair { a: seed, b: 0 } }
         machine window(seed: i64, unrelated: i64) {
@@ -298,7 +298,7 @@ fn a_call_receiver_member_without_call_custody_stays_incomplete() {
 /// name must be unresolvable on `Pair`.
 #[test]
 fn a_temporary_member_with_unresolved_identity_stays_incomplete() {
-    let mut program = typed_source(
+    let mut program = typed_program(
         "data Pair { a: i64; b: i64; }
         machine window(left: i64, right: i64, unrelated: i64) {
             let cut: i64 = Pair { a: left, b: right }.a;
@@ -325,7 +325,7 @@ fn a_temporary_member_with_unresolved_identity_stays_incomplete() {
 /// through the projection, nothing more.
 #[test]
 fn an_index_of_a_temporary_member_reads_the_producing_footprint() {
-    let program = typed_source(
+    let program = typed_program(
         "data Pair { a: [i64; 4]; b: i64; }
         machine compute(seed: i64) -> Pair { Pair { a: [seed, 0, 0, 0], b: 0 } }
         machine window(seed: i64, index: u64, unrelated: i64) {
@@ -368,7 +368,7 @@ fn an_index_of_a_temporary_member_reads_the_producing_footprint() {
 /// place, so every evaluated operand contributes its own reads.
 #[test]
 fn a_window_of_a_temporary_member_reads_its_bounds_and_producer() {
-    let program = typed_source(
+    let program = typed_program(
         "data Pair { a: [i64; 4]; b: i64; }
         machine compute(seed: i64) -> Pair { Pair { a: [seed, 0, 0, 0], b: 0 } }
         machine window(seed: i64, low: u64, high: u64, unrelated: i64) {
@@ -417,7 +417,7 @@ fn a_window_of_a_temporary_member_reads_its_bounds_and_producer() {
 /// checked call's reads plus the selector's.
 #[test]
 fn an_index_of_a_call_result_reads_the_call_footprint() {
-    let program = typed_source(
+    let program = typed_program(
         "machine compute(seed: i64) -> [i64; 4] { [seed, 0, 0, 0] }
         machine window(seed: i64, index: u64, unrelated: i64) {
             let cut: i64 = compute(seed)[index];
@@ -449,7 +449,7 @@ fn an_index_of_a_call_result_reads_the_call_footprint() {
 /// and the selector, needing no call custody because no call produced it.
 #[test]
 fn a_literal_member_index_reads_each_initializer_and_the_selector() {
-    let program = typed_source(
+    let program = typed_program(
         "data Pair { a: [i64; 4]; b: i64; }
         machine window(left: i64, right: i64, index: u64, unrelated: i64) {
             let cut: i64 = Pair { a: [left, 0, 0, 0], b: right }.a[index];
@@ -494,7 +494,7 @@ fn a_literal_member_index_reads_each_initializer_and_the_selector() {
 /// the selector, since no projection in the chain names caller storage.
 #[test]
 fn a_member_below_an_index_of_a_temporary_keeps_the_producing_footprint() {
-    let program = typed_source(
+    let program = typed_program(
         "data Cell { v: i64; }
         data Pair { a: [Cell; 4]; b: i64; }
         machine compute(seed: i64) -> Pair {
@@ -538,7 +538,7 @@ fn a_member_below_an_index_of_a_temporary_keeps_the_producing_footprint() {
 /// `compute(seed).a[index]` stays incomplete.
 #[test]
 fn an_index_of_a_temporary_without_call_custody_stays_incomplete() {
-    let program = typed_source(
+    let program = typed_program(
         "data Pair { a: [i64; 4]; b: i64; }
         machine compute(seed: i64) -> Pair { Pair { a: [seed, 0, 0, 0], b: 0 } }
         machine window(seed: i64, index: u64, unrelated: i64) {
@@ -570,7 +570,7 @@ fn an_index_of_a_temporary_without_call_custody_stays_incomplete() {
 /// the match-receiver member keeps.
 #[test]
 fn a_match_collection_index_stays_incomplete() {
-    let program = typed_source(
+    let program = typed_program(
         "machine window(flag: i64, left: &[i64; 4], right: &[i64; 4], index: u64, unrelated: i64) {
             let cut: i64 = match flag { 0 -> left, _ -> right }[index];
         }",
@@ -587,7 +587,7 @@ fn a_match_collection_index_stays_incomplete() {
 /// the arms' agreeing declared result types, not from a place position.
 #[test]
 fn a_match_receiver_member_reads_the_match_footprint() {
-    let program = typed_source(
+    let program = typed_program(
         "data Pair { a: i64; b: i64; }
         machine window(flag: i64, left: Pair, right: Pair, unrelated: i64) {
             let cut: i64 = match flag { 0 -> left, _ -> right }.a;
@@ -633,7 +633,7 @@ fn a_match_receiver_member_reads_the_match_footprint() {
 /// separately spelled references to one declaration still agree on its leaf.
 #[test]
 fn a_match_receiver_member_with_literal_arms_reads_each_initializer() {
-    let program = typed_source(
+    let program = typed_program(
         "data Pair { a: i64; b: i64; }
         machine window(flag: i64, left: i64, right: i64, unrelated: i64) {
             let cut: i64 = match flag { 0 -> Pair { a: left, b: 0 }, _ -> Pair { a: right, b: 1 } }.a;
@@ -670,7 +670,7 @@ fn a_match_receiver_member_with_literal_arms_reads_each_initializer() {
 /// on that declaration.
 #[test]
 fn a_match_receiver_member_with_unresolved_identity_stays_incomplete() {
-    let mut program = typed_source(
+    let mut program = typed_program(
         "data Pair { a: i64; b: i64; }
         machine window(flag: i64, left: Pair, right: Pair, unrelated: i64) {
             let cut: i64 = match flag { 0 -> left, _ -> right }.a;
@@ -696,7 +696,7 @@ fn a_match_receiver_member_with_unresolved_identity_stays_incomplete() {
 /// dispatch.
 #[test]
 fn a_match_receiver_member_with_disagreeing_arm_leaves_stays_incomplete() {
-    let program = typed_source(
+    let program = typed_program(
         "data Pair { a: i64; b: i64; }
         data Other { a: i64; }
         machine window(flag: i64, left: Pair, right: Other, unrelated: i64) {
@@ -714,7 +714,7 @@ fn a_match_receiver_member_with_disagreeing_arm_leaves_stays_incomplete() {
 /// set stays incomplete rather than guessing at the surviving peer.
 #[test]
 fn a_match_receiver_member_with_an_untyped_arm_stays_incomplete() {
-    let program = typed_source(
+    let program = typed_program(
         "data Pair { a: i64; b: i64; }
         machine window(flag: i64, left: Pair, right: Pair, unrelated: i64) {
             let cut: i64 = match flag { 0 -> left, _ -> &right }.a;
@@ -734,7 +734,7 @@ fn a_match_receiver_member_with_an_untyped_arm_stays_incomplete() {
 /// previous hop's declaration leaf without a place position.
 #[test]
 fn a_match_receiver_member_chain_reads_the_match_footprint() {
-    let program = typed_source(
+    let program = typed_program(
         "data Inner { a: i64; b: i64; }
         data Outer { inner: Inner; other: i64; }
         machine window(flag: i64, left: Outer, right: Outer, unrelated: i64) {
@@ -780,7 +780,7 @@ fn a_match_receiver_member_chain_reads_the_match_footprint() {
 /// `.a` belongs to, so the read set stays incomplete.
 #[test]
 fn a_match_receiver_member_chain_with_an_unresolved_hop_stays_incomplete() {
-    let mut program = typed_source(
+    let mut program = typed_program(
         "data Inner { a: i64; b: i64; }
         data Outer { inner: Inner; other: i64; }
         machine window(flag: i64, left: Outer, right: Outer, unrelated: i64) {
@@ -921,7 +921,7 @@ fn payload_field_symbol(
 /// so the complete footprint is the projected place `self.attack@Strike.bonus`.
 #[test]
 fn a_case_qualified_member_in_a_destructure_guard_reads_the_projected_place() {
-    let program = typed_source(
+    let program = typed_program(
         "data Attack {
             case Idle;
             case Strike(power: i64, bonus: i64);
@@ -987,7 +987,7 @@ fn a_case_qualified_member_in_a_destructure_guard_reads_the_projected_place() {
 /// projected place.
 #[test]
 fn a_case_qualified_member_on_a_captured_subject_reads_the_generated_local() {
-    let program = typed_source(
+    let program = typed_program(
         "data Attack {
             case Idle;
             case Strike(power: i64, bonus: i64);
@@ -1046,7 +1046,7 @@ fn a_case_qualified_member_on_a_captured_subject_reads_the_generated_local() {
 /// complete projected place `self.attack@Strike.inner.v`.
 #[test]
 fn a_member_through_a_case_qualified_receiver_reads_the_projected_place() {
-    let program = typed_source(
+    let program = typed_program(
         "data Inner { v: i64; }
         data Attack {
             case Idle;
@@ -1115,7 +1115,7 @@ fn a_member_through_a_case_qualified_receiver_reads_the_projected_place() {
 /// different case's field.
 #[test]
 fn a_case_qualified_member_naming_another_variants_field_stays_incomplete() {
-    let mut program = typed_source(
+    let mut program = typed_program(
         "data Attack {
             case Idle(rest: i64);
             case Strike(power: i64, bonus: i64);
@@ -1152,7 +1152,7 @@ fn a_case_qualified_member_naming_another_variants_field_stays_incomplete() {
 /// incidental resolution inside one variant.
 #[test]
 fn an_unqualified_payload_member_stays_incomplete() {
-    let mut program = typed_source(
+    let mut program = typed_program(
         "data Attack {
             case Idle;
             case Strike(power: i64, bonus: i64);
@@ -1188,7 +1188,7 @@ fn an_unqualified_payload_member_stays_incomplete() {
 /// field, so `.v` above it has no receiver type to stand on.
 #[test]
 fn a_member_above_an_unresolved_case_hop_stays_incomplete() {
-    let mut program = typed_source(
+    let mut program = typed_program(
         "data Inner { v: i64; }
         data Attack {
             case Idle;
@@ -1230,7 +1230,7 @@ fn a_member_above_an_unresolved_case_hop_stays_incomplete() {
 /// incomplete.
 #[test]
 fn a_member_above_a_case_receiver_naming_no_field_stays_incomplete() {
-    let mut program = typed_source(
+    let mut program = typed_program(
         "data Inner { v: i64; }
         data Attack {
             case Idle;
@@ -1267,7 +1267,7 @@ fn a_member_above_a_case_receiver_naming_no_field_stays_incomplete() {
 /// exists even though every earlier hop resolved.
 #[test]
 fn a_match_receiver_member_chain_with_an_unresolved_leaf_stays_incomplete() {
-    let mut program = typed_source(
+    let mut program = typed_program(
         "data Inner { a: i64; b: i64; }
         data Outer { inner: Inner; other: i64; }
         machine window(flag: i64, left: Outer, right: Outer, unrelated: i64) {

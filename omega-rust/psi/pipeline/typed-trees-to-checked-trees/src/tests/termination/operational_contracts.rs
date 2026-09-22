@@ -1,6 +1,6 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::{checked_program, checked_program_result, typed_program};
 use crate::tests::termination::symbol_of_checked;
 
 #[test]
@@ -34,14 +34,7 @@ fn checked_wrappers_publish_authored_and_transitive_service_union() {
             }
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize reach composition");
-    let syntax = parse_syntax_trees(&tokens).expect("parse reach composition");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve reach composition");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type reach composition");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("checked wrappers inherit callee reach");
+    let checked = checked_program(source);
     for name in [
         "forward",
         "caller",
@@ -93,14 +86,8 @@ fn private_direct_boundary_calls_require_authored_service_reach() {
         machine Worker::read(&mut self) -> u64 { self.reader.read() }
         machine static_read() -> u64 { Readable::read() }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize direct reach");
-    let syntax = parse_syntax_trees(&tokens).expect("parse direct reach");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve direct reach");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type direct reach");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("a private boundary call needs a declaration");
+    let diagnostics =
+        checked_program_result(source).expect_err("a private boundary call needs a declaration");
     assert_eq!(
         diagnostics
             .iter()
@@ -134,13 +121,7 @@ fn symbol_resolved_service_reach_propagates_boundary_identity_and_parent_closure
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let worker = typed
         .machines()
         .iter()
@@ -201,15 +182,8 @@ fn symbol_resolved_service_ceiling_rejects_undeclared_boundary_reach() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("service ceiling must reject widening");
+    let diagnostics =
+        checked_program_result(source).expect_err("service ceiling must reject widening");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -233,11 +207,7 @@ fn intrinsic_boundary_projection_preserves_the_callers_service_ceiling() {
         ConsoleNativeProvider::write_byte(55);
     }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+    let diagnostics = checked_program_result(source)
         .expect_err("the intrinsic requirement must not bypass the caller's ceiling");
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -267,13 +237,7 @@ fn operational_plans_are_independent_from_service_reach_rows() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let symbol_of = |name: &str| {
         typed
             .machines()
@@ -388,13 +352,7 @@ fn checked_machine_operational_facts_keep_suspension_and_blocking_independent() 
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let symbol_of = |name: &str| {
         typed
             .machines()
@@ -475,13 +433,7 @@ fn qualification_facts_record_policy_commitments() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let symbol_of = |name: &str| {
         typed
             .machines()
@@ -693,13 +645,7 @@ fn contract_plans_fingerprint_published_halves() {
     machine Main::main(&mut self) -> u64 { 7 }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let symbol_of = |name: &str| {
         typed
             .machines()

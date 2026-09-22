@@ -1,4 +1,5 @@
 use super::{BoundsCheckResult, RangeFacts, check_indexed_access};
+use crate::tests::front_end::{checked_program_result, typed_program};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableIndexedExpression};
 
 mod length_endpoints;
@@ -15,16 +16,7 @@ fn fixture(
 ) {
     let source =
         format!("machine inspect(items: &{collection_type}, index: u64) {{ items{access}; }}");
-    let tokens = source_files_to_tokens::Lexer::new(&source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let program = typed_program(&source);
     let (expression, indexed) = program
         .expression_table
         .iter_expressions()
@@ -41,17 +33,7 @@ fn fixture(
 /// the same facts the real pipeline seeds (requires floors, guard bounds,
 /// alias transfers). `Ok` means every bounds obligation was discharged.
 fn check_source(source: &str) -> Result<(), Vec<String>> {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
+    checked_program_result(source)
         .map(|_| ())
         .map_err(|diagnostics| {
             diagnostics
@@ -153,17 +135,7 @@ fn unrecognized_collection_is_not_a_bounds_admission() {
 #[test]
 fn call_index_proves_through_ensured_result_bounds() {
     fn check(source: &str) -> Result<(), Vec<String>> {
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .expect("tokenize");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("resolve");
-        let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("type");
-        crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
+        checked_program_result(source)
             .map(|_| ())
             .map_err(|diagnostics| {
                 diagnostics
@@ -225,17 +197,7 @@ fn call_index_proves_through_ensured_result_bounds() {
 #[test]
 fn call_index_alongside_the_source_call_keeps_occurrence_custody() {
     fn check(source: &str) -> Result<(), Vec<String>> {
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .expect("tokenize");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("resolve");
-        let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("type");
-        crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
+        checked_program_result(source)
             .map(|_| ())
             .map_err(|diagnostics| {
                 diagnostics
@@ -282,17 +244,7 @@ fn call_index_alongside_the_source_call_keeps_occurrence_custody() {
 #[test]
 fn receiver_call_index_reads_the_callee_ensures() {
     fn check(source: &str) -> Result<(), Vec<String>> {
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .expect("tokenize");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("resolve");
-        let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("type");
-        crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
+        checked_program_result(source)
             .map(|_| ())
             .map_err(|diagnostics| {
                 diagnostics
@@ -329,17 +281,7 @@ fn receiver_call_index_reads_the_callee_ensures() {
 #[test]
 fn call_result_alias_carries_the_ensured_result_bounds() {
     fn check(source: &str) -> Result<(), Vec<String>> {
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .expect("tokenize");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("resolve");
-        let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("type");
-        crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
+        checked_program_result(source)
             .map(|_| ())
             .map_err(|diagnostics| {
                 diagnostics
@@ -442,17 +384,7 @@ fn call_result_alias_carries_the_ensured_result_bounds() {
 #[test]
 fn call_index_on_unknown_slice_meets_ensured_bounds_against_length_facts() {
     fn check(source: &str) -> Result<(), Vec<String>> {
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .expect("tokenize");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("resolve");
-        let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("type");
-        crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
+        checked_program_result(source)
             .map(|_| ())
             .map_err(|diagnostics| {
                 diagnostics

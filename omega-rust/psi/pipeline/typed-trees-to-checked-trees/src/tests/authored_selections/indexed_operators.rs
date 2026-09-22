@@ -1,10 +1,10 @@
 use super::{
     AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind,
-    AuthoredDeclarationSelectionTarget, Lexer, ResolutionRequest, lower_symbol_resolved_trees,
-    parse_syntax_trees, resolve,
+    AuthoredDeclarationSelectionTarget,
 };
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::{checked_program, typed_program};
 use checked_trees::CheckedOperatorResolutionStatus;
 use language_core::operator_spelling::OperatorSpelling;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -21,10 +21,7 @@ fn applied_generic_field_indexing_never_acquires_false_builtin_custody() {
             machine inspect(input: &Box<View>) -> View {{ input.{field}[0] }}
         "#
         );
-        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let typed = typed_program(&source);
         let machine = &typed.machines()[0];
         let state = &typed.machine_states(machine)[0];
         let indexed = typed
@@ -86,10 +83,7 @@ fn indexed_program() -> typed_trees::TypedTrees {
             let first: i32 = self.values[0];
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
+    typed_program(source)
 }
 
 #[test]
@@ -102,12 +96,7 @@ fn unrelated_index_declaration_retains_exact_builtin_custody() {
             values[0]
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("unrelated indexing declaration checks");
+    let checked = checked_program(source);
     let mut uses = checked
         .facts
         .operators

@@ -1,11 +1,9 @@
-use super::super::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
+use crate::tests::front_end::{
+    checked_program_result, typed_program, typed_program_with_resolution,
 };
 
-use crate::CheckingRequest;
 use crate::borrow::build_borrow_facts;
 use crate::flow::build_domain_facts;
-use crate::lower_typed_trees;
 use crate::proof::build_proof_facts;
 use crate::semantic::build_semantic_facts;
 
@@ -25,10 +23,7 @@ fn constrained_type_composes_predicate_bodies_without_flow_minting_role_only_dom
         }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
     let packet = typed
         .data_definitions()
         .iter()
@@ -82,11 +77,7 @@ fn domain_conjunction_write_checks_every_predicate_facet() {
         }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+    let diagnostics = checked_program_result(source)
         .expect_err("a UTF-8 but non-ASCII literal must fail the second predicate facet");
 
     assert!(
@@ -118,10 +109,7 @@ fn semantic_domain_ids_mint_and_propagate() {
             self.mana >= 0;
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let (resolved, typed) = typed_program_with_resolution(source);
 
     let ids: Vec<_> = typed
         .domain_definitions()
@@ -161,10 +149,7 @@ fn materializes_domain_dependency_facts() {
             self.mana >= 0;
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);

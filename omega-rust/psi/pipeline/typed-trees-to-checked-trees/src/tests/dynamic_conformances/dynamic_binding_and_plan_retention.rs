@@ -4,11 +4,7 @@ use super::{
     STORED_DYNAMIC_INTEGER_SOURCE, STRUCTURAL_INTEGER_STORE_SOURCE, check_dynamic_source,
     sole_direct_dynamic_plan, sole_rebound_dynamic_plan,
 };
-use crate::CheckingRequest;
-use crate::tests::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees,
-    resolve,
-};
+use crate::tests::front_end::{checked_program, checked_program_result};
 use typed_trees::statement::StatementNode;
 
 #[test]
@@ -39,12 +35,7 @@ fn dynamic_binding_facts_select_latest_preceding_reassignment_for_call_receiver(
             let result: i32 = erased.code();
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check local dynamic selections");
+    let checked = checked_program(source);
 
     let machine = checked
         .typed
@@ -242,12 +233,7 @@ fn direct_dynamic_plan_retains_the_selected_realization_despite_an_ambient_looka
             let result: i32 = erased.code();
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check direct dynamic dispatch");
+    let checked = checked_program(source);
 
     let plans = &checked
         .facts
@@ -593,11 +579,7 @@ fn dynamic_dispatch_to_an_erased_formal_requirement_refuses_the_missing_lane() {
             let result: bool = erased.measure(3);
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+    let diagnostics = checked_program_result(source)
         .expect_err("a dynamic call to an erased-formal requirement must refuse the missing lane");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -680,11 +662,7 @@ fn stored_dynamic_dispatch_to_an_erased_formal_requirement_refuses_the_missing_l
             let result: bool = holder.handler.measure(3);
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+    let diagnostics = checked_program_result(source)
         .expect_err("a stored dynamic call to an erased-formal requirement must refuse");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic

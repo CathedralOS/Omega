@@ -1,15 +1,7 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
+use crate::tests::front_end::checked_program_result;
 
 fn check(source: &str, accepted: bool) {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize byte extent fixture");
-    let syntax = parse_syntax_trees(&tokens).expect("parse byte extent fixture");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve byte extent fixture");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type byte extent fixture");
-    match lower_typed_trees(typed, &CheckingRequest::settled()) {
+    match checked_program_result(source) {
         Ok(_) => assert!(
             accepted,
             "unused byte capacity admitted as live extent:\n{source}"

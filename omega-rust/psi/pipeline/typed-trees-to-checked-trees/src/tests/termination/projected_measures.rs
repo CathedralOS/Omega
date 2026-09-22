@@ -1,15 +1,6 @@
-use super::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees,
-    resolve,
-};
+use super::lower_typed_trees;
 use crate::CheckingRequest;
-
-fn typed(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokens");
-    let syntax = parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolved");
-    lower_symbol_resolved_trees(&resolved).expect("typed")
-}
+use crate::tests::front_end::{checked_program, typed_program};
 
 const COUNTDOWN: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -18,14 +9,13 @@ const COUNTDOWN: &str = include_str!(concat!(
 
 #[test]
 fn measure_projection_requires_its_exact_parameter_receiver() {
-    let program = typed(COUNTDOWN);
-    lower_typed_trees(program, &CheckingRequest::settled()).expect("valid direct field measure");
+    checked_program(COUNTDOWN);
     for receiver in ["nonexistent", "self", "Other::countdown"] {
         let source = COUNTDOWN.replace(
             "{ countdown.remaining }",
             &format!("{{ {receiver}.remaining }}"),
         );
-        let program = typed(&source);
+        let program = typed_program(&source);
         assert_eq!(
             crate::infer_machine_termination_summary(&program, program.machines()[0].symbol),
             Some(language_semantics::TerminationGuarantee::NoGuarantee),
@@ -39,13 +29,14 @@ fn measure_projection_requires_its_exact_parameter_receiver() {
 
 #[test]
 fn measure_projection_preserves_constraints_and_rejects_wrong_rank_carriers() {
-    let constrained = typed(&COUNTDOWN.replace("remaining: u64;", "remaining: u64 [0..=5];"));
+    let constrained =
+        typed_program(&COUNTDOWN.replace("remaining: u64;", "remaining: u64 [0..=5];"));
     // This checks the rank carrier, not construction-range proof support.
     crate::checks::termination::check_machine_termination(&constrained)
         .expect("field constraints preserve the u64 rank carrier");
     for carrier in ["u32", "i64", "f64"] {
         let source = COUNTDOWN.replace("remaining: u64;", &format!("remaining: {carrier};"));
-        let program = typed(&source);
+        let program = typed_program(&source);
         assert_eq!(
             crate::infer_machine_termination_summary(&program, program.machines()[0].symbol),
             Some(language_semantics::TerminationGuarantee::NoGuarantee),
@@ -66,7 +57,7 @@ fn measure_projection_does_not_drop_nested_receivers_or_stalled_edges() {
             "Countdown { remaining: countdown.remaining - 1 }",
             "Countdown { remaining: countdown.remaining - 1, inner: countdown.inner }",
         );
-    let program = typed(&source);
+    let program = typed_program(&source);
     assert_eq!(
         crate::infer_machine_termination_summary(&program, program.machines()[0].symbol),
         Some(language_semantics::TerminationGuarantee::NoGuarantee),
@@ -74,7 +65,7 @@ fn measure_projection_does_not_drop_nested_receivers_or_stalled_edges() {
     );
     for next in ["walk(countdown)", "self"] {
         let source = COUNTDOWN.replace("false -> countdown.remaining", &format!("false -> {next}"));
-        crate::checks::termination::check_machine_termination(&typed(&source))
+        crate::checks::termination::check_machine_termination(&typed_program(&source))
             .expect_err("one descending arm cannot excuse another cyclic arm");
     }
 }
@@ -82,7 +73,7 @@ fn measure_projection_does_not_drop_nested_receivers_or_stalled_edges() {
 #[test]
 fn measure_projection_rejects_substituted_field_and_binder_identities() {
     let source = format!("data Other {{ remaining: u64; }}\n{COUNTDOWN}");
-    let program = typed(&source);
+    let program = typed_program(&source);
     let other = program
         .data_definitions()
         .iter()
@@ -137,7 +128,7 @@ fn measure_projection_rejects_substituted_field_and_binder_identities() {
 fn measure_projection_matches_nominal_subject_identity_not_spelling() {
     use typed_trees::types::TypeReferenceNode;
 
-    let program = typed(&format!("data Other {{ remaining: u64; }}\n{COUNTDOWN}"));
+    let program = typed_program(&format!("data Other {{ remaining: u64; }}\n{COUNTDOWN}"));
     let machine = &program.machines()[0];
     let subject = &program.state_parameters(&program.machine_states(machine)[0])[0];
     let subject_type = program

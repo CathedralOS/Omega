@@ -1,5 +1,6 @@
 use super::checks::check_program;
 use crate::borrow::build_borrow_facts;
+use crate::tests::front_end::typed_program;
 
 #[test]
 fn mutable_whole_place_recast_retains_source_loan() {
@@ -1182,19 +1183,6 @@ fn indexed_mutable_zero_field_record_recast_source(mutation: &str, final_use: &s
             }}
         "#
     )
-}
-
-fn typed_program(source: &str) -> typed_trees::TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize recast fixture");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse recast fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve recast fixture");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type recast fixture")
 }
 
 fn assert_invalid_recast_has_no_loan(source: &str, expected_diagnostic: &str) {

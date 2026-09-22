@@ -1,8 +1,9 @@
-use super::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees,
-    resolve,
-};
+use super::lower_typed_trees;
 use crate::CheckingRequest;
+use crate::tests::front_end::{
+    checked_program, checked_program_result, typed_program, typed_program_from_source_map,
+    typed_program_with_resolution,
+};
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionIntrinsic,
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding,
@@ -30,20 +31,7 @@ fn typed_root_binding_fixture(source: &str, toolchain: bool) -> typed_trees::Typ
             },
         )
         .source_id;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize root binding");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
-        .expect("parse root binding");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &syntax,
-            sources: Some(std::sync::Arc::new(sources)),
-            top_level_bindings: Vec::new(),
-        },
-    )
-    .expect("resolve root binding");
-    lower_symbol_resolved_trees(&resolved).expect("type root binding")
+    typed_program_from_source_map(sources, &[(source_id, source)])
 }
 
 #[test]
@@ -320,12 +308,7 @@ fn explicit_state_arguments_finalize_nested_record_member_selections() {
             }
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("explicit state transfer checks");
+    let checked = checked_program(source);
     let selections = checked.authored_declaration_selections();
     let selected = selections
         .iter()
@@ -371,10 +354,7 @@ fn entry_record_types_do_not_finalize_implicit_state_captures() {
             state inspect() -> u32 { packet.value }
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let mut typed = typed_program(source);
     let diagnostic = crate::authored_selections::finalize_checked_authored_selections(
         &mut typed,
         &checked_trees::CheckFacts::default(),
@@ -392,11 +372,7 @@ fn successful_checking_finalizes_authored_call_occurrences() {
         machine identity(value: u32) -> u32 { value }
         machine compare(value: u32) -> bool { identity(value) == value }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = checked_program(source);
     let selections = checked.authored_declaration_selections();
 
     assert!(selections.iter().any(|selection| {
@@ -440,12 +416,7 @@ fn package_checking_finalizes_comptime_value_arm_calls_before_evaluation() {
 
         data Main { slots: [i64; table_size()]; }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
-        .expect("package checking must retain the exact comptime call target");
+    let checked = checked_program(source);
 
     assert!(
         checked.authored_declaration_selections().all_finalized(),
@@ -466,11 +437,7 @@ fn checked_operator_contract_context_disambiguates_named_overloads() {
         boundary operator Wrap::from(value: i32) -> Token
         ensures result == Convert::from(value);
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = checked_program(source);
 
     let selected = checked
         .authored_declaration_selections()
@@ -507,11 +474,7 @@ fn resultless_trait_law_equality_is_proposition_equality() {
             ensures combine(left, right) == combine(right, left);
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = checked_program(source);
 
     let law_equalities = checked
         .authored_declaration_selections()
@@ -553,11 +516,7 @@ fn successful_checking_finalizes_wire_codec_calls_as_exact_intrinsics() {
             );
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = checked_program(source);
     let calls = checked
         .authored_declaration_selections()
         .iter()
@@ -601,11 +560,7 @@ fn successful_checking_finalizes_nominal_calls_in_proof_owned_expressions() {
             Packet::qualified_ready(self)
         { }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = checked_program(source);
     let selected = checked
         .authored_declaration_selections()
         .iter()
@@ -648,11 +603,7 @@ fn path_qualified_call_custody_rejects_a_same_named_target_from_another_owner() 
 
         domain Packet::Ready requires Packet::is_ready(self);
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostic = lower_typed_trees(typed, &CheckingRequest::settled())
+    let diagnostic = checked_program_result(source)
         .expect_err("a same-named state under another nominal owner must not be selected");
 
     assert!(
@@ -676,10 +627,7 @@ fn nominal_call_custody_rejects_ambiguous_targets_under_the_exact_owner() {
 
         domain Packet::Ready requires self.is_ready();
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let mut typed = typed_program(source);
     let packet_machines = typed
         .machines()
         .iter()
@@ -750,9 +698,7 @@ fn successful_checking_finalizes_declared_operator_occurrences() {
 
         machine Main::main(&mut self) {}
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let (resolved, typed) = typed_program_with_resolution(source);
     assert!(
         resolved
             .authored_declaration_selections()
@@ -766,7 +712,6 @@ fn successful_checking_finalizes_declared_operator_occurrences() {
             })
     );
 
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let selections = checked.authored_declaration_selections();
 
@@ -812,10 +757,7 @@ fn constrained_primitive_operator_is_not_preclassified_as_intrinsic() {
 
         machine Main::main(&mut self) {}
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
     let authored_addition = typed
         .expression_table
         .iter_expressions()
@@ -845,10 +787,7 @@ fn unrelated_nominal_operator_does_not_capture_primitive_comparison() {
         operator < Quantity::Ordered::less(left: Quantity, right: Quantity) -> bool;
         machine bounded(value: u64) -> bool { value < 256 }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
     let comparison = typed
         .expression_table
         .iter_expressions()
@@ -897,10 +836,7 @@ fn endpoint_operator_candidates_retain_explicit_literal_carriers() {
         let source = format!(
             "data Quantity {{ value: u64; }}\n{operator}\nmachine bounded(value: u64[0..={endpoint}]) {{}}"
         );
-        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let typed = typed_program(&source);
         let expression = typed
             .expression_table
             .iter_expressions()
@@ -943,11 +879,7 @@ fn successful_checking_finalizes_inferred_field_members_and_primitive_operators(
             let unchanged: bool = self.freestanding == false;
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = checked_program(source);
     let selections = checked.authored_declaration_selections();
 
     assert!(selections.iter().any(|selection| {
@@ -985,11 +917,7 @@ fn data_where_collection_measures_finalize_as_intrinsics() {
             payload: &[u8];
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = checked_program(source);
     let selections = checked.authored_declaration_selections();
 
     for (member_name, intrinsic) in [
@@ -1023,11 +951,7 @@ fn successful_checking_finalizes_operator_occurrence_retained_on_folded_float_li
             self.value = 0.0 - 1.000000000000000444089209850062616169452667236328125;
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = checked_program(source);
     let selections = checked.authored_declaration_selections();
 
     assert!(selections.iter().any(|selection| {
@@ -1049,11 +973,7 @@ fn successful_checking_finalizes_nested_intrinsic_logical_operators() {
             reading.value >= reading.minimum && reading.value <= reading.maximum
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = checked_program(source);
     let operators = checked
         .authored_declaration_selections()
         .iter()
@@ -1096,11 +1016,7 @@ fn successful_checking_finalizes_index_and_range_operator_occurrences() {
             window(values[0..1])
         { }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = checked_program(source);
     let operators = checked
         .authored_declaration_selections()
         .iter()
@@ -1143,9 +1059,7 @@ fn successful_checking_retains_inferred_generic_call_conformance() {
 
         machine caller(value: Good) -> bool { accepts(value) }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let (resolved, typed) = typed_program_with_resolution(source);
     let selected = resolved
         .conformances
         .iter()
@@ -1157,7 +1071,6 @@ fn successful_checking_retains_inferred_generic_call_conformance() {
         })
         .expect("GoodMarker conformance")
         .symbol;
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
 
     assert!(
@@ -1202,9 +1115,7 @@ fn successful_checking_retains_inferred_statement_call_conformance() {
 
         machine caller(value: Good) { accepts(value); }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let (resolved, typed) = typed_program_with_resolution(source);
     let selected = resolved
         .conformances
         .iter()
@@ -1216,7 +1127,6 @@ fn successful_checking_retains_inferred_statement_call_conformance() {
         })
         .expect("GoodMarker conformance")
         .symbol;
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let call = checked
         .authored_declaration_selections()
@@ -1257,11 +1167,7 @@ fn successful_checking_finalizes_attached_calls_through_parameter_fields() {
             let resolved: &[u8] in Path = builder.source.resolve("input.txt");
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = checked_program(source);
     assert!(
         checked
             .authored_declaration_selections()
@@ -1288,11 +1194,7 @@ fn declared_call_wins_over_byte_predicate_intrinsic_spelling() {
         machine no_nul(value: &[u8]) -> bool { true }
         domain [u8]::Path requires no_nul(self);
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = checked_program(source);
     let selections = checked.authored_declaration_selections();
 
     assert!(selections.iter().any(|selection| {
@@ -1327,11 +1229,7 @@ fn successful_checking_binds_boundary_calls_through_parameter_fields() {
             let descriptor: i32 = builder.filesystem.open("input.txt", 0);
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = checked_program(source);
     let call = checked
         .expression_table
         .iter_expressions()
@@ -1367,11 +1265,7 @@ fn successful_checking_canonicalizes_local_selections_across_specializations() {
             let from_number: i32 = self.pick(&self.number);
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = checked_program(source);
     assert!(
         checked.authored_declaration_selections().all_finalized(),
         "selections={:#?}",
@@ -1386,12 +1280,7 @@ fn public_conformance_rejects_private_header_declarations() {
         data Circle {}
         pub CircleShape: Circle satisfies Shape;
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("private header must reject");
+    let diagnostics = checked_program_result(source).expect_err("private header must reject");
     let rendered = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -1410,10 +1299,7 @@ fn undeclared_contract_view_calls_finalize_as_proof_view_intrinsics() {
         ensures Bag(items) == Bag(before)
         {}
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
     let checked =
         lower_typed_trees(typed, &CheckingRequest::settled()).expect("admitted proof view checks");
     let proof_view_selections = checked
@@ -1527,20 +1413,10 @@ machine Main::main(&mut self) {
             source::SourceOrigin::User,
         )
         .source_id;
-    let core_tokens = Lexer::new(CORE_RELATION).tokenize().expect("tokenize core");
-    let mut syntax =
-        tokens_to_syntax_trees::parse_syntax_trees_with_id(core_source_id, &core_tokens)
-            .expect("parse core relation");
-    let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize fixture");
-    tokens_to_syntax_trees::parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens)
-        .expect("parse fixture");
-    let resolved = resolve(ResolutionRequest {
-        syntax: &syntax,
-        sources: Some(std::sync::Arc::new(sources)),
-        top_level_bindings: Vec::new(),
-    })
-    .expect("package-aware resolution");
-    lower_symbol_resolved_trees(&resolved).expect("type lowering")
+    typed_program_from_source_map(
+        sources,
+        &[(core_source_id, CORE_RELATION), (source_id, SOURCE)],
+    )
 }
 
 #[test]

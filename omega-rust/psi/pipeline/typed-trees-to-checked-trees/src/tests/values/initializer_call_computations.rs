@@ -1,7 +1,7 @@
 use super::StatementNode;
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
-use crate::tests::values::typed_trees;
+use crate::tests::front_end::typed_program;
 use checked_trees::{
     CheckedCallScalarArgument, CheckedScalarComputationKind, CheckedTrees,
     CheckedUnitEffectOperationPlan,
@@ -58,7 +58,7 @@ fn checked_initializer(kind: ResultKind) -> CheckedTrees {
              {completion}
          }}"
     );
-    lower_typed_trees(typed_trees(&source), &CheckingRequest::settled())
+    lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
 }
 
@@ -286,7 +286,7 @@ fn initializer_call_computations_require_exact_outer_and_unique_nested_occurrenc
 #[test]
 fn initializer_call_computations_preserve_the_free_scalar_whole_result_route() {
     let checked = lower_typed_trees(
-        typed_trees(
+        typed_program(
             "machine identity(input: bool) -> bool { input }
          machine value(input: bool) -> bool {
              let saved: bool = identity(identity(input)); saved

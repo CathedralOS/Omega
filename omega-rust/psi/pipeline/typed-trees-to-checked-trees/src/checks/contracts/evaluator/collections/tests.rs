@@ -1,23 +1,8 @@
-fn checked(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    crate::lower_typed_trees(typed(source), &crate::CheckingRequest::settled())
-}
-
-fn typed(source: &str) -> typed_trees::TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
-}
-
+use crate::tests::front_end::{checked_program_result, typed_program};
 #[test]
 fn selected_as_slice_target_cannot_supply_builtin_array_extent() {
     use typed_trees::expression::ExpressionNode;
-    let mut program = typed(VIEW);
+    let mut program = typed_program(VIEW);
     let target = program.machines().last().unwrap().symbol;
     let expression = program
         .expression_table
@@ -54,8 +39,8 @@ requires entries.len <= capacity { 0 }
 
 #[test]
 fn fixed_array_view_extent_proves_tail_requirement_without_reading_contents() {
-    checked(VIEW).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
-    checked(&VIEW.replace("requires entries.len", "requires self.entries.len"))
+    checked_program_result(VIEW).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    checked_program_result(&VIEW.replace("requires entries.len", "requires self.entries.len"))
         .unwrap_or_else(|diagnostics| panic!("named target field extent: {diagnostics:#?}"));
 }
 
@@ -65,7 +50,7 @@ fn fixed_array_view_extent_rejects_too_small_capacity_and_mutable_descriptor() {
         VIEW.replace("view, 4", "view, 3"),
         VIEW.replace("let view", "let mut view"),
     ] {
-        let diagnostics = checked(&source).expect_err("no stable sufficient extent");
+        let diagnostics = checked_program_result(&source).expect_err("no stable sufficient extent");
         assert!(
             diagnostics
                 .iter()
@@ -81,7 +66,8 @@ fn exposing_immutable_view_binding_does_not_replay_its_initializer_extent() {
         "transition { _ -> self.walk(view, 4) }",
         "expose(&mut view); transition { _ -> self.walk(view, 4) }",
     ) + " machine expose(slot: &mut [Entry]) {}";
-    let diagnostics = checked(&source).expect_err("exposed descriptor has no initializer evidence");
+    let diagnostics = checked_program_result(&source)
+        .expect_err("exposed descriptor has no initializer evidence");
     assert!(
         diagnostics
             .iter()

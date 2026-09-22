@@ -1,8 +1,4 @@
-use super::super::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
+use crate::tests::front_end::checked_program;
 
 mod call_judgments;
 mod call_premises;
@@ -25,13 +21,13 @@ const SYMBOLIC_ADJACENCY: &str = r#"
 "#;
 
 fn checked_symbolic_adjacency() -> checked_trees::CheckedTrees {
-    checked_source(SYMBOLIC_ADJACENCY)
+    checked_program(SYMBOLIC_ADJACENCY)
 }
 
 #[test]
 fn computed_immutable_boundary_retains_one_stable_selector_identity() {
     let checked =
-        checked_source(&SYMBOLIC_ADJACENCY.replace("let mid: u64 = 2;", "let mid: u64 = 1 + 1;"));
+        checked_program(&SYMBOLIC_ADJACENCY.replace("let mid: u64 = 2;", "let mid: u64 = 1 + 1;"));
     let certificate = sole_certificate(&checked);
     assert!(certificate.conclusion.disjoint);
     assert_eq!(
@@ -42,18 +38,6 @@ fn computed_immutable_boundary_retains_one_stable_selector_identity() {
         certificate.selector_snapshot[0].value,
         Some(checked_trees::BorrowCompatibilitySelectorValue::Symbol(_))
     ));
-}
-
-fn checked_source(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize borrow-certificate fixture");
-    let syntax = parse_syntax_trees(&tokens).expect("parse borrow-certificate fixture");
-    let resolved = resolve(ResolutionRequest::new(&syntax))
-        .expect("resolve borrow-certificate fixture identities");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type borrow-certificate fixture");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("automatic structural compatibility should remain admitted")
 }
 
 fn sole_certificate(
@@ -492,12 +476,5 @@ fn checked_shared_overlap() -> checked_trees::CheckedTrees {
             observe(right);
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize shared overlap");
-    let syntax = parse_syntax_trees(&tokens).expect("parse shared overlap");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve shared overlap");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type shared overlap");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("two overlapping shared loans should remain admitted")
+    checked_program(source)
 }

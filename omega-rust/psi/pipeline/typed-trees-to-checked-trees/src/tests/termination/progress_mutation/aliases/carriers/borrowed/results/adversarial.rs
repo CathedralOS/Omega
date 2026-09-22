@@ -1,5 +1,5 @@
+use crate::tests::front_end::typed_program;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::results::result_source;
-use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::typed_source;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
@@ -85,8 +85,8 @@ fn mutation_source(operation: &str) -> String {
 // permission to replace or expose storage while a saved loan remains active.
 #[test]
 fn helper_carrier_replacement_cannot_export_the_original_input_leaf() {
-    assert_original_input(&typed_source(&mutation_source("")));
-    let program = typed_source(&mutation_source(
+    assert_original_input(&typed_program(&mutation_source("")));
+    let program = typed_program(&mutation_source(
         "carrier = Carrier { context: replacement };",
     ));
     assert_eq!(result_origin(&program), None);
@@ -94,8 +94,8 @@ fn helper_carrier_replacement_cannot_export_the_original_input_leaf() {
 
 #[test]
 fn helper_slot_replacement_cannot_export_the_original_input_leaf() {
-    assert_original_input(&typed_source(&mutation_source("")));
-    let program = typed_source(&mutation_source("carrier.context = replacement;"));
+    assert_original_input(&typed_program(&mutation_source("")));
+    let program = typed_program(&mutation_source("carrier.context = replacement;"));
     assert_eq!(result_origin(&program), None);
 }
 
@@ -113,7 +113,7 @@ fn helper_alias_ancestor_mutation_or_exposure_retires_the_original_carrier_load(
                 "let selected: &mut Carrier = carrier; {operation}"
             ))
         );
-        let mut program = typed_source(&source);
+        let mut program = typed_program(&source);
         crate::lookup::resolve_projected_receiver_calls(&mut program).unwrap();
         // The returned literal reads carrier.context, so rejection must follow
         // selected's effects back to the original parameter's reference slot.
@@ -152,7 +152,7 @@ fn helper_captured_result_cannot_bypass_later_source_carrier_exposure() {
             )
             .replace("rebuild(carrier)", "rebuild(carrier, replacement)")
         );
-        let mut program = typed_source(&source);
+        let mut program = typed_program(&source);
         crate::lookup::resolve_projected_receiver_calls(&mut program).unwrap();
         // The local result already captured its leaf. Export still requires
         // the original input slot to survive the complete helper body.
@@ -184,7 +184,7 @@ fn helper_terminal_operand_exposure_cannot_export_a_sibling_reference_leaf() {
                 "data Carrier { context: &Context; tag: u64; }",
             )
         );
-        let mut program = typed_source(&source);
+        let mut program = typed_program(&source);
         crate::lookup::resolve_projected_receiver_calls(&mut program).unwrap();
         // Both exposing helpers have empty bodies' write frames. The terminal
         // operand still participates in the frozen reference binding fence.
@@ -198,7 +198,7 @@ fn helper_terminal_operand_exposure_cannot_export_a_sibling_reference_leaf() {
 
 #[test]
 fn an_unresolved_rebuild_target_cannot_recover_result_identity_from_its_name() {
-    let mut program = typed_source(&result_source("", "Carrier { context: carrier.context }"));
+    let mut program = typed_program(&result_source("", "Carrier { context: carrier.context }"));
     assert_original_input(&program);
     let calls = program
         .expression_table
@@ -219,7 +219,7 @@ fn an_unresolved_rebuild_target_cannot_recover_result_identity_from_its_name() {
 #[test]
 fn erased_or_foreign_helper_input_symbols_cannot_recover_from_matching_names() {
     for erased in [false, true] {
-        let mut program = typed_source(&format!(
+        let mut program = typed_program(&format!(
             "{} machine unrelated(carrier: &Carrier) {{}}",
             result_source("", "Carrier { context: carrier.context }")
         ));
@@ -266,7 +266,7 @@ fn helper_reconstruction_cannot_select_a_possible_borrowed_input_case() {
             .replace("carrier: &Carrier)", "carrier: &Choice)")
             .replace("requires carrier.context.scheduler in WeakFair", "")
     );
-    assert_eq!(result_origin(&typed_source(&source)), None);
+    assert_eq!(result_origin(&typed_program(&source)), None);
 }
 
 #[test]
@@ -281,6 +281,6 @@ fn helper_reconstruction_cannot_cross_an_additional_reference_boundary() {
                 .replace("carrier: &Carrier)", "carrier: &Outer)")
                 .replace("requires carrier.context.scheduler in WeakFair", "")
         );
-        assert_eq!(result_origin(&typed_source(&source)), None, "{body}");
+        assert_eq!(result_origin(&typed_program(&source)), None, "{body}");
     }
 }

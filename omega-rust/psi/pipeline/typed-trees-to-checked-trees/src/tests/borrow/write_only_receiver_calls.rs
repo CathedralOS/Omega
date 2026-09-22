@@ -1,15 +1,11 @@
-use super::super::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
+use crate::tests::front_end::checked_program_result;
 
 mod indexed;
 mod projections;
 
 #[test]
 fn indexed_write_only_receiver_call_checks_without_observing_the_element() {
-    check_source(
+    checked_program_result(
         "data Record [copy] { value: u16; }
          machine Record::replace(&write self, replacement: u16) { self.value = replacement; }
          machine invoke(records: &write [Record; 2], replacement: u16) {
@@ -21,7 +17,7 @@ fn indexed_write_only_receiver_call_checks_without_observing_the_element() {
 
 #[test]
 fn projected_write_only_receiver_call_checks() {
-    check_source(
+    checked_program_result(
         r#"
         data Record { value: u16; }
         data Container { record: Record; }
@@ -30,14 +26,6 @@ fn projected_write_only_receiver_call_checks() {
     "#,
     )
     .expect("a closed field projection can invoke an exact non-observing receiver");
-}
-
-fn check_source(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
 }
 
 fn caller_source(root: &str, body: &str, methods: &str) -> String {
@@ -54,7 +42,7 @@ fn caller_source(root: &str, body: &str, methods: &str) -> String {
 }
 
 fn reject_source(source: &str, expected: &[&str]) {
-    let diagnostics = match check_source(source) {
+    let diagnostics = match checked_program_result(source) {
         Ok(_) => panic!("source must fail semantic checking: {source}"),
         Err(diagnostics) => diagnostics,
     };
@@ -70,7 +58,7 @@ fn reject_source(source: &str, expected: &[&str]) {
 
 #[test]
 fn write_only_parameter_nonobserving_statement_call_checks() {
-    let checked = check_source(&caller_source(
+    let checked = checked_program_result(&caller_source(
         "destination",
         "destination.replace(replacement);",
         "machine Record::replace(&write self, replacement: u16) {
@@ -111,7 +99,7 @@ fn write_only_parameter_nonobserving_statement_call_checks() {
 
 #[test]
 fn write_only_self_nonobserving_call_with_scalar_argument_checks() {
-    check_source(&caller_source(
+    checked_program_result(&caller_source(
         "self",
         "self.replace(replacement);",
         "machine Record::replace(&write self, replacement: u16) {
@@ -132,7 +120,7 @@ fn write_only_receiver_nonobserving_scalar_result_call_checks() {
                  replacement
              }",
         );
-        check_source(&source).unwrap_or_else(|diagnostics| {
+        checked_program_result(&source).unwrap_or_else(|diagnostics| {
             panic!("a scalar result may depend on the written input: {diagnostics:#?}\n{source}")
         });
     }
@@ -333,7 +321,7 @@ fn same_spelled_foreign_observing_method_does_not_block_write_only_call() {
              machine Foreign::replace(&self) { let prior: u16 = self.value; }
              machine Record::replace(&write self) { self.value = 17; }",
         );
-        check_source(&source).unwrap_or_else(|diagnostics| {
+        checked_program_result(&source).unwrap_or_else(|diagnostics| {
             panic!("admission must use the exact attached method: {diagnostics:#?}\n{source}")
         });
     }
@@ -358,7 +346,7 @@ fn write_only_receiver_and_distinct_projected_argument_check() {
              }}
              machine exercise(destination: &write Record, other: &write Record) {{ {body} }}"
         );
-        check_source(&source)
+        checked_program_result(&source)
             .expect("distinct receiver and argument retain independent exclusive loans");
     }
 }
@@ -411,6 +399,6 @@ fn mutable_caller_can_supply_a_write_only_receiver() {
              machine Record::replace(&write self) {{ self.value = 17; }}
              machine {signature} {{ {root}.replace(); }}"
         );
-        check_source(&source).expect("an exclusive caller may lend non-observing access");
+        checked_program_result(&source).expect("an exclusive caller may lend non-observing access");
     }
 }

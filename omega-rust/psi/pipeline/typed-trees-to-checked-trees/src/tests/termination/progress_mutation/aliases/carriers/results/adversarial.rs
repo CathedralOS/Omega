@@ -1,7 +1,5 @@
-use super::super::super::super::{
-    Lexer, ResolutionRequest, TerminationGuarantee, lower_symbol_resolved_trees,
-    parse_syntax_trees, resolve,
-};
+use super::super::super::super::TerminationGuarantee;
+use crate::tests::front_end::typed_program;
 
 use crate::tests::termination::progress_mutation::assert_subjects;
 use crate::tests::termination::progress_mutation::assert_unproved_tail_requirement;
@@ -192,10 +190,7 @@ fn a_helper_local_mutable_value_receiver_retires_shared_result_identity() {
                  }}"
             ),
         );
-        let tokens = Lexer::new(&source).tokenize().unwrap();
-        let syntax = parse_syntax_trees(&tokens).unwrap();
-        let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-        let program = lower_symbol_resolved_trees(&resolved).unwrap();
+        let program = typed_program(&source);
         let machine = program
             .machines()
             .iter()

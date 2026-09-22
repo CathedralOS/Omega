@@ -1,6 +1,7 @@
 //! Immutable boundary copies retain their value when the original changes.
 
 use super::sole_certificate;
+use crate::tests::front_end::checked_program_result;
 use checked_trees::BorrowCompatibilitySelectorValue;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TableLocalData};
@@ -12,36 +13,11 @@ fn fixture_result<T, E: std::fmt::Debug>(source: &str, stage: &str, result: Resu
     })
 }
 
-fn typed_source(source: &str) -> typed_trees::TypedTrees {
-    let tokens = fixture_result(
-        source,
-        "tokenize",
-        source_files_to_tokens::Lexer::new(source).tokenize(),
-    );
-    let syntax = fixture_result(
-        source,
-        "parse",
-        tokens_to_syntax_trees::parse_syntax_trees(&tokens),
-    );
-    let resolved = fixture_result(
-        source,
-        "resolve",
-        syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        ),
-    );
-    fixture_result(
-        source,
-        "type",
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved),
-    )
-}
-
 fn checked_source(source: &str) -> checked_trees::CheckedTrees {
     fixture_result(
         source,
         "check snapshot fixture",
-        crate::lower_typed_trees(typed_source(source), &crate::CheckingRequest::settled()),
+        checked_program_result(source),
     )
 }
 
@@ -170,9 +146,7 @@ fn assert_replay_rejects_snapshot_drift(checked: &mut checked_trees::CheckedTree
 }
 
 fn assert_borrow_conflict(source: &str) {
-    let Err(diagnostics) =
-        crate::lower_typed_trees(typed_source(source), &crate::CheckingRequest::settled())
-    else {
+    let Err(diagnostics) = checked_program_result(source) else {
         panic!("overlapping mutable windows must reject: {source}");
     };
     assert!(

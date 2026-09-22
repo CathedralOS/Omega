@@ -83,6 +83,7 @@ fn closed_literal_array(
 #[cfg(test)]
 mod tests {
     use super::{CheckedOperatorFacts, ExpressionHandle, ExpressionNode, TypedTrees};
+    use crate::tests::front_end::typed_program;
     use crate::values::scalar::constant_array_projection::selected_leaf;
     use numerics::literals::IntegerLiteral;
 
@@ -91,16 +92,7 @@ mod tests {
             "data Sizes {{}} const Sizes::VALUES: {carrier} = {initializer};
              machine read() -> u8 {{ let values: {carrier} = Sizes::VALUES; 0u8 }}"
         );
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("resolve array constant without projection");
-        let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("type array constant");
+        let program = typed_program(&source);
         let root = program
             .expression_table
             .expression_entries()

@@ -4,17 +4,7 @@
 //! every exit edge, stale observation, ancestor use, and repeated extraction
 //! while the place is absent rejects.
 
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
-
-fn check_source(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = Lexer::new(source).tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    lower_typed_trees(typed, &CheckingRequest::settled())
-}
+use crate::tests::front_end::checked_program_result;
 
 #[test]
 fn evaluation_order_observes_a_field_before_its_owner_is_extracted() {
@@ -28,12 +18,13 @@ fn evaluation_order_observes_a_field_before_its_owner_is_extracted() {
             };
             self.inventory = move saved.inventory;
         }";
-    check_source(source).expect("the scalar read precedes the extraction");
+    checked_program_result(source).expect("the scalar read precedes the extraction");
     let reversed = source.replace(
         "observed: self.inventory.slots,\n                inventory: self.inventory,",
         "inventory: self.inventory,\n                observed: self.inventory.slots,",
     );
-    let diagnostics = check_source(&reversed).expect_err("reading the absent subtree must reject");
+    let diagnostics =
+        checked_program_result(&reversed).expect_err("reading the absent subtree must reject");
     assert!(
         diagnostics
             .iter()
@@ -55,7 +46,7 @@ fn evaluation_order_fences_only_boundary_calls_after_extraction() {
             };
             self.inventory = move saved.inventory;
         }";
-    check_source(source).expect("the boundary completes before storage becomes absent");
+    checked_program_result(source).expect("the boundary completes before storage becomes absent");
     let reversed = source.replace(
         "observed: sample(),\n                inventory: self.inventory,",
         "inventory: self.inventory,\n                observed: sample(),",
@@ -71,7 +62,7 @@ fn evaluation_order_detaches_call_operands_before_later_arguments() {
         machine Main::replace(&mut self) {
             self.inventory = preserve(self.inventory.slots, self.inventory);
         }";
-    check_source(source).expect("the first argument finishes before the second moves");
+    checked_program_result(source).expect("the first argument finishes before the second moves");
     let reversed = source
         .replace(
             "observed: i32, inventory: Inventory",
@@ -81,7 +72,8 @@ fn evaluation_order_detaches_call_operands_before_later_arguments() {
             "preserve(self.inventory.slots, self.inventory)",
             "preserve(self.inventory, self.inventory.slots)",
         );
-    let diagnostics = check_source(&reversed).expect_err("the later argument reads absent content");
+    let diagnostics =
+        checked_program_result(&reversed).expect_err("the later argument reads absent content");
     assert!(
         diagnostics
             .iter()
@@ -103,13 +95,13 @@ fn evaluation_order_borrowed_call_observes_only_established_storage() {
             };
             self.inventory = move saved.inventory;
         }";
-    check_source(source).expect("a completed observation precedes the move");
+    checked_program_result(source).expect("a completed observation precedes the move");
     let reversed = source.replace(
         "observed: observe(&self.inventory),\n                inventory: self.inventory,",
         "inventory: self.inventory,\n                observed: observe(&self.inventory),",
     );
     assert!(
-        check_source(&reversed).is_err(),
+        checked_program_result(&reversed).is_err(),
         "a later borrow cannot observe detached storage"
     );
 }
@@ -123,7 +115,7 @@ fn evaluation_order_retains_effects_inside_a_computed_projection() {
         machine Main::replace(&mut self) {
             self.inventory = wrap(self.inventory).inventory;
         }";
-    check_source(source).expect("a quiet wrapper returns the detached content");
+    checked_program_result(source).expect("a quiet wrapper returns the detached content");
     let exposed = source.replace(
         "machine wrap(inventory: Inventory) -> Saved { Saved { inventory: inventory } }",
         "boundary machine wrap(inventory: Inventory) -> Saved ensures true;",
@@ -139,7 +131,7 @@ fn service_receiver_observes_a_borrowed_argument_without_a_window() {
         machine Main::replace(&mut self) reaches Probe {
             self.observed = self.probe.take_descriptor(self.inventory);
         }";
-    check_source(source).expect(
+    checked_program_result(source).expect(
         "an opaque service seam marshals a caller-owned copy of a stable borrowed argument",
     );
 }
@@ -167,7 +159,7 @@ fn service_receiver_observes_an_erased_member_argument_without_a_window() {
         machine Main::replace(&mut self) reaches Probe {
             self.observed = self.probe.take_descriptor(self.sealed);
         }";
-    check_source(source).expect(
+    checked_program_result(source).expect(
         "an erased member never crosses the service seam: the marshal reads \
          runtime contents while the observed place keeps the whole value",
     );
@@ -185,8 +177,8 @@ fn direct_provider_call_still_consumes_an_erased_member_argument() {
         machine Main::replace(&mut self) reaches Probe {
             self.observed = take_descriptor(self.sealed);
         }";
-    let diagnostics =
-        check_source(source).expect_err("a direct provider call still moves the borrowed argument");
+    let diagnostics = checked_program_result(source)
+        .expect_err("a direct provider call still moves the borrowed argument");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("boundary or service call")
@@ -198,7 +190,7 @@ fn direct_provider_call_still_consumes_an_erased_member_argument() {
 
 #[test]
 fn evaluation_order_selected_index_uses_its_collection_operand() {
-    check_source(
+    checked_program_result(
         "data Buffer { value: i32; }
          machine [] Buffer::index(self, index: u64) -> i32 { self.value }
          data Main { buffer: Buffer; }
@@ -209,7 +201,7 @@ fn evaluation_order_selected_index_uses_its_collection_operand() {
     )
     .expect("the selected collection operand detaches before invocation and is restored");
 
-    let diagnostics = check_source(
+    let diagnostics = checked_program_result(
         "data Inventory { slots: i32; }
          data Buffer { inventory: Inventory; value: i32; }
          machine [] Buffer::index(&self, index: u64) -> i32 { self.value }
@@ -231,7 +223,7 @@ fn evaluation_order_selected_index_uses_its_collection_operand() {
 
 #[test]
 fn evaluation_order_replay_rejects_a_substituted_invocation_occurrence() {
-    let checked = check_source(
+    let checked = checked_program_result(
         "machine identity(value: i32) -> i32 { value }
          data Inventory { slots: i32; }
          data Main { inventory: Inventory; }
@@ -253,7 +245,7 @@ fn evaluation_order_replay_rejects_a_substituted_invocation_occurrence() {
 
 #[test]
 fn move_out_and_exact_restore_compiles() {
-    check_source(
+    checked_program_result(
         r#"
         data Inventory { slots: i32; }
         data Main { inventory: Inventory; }
@@ -268,7 +260,7 @@ fn move_out_and_exact_restore_compiles() {
 
 #[test]
 fn disjoint_sibling_work_between_move_and_repair() {
-    check_source(
+    checked_program_result(
         r#"
         data Inventory { slots: i32; }
         data Main { inventory: Inventory; count: i32; }
@@ -285,7 +277,7 @@ fn disjoint_sibling_work_between_move_and_repair() {
 
 #[test]
 fn fresh_replacement_value_discharges_the_window() {
-    check_source(
+    checked_program_result(
         r#"
         data Inventory { slots: i32; }
         data Main { inventory: Inventory; }
@@ -300,7 +292,7 @@ fn fresh_replacement_value_discharges_the_window() {
 
 #[test]
 fn nested_field_window_repairs_on_the_exact_place() {
-    check_source(
+    checked_program_result(
         r#"
         data Inner { tag: i32; }
         data Inventory { inner: Inner; }
@@ -316,7 +308,7 @@ fn nested_field_window_repairs_on_the_exact_place() {
 
 #[test]
 fn mutable_local_route_rebases_to_the_same_storage() {
-    check_source(
+    checked_program_result(
         r#"
         data Inner { tag: i32; }
         data Inventory { inner: Inner; }
@@ -333,7 +325,7 @@ fn mutable_local_route_rebases_to_the_same_storage() {
 
 #[test]
 fn call_result_value_can_repair_the_window() {
-    check_source(
+    checked_program_result(
         r#"
         data Inventory { slots: i32; }
         machine bump(inventory: Inventory) -> Inventory { inventory }
@@ -350,7 +342,7 @@ fn call_result_value_can_repair_the_window() {
 
 #[test]
 fn repair_before_transition_serves_every_arm() {
-    check_source(
+    checked_program_result(
         r#"
         data Inventory { slots: i32; }
         data Main { inventory: Inventory; flag: bool; }
@@ -372,7 +364,7 @@ fn repair_before_transition_serves_every_arm() {
 
 #[test]
 fn missing_repair_rejects_at_exit() {
-    let diagnostics = match check_source(
+    let diagnostics = match checked_program_result(
         r#"
         data Inventory { slots: i32; }
         data Main { inventory: Inventory; }
@@ -394,7 +386,7 @@ fn missing_repair_rejects_at_exit() {
 
 #[test]
 fn early_return_leaving_the_window_open_rejects() {
-    let diagnostics = match check_source(
+    let diagnostics = match checked_program_result(
         r#"
         data Inventory { slots: i32; }
         data Main { inventory: Inventory; }
@@ -417,7 +409,7 @@ fn early_return_leaving_the_window_open_rejects() {
 
 #[test]
 fn transition_edge_rejects_a_window_left_open() {
-    let diagnostics = match check_source(
+    let diagnostics = match checked_program_result(
         r#"
         data Inventory { slots: i32; }
         data Main { inventory: Inventory; flag: bool; }
@@ -451,7 +443,7 @@ fn transition_edge_rejects_a_window_left_open() {
 
 #[test]
 fn wrong_place_replacement_leaves_the_debt_open() {
-    let diagnostics = match check_source(
+    let diagnostics = match checked_program_result(
         r#"
         data Inventory { slots: i32; }
         data Main { inventory: Inventory; other: Inventory; }
@@ -477,7 +469,7 @@ fn wrong_type_replacement_does_not_discharge_the_window() {
     // Assignment typing pins the stored value's type to the place's declared
     // type; a differently-typed "repair" is refused before it can pretend to
     // close the window, and the window still demands the exact moved type.
-    let diagnostics = match check_source(
+    let diagnostics = match checked_program_result(
         r#"
         data Inventory { slots: i32; }
         data Other { tag: i32; }
@@ -501,7 +493,7 @@ fn wrong_type_replacement_does_not_discharge_the_window() {
 
 #[test]
 fn repeated_extraction_while_absent_rejects() {
-    let diagnostics = match check_source(
+    let diagnostics = match checked_program_result(
         r#"
         data Inventory { slots: i32; }
         data Main { inventory: Inventory; }
@@ -525,7 +517,7 @@ fn repeated_extraction_while_absent_rejects() {
 
 #[test]
 fn stale_read_while_absent_rejects() {
-    let diagnostics = match check_source(
+    let diagnostics = match checked_program_result(
         r#"
         data Inventory { slots: i32; }
         data Main { inventory: Inventory; }
@@ -549,7 +541,7 @@ fn stale_read_while_absent_rejects() {
 
 #[test]
 fn enclosing_owner_move_rejects_while_a_subtree_is_absent() {
-    let diagnostics = match check_source(
+    let diagnostics = match checked_program_result(
         r#"
         data Inner { tag: i32; }
         data Inventory { inner: Inner; }
@@ -575,7 +567,7 @@ fn enclosing_owner_move_rejects_while_a_subtree_is_absent() {
 
 #[test]
 fn call_on_the_incomplete_owner_rejects() {
-    let diagnostics = match check_source(
+    let diagnostics = match checked_program_result(
         r#"
         data Inventory { slots: i32; }
         data Main { inventory: Inventory; }
@@ -600,7 +592,7 @@ fn call_on_the_incomplete_owner_rejects() {
 
 #[test]
 fn store_into_the_absent_subtree_rejects() {
-    let diagnostics = match check_source(
+    let diagnostics = match checked_program_result(
         r#"
         data Inner { tag: i32; }
         data Inventory { inner: Inner; }
@@ -625,7 +617,7 @@ fn store_into_the_absent_subtree_rejects() {
 
 #[test]
 fn shared_borrow_extraction_still_rejects() {
-    let diagnostics = match check_source(
+    let diagnostics = match checked_program_result(
         r#"
         data Inventory { slots: i32; }
         data Main { inventory: Inventory; }
@@ -647,7 +639,7 @@ fn shared_borrow_extraction_still_rejects() {
 
 #[test]
 fn shared_route_local_cannot_extract() {
-    let diagnostics = match check_source(
+    let diagnostics = match checked_program_result(
         r#"
         data Inner { tag: i32; }
         data Inventory { inner: Inner; }
@@ -672,7 +664,7 @@ fn shared_route_local_cannot_extract() {
 
 #[test]
 fn matching_arms_extract_and_repair_after_the_join() {
-    check_source(
+    checked_program_result(
         r#"
         data Inventory { slots: i32; }
         data Main { inventory: Inventory; flag: bool; }
@@ -690,7 +682,7 @@ fn matching_arms_extract_and_repair_after_the_join() {
 
 #[test]
 fn each_arm_may_consume_through_its_own_call() {
-    check_source(
+    checked_program_result(
         r#"
         data Inventory { slots: i32; }
         machine bump(inventory: Inventory) -> Inventory { inventory }
@@ -710,7 +702,7 @@ fn each_arm_may_consume_through_its_own_call() {
 
 #[test]
 fn nested_match_agreement_lifts_into_the_enclosing_arm() {
-    check_source(
+    checked_program_result(
         r#"
         data Inventory { slots: i32; }
         data Main { inventory: Inventory; flag: bool; other_flag: bool; }
@@ -731,7 +723,7 @@ fn nested_match_agreement_lifts_into_the_enclosing_arm() {
 
 #[test]
 fn unreachable_arm_moves_do_not_block_agreement() {
-    check_source(
+    checked_program_result(
         r#"
         data Inventory { slots: i32; }
         data Main { inventory: Inventory; other: Inventory; flag: bool; }
@@ -752,7 +744,7 @@ fn unreachable_arm_moves_do_not_block_agreement() {
 fn arms_disagreeing_on_the_extraction_reject() {
     // Only the `true` arm takes `self.inventory`; the `_` arm's edge would
     // join with the field still present, so the window cannot open.
-    let diagnostics = match check_source(
+    let diagnostics = match checked_program_result(
         r#"
         data Inventory { slots: i32; }
         machine bump(inventory: Inventory) -> Inventory { inventory }
@@ -779,7 +771,7 @@ fn arms_disagreeing_on_the_extraction_reject() {
 
 #[test]
 fn nested_disagreement_rejects_through_the_outer_join() {
-    let diagnostics = match check_source(
+    let diagnostics = match checked_program_result(
         r#"
         data Inventory { slots: i32; }
         data Main { inventory: Inventory; flag: bool; other_flag: bool; }
@@ -810,7 +802,7 @@ fn nested_disagreement_rejects_through_the_outer_join() {
 fn repeated_extraction_inside_one_arm_rejects() {
     // Two arguments move `self.inventory` inside one arm — the second meets
     // the hole the first opened, so the join never gets a consistent debt.
-    let diagnostics = match check_source(
+    let diagnostics = match checked_program_result(
         r#"
         data Inventory { slots: i32; }
         machine deliver(inventory: Inventory, other: Inventory) -> Inventory { inventory }
@@ -838,7 +830,7 @@ fn repeated_extraction_inside_one_arm_rejects() {
 #[test]
 fn joined_window_still_demands_repair() {
     // Agreement at the join opens the hole; it does not discharge it.
-    let diagnostics = match check_source(
+    let diagnostics = match checked_program_result(
         r#"
         data Inventory { slots: i32; }
         data Main { inventory: Inventory; flag: bool; }
@@ -863,7 +855,7 @@ fn joined_window_still_demands_repair() {
 
 #[test]
 fn crash_exit_abandons_the_window() {
-    check_source(
+    checked_program_result(
         r#"
         data Inventory { slots: i32; }
         data Main { inventory: Inventory; flag: bool; }
@@ -902,7 +894,7 @@ fn operational_window_source(contract: &str, body: &str) -> String {
 
 #[test]
 fn blocking_initializer_cannot_park_an_open_storage_window() {
-    let diagnostics = check_source(&operational_window_source(
+    let diagnostics = checked_program_result(&operational_window_source(
         "blocks",
         "let taken: Inventory = self.inventory;
          let result: i32 = block self.waiter.wait();
@@ -930,7 +922,7 @@ fn blocking_call_fence_is_independent_of_expression_position() {
         "let result: [i32; 2] = [0, block self.waiter.wait()];",
         "let result: i32 = identity(block self.waiter.wait());",
     ] {
-        let diagnostics = check_source(&operational_window_source(
+        let diagnostics = checked_program_result(&operational_window_source(
             "blocks",
             &format!(
                 "let taken: Inventory = self.inventory;
@@ -946,7 +938,7 @@ fn blocking_call_fence_is_independent_of_expression_position() {
 
 #[test]
 fn suspending_initializer_requires_restored_borrowed_storage() {
-    let diagnostics = check_source(&operational_window_source(
+    let diagnostics = checked_program_result(&operational_window_source(
         "suspends",
         "let taken: Inventory = self.inventory;
          let result: i32 = suspend self.waiter.wait();
@@ -958,7 +950,7 @@ fn suspending_initializer_requires_restored_borrowed_storage() {
 
 #[test]
 fn blocking_calls_outside_the_storage_window_remain_valid() {
-    check_source(&operational_window_source(
+    checked_program_result(&operational_window_source(
         "blocks",
         "let before: i32 = block self.waiter.wait();
          let taken: Inventory = self.inventory;
@@ -976,7 +968,7 @@ fn blocking_replacement_value_is_checked_before_the_repair_store() {
          self.inventory = block self.waiter.wait();",
     )
     .replace("machine wait() -> i32", "machine wait() -> Inventory");
-    let diagnostics = check_source(&source)
+    let diagnostics = checked_program_result(&source)
         .expect_err("the repair value is evaluated while its destination is absent");
     assert_window_call_fence(&diagnostics);
 }
@@ -990,11 +982,12 @@ fn skipped_blocking_operand_does_not_cross_the_storage_window() {
          self.inventory = move taken;",
     )
     .replace("machine wait() -> i32", "machine wait() -> bool");
-    check_source(&source).expect("an operand that cannot execute does not park the invocation");
+    checked_program_result(&source)
+        .expect("an operand that cannot execute does not park the invocation");
 }
 
 fn assert_boundary_window_rejection(source: &str) {
-    let diagnostics = match check_source(source) {
+    let diagnostics = match checked_program_result(source) {
         Ok(_) => panic!("a boundary must not observe an incomplete borrowed owner"),
         Err(diagnostics) => diagnostics,
     };
@@ -1085,7 +1078,7 @@ fn nonblocking_boundary_replacement_is_checked_before_its_store() {
 
 #[test]
 fn boundary_calls_outside_the_storage_window_remain_valid() {
-    check_source(&operational_window_source(
+    checked_program_result(&operational_window_source(
         "",
         "let before: i32 = self.waiter.wait();
          let taken: Inventory = self.inventory;
@@ -1108,7 +1101,8 @@ fn recursive_quiet_calls_do_not_invent_boundary_exposure() {
              let reading: i32 = quiet(flag);
              self.inventory = move taken;
          }";
-    check_source(source).expect("a cycle in the retained call graph is not itself a boundary");
+    checked_program_result(source)
+        .expect("a cycle in the retained call graph is not itself a boundary");
     assert_boundary_window_rejection(&source.replace("true -> 7", "true -> sample()"));
 }
 
@@ -1150,7 +1144,7 @@ fn spelled_boundary_operator_and_wrapper_require_restored_storage() {
 
 #[test]
 fn skipped_boundary_operator_does_not_cross_the_window() {
-    check_source(
+    checked_program_result(
         "data CheckedMath {}
          boundary operator CheckedMath::read(value: i32) -> bool;
          data Inventory { slots: i32; }
@@ -1166,7 +1160,7 @@ fn skipped_boundary_operator_does_not_cross_the_window() {
 
 #[test]
 fn quiet_builtin_wrapper_can_run_during_a_storage_window() {
-    check_source(
+    checked_program_result(
         "machine quiet(value: i32) -> i32 { min(value, value) }
          data Inventory { slots: i32; }
          data Main { inventory: Inventory; }
@@ -1181,7 +1175,7 @@ fn quiet_builtin_wrapper_can_run_during_a_storage_window() {
 
 #[test]
 fn unknown_call_reach_cannot_authorize_an_open_storage_window() {
-    let checked = check_source(
+    let checked = checked_program_result(
         "machine identity(value: i32) -> i32 { value }
          data Inventory { slots: i32; }
          data Main { inventory: Inventory; }

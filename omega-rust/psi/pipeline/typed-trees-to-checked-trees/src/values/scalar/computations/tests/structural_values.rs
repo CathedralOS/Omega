@@ -1,4 +1,5 @@
 use super::PrimitiveType;
+use crate::tests::front_end::{checked_program, checked_program_result};
 use crate::values::scalar::computations::tests::checked_source;
 use checked_trees::{
     CheckedComposedUnitControlTerminatorPlan, CheckedStructuralValueKind,
@@ -417,18 +418,8 @@ fn match_owned_parameter_selection_rejects_reusing_the_moved_parameter() {
             let result: Tag = match selector { true -> left, false -> right };
             left in Tag::First
         }";
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let diagnostics = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
-        .expect_err("a moved parameter cannot be observed again");
+    let diagnostics =
+        checked_program_result(source).expect_err("a moved parameter cannot be observed again");
     assert!(
         format!("{diagnostics:?}").contains("may have been transferred"),
         "{diagnostics:?}"
@@ -441,18 +432,7 @@ fn match_fresh_value_admission_admits_fresh_linear_products() {
     // selection and joins vacuously: no tracked source place exists to keep
     // live, so the uniform-frontier rule does not apply to it.
     let source = "data Tag [linear] { case First; case Second; } machine choose(selector: bool) -> Tag { match selector { true -> Tag::First, false -> Tag::Second } }";
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
-        .expect("fresh linear case products carry no tracked source place");
+    checked_program(source);
 }
 
 #[test]
@@ -461,18 +441,8 @@ fn match_fresh_value_admission_keeps_reference_and_hook_rejections() {
         "data Tag { case First; case Second; } machine Tag::drop(&mut self) {} machine choose(selector: bool) -> Tag { match selector { true -> Tag::First, false -> Tag::Second } }",
         "machine choose(selector: bool, left: &u64, right: &u64) -> &u64 { match selector { true -> left, false -> right } }",
     ] {
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let typed =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let diagnostics = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
-            .expect_err("unsupported branch custody must reject");
+        let diagnostics =
+            checked_program_result(source).expect_err("unsupported branch custody must reject");
         assert!(
             diagnostics
                 .iter()

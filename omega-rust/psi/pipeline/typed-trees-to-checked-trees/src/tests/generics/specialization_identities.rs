@@ -1,7 +1,6 @@
-use super::typed_source;
 use crate::CheckingRequest;
-use crate::tests::{Lexer, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees};
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+use crate::tests::front_end::{checked_program, typed_program, typed_program_result};
+use crate::tests::lower_typed_trees;
 
 #[test]
 fn specialization_identity_ignores_selected_machine_body_edits() {
@@ -17,17 +16,7 @@ fn specialization_identity_ignores_selected_machine_body_edits() {
                 machine Main::run(&mut self) {{}}
             "#
         );
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved =
-            resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-        lower_typed_trees(typed, &CheckingRequest::settled())
-            .expect("specialization should check")
-            .machine_specializations[0]
-            .report_fingerprint
+        checked_program(&source).machine_specializations[0].report_fingerprint
     }
 
     assert_eq!(
@@ -52,13 +41,7 @@ fn generic_template_identity_is_positional_across_parameter_renames() {
                 ensures true;
             "#
         );
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved =
-            resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+        let typed = typed_program(&source);
         let admitted = typed
             .machines()
             .iter()
@@ -91,13 +74,7 @@ fn generic_template_identity_normalizes_crash_route_buckets() {
                 ensures true;
             "#
         );
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved =
-            resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+        let typed = typed_program(&source);
         let admitted = typed
             .machines()
             .iter()
@@ -164,13 +141,7 @@ fn generic_template_identity_normalizes_crash_route_buckets() {
                 ensures true;
             "#
         );
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved =
-            resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+        let typed = typed_program(&source);
         let admitted = typed
             .machines()
             .iter()
@@ -213,13 +184,7 @@ fn generic_template_identity_pins_conformance_bounds_positionally() {
                 {{}}
             "#
         );
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved =
-            resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+        let typed = typed_program(&source);
         let admitted = typed
             .machines()
             .iter()
@@ -277,13 +242,7 @@ fn generic_template_identity_pins_selected_open_index_operation_authority() {
                     -> i64 in Indexed<A + B>;
             "#
         );
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved =
-            resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-        let mut typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+        let mut typed = typed_program(&source);
         validation::normalize_open_index_expressions(&mut typed)
             .expect("exact proved index algebra should normalize");
         crate::monomorphization::refresh_closed_domain_instance_identities(&mut typed)
@@ -309,14 +268,7 @@ fn generic_template_identity_pins_selected_open_index_operation_authority() {
 #[test]
 fn generic_template_identity_pins_independent_operational_interfaces() {
     fn report_fingerprint(source: String) -> u64 {
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        let syntax = parse_syntax_trees(&tokens)
-            .unwrap_or_else(|error| panic!("parse should succeed for `{source}`: {error:?}"));
-        let resolved =
-            resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+        let typed = typed_program(&source);
         let admitted = typed
             .machines()
             .iter()
@@ -416,13 +368,7 @@ fn generic_template_identity_distinguishes_structural_and_nominal_machine_contra
                 }}
             "#
         );
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved =
-            resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+        let typed = typed_program(&source);
         let admitted = typed
             .machines()
             .iter()
@@ -474,15 +420,7 @@ fn consuming_seq_map_specializes_recursive_machine_parameter_calls() {
         machine Main::run(&mut self) {}
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("consuming Seq map should specialize");
+    let checked = checked_program(source);
 
     let map_instances: Vec<_> = checked
         .machine_specializations
@@ -523,15 +461,7 @@ fn unused_recursive_generic_value_template_is_not_emitted_or_fenced() {
         machine Main::run(&mut self) {}
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("unused generic template should remain legal");
+    let checked = checked_program(source);
     let map = checked
         .machines()
         .iter()
@@ -554,15 +484,7 @@ fn const_generic_template_is_not_consumed_by_machine_specialization() {
         machine Main::run(&mut self) {}
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("const-generic template should validate");
+    let checked = checked_program(source);
     let retag = checked
         .machines()
         .iter()
@@ -593,13 +515,7 @@ fn const_generic_result_indices_produce_distinct_concrete_machine_instances() {
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let mut typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let mut typed = typed_program(source);
     crate::specialize_static_machine_calls(&mut typed)
         .expect("const result indices should specialize before validation");
     let concrete_return_domains = typed
@@ -758,15 +674,7 @@ fn contract_only_static_selections_do_not_consume_generic_machine_schema() {
         machine Main::run(&mut self) {}
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("contract schemas should remain generic");
+    let checked = checked_program(source);
 
     let equivalent = checked
         .machines()
@@ -793,7 +701,7 @@ fn generic_member_borrows_use_the_receivers_exact_type_arguments() {
             {{ Visit(pair.{member}); }}
         "#
         );
-        let typed = typed_source(&source).expect("generic member source types");
+        let typed = typed_program_result(&source).expect("generic member source types");
         let result = lower_typed_trees(typed, &CheckingRequest::settled());
         assert_eq!(result.is_ok(), accepted, "{source}: {result:?}");
     }
@@ -837,13 +745,5 @@ fn consuming_seq_filter_borrows_each_value_before_preserving_or_dropping_it() {
         machine Main::run(&mut self) {}
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("consuming Seq filter should specialize");
+    checked_program(source);
 }

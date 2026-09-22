@@ -5,19 +5,9 @@
 //! ordering, reference formals whose predicate value is the referent, and the
 //! fail-closed custody corruptions the spelled suite already covers.
 
+use crate::tests::front_end::checked_program_result;
 fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize named operator call");
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse named operator call");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve named operator call");
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type named operator call");
-    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+    checked_program_result(source)
 }
 
 #[test]

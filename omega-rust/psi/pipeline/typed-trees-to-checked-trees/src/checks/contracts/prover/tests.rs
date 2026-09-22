@@ -1,19 +1,10 @@
 use super::semantic_contexts_prove_contract_fact;
+use crate::tests::front_end::typed_program;
 use facts::{Fact, FactContextHandle, FactPayload, FactPlace, FactPlan, ProgramPoint};
 use language_semantics::CarryPermission;
 
 fn fixture() -> (typed_trees::TypedTrees, FactPlan, [FactPlace; 2]) {
-    let tokens =
-        source_files_to_tokens::Lexer::new("machine inspect(first: &mut u64, second: &mut u64) {}")
-            .tokenize()
-            .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let program = typed_program("machine inspect(first: &mut u64, second: &mut u64) {}");
     let state = &program.machine_states(&program.machines()[0])[0];
     let parameters = program.state_parameters(state);
     let mut semantic = FactPlan::default();

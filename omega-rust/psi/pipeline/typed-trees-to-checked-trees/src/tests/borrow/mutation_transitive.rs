@@ -3,6 +3,7 @@ use crate::borrow::build_borrow_facts;
 use crate::lower_typed_trees;
 use crate::tests::StateMutationSummaryCache;
 use crate::tests::call_mutated_places;
+use crate::tests::front_end::typed_program;
 
 #[test]
 fn shared_statement_resolver_preserves_aliases_across_binding_replacement() {
@@ -16,16 +17,7 @@ fn shared_statement_resolver_preserves_aliases_across_binding_replacement() {
             selected = 9;
         }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let program = typed_program(source);
     let machine = &program.machines()[0];
     let state = &program.machine_states(machine)[0];
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -135,16 +127,7 @@ fn assert_direct_alias_store_frame(body: &str, expected_paths: Option<&[&str]>) 
          machine update(pair: &mut Pair, other: &mut Pair, cells: &mut [Pair; 2]) {{ {body} }}
          machine Main::run(&mut self) {{ update(&mut self.pair, &mut self.other, &mut self.cells); }}"
     );
-    let tokens = source_files_to_tokens::Lexer::new(&source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let program = typed_program(&source);
     let helper = program
         .machines()
         .iter()
@@ -294,16 +277,7 @@ fn shared_boundary_resolver_preserves_exact_and_opaque_storage_frames() {
             self.device.consume(Carrier { value: &mut self.value });
         }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let program = typed_program(source);
     let main = program
         .data_definitions()
         .iter()
@@ -419,16 +393,7 @@ fn opaque_call_fallback_rebases_known_aliases_and_rejects_unknown_prefixes() {
             receiver.opaque();
         }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let program = typed_program(source);
     let machine = program
         .machines()
         .iter()
@@ -555,16 +520,7 @@ fn local_receiver_origins_survive_direct_and_transitive_mutation_frames() {
             private();
         }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let program = typed_program(source);
     let facts = build_borrow_facts(&program);
     let cache = StateMutationSummaryCache::default();
     for (name, expected_paths) in [
@@ -689,16 +645,7 @@ fn transitive_internal_frames_distinguish_exact_and_empty_may_write_sets() {
         }
     "#;
 
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let program = typed_program(source);
     let pair = program
         .data_definitions()
         .iter()
@@ -795,16 +742,7 @@ fn bijective_recursive_frame_reaches_its_finite_fixed_point() {
         }
     "#;
 
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let program = typed_program(source);
     let exercise = program
         .machines()
         .iter()

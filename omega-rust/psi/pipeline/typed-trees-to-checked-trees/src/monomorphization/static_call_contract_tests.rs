@@ -1,3 +1,4 @@
+use crate::tests::front_end::{checked_program_result, typed_program};
 use typed_trees::TypedTrees;
 
 const NOMINAL_SCHEMA_FORWARDING: &str = r#"
@@ -16,7 +17,7 @@ const NOMINAL_SCHEMA_FORWARDING: &str = r#"
 #[test]
 fn nominal_generic_family_satisfaction_survives_private_specialization() {
     crate::lower_typed_trees(
-        typed(NOMINAL_SCHEMA_FORWARDING),
+        typed_program(NOMINAL_SCHEMA_FORWARDING),
         &crate::CheckingRequest::settled(),
     )
     .expect("exact generic satisfaction survives nested private forwarding");
@@ -27,12 +28,12 @@ fn nominal_generic_family_rejects_a_different_const_carrier() {
     let source = NOMINAL_SCHEMA_FORWARDING
         .replace("selected<const Count: u64>", "selected<const Count: u32>")
         .replace("reaches Console { Count }", "reaches Console { value }");
-    assert!(crate::lower_typed_trees(typed(&source), &crate::CheckingRequest::settled()).is_err());
+    assert!(checked_program_result(&source).is_err());
 }
 
 #[test]
 fn nominal_generic_family_specialization_keeps_concrete_refinement_checks() {
-    let mut original = typed(NOMINAL_SCHEMA_FORWARDING);
+    let mut original = typed_program(NOMINAL_SCHEMA_FORWARDING);
     crate::specialize_static_machine_calls(&mut original).expect("closed schema calls");
     validation::validate_program(&original).expect("valid concrete family application");
     let template = original
@@ -109,18 +110,6 @@ fn nominal_generic_family_specialization_keeps_concrete_refinement_checks() {
     }
 }
 
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolution");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("typing")
-}
-
 fn specialized() -> TypedTrees {
     let source = "boundary trait Console {}\n\
         machine quiet(value: u64) -> u64 terminates { value }\n\
@@ -130,16 +119,7 @@ fn specialized() -> TypedTrees {
         terminates; { Step(value) }\n\
         machine first() -> u64 { traverse<quiet>(7) }\n\
         machine second() -> u64 { traverse<alternate>(9) }";
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolution");
-    let mut program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("typing");
+    let mut program = typed_program(source);
     crate::specialize_static_machine_calls(&mut program).expect("specializations");
     program
 }
@@ -287,7 +267,7 @@ fn retained_static_parameter_operational_contract_mutations_reject() {
 #[test]
 fn forwarded_nominal_binders_retain_exact_owners_and_selected_reach() {
     let checked = crate::lower_typed_trees(
-        typed(
+        typed_program(
             "boundary trait Console {}\n\
          trait Task { machine run(value: u64) -> u64 reaches Console; }\n\
          machine quiet(value: u64) -> u64 satisfies Task::run { value }\n\
@@ -360,7 +340,7 @@ fn statement_and_named_tail_calls_retain_binders_without_internal_transfer_calls
         ),
     ] {
         let checked = crate::lower_typed_trees(
-            typed(&format!(
+            typed_program(&format!(
                 "boundary trait Audit {{}}\n\
              machine quiet() {result} {{ {selected_body} }}\n\
              machine invoke<machine Work>() {result}\n\
@@ -426,8 +406,7 @@ fn quiet_selections_do_not_change_fixed_suspension_acknowledgements() {
                  machine invoke<machine Step>() where {contract} requires true; suspends; {{ {marker}Step(); }}\n\
                  machine caller() suspends; {{ suspend invoke<quiet>(); }}"
             );
-            let result =
-                crate::lower_typed_trees(typed(&source), &crate::CheckingRequest::settled());
+            let result = checked_program_result(&source);
             if accepted {
                 let checked = result.expect("the fixed requirement marker remains valid for quiet");
                 validate(&checked.typed).expect("selected quiet contract custody");

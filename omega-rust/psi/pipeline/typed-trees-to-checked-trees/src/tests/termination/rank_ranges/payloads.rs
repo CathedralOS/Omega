@@ -1,5 +1,6 @@
-use super::{lower_typed_trees, typed};
+use super::lower_typed_trees;
 use crate::CheckingRequest;
+use crate::tests::front_end::typed_program;
 
 const CLIMB: &str = r#"
 data Payload { value: u64; }
@@ -18,15 +19,15 @@ terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1);
 "#;
 
 fn prove(source: &str) {
-    crate::checks::termination::check_machine_termination(&typed(source))
+    crate::checks::termination::check_machine_termination(&typed_program(source))
         .unwrap_or_else(|diagnostics| panic!("termination: {source}\n{diagnostics:#?}"));
-    lower_typed_trees(typed(source), &CheckingRequest::settled())
+    lower_typed_trees(typed_program(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("complete checking: {source}\n{diagnostics:#?}"));
 }
 
 fn reject(source: &str) {
-    let diagnostics =
-        crate::checks::termination::check_machine_termination(&typed(source)).expect_err(source);
+    let diagnostics = crate::checks::termination::check_machine_termination(&typed_program(source))
+        .expect_err(source);
     assert!(
         diagnostics
             .iter()
@@ -89,9 +90,9 @@ fn payload_type_compatibility_remains_an_ordinary_checking_obligation() {
             "data Payload { value: u64; } data Other { value: u64; }",
         )
         .replace("carried: Payload", "carried: Other");
-    crate::checks::termination::check_machine_termination(&typed(&source))
+    crate::checks::termination::check_machine_termination(&typed_program(&source))
         .expect("the numeric rank does not prove payload compatibility");
-    let diagnostics = lower_typed_trees(typed(&source), &CheckingRequest::settled())
+    let diagnostics = lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
         .expect_err("incompatible payload arrival");
     assert!(
         diagnostics
@@ -172,9 +173,9 @@ fn named_states_can_duplicate_unranked_entry_parameters() {
             .replace("cursor + 1", "cursor"),
     );
 
-    crate::checks::termination::check_machine_termination(&typed(&source))
+    crate::checks::termination::check_machine_termination(&typed_program(&source))
         .expect("rank evidence does not authorize copying an affine payload");
-    let diagnostics = lower_typed_trees(typed(&source), &CheckingRequest::settled())
+    let diagnostics = lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
         .expect_err("affine payload copied");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic

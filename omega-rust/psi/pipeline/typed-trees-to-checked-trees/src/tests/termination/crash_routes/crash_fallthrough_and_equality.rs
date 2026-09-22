@@ -1,9 +1,5 @@
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
-use crate::tests::termination::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-    symbol_of_checked,
-};
+use crate::tests::front_end::{checked_program, checked_program_result, typed_program_result};
+use crate::tests::termination::symbol_of_checked;
 
 #[test]
 fn direct_crash_fallthrough_projects_immutable_entry_snapshots() {
@@ -35,11 +31,7 @@ fn direct_crash_fallthrough_projects_immutable_entry_snapshots() {
             }}
             "#
         );
-        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        let checked = checked_program_result(&source)
             .unwrap_or_else(|diagnostics| panic!("guard {guard}: {diagnostics:?}"));
         let plan = checked
             .facts
@@ -73,12 +65,7 @@ fn direct_crash_fallthrough_does_not_project_unproven_boolean_operands() {
             {{ transition {{ {guard} -> true }} crash Trap; }}
             "#
         );
-        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-            .expect_err("route is not implied");
+        let diagnostics = checked_program_result(&source).expect_err("route is not implied");
         assert!(
             diagnostics.iter().any(|diagnostic| {
                 diagnostic
@@ -104,12 +91,8 @@ fn direct_crash_fallthrough_does_not_confuse_state_and_entry_parameters() {
             }
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("distinct entry and state snapshots");
+    let diagnostics =
+        checked_program_result(source).expect_err("distinct entry and state snapshots");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -123,11 +106,7 @@ fn direct_crash_fallthrough_does_not_confuse_state_and_entry_parameters() {
 fn check_fallthrough_coverage(
     source: &str,
 ) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
+    checked_program_result(source)
 }
 
 fn assert_covered_site(source: &str) {
@@ -411,15 +390,7 @@ fn crash_bucket_identity_includes_cause_routes_and_unconditional_presence() {
     {}
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("checked lowering should succeed");
+    let checked = checked_program(source);
     let fingerprint = |name: &str| {
         let symbol = symbol_of_checked(&checked, name);
         checked
@@ -497,15 +468,7 @@ fn empty_record_equality_retains_existing_boolean_constant_carriers() {
 
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("checked lowering should succeed");
+    let checked = checked_program(source);
     let scalar = |name: &str| {
         let contract = checked
             .facts
@@ -550,18 +513,13 @@ fn erased_record_equality_is_not_mistaken_for_empty_record_equality() {
     {}
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     // Since 80ca19bb1a synthesized `==` skips `[erased]` fields, so a record
     // whose every field is erased has no runtime value to compare. Typing
     // rejects it explicitly instead of letting the zero-member-record rule
     // compare it as vacuous truth; no later crash-route check is reached.
-    let diagnostic = lower_symbol_resolved_trees(&resolved)
-        .expect_err("erased semantic fields must not be treated as an empty record");
+    let diagnostic = typed_program_result(source)
+        .expect_err("erased semantic fields must not be treated as an empty record")
+        .remove(0);
     assert!(
         diagnostic
             .message
@@ -591,15 +549,7 @@ fn address_field_equality_stays_outside_structural_crash_predicates() {
     {}
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("checked lowering should succeed");
+    let checked = checked_program(source);
     for name in ["whole_equal", "field_equal"] {
         let contract = checked
             .facts
@@ -656,15 +606,7 @@ fn ieee_float_fields_retain_atomic_structural_equality() {
     {}
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("checked lowering should succeed");
+    let checked = checked_program(source);
     let scalar = |name: &str| {
         let contract = checked
             .facts
@@ -746,15 +688,7 @@ fn byte_sequence_fields_retain_atomic_content_equality() {
     {}
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("checked lowering should succeed");
+    let checked = checked_program(source);
 
     for name in ["borrowed", "bounded"] {
         let contract = checked
@@ -817,15 +751,7 @@ fn payloadless_sum_equality_retains_closed_case_roster() {
     {}
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("checked lowering should succeed");
+    let checked = checked_program(source);
     let expression = |name: &str| {
         let contract = checked
             .facts
@@ -922,15 +848,7 @@ fn nested_payload_bearing_sum_equality_retains_record_case_payload_paths() {
     {}
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("checked lowering should succeed");
+    let checked = checked_program(source);
     let contract = checked
         .facts
         .contract_plans
@@ -1033,15 +951,7 @@ fn payload_sum_equality_expands_acyclic_nested_records_with_exact_paths() {
     {}
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("checked lowering should succeed");
+    let checked = checked_program(source);
 
     for name in ["equal", "different"] {
         let contract = checked
@@ -1155,15 +1065,7 @@ fn payload_sum_equality_expands_acyclic_nested_sums_with_exact_paths() {
     {}
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("checked lowering should succeed");
+    let checked = checked_program(source);
 
     for name in ["equal", "different"] {
         let contract = checked

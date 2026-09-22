@@ -1,4 +1,4 @@
-use super::checked_source;
+use crate::tests::front_end::{checked_program, checked_program_result};
 
 const RETURNED_WINDOW: &str = r#"
     data Main { items: [i32; 4]; }
@@ -17,7 +17,7 @@ const RETURNED_WINDOW: &str = r#"
 
 #[test]
 fn returned_guarantee_certifies_disjoint_window_write_and_call() {
-    let mut checked = checked_source(RETURNED_WINDOW);
+    let mut checked = checked_program(RETURNED_WINDOW);
     assert!(
         checked
             .facts
@@ -46,7 +46,7 @@ fn returned_guarantee_separates_loans_without_duplicating_authority() {
         "self.items[0] = 3;\n        take(&mut self.items[1]);",
         "let outside: &mut i32 = &mut self.items[1]; outside = 3;",
     );
-    let mut checked = checked_source(&source);
+    let mut checked = checked_program(&source);
     assert!(
         checked
             .facts
@@ -95,7 +95,7 @@ fn immutable_result_copies_and_boolean_decomposition_preserve_call_identity() {
                 "let copied: u64 [0..=4] = split_point; let held:",
             )
             .replace("self.items[split_point..4]", "self.items[copied..4]");
-        let mut checked = checked_source(&source);
+        let mut checked = checked_program(&source);
         crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
             .expect("copied immutable result retains its supplying call");
     }
@@ -107,7 +107,7 @@ fn premise_evidence_cannot_retarget_to_a_mutable_result_binding() {
     // recorded binding stays immutable: mutable storage has no version evidence
     // pinning which occurrence the guarantee spoke about, so replaying the
     // certificate against a mutable spelling must reject.
-    let mut checked = checked_source(RETURNED_WINDOW);
+    let mut checked = checked_program(RETURNED_WINDOW);
     let spans: Vec<_> = checked
         .typed
         .machines()
@@ -131,15 +131,7 @@ fn premise_evidence_cannot_retarget_to_a_mutable_result_binding() {
 }
 
 fn assert_conflict(source: &str) {
-    use super::{
-        Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-    };
-    let tokens = Lexer::new(source).tokenize().expect("lex call control");
-    let syntax = parse_syntax_trees(&tokens).expect("parse call control");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve call control");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type call control");
-    let diagnostics = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
-        .expect_err("unproven separation rejects");
+    let diagnostics = checked_program_result(source).expect_err("unproven separation rejects");
     assert!(
         diagnostics.iter().any(
             |diagnostic| diagnostic.message.contains("while local borrow")
@@ -168,7 +160,7 @@ fn assert_replay_rejects(checked: &mut checked_trees::CheckedTrees) {
 #[test]
 fn call_premise_tokens_reject_changed_coordinates_result_or_predicate() {
     for change in 0..5 {
-        let mut checked = checked_source(RETURNED_WINDOW);
+        let mut checked = checked_program(RETURNED_WINDOW);
         let handle = checked
             .facts
             .borrow
@@ -204,7 +196,7 @@ fn call_premise_tokens_reject_changed_coordinates_result_or_predicate() {
 #[test]
 fn call_guarantee_source_and_captured_assignment_must_remain_live() {
     for remove_assignment in [false, true] {
-        let mut checked = checked_source(RETURNED_WINDOW);
+        let mut checked = checked_program(RETURNED_WINDOW);
         let handles: Vec<_> = checked.facts.semantic.facts.iter().filter_map(|(handle, fact)| {
             (if remove_assignment {
                 matches!(fact.payload, facts::FactPayload::AssignedValue { value }
@@ -241,7 +233,7 @@ fn future_establishment_and_changed_selected_meaning_cannot_replay() {
         let source = format!(
             "operator Quantity::compare(left: u64, right: u64) -> bool; {RETURNED_WINDOW}",
         );
-        let mut checked = checked_source(&source);
+        let mut checked = checked_program(&source);
         if change_meaning {
             let handle = checked.typed.roots.operators.start();
             checked.typed.tables.operators.get_mut(handle).spelling =
@@ -275,7 +267,7 @@ fn foreign_valid_guarantees_and_other_call_results_cannot_replace_the_capture() 
         .replace("machine take", "machine sibling(value: u64 [2..=4]) -> u64 [0..=4] ensures result >= 2; { value } machine take")
         .replace("let held:", "let spare: u64 [0..=4] = sibling(seed); let held:");
     for change in 0..3 {
-        let mut checked = checked_source(&source);
+        let mut checked = checked_program(&source);
         let sibling = checked
             .typed
             .machines()
@@ -356,9 +348,6 @@ fn foreign_valid_guarantees_and_other_call_results_cannot_replace_the_capture() 
 
 #[test]
 fn borrow_compatibility_does_not_discharge_callee_preconditions_or_false_guarantees() {
-    use super::{
-        Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-    };
     for (source, expected) in [
         (
             RETURNED_WINDOW.replace("ensures result", "requires value >= 3; ensures result"),
@@ -369,14 +358,7 @@ fn borrow_compatibility_does_not_discharge_callee_preconditions_or_false_guarant
             "cannot prove ensures",
         ),
     ] {
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("lex unproved contract");
-        let syntax = parse_syntax_trees(&tokens).expect("parse unproved contract");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve unproved contract");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type unproved contract");
-        let diagnostics = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
-            .expect_err("contracts remain obligatory");
+        let diagnostics = checked_program_result(&source).expect_err("contracts remain obligatory");
         assert!(
             diagnostics
                 .iter()

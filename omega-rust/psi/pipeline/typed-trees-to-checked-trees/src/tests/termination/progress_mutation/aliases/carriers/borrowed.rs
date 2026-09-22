@@ -1,10 +1,6 @@
-use super::super::super::{
-    Lexer, ResolutionRequest, TerminationGuarantee, lower_symbol_resolved_trees,
-    parse_syntax_trees, resolve,
-};
+use super::super::super::TerminationGuarantee;
+use crate::tests::front_end::{checked_program_result, typed_program};
 
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
 use crate::tests::termination::progress_mutation::CONTEXT_FIXTURE;
 use crate::tests::termination::progress_mutation::assert_unproved_tail_requirement;
 use crate::tests::termination::progress_mutation::check_source;
@@ -25,13 +21,6 @@ fn source(outer_access: &str, inner_access: &str, body: &str, extra: &str) -> St
     )
 }
 
-fn typed_source(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    lower_symbol_resolved_trees(&resolved).unwrap()
-}
-
 fn loaded_source(outer_access: &str, inner_access: &str) -> String {
     source(
         outer_access,
@@ -47,7 +36,7 @@ fn loaded_source(outer_access: &str, inner_access: &str) -> String {
 #[test]
 fn borrowed_carrier_loads_retain_exact_reference_origins() {
     for (outer_access, inner_access) in [("", ""), ("mut ", ""), ("mut ", "mut ")] {
-        let program = typed_source(&loaded_source(outer_access, inner_access));
+        let program = typed_program(&loaded_source(outer_access, inner_access));
         let machine = program
             .machines()
             .iter()
@@ -111,7 +100,7 @@ fn a_borrowed_carrier_load_cannot_establish_a_missing_state_qualification() {
         );
         assert_input_premise(&check_source(&source));
         let missing = source.replace("requires carrier.context.scheduler in WeakFair", "");
-        let diagnostics = lower_typed_trees(typed_source(&missing), &CheckingRequest::settled())
+        let diagnostics = checked_program_result(&missing)
             .expect_err("reference identity cannot establish the scheduler qualification");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic

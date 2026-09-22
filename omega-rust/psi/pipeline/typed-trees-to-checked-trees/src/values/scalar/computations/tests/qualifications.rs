@@ -1,4 +1,5 @@
 use super::{CheckedScalarComputationKind, ExpressionNode, PrimitiveType};
+use crate::tests::front_end::typed_program;
 use crate::values::scalar::computations::tests::checked_source;
 use crate::values::scalar::semantic_casts;
 
@@ -226,16 +227,7 @@ fn vacuous_scalar_eligibility_does_not_claim_predicates_or_routes() {
         }
         domain i64::Alias = Positive;
         machine identity(value: i64) -> i64 { value }";
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let typed = typed_program(source);
     let domains = typed.domain_definitions();
     assert_eq!(domains.len(), 4);
     for (index, domain) in domains.iter().enumerate() {

@@ -14,6 +14,7 @@ use crate::execution::terminal_unit::PermissionEventSource;
 use crate::execution::terminal_unit::calls::computation_arguments::owned_parameter_argument;
 use crate::execution::terminal_unit::structural_computation_argument;
 use crate::execution::terminal_unit::terminal_field_identity;
+use crate::tests::front_end::checked_program_result;
 
 const SOURCE: &str = r#"
 data Limits { limit: u64; divisor: u64 [3..=5]; }
@@ -30,18 +31,7 @@ machine enter(limits: Limits, marker: u64) -> u64 {
 "#;
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
-        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"))
+    checked_program_result(source).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"))
 }
 
 fn machine<'program>(

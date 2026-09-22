@@ -1,6 +1,6 @@
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
-use crate::tests::values::typed_trees;
+use crate::tests::front_end::typed_program;
 
 const COST: &str = r#"
     machine cost(level: u32 [1..=10]) -> u32 [15..=60] {
@@ -27,12 +27,12 @@ const MAYBE_COST: &str = r#"
 "#;
 
 fn accepts(source: &str) {
-    lower_typed_trees(typed_trees(source), &CheckingRequest::settled())
+    lower_typed_trees(typed_program(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
 }
 
 fn rejects_subtraction(source: &str) {
-    let diagnostics = match lower_typed_trees(typed_trees(source), &CheckingRequest::settled()) {
+    let diagnostics = match lower_typed_trees(typed_program(source), &CheckingRequest::settled()) {
         Ok(_) => panic!("an invalid call-result relation authorized subtraction: {source}"),
         Err(diagnostics) => diagnostics,
     };
@@ -304,7 +304,7 @@ fn unguarded_arrival_must_establish_the_named_state_call_result_requirement() {
         }}
         "#
     );
-    let diagnostics = match lower_typed_trees(typed_trees(&source), &CheckingRequest::settled()) {
+    let diagnostics = match lower_typed_trees(typed_program(&source), &CheckingRequest::settled()) {
         Ok(_) => panic!("an unguarded arrival cannot establish the target requirement"),
         Err(diagnostics) => diagnostics,
     };
@@ -335,7 +335,7 @@ fn a_crashing_scalar_call_is_not_a_total_requires_term() {
         {{ xp - maybe_cost(level) }}
         "#
     );
-    let diagnostics = match lower_typed_trees(typed_trees(&source), &CheckingRequest::settled()) {
+    let diagnostics = match lower_typed_trees(typed_program(&source), &CheckingRequest::settled()) {
         Ok(_) => panic!("a potentially crashing call cannot denote a total requirement term"),
         Err(diagnostics) => diagnostics,
     };

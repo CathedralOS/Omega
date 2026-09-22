@@ -1,9 +1,4 @@
-use super::checked;
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
-use crate::tests::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
+use crate::tests::front_end::{checked_program, checked_program_result};
 
 const OPTIONAL_RETURN: &str = r#"
     data Receipt [linear] { code: i32; }
@@ -26,7 +21,7 @@ const OPTIONAL_RETURN: &str = r#"
 
 #[test]
 fn inactive_call_payload_moves_with_its_carrier_without_a_transfer() {
-    let checked = checked(&OPTIONAL_RETURN.replace(
+    let checked = checked_program(&OPTIONAL_RETURN.replace(
         "BODY",
         "let rebuilt: Holder = Holder { slot: holder.slot }; close(rebuilt.slot);",
     ));
@@ -40,7 +35,7 @@ fn inactive_call_payload_reconciliation_does_not_waive_real_moves() {
         "machine empty() -> Holder { Holder { slot: Slot::Empty } }",
         "machine empty() -> Holder { let receipt: Receipt = Receipt { code: 3 }; Holder { slot: Slot::Held { receipt: receipt } } }",
     );
-    checked(&held.replace("BODY", "close(holder.slot);"));
+    checked_program(&held.replace("BODY", "close(holder.slot);"));
     for source in [
         OPTIONAL_RETURN.replace(
             "BODY",
@@ -51,11 +46,7 @@ fn inactive_call_payload_reconciliation_does_not_waive_real_moves() {
                 "let first: Slot = holder.slot; let second: Slot = holder.slot; close(first); close(second);",
             ),
     ] {
-        let tokens = Lexer::new(&source).tokenize().expect("tokenize ownership control");
-        let syntax = parse_syntax_trees(&tokens).expect("parse ownership control");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve ownership control");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type ownership control");
-        let diagnostics = match lower_typed_trees(typed, &CheckingRequest::settled()) {
+        let diagnostics = match checked_program_result(&source) {
             Err(diagnostics) => diagnostics,
             Ok(_) => panic!("invalid ownership control was accepted:\n{source}"),
         };
@@ -66,7 +57,7 @@ fn inactive_call_payload_reconciliation_does_not_waive_real_moves() {
 
 #[test]
 fn permission_producer_reconstructs_transfers_from_typed_flow() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Receipt [linear] { code: i32; }
         machine Receipt::ack(self) {}
@@ -103,7 +94,7 @@ fn permission_producer_reconstructs_transfers_from_typed_flow() {
 
 #[test]
 fn permission_producer_reconstructs_affine_cleanup_from_typed_flow() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Box { value: i32; }
         data Main {}
@@ -150,7 +141,7 @@ fn permission_producer_reconstructs_affine_cleanup_from_typed_flow() {
 
 #[test]
 fn nested_conditional_payload_extraction_preserves_its_origin() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Receipt [linear] { code: i32; }
         machine Receipt::ack(self) {}
@@ -200,7 +191,7 @@ fn nested_conditional_payload_extraction_preserves_its_origin() {
 
 #[test]
 fn generic_conditional_payload_substitution_preserves_linear_debt() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Receipt [linear] { code: i32; }
         machine Receipt::ack(self) {}
@@ -251,7 +242,7 @@ fn generic_conditional_payload_substitution_preserves_linear_debt() {
 
 #[test]
 fn generic_conditional_empty_case_establishes_without_debt() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Receipt [linear] { code: i32; }
         data Outcome<T> {
@@ -279,7 +270,7 @@ fn generic_conditional_empty_case_establishes_without_debt() {
 
 #[test]
 fn active_case_frontier_preserves_independent_payload_claims() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Receipt [linear] { code: i32; }
         machine Receipt::ack(self) {}
@@ -377,12 +368,8 @@ fn active_case_partial_move_leaves_same_case_sibling_live() {
             0
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("the active-case sibling remains live");
+    let diagnostics =
+        checked_program_result(source).expect_err("the active-case sibling remains live");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -410,12 +397,8 @@ fn active_case_rejects_duplicate_payload_move() {
             0
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("one payload claim cannot move twice");
+    let diagnostics =
+        checked_program_result(source).expect_err("one payload claim cannot move twice");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -425,7 +408,7 @@ fn active_case_rejects_duplicate_payload_move() {
 
 #[test]
 fn active_case_result_map_omits_proven_inactive_alternatives() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Receipt [linear] { code: i32; }
         machine Receipt::ack(self) {}

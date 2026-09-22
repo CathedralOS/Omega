@@ -593,6 +593,7 @@ mod prerequisite_roster_probes {
         Invocation, direct_place, invocation, receiver_place, stable_arguments, stable_value,
     };
     use crate::semantic_calls::{CallSite, call_site_argument_expressions};
+    use crate::tests::front_end::typed_program;
     use checked_trees::FlowStateFact;
     use facts::PlaceRoot;
     use symbols::SymbolHandle;
@@ -646,19 +647,7 @@ mod prerequisite_roster_probes {
     "#;
 
     fn program() -> typed_trees::TypedTrees {
-        program_source(SOURCE)
-    }
-
-    fn program_source(source: &str) -> typed_trees::TypedTrees {
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .expect("tokenize");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("resolve");
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type")
+        typed_program(SOURCE)
     }
 
     /// Machine names keep their qualified diagnostic spelling
@@ -765,7 +754,7 @@ mod prerequisite_roster_probes {
 
     #[test]
     fn receiver_binding_keeps_the_selected_place_and_subordinate_contract_scope() {
-        let program = program_source(
+        let program = typed_program(
             "data Source { value: u64; }
              machine Source::read(&self) -> u64 ensures result == self.value { self.value }
              data Probe {}

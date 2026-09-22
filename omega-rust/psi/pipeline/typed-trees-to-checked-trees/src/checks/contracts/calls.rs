@@ -986,6 +986,7 @@ mod prerequisite_roster_probes {
         assignment_target_mentions_field, assignment_target_mentions_name, guard_conjunct_matches,
         replace_unqualified_identifiers, unqualified_label_identifiers,
     };
+    use crate::tests::front_end::typed_program;
     use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
     use typed_trees::name::Identifier;
     use typed_trees::statement::{StatementNode, TransitionGuardNode};
@@ -1021,15 +1022,7 @@ mod prerequisite_roster_probes {
     "#;
 
     fn program() -> typed_trees::TypedTrees {
-        let tokens = source_files_to_tokens::Lexer::new(SOURCE)
-            .tokenize()
-            .expect("tokenize");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("resolve");
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type")
+        typed_program(SOURCE)
     }
 
     fn state_statement<'program>(

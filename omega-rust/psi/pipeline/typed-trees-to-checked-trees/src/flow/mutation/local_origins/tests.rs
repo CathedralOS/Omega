@@ -1,24 +1,10 @@
 use super::{close_storage_places_over_aliases, close_storage_places_over_aliases_with_resolver};
 use crate::flow::CanonicalPlace;
+use crate::tests::front_end::typed_program;
 use facts::{PlaceRoot, PlaceSegment};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::statement::StatementNode;
 use validation::CallFrameResolver;
-
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize alias closure fixture");
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse alias closure fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve alias closure fixture");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type alias closure fixture")
-}
 
 fn place(root: SymbolHandle, segments: &[PlaceSegment]) -> CanonicalPlace {
     CanonicalPlace {
@@ -29,7 +15,7 @@ fn place(root: SymbolHandle, segments: &[PlaceSegment]) -> CanonicalPlace {
 
 #[test]
 fn shared_alias_closure_uses_each_statement_prefix_across_rebinding() {
-    let program = typed(
+    let program = typed_program(
         "data Pair { value: u64; }
          machine probe(first: &mut Pair, second: &mut Pair) {
              let mut selected: &mut Pair = first;
@@ -104,7 +90,7 @@ fn shared_alias_closure_uses_each_statement_prefix_across_rebinding() {
 
 #[test]
 fn opaque_prefix_queries_do_not_poison_earlier_alias_closure() {
-    let program = typed(
+    let program = typed_program(
         "data Pair { value: u64; }
          machine Pair::opaque(&mut self) { unknown(Pair { value: 0 }); }
          machine probe(pair: &mut Pair) {
@@ -170,7 +156,7 @@ fn opaque_prefix_queries_do_not_poison_earlier_alias_closure() {
 #[test]
 fn missing_resolver_preserves_only_complete_empty_writes() {
     for duplicate_symbols in [false, true] {
-        let mut program = typed(
+        let mut program = typed_program(
             "machine probe(value: &mut u64) {
                  let alias: &mut u64 = value;
                  alias = 1;

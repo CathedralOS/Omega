@@ -13,9 +13,6 @@ mod specialization_identities;
 mod specializations;
 mod symbolic_ranges;
 
-use crate::tests::{Lexer, lower_symbol_resolved_trees, parse_syntax_trees};
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-
 fn specialized_machine<'program>(
     program: &'program checked_trees::CheckedTrees,
     name: &str,
@@ -42,11 +39,4 @@ fn specialized_machine<'program>(
         .expect("selected private instance");
     assert!(!instance.is_public);
     instance
-}
-
-fn typed_source(source: &str) -> Result<typed_trees::TypedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).map_err(|diagnostic| vec![diagnostic])
 }

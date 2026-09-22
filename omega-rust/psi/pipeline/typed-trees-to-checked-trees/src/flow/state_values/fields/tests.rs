@@ -1,5 +1,6 @@
 use super::{BoundsSource, ByteSequencePredicate, integer_literal_thresholds, meet};
 use crate::flow::state_values::fields::FieldValue;
+use crate::tests::front_end::typed_program;
 use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
 use typed_trees::statement::TransitionTargetHandle;
@@ -291,17 +292,9 @@ fn potential_only_changes_propagate_through_missing_call_deliveries() {
 
 #[test]
 fn repeated_delivery_preserves_widening_until_the_evidence_changes() {
-    use source_files_to_tokens::Lexer;
-    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-    use tokens_to_syntax_trees::parse_syntax_trees;
-
     let source = "data Counter { count: u64; }
                   machine Counter::tick(&mut self) { let limit: u64 = 10; }";
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let program = lower_symbol_resolved_trees(&resolved).expect("type");
+    let program = typed_program(source);
     let machine = program.machines().first().expect("counter machine");
     let counter = program.data_definitions().first().expect("counter data");
     let symbol = program

@@ -1,8 +1,10 @@
-use super::typed_source;
 use crate::CheckingRequest;
-use crate::tests::{Lexer, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees};
+use crate::tests::front_end::{
+    checked_program, checked_program_result, typed_program, typed_program_result,
+    typed_program_with_resolution,
+};
+use crate::tests::lower_typed_trees;
 use checked_trees::{ContractProofFactKind, ContractProofFactOwner};
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 
 #[test]
 fn exact_requirement_lifetime_application_retains_raw_machine_ordinals() {
@@ -20,7 +22,7 @@ fn exact_requirement_lifetime_application_retains_raw_machine_ordinals() {
             first
         }
     "#;
-    let typed = typed_source(source).expect("typed exact requirement application");
+    let typed = typed_program_result(source).expect("typed exact requirement application");
     let machine = typed
         .machines()
         .iter()
@@ -52,7 +54,7 @@ fn exact_requirement_lifetime_application_accepts_repeated_realizer_binder() {
         {
         }
     "#;
-    let typed = typed_source(source).expect("typed repeated lifetime application");
+    let typed = typed_program_result(source).expect("typed repeated lifetime application");
     let machine = typed
         .machines()
         .iter()
@@ -85,7 +87,7 @@ fn exact_requirement_lifetime_application_rejects_signature_substitution_drift()
             first
         }
     "#;
-    let typed = typed_source(source).expect("typed mismatched lifetime application");
+    let typed = typed_program_result(source).expect("typed mismatched lifetime application");
     let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("lifetime drift must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -107,7 +109,8 @@ fn exact_requirement_lifetime_application_requires_complete_in_scope_arguments()
             value
         }
     "#;
-    let typed = typed_source(missing).expect("typing retains missing application for validation");
+    let typed =
+        typed_program_result(missing).expect("typing retains missing application for validation");
     let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("missing lifetime must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -126,11 +129,9 @@ fn exact_requirement_lifetime_application_requires_complete_in_scope_arguments()
             value
         }
     "#;
-    let tokens = Lexer::new(foreign).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let error = lower_symbol_resolved_trees(&resolved)
-        .expect_err("foreign lifetime argument must reject during typed lowering");
+    let error = typed_program_result(foreign)
+        .expect_err("foreign lifetime argument must reject during typed lowering")
+        .remove(0);
     assert!(error.message.contains("outside its lifetime telescope"));
 }
 
@@ -145,14 +146,7 @@ fn concrete_subjectless_conformance_checks_as_carrierless_evidence() {
             machine witness(value: i32) { }
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("subjectless evidence rows should validate");
+    checked_program(source);
 }
 
 /// MP1: the machine-parameter requirement is semantic tree data. It is
@@ -171,14 +165,7 @@ fn machine_parameter_contract_survives_resolved_and_typed_trees() {
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let typed_machine = typed
         .machines()
         .iter()
@@ -212,10 +199,7 @@ fn nested_structural_machine_parameter_emits_exact_checked_evidence() {
         }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
 
     let outer = typed
         .machines()
@@ -283,10 +267,7 @@ fn nested_nominal_machine_parameter_uses_trait_evidence_without_binder_expansion
         }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
 
     let outer = typed
         .machines()
@@ -359,13 +340,7 @@ fn nominal_machine_parameter_accepts_one_explicit_exact_satisfaction_row() {
             register<chosen>(value)
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let register = typed
         .machines()
         .iter()
@@ -491,16 +466,7 @@ fn public_installation_wrapper_keeps_upper_bound_separate_from_concrete_reach() 
             {{ invoke<Completion>() }}
             "#,
         );
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize public installation wrapper");
-        let syntax = parse_syntax_trees(&tokens).expect("parse public installation wrapper");
-        let resolved =
-            resolve(ResolutionRequest::new(&syntax)).expect("resolve public installation wrapper");
-        let typed =
-            lower_symbol_resolved_trees(&resolved).expect("type public installation wrapper");
-        let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-            .expect("check public installation wrapper");
+        let checked = checked_program(&source);
         let wrapper = checked
             .machines()
             .iter()
@@ -597,10 +563,7 @@ fn bounded_installation_reach_retains_exact_unresolved_requirement_through_check
             invoke<Completion>()
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
     let requirement = typed
         .traits()
         .iter()
@@ -713,9 +676,7 @@ fn top_level_bounded_reach_is_unresolved_not_concrete() {
         pub boundary requirement Completion::complete() -> u64
         reaches <= MachineControl + PortIo;
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let (resolved, typed) = typed_program_with_resolution(source);
     assert!(
         resolved
             .machines
@@ -724,7 +685,6 @@ fn top_level_bounded_reach_is_unresolved_not_concrete() {
             .expect("resolved complete requirement")
             .service_reach_is_installation_bound
     );
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let complete = typed
         .machines()
         .iter()
@@ -780,11 +740,7 @@ fn bounded_installation_reach_rejects_provider_outside_upper_bound() {
             0
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+    let diagnostics = checked_program_result(source)
         .expect_err("provider reach outside an installation bound must reject");
 
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -818,10 +774,7 @@ fn nominal_callback_use_retains_exact_evaluated_placement_identity() {
             register<chosen>(value)
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let mut typed = typed_program(source);
     let handler = typed
         .traits()
         .iter()
@@ -948,10 +901,7 @@ fn checked_resource_envelopes_cover_entries_in_declaration_order() {
             state keep_second(second: Token) -> i32 { 2 }
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
     let machine = typed
         .machines()
         .iter()
@@ -1020,13 +970,7 @@ fn nominal_machine_use_identity_survives_forwarded_specialization_rounds() {
             outer<chosen>(value)
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let chosen_symbol = typed
         .machines()
         .iter()
@@ -1095,13 +1039,7 @@ fn nominal_machine_uses_keep_distinct_authored_call_sites() {
             register<chosen>(first)
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
 
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("both nominal uses should specialize");
@@ -1132,13 +1070,7 @@ fn structural_machine_selection_publishes_no_nominal_use_row() {
             register<chosen>(value)
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
 
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("the structural use should specialize");
@@ -1167,15 +1099,8 @@ fn nominal_machine_parameter_rejects_structural_coincidence() {
             register<coincidental>(value)
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("structural coincidence must reject");
+    let diagnostics =
+        checked_program_result(source).expect_err("structural coincidence must reject");
     let rendered = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -1211,15 +1136,8 @@ fn nominal_machine_parameter_rejects_a_different_authored_requirement() {
             register<wrong>(value)
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("wrong satisfaction row must reject");
+    let diagnostics =
+        checked_program_result(source).expect_err("wrong satisfaction row must reject");
     let rendered = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -1251,13 +1169,7 @@ fn call_site_machine_argument_resolves_to_static_entry_symbol() {
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
 
     let call = typed
         .machines()
@@ -1298,13 +1210,7 @@ fn generic_body_call_resolves_to_machine_parameter_contract() {
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
 
     let machine = typed
         .machines()
@@ -1357,13 +1263,5 @@ fn generic_body_call_is_accepted_modularly_by_checked_lowering() {
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("generic body should check from F's authored contract");
+    checked_program(source);
 }

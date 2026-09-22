@@ -11,6 +11,8 @@ use crate::monomorphization::{
 use crate::monomorphization::{
     candidate, collect_call_selections, materialize_static_argument_types,
 };
+#[cfg(test)]
+use crate::tests::front_end::typed_program;
 
 /// An explicit argument has no binder slot of its selected kind. Omitted
 /// arguments can still be inferred; excess arguments cannot be discarded.
@@ -223,16 +225,7 @@ pub(crate) fn state_by_symbol(
 pub(crate) fn discarded_call_inference_retains_fixed_array_const_proposal() {
     let source = "machine endpoint<const N: u64[0..=3]>(witness: &[u8; N]) -> u64 { N }
         machine forward<Value>(unused: Value, witness: &[u8; 5]) { _ = endpoint(witness); }";
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolution");
-    let mut program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("typing");
+    let mut program = typed_program(source);
     materialize_static_argument_types(&mut program);
     let candidates = candidate::collect(&program);
     let callees = candidate::callees(&program, &candidates);

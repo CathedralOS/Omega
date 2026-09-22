@@ -1,4 +1,4 @@
-use super::checked_source;
+use crate::tests::front_end::checked_program;
 
 const ARGUMENT_BESIDE_LOAN: &str = r#"
     data Main { items: [i32; 4]; }
@@ -14,7 +14,7 @@ const ARGUMENT_BESIDE_LOAN: &str = r#"
 
 #[test]
 fn premise_dependent_call_retains_its_compatibility_evidence() {
-    let mut checked = checked_source(ARGUMENT_BESIDE_LOAN);
+    let mut checked = checked_program(ARGUMENT_BESIDE_LOAN);
     let certificate = premised_certificate(&checked);
     assert_eq!(
         certificate.left.subject,
@@ -99,7 +99,7 @@ fn call_certificate_rejects_missing_duplicate_and_changed_evidence() {
         "conclusion",
         "derivation",
     ] {
-        let mut checked = checked_source(ARGUMENT_BESIDE_LOAN);
+        let mut checked = checked_program(ARGUMENT_BESIDE_LOAN);
         let handle = checked
             .facts
             .borrow
@@ -157,7 +157,7 @@ fn call_certificate_rejects_missing_duplicate_and_changed_evidence() {
 
 #[test]
 fn invocation_certificate_order_cannot_be_reversed() {
-    let mut checked = checked_source(&ARGUMENT_BESIDE_LOAN.replace(
+    let mut checked = checked_program(&ARGUMENT_BESIDE_LOAN.replace(
         "take(&mut self.items[index]);",
         "take(&mut self.items[index]); take(&mut self.items[index]);",
     ));
@@ -185,7 +185,7 @@ fn invocation_certificate_order_cannot_be_reversed() {
 
 #[test]
 fn rhs_call_observes_old_reference_before_reassignment() {
-    let mut checked = checked_source(
+    let mut checked = checked_program(
         r#"
         data Main { left: i32; right: i32; }
         machine identity(value: &mut i32) -> &mut i32 { value }
@@ -213,7 +213,7 @@ fn rhs_call_observes_old_reference_before_reassignment() {
 #[test]
 fn deleted_call_and_access_rosters_cannot_erase_their_certificates() {
     for erase_calls in [false, true] {
-        let mut checked = checked_source(ARGUMENT_BESIDE_LOAN);
+        let mut checked = checked_program(ARGUMENT_BESIDE_LOAN);
         let certificate = premised_certificate(&checked);
         if erase_calls {
             let owner = checked
@@ -245,7 +245,7 @@ fn deleted_call_and_access_rosters_cannot_erase_their_certificates() {
 
 #[test]
 fn jointly_forged_argument_access_and_certificate_reject_against_source() {
-    let mut checked = checked_source(ARGUMENT_BESIDE_LOAN);
+    let mut checked = checked_program(ARGUMENT_BESIDE_LOAN);
     let certificate = premised_certificate(&checked);
     let access = checked
         .facts
@@ -277,7 +277,7 @@ fn jointly_forged_argument_access_and_certificate_reject_against_source() {
 
 #[test]
 fn changed_typed_selector_rejects_call_evidence() {
-    let mut checked = checked_source(ARGUMENT_BESIDE_LOAN);
+    let mut checked = checked_program(ARGUMENT_BESIDE_LOAN);
     let certificate = premised_certificate(&checked);
     let selector = certificate
         .left
@@ -298,7 +298,7 @@ fn changed_typed_selector_rejects_call_evidence() {
 
 #[test]
 fn deleting_call_entry_loan_and_its_certificate_cannot_hide_live_authority() {
-    let mut checked = checked_source(ARGUMENT_BESIDE_LOAN);
+    let mut checked = checked_program(ARGUMENT_BESIDE_LOAN);
     let certificate = premised_certificate(&checked);
     let invocation = checked
         .facts
@@ -342,7 +342,7 @@ fn deleting_call_entry_loan_and_its_certificate_cannot_hide_live_authority() {
 
 #[test]
 fn exclusive_argument_pair_retains_disequality_without_fabricating_loans() {
-    let mut checked = checked_source(
+    let mut checked = checked_program(
         r#"
         data Main { items: [i32; 2]; }
         machine write_pair(left: &mut i32, right: &mut i32) { left = 1; right = 2; }
@@ -368,7 +368,7 @@ fn exclusive_argument_pair_retains_disequality_without_fabricating_loans() {
 
 #[test]
 fn repeated_call_coordinates_in_different_states_keep_distinct_borrow_identities() {
-    let checked = checked_source(
+    let checked = checked_program(
         r#"
         machine take(value: &mut i32) { value = 1; }
         machine first(value: &mut i32) { take(value); }
@@ -416,7 +416,7 @@ fn repeated_call_coordinates_in_different_states_keep_distinct_borrow_identities
 
 #[test]
 fn nested_and_short_circuited_calls_preserve_lexical_identity() {
-    let mut checked = checked_source(
+    let mut checked = checked_program(
         r#"
         machine truth() -> bool { true }
         machine forward(value: bool) -> bool { value }
@@ -431,7 +431,7 @@ fn nested_and_short_circuited_calls_preserve_lexical_identity() {
 
 #[test]
 fn projected_receiver_certifies_argument_and_live_loan_comparisons() {
-    let mut checked = checked_source(
+    let mut checked = checked_program(
         r#"
         data Record { value: i32; }
         data Pair { record: Record; other: i32; spare: i32; }
@@ -469,7 +469,7 @@ fn projected_receiver_certifies_argument_and_live_loan_comparisons() {
 
 #[test]
 fn disjoint_owned_transfer_retains_its_comparison_with_a_live_loan() {
-    let mut checked = checked_source(
+    let mut checked = checked_program(
         r#"
         data Cell { value: u64; }
         data Pair { left: Cell; right: Cell; }
@@ -501,7 +501,7 @@ fn disjoint_owned_transfer_retains_its_comparison_with_a_live_loan() {
 #[test]
 fn derived_loan_lifecycle_cannot_be_moved_to_erase_a_call_comparison() {
     for change_activation in [true, false] {
-        let mut checked = checked_source(
+        let mut checked = checked_program(
             r#"
         data Main { left: i32; right: i32; }
         machine identity(value: &mut i32) -> &mut i32 { value }

@@ -144,18 +144,9 @@ fn named_requirement_use_fact(
 
 #[cfg(test)]
 mod tests {
+    use crate::tests::front_end::checked_program;
     fn checked(source: &str) -> checked_trees::CheckedTrees {
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .expect("tokens");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("symbols");
-        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("types");
-        crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).expect("check")
+        checked_program(source)
     }
 
     const SOURCE: &str = r#"

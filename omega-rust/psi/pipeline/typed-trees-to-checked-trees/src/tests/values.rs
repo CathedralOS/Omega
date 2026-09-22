@@ -1,9 +1,7 @@
-use super::{
-    Lexer, ResolutionRequest, StatementNode, lower_symbol_resolved_trees, parse_syntax_trees,
-    resolve,
-};
+use super::StatementNode;
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::{checked_program, checked_program_result, typed_program};
 use crate::values::build_value_facts;
 use checked_trees::{CheckedScalarBindingValue, CheckedValueStatementRole};
 
@@ -50,7 +48,7 @@ fn scalar_transition_argument_custody_keeps_exact_targets_and_source_bindings() 
         let source = format!(
             "{declarations} {signature} -> u8 {{ let mut current: u8 = 3; let mut flag: bool = false; let saved: u8 = current; transition {{ _ -> finish({arguments}) }} state finish({target_parameters}) -> u8 {{ prior }} }}"
         );
-        let checked = lower_typed_trees(typed_trees(&source), &CheckingRequest::settled())
+        let checked = checked_program_result(&source)
             .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
         let states = checked.machine_states(&checked.machines()[0]);
         let state = &states[0];
@@ -134,7 +132,7 @@ fn scalar_transition_continuation_has_independent_argument_custody() {
     use checked_trees::CheckedScalarExpressionRole;
     use typed_trees::statement::TransitionTargetNode;
 
-    let mut program = typed_trees(
+    let mut program = typed_program(
         r#"
         machine choose(flag: bool) -> u8 {
             let seed: u8 = 2;
@@ -253,7 +251,7 @@ fn mutable_scalar_reads_require_consistent_exact_resolved_name_handles() {
         let source = format!(
             "machine value(input: {scalar_type}) -> {scalar_type} {{ let mut current: {scalar_type} = {initial_value}; current }}"
         );
-        let program = typed_trees(&source);
+        let program = typed_program(&source);
         let state = &program.machine_states(&program.machines()[0])[0];
         let state_symbol = state.symbol;
         let parameter = program.state_parameters(state)[0].symbol;
@@ -362,8 +360,7 @@ fn scalar_return_custody_retains_filtered_parameters_and_dense_prior_locals() {
         let source = format!(
             "data Packet [copy] {{ value: u64; }} machine mixed(packet: Packet, count: u8, bytes: [u8; 2], flag: bool) -> {result_type} {{ let owned: Packet = packet; let mut scratch: u8 = 9; let chosen: bool = flag; let first: u8 = count; let second: u8 = first; {returned} }}"
         );
-        let checked = lower_typed_trees(typed_trees(&source), &CheckingRequest::settled())
-            .expect("mixed return source checks");
+        let checked = checked_program(&source);
         let machine = checked
             .machines()
             .iter()
@@ -461,7 +458,7 @@ fn scalar_return_custody_keeps_same_spelling_state_bindings_and_source_occurrenc
     use typed_trees::{statement::TransitionTargetNode, types::PrimitiveType};
 
     let checked = lower_typed_trees(
-        typed_trees(
+        typed_program(
             r#"
         data Packet [copy] { value: u64; }
         machine choose(packet: Packet, input: u8, flag: bool) -> u8 {
@@ -577,8 +574,7 @@ fn transition_scalar_facts_skip_implicit_self_but_retain_target_position() {
         }
     "#;
 
-    let checked = lower_typed_trees(typed_trees(source), &CheckingRequest::settled())
-        .expect("implicit-self transition arguments should reach checked lowering");
+    let checked = checked_program(source);
     let machine = checked
         .machines()
         .iter()
@@ -637,8 +633,7 @@ fn borrowed_self_scalar_loop_keeps_ambient_receiver_and_authored_positions() {
         }
     "#;
 
-    let checked = lower_typed_trees(typed_trees(source), &CheckingRequest::settled())
-        .expect("the borrowed-self scalar loop should reach checked lowering");
+    let checked = checked_program(source);
     let rot = checked
         .machines()
         .iter()
@@ -753,8 +748,7 @@ fn owned_self_scalar_loop_stays_outside_the_scalar_graph_route() {
         }
     "#;
 
-    let checked = lower_typed_trees(typed_trees(source), &CheckingRequest::settled())
-        .expect("the owned-self loop still reaches checked lowering");
+    let checked = checked_program(source);
     let spin = checked
         .machines()
         .iter()
@@ -783,8 +777,7 @@ fn checked_scalar_graph_retains_call_computation_bindings_and_arguments() {
         }
     "#;
 
-    let checked = lower_typed_trees(typed_trees(source), &CheckingRequest::settled())
-        .expect("the direct scalar call should reach checked lowering");
+    let checked = checked_program(source);
     let caller = checked
         .facts
         .flow
@@ -899,7 +892,7 @@ fn materializes_checked_value_facts_for_statement_expressions() {
         }
     "#;
 
-    let typed = typed_trees(source);
+    let typed = typed_program(source);
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let values = build_value_facts(&typed, &proof_plan);
 
@@ -997,7 +990,7 @@ fn materializes_checked_value_facts_for_machine_decreases() {
         }
     "#;
 
-    let typed = typed_trees(source);
+    let typed = typed_program(source);
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let values = build_value_facts(&typed, &proof_plan);
     let countdown = typed
@@ -1040,7 +1033,7 @@ fn assignment_value_fact_retains_stable_guard_range() {
         }
     "#;
 
-    let typed = typed_trees(source);
+    let typed = typed_program(source);
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     proof::checker::check_proof_plan(&proof_plan).expect("guarded assignment should prove");
     let values = build_value_facts(&typed, &proof_plan);
@@ -1076,8 +1069,7 @@ fn checked_scalar_plan_retains_guard_proved_exact_integer_cast_range() {
         }
     "#;
 
-    let checked = lower_typed_trees(typed_trees(source), &CheckingRequest::settled())
-        .expect("the dominating guard proves the exact narrowing cast");
+    let checked = checked_program(source);
     let cast = checked
         .facts
         .values
@@ -1101,8 +1093,7 @@ fn boolean_integer_cast_keeps_binary_range_for_exact_shift() {
         }
     "#;
 
-    lower_typed_trees(typed_trees(source), &CheckingRequest::settled())
-        .expect("a Boolean integer cast is confined to zero or one before the exact shift");
+    checked_program(source);
 }
 
 #[test]
@@ -1113,8 +1104,7 @@ fn exact_integer_widen_keeps_source_range_for_exact_shift() {
         }
     "#;
 
-    lower_typed_trees(typed_trees(source), &CheckingRequest::settled())
-        .expect("the exact widening retains u32 bounds before the exact shift");
+    checked_program(source);
 }
 
 #[test]
@@ -1130,8 +1120,7 @@ fn checked_scalar_plan_retains_guard_proved_exact_right_shift() {
         }
     "#;
 
-    let checked = lower_typed_trees(typed_trees(source), &CheckingRequest::settled())
-        .expect("the dominating guard proves the exact right-shift count");
+    let checked = checked_program(source);
     assert!(
         checked
             .facts
@@ -1169,8 +1158,7 @@ fn checked_scalar_plan_retains_guard_proved_exact_left_shift() {
         }
     "#;
 
-    let checked = lower_typed_trees(typed_trees(source), &CheckingRequest::settled())
-        .expect("the dominating guards prove exact left-shift count and value safety");
+    let checked = checked_program(source);
     assert!(
         checked
             .facts
@@ -1239,7 +1227,7 @@ fn saved_argument_reads_a_bounds_precision_snapshot() {
     // `byte`: the indexed-read plan keeps bounds, not an exact scalar. The
     // transition argument must still read that exact observation back.
     let checked = lower_typed_trees(
-        typed_trees(
+        typed_program(
             r#"
         domain [u8;3]::Utf8 requires valid_utf8(self);
         data Record { out: [u8;3] in Utf8; }
@@ -1268,7 +1256,7 @@ fn byte_carrier_live_length_reaches_the_saved_state_argument() {
     // u64 observation of the caller's "XXX" entry snapshot, not a carrier-wide
     // u64 guess.
     let checked = lower_typed_trees(
-        typed_trees(
+        typed_program(
             r#"
         domain [u8;3]::Utf8 requires valid_utf8(self);
         data Record { out: [u8;3] in Utf8; }
@@ -1297,7 +1285,7 @@ fn retired_byte_carrier_literal_supplies_no_live_length() {
     // read, so neither the retired snapshot nor the static capacity may
     // stand in as the live length at the saved argument.
     let checked = lower_typed_trees(
-        typed_trees(
+        typed_program(
             r#"
         domain [u8;3]::Utf8 requires valid_utf8(self);
         data Record { out: [u8;3] in Utf8; }
@@ -1329,7 +1317,7 @@ fn assignment_target_index_call_retains_call_ordinal_and_flow_call() {
     // borrowed/collected call set and resolve back through find_call_site,
     // or the target-side call silently executes with no flow fact.
     let checked = lower_typed_trees(
-        typed_trees(
+        typed_program(
             r#"
         data Main {
             cells: [u8; 4];
@@ -1420,11 +1408,4 @@ fn assignment_target_index_call_retains_call_ordinal_and_flow_call() {
         crate::semantic_calls::CallSite::Expression { expression, .. }
             if expression == pick_call.authored_expression
     ));
-}
-
-fn typed_trees(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
 }

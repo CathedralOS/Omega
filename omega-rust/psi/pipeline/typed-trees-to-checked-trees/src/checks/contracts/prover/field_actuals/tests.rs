@@ -1,18 +1,6 @@
-use super::{ExpressionNode, SymbolHandle, TypedTrees};
+use super::{ExpressionNode, SymbolHandle};
 use crate::checks::contracts::prover::field_actuals::checked_place;
-
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolved source");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("typed source")
-}
+use crate::tests::front_end::{checked_program, checked_program_result, typed_program};
 
 fn source(access: &str, argument: &str, requirement: &str, before: &str, after: &str) -> String {
     let body = if access == "&" {
@@ -43,7 +31,7 @@ fn supplied_fields_follow_exact_renamed_referents_across_borrow_modes() {
             "",
             "",
         );
-        let result = crate::lower_typed_trees(typed(&source), &crate::CheckingRequest::settled());
+        let result = checked_program_result(&source);
         assert!(
             result.is_ok(),
             "{access}: {}",
@@ -61,8 +49,7 @@ fn supplied_fields_follow_exact_renamed_referents_across_borrow_modes() {
             consume(&container.inner);
         }
     "#;
-    crate::lower_typed_trees(typed(source), &crate::CheckingRequest::settled())
-        .expect("projected actual prepends its exact nominal path");
+    checked_program(source);
 }
 
 #[test]
@@ -86,9 +73,7 @@ fn missing_wrong_and_invalidated_field_facts_cannot_supply_call_requirements() {
         ),
     ] {
         let source = source("&write", argument, requirement, before, after);
-        let Err(errors) =
-            crate::lower_typed_trees(typed(&source), &crate::CheckingRequest::settled())
-        else {
+        let Err(errors) = checked_program_result(&source) else {
             panic!("unproven field requirement accepted: {source}");
         };
         assert!(
@@ -102,7 +87,7 @@ fn missing_wrong_and_invalidated_field_facts_cannot_supply_call_requirements() {
 
 #[test]
 fn exact_field_subjects_reject_stale_symbols_and_same_spelled_foreign_fields() {
-    let program = typed(
+    let program = typed_program(
         r#"
         data Cell { flag: bool; }
         data Foreign { flag: bool; }
@@ -166,7 +151,7 @@ fn instantiated_postcondition_field_keeps_its_substituted_call_place() {
             consume(cell);
         }
     "#;
-    let result = crate::lower_typed_trees(typed(source), &crate::CheckingRequest::settled());
+    let result = checked_program_result(source);
     assert!(
         result.is_ok(),
         "exact post-call field fact: {:?}",
@@ -195,7 +180,7 @@ fn substituted_postcondition_subjects_keep_complete_paths_and_invalidation() {
             }}
         "#
         );
-        let result = crate::lower_typed_trees(typed(&source), &crate::CheckingRequest::settled());
+        let result = checked_program_result(&source);
         assert_eq!(result.is_ok(), accepted, "{source}: {:?}", result.err());
     }
     let source = r#"
@@ -209,7 +194,7 @@ fn substituted_postcondition_subjects_keep_complete_paths_and_invalidation() {
             consume(cell);
         }
     "#;
-    assert!(crate::lower_typed_trees(typed(source), &crate::CheckingRequest::settled()).is_err());
+    assert!(checked_program_result(source).is_err());
 
     for (actual, accepted) in [("container.inner", true), ("container.other", false)] {
         let source = format!(
@@ -226,7 +211,7 @@ fn substituted_postcondition_subjects_keep_complete_paths_and_invalidation() {
             }}
         "#
         );
-        let result = crate::lower_typed_trees(typed(&source), &crate::CheckingRequest::settled());
+        let result = checked_program_result(&source);
         assert_eq!(result.is_ok(), accepted, "{source}: {:?}", result.err());
     }
 }
@@ -243,7 +228,7 @@ fn implicit_receiver_requirements_keep_the_selected_receiver_owner() {
             {{ other.restricted() }}
         "#
         );
-        let result = crate::lower_typed_trees(typed(&source), &crate::CheckingRequest::settled());
+        let result = checked_program_result(&source);
         assert_eq!(result.is_ok(), accepted, "{source}: {:?}", result.err());
     }
 }

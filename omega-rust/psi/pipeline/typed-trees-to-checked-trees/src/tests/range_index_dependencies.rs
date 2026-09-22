@@ -1,18 +1,7 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
+use crate::tests::front_end::checked_program_result;
 
 fn check(source: &str, accepted: bool) {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .unwrap_or_else(|diagnostics| panic!("tokenize: {diagnostics:#?}\n{source}"));
-    let syntax = parse_syntax_trees(&tokens)
-        .unwrap_or_else(|diagnostics| panic!("parse: {diagnostics:#?}\n{source}"));
-    let resolved = resolve(ResolutionRequest::new(&syntax))
-        .unwrap_or_else(|diagnostics| panic!("resolve: {diagnostics:#?}\n{source}"));
-    let typed = lower_symbol_resolved_trees(&resolved)
-        .unwrap_or_else(|diagnostics| panic!("type: {diagnostics:#?}\n{source}"));
-    match lower_typed_trees(typed, &CheckingRequest::settled()) {
+    match checked_program_result(source) {
         Ok(_) => assert!(accepted, "stale indexed bounds accepted: {source}"),
         Err(diagnostics) => {
             assert!(!accepted, "{diagnostics:#?}\n{source}");

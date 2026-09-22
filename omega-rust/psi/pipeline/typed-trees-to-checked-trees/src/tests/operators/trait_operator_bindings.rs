@@ -1,14 +1,9 @@
-use super::checked_program_from_source;
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
-use crate::tests::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
+use crate::tests::front_end::{checked_program, checked_program_result};
 use language_core::operator_spelling::OperatorSpelling;
 
 #[test]
 fn checked_program_retains_trait_owned_operator_token() {
-    let checked = checked_program_from_source(
+    let checked = checked_program(
         r#"
         trait Ranked<T> {
             operator < compare(left: T, right: T) -> bool;
@@ -31,7 +26,7 @@ fn checked_program_retains_trait_owned_operator_token() {
 
 #[test]
 fn trait_operator_use_consumes_only_the_selected_conformance_application() {
-    let checked = checked_program_from_source(
+    let checked = checked_program(
         r#"
         trait Ranked {
             operator < before(left: Self, right: Self) -> bool;
@@ -130,7 +125,7 @@ fn trait_operator_use_consumes_only_the_selected_conformance_application() {
 
 #[test]
 fn trait_operator_return_retains_exact_structural_scalar_call_plan() {
-    let checked = checked_program_from_source(
+    let checked = checked_program(
         r#"
         trait Ranked {
             operator < before(left: Self, right: Self) -> bool;
@@ -225,12 +220,8 @@ fn trait_operator_use_rejects_multiple_selected_conformance_binders() {
             choose<Card, Ascending, Descending>(left, right)
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("two selected binders are ambiguous");
+    let diagnostics =
+        checked_program_result(source).expect_err("two selected binders are ambiguous");
     let message = diagnostics
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())
@@ -261,12 +252,8 @@ fn visible_conformance_does_not_supply_an_unbound_trait_operator() {
             left < right
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("visible conformance is not authority");
+    let diagnostics =
+        checked_program_result(source).expect_err("visible conformance is not authority");
 
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains("no such operator is declared")
@@ -282,19 +269,15 @@ fn trait_operator_bindings_are_unique_per_normalized_operand_telescope() {
             operator < before(first: T, second: T) -> bool;
         }
     "#;
-    let tokens = Lexer::new(duplicate).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("duplicate trait token must reject");
+    let diagnostics =
+        checked_program_result(duplicate).expect_err("duplicate trait token must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
             .contains("binds operator token `<` more than once")
     }));
 
-    checked_program_from_source(
+    checked_program(
         r#"
         trait Ranked {
             operator < compare_i32(left: i32, right: i32) -> bool;
@@ -322,7 +305,7 @@ fn aggregate_parameter_field_spelling_retains_float_operator_fact() {
         }
     "#;
 
-    let checked = checked_program_from_source(source);
+    let checked = checked_program(source);
     let add = checked
         .facts
         .operators

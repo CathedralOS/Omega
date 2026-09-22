@@ -3,12 +3,12 @@ use super::{
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
     PrimitiveType,
 };
-use crate::tests::flow::terminal_unit::checked;
 use crate::tests::flow::terminal_unit::machine_named;
+use crate::tests::front_end::{checked_program, checked_program_result};
 
 #[test]
 fn initial_finalization_restores_complete_rosters_without_changing_check_evidence() {
-    let checked = checked(SOURCE);
+    let checked = checked_program(SOURCE);
     let expected = checked.facts.clone();
     let mut facts = expected.clone();
     facts.flow.terminal_boundary_scalar_returns = Default::default();
@@ -33,7 +33,7 @@ fn failed_settlement_publishes_no_intermediate_facts() {
         machine Root::measure(token: Token) -> u64 requires token.ready {{ 7u64 }}
     "#
     );
-    let mut checked = checked(&source);
+    let mut checked = checked_program(&source);
     assert!(
         checked
             .facts
@@ -100,7 +100,7 @@ const SOURCE: &str = r#"
 
 #[test]
 fn unit_planning_uses_explicit_callees_without_publishing_them() {
-    let mut checked = checked(SOURCE);
+    let mut checked = checked_program(SOURCE);
     let caller = machine_named(&checked, "enter");
     let expected = checked.facts.flow.terminal_unit_effects.clone();
     assert!(expected.for_machine(caller).is_some());
@@ -127,7 +127,7 @@ fn unit_planning_uses_explicit_callees_without_publishing_them() {
 
 #[test]
 fn primitive_scalar_callee_is_discovered_before_its_unit_caller() {
-    let mut checked = checked(SOURCE);
+    let mut checked = checked_program(SOURCE);
     let caller = machine_named(&checked, "enter");
     let callee = machine_named(&checked, "reset");
     let primitive = checked
@@ -256,7 +256,7 @@ fn primitive_discovery_keeps_nominal_return_cleanup_in_the_dependent_phase() {
         machine Root::measure(token: Token) -> u64 {{ 7u64 }}
     "#
     );
-    let mut checked = checked(&source);
+    let mut checked = checked_program(&source);
     let nominal_machine = machine_named(&checked, "measure");
     let primitive_machine = machine_named(&checked, "reset");
     let nominal = checked
@@ -298,7 +298,7 @@ fn primitive_scalar_call_keeps_dense_scalar_actual_positions() {
         )
         .replace("value = 0; 7", "value = replacement; returned")
         .replace("reset(&mut value)", "reset(&mut value, 3, 7)");
-    let checked = checked(&source);
+    let checked = checked_program(&source);
     let plan = checked
         .facts
         .flow
@@ -339,7 +339,7 @@ fn primitive_scalar_call_keeps_dense_scalar_actual_positions() {
 #[test]
 fn declared_range_runtime_index_produces_indexed_write_only_store() {
     for access in ["&mut", "&write"] {
-        let checked = checked(&format!(
+        let checked = checked_program(&format!(
             r#"
             machine forward(values: {access} [u16; 4], index: u64 [0..=3]) {{
                 values[index] = 17;
@@ -397,22 +397,14 @@ fn runtime_index_store_fails_closed_without_a_proven_bound() {
         "machine forward(values: &mut [u16; 4], index: u64 [0..=3]) { values[index + 1] = 17; }",
     ] {
         let source = format!("boundary trait PortIo {{}}\n{source}");
-        let tokens = super::super::super::Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize");
-        let syntax = super::super::super::parse_syntax_trees(&tokens).expect("parse");
-        let resolved =
-            super::super::super::resolve(super::super::super::ResolutionRequest::new(&syntax))
-                .expect("resolve");
-        let typed = super::super::super::lower_symbol_resolved_trees(&resolved).expect("type");
-        crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+        checked_program_result(&source)
             .expect_err("unproven runtime index must not produce a store plan");
     }
 }
 
 #[test]
 fn literal_index_store_stays_on_the_static_path() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         machine forward(values: &mut [u16; 4]) {
             values[2] = 17;
@@ -446,7 +438,7 @@ fn literal_index_store_stays_on_the_static_path() {
 
 #[test]
 fn primitive_scalar_call_rejects_deleted_duplicate_or_drifted_body_registration() {
-    let original = checked(SOURCE);
+    let original = checked_program(SOURCE);
     let caller = machine_named(&original, "enter");
     let callee = machine_named(&original, "reset");
     for mutation in 0..7 {
@@ -496,7 +488,7 @@ fn primitive_scalar_call_rejects_deleted_duplicate_or_drifted_body_registration(
 
 #[test]
 fn write_only_scalar_call_stores_its_result_after_scalar_parameters() {
-    let mut checked = checked(
+    let mut checked = checked_program(
         r#"
         machine reset(value: &write u64, returned: u64) -> u64 {
             value = 0;

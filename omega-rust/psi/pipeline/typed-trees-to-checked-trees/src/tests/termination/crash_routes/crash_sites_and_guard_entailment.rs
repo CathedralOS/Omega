@@ -1,7 +1,5 @@
-use crate::tests::termination::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-    symbol_of_checked,
-};
+use crate::tests::front_end::{checked_program, typed_program};
+use crate::tests::termination::symbol_of_checked;
 use crate::{CheckingRequest, lower_typed_trees};
 
 #[test]
@@ -115,13 +113,7 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let checked = lower_typed_trees(typed, &CheckingRequest::crash_fact_inspection())
         .expect("raw crash-fact inspection should succeed before production admission");
     let plan = |name: &str| {
@@ -331,15 +323,7 @@ fn crash_guard_entailment_normalizes_boolean_literal_relations() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("Boolean literal relations should imply their normalized operand polarity");
+    let checked = checked_program(source);
     let plan = |name: &str| {
         checked
             .facts
@@ -637,13 +621,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let checked = lower_typed_trees(typed, &CheckingRequest::crash_fact_inspection())
         .expect("raw comparison coverage facts should form before production admission");
     let plan = |name: &str| {
@@ -789,15 +767,7 @@ fn checked_crash_calls_retain_invocation_specific_route_refinement() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("checked lowering should succeed");
+    let checked = checked_program(source);
     let plan = |name: &str| {
         checked
             .facts

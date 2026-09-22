@@ -945,13 +945,10 @@ fn checked_progress_rejects_excluded_roots_and_malformed_formation() {
 /// in one, so that argument shape is exercised at the unit level in
 /// `origins::tests` instead.
 mod nested_call_arguments {
+    use crate::tests::front_end::checked_program_result;
     use checked_trees::CheckedTrees;
     use diagnostics::Diagnostic;
     use language_semantics::TerminationGuarantee;
-    use source_files_to_tokens::Lexer;
-    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-    use tokens_to_syntax_trees::parse_syntax_trees;
 
     /// The progress-profile context every fixture shares: a `WeakFair`
     /// admission granted through the boundary trait, so `requires ... in
@@ -975,14 +972,7 @@ mod nested_call_arguments {
 
     fn diagnostics(source: &str) -> Vec<Diagnostic> {
         let source = format!("data Main {{}} machine Main::run(&mut self) {{}} {PROFILE} {source}");
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize nested-argument fixture");
-        let syntax = parse_syntax_trees(&tokens).expect("parse nested-argument fixture");
-        let resolved =
-            resolve(ResolutionRequest::new(&syntax)).expect("resolve nested-argument fixture");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type nested-argument fixture");
-        match crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()) {
+        match checked_program_result(&source) {
             Ok(_) => Vec::new(),
             Err(diagnostics) => diagnostics,
         }
@@ -990,18 +980,9 @@ mod nested_call_arguments {
 
     fn checked(source: &str) -> CheckedTrees {
         let source = format!("data Main {{}} machine Main::run(&mut self) {{}} {PROFILE} {source}");
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize nested-argument fixture");
-        let syntax = parse_syntax_trees(&tokens).expect("parse nested-argument fixture");
-        let resolved =
-            resolve(ResolutionRequest::new(&syntax)).expect("resolve nested-argument fixture");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type nested-argument fixture");
-        crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap_or_else(
-            |diagnostics| {
-                panic!("nested-argument fixture must reach checked trees: {diagnostics:#?}")
-            },
-        )
+        checked_program_result(&source).unwrap_or_else(|diagnostics| {
+            panic!("nested-argument fixture must reach checked trees: {diagnostics:#?}")
+        })
     }
 
     fn machine<'program>(

@@ -1,5 +1,6 @@
 use super::{State, StatementNode, TypedTrees, initializer};
 use crate::checks::ranges::RangeFacts;
+use crate::tests::front_end::typed_program;
 
 /// The dependency walk carries an explicit depth bound (128) so an authored
 /// expression tree deeper than the bound records the prefix it visited and
@@ -11,7 +12,7 @@ fn dependency_recording_stops_at_the_depth_bound() {
     for _ in 1..terms {
         expression = format!("{expression} + 1");
     }
-    let program = super::typed_source(&format!(
+    let program = typed_program(&format!(
         "machine window(seed: i64) {{
         let cut: i64 = {expression};
         let live: i64 = seed;
@@ -42,7 +43,7 @@ fn local_alias_chain_unrolling_respects_the_depth_bound() {
             body.push_str(&format!("let a{i}: i64 = a{};\n", i - 1));
         }
         body.push_str(&format!("let cut: i64 = a{links};\n"));
-        super::typed_source(&format!("machine window(seed: i64) {{\n{body}}}"))
+        typed_program(&format!("machine window(seed: i64) {{\n{body}}}"))
     };
     let seed_symbol = |program: &TypedTrees, state: &State| {
         program

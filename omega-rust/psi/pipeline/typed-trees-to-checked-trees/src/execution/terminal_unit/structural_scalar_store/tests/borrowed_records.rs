@@ -1,6 +1,7 @@
 use super::CheckedUnitEffectOperationPlan;
 use crate::execution::terminal_unit::ShapeCollector;
 use crate::execution::terminal_unit::structural_scalar_store::build_structural_scalar_field_store_sequence;
+use crate::tests::front_end::checked_program_result;
 
 #[test]
 fn borrowed_receiver_scalar_results_survive_later_mutation_in_composed_plan() {
@@ -215,17 +216,7 @@ fn borrowed_receiver_scalar_calls_do_not_grant_shared_storage_mutation() {
 }
 
 fn checked(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+    checked_program_result(source)
 }
 
 #[test]

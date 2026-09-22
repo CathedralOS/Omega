@@ -5,11 +5,8 @@
 //! the first is a view, and `semantic_calls::collection_view_call` is the one
 //! place which decides that for every consumer lane.
 
-use super::{
-    AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionTarget, Lexer,
-    ResolutionRequest, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
-};
-use crate::CheckingRequest;
+use super::{AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionTarget};
+use crate::tests::front_end::{checked_program, typed_program};
 use language_semantics::declaration_selection::CollectionViewOperation;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
@@ -26,13 +23,6 @@ const BOTH_SPELLINGS: &str = r#"
         tally.as_slice()
     }
 "#;
-
-fn typed_program(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
 
 /// Both `as_slice` calls, as (expression, resolved-target) pairs.
 fn as_slice_calls(program: &typed_trees::TypedTrees) -> Vec<(ExpressionHandle, bool)> {
@@ -77,8 +67,7 @@ fn a_resolved_nominal_machine_spelled_as_slice_is_not_a_collection_view() {
 
 #[test]
 fn checking_retains_the_view_operation_and_the_declared_machine_separately() {
-    let checked = lower_typed_trees(typed_program(BOTH_SPELLINGS), &CheckingRequest::settled())
-        .expect("program should check");
+    let checked = checked_program(BOTH_SPELLINGS);
     let mut view_selections = 0usize;
     let mut resolved_selections = 0usize;
 

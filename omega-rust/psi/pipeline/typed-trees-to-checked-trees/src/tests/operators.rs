@@ -11,12 +11,10 @@ mod indexed_and_domain_operator_selection;
 mod invocations;
 mod trait_operator_bindings;
 
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
 use crate::operators::build_operator_facts;
+use crate::tests::front_end::typed_program;
 use crate::tests::{
-    HandleSpan, Identifier, Lexer, ResolutionRequest, StateParameter, StatementNode, SymbolHandle,
-    TypeReferenceNode, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
+    HandleSpan, Identifier, StateParameter, StatementNode, SymbolHandle, TypeReferenceNode,
 };
 use language_core::operator_spelling::OperatorSpelling;
 use typed_trees::operator::OperatorDefinition;
@@ -25,12 +23,7 @@ use typed_trees::types::TypeReferenceHandle;
 fn indexed_selection_fixture(
     source: &str,
 ) -> (typed_trees::TypedTrees, checked_trees::CheckedOperatorFacts) {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize indexed selection");
-    let syntax = parse_syntax_trees(&tokens).expect("parse indexed selection");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve indexed selection");
-    let program = lower_symbol_resolved_trees(&resolved).expect("type indexed selection");
+    let program = typed_program(source);
     let mut roots = arena::Arena::default();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -61,14 +54,6 @@ fn indexed_selection_fixture(
         &checked_trees::CheckedValueFacts::with_roots(roots),
     );
     (program, facts)
-}
-
-fn checked_program_from_source(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("checked lowering")
 }
 
 fn has_selected_domain_add(checked: &checked_trees::CheckedTrees) -> bool {

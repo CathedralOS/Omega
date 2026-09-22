@@ -1,4 +1,4 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::tests::front_end::typed_program;
 #[test]
 fn computed_indexes_preserve_origins_and_all_eager_writes() {
     let alternating = (0..16).fold("index(audit) + index(other)".to_owned(), |index, _| {
@@ -200,12 +200,9 @@ fn computed_indexes_preserve_origins_and_all_eager_writes() {
             }}"
         ));
     }
-    let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     // Includes malformed index roots to pin the conservative pre-validation
     // frame result. Numeric eligibility and bounds belong to separate checks.
-    let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+    let typed = typed_program(&source);
     let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
     for (name, complete, writes_value, writes_backup) in cases
         .into_iter()

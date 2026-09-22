@@ -1,7 +1,8 @@
-use super::typed_source;
 use crate::CheckingRequest;
-use crate::tests::{Lexer, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees};
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+use crate::tests::front_end::{
+    checked_program, checked_program_result, typed_program, typed_program_result,
+};
+use crate::tests::lower_typed_trees;
 
 #[test]
 fn static_named_witness_requirement_call_accepts_exact_bool_result() {
@@ -40,7 +41,7 @@ fn static_named_witness_requirement_call_accepts_exact_bool_result() {
         }
     "#;
 
-    let typed = typed_source(source).expect("typed bool static requirement call");
+    let typed = typed_program_result(source).expect("typed bool static requirement call");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("one exact bool static requirement witness call should check");
     let invocations = checked
@@ -108,7 +109,8 @@ fn static_named_witness_bool_result_accepts_one_exact_trait_default() {
         }
     "#;
 
-    let typed = typed_source(source).expect("typed bool trait-default static requirement call");
+    let typed =
+        typed_program_result(source).expect("typed bool trait-default static requirement call");
     let default_realization = typed
         .conformances()
         .iter()
@@ -177,7 +179,7 @@ fn static_named_witness_scalar_result_rejects_primitive_outside_bounded_cohort()
         }
     "#;
 
-    let typed = typed_source(source).expect("typed i64 static requirement call");
+    let typed = typed_program_result(source).expect("typed i64 static requirement call");
     let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("the bounded scalar rung must reject primitives other than i32 and bool");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -222,12 +224,7 @@ fn static_named_witness_requirement_call_accepts_one_exact_trait_default() {
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let default_row = typed
         .conformances()
         .iter()
@@ -334,14 +331,7 @@ fn static_named_witness_trait_defaults_remain_conformance_scoped() {
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("two exact conformance-scoped defaults should check");
+    let checked = checked_program(source);
     let dispatches = checked
         .facts
         .proof
@@ -401,12 +391,7 @@ fn static_named_witness_inline_override_wins_over_trait_default() {
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let override_row = typed
         .conformances()
         .iter()
@@ -436,13 +421,7 @@ fn static_named_witness_trait_default_must_assign_its_public_output() {
         TokenProducer: Token satisfies Producer {}
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+    let diagnostics = checked_program_result(source)
         .expect_err("a trait default cannot omit its public witness assignment");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -484,13 +463,7 @@ fn static_named_witness_requirement_call_hides_satisfier_strengthening_selector(
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+    let diagnostics = checked_program_result(source)
         .expect_err("a static requirement call must hide private satisfier strengthening");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -559,14 +532,7 @@ fn static_named_witness_requirement_call_preserves_uncapped_plural_public_lanes(
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("an ordered plural static named-witness call should check");
+    let checked = checked_program(source);
     let invocation = checked
         .facts
         .proof
@@ -657,14 +623,7 @@ fn static_named_witness_requirement_call_accepts_zero_inputs_and_plural_outputs(
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("a zero-input plural-output static named-witness call should check");
+    let checked = checked_program(source);
     let invocation = checked
         .facts
         .proof
@@ -726,14 +685,8 @@ fn static_named_witness_plural_inputs_reject_omission_or_reordering() {
     };
 
     let check_rejected = |source: String, expected: &str| {
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-        let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-            .expect_err("plural lane drift must reject");
+        let diagnostics =
+            checked_program_result(&source).expect_err("plural lane drift must reject");
         assert!(
             diagnostics
                 .iter()
@@ -780,13 +733,7 @@ fn static_named_witness_plural_public_contract_rejects_unnamed_rows() {
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+    let diagnostics = checked_program_result(source)
         .expect_err("an unnamed public requirement row must remain fenced");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -829,13 +776,7 @@ fn explicit_conformance_evidence_forwards_through_a_generic_caller() {
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let selected = typed
         .conformances()
         .iter()
@@ -896,15 +837,7 @@ fn accepted_template_instances_share_one_commitment_and_pin_argument_contracts()
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("accepted generic instances should check");
+    let checked = checked_program(source);
     let instances: Vec<_> = checked
         .machine_specializations
         .iter()
@@ -953,17 +886,7 @@ fn specialization_identity_changes_with_selected_machine_contract() {
                 machine Main::run(&mut self) {{}}
             "#
         );
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved =
-            resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-        lower_typed_trees(typed, &CheckingRequest::settled())
-            .expect("specialization should check")
-            .machine_specializations[0]
-            .report_fingerprint
+        checked_program(&source).machine_specializations[0].report_fingerprint
     }
 
     assert_ne!(report_fingerprint(""), report_fingerprint("ensures true;"));
@@ -1010,7 +933,8 @@ fn static_named_witness_requirement_call_accepts_inherited_requirement() {
         }
     "#;
 
-    let typed = typed_source(source).expect("typed inherited-requirement static requirement call");
+    let typed =
+        typed_program_result(source).expect("typed inherited-requirement static requirement call");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect(
         "an inherited parent-trait requirement row should admit the static named-witness call",
     );

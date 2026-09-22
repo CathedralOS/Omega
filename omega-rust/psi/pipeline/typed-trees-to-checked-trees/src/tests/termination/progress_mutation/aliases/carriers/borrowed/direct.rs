@@ -1,8 +1,8 @@
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::typed_program;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::assert_input_premise;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::source;
-use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::typed_source;
 use crate::tests::termination::progress_mutation::check_source;
 
 mod adversarial;
@@ -34,7 +34,7 @@ fn a_direct_helper_result_keeps_the_borrowed_input_subject() {
 
 #[test]
 fn a_direct_result_query_keeps_the_exact_input_leaf() {
-    let program = typed_source(&direct_source("", "carrier.context"));
+    let program = typed_program(&direct_source("", "carrier.context"));
     let machine = program
         .machines()
         .iter()
@@ -103,8 +103,9 @@ fn direct_exclusive_results_keep_identity_separate_from_helper_writes() {
         if preserved {
             assert_input_premise(&check_source(&source));
         } else {
-            let diagnostics = lower_typed_trees(typed_source(&source), &CheckingRequest::settled())
-                .expect_err("returning the reference cannot restore a changed qualification");
+            let diagnostics =
+                lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
+                    .expect_err("returning the reference cannot restore a changed qualification");
             assert!(
                 diagnostics.iter().any(|diagnostic| diagnostic
                     .message
@@ -123,7 +124,7 @@ fn raw_exclusive_member_results_forward_the_declared_reference_type() {
         "let borrowed: &mut Context = select(carrier); transition { _ -> 0 }",
         "machine select(carrier: &mut Carrier) -> &mut Context { carrier.context }",
     );
-    let program = typed_source(&source);
+    let program = typed_program(&source);
     adversarial::assert_identity(&program, "borrowed", true);
     lower_typed_trees(program, &CheckingRequest::settled())
         .expect("an exact reference field is already a reference value");

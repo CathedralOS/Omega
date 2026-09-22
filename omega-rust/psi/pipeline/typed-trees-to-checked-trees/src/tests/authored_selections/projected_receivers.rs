@@ -1,9 +1,7 @@
-use super::{
-    AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget, Lexer, ResolutionRequest,
-    lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
+use super::{AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget};
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::typed_program;
 
 mod identities;
 use arena::HandleSpan;
@@ -44,16 +42,7 @@ fn typed_fixture(form: CallForm) -> TypedTrees {
          machine unrelated(mut carrier: Carrier) -> u64 {{ 0 }}
          machine inspect(mut carrier: Carrier) -> u64 {{ {body} }}"
     );
-    typed_source(&source)
-}
-
-fn typed_source(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize projected call");
-    let syntax = parse_syntax_trees(&tokens).expect("parse projected call");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve projected call");
-    lower_symbol_resolved_trees(&resolved).expect("type projected call")
+    typed_program(&source)
 }
 
 fn field_symbol(program: &TypedTrees, owner: &str, name: &str) -> SymbolHandle {
@@ -227,7 +216,7 @@ fn erased_projected_callees_can_bind_from_the_exact_receiver() {
 
 #[test]
 fn nested_statement_receiver_paths_retain_every_semantic_field() {
-    let mut program = typed_source(
+    let mut program = typed_program(
         "data Context { counter: u64; }
          data Inner { context: &mut Context; }
          data Carrier { inner: Inner; }

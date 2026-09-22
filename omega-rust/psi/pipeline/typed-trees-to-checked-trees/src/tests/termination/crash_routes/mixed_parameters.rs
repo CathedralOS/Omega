@@ -1,22 +1,10 @@
-use super::super::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
+use crate::tests::front_end::checked_program;
 use crate::tests::termination::symbol_of_checked;
 use checked_trees::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
     CheckedScalarExpression, CheckedStructuralPredicatePathSegment,
 };
 use typed_trees::types::PrimitiveType;
-
-fn checked_fixture(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
-}
 
 fn predicate(checked: &checked_trees::CheckedTrees) -> &checked_trees::CrashPredicateIdentity {
     let contract = checked
@@ -65,7 +53,7 @@ fn mixed_integer_crash_parameters_keep_dense_scalars_and_authored_field_roots() 
             2,
         ),
     ] {
-        let checked = checked_fixture(&format!(
+        let checked = checked_program(&format!(
             r#"
             data Values [copy] {{ left: i32; right: i32; }}
             machine inspect({signature})
@@ -117,7 +105,7 @@ fn mixed_integer_parameter_arithmetic_retains_its_selected_policy() {
         ("Wrapping", CheckedIntegerBinaryKind::WrappingAdd),
         ("Saturating", CheckedIntegerBinaryKind::SaturatingAdd),
     ] {
-        let checked = checked_fixture(&format!(
+        let checked = checked_program(&format!(
             r#"
             data Values [copy] {{ value: i32 in {policy}; }}
             machine inspect(storage: &Values, value: i32 in {policy})
@@ -150,7 +138,7 @@ fn mixed_integer_parameter_arithmetic_retains_its_selected_policy() {
 
 #[test]
 fn mixed_address_parameters_do_not_gain_fixed_integer_crash_meaning() {
-    let checked = checked_fixture(
+    let checked = checked_program(
         r#"
         data Values [copy] { value: i32; }
         machine inspect(storage: &Values, left: addr, right: addr)

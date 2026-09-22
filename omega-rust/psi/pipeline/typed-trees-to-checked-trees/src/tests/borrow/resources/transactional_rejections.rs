@@ -1,6 +1,5 @@
-use super::{
-    direct_reborrow_chain, lower, main_reborrow_loans, sequential_reborrows, symbolic_adjacency,
-};
+use super::{direct_reborrow_chain, main_reborrow_loans, sequential_reborrows, symbolic_adjacency};
+use crate::tests::front_end::checked_program;
 
 #[test]
 fn restored_call_use_fences_unsupported_lifecycle_and_call_shapes() {
@@ -87,7 +86,7 @@ fn restored_call_use_fences_unsupported_lifecycle_and_call_shapes() {
         "#,
     ];
     for source in sources {
-        let checked = lower(source);
+        let checked = checked_program(source);
         assert!(
             checked
                 .facts
@@ -657,7 +656,7 @@ fn rejects_missing_and_duplicate_reborrow_lifecycle_edges() {
 
 #[test]
 fn reborrow_compatibility_certificate_requires_its_checked_resource() {
-    let mut checked = lower(
+    let mut checked = checked_program(
         r#"
         data Cell { value: i32; }
         data Main { left: Cell; right: Cell; }
@@ -813,7 +812,7 @@ fn rejects_parent_substitution_and_lineage_tag_drift() {
 
 #[test]
 fn keeps_distinct_prior_alias_origins_and_derived_transfers_unretained() {
-    let ambiguous = lower(
+    let ambiguous = checked_program(
         r#"
         data Cell { value: i32; }
         data Main { left: Cell; right: Cell; }
@@ -850,7 +849,7 @@ fn keeps_distinct_prior_alias_origins_and_derived_transfers_unretained() {
             .is_empty()
     );
 
-    let derived = lower(
+    let derived = checked_program(
         r#"
         data Cell { value: i32; }
         data Holder<'a> { cell: &'a mut Cell; }
@@ -886,7 +885,7 @@ fn keeps_distinct_prior_alias_origins_and_derived_transfers_unretained() {
 
 #[test]
 fn keeps_explicit_reborrow_of_an_unretained_helper_parent_outside_the_resource_arena() {
-    let checked = lower(
+    let checked = checked_program(
         r#"
         data Cell { value: i32; }
         data Main { cell: Cell; }
@@ -1042,7 +1041,7 @@ fn rejects_duplicate_direct_resource_and_missing_lifecycle_edges() {
 
 #[test]
 fn keeps_reborrows_out_of_the_direct_arena_and_in_the_typed_child_arena() {
-    let checked = lower(
+    let checked = checked_program(
         r#"
         data Cell { value: i32; }
         data Main { cell: Cell; }

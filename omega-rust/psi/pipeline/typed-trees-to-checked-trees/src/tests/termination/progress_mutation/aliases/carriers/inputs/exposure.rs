@@ -1,19 +1,10 @@
-use super::super::super::super::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
+use crate::tests::front_end::{checked_program_result, typed_program};
 
 use super::fixture_source;
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::termination::progress_mutation::aliases::carriers::inputs::assert_input_subject;
 use crate::tests::termination::progress_mutation::check_source;
-
-pub(super) fn typed_source(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    lower_symbol_resolved_trees(&resolved).unwrap()
-}
 
 fn reject_exposed_input(access: &str, preceding: &str, operand: &str, extra: &str) {
     let source = fixture_source(
@@ -28,8 +19,7 @@ fn reject_exposed_input(access: &str, preceding: &str, operand: &str, extra: &st
         ),
         extra,
     );
-    let Err(diagnostics) = lower_typed_trees(typed_source(&source), &CheckingRequest::settled())
-    else {
+    let Err(diagnostics) = checked_program_result(&source) else {
         panic!("exposure cannot preserve an input reference's requires evidence");
     };
     assert!(
@@ -130,9 +120,7 @@ fn a_referent_scheduler_write_retires_the_input_qualification() {
     ] {
         let source =
             referent_method_source(preceding, operand, "self.scheduler = SchedulerHandle {};");
-        let Err(diagnostics) =
-            lower_typed_trees(typed_source(&source), &CheckingRequest::settled())
-        else {
+        let Err(diagnostics) = checked_program_result(&source) else {
             panic!("{preceding} / {operand}: a replaced scheduler has no qualification");
         };
         assert!(
@@ -164,7 +152,7 @@ fn a_referent_method_does_not_replace_a_saved_reference_binding() {
                  self.counter = 1; 0
              }",
         );
-        let mut program = typed_source(&source);
+        let mut program = typed_program(&source);
         crate::lookup::resolve_projected_receiver_calls(&mut program).unwrap();
         let machine = program
             .machines()
@@ -216,7 +204,7 @@ fn later_exposure_does_not_change_an_earlier_input_origin_query() {
         "_ = inspect_context(&mut carrier.context);",
         "_ = carrier.touch();",
     ] {
-        let program = typed_source(&fixture_source(
+        let program = typed_program(&fixture_source(
             "",
             &format!(
                 "let borrowed: &Context = carrier.context;

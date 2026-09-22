@@ -1,5 +1,6 @@
 //! Case qualification selects declaration identity, not the first matching spelling.
 use super::effective_member_symbol;
+use crate::tests::front_end::{checked_program, typed_program};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::name::Identifier;
 use symbols::SymbolHandle;
@@ -22,16 +23,7 @@ fn fixture() -> (typed_trees::TypedTrees, TableMemberExpression) {
             state done(x: u64) { x }
         }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let program = typed_program(source);
     let member = program
         .expression_table
         .iter_expressions()
@@ -127,16 +119,7 @@ fn generic_leaf_fixture() -> (
         terminates;
         -> u64 { 0 }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let program = typed_program(source);
     let members: Vec<TableMemberExpression> = program
         .expression_table
         .iter_expressions()
@@ -240,18 +223,7 @@ fn requires_fact_through_a_generic_leaf_resolves_at_call_sites() {
             let dropped: u64 = wait_boxed(boxed);
         }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
-        .expect("a requires fact through a generic leaf discharges at the call site");
+    checked_program(source);
 }
 
 /// `values[i].item.scheduler` crosses an indexed leaf before the generic
@@ -276,16 +248,7 @@ fn indexed_generic_leaf_fixture() -> (
             let t: SchedulerHandle = values[i].item.scheduler;
         }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let program = typed_program(source);
     let members: Vec<TableMemberExpression> = program
         .expression_table
         .iter_expressions()
@@ -717,16 +680,7 @@ fn place_member_resolution_rejects_a_case_qualified_member_outside_its_variant()
             state done(count: u64) {}
         }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let mut program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let mut program = typed_program(source);
     let (member_handle, state_symbol, statement_index) = second_qualified_member(&program);
     let member = match program.expression_table.expression(member_handle) {
         ExpressionNode::Member(member) => member.clone(),
@@ -806,16 +760,7 @@ fn ranged_indexed_generic_leaf_fixture() -> (
             let s: SchedulerHandle = values[0..2][i].item.scheduler;
         }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let program = typed_program(source);
     let members: Vec<TableMemberExpression> = program
         .expression_table
         .iter_expressions()
@@ -1020,16 +965,7 @@ fn atomic_expression_position_is_its_operand_position() {
             let s: SchedulerHandle = context.scheduler;
         }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let mut program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let mut program = typed_program(source);
     let context = program
         .expression_table
         .iter_expressions()
@@ -1082,16 +1018,7 @@ fn stored_type_leaf_fixture() -> (
             let s: SchedulerHandle = context.scheduler;
         }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let program = typed_program(source);
     let context = program
         .expression_table
         .iter_expressions()
@@ -1311,16 +1238,7 @@ fn match_expression_position_is_the_arms_common_position() {
             match flag { true -> context _ -> context }
         }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let program = typed_program(source);
     let dispatch = program
         .expression_table
         .iter_expressions()
@@ -1477,16 +1395,7 @@ fn nested_member_chain_fixture() -> (
             let d: u64 = b.cells[0].item;
         }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let program = typed_program(source);
     let machine = program
         .machines()
         .iter()

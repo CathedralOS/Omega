@@ -1,4 +1,4 @@
-use super::typed_program;
+use crate::tests::front_end::typed_program;
 use typed_trees::expression::ExpressionNode;
 
 #[test]

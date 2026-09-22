@@ -1,22 +1,9 @@
-use super::{
-    HandleSpan, Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
-
-fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize operator invocation");
-    let syntax = parse_syntax_trees(&tokens).expect("parse operator invocation");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve operator invocation");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type operator invocation");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-}
+use super::HandleSpan;
+use crate::tests::front_end::checked_program_result;
 
 #[test]
 fn operator_requires_can_use_facts_established_by_an_earlier_operand() {
-    check(
+    checked_program_result(
         "boundary operator == Integer::equal(left: i32, right: i32) -> bool requires right >= 0;
          machine prepare(value: &mut i32) -> i32 ensures value >= 0 { value = 1; 0 }
          machine compare(mut value: i32) -> bool { prepare(&mut value) == value }",
@@ -26,7 +13,7 @@ fn operator_requires_can_use_facts_established_by_an_earlier_operand() {
 
 #[test]
 fn operator_requires_cannot_use_facts_invalidated_by_an_earlier_operand() {
-    let diagnostics = check(
+    let diagnostics = checked_program_result(
         "boundary operator == Integer::equal(left: i32, right: i32) -> bool requires right >= 0;
          machine reset(value: &mut i32) -> i32 { value = -1; 0 }
          machine compare(mut value: i32) -> bool requires value >= 0 {
@@ -44,7 +31,7 @@ fn operator_requires_cannot_use_facts_invalidated_by_an_earlier_operand() {
 
 #[test]
 fn operator_requires_keep_a_copied_left_value_after_a_right_operand_write() {
-    check(
+    checked_program_result(
         "boundary operator == Integer::equal(left: i32, right: i32) -> bool requires left >= 0;
          machine reset(value: &mut i32) -> i32 { value = -1; 0 }
          machine compare(mut value: i32) -> bool requires value >= 0 {
@@ -56,7 +43,7 @@ fn operator_requires_keep_a_copied_left_value_after_a_right_operand_write() {
 
 #[test]
 fn operator_requires_cannot_give_an_earlier_copy_a_later_storage_guarantee() {
-    let diagnostics = check(
+    let diagnostics = checked_program_result(
         "boundary operator == Integer::equal(left: i32, right: i32) -> bool requires left >= 0;
          machine prepare(value: &mut i32) -> i32 ensures value >= 0 { value = 1; 0 }
          machine compare(mut value: i32) -> bool { value == prepare(&mut value) }",
@@ -73,7 +60,7 @@ fn operator_requires_cannot_give_an_earlier_copy_a_later_storage_guarantee() {
 #[test]
 fn operator_requires_use_the_selected_short_circuit_branch() {
     for (connective, accepted) in [("&&", true), ("||", false)] {
-        let checked = check(&format!(
+        let checked = checked_program_result(&format!(
             "boundary operator == Integer::equal(left: i32, right: i32) -> bool requires left >= 0;
              machine compare(value: i32, pattern: i32) -> bool {{
                  value >= 0 {connective} (value == pattern)
@@ -90,7 +77,7 @@ fn operator_requires_use_the_selected_short_circuit_branch() {
 
 #[test]
 fn operator_operand_custody_rejects_missing_duplicate_or_reordered_records() {
-    let checked = check(
+    let checked = checked_program_result(
         "boundary operator == Integer::equal(left: i32, right: i32) -> bool requires left >= 0;
          machine compare(value: i32, pattern: i32) -> bool requires value >= 0 { value == pattern }",
     ).unwrap();
@@ -149,7 +136,7 @@ fn operator_operand_custody_rejects_missing_duplicate_or_reordered_records() {
 #[test]
 fn operator_requires_execute_inside_assignment_targets_after_the_value() {
     for (right_hand_side, accepted) in [("1", true), ("reset(&mut value)", false)] {
-        let checked = check(&format!(
+        let checked = checked_program_result(&format!(
             "boundary operator == Integer::equal(left: i32, right: i32) -> bool requires left >= 0;
              machine choose_index(flag: bool) -> u64 [0..=1] {{ 0 }}
              machine reset(value: &mut i32) -> u64 {{ value = -1; 1 }}
@@ -169,7 +156,7 @@ fn operator_requires_execute_inside_assignment_targets_after_the_value() {
 #[test]
 fn multi_operand_requires_cannot_mix_different_versions_of_a_source() {
     for (argument, accepted) in [("right", true), ("replace(&mut right)", false)] {
-        let checked = check(&format!(
+        let checked = checked_program_result(&format!(
             "boundary operator == Integer::equal(left: i32, right: i32) -> bool requires left <= right;
              machine replace(value: &mut i32) -> i32 {{ value = -1; value }}
              machine compare(left: i32, mut right: i32) -> bool requires left <= right {{
@@ -182,7 +169,7 @@ fn multi_operand_requires_cannot_mix_different_versions_of_a_source() {
 
 #[test]
 fn conjunctive_operator_requires_preserve_a_copied_value() {
-    check(
+    checked_program_result(
         "boundary operator == Integer::equal(left: i32, right: i32) -> bool
          requires left >= 0 && left <= 100;
          machine reset(value: &mut i32) -> i32 { value = -1; 1 }
@@ -195,7 +182,7 @@ fn conjunctive_operator_requires_preserve_a_copied_value() {
 
 #[test]
 fn copied_record_operator_requires_cannot_borrow_a_later_storage_guarantee() {
-    let diagnostics = check(
+    let diagnostics = checked_program_result(
         "data Number [copy] { value: i32; }
          boundary operator + Number::add(left: Number, right: Number) -> Number
          requires left.value >= 0;
@@ -215,7 +202,7 @@ fn copied_record_operator_requires_cannot_borrow_a_later_storage_guarantee() {
 
 #[test]
 fn relational_operator_requires_need_facts_available_to_both_operands() {
-    let checked = check(
+    let checked = checked_program_result(
         "boundary operator == Integer::equal(left: i32, right: i32) -> bool requires left <= right;
          machine compare(left: i32, right: i32) -> bool requires left <= right { left == right }",
     )
@@ -260,7 +247,7 @@ fn reference_operator_parameters_use_exact_referent_custody() {
     // the operand's captured snapshot no longer revokes the precondition —
     // custody, not capture liveness, is its evidence — while clearing the
     // invocation-live facts still fails.
-    let checked = check(
+    let checked = checked_program_result(
         "boundary operator == Reference::equal(left: &i32, right: i32) -> bool requires left >= 0;
          machine compare(value: &i32, pattern: i32) -> bool requires value >= 0 { value == pattern }",
     ).expect("reference operands owe their live referent precondition");

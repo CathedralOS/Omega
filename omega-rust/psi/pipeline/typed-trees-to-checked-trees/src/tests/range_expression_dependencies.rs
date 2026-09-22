@@ -1,13 +1,7 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
+use crate::tests::front_end::checked_program_result;
 
 fn check(source: &str, accepted: bool) {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    match lower_typed_trees(typed, &CheckingRequest::settled()) {
+    match checked_program_result(source) {
         Ok(_) => assert!(accepted, "stale computed bounds accepted: {source}"),
         Err(diagnostics) => {
             assert!(!accepted, "{diagnostics:#?}\n{source}");
@@ -39,18 +33,6 @@ fn unrelated_assignment_preserves_computed_endpoint_proofs() {
     );
 }
 
-fn typed_fixture(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .unwrap_or_else(|diagnostics| panic!("tokenize: {diagnostics:#?}\n{source}"));
-    let syntax = parse_syntax_trees(&tokens)
-        .unwrap_or_else(|diagnostics| panic!("parse: {diagnostics:#?}\n{source}"));
-    let resolved = resolve(ResolutionRequest::new(&syntax))
-        .unwrap_or_else(|diagnostics| panic!("resolve: {diagnostics:#?}\n{source}"));
-    lower_symbol_resolved_trees(&resolved)
-        .unwrap_or_else(|diagnostics| panic!("type: {diagnostics:#?}\n{source}"))
-}
-
 fn assert_range_rejection(diagnostics: &[diagnostics::Diagnostic], source: &str) {
     assert!(
         diagnostics
@@ -61,7 +43,7 @@ fn assert_range_rejection(diagnostics: &[diagnostics::Diagnostic], source: &str)
 }
 
 fn check_range(source: &str, accepted: bool) {
-    match lower_typed_trees(typed_fixture(source), &CheckingRequest::settled()) {
+    match checked_program_result(source) {
         Ok(_) => assert!(accepted, "stale computed bounds accepted:\n{source}"),
         Err(diagnostics) => {
             assert!(!accepted, "check: {diagnostics:#?}\n{source}");
@@ -249,9 +231,7 @@ fn local_field_name_conflict_rejects_ambiguous_computed_boundary_source() {
         } else {
             // This source is rejected by the existing declaration fence before
             // range checking; it is not a computed-dependency identity test.
-            let Err(diagnostics) =
-                lower_typed_trees(typed_fixture(&source), &CheckingRequest::settled())
-            else {
+            let Err(diagnostics) = checked_program_result(&source) else {
                 panic!("a local cannot shadow the attached field");
             };
             assert!(
@@ -356,7 +336,7 @@ fn an_opaque_call_frame_retires_computed_bounds() {
              let cut: i64 = original - 1;
              let view: &[i32] = items[0..cut]; view.len
          }";
-    let mut checked = lower_typed_trees(typed_fixture(source), &CheckingRequest::settled())
+    let mut checked = checked_program_result(source)
         .unwrap_or_else(|diagnostics| panic!("known empty frame: {diagnostics:#?}\n{source}"));
     let machine = checked
         .typed

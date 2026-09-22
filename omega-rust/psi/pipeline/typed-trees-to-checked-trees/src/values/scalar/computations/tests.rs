@@ -2,6 +2,7 @@ use super::{
     CheckedBooleanExpression, CheckedScalarComputationKind, CheckedScalarExpression,
     CheckedScalarExpressionRole, ExpressionNode, PrimitiveType, StatementNode,
 };
+use crate::tests::front_end::typed_program;
 use crate::values::build_checked_scalar_computation_plans;
 use crate::values::scalar_qualified_call_expression;
 
@@ -105,16 +106,7 @@ fn checked(argument: &str, combined: bool) -> checked_trees::CheckedTrees {
 }
 
 fn checked_source(source: &str, combined: bool) -> checked_trees::CheckedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let mut typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let mut typed = typed_program(source);
     if combined {
         let machine = typed
             .machines()

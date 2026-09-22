@@ -1,9 +1,7 @@
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
-use crate::tests::contracts::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, parse_typed_trees,
-    resolve,
-};
+use crate::tests::contracts::parse_typed_trees;
+use crate::tests::front_end::typed_program_result;
 
 #[test]
 fn immediate_proof_output_binds_a_fresh_erased_evidence_term() {
@@ -740,11 +738,9 @@ fn proof_output_rejects_value_on_unit_and_duplicate_or_discarded_runtime_value()
         { let (runtime; outgoing: local) = produce(); relayed = local; }
     "#;
     let unit = format!("boundary trait MachineControl {{}}\nboundary trait PortIo {{}}\n{unit}");
-    let tokens = Lexer::new(&unit).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let diagnostics = lower_symbol_resolved_trees(&resolved)
-        .expect_err("a proof-only proof-only call has no value type");
+    let diagnostics = typed_program_result(&unit)
+        .expect_err("a proof-only proof-only call has no value type")
+        .remove(0);
     assert!(
         diagnostics
             .message

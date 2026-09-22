@@ -1,15 +1,9 @@
-use super::{
-    Arc, Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::{typed_program_from_source_map, typed_program_result};
 
 fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = Lexer::new(source).tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax))?;
-    let typed = lower_symbol_resolved_trees(&resolved).map_err(|diagnostic| vec![diagnostic])?;
-    lower_typed_trees(typed, &CheckingRequest::settled())
+    lower_typed_trees(typed_program_result(source)?, &CheckingRequest::settled())
 }
 
 fn messages(source: &str) -> String {
@@ -194,18 +188,7 @@ fn natural_coercion_requires_the_toolchain_owner_when_sources_are_known() {
                 origin,
             )
             .source_id;
-        let tokens = Lexer::new(source).tokenize().unwrap();
-        let syntax =
-            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: &syntax,
-                sources: Some(Arc::new(sources)),
-                top_level_bindings: Vec::new(),
-            },
-        )
-        .unwrap();
-        let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+        let typed = typed_program_from_source_map(sources, &[(source_id, source)]);
         let checked = lower_typed_trees(typed, &CheckingRequest::settled());
         assert_eq!(checked.is_ok(), accepted, "{origin:?}: {checked:?}");
     }

@@ -1,5 +1,6 @@
-use super::{lower_typed_trees, typed};
+use super::lower_typed_trees;
 use crate::CheckingRequest;
+use crate::tests::front_end::typed_program;
 
 mod computed_copies;
 
@@ -27,15 +28,15 @@ terminates by remaining in 0..=5;
 "#;
 
 fn prove(source: &str) {
-    crate::checks::termination::check_machine_termination(&typed(source))
+    crate::checks::termination::check_machine_termination(&typed_program(source))
         .unwrap_or_else(|diagnostics| panic!("termination: {source}\n{diagnostics:#?}"));
-    lower_typed_trees(typed(source), &CheckingRequest::settled())
+    lower_typed_trees(typed_program(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("complete checking: {source}\n{diagnostics:#?}"));
 }
 
 fn reject(source: &str) {
-    let diagnostics =
-        crate::checks::termination::check_machine_termination(&typed(source)).expect_err(source);
+    let diagnostics = crate::checks::termination::check_machine_termination(&typed_program(source))
+        .expect_err(source);
     assert!(
         diagnostics
             .iter()
@@ -169,7 +170,7 @@ fn computed_arrivals_transport_the_unique_authored_rank_subject() {
         "(2 * remaining) - remaining",
         "(remaining + remaining) - remaining",
     ] {
-        crate::checks::termination::check_machine_termination(&typed(
+        crate::checks::termination::check_machine_termination(&typed_program(
             &source.replace("first(remaining)", &format!("first({argument})")),
         ))
         .expect("one current parameter despite repeated occurrences");

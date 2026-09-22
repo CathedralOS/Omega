@@ -1,17 +1,7 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
-
-fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-}
+use crate::tests::front_end::checked_program_result;
 
 fn rejects_index(source: &str) {
-    let diagnostics = check(source).expect_err("unproved index must reject");
+    let diagnostics = checked_program_result(source).expect_err("unproved index must reject");
     assert!(
         diagnostics
             .iter()
@@ -29,7 +19,8 @@ fn right_operand_uses_only_its_selected_guard_polarity() {
         "bytes.len > 0 && (bytes[0] == 128 || bytes[0] == 0)",
     ] {
         let source = format!("machine inspect(bytes: &[u8]) -> bool {{ {expression} }}");
-        check(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+        checked_program_result(&source)
+            .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
     }
     for expression in [
         "bytes.len > 0 || bytes[0] == 128",
@@ -45,7 +36,7 @@ fn right_operand_uses_only_its_selected_guard_polarity() {
 
 #[test]
 fn selected_conjunction_retains_both_signed_index_bounds() {
-    check(
+    checked_program_result(
         "machine inspect(bytes: &[u8], index: i64) -> bool {
             0 <= index && index < bytes.len && bytes[index] == 128
         }",
@@ -60,7 +51,7 @@ fn selected_conjunction_retains_both_signed_index_bounds() {
 
 #[test]
 fn argument_guards_do_not_escape_to_the_next_argument_or_statement() {
-    check(
+    checked_program_result(
         "boundary trait Output { machine flag(value: bool) reaches Output; }
         machine inspect(bytes: &[u8]) reaches Output {
             Output::flag(bytes.len > 0 && bytes[0] == 128);
@@ -111,7 +102,7 @@ fn mutating_guard_cannot_replay_an_earlier_comparison() {
 
 #[test]
 fn disjoint_right_operand_writes_preserve_existing_index_facts() {
-    check(
+    checked_program_result(
         "machine replace(value: &mut u64) -> bool { value = 255; true }
         machine inspect(bytes: &[u8], index: u64, enabled: bool) -> u8
         requires index < bytes.len;

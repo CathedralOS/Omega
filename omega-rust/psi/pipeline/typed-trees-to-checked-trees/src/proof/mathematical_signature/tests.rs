@@ -1,17 +1,6 @@
 use super::{CheckedMathematicalSignature, check_mathematical_signature};
+use crate::tests::front_end::{checked_program, checked_program_result, typed_program};
 use proof_admission::{Level, Sort, Term};
-
-fn typed_program(source: &str) -> typed_trees::TypedTrees {
-    use source_files_to_tokens::Lexer;
-    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-    use tokens_to_syntax_trees::parse_syntax_trees;
-
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
 
 fn signature(source: &str) -> CheckedMathematicalSignature {
     check_mathematical_signature(&typed_program(source)).expect("elaborate")
@@ -606,10 +595,9 @@ fn machine_call_operand_denotes_application() {
     let signature = signature(
         "let double(x: u64): u64 = x + x;\nlet exceeds(x: u64): core::Strict<0> = double(x) > x;",
     );
-    crate::lower_typed_trees(typed_program(
+    checked_program(
         "let double(x: u64): u64 = x + x;\nlet exceeds(x: u64): core::Strict<0> = double(x) > x;",
-    ), &crate::CheckingRequest::settled())
-    .expect("call operand checks");
+    );
 
     let declarations = signature.signature().declarations();
     // `Int`, `IntAdd`, `double`, `IntLt`, `exceeds`.
@@ -628,8 +616,7 @@ fn open_machine_operations_intern_opaque_constants() {
                   let halves(x: u64, y: u64, z: u64): u64 = x * y + x * z;\n\
                   let lemma(x: u64, y: u64): core::Strict<0> = x * y == x * y;";
     let signature = signature(source);
-    crate::lower_typed_trees(typed_program(source), &crate::CheckingRequest::settled())
-        .expect("open operations check");
+    checked_program(source);
 
     let declarations = signature.signature().declarations();
     // `Int`, product's `x * y`, `product`, `IntAdd`, halves' `x * y`,
@@ -674,8 +661,7 @@ fn unary_and_cast_expressions_intern_at_their_carriers() {
                   let flip(x: u64): u64 = ~x;\n\
                   let widen(x: u32): u64 = x as u64;";
     let signature = signature(source);
-    crate::lower_typed_trees(typed_program(source), &crate::CheckingRequest::settled())
-        .expect("unary and cast check");
+    checked_program(source);
 
     let declarations = signature.signature().declarations();
     // `bool`, `!b`, `negate`, `Int`, `~x`, `flip`, `x as u64`, `widen`.
@@ -706,8 +692,7 @@ fn unary_and_cast_expressions_intern_at_their_carriers() {
 fn field_projections_intern_at_the_field_carrier() {
     let source = "data Point { x: u64; y: u64; }\nlet px(p: Point): u64 = p.x;";
     let signature = signature(source);
-    crate::lower_typed_trees(typed_program(source), &crate::CheckingRequest::settled())
-        .expect("member projection checks");
+    checked_program(source);
 
     let declarations = signature.signature().declarations();
     // `Point` carrier, `Int`, `p.x`, `px`.
@@ -731,8 +716,7 @@ fn boolean_subjects_generalize_beyond_names() {
                   let denied(b: bool): core::Strict<0> = !b;\n\
                   let positive(x: u64): core::Strict<0> = nonzero(x);";
     let signature = signature(source);
-    crate::lower_typed_trees(typed_program(source), &crate::CheckingRequest::settled())
-        .expect("generalized subjects check");
+    checked_program(source);
 
     let declarations = signature.signature().declarations();
     // `Int`, `bool`, `true`, `nonzero`, `!b`, `denied`, `positive`.
@@ -804,8 +788,7 @@ fn machine_calls_intern_at_the_result_carrier() {
                   let f(x: u64): u64 = next(x);\n\
                   let g(x: u64): u64 = next(next(x));";
     let signature = signature(source);
-    crate::lower_typed_trees(typed_program(source), &crate::CheckingRequest::settled())
-        .expect("machine calls check");
+    checked_program(source);
 
     let declarations = signature.signature().declarations();
     // `Int`, f's `next(x)`, `f`, g's `next(next(x))`, `g`.
@@ -830,8 +813,7 @@ fn machine_call_results_form_boolean_subjects() {
     let source = "machine check(x: u64) -> bool { true }\n\
                   let ok(x: u64): core::Strict<0> = check(x);";
     let signature = signature(source);
-    crate::lower_typed_trees(typed_program(source), &crate::CheckingRequest::settled())
-        .expect("machine subject checks");
+    checked_program(source);
 
     let declarations = signature.signature().declarations();
     // `Int`, `bool`, `true`, `check(x)`, `ok`.
@@ -871,8 +853,7 @@ fn struct_literals_intern_at_the_data_carrier() {
     let source = "data Point { x: u64; y: u64; }\n\
                   let origin(p: u64): Point = Point { x: p, y: p };";
     let signature = signature(source);
-    crate::lower_typed_trees(typed_program(source), &crate::CheckingRequest::settled())
-        .expect("struct literal checks");
+    checked_program(source);
 
     let declarations = signature.signature().declarations();
     // `Int`, `Point` carrier, `Point { x: p, y: p }`, `origin`.
@@ -895,8 +876,7 @@ fn matches_intern_at_the_common_arm_carrier() {
     let source = "data Point { x: u64; y: u64; }\n\
                   let pick(b: bool, p: Point, q: Point): Point = match b { true -> p, _ -> q };";
     let signature = signature(source);
-    crate::lower_typed_trees(typed_program(source), &crate::CheckingRequest::settled())
-        .expect("match checks");
+    checked_program(source);
 
     let declarations = signature.signature().declarations();
     // `bool`, `Point` carrier, `match b { .. }`, `pick`.
@@ -921,8 +901,7 @@ fn float_operations_intern_at_their_format_carrier() {
     let source = "let scale(x: f64, y: f64): f64 = x * y;\n\
                   let third(x: f32): f32 = x / 3.0f32;";
     let signature = signature(source);
-    crate::lower_typed_trees(typed_program(source), &crate::CheckingRequest::settled())
-        .expect("float operations check");
+    checked_program(source);
 
     let declarations = signature.signature().declarations();
     // `f64` carrier, scale's `x * y`, `scale`, `f32` carrier,
@@ -965,8 +944,7 @@ fn float_equality_interns_literals_by_exact_value() {
     let source = "let same(x: f64): core::Strict<0> = x == 1.5f64;\n\
                   let also(x: f64): core::Strict<0> = x == 1.50f64;";
     let signature = signature(source);
-    crate::lower_typed_trees(typed_program(source), &crate::CheckingRequest::settled())
-        .expect("float equality checks");
+    checked_program(source);
 
     let declarations = signature.signature().declarations();
     // `f64` carrier, the `1.5` literal, `same`, `also`.
@@ -1009,8 +987,7 @@ fn float_equality_interns_literals_by_exact_value() {
 fn unlanded_float_literals_adopt_the_demanded_carrier() {
     let source = "let half(x: f64): f64 = x / 2.0;";
     let signature = signature(source);
-    crate::lower_typed_trees(typed_program(source), &crate::CheckingRequest::settled())
-        .expect("unlanded operand checks");
+    checked_program(source);
 
     let declarations = signature.signature().declarations();
     // `f64` carrier, the `x / 2.0` opaque constant, `half`.
@@ -1224,8 +1201,7 @@ fn explicit_levels_and_generic_types_reach_checked_admission() {
          let relay<v: core::Level, B: core::Type<v>>(x: B): B = identity<v,B>(x);
          let closed(B: core::Type<0>, x: B): B = identity<0,B>(x);"
     );
-    crate::lower_typed_trees(typed_program(&source), &crate::CheckingRequest::settled())
-        .expect("checked polymorphic applications");
+    checked_program(&source);
     let checked = signature(&source);
     for (index, level) in [(1, Level::Parameter(0)), (2, Level::Constant(0))] {
         let declaration = &checked.signature().declarations()[checked.authored()[index] as usize];
@@ -1253,8 +1229,7 @@ fn explicit_levels_and_generic_types_reach_checked_admission() {
 fn explicit_levels_follow_the_ordered_mixed_generic_telescope() {
     let source = "let pick<u: core::Level, A: core::Type<u>, v: core::Level, B: core::Type<v>>(x: A, y: B): B = y;
         let relay<v: core::Level, u: core::Level, A: core::Type<u>, B: core::Type<v>>(x: A, y: B): B = pick<u,A,v,B>(x,y);";
-    crate::lower_typed_trees(typed_program(source), &crate::CheckingRequest::settled())
-        .expect("interleaved level and type arguments");
+    checked_program(source);
     let checked = signature(source);
     let mut body = checked.signature().declarations()[checked.authored()[1] as usize]
         .body
@@ -1283,9 +1258,7 @@ fn explicit_wrong_level_is_rejected_by_kernel_application_checking() {
         "{EXPLICIT_LEVEL_IDENTITY}
         let wrong<v: core::Level, A: core::Type<v>>(x: A): A = identity<0,A>(x);"
     );
-    let diagnostics =
-        crate::lower_typed_trees(typed_program(&source), &crate::CheckingRequest::settled())
-            .expect_err("wrong level");
+    let diagnostics = checked_program_result(&source).expect_err("wrong level");
     assert!(
         diagnostics.iter().any(
             |diagnostic| diagnostic.message.contains("fails kernel checking")
@@ -1301,9 +1274,7 @@ fn explicit_type_cannot_supply_a_level_argument() {
         "{EXPLICIT_LEVEL_IDENTITY}
         let wrong<v: core::Level, A: core::Type<v>>(x: A): A = identity<A,v>(x);"
     );
-    let diagnostics =
-        crate::lower_typed_trees(typed_program(&source), &crate::CheckingRequest::settled())
-            .expect_err("wrong argument kinds");
+    let diagnostics = checked_program_result(&source).expect_err("wrong argument kinds");
     assert!(
         diagnostics
             .iter()
@@ -1385,9 +1356,7 @@ fn explicit_generic_argument_arity_and_scope_are_checked() {
             "{EXPLICIT_LEVEL_IDENTITY}
             let wrong<v: core::Level, A: core::Type<v>>(x: A): A = identity<{arguments}>(x);"
         );
-        let diagnostics =
-            crate::lower_typed_trees(typed_program(&source), &crate::CheckingRequest::settled())
-                .expect_err(arguments);
+        let diagnostics = checked_program_result(&source).expect_err(arguments);
         assert!(
             diagnostics
                 .iter()
@@ -1403,8 +1372,7 @@ fn explicit_generic_application_preserves_partial_ordinary_application() {
         "{EXPLICIT_LEVEL_IDENTITY}
         let partial<v: core::Level, A: core::Type<v>>(): A -> A = identity<v,A>();"
     );
-    crate::lower_typed_trees(typed_program(&source), &crate::CheckingRequest::settled())
-        .expect("remaining ordinary Pi argument");
+    checked_program(&source);
 }
 
 #[test]
@@ -1412,8 +1380,7 @@ fn implicit_static_arguments_preserve_existing_ordinary_prefix_application() {
     let source = "let generic<T: u64>(x: u64): u64 = x;
         let partial(x: u64): u64 -> u64 = generic(x);
         let empty(): u64 -> u64 -> u64 = generic();";
-    crate::lower_typed_trees(typed_program(source), &crate::CheckingRequest::settled())
-        .expect("ordinary prefix remains a Pi term");
+    checked_program(source);
 }
 
 #[test]
@@ -1423,9 +1390,7 @@ fn explicit_application_keeps_declaration_order_and_generalized_level_fences() {
         "let first<u: core::Level, A: core::Type<u>>(x: A): A = second<u,A>(x);
          let second<u: core::Level, A: core::Type<u>>(x: A): A = x;",
     ] {
-        let diagnostics =
-            crate::lower_typed_trees(typed_program(source), &crate::CheckingRequest::settled())
-                .expect_err("ordered signature");
+        let diagnostics = checked_program_result(source).expect_err("ordered signature");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
                 .message
@@ -1443,8 +1408,7 @@ fn explicit_application_keeps_declaration_order_and_generalized_level_fences() {
 fn generalized_level_infers_from_the_type_argument() {
     let source = "let inferred<A>(x: A): A = x;
         let use<u: core::Level, A: core::Type<u>>(x: A): A = inferred<A>(x);";
-    crate::lower_typed_trees(typed_program(source), &crate::CheckingRequest::settled())
-        .expect("inferred level application");
+    checked_program(source);
     let checked = signature(source);
     let mut body = checked.signature().declarations()[checked.authored()[1] as usize]
         .body
@@ -1473,8 +1437,7 @@ fn generalized_level_infers_from_the_type_argument() {
 fn generalized_level_infers_a_closed_carrier_level() {
     let source = "let inferred<A>(x: A): A = x;
         let closed(x: u64): u64 = inferred<u64>(x);";
-    crate::lower_typed_trees(typed_program(source), &crate::CheckingRequest::settled())
-        .expect("closed level inference");
+    checked_program(source);
     let checked = signature(source);
     let mut body = checked.signature().declarations()[checked.authored()[1] as usize]
         .body
@@ -1538,9 +1501,7 @@ fn explicit_application_keeps_term_type_checking() {
         "{EXPLICIT_LEVEL_IDENTITY}
         let wrong<v: core::Level, A: core::Type<v>, B: core::Type<v>>(x: B): A = identity<v,A>(x);"
     );
-    let diagnostics =
-        crate::lower_typed_trees(typed_program(&source), &crate::CheckingRequest::settled())
-            .expect_err("distinct type arguments");
+    let diagnostics = checked_program_result(&source).expect_err("distinct type arguments");
     assert!(
         diagnostics
             .iter()
@@ -1557,7 +1518,7 @@ fn inferred_authored_levels_preserve_callee_order_and_generalized_suffix() {
         "let pick<A, v: core::Level, B: core::Type<v>>(x: A, y: B): B = y;
          let relay<v: core::Level, u: core::Level, A: core::Type<u>, B: core::Type<v>>(x: A, y: B): A = pick<B,A>(y,x);",
     ] {
-        crate::lower_typed_trees(typed_program(source), &crate::CheckingRequest::settled()).expect("inferred ordered universes");
+        checked_program(source);
         let checked = signature(source);
         let mut body = checked.signature().declarations()[checked.authored()[1] as usize]
             .body
@@ -1582,9 +1543,8 @@ fn inferred_authored_levels_preserve_callee_order_and_generalized_suffix() {
 fn undetermined_authored_levels_require_annotation() {
     let source = "let identity<u: core::Level, v: core::Level, A: core::Type<u>>(x: A): A = x;
         let relay<A>(x: A): A = identity<A>(x);";
-    let diagnostics =
-        crate::lower_typed_trees(typed_program(source), &crate::CheckingRequest::settled())
-            .expect_err("unused universe cannot be inferred from the implementation");
+    let diagnostics = checked_program_result(source)
+        .expect_err("unused universe cannot be inferred from the implementation");
     assert!(diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
         "cannot infer the universe argument of mathematical binder `v`; supply explicit level arguments"
     )), "{diagnostics:?}");
@@ -1594,9 +1554,8 @@ fn undetermined_authored_levels_require_annotation() {
 fn partial_authored_level_omission_requires_an_unambiguous_roster() {
     let source = "let pick<u: core::Level, A: core::Type<u>, v: core::Level, B: core::Type<v>>(x: A, y: B): B = y;
         let relay<u: core::Level, A: core::Type<u>, B: core::Type<u>>(x: A, y: B): B = pick<u,A,B>(x,y);";
-    let diagnostics =
-        crate::lower_typed_trees(typed_program(source), &crate::CheckingRequest::settled())
-            .expect_err("partial universe omission has no argument roster");
+    let diagnostics = checked_program_result(source)
+        .expect_err("partial universe omission has no argument roster");
     assert!(
         diagnostics
             .iter()

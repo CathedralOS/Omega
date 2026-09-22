@@ -8,6 +8,7 @@ use crate::checks::ranges::state_arguments::ParameterIndexProof;
 use crate::checks::ranges::state_arguments::StateArgumentFacts;
 use crate::checks::ranges::state_arguments::collect_state_argument_facts_whole_pass;
 use crate::checks::ranges::state_arguments::merge_contribution;
+use crate::tests::front_end::{checked_program_result, typed_program};
 
 thread_local! {
     pub(super) static STATE_TRANSFERS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
@@ -22,16 +23,7 @@ fn compare_machine(
     source: &str,
     machine_name: Option<&str>,
 ) -> (Vec<StateArgumentFacts>, usize, usize) {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let program = typed_program(source);
     let borrows = crate::borrow::build_borrow_facts(&program);
     let proof_plan = proof::obligations::build_proof_plan(&program);
     let values = crate::values::build_value_facts(&program, &proof_plan);
@@ -217,16 +209,7 @@ fn complete_checked_evidence_and_bounds_diagnostics_match_whole_pass() {
                 incoming == "2",
             );
         }
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let program =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let program = typed_program(&source);
         let actual = crate::lower_typed_trees(program.clone(), &crate::CheckingRequest::settled());
         let _restore = Restore(WHOLE_PASS_REFERENCE.replace(true));
         let reference = crate::lower_typed_trees(program, &crate::CheckingRequest::settled());
@@ -236,17 +219,7 @@ fn complete_checked_evidence_and_bounds_diagnostics_match_whole_pass() {
 }
 
 fn check_source(source: &str) -> Result<(), Vec<String>> {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
+    checked_program_result(source)
         .map(|_| ())
         .map_err(|diagnostics| {
             diagnostics

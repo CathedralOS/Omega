@@ -1,10 +1,10 @@
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::flow::terminal_unit::{
-    BindingRelevance, CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType, Lexer,
-    PrimitiveType, ResolutionRequest, checked, contextual_cleanup_diagnostics,
-    lower_symbol_resolved_trees, machine_named, parse_syntax_trees, record_fields, resolve,
+    BindingRelevance, CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
+    PrimitiveType, checked, contextual_cleanup_diagnostics, machine_named, record_fields,
 };
+use crate::tests::front_end::typed_program;
 
 #[test]
 fn nominal_cleanup_uses_exact_attached_symbol_when_spelling_is_spoofed() {
@@ -19,10 +19,7 @@ fn nominal_cleanup_uses_exact_attached_symbol_when_spelling_is_spoofed() {
         data Root {}
         machine Root::enter(value: First) {}
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let mut typed = typed_program(source);
 
     let first_drop = typed
         .machines()

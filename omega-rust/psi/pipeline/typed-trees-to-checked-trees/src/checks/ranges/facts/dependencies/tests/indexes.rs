@@ -3,13 +3,13 @@ use crate::checks::ranges::RangeFacts;
 use crate::checks::ranges::facts::dependencies::tests::initializer;
 use crate::checks::ranges::facts::dependencies::tests::parameter_place;
 use crate::checks::ranges::facts::dependencies::tests::selected_operator_facts;
-use crate::checks::ranges::facts::dependencies::tests::typed_source;
 use crate::flow::CanonicalPlace;
+use crate::tests::front_end::typed_program;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
 fn index_source(declaration: &str, selector: &str) -> TypedTrees {
-    typed_source(&format!(
+    typed_program(&format!(
         "{declaration}
         machine window(items: &[i64; 4], selectors: &[u64; 4], index: u64, unrelated: u64) {{
             let cut: i64 = items[{selector}];
@@ -29,7 +29,7 @@ fn window(program: &TypedTrees) -> (&Machine, &State) {
 #[test]
 fn indexed_reads_retain_element_coordinates_and_each_selector_dependency() {
     for selector in ["1", "index", "selectors[index]"] {
-        let program = typed_source(&format!(
+        let program = typed_program(&format!(
             "machine window(items: &[i64; 4], selectors: &[u64; 4], index: u64, unrelated: u64)
             requires 0 <= items[{selector}]; {{}}"
         ));
@@ -240,7 +240,7 @@ fn a_selected_index_operator_reads_exactly_its_checked_operands() {
 
 #[test]
 fn a_selected_range_operator_reads_its_window_operands() {
-    let program = typed_source(
+    let program = typed_program(
         "boundary operator [..] Slice::window(items: &[i64], start: u64, end: u64) -> i64;
         machine window(items: &[i64; 4], low: u64, high: u64, unrelated: u64) {
             let cut: i64 = items[low..high];
@@ -430,7 +430,7 @@ fn a_selected_index_operator_reads_the_captured_selector_value() {
 fn a_selected_index_operand_keeps_independent_custody_from_the_outer_read() {
     let declaration = "boundary operator [] Slice::custom(items: &[i64], index: u64) -> i64;";
     for corrupt_inner in [false, true] {
-        let program = typed_source(&format!(
+        let program = typed_program(&format!(
             "{declaration}
             machine window(items: &[i64; 4], index: u64, unrelated: u64) {{
                 let cut: i64 = items[items[index]];
@@ -524,7 +524,7 @@ fn a_selected_index_operand_keeps_independent_custody_from_the_outer_read() {
 
 #[test]
 fn a_selected_index_operator_with_an_open_range_stays_incomplete() {
-    let program = typed_source(
+    let program = typed_program(
         "boundary operator [..] Slice::window(items: &[i64], start: u64, end: u64) -> i64;
         machine window(items: &[i64; 4], low: u64, unrelated: u64) {
             let cut: i64 = items[low..];
@@ -541,7 +541,7 @@ fn a_selected_index_operator_with_an_open_range_stays_incomplete() {
 
 #[test]
 fn a_requires_scope_selected_operator_has_no_statement_use_custody() {
-    let program = typed_source(
+    let program = typed_program(
         "boundary operator [] Slice::custom(items: &[i64], index: u64) -> i64;
         machine window(items: &[i64; 4], index: u64)
         requires 0 <= items[index]; {}",
@@ -570,7 +570,7 @@ fn a_requires_scope_selected_operator_has_no_statement_use_custody() {
 
 #[test]
 fn dynamic_contract_reads_retain_current_parameter_identities() {
-    let program = typed_source(
+    let program = typed_program(
         "machine window(original: &mut [i64; 2], mut index: u64 [0..=1])
         requires 0 <= original[index] && original[index] <= 4; {
             let mut unrelated: i64 = 0; unrelated = 1;
@@ -609,7 +609,7 @@ fn dynamic_contract_reads_retain_current_parameter_identities() {
 
 #[test]
 fn a_reference_read_below_an_index_is_not_an_integer_snapshot() {
-    let program = typed_source(
+    let program = typed_program(
         "data Cell { value: &i64; }
         machine window(items: &[Cell; 2]) {
         let cut: &i64 = items[0].value;
@@ -639,7 +639,7 @@ fn a_reference_read_below_an_index_is_not_an_integer_snapshot() {
 /// cannot touch them.
 #[test]
 fn a_builtin_range_window_reads_its_collection_and_both_bounds() {
-    let program = typed_source(
+    let program = typed_program(
         "machine window(items: &[i64; 4], low: u64, high: u64, unrelated: u64) {
             let cut: &[i64] = items[low..high];
         }",
@@ -691,7 +691,7 @@ fn a_builtin_range_window_reads_its_collection_and_both_bounds() {
 /// extent is proven disjoint instead of retiring the window's facts.
 #[test]
 fn a_constant_range_window_keeps_its_exact_extent() {
-    let program = typed_source(
+    let program = typed_program(
         "machine window(items: &[i64; 4], unrelated: u64) {
             let cut: &[i64] = items[0..2];
         }",
@@ -758,7 +758,7 @@ fn an_open_builtin_window_reads_only_its_present_bounds() {
         ("..high", vec!["high"]),
         ("..", Vec::new()),
     ] {
-        let program = typed_source(&format!(
+        let program = typed_program(&format!(
             "machine window(items: &[i64; 4], low: u64, high: u64, unrelated: u64) {{
                 let cut: &[i64] = items[{selector}];
             }}"
@@ -810,7 +810,7 @@ fn an_open_builtin_window_reads_only_its_present_bounds() {
 /// claiming only the bound's visible places.
 #[test]
 fn a_window_bound_with_authored_arithmetic_and_no_checked_custody_stays_incomplete() {
-    let program = typed_source(
+    let program = typed_program(
         "operator + u64::custom(left: u64, right: u64) -> u64;
         machine window(items: &[i64; 4], low: u64, high: u64) {
             let cut: &[i64] = items[low + 0u64..high];
@@ -824,7 +824,7 @@ fn a_window_bound_with_authored_arithmetic_and_no_checked_custody_stays_incomple
 }
 
 fn arithmetic_window_source(selector: &str) -> TypedTrees {
-    typed_source(&format!(
+    typed_program(&format!(
         "operator + u64::custom(left: u64, right: u64) -> u64;
         machine window(items: &[i64; 4], low: u64, step: u64, high: u64, unrelated: u64) {{
             let cut: &[i64] = items[{selector}];
@@ -906,7 +906,7 @@ fn a_selected_arithmetic_window_bound_reads_its_checked_operands() {
 /// unknown.
 #[test]
 fn a_selected_arithmetic_point_selector_reads_its_operands_and_stays_conservative() {
-    let program = typed_source(
+    let program = typed_program(
         "operator + u64::custom(left: u64, right: u64) -> u64;
         machine window(items: &[i64; 4], low: u64, unrelated: u64) {
             let offset: u64 = 1u64;
@@ -996,7 +996,7 @@ fn a_selected_arithmetic_point_selector_reads_its_operands_and_stays_conservativ
 #[test]
 fn a_constant_shaped_selected_arithmetic_application_stays_incomplete() {
     for (declared, selector) in [("i64", "1u64 + 0u64"), ("&[i64]", "1u64 + 0u64..high")] {
-        let program = typed_source(&format!(
+        let program = typed_program(&format!(
             "operator + u64::custom(left: u64, right: u64) -> u64;
             machine window(items: &[i64; 4], low: u64, step: u64, high: u64) {{
                 let cut: {declared} = items[{selector}];
@@ -1208,7 +1208,7 @@ fn a_builtin_operator_over_a_selected_application_reads_every_leaf_operand() {
 /// selected `[]` there.
 #[test]
 fn a_requires_scope_selected_arithmetic_selector_has_no_statement_use_custody() {
-    let program = typed_source(
+    let program = typed_program(
         "operator + u64::custom(left: u64, right: u64) -> u64;
         machine window(items: &[i64; 4], low: u64, step: u64)
         requires 0 <= items[low + step]; {}",
@@ -1267,7 +1267,7 @@ fn a_wrapped_authored_arithmetic_selector_reads_every_operand() {
         ),
         ("&[i64]", "low..(low + step) as u64", &["low", "step"][..]),
     ] {
-        let program = typed_source(&format!(
+        let program = typed_program(&format!(
             "operator + u64::custom(left: u64, right: u64) -> u64;
             machine window(items: &[i64; 4], low: u64, step: u64, high: u64, unrelated: u64) {{
                 let cut: {declared} = items[{selector}];
@@ -1347,7 +1347,7 @@ fn a_wrapper_over_a_refused_operand_family_stays_incomplete() {
             true,
         ),
     ] {
-        let program = typed_source(source);
+        let program = typed_program(source);
         let (machine, state) = window(&program);
         let expression = initializer(&program, state);
         let mut operators = selected_operator_facts(&program);
@@ -1376,7 +1376,7 @@ fn a_wrapper_over_a_refused_operand_family_stays_incomplete() {
 /// application does.
 #[test]
 fn a_requires_scope_wrapped_arithmetic_selector_has_no_statement_use_custody() {
-    let program = typed_source(
+    let program = typed_program(
         "operator + u64::custom(left: u64, right: u64) -> u64;
         machine window(items: &[i64; 4], low: u64, step: u64)
         requires 0 <= items[(low + step) as u64]; {}",

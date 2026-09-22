@@ -2,8 +2,9 @@
 //! the entry facts through a nested projection path or a borrowed subject,
 //! proving membership, pinning and descent exactly as the direct owned-field
 //! route does.
-use super::{lower_typed_trees, typed};
+use super::lower_typed_trees;
 use crate::CheckingRequest;
+use crate::tests::front_end::typed_program;
 
 const NESTED: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -89,12 +90,12 @@ terminates by remaining -> Countdown::Doubled in 0..=limits.cap;
 "#;
 
 fn prove_termination(source: &str) {
-    crate::checks::termination::check_machine_termination(&typed(source))
+    crate::checks::termination::check_machine_termination(&typed_program(source))
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
 }
 
 fn reject_range(source: &str) {
-    let diagnostics = crate::checks::termination::check_machine_termination(&typed(source))
+    let diagnostics = crate::checks::termination::check_machine_termination(&typed_program(source))
         .expect_err("the authored projected rank range must be proved");
     assert!(
         diagnostics
@@ -105,15 +106,16 @@ fn reject_range(source: &str) {
 }
 
 fn reject_termination(source: &str) {
-    crate::checks::termination::check_machine_termination(&typed(source)).expect_err(source);
+    crate::checks::termination::check_machine_termination(&typed_program(source))
+        .expect_err(source);
 }
 
 #[test]
 fn nested_projection_relation_checks_through_complete_lowering() {
     for source in [NESTED, NESTED_LIMIT, BORROWED] {
-        crate::checks::termination::check_machine_termination(&typed(source))
+        crate::checks::termination::check_machine_termination(&typed_program(source))
             .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
-        lower_typed_trees(typed(source), &CheckingRequest::settled())
+        lower_typed_trees(typed_program(source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
     }
 }
@@ -294,9 +296,9 @@ fn projected_slice_length_relation_checks_through_complete_lowering() {
         PROJECTED_SCALAR,
         SLICE_SIBLING,
     ] {
-        crate::checks::termination::check_machine_termination(&typed(source))
+        crate::checks::termination::check_machine_termination(&typed_program(source))
             .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
-        lower_typed_trees(typed(source), &CheckingRequest::settled())
+        lower_typed_trees(typed_program(source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
     }
 }

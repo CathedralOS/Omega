@@ -400,24 +400,16 @@ fn push_promoting(rows: &mut Vec<CheckedSemanticDependency>, candidate: CheckedS
 #[cfg(test)]
 mod tests {
     use crate::derive_checked_semantic_dependencies;
-    use source_files_to_tokens::Lexer;
-    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-    use tokens_to_syntax_trees::parse_syntax_trees;
+    use crate::tests::front_end::typed_program;
 
     #[test]
     fn derivation_ignores_retained_rows_and_reproduces_lowering_output() {
-        let tokens = Lexer::new(
+        let typed = typed_program(
             r#"
             pub data Token { value: u64; }
             pub machine make() -> Token { Token { value: 7u64 } }
             "#,
-        )
-        .tokenize()
-        .expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        );
         let mut checked =
             crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).expect("check");
         let expected = checked.facts.flow.semantic_dependencies.clone();

@@ -1,5 +1,6 @@
-use super::{lower_typed_trees, typed};
+use super::lower_typed_trees;
 use crate::CheckingRequest;
+use crate::tests::front_end::typed_program;
 
 const COUNTDOWN: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -24,12 +25,12 @@ const FORWARDED: &str = r#"
 const FORWARDED_ENDPOINT: &str = "limits.limit % limits.divisor + 6";
 
 fn accepts(source: &str) {
-    lower_typed_trees(typed(source), &CheckingRequest::settled())
+    lower_typed_trees(typed_program(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
 }
 
 fn rejects_range(source: &str) {
-    let diagnostics = lower_typed_trees(typed(source), &CheckingRequest::settled())
+    let diagnostics = lower_typed_trees(typed_program(source), &CheckingRequest::settled())
         .expect_err("computed field endpoints must form and preserve every exact input");
     assert!(
         diagnostics
@@ -192,7 +193,7 @@ fn endpoint_literals_retain_rational_meaning_and_landing_boundaries() {
     }
     rejects_range(&COUNTDOWN.replace("in 0..", "in (1 / 2 * 2).."));
     let diagnostics = lower_typed_trees(
-        typed(&COUNTDOWN.replace(ENDPOINT, "12 % 7")),
+        typed_program(&COUNTDOWN.replace(ENDPOINT, "12 % 7")),
         &CheckingRequest::settled(),
     )
     .expect_err("anonymous remainder cannot form");
@@ -269,7 +270,7 @@ fn selected_operand_calls_preserve_single_state_endpoint_evidence() {
             "remaining - 1, limits, reset(&mut scratch))",
         );
     let source = format!("machine reset(value: &mut u64) -> u64 {{ value = 0; 0 }} {source}");
-    let program = typed(&source);
+    let program = typed_program(&source);
     let machine = program
         .machines()
         .iter()
@@ -435,7 +436,8 @@ fn member_chains_through_stored_references_supply_endpoint_bounds() {
             ),
     );
     // Write-only storage cannot supply an endpoint observation.
-    let write_only = typed(&PROJECTED_ENDPOINT.replace("target: &Wrap;", "target: &write Wrap;"));
+    let write_only =
+        typed_program(&PROJECTED_ENDPOINT.replace("target: &Wrap;", "target: &write Wrap;"));
     let diagnostics = crate::checks::termination::check_machine_termination(&write_only)
         .expect_err("write-only endpoints cannot be read");
     assert!(
@@ -472,7 +474,7 @@ fn named_stored_endpoint_rejects_foreign_referents_and_invalid_rank() {
     )));
     rejects_range(&NAMED_STORED_ENDPOINT.replace("[0..=4]", "[0..=5]"));
     let stalled = NAMED_STORED_ENDPOINT.replace("pending - 1", "pending");
-    let diagnostics = lower_typed_trees(typed(&stalled), &CheckingRequest::settled())
+    let diagnostics = lower_typed_trees(typed_program(&stalled), &CheckingRequest::settled())
         .expect_err("every cyclic edge must decrease");
     assert!(
         diagnostics
@@ -530,8 +532,9 @@ fn named_stored_endpoint_rejects_pointee_and_binding_writes() {
 #[test]
 fn named_stored_endpoint_requires_readable_reference_boundaries() {
     let source = NAMED_STORED_ENDPOINT.replace("target: &Wrap;", "target: &write Wrap;");
-    let diagnostics = crate::checks::termination::check_machine_termination(&typed(&source))
-        .expect_err("write-only endpoint cannot supply a value");
+    let diagnostics =
+        crate::checks::termination::check_machine_termination(&typed_program(&source))
+            .expect_err("write-only endpoint cannot supply a value");
     assert!(
         diagnostics
             .iter()

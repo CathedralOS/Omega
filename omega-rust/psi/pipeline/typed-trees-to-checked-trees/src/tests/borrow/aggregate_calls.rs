@@ -1,5 +1,6 @@
 use super::checks::check_program;
 use crate::borrow::build_borrow_facts;
+use crate::tests::front_end::typed_program;
 
 #[test]
 fn rejects_mutation_of_source_retained_by_aggregate_helper_call_leaf() {
@@ -142,16 +143,7 @@ fn nested_aggregate_call_cast_preserves_field_paths_and_borrow_polarity() {
         }
     "#;
 
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
     let facts = build_borrow_facts(&typed);
     let nested = facts
         .loans

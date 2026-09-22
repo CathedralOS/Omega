@@ -2,20 +2,9 @@ use super::{ExpressionHandle, ExpressionNode, ProofFact, StatementNode, TypedTre
 use crate::monomorphization::collect_expression_tree;
 use crate::monomorphization::collect_statement_expression_trees;
 use crate::monomorphization::monomorphize_generic_machine_value_calls_with_selections;
+use crate::tests::front_end::{checked_program_result, typed_program};
 use typed_trees::machine::Machine;
 use typed_trees::typed_trees::MachineSpecialization;
-
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolution");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("typing")
-}
 
 fn instance<'a>(program: &'a TypedTrees, receipt: &MachineSpecialization) -> &'a Machine {
     program
@@ -45,7 +34,7 @@ fn call_expressions(program: &TypedTrees, machine: &Machine) -> Vec<ExpressionHa
 
 #[test]
 fn runtime_value_argument_realizes_an_ordinary_parameter() {
-    let mut program = typed(
+    let mut program = typed_program(
         "machine prefix_count<Count: u32>(base: u32) -> u32 { Count }
          machine main(base: u32) -> u32 { let n: u32 = 3; prefix_count<n>(base) }",
     );
@@ -91,7 +80,7 @@ fn runtime_value_argument_realizes_an_ordinary_parameter() {
 
 #[test]
 fn runtime_value_forwarding_appends_the_realized_parameter() {
-    let mut program = typed(
+    let mut program = typed_program(
         "machine prefix_count<Count: u32>(base: u32) -> u32 { Count }
          machine forward<K: u32>(base: u32) -> u32 { prefix_count<K>(base) }
          machine main(base: u32) -> u32 { let n: u32 = 3; forward<n>(base) }",
@@ -158,7 +147,7 @@ fn runtime_value_forwarding_appends_the_realized_parameter() {
 
 #[test]
 fn static_and_runtime_value_applications_share_one_template() {
-    let mut program = typed(
+    let mut program = typed_program(
         "machine prefix_count<Count: u32>(base: u32) -> u32 { Count }
          machine main(base: u32) -> u32 {
              let n: u32 = 3;
@@ -233,12 +222,11 @@ fn static_and_runtime_value_applications_share_one_template() {
 
 #[test]
 fn const_binder_still_rejects_a_runtime_subject() {
-    let program = typed(
+    let error = checked_program_result(
         "machine prefix_count<const Count: u32>(base: u32) -> u32 { Count }
          machine main(base: u32) -> u32 { let n: u32 = 3; prefix_count<n>(base) }",
-    );
-    let error = crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
-        .expect_err("a const binder cannot close over a runtime subject");
+    )
+    .expect_err("a const binder cannot close over a runtime subject");
     assert!(error.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -254,7 +242,7 @@ fn runtime_bound_result_range_uses_the_realized_parameter() {
     // argument itself.
     // The tail call auto-hoists into an inferred local: its declared type is
     // exactly the substituted `u64[0..=n]`.
-    let mut program = typed(
+    let mut program = typed_program(
         "machine ranged<Bound: u64>() -> u64[0..=Bound] { Bound }
          machine main() -> u64 {
              let n: u64 = 7;
@@ -340,7 +328,7 @@ fn runtime_bound_result_range_uses_the_realized_parameter() {
 
 #[test]
 fn runtime_value_in_a_static_length_position_rejects() {
-    let mut program = typed(
+    let mut program = typed_program(
         "machine sized<Count: u32>(witness: [u8; Count]) -> u32 { Count }
          machine main(witness: [u8; 4]) -> u32 {
              let n: u32 = 4;
@@ -365,7 +353,7 @@ fn runtime_value_requires_rebases_onto_the_realized_parameter() {
     // not a static use of the binder: the clone's contract must read the
     // realized trailing parameter so each rewritten call site owes the fact
     // on its own appended argument.
-    let mut program = typed(
+    let mut program = typed_program(
         "machine pick<Count: u32>(base: u32) -> u32
          requires
              Count <= 10;
@@ -425,7 +413,7 @@ fn runtime_value_requires_accepts_a_guarded_or_known_subject() {
              state denied(&mut self) -> u32 { 0 }
          }",
     ] {
-        crate::lower_typed_trees(typed(source), &crate::CheckingRequest::settled())
+        checked_program_result(source)
             .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
     }
 }
@@ -462,7 +450,7 @@ fn runtime_value_requires_rejects_unestablished_and_stale_subjects() {
              state denied(&mut self) -> u32 { 0 }
          }",
     ] {
-        let error = crate::lower_typed_trees(typed(source), &crate::CheckingRequest::settled())
+        let error = checked_program_result(source)
             .expect_err("an unestablished subject must still owe the requirement");
         assert!(
             error.iter().any(|diagnostic| {
@@ -477,7 +465,7 @@ fn runtime_value_requires_rejects_unestablished_and_stale_subjects() {
 
 #[test]
 fn mixed_static_and_runtime_value_slots_keep_telescope_order() {
-    let mut program = typed(
+    let mut program = typed_program(
         "machine pick<Skip: u32, Keep: u32>(base: u32) -> u32 { Keep + Skip }
          machine main(base: u32) -> u32 {
              let n: u32 = 5;
@@ -536,7 +524,7 @@ fn specialized_value_machine_writes_its_own_attached_data() {
     // program root. Validation must still resolve the clone's own machine
     // symbol so `self.x` is owned data the `&mut self` state may write.
     crate::lower_typed_trees(
-        typed(
+        typed_program(
             "data Main { x: u32; }
          machine Main::put<Count: u32>(&mut self, v: u32) { self.x = v; }
          machine Main::main(&mut self) { let n: u32 = 3; self.put<n>(10); }",
@@ -553,7 +541,7 @@ fn runtime_value_indexes_an_attached_array_field_under_requires() {
     // writes alike, after the source variable is reassigned to a new subject,
     // and for a second distinct subject sharing the one specialized body.
     crate::lower_typed_trees(
-        typed(
+        typed_program(
             "data Main { values: [u32; 8]; }
          machine Main::at<Count: u32>(&self) -> u32
          requires
@@ -584,7 +572,7 @@ fn runtime_value_index_without_a_bound_still_rejects() {
     // The carrier `u32` proves non-negativity but nothing proves `Count < 8`,
     // so the indexed read must still be refused.
     let error = crate::lower_typed_trees(
-        typed(
+        typed_program(
             "data Main { values: [u32; 8]; }
          machine Main::at<Count: u32>(&self) -> u32 { self.values[Count] }
          machine Main::main(&mut self) { let n: u32 = 3; let a: u32 = self.at<n>(); }",
@@ -606,7 +594,7 @@ fn generic_to_generic_requires_instantiates_against_the_forwarded_subject() {
     // so the instantiated obligation is `K <= 10` on `forward`'s own binder.
     // `forward`'s requires contract establishes that fact for every caller.
     crate::lower_typed_trees(
-        typed(
+        typed_program(
             "machine bounded<Count: u32>(base: u32) -> u32
          requires
              Count <= 10;
@@ -628,7 +616,7 @@ fn generic_to_generic_requires_still_owes_the_unestablished_fact() {
     // names the forwarded `K` subject — not the callee's `Count` binder and
     // not a literal — and nothing establishes it.
     let error = crate::lower_typed_trees(
-        typed(
+        typed_program(
             "machine bounded<Count: u32>(base: u32) -> u32
          requires
              Count <= 10;
@@ -656,7 +644,7 @@ fn runtime_value_subjects_reach_transition_targets_in_a_cloned_machine() {
     // realized subject as a trailing parameter on every cloned state, so a
     // `->` transition between them owes the target that appended subject
     // exactly as a rewritten call site does.
-    let mut program = typed(
+    let mut program = typed_program(
         "data Main { values: [u8; 8]; }
          machine Main::walk<Count: u8>(&mut self, n: u8) {
              transition n == 3 {
@@ -782,7 +770,7 @@ fn runtime_bound_result_range_discharges_through_checking() {
     // through the captured-argument binding. The authored total keeps its
     // declared carrier; the relation rides on the inferred temporary.
     crate::lower_typed_trees(
-        typed(
+        typed_program(
             "machine ranged<Bound: u64>() -> u64[0..=Bound] { Bound }
          machine main() -> u64 {
              let n: u64 = 7;
@@ -801,7 +789,7 @@ fn runtime_bound_result_range_still_rejects_an_unproven_subject() {
     // The same relation is enforced in the caller's scope: a bound naming
     // `n` does not admit a result captured against a different argument `m`.
     let diagnostics = crate::lower_typed_trees(
-        typed(
+        typed_program(
             "machine ranged<Bound: u64>() -> u64[0..=Bound] { Bound }
          machine main() -> u64 {
              let n: u64 = 7;

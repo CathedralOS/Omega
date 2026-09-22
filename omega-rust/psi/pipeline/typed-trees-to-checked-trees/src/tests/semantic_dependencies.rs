@@ -1,23 +1,11 @@
-use super::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees,
-    resolve,
-};
-use crate::CheckingRequest;
+use crate::tests::front_end::checked_program;
 use checked_trees::{
     CheckedSemanticDependencyExposure as Exposure, CheckedSemanticDependencyKind as Kind,
 };
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
-}
-
 #[test]
 fn retains_nominal_semantics_carried_through_a_nested_call_result() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Token { value: u64; }
         machine make() -> Token { Token { value: 7u64 } }
@@ -54,7 +42,7 @@ fn retains_nominal_semantics_carried_through_a_nested_call_result() {
 
 #[test]
 fn public_machine_head_promotes_carried_nominals_to_public_interface() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         pub data Token { value: u64; }
         pub machine make() -> Token { Token { value: 7u64 } }
@@ -93,7 +81,7 @@ fn public_machine_head_promotes_carried_nominals_to_public_interface() {
 
 #[test]
 fn retains_the_exact_compiler_selected_cleanup_machine() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         pub data Token { ready: bool; }
         machine Token::drop(&mut self) {}
@@ -142,7 +130,7 @@ fn retains_the_exact_compiler_selected_cleanup_machine() {
 
 #[test]
 fn unrelated_drop_spelling_cannot_supply_automatic_cleanup() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Token { ready: bool; }
         data Other { ready: bool; }

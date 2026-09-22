@@ -2,22 +2,10 @@
 //! scalar contract roster. The requires tail carries each range as a
 //! `FloatRange` clause in the same constraint order so the closed scalar
 //! vocabulary itself spells the authored IEEE window.
-use super::{
-    Lexer, ResolutionRequest, SymbolHandle, TypeReferenceNode, lower_symbol_resolved_trees,
-    parse_syntax_trees, resolve,
-};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
+use super::{SymbolHandle, TypeReferenceNode};
+use crate::tests::front_end::checked_program;
 use semantic_vocabulary::IeeeFloatValue;
 use typed_trees::types::PrimitiveType;
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
-}
 
 fn machine_named(checked: &checked_trees::CheckedTrees, name: &str) -> SymbolHandle {
     checked
@@ -43,7 +31,7 @@ fn contract_plan(
 
 #[test]
 fn exclusive_f64_entry_range_retains_authored_endpoint() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Metrics {}
         machine Metrics::accept(&self, value: f64[0.0..1.5]) -> f64 { value }
@@ -87,7 +75,7 @@ fn exclusive_f64_entry_range_retains_authored_endpoint() {
 
 #[test]
 fn inclusive_f64_entry_range_retains_boundary_kind() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Metrics {}
         machine Metrics::accept(&self, value: f64[0.0..=1.5]) -> f64 { value }
@@ -115,7 +103,7 @@ fn inclusive_f64_entry_range_retains_boundary_kind() {
 
 #[test]
 fn f32_entry_range_names_its_dense_scalar_position() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Carrier { raw: u64; }
         machine Carrier::accept(&self, flag: bool, value: f32[0.5..2.25], aux: Carrier) -> f32 { value }
@@ -145,7 +133,7 @@ fn f32_entry_range_names_its_dense_scalar_position() {
 
 #[test]
 fn integer_endpoints_convert_once_into_the_float_carrier() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Metrics {}
         machine Metrics::accept(&self, value: f64[0..2]) -> f64 { value }
@@ -173,7 +161,7 @@ fn integer_endpoints_convert_once_into_the_float_carrier() {
 
 #[test]
 fn machines_without_floating_ranges_have_an_empty_complete_roster() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Metrics {}
         machine Metrics::accept(&self, value: i32[0..100]) -> i32 { value }
@@ -197,7 +185,7 @@ fn machines_without_floating_ranges_have_an_empty_complete_roster() {
 
 #[test]
 fn corrupted_range_endpoint_loses_the_complete_roster() {
-    let mut checked = checked(
+    let mut checked = checked_program(
         r#"
         data Metrics {}
         machine Metrics::accept(&self, value: f64[0.0..1.5]) -> f64 { value }

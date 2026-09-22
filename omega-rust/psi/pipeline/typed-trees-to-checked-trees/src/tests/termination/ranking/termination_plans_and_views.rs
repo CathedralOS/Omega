@@ -1,8 +1,6 @@
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
-use crate::tests::termination::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
+use crate::tests::front_end::{checked_program_result, typed_program};
 
 /// TPR2 (decision 23): the normalized `MachineTerminationPlan` populates at
 /// the syntax->resolved lowering and copies -- never re-derives -- through
@@ -47,13 +45,7 @@ fn termination_plan_splits_guarantee_from_witness_with_elaborated_defaults() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
 
     let plan_of = |name: &str| {
         &typed
@@ -149,13 +141,7 @@ fn termination_plan_records_authored_views_verbatim() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
 
     let witness_of = |name: &str| {
         typed
@@ -200,13 +186,7 @@ fn recorded_view_divergence_is_loud() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let mut typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let mut typed = typed_program(source);
 
     let machine = typed
         .machines_mut()
@@ -265,13 +245,7 @@ fn accepts_increasing_cursor_via_bounded_argumented_view() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
 
     let witness = typed
         .machines()
@@ -314,15 +288,8 @@ fn rejects_unbounded_increasing_view_with_directed_message() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("the unbounded increasing view must be rejected");
+    let diagnostics =
+        checked_program_result(source).expect_err("the unbounded increasing view must be rejected");
 
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -374,15 +341,8 @@ fn rejects_view_argument_arity_misuse_with_directed_messages() {
     "#
         );
 
-        let tokens = Lexer::new(source.as_str())
-            .tokenize()
-            .expect("tokenize should succeed");
-        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved =
-            resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-        let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-            .expect_err("arity misuse must be rejected");
+        let diagnostics =
+            checked_program_result(&source).expect_err("arity misuse must be rejected");
         assert!(
             diagnostics
                 .iter()
@@ -418,13 +378,7 @@ fn rank_range_on_increasing_to_is_consumed_and_recorded() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
 
     let witness = typed
         .machines()
@@ -467,13 +421,7 @@ fn termination_checker_uses_normalized_witness_without_parallel_spans() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
 
     let machine = typed
         .machines()
@@ -537,15 +485,8 @@ fn rank_range_unverifiable_shapes_are_rejected_with_directed_messages() {
     "#
         );
 
-        let tokens = Lexer::new(source.as_str())
-            .tokenize()
-            .expect("tokenize should succeed");
-        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved =
-            resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-        let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-            .expect_err("an unverifiable range must be rejected");
+        let diagnostics =
+            checked_program_result(&source).expect_err("an unverifiable range must be rejected");
         assert!(
             diagnostics
                 .iter()

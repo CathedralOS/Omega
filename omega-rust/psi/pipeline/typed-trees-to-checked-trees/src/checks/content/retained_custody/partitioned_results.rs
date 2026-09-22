@@ -343,10 +343,7 @@ fn owned_input(
 #[cfg(test)]
 mod tests {
     use super::check_boundary_partition_results;
-    use source_files_to_tokens::Lexer;
-    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-    use tokens_to_syntax_trees::parse_syntax_trees;
+    use crate::tests::front_end::typed_program;
 
     #[test]
     fn partition_gate_checks_large_array_coverage_symbolically() {
@@ -368,10 +365,7 @@ mod tests {
                 machine split(whole: Region in Granted) -> Parts;
             }
         "#;
-        let tokens = Lexer::new(source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let program = lower_symbol_resolved_trees(&resolved).expect("type");
+        let program = typed_program(source);
         // Isolate this declaration gate from unrelated whole-checker passes:
         // the borrowed-lifetime frontier currently enumerates array elements.
         let mut facts = checked_trees::CheckFacts::default();

@@ -1,5 +1,6 @@
-use super::{lower_typed_trees, typed};
+use super::lower_typed_trees;
 use crate::CheckingRequest;
+use crate::tests::front_end::typed_program;
 
 const NAMED_QUOTIENT: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -7,7 +8,7 @@ const NAMED_QUOTIENT: &str = include_str!(concat!(
 ));
 
 fn accepts_named(source: &str) {
-    lower_typed_trees(typed(source), &CheckingRequest::settled())
+    lower_typed_trees(typed_program(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
 }
 
@@ -183,7 +184,8 @@ fn symbolic_division_endpoint_rechecks_formation_after_arrival() {
 }
 
 fn rejects_named(source: &str) {
-    let Err(diagnostics) = lower_typed_trees(typed(source), &CheckingRequest::settled()) else {
+    let Err(diagnostics) = lower_typed_trees(typed_program(source), &CheckingRequest::settled())
+    else {
         panic!("invalid rank range accepted:\n{source}");
     };
     assert!(
@@ -306,7 +308,7 @@ const COUNTDOWN: &str = include_str!(concat!(
 
 #[test]
 fn field_rank_accepts_bounded_arithmetic_over_pinned_inputs() {
-    lower_typed_trees(typed(COUNTDOWN), &CheckingRequest::settled())
+    lower_typed_trees(typed_program(COUNTDOWN), &CheckingRequest::settled())
         .expect("both ceiling inputs stay fixed");
     for endpoint in [
         "ceiling + 1",
@@ -315,7 +317,7 @@ fn field_rank_accepts_bounded_arithmetic_over_pinned_inputs() {
         "ceiling / 1 + padding",
     ] {
         lower_typed_trees(
-            typed(&COUNTDOWN.replace("ceiling + padding;", &format!("{endpoint};"))),
+            typed_program(&COUNTDOWN.replace("ceiling + padding;", &format!("{endpoint};"))),
             &CheckingRequest::settled(),
         )
         .expect(endpoint);
@@ -323,7 +325,7 @@ fn field_rank_accepts_bounded_arithmetic_over_pinned_inputs() {
     let remainder = COUNTDOWN
         .replace("ceiling: u64 [5..=10]", "ceiling: u64")
         .replace("ceiling + padding;", "ceiling % 5 + 6;");
-    lower_typed_trees(typed(&remainder), &CheckingRequest::settled())
+    lower_typed_trees(typed_program(&remainder), &CheckingRequest::settled())
         .expect("the result is bounded even when its input exceeds i64");
 }
 
@@ -331,8 +333,9 @@ fn field_rank_accepts_bounded_arithmetic_over_pinned_inputs() {
 fn computed_rank_endpoint_requires_every_input_to_stay_pinned() {
     for arguments in ["5, padding)", "ceiling, 1)"] {
         let source = COUNTDOWN.replace("ceiling, padding)", arguments);
-        let diagnostics = crate::checks::termination::check_machine_termination(&typed(&source))
-            .expect_err("each endpoint input has independent pinning");
+        let diagnostics =
+            crate::checks::termination::check_machine_termination(&typed_program(&source))
+                .expect_err("each endpoint input has independent pinning");
         assert!(
             diagnostics.iter().any(|diagnostic| {
                 diagnostic
@@ -353,16 +356,16 @@ fn computed_rank_endpoint_does_not_hide_partial_or_authored_arithmetic() {
         "ceiling + 18446744073709551615u64",
     ] {
         let source = COUNTDOWN.replace("ceiling + padding;", &format!("{endpoint};"));
-        crate::checks::termination::check_machine_termination(&typed(&source))
+        crate::checks::termination::check_machine_termination(&typed_program(&source))
             .expect_err("every endpoint operation needs defined and representable bounds");
     }
     let authored = format!("operator + u64::sum(left: u64, right: u64) -> u64; {COUNTDOWN}");
-    crate::checks::termination::check_machine_termination(&typed(&authored))
+    crate::checks::termination::check_machine_termination(&typed_program(&authored))
         .expect_err("authored addition cannot inherit builtin interval laws");
     let hidden_overflow = COUNTDOWN
         .replace("ceiling: u64 [5..=10]", "ceiling: u64")
         .replace("ceiling + padding;", "(ceiling + 1) % 5 + 6;");
-    crate::checks::termination::check_machine_termination(&typed(&hidden_overflow))
+    crate::checks::termination::check_machine_termination(&typed_program(&hidden_overflow))
         .expect_err("a small final endpoint cannot hide an overflowing intermediate");
 }
 
@@ -370,13 +373,14 @@ fn computed_rank_endpoint_does_not_hide_partial_or_authored_arithmetic() {
 fn constant_rank_endpoints_preserve_landing_and_rational_meaning() {
     for endpoint in ["255u8 + 1u8", "6 + 1 / 2", "12 % 7", "6u8 + 1u64"] {
         let source = COUNTDOWN.replace("ceiling + padding;", &format!("{endpoint};"));
-        crate::checks::termination::check_machine_termination(&typed(&source)).expect_err(endpoint);
+        crate::checks::termination::check_machine_termination(&typed_program(&source))
+            .expect_err(endpoint);
     }
     let changed_floor = COUNTDOWN.replace("0..ceiling + padding", "(1 / 2 * 2)..6");
-    crate::checks::termination::check_machine_termination(&typed(&changed_floor))
+    crate::checks::termination::check_machine_termination(&typed_program(&changed_floor))
         .expect_err("the exact rational floor is one, not zero");
     for endpoint in ["1 / 2 * 12", "6u8 + 1u8", "ceiling + (1 / 2 * 2)"] {
         let source = COUNTDOWN.replace("ceiling + padding;", &format!("{endpoint};"));
-        lower_typed_trees(typed(&source), &CheckingRequest::settled()).expect(endpoint);
+        lower_typed_trees(typed_program(&source), &CheckingRequest::settled()).expect(endpoint);
     }
 }

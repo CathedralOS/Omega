@@ -1,23 +1,8 @@
-use super::{
-    AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget, Lexer, ResolutionRequest,
-    lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
+use super::{AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget};
+use crate::tests::front_end::checked_program;
 use checked_trees::CheckedTrees;
 use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
-
-fn check_source(source: &str) -> CheckedTrees {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize attached fields");
-    let syntax = parse_syntax_trees(&tokens).expect("parse attached fields");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve attached fields");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type attached fields");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("bare attached fields complete checking")
-}
 
 fn field_symbol(program: &CheckedTrees, owner: &str, name: &str) -> SymbolHandle {
     let definition = program
@@ -85,21 +70,21 @@ fn receiver_source(receiver: &str, body: &str) -> String {
 #[test]
 fn bare_nested_store_through_mutable_self_selects_exact_field() {
     let source = receiver_source("&mut self", "inner.value = 17;");
-    let checked = check_source(&source);
+    let checked = checked_program(&source);
     assert_field_selections(&checked, &source, &[("inner.value", "Inner", "value")]);
 }
 
 #[test]
 fn bare_nested_store_through_write_only_self_selects_exact_field() {
     let source = receiver_source("&write self", "inner.value = 17;");
-    let checked = check_source(&source);
+    let checked = checked_program(&source);
     assert_field_selections(&checked, &source, &[("inner.value", "Inner", "value")]);
 }
 
 #[test]
 fn bare_nested_read_through_shared_self_selects_exact_field() {
     let source = receiver_source("&self", "let observed: u16 = inner.value;");
-    let checked = check_source(&source);
+    let checked = checked_program(&source);
     assert_field_selections(&checked, &source, &[("inner.value", "Inner", "value")]);
 }
 
@@ -107,7 +92,7 @@ fn bare_nested_read_through_shared_self_selects_exact_field() {
 fn bare_literal_indexed_nested_store_selects_exact_array_field() {
     for receiver in ["&mut self", "&write self"] {
         let source = receiver_source(receiver, "inner.values[1] = 17;");
-        let checked = check_source(&source);
+        let checked = checked_program(&source);
         assert_field_selections(&checked, &source, &[("inner.values", "Inner", "values")]);
     }
 }
@@ -123,7 +108,7 @@ fn same_spelled_bare_nested_fields_select_each_exact_owner() {
             let second_value: u16 = second.value;
         }
     "#;
-    let checked = check_source(source);
+    let checked = checked_program(source);
     assert_ne!(
         field_symbol(&checked, "First", "value"),
         field_symbol(&checked, "Second", "value")

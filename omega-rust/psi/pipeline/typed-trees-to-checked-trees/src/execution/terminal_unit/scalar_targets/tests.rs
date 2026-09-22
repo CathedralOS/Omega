@@ -4,6 +4,7 @@ use super::super::{
 use super::{CheckedUnitEffectOperationPlan, PrimitiveType, SymbolHandle};
 use crate::execution::terminal_unit::scalar_targets::is_available;
 use crate::execution::terminal_unit::scalar_targets::registered_structural_graph_target;
+use crate::tests::front_end::checked_program_result;
 
 const SOURCE: &str = r#"
 machine stamp(value: &mut u64, number: u64) -> u64 { value = number; number }
@@ -89,17 +90,7 @@ fn ordered_array_locals_retain_conditional_scalar_completion() {
 }
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+    checked_program_result(source)
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
 }
 

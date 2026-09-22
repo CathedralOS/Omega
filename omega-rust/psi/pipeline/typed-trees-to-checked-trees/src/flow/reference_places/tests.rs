@@ -1,6 +1,7 @@
 use super::{FlowCallFact, FlowFacts, FlowStateFact, PlaceRoot, StatementNode};
 use crate::flow::CanonicalPlace;
 use crate::flow::reference_places::{preserve_call_prefix_storage, preserve_frame};
+use crate::tests::front_end::typed_program;
 use facts::{NormalizedWriteFrame, PlaceSegment};
 
 #[test]
@@ -11,16 +12,7 @@ fn operand_frames_must_preserve_both_binding_and_referent() {
             let mut borrowed: &Context = &context;
             transition { _ -> observe(borrowed.scheduler) }
         }";
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let program = typed_program(source);
     let machine = program
         .machines()
         .iter()
@@ -112,16 +104,7 @@ fn call_prefix_bound_replays_from_recorded_call_identity() {
             let mut borrowed: &Context = &context;
             transition { _ -> observe(borrowed.scheduler) }
         }";
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let program = typed_program(source);
     let machine = program
         .machines()
         .iter()
@@ -188,16 +171,7 @@ fn call_prefix_bound_declines_ambiguous_recorded_identity() {
         machine probe(context: u64) -> u64 {
             transition { _ -> observe(context) }
         }";
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let program = typed_program(source);
     let machine = program
         .machines()
         .iter()

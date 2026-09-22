@@ -5,10 +5,7 @@
 //! only carrier of the identity, and a restatement under another index is a
 //! distinct normalized instance exactly as it is when the source is a
 //! declared field.
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
+use crate::tests::front_end::checked_program_result;
 
 fn check(source: &str, accepted: bool) {
     check_rejecting(
@@ -24,11 +21,7 @@ fn check(source: &str, accepted: bool) {
 /// Lower `source`, then require acceptance or one diagnostic carrying every
 /// listed fragment.
 fn check_rejecting(source: &str, accepted: bool, fragments: &[&str]) {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    match crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()) {
+    match checked_program_result(source) {
         Ok(_) => assert!(accepted, "restatement accepted:\n{source}"),
         Err(diagnostics) => {
             assert!(!accepted, "{diagnostics:#?}\n{source}");

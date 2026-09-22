@@ -1,17 +1,4 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
-
-fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize operator crash fixture");
-    let syntax = parse_syntax_trees(&tokens).expect("parse operator crash fixture");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve operator crash fixture");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type operator crash fixture");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-}
+use crate::tests::front_end::checked_program_result;
 
 #[test]
 fn selected_expression_operator_cannot_drop_its_crash_contract() {
@@ -26,7 +13,7 @@ fn selected_expression_operator_cannot_drop_its_crash_contract() {
                 "boundary operator == Comparison::equal(left: {format}, right: {format}) -> bool {operator_contract};
                  pub machine compare(left: {format}, right: {format}) -> bool {caller_contract} {{ left == right }}"
             );
-            let diagnostics = check(&source).err().unwrap_or_else(|| {
+            let diagnostics = checked_program_result(&source).err().unwrap_or_else(|| {
                 panic!("selected operator crash contract disappeared: {source}")
             });
             assert!(
@@ -42,7 +29,7 @@ fn selected_expression_operator_cannot_drop_its_crash_contract() {
 #[test]
 fn crash_free_expression_operator_remains_accepted() {
     for format in ["i32", "f32", "f64"] {
-        check(&format!(
+        checked_program_result(&format!(
             "boundary operator == Comparison::equal(left: {format}, right: {format}) -> bool;
              machine compare(left: {format}, right: {format}) -> bool {{ left == right }}"
         ))
@@ -52,7 +39,7 @@ fn crash_free_expression_operator_remains_accepted() {
 
 #[test]
 fn unselected_crash_qualified_overload_does_not_create_an_invocation() {
-    check(
+    checked_program_result(
         "boundary operator == Float::equal(left: f32, right: f32) -> bool crashes Trap;
          boundary operator == Float::equal(left: f64, right: f64) -> bool;
          machine compare(left: f64, right: f64) -> bool { left == right }
@@ -73,7 +60,7 @@ fn named_call_to_crash_qualified_operator_cannot_drop_its_contract() {
             "boundary operator == Comparison::equal(left: i32, right: i32) -> bool {operator_contract};
              pub machine compare(left: i32, right: i32) -> bool {caller_contract} {{ Comparison::equal(left, right) }}"
         );
-        let diagnostics = check(&source)
+        let diagnostics = checked_program_result(&source)
             .err()
             .unwrap_or_else(|| panic!("named operator crash contract disappeared: {source}"));
         assert!(
@@ -87,7 +74,7 @@ fn named_call_to_crash_qualified_operator_cannot_drop_its_contract() {
 
 #[test]
 fn covered_named_call_retains_an_exact_named_crash_site() {
-    let checked = check(
+    let checked = checked_program_result(
         "boundary operator == Comparison::equal(left: i32, right: i32) -> bool crashes Trap;
          pub machine compare(left: i32, right: i32) -> bool crashes Trap { Comparison::equal(left, right) }",
     )
@@ -122,7 +109,7 @@ fn covered_named_call_retains_an_exact_named_crash_site() {
 #[test]
 fn named_call_crash_site_substitutes_exact_entry_operands() {
     for (guard, accepted) in [("right < 0", true), ("left < 0", false)] {
-        let checked = check(&format!(
+        let checked = checked_program_result(&format!(
             "boundary operator == Comparison::equal(left: i32, right: i32) -> bool
              crashes Trap left < 0;
              pub machine compare(left: i32, right: i32) -> bool crashes Trap {guard} {{

@@ -3,23 +3,14 @@
 //! dense-namespace scalars — while a selected floating computation still
 //! refuses locally because it must retain its own operation and call
 //! correspondence.
+use crate::tests::front_end::checked_program;
 use checked_trees::{
     CheckedScalarExpression, CheckedStructuralScalarFieldStoreDestination,
     CheckedStructuralScalarFieldStoreValue, CheckedUnitEffectOperationPlan,
 };
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap()
+    checked_program(source)
 }
 
 fn enter_store(source: &str) -> checked_trees::CheckedStructuralScalarFieldStorePlan {

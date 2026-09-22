@@ -5,6 +5,7 @@ use super::super::{
 use crate::CheckingRequest;
 use crate::borrow::build_borrow_facts;
 use crate::lower_typed_trees;
+use crate::tests::front_end::typed_program;
 use crate::tests::mutable_borrow;
 
 #[test]
@@ -45,16 +46,7 @@ fn collects_exact_write_only_argument_access_kind() {
         }
     "#;
 
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
 
     let facts = build_borrow_facts(&typed);
     let call = facts
@@ -79,16 +71,7 @@ fn shared_borrow_argument_remains_read_only_through_checked_call_admission() {
         }
     "#;
 
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
 
     let facts = build_borrow_facts(&typed);
     let call = facts
@@ -372,16 +355,7 @@ fn collects_mutable_local_borrow_loans() {
         }
     "#;
 
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
 
     let facts = build_borrow_facts(&typed);
     let borrow_state = facts.states.iter().next().map(|(_, state)| state).unwrap();
@@ -410,16 +384,7 @@ fn collects_helper_returned_mutable_local_borrow_loans() {
         }
     "#;
 
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
 
     let facts = build_borrow_facts(&typed);
     let borrow_state = facts.states.iter().next().map(|(_, state)| state).unwrap();
@@ -445,16 +410,7 @@ fn groups_borrow_carrying_owner_paths_in_the_shared_arena() {
         }
     "#;
 
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
 
     let body_symbol = typed
         .data_definitions()

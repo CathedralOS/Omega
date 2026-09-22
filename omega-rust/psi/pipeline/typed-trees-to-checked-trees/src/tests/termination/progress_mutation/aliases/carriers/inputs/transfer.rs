@@ -1,6 +1,4 @@
-use super::super::super::super::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
+use crate::tests::front_end::{checked_program_result, typed_program};
 
 use super::fixture_source;
 use crate::CheckingRequest;
@@ -87,12 +85,8 @@ fn an_input_reference_does_not_prove_a_missing_qualification() {
     );
     assert_input_subject(&check_source(&source));
     let missing = source.replace("requires carrier.context.scheduler in WeakFair", "");
-    let tokens = Lexer::new(&missing).tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("identity cannot mint a qualification");
+    let diagnostics =
+        checked_program_result(&missing).expect_err("identity cannot mint a qualification");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -144,7 +138,7 @@ fn earlier_operand_writes_must_preserve_the_input_referents_qualification() {
         if preserved {
             assert_input_subject(&check_source(&source));
         } else {
-            let typed = super::exposure::typed_source(&source);
+            let typed = typed_program(&source);
             let Err(diagnostics) = lower_typed_trees(typed, &CheckingRequest::settled()) else {
                 panic!("overlapping write must retire the old qualification");
             };

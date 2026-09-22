@@ -1,7 +1,7 @@
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
-use crate::tests::parse_typed_trees_with_core_service;
+use crate::tests::front_end::typed_program_with_core_service;
 
 #[test]
 fn output_predicates_survive_read_only_boundary_arguments() {
@@ -20,7 +20,7 @@ fn output_predicates_survive_read_only_boundary_arguments() {
         // The `Service<Console>` receiver needs the same fused-service
         // erasure authorizations `settle_checked_providers` binds in real
         // builds; without them the carrier parameter stays unshaped.
-        let mut typed = parse_typed_trees_with_core_service(&source);
+        let mut typed = typed_program_with_core_service(&source);
         crate::tests::bind_fixture_fused_service_erasures(&mut typed);
         lower_typed_trees(typed, &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{receiver}: {diagnostics:#?}"));

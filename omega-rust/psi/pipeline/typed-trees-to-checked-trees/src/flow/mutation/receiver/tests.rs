@@ -1,6 +1,7 @@
 use super::canonical_receiver_place_for_call_site;
 use crate::flow::canonical_place_from_symbol;
 use crate::semantic_calls::{CallSite, find_call_site};
+use crate::tests::front_end::typed_program;
 
 /// `carrier.context.increment_counter()` is a projected statement receiver:
 /// `receiver_root_symbol` names the `carrier` parameter and `receiver_symbol`
@@ -20,17 +21,7 @@ const SOURCE: &str = "data Context { counter: u64; }
     }";
 
 fn typed(source: &str) -> typed_trees::TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize receiver fixture");
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse receiver fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve receiver fixture");
-    let mut program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type receiver fixture");
+    let mut program = typed_program(source);
     crate::lookup::resolve_projected_receiver_calls(&mut program)
         .expect("projected receivers resolve");
     program

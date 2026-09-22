@@ -1,14 +1,11 @@
 use super::{publish_conditional_claim_joins, validate_conditional_claim_joins};
 use crate::checks::multiplicity::linear_validation::permission_event_statement_index;
+use crate::tests::front_end::checked_program_result;
 use arena::HandleSpan;
 use checked_trees::{FlowClaimJoinAlternativeSource, FlowClaimJoinExitKind};
 use diagnostics::Diagnostic;
 use facts::PlaceRoot;
 use language_semantics::{PermissionEventKind, PermissionEventSource, PermissionProvenance};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 const CHOICE: &str = r#"
 data Receipt [linear] { code: i32; }
@@ -34,11 +31,7 @@ machine consume(flag: bool, left: Receipt, right: Receipt) {
 "#;
 
 fn lower(source: &str) -> Result<checked_trees::CheckedTrees, Vec<Diagnostic>> {
-    let tokens = Lexer::new(source).tokenize().expect("tokens");
-    let syntax = parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolved");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typed");
-    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+    checked_program_result(source)
 }
 
 const OPTIONAL_INPUT: &str = r#"

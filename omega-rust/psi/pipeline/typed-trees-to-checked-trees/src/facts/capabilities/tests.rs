@@ -2,17 +2,11 @@
 
 use super::{CapabilityFlowKind, CapabilityFlowPlan, SymbolHandle, TypedTrees};
 use crate::facts::build_capability_facts;
+use crate::tests::front_end::typed_program;
 use checked_trees::FlowFacts;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 fn capability_plan(source: &str) -> (TypedTrees, CapabilityFlowPlan) {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
     let operations = validation::infer_operational_may(&typed);
     let service_reaches = validation::infer_service_reaches(&typed, &operations);
     // Capability-flow verbs derive from normalized call topology,

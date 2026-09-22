@@ -853,14 +853,12 @@ fn unique_claim(
 #[cfg(test)]
 mod tests {
     use super::check_call_result_qualifications;
+    use crate::tests::front_end::{checked_program, checked_program_result};
     use checked_trees::CheckedTrees;
     use facts::{FactOrigin, FactPayload, FactPlace, PlaceRoot, PlaceSegment, ProgramPoint};
     use language_semantics::{
         PermissionAccess, PermissionEventKind, PermissionEventSource, QualificationEvidenceOrigin,
     };
-    use source_files_to_tokens::Lexer;
-    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-    use tokens_to_syntax_trees::parse_syntax_trees;
 
     fn fixture(requires_only: bool) -> CheckedTrees {
         let source = r#"
@@ -906,16 +904,7 @@ mod tests {
                 ""
             },
         );
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize replay fixture");
-        let syntax =
-            tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse replay fixture");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve replay fixture");
-        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("type replay fixture");
-        let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
-            .expect("check original replay fixture");
+        let checked = checked_program(&source);
         assert_replay(&checked, true);
         checked
     }
@@ -1065,16 +1054,7 @@ mod tests {
                 provider.grant(raw)
             }
         "#;
-        let tokens = Lexer::new(source)
-            .tokenize()
-            .expect("tokenize issuance fixture");
-        let syntax =
-            tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse issuance fixture");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve issuance fixture");
-        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("type issuance fixture");
-        let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
-            .expect("check issuance fixture");
+        let checked = checked_program(source);
         assert_replay(&checked, true);
         checked
     }
@@ -1175,15 +1155,7 @@ mod tests {
                 provider.mint(raw)
             }
         "#;
-        let tokens = Lexer::new(source)
-            .tokenize()
-            .expect("tokenize sibling-route fixture");
-        let syntax = parse_syntax_trees(&tokens).expect("parse sibling-route fixture");
-        let resolved =
-            resolve(ResolutionRequest::new(&syntax)).expect("resolve sibling-route fixture");
-        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("type sibling-route fixture");
-        let error = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+        let error = checked_program_result(source)
             .expect_err("an unnamed sibling requirement cannot mint the routed domain");
         assert!(
             error.iter().any(|diagnostic| diagnostic
@@ -1217,14 +1189,7 @@ mod tests {
                 provider.grant(held)
             }
         "#;
-        let tokens = Lexer::new(source)
-            .tokenize()
-            .expect("tokenize launder fixture");
-        let syntax = parse_syntax_trees(&tokens).expect("parse launder fixture");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve launder fixture");
-        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("type launder fixture");
-        let error = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+        let error = checked_program_result(source)
             .expect_err("transferred input must not mint fresh supply");
         assert!(
             error.iter().any(|diagnostic| diagnostic
@@ -1261,15 +1226,7 @@ mod tests {
                 forwarded
             }
         "#;
-        let tokens = Lexer::new(source)
-            .tokenize()
-            .expect("tokenize relay fixture");
-        let syntax = parse_syntax_trees(&tokens).expect("parse relay fixture");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve relay fixture");
-        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("type relay fixture");
-        crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
-            .expect("declared forwarding stays admissible through the transfer route");
+        checked_program(source);
     }
 
     #[test]
@@ -1289,19 +1246,7 @@ mod tests {
                 value
             }
         "#;
-        let check = |source: &str| {
-            let tokens = Lexer::new(source)
-                .tokenize()
-                .expect("tokenize authority control");
-            let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
-                .expect("parse authority control");
-            let resolved =
-                resolve(ResolutionRequest::new(&syntax)).expect("resolve authority control");
-            let typed =
-                symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-                    .expect("type authority control");
-            crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
-        };
+        let check = |source: &str| checked_program_result(source);
         let authorized = source
             .replace("provider: &Other", "provider: &Allowed")
             .replace("reaches Other", "reaches Allowed");

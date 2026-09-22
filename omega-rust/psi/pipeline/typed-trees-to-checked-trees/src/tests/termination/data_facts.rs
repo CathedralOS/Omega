@@ -1,4 +1,4 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::tests::front_end::typed_program;
 /// R2 rung 2 slice 2: the admitted zero-satisfying default-domain facts
 /// travel to the TYPED data definition -- rung 3's consumer substrate.
 #[test]
@@ -17,13 +17,7 @@ fn data_where_facts_propagate_to_typed() {
     machine Main::main(&mut self) -> u64 { 7 }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
 
     let ledger = typed
         .data_definitions()

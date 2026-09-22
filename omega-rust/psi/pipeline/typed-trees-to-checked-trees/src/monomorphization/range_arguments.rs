@@ -210,28 +210,16 @@ pub(super) fn collect_binders(
 
 #[cfg(test)]
 mod tests {
-    use super::{TypeConstraintNode, TypeParameterKind, TypedTrees, closed_integer_range_bound};
+    use super::{TypeConstraintNode, TypeParameterKind, closed_integer_range_bound};
     use crate::monomorphization::range_arguments::declared_range;
     use crate::monomorphization::range_arguments::infer;
+    use crate::tests::front_end::typed_program;
     use numerics::arithmetic::ArithmeticDomain;
     use typed_trees::types::TypeReferenceNode;
 
-    fn typed(source: &str) -> TypedTrees {
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .expect("range tokens");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("range syntax");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("range symbols");
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("range types")
-    }
-
     #[test]
     fn open_symbolic_endpoint_binds_the_caller_binder_until_it_specializes() {
-        let mut program = typed(
+        let mut program = typed_program(
             "machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
              machine forward<const K: u64>(v: u64[0..=K]) -> u64 { upper_bound(v) }
              machine caller(v: u64[0..=256]) -> u64 { forward<256>(v) }",
@@ -266,7 +254,7 @@ mod tests {
 
     #[test]
     fn open_exclusive_symbolic_endpoint_binds_the_caller_binder() {
-        let mut program = typed(
+        let mut program = typed_program(
             "machine upper_bound<const N: u64>(value: u64[0..N]) -> u64 { N }
              machine forward<const K: u64>(v: u64[0..K]) -> u64 { upper_bound(v) }
              machine caller(v: u64[0..256]) -> u64 { forward<256>(v) }",
@@ -289,7 +277,7 @@ mod tests {
 
     #[test]
     fn mixed_inclusion_open_endpoint_records_no_equation() {
-        let mut program = typed(
+        let mut program = typed_program(
             "machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
              machine forward<const K: u64>(v: u64[0..K]) -> u64 { upper_bound(v) }",
         );
@@ -339,19 +327,8 @@ mod tests {
 
     #[test]
     fn declared_range_keeps_full_width_endpoints_and_rejects_ambiguous_shells() {
-        let tokens = source_files_to_tokens::Lexer::new(
-            "machine value(input: u64[0..=18446744073709551615]) -> u64 { input }",
-        )
-        .tokenize()
-        .expect("range tokens");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("range syntax");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("range symbols");
         let mut program =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-                .expect("range types");
+            typed_program("machine value(input: u64[0..=18446744073709551615]) -> u64 { input }");
         let (range, _, constraints) = program
             .type_reference_table
             .constrained_type_reference_sites()[0];
@@ -386,7 +363,7 @@ mod tests {
         // The endpoint expression `K + 1` cannot close while `K` is a binder:
         // the occurrence defers, and `forward<6>`'s clone re-infers `6 + 1`
         // against `0..=N` once its parameter substitutes.
-        let mut program = typed(
+        let mut program = typed_program(
             "machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
              machine forward<const K: u64>(v: u64[0..=K + 1]) -> u64 { upper_bound(v) }
              machine caller(v: u64[0..=7]) -> u64 { forward<6>(v) }",
@@ -423,7 +400,7 @@ mod tests {
     fn compound_endpoint_never_selects_an_unrelated_closed_value() {
         // Binding `N` to the expression `K + 1` is the only admitted outcome;
         // an unresolved occurrence must not land as a placeholder literal.
-        let mut program = typed(
+        let mut program = typed_program(
             "machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
              machine forward<const K: u64>(v: u64[0..=K + 1]) -> u64 { upper_bound(v) }
              machine caller(v: u64[0..=9]) -> u64 { forward<8>(v) }",

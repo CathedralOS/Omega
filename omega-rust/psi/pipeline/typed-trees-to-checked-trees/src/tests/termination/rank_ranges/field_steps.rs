@@ -1,5 +1,6 @@
-use super::{lower_typed_trees, typed};
+use super::lower_typed_trees;
 use crate::CheckingRequest;
+use crate::tests::front_end::typed_program;
 
 const COUNTDOWN: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -15,22 +16,22 @@ fn field_rank_accepts_positive_batch_sizes_and_equivalent_guard_polarities() {
         "(countdown.remaining >= amount) == true",
     ] {
         let source = COUNTDOWN.replace("countdown.remaining >= amount", guard);
-        lower_typed_trees(typed(&source), &CheckingRequest::settled()).expect(guard);
+        lower_typed_trees(typed_program(&source), &CheckingRequest::settled()).expect(guard);
     }
     lower_typed_trees(
-        typed(&COUNTDOWN.replace("}, amount)", "}, 1)")),
+        typed_program(&COUNTDOWN.replace("}, amount)", "}, 1)")),
         &CheckingRequest::settled(),
     )
     .expect("batch sizes may change while remaining positive at every arrival");
     let computed = COUNTDOWN
         .replace("remaining >= amount", "remaining >= amount + 1")
         .replace("remaining - amount", "remaining - (amount + 1)");
-    lower_typed_trees(typed(&computed), &CheckingRequest::settled())
+    lower_typed_trees(typed_program(&computed), &CheckingRequest::settled())
         .expect("computed positive step");
     let literal = COUNTDOWN
         .replace("remaining >= amount", "remaining >= 2")
         .replace("remaining - amount", "remaining - 2");
-    lower_typed_trees(typed(&literal), &CheckingRequest::settled())
+    lower_typed_trees(typed_program(&literal), &CheckingRequest::settled())
         .expect("literal batches larger than one");
 }
 
@@ -50,7 +51,7 @@ fn batch_descent_requires_the_exact_subject_and_reconstructed_owner() {
             COUNTDOWN.replace("walk(Countdown {", "walk(Other {")
         ),
     ] {
-        crate::checks::termination::check_machine_termination(&typed(&source))
+        crate::checks::termination::check_machine_termination(&typed_program(&source))
             .expect_err("another value or nominal owner cannot supply descent");
     }
 }
@@ -61,13 +62,13 @@ fn batch_descent_checks_each_recursive_branch() {
         "    transition countdown.remaining >= amount {",
         "    transition countdown.remaining >= 3 {\n        true -> walk(Countdown { remaining: countdown.remaining - 3 }, amount)\n    }\n    transition countdown.remaining >= amount {",
     );
-    lower_typed_trees(typed(&source), &CheckingRequest::settled())
+    lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
         .expect("both recursive branches decrease");
     for unchanged in [
         source.replace("remaining - 3", "remaining"),
         source.replace("remaining - amount", "remaining"),
     ] {
-        crate::checks::termination::check_machine_termination(&typed(&unchanged))
+        crate::checks::termination::check_machine_termination(&typed_program(&unchanged))
             .expect_err("one descending branch cannot cover the other");
     }
 }
@@ -85,7 +86,8 @@ fn field_rank_rejects_zero_steps_weak_guards_and_non_decreasing_continuations() 
             "false -> walk(countdown, amount)",
         ),
     ] {
-        crate::checks::termination::check_machine_termination(&typed(&source)).expect_err(&source);
+        crate::checks::termination::check_machine_termination(&typed_program(&source))
+            .expect_err(&source);
     }
 }
 
@@ -93,13 +95,14 @@ fn field_rank_rejects_zero_steps_weak_guards_and_non_decreasing_continuations() 
 fn batch_descent_requires_preserved_inputs_and_builtin_operations() {
     for prefix in ["amount = 0;", "countdown.remaining = 5;"] {
         let source = COUNTDOWN.replace("    transition", &format!("    {prefix}\n    transition"));
-        crate::checks::termination::check_machine_termination(&typed(&source)).expect_err(prefix);
+        crate::checks::termination::check_machine_termination(&typed_program(&source))
+            .expect_err(prefix);
     }
     for declaration in [
         "operator >= u64::compare(left: u64, right: u64) -> bool;",
         "operator - u64::subtract(left: u64, right: u64) -> u64;",
     ] {
-        crate::checks::termination::check_machine_termination(&typed(&format!(
+        crate::checks::termination::check_machine_termination(&typed_program(&format!(
             "{declaration} {COUNTDOWN}"
         )))
         .expect_err(declaration);
@@ -108,7 +111,7 @@ fn batch_descent_requires_preserved_inputs_and_builtin_operations() {
         "countdown.remaining >= amount",
         "(countdown.remaining >= amount) == true",
     );
-    crate::checks::termination::check_machine_termination(&typed(&format!(
+    crate::checks::termination::check_machine_termination(&typed_program(&format!(
         "operator == bool::compare(left: bool, right: bool) -> bool; {wrapped}"
     )))
     .expect_err("an authored Boolean wrapper is not builtin comparison evidence");
@@ -128,7 +131,7 @@ fn batch_descent_rejects_alias_writes_in_prefix_and_edge_operands() {
             .replace("remaining: u64 [0..=5];", "remaining: u64 [0..=5]; other: u64;")
             .replace("remaining - amount }", "remaining - amount, other: reset(&mut countdown.remaining) }"),
     ] {
-        crate::checks::termination::check_machine_termination(&typed(&format!("{helper} {source}")))
+        crate::checks::termination::check_machine_termination(&typed_program(&format!("{helper} {source}")))
             .expect_err("operand and alias writes cannot preserve the rank snapshot");
     }
 }
@@ -136,6 +139,6 @@ fn batch_descent_rejects_alias_writes_in_prefix_and_edge_operands() {
 #[test]
 fn full_checking_rejects_an_incompatible_step_carrier() {
     let source = COUNTDOWN.replace("amount: u64 [1..=2]", "amount: i32 [1..=2]");
-    lower_typed_trees(typed(&source), &CheckingRequest::settled())
+    lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
         .expect_err("positive bounds do not establish carrier compatibility");
 }

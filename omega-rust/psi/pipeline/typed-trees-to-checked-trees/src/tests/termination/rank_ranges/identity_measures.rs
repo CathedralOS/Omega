@@ -1,5 +1,6 @@
-use super::{lower_typed_trees, typed};
+use super::lower_typed_trees;
 use crate::CheckingRequest;
+use crate::tests::front_end::typed_program;
 
 const COUNTDOWN: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -59,7 +60,7 @@ fn identity_measure_carrier_matching_does_not_widen_or_discharge_qualifications(
 #[test]
 fn scalar_measure_subject_uses_its_exact_state_parameter_not_its_spelling() {
     let source = COUNTDOWN.replace("u64", "u32");
-    let program = typed(&source);
+    let program = typed_program(&source);
     let machine = &program.machines()[0];
     let subject = typed_trees::ranking::resolve_machine_witness_subjects(&program, machine)
         .expect("retained ranking subject")[0];
@@ -108,7 +109,7 @@ fn unsigned_identity_views_do_not_authorize_custom_arithmetic_meaning() {
 }
 
 fn prove(source: &str) {
-    let program = typed(source);
+    let program = typed_program(source);
     assert!(typed_trees::visibility::requires_declaration_visibility(
         symbols::SymbolKind::Measure
     ));
@@ -136,7 +137,7 @@ fn prove(source: &str) {
 }
 
 fn reject(source: &str) {
-    let program = typed(source);
+    let program = typed_program(source);
     crate::checks::termination::check_machine_termination(&program)
         .expect_err("the authored measure still owes range and descent proofs");
     assert!(lower_typed_trees(program, &CheckingRequest::settled()).is_err());
@@ -231,7 +232,7 @@ fn duplicate_view_paths_do_not_select_the_first_supported_measure() {
 #[test]
 fn same_spelling_or_invalid_handles_cannot_replace_the_measure_binder() {
     let source = COUNTDOWN.replace("remaining", "value");
-    let program = typed(&source);
+    let program = typed_program(&source);
     let machine = &program.machines()[0];
     let state = &program.machine_states(machine)[0];
     let foreign_parameter = program.state_parameters(state)[0].symbol;

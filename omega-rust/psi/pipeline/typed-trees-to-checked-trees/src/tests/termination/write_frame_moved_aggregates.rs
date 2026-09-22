@@ -1,6 +1,6 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::typed_program;
 
 fn moved_aggregate_program(body: &str, scalar: &str) -> typed_trees::TypedTrees {
     let source = format!(
@@ -26,10 +26,7 @@ fn moved_aggregate_program(body: &str, scalar: &str) -> typed_trees::TypedTrees 
         machine Main::foreign(&mut self) {{ let first: View = View {{ body: &mut self.other }}; }}
         "#
     );
-    let syntax =
-        parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
+    typed_program(&source)
 }
 
 #[test]

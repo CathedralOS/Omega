@@ -1,5 +1,6 @@
-use super::{lower_typed_trees, typed};
+use super::lower_typed_trees;
 use crate::CheckingRequest;
+use crate::tests::front_end::typed_program;
 
 const COUNTDOWN: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -10,12 +11,12 @@ const PRECONDITION: &str = "requires countdown.remaining <= ceiling;";
 const WITNESS: &str = "terminates by countdown -> Countdown::Remaining in 0..=ceiling;";
 
 fn prove_termination(source: &str) {
-    crate::checks::termination::check_machine_termination(&typed(source))
+    crate::checks::termination::check_machine_termination(&typed_program(source))
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
 }
 
 fn reject_range(source: &str) {
-    let diagnostics = crate::checks::termination::check_machine_termination(&typed(source))
+    let diagnostics = crate::checks::termination::check_machine_termination(&typed_program(source))
         .expect_err("the authored field rank range must be proved");
     assert!(
         diagnostics
@@ -26,12 +27,13 @@ fn reject_range(source: &str) {
 }
 
 fn reject_termination(source: &str) {
-    crate::checks::termination::check_machine_termination(&typed(source)).expect_err(source);
+    crate::checks::termination::check_machine_termination(&typed_program(source))
+        .expect_err(source);
 }
 
 #[test]
 fn customer_field_relation_checks_through_complete_lowering() {
-    let program = typed(COUNTDOWN);
+    let program = typed_program(COUNTDOWN);
     crate::checks::termination::check_machine_termination(&program)
         .expect("entry requires relates the exact ranked field to its pinned ceiling");
     lower_typed_trees(program, &CheckingRequest::settled())
@@ -45,7 +47,7 @@ fn customer_ordinary_formation_is_independent_of_the_ranking_witness() {
         .replace(WITNESS, "")
         .replace("\nrequires", " -> u64\nrequires")
         .replace("\n-> u64 {", "\n{");
-    lower_typed_trees(typed(&source), &CheckingRequest::settled()).expect(
+    lower_typed_trees(typed_program(&source), &CheckingRequest::settled()).expect(
         "the customer's types, subtraction and recursive precondition form without ranking",
     );
 }
@@ -53,7 +55,7 @@ fn customer_ordinary_formation_is_independent_of_the_ranking_witness() {
 #[test]
 fn optional_field_rank_range_differs_from_missing_authored_endpoint_evidence() {
     prove_termination(&COUNTDOWN.replace(" in 0..=ceiling", ""));
-    let mut program = typed(COUNTDOWN);
+    let mut program = typed_program(COUNTDOWN);
     let machine = program.machines()[0].symbol;
     program
         .ranking_expression_custody
@@ -198,7 +200,7 @@ fn field_relation_requires_exact_reconstruction_owner_and_carrier() {
     reject_termination(&borrowed);
     prove_termination(&borrowed.replace("walk(Countdown {", "walk(&Countdown {"));
     lower_typed_trees(
-        typed(&COUNTDOWN.replace("amount: u64 [1..=2]", "amount: i32 [1..=2]")),
+        typed_program(&COUNTDOWN.replace("amount: u64 [1..=2]", "amount: i32 [1..=2]")),
         &CheckingRequest::settled(),
     )
     .expect_err("a positive step range does not establish compatible arithmetic carriers");

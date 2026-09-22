@@ -6,18 +6,7 @@ use crate::monomorphization::{
     collect_statement_expression_trees, monomorphize_generic_machine_value_calls_with_selections,
     runtime_value_subjects,
 };
-
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolution");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("typing")
-}
+use crate::tests::front_end::typed_program;
 
 #[test]
 fn structural_endpoint_arguments_follow_their_machine_declaration_types() {
@@ -28,7 +17,7 @@ fn structural_endpoint_arguments_follow_their_machine_declaration_types() {
         "machine keep<'item>(value: u64[0..=endpoint<[Borrowed<'item>; 1]>()]) {}",
         "machine keep(value: u64[0..=endpoint<[u8[0..=7]; 1]>()]) {}",
     ] {
-        let mut program = typed(&format!(
+        let mut program = typed_program(&format!(
             "data Borrowed<'item> {{ value: &'item u8; }}
              machine endpoint<T>() -> u64 {{ 7 }} {declaration}"
         ));
@@ -46,7 +35,7 @@ fn structural_endpoint_arguments_follow_their_data_field_scope() {
         "data Buffer { case Ready(length: u64[0..=endpoint<[u8; 7]>()]); }",
         "data Buffer<'item> { length: u64[0..=endpoint<[Borrowed<'item>; 1]>()]; }",
     ] {
-        let mut program = typed(&format!(
+        let mut program = typed_program(&format!(
             "data Borrowed<'item> {{ value: &'item u8; }}
              machine endpoint<T>() -> u64 {{ 7 }} {declaration}"
         ));
@@ -62,7 +51,7 @@ fn structural_field_endpoint_cannot_borrow_a_consumers_lifetime_scope() {
         "length: u64[0..=endpoint<[Borrowed<'hidden>; 1]>()];",
         "case Ready(length: u64[0..=endpoint<[Borrowed<'hidden>; 1]>()]);",
     ] {
-        let mut program = typed(&format!(
+        let mut program = typed_program(&format!(
             "data Borrowed<'item> {{ value: &'item u8; }}
              machine endpoint<T>() -> u64 {{ 7 }}
              data Buffer {{ {field} }}
@@ -81,7 +70,7 @@ fn structural_field_endpoint_cannot_borrow_a_consumers_lifetime_scope() {
 
 #[test]
 fn structural_endpoint_cannot_borrow_another_machine_lifetime_scope() {
-    let mut program = typed(
+    let mut program = typed_program(
         "data Borrowed<'item> { value: &'item u8; }
          machine endpoint<T>() -> u64 { 7 }
          machine unrelated<'hidden>() {}
@@ -99,7 +88,7 @@ fn structural_endpoint_cannot_borrow_another_machine_lifetime_scope() {
 
 #[test]
 fn detached_structural_endpoint_cannot_borrow_an_arena_neighbour_scope() {
-    let mut program = typed(
+    let mut program = typed_program(
         "machine endpoint<T>() -> u64 { 7 }
          machine keep(value: u64[0..=endpoint<[u8; 7]>()]) {}",
     );
@@ -133,7 +122,7 @@ fn named_type_arguments_cannot_reorder_the_authored_binder_tuple() {
             "bound<7, TYPE>()",
             "let result: u64 = bound<7, TYPE>(); result",
         ] {
-            let mut program = typed(&format!(
+            let mut program = typed_program(&format!(
                 "data Marker {{}}
                  machine bound<T, const N: u64>() -> u64 {{ N }}
                  machine main() -> u64 {{ {} }}",
@@ -148,7 +137,7 @@ fn named_type_arguments_cannot_reorder_the_authored_binder_tuple() {
                 "{errors:?}"
             );
         }
-        let mut program = typed(&format!(
+        let mut program = typed_program(&format!(
             "data Marker {{}}
              machine bound<T, const N: u64>() -> u64 {{ N }}
              machine main() -> u64 {{ bound<{argument}, 7>() }}"
@@ -165,7 +154,7 @@ fn unused_named_type_argument_cannot_erase_unsupplied_data_binders() {
         "data Marker<const N: u64> { value: [u8; N]; }",
         "data Marker<'a> { value: &'a u8; }",
     ] {
-        let mut program = typed(&format!(
+        let mut program = typed_program(&format!(
             "{declaration}
              machine bound<T, const N: u64>() -> u64 {{ N }}
              machine main() -> u64 {{ bound<Marker, 7>() }}"
@@ -183,7 +172,7 @@ fn unused_named_type_argument_cannot_erase_unsupplied_data_binders() {
 
 #[test]
 fn detached_const_recipe_keeps_its_tuple_until_executable_probe_specialization() {
-    let mut program = typed(
+    let mut program = typed_program(
         "machine identity<T [copy]>(value: T) -> T { value }
          machine probe() -> u64 { identity<u64>(7) }",
     );
@@ -289,7 +278,7 @@ fn explicit_static_argument_overflow_rejects_before_specialization() {
         "machine identity<T [copy]>(value: T) -> T { value }
          machine caller() -> u64 { identity<u64,7>(7); 0 }",
     ] {
-        let mut program = typed(source);
+        let mut program = typed_program(source);
         let diagnostics = crate::specialize_static_machine_calls(&mut program)
             .expect_err("explicit surplus cannot disappear during speculative preparation");
         assert!(
@@ -322,7 +311,7 @@ fn explicit_static_argument_capacity_preserves_partial_inference() {
              choose<2>(value, bytes)
          }",
     ] {
-        let mut program = typed(source);
+        let mut program = typed_program(source);
         crate::specialize_static_machine_calls(&mut program)
             .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
         assert_eq!(program.machine_specializations.len(), 1, "{source}");
@@ -345,13 +334,13 @@ fn explicit_static_argument_capacity_preserves_partial_inference() {
 
 #[test]
 fn explicit_static_const_argument_retains_its_literal_carrier() {
-    let mut wrong_carrier = typed(
+    let mut wrong_carrier = typed_program(
         "machine amount<const N: u64>() -> u64 { N }
          machine read() -> u64 { amount<7u8>() }",
     );
     assert!(crate::specialize_static_machine_calls(&mut wrong_carrier).is_err());
     for literal in ["7u64", "7"] {
-        let mut program = typed(&format!(
+        let mut program = typed_program(&format!(
             "machine amount<const N: u64>() -> u64 {{ N }}
              machine read() -> u64 {{ amount<{literal}>() }}"
         ));
@@ -363,7 +352,7 @@ fn explicit_static_const_argument_retains_its_literal_carrier() {
 
 #[test]
 fn recursive_instances_keep_each_tuples_own_state_and_template_commitment() {
-    let mut program = typed(
+    let mut program = typed_program(
         "machine repeat<T [copy]>(value: T) -> T { repeat(value) }
         machine first(value: u8) -> u8 { repeat(value) }
         machine second(value: u16) -> u16 { repeat(value) }
@@ -525,7 +514,7 @@ fn call_targets(
 
 #[test]
 fn mutually_recursive_generic_instances_reuse_exact_tuples_without_changing_templates() {
-    let mut program = typed(
+    let mut program = typed_program(
         r#"
         pub machine ping<T>(value: &T) { pong(value); }
         machine pong<T>(value: &T) { ping(value); }
@@ -594,7 +583,7 @@ fn mutually_recursive_generic_instances_reuse_exact_tuples_without_changing_temp
 
 #[test]
 fn nested_generic_reference_forwarding_only_specializes_the_closed_caller() {
-    let mut program = typed(
+    let mut program = typed_program(
         r#"
         data Buffer<T> { value: T; }
         machine inspect<T>(value: &T) {}
@@ -657,7 +646,7 @@ fn nested_generic_reference_forwarding_only_specializes_the_closed_caller() {
 
 #[test]
 fn selected_applications_borrow_template_metadata_without_sharing_binding_mutation() {
-    let program = typed(
+    let program = typed_program(
         "machine identity<T [copy]>(value: T) -> T { value }
          machine caller(value: u8) -> u8 { identity(value) }",
     );
@@ -689,7 +678,7 @@ fn selected_applications_borrow_template_metadata_without_sharing_binding_mutati
 
 #[test]
 fn runtime_call_subject_collection_matches_lexical_owner_lookup() {
-    let program = typed(
+    let program = typed_program(
         "machine recurse<Count: u32>(value: u32) -> u32 {
              let next: u32 = value;
              recurse<next>(recurse<value>(value))
@@ -735,7 +724,7 @@ fn runtime_call_subject_collection_matches_lexical_owner_lookup() {
 
 #[test]
 fn structural_static_argument_commitments_use_normalized_type_identity() {
-    let program = typed(
+    let program = typed_program(
         "machine exclusive(value: u64[0..257]) -> u64 { 0 }
          machine inclusive(value: u64[0..=256]) -> u64 { 0 }
          machine smaller(value: u64[0..256]) -> u64 { 0 }

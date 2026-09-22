@@ -1,6 +1,6 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::typed_program_result;
 
 mod case_dispatch;
 mod constant_index_projection;
@@ -9,13 +9,7 @@ mod owned_results;
 mod semantic_results;
 
 fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize value dispatch");
-    let syntax = parse_syntax_trees(&tokens).expect("parse value dispatch");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve value dispatch");
-    let typed = lower_symbol_resolved_trees(&resolved).map_err(|diagnostic| vec![diagnostic])?;
-    lower_typed_trees(typed, &CheckingRequest::settled())
+    lower_typed_trees(typed_program_result(source)?, &CheckingRequest::settled())
 }
 
 #[test]

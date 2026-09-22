@@ -1,7 +1,7 @@
 use super::StatementNode;
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
-use crate::tests::values::typed_trees;
+use crate::tests::front_end::typed_program;
 use checked_trees::CheckedScalarExpressionRole;
 use typed_trees::{expression::ExpressionNode, statement::TransitionGuardNode};
 
@@ -22,7 +22,8 @@ fn callable_boundary_arguments_keep_the_nominal_requirement_role() {
              reaches Host
              {{ {body} }}"
         );
-        let checked = lower_typed_trees(typed_trees(&source), &CheckingRequest::settled()).unwrap();
+        let checked =
+            lower_typed_trees(typed_program(&source), &CheckingRequest::settled()).unwrap();
         let machine = checked
             .machines()
             .iter()
@@ -119,7 +120,7 @@ fn ordinary_callable_parameter_arguments_keep_the_unit_role() {
         where machine Selected(input: i32);
         { Selected(value); }
     "#;
-    let checked = lower_typed_trees(typed_trees(source), &CheckingRequest::settled()).unwrap();
+    let checked = lower_typed_trees(typed_program(source), &CheckingRequest::settled()).unwrap();
     let machine = &checked.machines()[0];
     let state = &checked.machine_states(machine)[0];
     let plans = &checked.facts.values.scalar_expressions;
@@ -163,7 +164,7 @@ fn structural_boundary_initializers_retain_scalar_inputs_without_scalar_result_s
             let after: i32 = before;
         }
     "#;
-    let checked = lower_typed_trees(typed_trees(source), &CheckingRequest::settled()).unwrap();
+    let checked = lower_typed_trees(typed_program(source), &CheckingRequest::settled()).unwrap();
     let machine = checked
         .machines()
         .iter()
@@ -243,7 +244,7 @@ fn nested_structural_pure_arguments_keep_captured_roles_and_prior_local_namespac
             let following: u32 = saved;
         }
     "#;
-    let checked = lower_typed_trees(typed_trees(source), &CheckingRequest::settled()).unwrap();
+    let checked = lower_typed_trees(typed_program(source), &CheckingRequest::settled()).unwrap();
     let machine = checked
         .machines()
         .iter()
@@ -365,7 +366,7 @@ fn explicit_compiler_intrinsic_arguments_retain_boundary_custody() {
             ConsoleNativeProvider::exit_process(code);
         }
     "#;
-    let checked = lower_typed_trees(typed_trees(source), &CheckingRequest::settled()).unwrap();
+    let checked = lower_typed_trees(typed_program(source), &CheckingRequest::settled()).unwrap();
     let machine = checked
         .machines()
         .iter()
@@ -445,7 +446,8 @@ fn boundary_and_unit_call_arguments_keep_dense_callee_and_caller_namespaces() {
                  Sink::consume(first, saved, second, number);
              }}"
         );
-        let checked = lower_typed_trees(typed_trees(&source), &CheckingRequest::settled()).unwrap();
+        let checked =
+            lower_typed_trees(typed_program(&source), &CheckingRequest::settled()).unwrap();
         let machine = checked
             .machines()
             .iter()
@@ -503,7 +505,8 @@ fn boundary_expression_and_initializer_arguments_keep_authored_handles() {
              boundary trait Sink {{ machine read(flag: bool) -> bool; }}
              machine Root::read(flag: bool) -> bool reaches Sink {{ {body} }}"
         );
-        let checked = lower_typed_trees(typed_trees(&source), &CheckingRequest::settled()).unwrap();
+        let checked =
+            lower_typed_trees(typed_program(&source), &CheckingRequest::settled()).unwrap();
         let machine = checked
             .machines()
             .iter()
@@ -556,7 +559,7 @@ fn pure_guard_and_direct_call_arguments_keep_exact_source_custody() {
             transition called && saved { true -> true false -> false }
         }
     "#;
-    let checked = lower_typed_trees(typed_trees(source), &CheckingRequest::settled()).unwrap();
+    let checked = lower_typed_trees(typed_program(source), &CheckingRequest::settled()).unwrap();
     let machine = checked
         .machines()
         .iter()

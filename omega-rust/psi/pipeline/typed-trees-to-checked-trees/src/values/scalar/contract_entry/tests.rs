@@ -1,5 +1,6 @@
 //! Scalar contract entry tests.
 
+use crate::tests::front_end::typed_program;
 use crate::values::lower_scalar_contract_predicate;
 use crate::values::scalar::contract_entry::EntryOperands;
 use crate::values::scalar::contract_entry::entry_parameters;
@@ -11,18 +12,6 @@ use typed_trees::expression::ExpressionHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::PrimitiveType;
-
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
-}
 
 fn requirement(program: &TypedTrees) -> ExpressionHandle {
     program
@@ -55,7 +44,7 @@ fn scalar_requirement(
 
 #[test]
 fn scalar_contract_reads_share_and_exhaust_the_supplied_budget() {
-    let program = typed("machine value(flag: bool) -> bool requires !flag { flag }");
+    let program = typed_program("machine value(flag: bool) -> bool requires !flag { flag }");
     let expression = requirement(&program);
     let operators = CheckedOperatorFacts::default();
     let machine = &program.machines()[0];
@@ -104,7 +93,7 @@ fn scalar_contract_reads_share_and_exhaust_the_supplied_budget() {
 #[test]
 fn scalar_entry_requirement_uses_exact_formals_and_preserves_mutable_snapshots() {
     for requirement_text in ["flag", "!flag", "flag && !other", "flag == other"] {
-        let program = typed(&format!(
+        let program = typed_program(&format!(
             "machine value(mut flag: bool, other: bool) -> bool requires {requirement_text} {{ flag }}"
         ));
         assert!(
@@ -116,7 +105,7 @@ fn scalar_entry_requirement_uses_exact_formals_and_preserves_mutable_snapshots()
 
 #[test]
 fn scalar_contracts_keep_concrete_predicates_on_generic_declarations() {
-    let program = typed(
+    let program = typed_program(
         "machine value<T>(input: u16) -> u16\nrequires input < 256u16\nensures result == input\n{ input }",
     );
     let machine = &program.machines()[0];
@@ -147,7 +136,7 @@ fn scalar_contracts_keep_concrete_predicates_on_generic_declarations() {
         "data Box<T> {} machine Box::value(flag: bool) -> bool requires flag { flag }",
         "machine value<T>(flag: bool) -> bool requires flag { flag }",
     ] {
-        let program = typed(source);
+        let program = typed_program(source);
         assert!(scalar_requirement(&program, requirement(&program)).is_some());
         assert!(entry_parameters(&program, &program.machines()[0]).is_none());
     }
@@ -155,7 +144,7 @@ fn scalar_contracts_keep_concrete_predicates_on_generic_declarations() {
 
 #[test]
 fn boolean_result_predicates_keep_contract_owner_and_poststate_namespace() {
-    let program = typed(
+    let program = typed_program(
         "machine value(input: bool) -> bool ensures result == input { input } machine other(input: bool) -> bool ensures result == input { input }",
     );
     let root = requirement(&program);
@@ -183,7 +172,8 @@ fn boolean_result_predicates_keep_contract_owner_and_poststate_namespace() {
         )
         .is_none()
     );
-    let mutable = typed("machine value(mut input: bool) -> bool ensures result == input { input }");
+    let mutable =
+        typed_program("machine value(mut input: bool) -> bool ensures result == input { input }");
     assert!(
         lower_scalar_contract_predicate(
             &mutable,
@@ -200,7 +190,7 @@ fn boolean_result_predicates_keep_contract_owner_and_poststate_namespace() {
 #[test]
 fn scalar_entry_requirement_accepts_attached_and_mixed_exact_namespaces() {
     for requirement_text in ["right", "!right", "left && right", "left == right"] {
-        let ordinary = typed(&format!(
+        let ordinary = typed_program(&format!(
             "machine value(left: bool, mut right: bool) -> bool requires {requirement_text} {{ true }}"
         ));
         let expected = scalar_requirement(&ordinary, requirement(&ordinary));
@@ -210,7 +200,7 @@ fn scalar_entry_requirement_accepts_attached_and_mixed_exact_namespaces() {
             "machine value(left: bool, record: Box, mut right: bool)",
             "machine Box::value(&self, left: bool, record: Box, mut right: bool)",
         ] {
-            let program = typed(&format!(
+            let program = typed_program(&format!(
                 "data Box {{ flag: bool; }} {signature} -> bool requires {requirement_text} {{ true }}"
             ));
             assert_eq!(
@@ -225,7 +215,7 @@ fn scalar_entry_requirement_accepts_attached_and_mixed_exact_namespaces() {
 #[test]
 fn scalar_entry_requirement_rejects_symbol_and_spelling_disagreement() {
     let mut program =
-        typed("machine value(left: bool, right: bool) -> bool requires left { true }");
+        typed_program("machine value(left: bool, right: bool) -> bool requires left { true }");
     let root = requirement(&program);
     let parameters = program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
     let left = parameters[0].symbol;
@@ -250,7 +240,7 @@ fn scalar_entry_requirement_rejects_symbol_and_spelling_disagreement() {
 #[test]
 fn scalar_entry_requirement_rejects_ambiguous_retained_formal_names() {
     let mut program =
-        typed("machine value(left: bool, right: bool) -> bool requires right { true }");
+        typed_program("machine value(left: bool, right: bool) -> bool requires right { true }");
     let root = requirement(&program);
     let parameters = program.machine_states(&program.machines()[0])[0].parameters;
     let names = program
@@ -263,7 +253,7 @@ fn scalar_entry_requirement_rejects_ambiguous_retained_formal_names() {
 
 #[test]
 fn scalar_entry_requirement_requires_one_live_consistent_attachment_owner() {
-    let program = typed(
+    let program = typed_program(
         "data Box {} data Other {} machine Box::value(flag: bool) -> bool requires flag { flag }",
     );
     let root = requirement(&program);
@@ -304,7 +294,7 @@ fn scalar_entry_requirement_rejects_unresolved_or_non_owned_boolean_leaves() {
         "machine value(flag: &bool) -> bool requires flag { true }",
         "data Box { flag: bool; } machine Box::value(&self) -> bool requires self.flag { true }",
     ] {
-        let program = typed(source);
+        let program = typed_program(source);
         assert!(
             scalar_requirement(&program, requirement(&program)).is_none(),
             "{source}"
@@ -314,7 +304,7 @@ fn scalar_entry_requirement_rejects_unresolved_or_non_owned_boolean_leaves() {
 
 #[test]
 fn scalar_entry_requirement_rejects_corrupted_formal_namespace_rows() {
-    let program = typed(
+    let program = typed_program(
         "machine value(left: bool, right: bool) -> bool requires left { true } machine foreign(right: bool) -> bool { right }",
     );
     let root = requirement(&program);
@@ -339,7 +329,7 @@ fn scalar_entry_requirement_rejects_corrupted_formal_namespace_rows() {
 
 #[test]
 fn scalar_entry_requirement_does_not_recover_missing_or_foreign_name_symbols() {
-    let program = typed(
+    let program = typed_program(
         "machine value(flag: bool) -> bool requires flag { let local: bool = false; flag } machine foreign(flag: bool) -> bool { flag }",
     );
     let root = requirement(&program);
@@ -395,7 +385,7 @@ fn scalar_entry_requirement_does_not_recover_missing_or_foreign_name_symbols() {
 
 #[test]
 fn scalar_entry_requirement_rejects_cycles_structural_parameters_and_authored_operators() {
-    let program = typed("machine value(flag: bool) -> bool requires flag && true { flag }");
+    let program = typed_program("machine value(flag: bool) -> bool requires flag && true { flag }");
     let root = requirement(&program);
     let mut cyclic = program.clone();
     let ExpressionNode::Binary(binary) = cyclic.expression_table.expression_mut(root) else {
@@ -410,11 +400,11 @@ fn scalar_entry_requirement_rejects_cycles_structural_parameters_and_authored_op
         )
         .is_none()
     );
-    let structural = typed(
+    let structural = typed_program(
         "data Box { flag: bool; } machine value(input: Box) -> bool requires input.flag { true }",
     );
     assert!(scalar_requirement(&structural, requirement(&structural)).is_none());
-    let authored = typed(
+    let authored = typed_program(
         "boundary operator == bool::custom(left: bool, right: bool) -> bool; machine value(flag: bool) -> bool requires flag == true { flag }",
     );
     assert!(scalar_requirement(&authored, requirement(&authored)).is_none());
@@ -423,16 +413,7 @@ fn scalar_entry_requirement_rejects_cycles_structural_parameters_and_authored_op
 #[test]
 fn entry_snapshot_rejects_foreign_stale_duplicate_and_wrong_typed_storage() {
     let source = "machine value(first: bool, mut input: bool) -> bool { let mut other: bool = false; input }";
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let program = typed_program(source);
     let state = &program.machine_states(&program.machines()[0])[0];
     let parameters = program.state_parameters(state);
     let entry = EntryOperands {

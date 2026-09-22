@@ -1,9 +1,6 @@
 //! Routed owned result fields require conserved authority, not annotations.
 
-use super::checked;
-use crate::tests::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
+use crate::tests::front_end::{checked_program, checked_program_result};
 
 fn partition_program(parameter: &str, conservation: &str) -> String {
     format!(
@@ -34,15 +31,7 @@ fn partition_program(parameter: &str, conservation: &str) -> String {
 }
 
 fn rejection_diagnostics(source: &str) -> Vec<diagnostics::Diagnostic> {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize structural conservation fixture");
-    let syntax = parse_syntax_trees(&tokens).expect("parse structural conservation fixture");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve structural conservation fixture");
-    let typed =
-        lower_symbol_resolved_trees(&resolved).expect("type structural conservation fixture");
-    let result = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled());
+    let result = checked_program_result(source);
     assert!(result.is_err(), "unproved structural authority must reject");
     result.err().unwrap_or_default()
 }
@@ -78,7 +67,7 @@ fn routed_structural_result_rejects_unaccounted_output_field() {
 
 #[test]
 fn routed_structural_result_accepts_exact_split_conservation() {
-    let checked = checked(&partition_program("Region in Granted", SPLIT_LAW));
+    let checked = checked_program(&partition_program("Region in Granted", SPLIT_LAW));
     assert_eq!(
         checked
             .facts
@@ -150,7 +139,7 @@ fn routed_structural_result_rejects_another_domains_equal_projection() {
 
 #[test]
 fn routed_structural_result_accepts_requires_qualified_partition_source() {
-    checked(&partition_program(
+    checked_program(&partition_program(
         "Region",
         &format!("requires whole in Granted {SPLIT_LAW}"),
     ));
@@ -166,7 +155,7 @@ fn routed_structural_result_accepts_nested_record_partition_paths() {
         .replace("-> Parts", "-> Wrapper")
         .replace("&result.taken", "&result.value.taken")
         .replace("&result.rest", "&result.value.rest");
-    checked(&source);
+    checked_program(&source);
 }
 
 #[test]
@@ -190,14 +179,14 @@ fn routed_structural_result_accounts_for_each_array_element_once() {
         .replace("rest: Region in Granted;", "")
         .replace("&result.taken)", "&result.taken[0])")
         .replace("&result.rest)", "&result.taken[1])");
-    checked(&source);
+    checked_program(&source);
     assert_structural_rejection(&source.replace("&result.taken[1]", "&result.taken[0]"));
 }
 
 #[test]
 fn routed_structural_result_preserves_unique_identity_wrapper() {
     let source = partition_program("Region in Granted", "").replace("rest: Region in Granted;", "");
-    checked(&source);
+    checked_program(&source);
 }
 
 #[test]
@@ -211,7 +200,7 @@ fn routed_structural_result_preserves_alternative_single_claims() {
             "rest: Region in Granted;",
             "case Rest(value: Region in Granted);",
         );
-    checked(&source);
+    checked_program(&source);
 }
 
 #[test]
@@ -279,7 +268,7 @@ fn routed_partition_fields_forward_without_restatement() {
         }
     "#
     );
-    checked(&source);
+    checked_program(&source);
 }
 
 #[test]
@@ -302,7 +291,7 @@ fn routed_partition_merge_preserves_call_ensures() {
         }
     "#
     );
-    checked(&source);
+    checked_program(&source);
 }
 
 #[test]
@@ -320,7 +309,7 @@ fn routed_partition_fields_survive_separate_owned_moves() {
         }
     "#
     );
-    checked(&source);
+    checked_program(&source);
 }
 
 #[test]
@@ -379,7 +368,7 @@ fn routed_local_preserves_requires_membership() {
         }
     "#
     );
-    checked(&source);
+    checked_program(&source);
 }
 
 #[test]
@@ -410,7 +399,7 @@ fn routed_mutable_field_can_restore_existing_qualification() {
             row.secret = replacement;
         }
     "#;
-    checked(source);
+    checked_program(source);
 }
 
 #[test]
@@ -420,7 +409,7 @@ fn routed_mutable_root_must_be_restored_before_return() {
         partition_program("Region in Granted", SPLIT_LAW),
         "machine corrupt(region: &mut Region in Granted) { region.length = 0; }"
     );
-    checked(&source.replace("region.length = 0;", ""));
+    checked_program(&source.replace("region.length = 0;", ""));
     let diagnostics = rejection_diagnostics(&source);
     assert!(
         diagnostics
@@ -440,5 +429,5 @@ fn authorized_content_result_can_be_returned_without_a_local() {
         reaches RootProvider { provider.grant(raw) }
     "#
     );
-    checked(&source);
+    checked_program(&source);
 }

@@ -1,33 +1,23 @@
-use super::{Lexer, lower_symbol_resolved_trees, parse_syntax_trees};
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::typed_program_with_generic_data_result;
 use checked_trees::CheckedTrees;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
-fn typed_source(source: &str) -> Result<TypedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = Lexer::new(source).tokenize().expect("const value tokens");
-    let syntax = parse_syntax_trees(&tokens).expect("const value syntax");
-    let syntax = syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest::new(syntax),
-    )?;
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )?;
-    lower_symbol_resolved_trees(&resolved).map_err(|diagnostic| vec![diagnostic])
-}
-
 fn accepts(source: &str) -> CheckedTrees {
-    let typed = typed_source(source).expect("const value source should type");
+    let typed =
+        typed_program_with_generic_data_result(source).expect("const value source should type");
     lower_typed_trees(typed, &CheckingRequest::settled()).unwrap_or_else(|diagnostics| {
         panic!("const value source should check: {diagnostics:#?}\n{source}")
     })
 }
 
 fn rejects(source: &str, fragment: &str) {
-    let typed = typed_source(source).expect("const value refusal source should type");
+    let typed = typed_program_with_generic_data_result(source)
+        .expect("const value refusal source should type");
     let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("false const value obligation must reject");
     assert!(
@@ -72,7 +62,8 @@ fn inferred_const_binder_is_an_executable_checked_value() {
             let witness: [u8; 2] = [0, 0];
             endpoint(&witness)
         }";
-    let typed = typed_source(source).expect("inferred const body should type");
+    let typed =
+        typed_program_with_generic_data_result(source).expect("inferred const body should type");
     let endpoint = &typed.machines()[0];
     let [binder] = typed.machine_type_parameters(endpoint) else {
         panic!("endpoint has one const binder")
@@ -162,7 +153,8 @@ fn same_spelled_const_binders_in_different_machines_keep_their_symbols() {
             let first: u64 = pair(&pair_witness);
             triple(&triple_witness)
         }";
-    let typed = typed_source(source).expect("separate const scopes should type");
+    let typed =
+        typed_program_with_generic_data_result(source).expect("separate const scopes should type");
     let first_binder = typed.machine_type_parameters(&typed.machines()[0])[0].symbol;
     let second_binder = typed.machine_type_parameters(&typed.machines()[1])[0].symbol;
     assert!(first_binder.is_valid());
@@ -513,7 +505,7 @@ fn cloned_callers_keep_inferred_result_types_and_authored_annotations_distinct()
 
 #[test]
 fn authored_unit_annotation_is_not_an_inferred_temporary() {
-    let mut typed = typed_source(
+    let mut typed = typed_program_with_generic_data_result(
         "machine value<const N: u64>(witness: &[u8; N]) -> u64 { N }
         machine main() -> u64 {
             let pair: [u8; 2] = [0, 0];

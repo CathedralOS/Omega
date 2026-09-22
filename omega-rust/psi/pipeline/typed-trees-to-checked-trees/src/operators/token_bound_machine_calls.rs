@@ -311,24 +311,10 @@ fn range_operands(
 
 #[cfg(test)]
 mod tests {
-    use diagnostics::Diagnostic;
-    use source_files_to_tokens::Lexer;
-    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-    use tokens_to_syntax_trees::parse_syntax_trees;
+    use crate::tests::front_end::checked_program_result;
+
     use typed_trees::expression::{BinaryOperator, ExpressionNode, TableCallExpression};
     use typed_trees::statement::StatementNode;
-
-    use crate::CheckingRequest;
-    use crate::lower_typed_trees;
-
-    fn check_source(source: &str) -> Result<checked_trees::CheckedTrees, Vec<Diagnostic>> {
-        let tokens = Lexer::new(source).tokenize().unwrap();
-        let syntax = parse_syntax_trees(&tokens).unwrap();
-        let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-        let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-        lower_typed_trees(typed, &CheckingRequest::settled())
-    }
 
     fn source_with_use(index: &str) -> String {
         // `high`'s `requires` bound keeps the synthesized `end + 1` provably
@@ -342,7 +328,7 @@ mod tests {
     /// The `Call` `run`'s tail expression was rewritten into, plus the checked
     /// program the call's handles index.
     fn run_tail_call(source: &str) -> (checked_trees::CheckedTrees, TableCallExpression) {
-        let checked = check_source(source).expect("the range use binds the machine body");
+        let checked = checked_program_result(source).expect("the range use binds the machine body");
         let run = checked
             .machines()
             .iter()
@@ -435,7 +421,7 @@ mod tests {
     #[test]
     fn open_ended_range_still_rejects() {
         for index in ["low..", ".."] {
-            let diagnostics = match check_source(&source_with_use(index)) {
+            let diagnostics = match checked_program_result(&source_with_use(index)) {
                 Ok(_) => panic!(
                     "an omitted end needs the collection's length, which a `[..]` telescope cannot form"
                 ),
@@ -458,7 +444,7 @@ mod tests {
             machine [..] Buffer::window(&self, start: Index, end: u64) -> u64 { end }
             machine run(buffer: Buffer, high: u64) -> u64 { buffer[..high] }
         "#;
-        let diagnostics = match check_source(source) {
+        let diagnostics = match checked_program_result(source) {
             Ok(_) => panic!("zero has no formation for a non-integer start parameter"),
             Err(diagnostics) => diagnostics,
         };
@@ -478,7 +464,7 @@ mod tests {
             machine [..] Buffer::window(&self, start: u64, end: Index) -> u64 { start }
             machine run(buffer: Buffer, low: u64, high: Index) -> u64 { buffer[low..=high] }
         "#;
-        let diagnostics = match check_source(source) {
+        let diagnostics = match checked_program_result(source) {
             Ok(_) => panic!("`end + 1` has no integer formation for a data end operand"),
             Err(diagnostics) => diagnostics,
         };
