@@ -15,8 +15,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::extent::diagnostic::{ExtentDiagnostic, validate_range};
 use crate::external_loans::ExternalLoanId;
 use crate::identities::{
-    AddressSpaceId, ExtentLineageId, ExtentProvenanceId, MappingEraId,
-    normalized_extent_identity,
+    AddressSpaceId, ExtentLineageId, ExtentProvenanceId, MappingEraId, normalized_extent_identity,
 };
 use crate::mapping::MappingId;
 

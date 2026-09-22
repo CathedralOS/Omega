@@ -1,25 +1,9 @@
 //! The set of boundary services a placement may reach.
 
-use crate::AccessPlanDiagnostic;
+use crate::placements::schema_correspondence::normalized_identity;
 use std::collections::BTreeSet;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct BoundaryServiceReachId(u64);
-
-impl BoundaryServiceReachId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, AccessPlanDiagnostic> {
-        if identity == 0 {
-            return Err(AccessPlanDiagnostic(
-                "boundary-service reach identity cannot be zero".into(),
-            ));
-        }
-        Ok(Self(identity))
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
-}
+normalized_identity!(BoundaryServiceReachId, "boundary-service reach identity");
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct BoundaryReach {

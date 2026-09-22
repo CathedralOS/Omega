@@ -12,31 +12,10 @@
 //! may keep these roles provider-private; a future checked-driver surface
 //! must derive role-specific payloads from its actual typed operations.
 
+use crate::placements::schema_correspondence::normalized_identity;
 use crate::{AccessPlanDiagnostic, SchemaDeviceCorrespondenceReceiptContext};
 use extents::MappedRangeReceiptContext;
 use std::collections::{BTreeMap, BTreeSet};
-
-macro_rules! normalized_identity {
-    ($name:ident, $label:literal) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        pub struct $name(u64);
-
-        impl $name {
-            pub fn from_normalized_identity(identity: u64) -> Result<Self, AccessPlanDiagnostic> {
-                if identity == 0 {
-                    return Err(AccessPlanDiagnostic(
-                        concat!($label, " cannot be zero").into(),
-                    ));
-                }
-                Ok(Self(identity))
-            }
-
-            pub const fn normalized_identity(self) -> u64 {
-                self.0
-            }
-        }
-    };
-}
 
 normalized_identity!(
     DeviceOperationRequirementId,

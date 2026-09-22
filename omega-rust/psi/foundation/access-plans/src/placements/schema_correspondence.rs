@@ -17,14 +17,17 @@ use crate::{
 use extents::{ExtentLoan, LoanPolarity};
 
 macro_rules! normalized_identity {
-    ($name:ident, $label:literal) => {
+    ($(#[$meta:meta])* $name:ident, $label:literal) => {
+        $(#[$meta])*
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct $name(u64);
 
         impl $name {
-            pub fn from_normalized_identity(identity: u64) -> Result<Self, AccessPlanDiagnostic> {
+            pub fn from_normalized_identity(
+                identity: u64,
+            ) -> Result<Self, $crate::AccessPlanDiagnostic> {
                 if identity == 0 {
-                    return Err(AccessPlanDiagnostic(
+                    return Err($crate::AccessPlanDiagnostic(
                         concat!($label, " cannot be zero").into(),
                     ));
                 }
@@ -37,6 +40,8 @@ macro_rules! normalized_identity {
         }
     };
 }
+
+pub(crate) use normalized_identity;
 
 normalized_identity!(
     SchemaCorrespondenceProviderId,
