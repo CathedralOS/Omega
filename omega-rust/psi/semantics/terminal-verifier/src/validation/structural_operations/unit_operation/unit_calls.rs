@@ -109,7 +109,7 @@ pub(super) fn validate_call_unit(
     // projected operand is then an owned move out of a live partial-affine
     // call result, and the operand roster lines up with the callee's
     // parameter roster so the shared continuation edge can carry each root's
-    // residual complement in operand order. Whole-path operands keep their
+    // residual complement latest-established first. Whole-path operands keep their
     // ordinary transfer checks; borrowed or parameter-rooted projections
     // retain the single-argument bound.
     let shared_result_residuals = result_projection

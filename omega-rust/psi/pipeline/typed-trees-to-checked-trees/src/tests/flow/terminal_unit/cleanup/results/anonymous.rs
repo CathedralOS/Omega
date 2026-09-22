@@ -247,7 +247,8 @@ fn anonymous_projected_operands_share_one_consumer_continuation() {
     };
     assert_eq!(field(first_argument), "right");
     assert_eq!(field(second_argument), "left");
-    // Residual rows keep operand order: each complement names its own owner.
+    // Residual rows keep reverse establishment order: the second producer's
+    // temporary dies first, and each complement names its own owner.
     let residual = |discard: &checked_trees::CheckedUnitPartialAffineDiscardPlan| {
         let [checked_trees::CheckedUnitStructuralPathSegment::Field(name)] =
             discard.path.as_slice()
@@ -263,18 +264,18 @@ fn anonymous_projected_operands_share_one_consumer_continuation() {
         residual(first_residual),
         (
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                binding_ordinal: 0
+                binding_ordinal: 1
             },
-            "left".into()
+            "right".into()
         )
     );
     assert_eq!(
         residual(second_residual),
         (
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                binding_ordinal: 1
+                binding_ordinal: 0
             },
-            "right".into()
+            "left".into()
         )
     );
 }

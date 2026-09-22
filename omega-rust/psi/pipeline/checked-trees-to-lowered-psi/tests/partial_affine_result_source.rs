@@ -183,12 +183,13 @@ fn anonymous_projected_operands_share_one_dying_continuation() {
         let [first_residual, second_residual] = residual_affine_discards.as_slice() else {
             panic!("two temporaries keep two residual rows")
         };
-        // Rows keep operand order: the first operand moved `right`, so `left`
-        // remains; the second moved `left`, so `right` remains.
-        assert_eq!(first_residual.place, producers[0]);
-        assert_eq!(first_residual.path, path(&["left"]));
-        assert_eq!(second_residual.place, producers[1]);
-        assert_eq!(second_residual.path, path(&["right"]));
+        // Rows keep reverse establishment order, not operand order: the second
+        // producer's temporary moved `left`, so `right` remains and dies
+        // first; the first producer's moved `right`, so `left` dies last.
+        assert_eq!(first_residual.place, producers[1]);
+        assert_eq!(first_residual.path, path(&["right"]));
+        assert_eq!(second_residual.place, producers[0]);
+        assert_eq!(second_residual.path, path(&["left"]));
         let arguments = if boundary {
             Vec::new()
         } else {

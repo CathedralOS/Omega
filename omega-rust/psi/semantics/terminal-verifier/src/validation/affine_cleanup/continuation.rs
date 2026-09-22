@@ -24,10 +24,10 @@ pub(super) fn validate(
         machine: machine.id,
         block: block.id,
     };
-    // Every dying root keeps its own moved set. Roots appear in the order
-    // their first projected operand does — the call lane's operand order —
-    // which is also the order their residual complement groups appear in the
-    // edge's discard list.
+    // Every dying root keeps its own moved set. Roots are first collected in
+    // the order their first projected operand appears — the call lane's
+    // operand order — then reordered into the required cleanup schedule
+    // before the edge's discard list is checked against it.
     let mut roots: Vec<PlaceId> = Vec::new();
     let mut moved: BTreeMap<PlaceId, (StructuralTypeId, BTreeSet<Vec<StructuralPathSegment>>)> =
         BTreeMap::new();
@@ -156,12 +156,31 @@ pub(super) fn validate(
             Err(invalid())
         };
     }
-    // Each dying root's residual complement keeps its canonical order; the
-    // groups appear in the order their roots were first projected. The
+    // Each dying root's residual complement keeps its canonical order, and
+    // the groups run in reverse establishment order: a root established by an
+    // operation in this block dies before every older root, while a root with
+    // no producer here — a machine parameter or an earlier block's product —
+    // outlives all of them and keeps first-projection order among peers. The
     // Jump-edge lane still composes with the edge's own unselected-owner
     // cleanup: a trivial discard there names a different live root and keeps
     // its ordinary order, while the residual list closes exactly the
     // projected roots' complements.
+    let establishment = |place: PlaceId| {
+        block.operations.iter().position(|operation| {
+            operation
+                .result
+                .structural()
+                .is_some_and(|result| result.place == place)
+        })
+    };
+    roots.sort_by(
+        |left, right| match (establishment(*left), establishment(*right)) {
+            (Some(left_at), Some(right_at)) => right_at.cmp(&left_at),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => std::cmp::Ordering::Equal,
+        },
+    );
     if (call_lane
         && (!trivial_affine_discards.is_empty() || machine.result != TerminalMachineResult::Unit))
         || (moved

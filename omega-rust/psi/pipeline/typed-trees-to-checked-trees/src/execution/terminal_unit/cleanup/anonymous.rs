@@ -311,7 +311,8 @@ pub(in crate::execution::terminal_unit) fn validate_permissions_at(
 /// Dispose each expression owner's maximal complement at its actual call.
 /// One consumer may die for several temporaries at once: every projected
 /// owned operand names its own producer's result binding, and the residual
-/// rows keep that operand order.
+/// groups run latest-established first — operand order is not the cleanup
+/// schedule, while each root's own complement keeps its checked path order.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::execution::terminal_unit) fn append_continuation(
     program: &TypedTrees,
@@ -344,8 +345,8 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
     // Every projected owned operand must belong to a dying temporary, and
     // every temporary must own exactly one of them. Whole moves and scalar
     // operands keep their own custody outside this cleanup row.
-    let mut affine_discards = Vec::new();
-    let mut covered = Vec::new();
+    let mut residual_rows: Vec<Option<Vec<CheckedUnitPartialAffineDiscardPlan>>> =
+        temporaries.iter().map(|_| None).collect();
     for argument in structural_arguments {
         let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() else {
             continue;
@@ -358,16 +359,19 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
         if argument.path.is_empty() {
             continue;
         }
-        let (result, root) = temporaries
+        let Some((position, (result, root))) = temporaries
             .iter()
-            .find(|(result, _)| result.binding_ordinal == binding_ordinal)?;
-        if covered.contains(&binding_ordinal)
+            .enumerate()
+            .find(|(_, (result, _))| result.binding_ordinal == binding_ordinal)
+        else {
+            return None;
+        };
+        if residual_rows[position].is_some()
             || coordinate.statement_index != result.statement_index
             || !matches!(root, facts::PlaceRoot::Expression(_))
         {
             return None;
         }
-        covered.push(binding_ordinal);
         let residuals = partial_affine_residuals(
             &shapes.types,
             &argument.source,
@@ -384,11 +388,19 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
             result.binding_ordinal,
             &residuals,
         )?;
-        affine_discards.extend(residuals);
+        residual_rows[position] = Some(residuals);
     }
-    if covered.len() != temporaries.len() {
+    if residual_rows.iter().any(Option::is_none) {
         return None;
     }
+    // `temporaries` follows producer order, and independent dying roots clean
+    // in reverse establishment order: each temporary's residual group runs
+    // latest-established first while its own complement keeps checked order.
+    let affine_discards: Vec<CheckedUnitPartialAffineDiscardPlan> = residual_rows
+        .into_iter()
+        .rev()
+        .flat_map(Option::unwrap_or_default)
+        .collect();
     let target = crate::lookup::machine_by_symbol(program, *target_machine)?;
     let [callee] = program.machine_states(target) else {
         return None;
