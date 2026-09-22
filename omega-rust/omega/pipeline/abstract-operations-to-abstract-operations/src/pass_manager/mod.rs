@@ -15,7 +15,7 @@ mod model;
 use optimization_core::TargetCostModelIdentity;
 
 pub(crate) use execution::{run_registries, run_registries_with_external_decisions};
-pub use external_policy::validate_external_decision_recording;
+pub(crate) use external_policy::validate_external_decision_recording;
 pub use model::{
     CandidateContractAxis, ExternalDecisionContextAxis, ExternalDecisionReplayError,
     OptimizationRun, OptimizationRunError, OptimizationRunUsage, PsiOptimizationCommit,

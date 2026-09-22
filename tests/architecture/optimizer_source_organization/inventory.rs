@@ -88,7 +88,7 @@ pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
     RuleStageDescriptor {
         entrance: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/mod.rs",
         catalog: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/catalog.rs",
-        coordination_marker: "pub fn built_in_psi_registries",
+        coordination_marker: "pub(crate) fn built_in_psi_registries",
         catalog_marker: "PSI_PASS_CATALOG",
         next_rungs: &[
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/",

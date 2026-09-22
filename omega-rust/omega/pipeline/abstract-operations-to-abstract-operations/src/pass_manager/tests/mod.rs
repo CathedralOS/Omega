@@ -5,10 +5,11 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
+use crate::rules::built_in_psi_registries;
 use crate::{
     AnalysisManager, AnalysisProduct, ExactIntegerAddConstantsRule,
     ExactIntegerSubtractConstantsRule, OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView,
-    RuleProposalError, built_in_psi_registries, built_in_psi_registry,
+    RuleProposalError, built_in_psi_registry,
     rules::tests::{
         SelfDividePolicy, SelfRemainderPolicy, WrappingNeutralOperation, boolean_unit,
         compatible_policy_local_cse_unit, compatible_policy_phi_translated_gvn_unit,

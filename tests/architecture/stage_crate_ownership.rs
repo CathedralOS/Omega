@@ -590,48 +590,14 @@ const UNSEQUENCED_SPILL_FAMILIES: [(&str, &str); 16] = [
 /// families of the selected-rewrite crate left this roster for the
 /// disposition rosters below when their areas moved under a named module
 /// path; the five register-homes rows that remain are rematerialization and
-/// post-allocation-manifest helpers on the sequenced route.
-const INTERNALLY_CALLED_REEXPORTS: [(&str, &str); 37] = [
-    (
-        "abstract-operations-to-abstract-operations",
-        "analysis_dependencies",
-    ),
-    (
-        "abstract-operations-to-abstract-operations",
-        "apply_case_membership_specialization",
-    ),
-    (
-        "abstract-operations-to-abstract-operations",
-        "apply_field_value_specialization",
-    ),
-    (
-        "abstract-operations-to-abstract-operations",
-        "apply_state_argument_specialization",
-    ),
-    (
-        "abstract-operations-to-abstract-operations",
-        "built_in_psi_registries",
-    ),
-    (
-        "abstract-operations-to-abstract-operations",
-        "built_in_psi_registries_for_selections",
-    ),
-    (
-        "abstract-operations-to-abstract-operations",
-        "built_in_psi_registry_for_selections",
-    ),
-    (
-        "abstract-operations-to-abstract-operations",
-        "validate_case_membership_specialization",
-    ),
-    (
-        "abstract-operations-to-abstract-operations",
-        "validate_external_decision_recording",
-    ),
-    (
-        "abstract-operations-to-abstract-operations",
-        "validate_field_value_specialization",
-    ),
+/// post-allocation-manifest helpers on the sequenced route. The two
+/// `checked-trees-to-lowered-psi` rows are the producer stage of crash
+/// entry-requirement certificates (`proofs/entry_requirement_certificates.rs`):
+/// a staged capability whose parity with the verifier is tested but whose
+/// rosters do not yet attach to the proof bundle, so it has no caller at all
+/// and narrowing it would only make the module dead code; it stays `pub`
+/// until that leg lands or the module is retired.
+const INTERNALLY_CALLED_REEXPORTS: [(&str, &str); 27] = [
     (
         "checked-trees-to-lowered-psi",
         "check_entry_requirement_certificate",

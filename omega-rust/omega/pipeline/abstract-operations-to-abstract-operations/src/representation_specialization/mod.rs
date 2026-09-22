@@ -69,14 +69,14 @@ pub fn propose_case_membership_specializations(
     propose::all(session, candidate_limit)
 }
 
-pub fn validate_case_membership_specialization(
+pub(crate) fn validate_case_membership_specialization(
     session: &VerifiedPsiOptimizationSession,
     candidate: &CaseMembershipSpecializationCandidate,
 ) -> Result<ValidatedCaseMembershipSpecialization, CaseMembershipSpecializationError> {
     validate::candidate(session, candidate)
 }
 
-pub fn apply_case_membership_specialization(
+pub(crate) fn apply_case_membership_specialization(
     session: VerifiedPsiOptimizationSession,
     validated: ValidatedCaseMembershipSpecialization,
 ) -> Result<AppliedCaseMembershipSpecialization, CaseMembershipSpecializationError> {

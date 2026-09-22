@@ -73,14 +73,14 @@ pub fn propose_field_value_specializations(
     propose::all(session, candidate_limit)
 }
 
-pub fn validate_field_value_specialization(
+pub(crate) fn validate_field_value_specialization(
     session: &VerifiedPsiOptimizationSession,
     candidate: &FieldValueSpecializationCandidate,
 ) -> Result<ValidatedFieldValueSpecialization, FieldValueSpecializationError> {
     validate::candidate(session, candidate)
 }
 
-pub fn apply_field_value_specialization(
+pub(crate) fn apply_field_value_specialization(
     session: VerifiedPsiOptimizationSession,
     validated: ValidatedFieldValueSpecialization,
 ) -> Result<AppliedFieldValueSpecialization, FieldValueSpecializationError> {

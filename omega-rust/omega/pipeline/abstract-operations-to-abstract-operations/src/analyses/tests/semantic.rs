@@ -1,9 +1,10 @@
 //! Semantic facts, effects, and liveness coverage.
 
 use super::fixtures::*;
+use crate::analyses::analysis_dependencies;
 use crate::{
     AnalysisProduct, EffectClass, EffectKnowledge, ExecutableEdgeKnowledge, PlaceAliasRelation,
-    PlaceView, ScalarConstant, ScalarConstantSupport, analysis_dependencies, compute_analysis,
+    PlaceView, ScalarConstant, ScalarConstantSupport, compute_analysis,
 };
 use abstract_operations::AbstractOperation as O;
 use optimization_core::*;

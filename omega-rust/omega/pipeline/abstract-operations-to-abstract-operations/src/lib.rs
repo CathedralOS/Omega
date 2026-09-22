@@ -48,7 +48,7 @@ pub use analyses::{
     ValidatedCountdownInvariantConstantAnalysis,
     ValidatedCountdownInvariantConstantPlacementAnalysis, ValidatedCountedLoopAnalysis,
     ValueFactRegion, ValueLivenessAnalysis, ValueLivenessBlock, ValueRangeAnalysis, ValueRangeFact,
-    ValueRangeRegion, ValueRangeScope, ValueRangeSupport, analysis_dependencies, compute_analysis,
+    ValueRangeRegion, ValueRangeScope, ValueRangeSupport, compute_analysis,
     value_range_fact_identity,
 };
 pub(crate) use analyses::{
@@ -59,7 +59,6 @@ pub(crate) use analyses::{
 pub use field_value_specialization::{
     AppliedFieldValueSpecialization, FieldValueSpecializationCandidate,
     FieldValueSpecializationError, ResolvedFieldValue, ValidatedFieldValueSpecialization,
-    apply_field_value_specialization, validate_field_value_specialization,
 };
 // Proposal helpers have no consumer outside this crate; they are internal
 // plumbing, not stage entrances.
@@ -67,7 +66,7 @@ pub use pass_manager::{
     CandidateContractAxis, ExternalDecisionContextAxis, ExternalDecisionReplayError,
     OptimizationRun, OptimizationRunError, OptimizationRunUsage, PsiOptimizationCommit,
     PsiValidatedCandidateDeclaration, VerifiedPsiOptimizationSession,
-    baseline_psi_cost_model_identity, validate_external_decision_recording,
+    baseline_psi_cost_model_identity,
 };
 pub use ranked_rewrites::{
     AppliedCountdownInvariantConstantRelocation, AppliedLoopInvariantScalarMotion,
@@ -83,8 +82,7 @@ pub use ranked_rewrites::{
 pub use representation_specialization::{
     AppliedCaseMembershipSpecialization, CaseMembershipSpecializationCandidate,
     CaseMembershipSpecializationError, ResolvedCaseMembership,
-    ValidatedCaseMembershipSpecialization, apply_case_membership_specialization,
-    validate_case_membership_specialization,
+    ValidatedCaseMembershipSpecialization,
 };
 pub use rules::registry::{
     OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
@@ -129,12 +127,9 @@ pub use rules::{
     SharedJumpFusionRule, WrappingIntegerAddConstantsRule, WrappingIntegerDivideConstantsRule,
     WrappingIntegerMultiplyConstantsRule, WrappingIntegerRemainderConstantsRule,
     WrappingIntegerShiftLeftConstantsRule, WrappingIntegerShiftRightConstantsRule,
-    WrappingIntegerSubtractConstantsRule, built_in_psi_registries,
-    built_in_psi_registries_for_selections, built_in_psi_registry,
-    built_in_psi_registry_for_selections,
+    WrappingIntegerSubtractConstantsRule, built_in_psi_registry,
 };
 pub use state_specialization::{
     AppliedStateArgumentSpecialization, SpecializedStateEdge, StateArgumentSpecializationCandidate,
     StateArgumentSpecializationError, ValidatedStateArgumentSpecialization,
-    apply_state_argument_specialization,
 };

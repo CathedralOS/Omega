@@ -1,11 +1,13 @@
 //! Optimizer module role: test leaf. Constant state-argument specialization proposal, replay, and custody evidence.
 
 use super::super::VerifiedPsiOptimizationSession;
-use crate::state_specialization::propose_state_argument_specializations;
-use crate::state_specialization::validate_state_argument_specialization;
+use crate::state_specialization::{
+    apply_state_argument_specialization, propose_state_argument_specializations,
+    validate_state_argument_specialization,
+};
 use crate::{
     StateArgumentSpecializationCandidate, StateArgumentSpecializationError,
-    apply_state_argument_specialization, optimize_abstract_operations,
+    optimize_abstract_operations,
 };
 use abstract_operations::AbstractOperation;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;

@@ -1,6 +1,7 @@
 //! Selected catalog reconstruction and canonical whole-run rule identity.
 
-use crate::{OrderedRuleRegistry, built_in_psi_registries};
+use crate::OrderedRuleRegistry;
+use crate::rules::built_in_psi_registries;
 use optimization_core::{OptimizationRuleSetIdentity, OptimizationSelections};
 
 use crate::OptimizedAbstractProjectionError;
