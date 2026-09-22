@@ -121,8 +121,16 @@ const DEPENDENCY_FREE_SAMPLES: &[&str] = &[
 /// identity under the managed harness without a dependency edge.
 const PACKAGE_MEMBER_CASES: &[(&str, &str)] = &[
     (
-        "pass/proofs/quotient_define_managed_compile",
+        "pass/proofs/quotient-define-managed-compile",
         "quotient-define-managed-compile",
+    ),
+    (
+        "pass/proofs/quotient-lift-managed-compile",
+        "quotient-lift-managed-compile",
+    ),
+    (
+        "pass/traits/equatable-qualified-field-reference-exit/leaf",
+        "qualified-region",
     ),
     ("pass/build/runtime-depend-mapping-exit/lib", "mylib"),
     ("pass/modules/package-bare-cases", "package-bare-cases"),
@@ -497,8 +505,8 @@ fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
 fn proof_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/proofs"),
-        15,
-        13,
+        17,
+        14,
     );
 }
 
@@ -564,8 +572,8 @@ fn arithmetic_canaries_declare_only_their_consumed_standard_library_edges() {
 fn call_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/calls"),
-        181,
-        179,
+        183,
+        180,
     );
 }
 
@@ -595,8 +603,8 @@ fn float_canaries_declare_only_their_consumed_standard_library_edges() {
 fn trait_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/traits"),
-        33,
-        29,
+        35,
+        30,
     );
 }
 
@@ -616,16 +624,19 @@ fn operator_and_type_runtime_canaries_declare_ordinary_standard_library_edges() 
 #[test]
 fn ownership_and_reference_runtime_canaries_declare_ordinary_standard_library_edges() {
     let ownership = repository_root().join("tests/omega/pass/ownership");
-    let dependency_free = ownership.join("linear_boundary_entry_handoff");
+    let dependency_free = [
+        ownership.join("linear_ambiguous_state_result_mapping"),
+        ownership.join("linear_boundary_entry_handoff"),
+    ];
     let mut ownership_roots = Vec::new();
     collect_build_roots(&ownership, &mut ownership_roots);
-    assert_eq!(ownership_roots.len(), 12);
+    assert_eq!(ownership_roots.len(), 13);
     for root in ownership_roots {
-        if root == dependency_free {
+        if dependency_free.contains(&root) {
             let projection = extract_build_dependency_projection(&root).unwrap();
             assert!(
                 projection.product_dependencies().is_empty(),
-                "freestanding UEFI ownership canary must remain dependency-free"
+                "freestanding ownership canary must remain dependency-free"
             );
         } else {
             assert_canary_declares_ordinary_standard_library_edge(&root);
@@ -649,8 +660,8 @@ fn small_mixed_runtime_categories_declare_only_their_required_standard_library_e
         ("core", 14, 7),
         ("dungeon", 19, 15),
         ("domains", 29, 27),
-        ("host", 23, 22),
-        ("providers", 35, 19),
+        ("host", 23, 23),
+        ("providers", 40, 24),
     ] {
         assert_mixed_canary_category_standard_library_edges(
             &repository_root().join("tests/omega/pass").join(category),
