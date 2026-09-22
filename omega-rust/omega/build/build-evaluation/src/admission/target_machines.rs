@@ -28,6 +28,7 @@
 //! host that executes it.
 
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::BuildOperation;
 use std::collections::{BTreeMap, HashSet};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::Item;
@@ -290,7 +291,8 @@ fn provider_default_call_occurrences(
         for statement in typed.statement_table.statements(state.statement_nodes) {
             match statement {
                 typed_trees::statement::StatementNode::Call(call)
-                    if call.target.as_str() == "select_provider"
+                    if BuildOperation::from_call_target(call.target.as_str())
+                        == Some(BuildOperation::ProviderSelection)
                         && !call.target_symbol.is_valid() =>
                 {
                     occurrences.extend(call.authored_call_selection);
@@ -298,7 +300,8 @@ fn provider_default_call_occurrences(
                 typed_trees::statement::StatementNode::Expression(expression) => {
                     if let typed_trees::expression::ExpressionNode::Call(call) =
                         typed.expression_table.expression(*expression)
-                        && call.target.as_str() == "select_provider"
+                        && BuildOperation::from_call_target(call.target.as_str())
+                            == Some(BuildOperation::ProviderSelection)
                         && !call.target_symbol.is_valid()
                     {
                         occurrences.extend(typed.expression_table.authored_selection_occurrences(*expression).filter(|occurrence| {

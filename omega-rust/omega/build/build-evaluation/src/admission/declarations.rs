@@ -182,7 +182,8 @@ pub(crate) fn collect_executed_provider_selections(
                 checked_interpreter::ExecutedProviderSelectionSite::Statement(handle) => {
                     match typed.statement_table.statement(handle) {
                         typed_trees::statement::StatementNode::Call(call)
-                            if call.target.as_str() == "select_provider"
+                            if BuildOperation::from_call_target(call.target.as_str())
+                                == Some(BuildOperation::ProviderSelection)
                                 && !call.target_symbol.is_valid() =>
                         {
                             Some(ProviderSelectionCall {
@@ -203,7 +204,8 @@ pub(crate) fn collect_executed_provider_selections(
                 checked_interpreter::ExecutedProviderSelectionSite::Expression(handle) => {
                     match typed.expression_table.expression(handle) {
                         typed_trees::expression::ExpressionNode::Call(call)
-                            if call.target.as_str() == "select_provider"
+                            if BuildOperation::from_call_target(call.target.as_str())
+                                == Some(BuildOperation::ProviderSelection)
                                 && !call.target_symbol.is_valid() =>
                         {
                             Some(ProviderSelectionCall {

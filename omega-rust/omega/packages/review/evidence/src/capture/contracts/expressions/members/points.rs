@@ -21,7 +21,7 @@ pub(crate) fn checked_self_parameter_symbol(
             .expression_table
             .name_path_members(path.members)
             .first()
-            .is_some_and(|name| name.as_str() == "self")
+            .is_some_and(|name| language_core::is_self_receiver(name.as_str()))
     {
         return None;
     }

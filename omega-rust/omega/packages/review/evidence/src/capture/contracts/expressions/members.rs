@@ -286,7 +286,7 @@ pub(crate) fn contract_member_path_root(
             .expression_table
             .name_path_members(path.members)
             .first()
-            .is_some_and(|name| name.as_str() == "self")
+            .is_some_and(|name| language_core::is_self_receiver(name.as_str()))
     {
         return checked_self_parameter_symbol(compilation, context, path)
             .map(facts::PlaceRoot::Symbol);
@@ -302,7 +302,7 @@ pub(crate) fn contract_member_path_root(
     let [name] = compilation.expression_table.name_path_members(path.members) else {
         return None;
     };
-    if context.domain_symbol.is_some() && name.as_str() == "self" {
+    if context.domain_symbol.is_some() && language_core::is_self_receiver(name.as_str()) {
         return Some(facts::PlaceRoot::Expression(expression));
     }
     context
