@@ -345,3 +345,81 @@ fn match_arms_preserve_order_source_and_nonnumeric_values() {
     assert_eq!(copied.to_tree(roundtrip), tree);
     assert!(table.expressions_structurally_equal(expression, own_copy));
 }
+
+/// A bare call carries none of the redirecting requests or extra operand
+/// kinds, so both shape predicates admit it; each disqualifying field, set on
+/// its own, must turn exactly one of them off.
+#[test]
+fn call_shape_predicates_reject_each_disqualifying_field_alone() {
+    use super::{
+        PrivateLayoutOperationRequest, QuotientOperationKind, QuotientOperationRequest,
+        StaticMachineArgument, TableCallExpression,
+    };
+    use crate::typed_trees::StaticRequirementDispatch;
+
+    let static_argument = || StaticMachineArgument {
+        type_reference: Default::default(),
+        path: Box::default(),
+        application: None,
+        const_literal: None,
+        evidence_projection: None,
+        symbol: SymbolHandle::invalid(),
+    };
+    let bare = || TableCallExpression {
+        receiver: Default::default(),
+        target_symbol: SymbolHandle::invalid(),
+        static_machine_parameter: SymbolHandle::invalid(),
+        target: Identifier::generated_static("target"),
+        static_requirement_dispatch: None,
+        machine_arguments: Box::default(),
+        quotient_operation: None,
+        private_layout_operation: None,
+        arguments: Default::default(),
+        evidence_arguments: Box::default(),
+        operational_acknowledgement: Default::default(),
+    };
+
+    assert!(bare().selects_only_nominal_route());
+    assert!(bare().carries_only_positional_arguments());
+
+    let dispatched = TableCallExpression {
+        static_requirement_dispatch: Some(StaticRequirementDispatch::default()),
+        ..bare()
+    };
+    assert!(!dispatched.selects_only_nominal_route());
+    assert!(dispatched.carries_only_positional_arguments());
+
+    let quotient = TableCallExpression {
+        quotient_operation: Some(QuotientOperationRequest {
+            kind: QuotientOperationKind::Lift,
+            representative_operation: static_argument(),
+            theorem_evidence: Box::default(),
+        }),
+        ..bare()
+    };
+    assert!(!quotient.selects_only_nominal_route());
+    assert!(quotient.carries_only_positional_arguments());
+
+    let private_layout = TableCallExpression {
+        private_layout_operation: Some(PrivateLayoutOperationRequest {
+            selected_slot: static_argument(),
+        }),
+        ..bare()
+    };
+    assert!(!private_layout.selects_only_nominal_route());
+    assert!(private_layout.carries_only_positional_arguments());
+
+    let applied = TableCallExpression {
+        machine_arguments: Box::from([static_argument()]),
+        ..bare()
+    };
+    assert!(applied.selects_only_nominal_route());
+    assert!(!applied.carries_only_positional_arguments());
+
+    let evidence = TableCallExpression {
+        evidence_arguments: Box::from([Identifier::generated_static("witness")]),
+        ..bare()
+    };
+    assert!(evidence.selects_only_nominal_route());
+    assert!(!evidence.carries_only_positional_arguments());
+}

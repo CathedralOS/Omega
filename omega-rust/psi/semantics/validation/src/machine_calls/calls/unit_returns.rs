@@ -64,11 +64,8 @@ pub(in crate::machine_calls::calls) fn call_returns_unit(
         return true;
     }
     if !call.target_symbol.is_valid()
-        || !call.machine_arguments.is_empty()
-        || !call.evidence_arguments.is_empty()
-        || call.static_requirement_dispatch.is_some()
-        || call.quotient_operation.is_some()
-        || call.private_layout_operation.is_some()
+        || !call.carries_only_positional_arguments()
+        || !call.selects_only_nominal_route()
     {
         return false;
     }
@@ -128,9 +125,7 @@ pub(super) fn admitted_provider_selection(
             .len()
             > 1
         || !call.evidence_arguments.is_empty()
-        || call.static_requirement_dispatch.is_some()
-        || call.quotient_operation.is_some()
-        || call.private_layout_operation.is_some()
+        || !call.selects_only_nominal_route()
     {
         return false;
     }

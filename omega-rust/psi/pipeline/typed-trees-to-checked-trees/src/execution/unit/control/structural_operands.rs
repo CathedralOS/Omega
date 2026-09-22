@@ -392,11 +392,8 @@ fn collect<'a>(
             || output
                 .iter()
                 .any(|prior| matches!(prior, Operand::Call(prior) if prior.authored_expression == expression))
-            || !authored.machine_arguments.is_empty()
-            || !authored.evidence_arguments.is_empty()
-            || authored.static_requirement_dispatch.is_some()
-            || authored.quotient_operation.is_some()
-            || authored.private_layout_operation.is_some()
+            || !authored.carries_only_positional_arguments()
+            || !authored.selects_only_nominal_route()
         {
             return None;
         }

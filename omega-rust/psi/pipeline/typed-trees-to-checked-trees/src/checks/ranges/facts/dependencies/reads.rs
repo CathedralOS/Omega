@@ -123,10 +123,8 @@ pub(super) fn collect_reads(
                 return false;
             };
             if call.static_machine_parameter.is_valid()
-                || call.static_requirement_dispatch.is_some()
+                || !call.selects_only_nominal_route()
                 || !static_application_carries_no_caller_storage(program, call)
-                || call.quotient_operation.is_some()
-                || call.private_layout_operation.is_some()
             {
                 return false;
             }

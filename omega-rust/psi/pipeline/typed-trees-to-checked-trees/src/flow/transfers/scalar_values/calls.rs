@@ -25,11 +25,7 @@ pub(super) fn capture_call<Value: CapturedValue>(
     call: &typed_trees::expression::TableCallExpression,
     active: HandleSpan<FlowSemanticContextRef>,
 ) -> Option<Value> {
-    if !call.machine_arguments.is_empty()
-        || call.static_requirement_dispatch.is_some()
-        || call.quotient_operation.is_some()
-        || call.private_layout_operation.is_some()
-    {
+    if !call.machine_arguments.is_empty() || !call.selects_only_nominal_route() {
         return None;
     }
     let caller = crate::semantic_calls::find_state(program, caller_state)?;

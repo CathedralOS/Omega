@@ -53,8 +53,7 @@ pub(crate) fn validate_integer_embedding_calls(
         if call.receiver.is_valid()
             || call.quotient_operation.is_some()
             || call.private_layout_operation.is_some()
-            || !call.evidence_arguments.is_empty()
-            || !call.machine_arguments.is_empty()
+            || !call.carries_only_positional_arguments()
         {
             reject(
                 "the source must select a direct checked value call",

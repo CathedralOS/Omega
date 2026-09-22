@@ -568,11 +568,7 @@ pub(crate) fn selected_const_call_result_bounds(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return None;
     };
-    if call.receiver.is_valid()
-        || call.static_requirement_dispatch.is_some()
-        || call.quotient_operation.is_some()
-        || call.private_layout_operation.is_some()
-    {
+    if call.receiver.is_valid() || !call.selects_only_nominal_route() {
         return None;
     }
     let (callee, entry) = crate::declarations::transitions::resolved_transition_target_state(

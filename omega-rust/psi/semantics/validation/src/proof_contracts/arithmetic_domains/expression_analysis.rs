@@ -158,9 +158,7 @@ fn resolved_free_integer_call(
     if !call.target_symbol.is_valid()
         || call.receiver.is_valid()
         || !call.machine_arguments.is_empty()
-        || call.static_requirement_dispatch.is_some()
-        || call.quotient_operation.is_some()
-        || call.private_layout_operation.is_some()
+        || !call.selects_only_nominal_route()
     {
         return None;
     }

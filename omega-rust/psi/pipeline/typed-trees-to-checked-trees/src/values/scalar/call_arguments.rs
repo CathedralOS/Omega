@@ -223,11 +223,8 @@ pub(super) fn nested_structural_call_sites<'program>(
                 return None;
             };
             if call.target_symbol != source.target_symbol
-                || !call.machine_arguments.is_empty()
-                || !call.evidence_arguments.is_empty()
-                || call.static_requirement_dispatch.is_some()
-                || call.quotient_operation.is_some()
-                || call.private_layout_operation.is_some()
+                || !call.carries_only_positional_arguments()
+                || !call.selects_only_nominal_route()
             {
                 return None;
             }
@@ -267,11 +264,8 @@ pub(crate) fn nested_structural_call_return_type(
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<TypeReferenceHandle> {
     if !call.target_symbol.is_valid()
-        || !call.machine_arguments.is_empty()
-        || !call.evidence_arguments.is_empty()
-        || call.static_requirement_dispatch.is_some()
-        || call.quotient_operation.is_some()
-        || call.private_layout_operation.is_some()
+        || !call.carries_only_positional_arguments()
+        || !call.selects_only_nominal_route()
     {
         return None;
     }

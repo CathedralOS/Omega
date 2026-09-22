@@ -297,12 +297,9 @@ impl Invocation<'_> {
         let ExpressionNode::Call(call) = typed.expression_table.expression(expression) else {
             return Err("initializer lost its selected call".into());
         };
-        if !call.machine_arguments.is_empty()
-            || !call.evidence_arguments.is_empty()
+        if !call.carries_only_positional_arguments()
             || call.static_machine_parameter.is_valid()
-            || call.static_requirement_dispatch.is_some()
-            || call.quotient_operation.is_some()
-            || call.private_layout_operation.is_some()
+            || !call.selects_only_nominal_route()
         {
             return Err(
                 "constant invocation needs its complete specialized application context".into(),

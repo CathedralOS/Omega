@@ -23,10 +23,7 @@ pub(in crate::checks::ranges) fn ensured_call_result_bounds(
     // Internal operator shapes are not ordinary machine calls; their target
     // must not borrow a machine contract. A dispatched requirement's private
     // realization is likewise not the public proof interface.
-    if call.static_requirement_dispatch.is_some()
-        || call.quotient_operation.is_some()
-        || call.private_layout_operation.is_some()
-    {
+    if !call.selects_only_nominal_route() {
         return None;
     }
     // Resolve the contract target the way `call_target_parameters` does: a

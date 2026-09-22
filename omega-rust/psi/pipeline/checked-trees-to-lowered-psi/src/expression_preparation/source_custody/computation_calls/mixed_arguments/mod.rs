@@ -133,11 +133,8 @@ pub(crate) fn rejoin_computation_call_arguments(
     if owner.symbol != *target_machine
         || call.target_symbol != *target_state
         || source.has_receiver != call.receiver.is_valid()
-        || !call.machine_arguments.is_empty()
-        || !call.evidence_arguments.is_empty()
-        || call.static_requirement_dispatch.is_some()
-        || call.quotient_operation.is_some()
-        || call.private_layout_operation.is_some()
+        || !call.carries_only_positional_arguments()
+        || !call.selects_only_nominal_route()
         || checked.primitive_type_reference(target.return_type) != Some(node.primitive_type)
         || authored.len() != call.arguments.count() as usize
         || authored.len() != explicit_parameters.len()
