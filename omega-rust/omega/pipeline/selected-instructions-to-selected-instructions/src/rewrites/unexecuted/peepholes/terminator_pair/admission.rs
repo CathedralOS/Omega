@@ -28,7 +28,7 @@ use super::pair::{
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::analyses::machine_effects::machine_semantic_kind;
-use crate::peepholes::condition_flow;
+use crate::rewrites::unexecuted::peepholes::condition_flow;
 
 /// One admitted terminator pair: everything `rewrite` needs to rebuild the
 /// terminator and everything `validate` needs to re-check it.

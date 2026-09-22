@@ -43,6 +43,9 @@
 //! - `local_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `local_schedule` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `member_run_interchange` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
+//! - `peepholes` (`condition_materialization`, `copied_call_operand`,
+//!   `projected_access`, `terminator_pair`) — staged, owner row
+//!   **DECLARATIVE-PEEPHOLES**
 //! - `predecessor_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `predecessor_run_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `redundant_extension` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
@@ -89,6 +92,7 @@ mod load_forwarding;
 mod local_relocation;
 mod local_schedule;
 mod member_run_interchange;
+pub mod peepholes;
 mod place_storage;
 mod predecessor_relocation;
 mod predecessor_run_relocation;

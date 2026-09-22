@@ -487,7 +487,7 @@ fn stage_root_public_modules_have_external_consumers() {
 /// their `pub fn`s are the only root-reachable functions this audit excuses
 /// as a group. A family that gains a production caller must leave both
 /// rosters; a family the board retires must be deleted, not kept here.
-const UNEXECUTED_REWRITE_FAMILIES: [(&str, &str); 38] = [
+const UNEXECUTED_REWRITE_FAMILIES: [(&str, &str); 39] = [
     ("address_fold", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("arm_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("boundary_boolean", "EXACT-MACHINE-SIMPLIFICATIONS"),
@@ -521,6 +521,7 @@ const UNEXECUTED_REWRITE_FAMILIES: [(&str, &str); 38] = [
     ("local_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("local_schedule", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("member_run_interchange", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("peepholes", "DECLARATIVE-PEEPHOLES"),
     ("predecessor_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
     (
         "predecessor_run_relocation",
@@ -570,15 +571,12 @@ const UNSEQUENCED_SPILL_FAMILIES: [(&str, &str); 16] = [
 /// function to `pub(crate)`, wiring it into the route, or deleting it with its
 /// family) removes the row and a new orphan cannot enter without a row. The
 /// The 13 unsequenced spill identities of
-/// `selected-instructions-to-register-homes` left this roster for
-/// `UNSEQUENCED_SPILL_FAMILIES` when that area moved under a named module
+/// `selected-instructions-to-register-homes` and the four `peepholes` pair
+/// families of the selected-rewrite crate left this roster for the
+/// disposition rosters below when their areas moved under a named module
 /// path; the five register-homes rows that remain are rematerialization and
-/// post-allocation-manifest helpers on the sequenced route. The four
-/// `peepholes` fold and validate pairs in
-/// `selected-instructions-to-selected-instructions` are unexecuted families
-/// outside `rewrites/` that DECLARATIVE-PEEPHOLES owns beside the rostered
-/// ones.
-const INTERNALLY_CALLED_REEXPORTS: [(&str, &str); 47] = [
+/// post-allocation-manifest helpers on the sequenced route.
+const INTERNALLY_CALLED_REEXPORTS: [(&str, &str); 39] = [
     (
         "abstract-operations-to-abstract-operations",
         "analysis_dependencies",
@@ -657,23 +655,7 @@ const INTERNALLY_CALLED_REEXPORTS: [(&str, &str); 47] = [
     ),
     (
         "selected-instructions-to-selected-instructions",
-        "fold_selected_condition_materialization",
-    ),
-    (
-        "selected-instructions-to-selected-instructions",
-        "fold_selected_copied_call_operand",
-    ),
-    (
-        "selected-instructions-to-selected-instructions",
         "fold_selected_incoming_literal",
-    ),
-    (
-        "selected-instructions-to-selected-instructions",
-        "fold_selected_projected_access",
-    ),
-    (
-        "selected-instructions-to-selected-instructions",
-        "fold_selected_terminator_pair",
     ),
     (
         "selected-instructions-to-selected-instructions",
@@ -705,27 +687,11 @@ const INTERNALLY_CALLED_REEXPORTS: [(&str, &str); 47] = [
     ),
     (
         "selected-instructions-to-selected-instructions",
-        "validate_condition_materialization_fold",
-    ),
-    (
-        "selected-instructions-to-selected-instructions",
-        "validate_copied_call_operand_fold",
-    ),
-    (
-        "selected-instructions-to-selected-instructions",
         "validate_literal_fold",
     ),
     (
         "selected-instructions-to-selected-instructions",
-        "validate_projected_access_fold",
-    ),
-    (
-        "selected-instructions-to-selected-instructions",
         "validate_staged_optimized_liveness_custody",
-    ),
-    (
-        "selected-instructions-to-selected-instructions",
-        "validate_terminator_pair_fold",
     ),
     (
         "selected-instructions-to-selected-instructions",

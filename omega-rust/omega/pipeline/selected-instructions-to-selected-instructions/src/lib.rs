@@ -12,7 +12,6 @@
 //! `selected_optimization::optimization_output`.
 
 mod analyses;
-mod peepholes;
 mod rewrites;
 mod selected_optimization;
 
@@ -60,16 +59,6 @@ pub use analyses::{
 pub use analyses::{
     OptimizedAllocationLegalityCustodyFieldForTest, OptimizedLiveRangeCustodyFieldForTest,
     OptimizedLivenessCustodyFieldForTest, OptimizedSelectedReanalysisCustodyFieldForTest,
-};
-pub use peepholes::{
-    ConditionMaterializationError, ConditionMaterializationReceipt, CopiedCallOperandError,
-    CopiedCallOperandReceipt, ProjectedAccessError, ProjectedAccessReceipt, TerminatorPairError,
-    TerminatorPairReceipt, ValidatedConditionMaterialization, ValidatedCopiedCallOperand,
-    ValidatedProjectedAccess, ValidatedTerminatorPair, fold_selected_condition_materialization,
-    fold_selected_copied_call_operand, fold_selected_projected_access,
-    fold_selected_terminator_pair, validate_condition_materialization_fold,
-    validate_copied_call_operand_fold, validate_projected_access_fold,
-    validate_terminator_pair_fold,
 };
 pub use rewrites::unexecuted;
 pub use rewrites::{

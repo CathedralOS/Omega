@@ -258,6 +258,14 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
     RewriteModuleRow {
+        // The four declarative pair families beyond the literal-fold
+        // grammar (`condition_materialization`, `copied_call_operand`,
+        // `projected_access`, `terminator_pair`) and their shared
+        // `condition_flow` walk.
+        module: "peepholes",
+        route: RewriteModuleRoute::Orphaned("DECLARATIVE-PEEPHOLES"),
+    },
+    RewriteModuleRow {
         module: "place_storage",
         route: RewriteModuleRoute::Shared,
     },

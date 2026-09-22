@@ -3,6 +3,10 @@ use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIden
 use semantic_vocabulary::FuelScheduleIdentity;
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
+use crate::rewrites::unexecuted::peepholes::{
+    ValidatedConditionMaterialization, ValidatedCopiedCallOperand, ValidatedProjectedAccess,
+    ValidatedTerminatorPair,
+};
 use crate::rewrites::unexecuted::{
     ValidatedAddressFold, ValidatedArmRelocation, ValidatedBoundaryBoolean,
     ValidatedBoundaryBranch, ValidatedBypassRelocation, ValidatedBypassRunRelocation,
@@ -21,9 +25,8 @@ use crate::rewrites::unexecuted::{
     ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding, ValidatedTriangleRelocation,
 };
 use crate::{
-    ValidatedConditionMaterialization, ValidatedCopiedCallOperand, ValidatedFixedViewCopies,
-    ValidatedLiteralFold, ValidatedPressureRematerialization, ValidatedProjectedAccess,
-    ValidatedRuntimeRematerialization, ValidatedRuntimeSpill, ValidatedTerminatorPair,
+    ValidatedFixedViewCopies, ValidatedLiteralFold, ValidatedPressureRematerialization,
+    ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
 };
 
 mod sealed {
