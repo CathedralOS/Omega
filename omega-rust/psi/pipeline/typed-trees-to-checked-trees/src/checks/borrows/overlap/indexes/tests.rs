@@ -352,8 +352,12 @@ fn unknown_selector_positions_close_replay_shape_without_positive_evidence() {
     );
     let zero = integer(&mut program, 0);
     let four = integer(&mut program, 4);
-    let left_end = named_bound(&mut program, "computed", symbol(9));
-    let right_start = named_bound(&mut program, "computed", symbol(9));
+    let computed_name = named_bound(&mut program, "computed", symbol(9));
+    // A computed expression cannot enter the bound vocabulary at all — a
+    // bare mutable name contributes a storage bound, but `computed + 0` has
+    // no literal spelling.
+    let left_end = offset_bound(&mut program, computed_name, BinaryOperator::Add, 0);
+    let right_start = offset_bound(&mut program, computed_name, BinaryOperator::Add, 0);
     let left = range_bounds(&mut program, zero, left_end, false);
     let right = range_bounds(&mut program, right_start, four, false);
     let left_location = SelectorLocation {

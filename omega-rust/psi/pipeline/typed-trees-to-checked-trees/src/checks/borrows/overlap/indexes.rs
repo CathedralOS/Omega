@@ -15,6 +15,15 @@ pub(super) enum NormalizedBound {
         symbol: SymbolHandle,
         offset: i64,
     },
+    /// The value currently stored under one mutable storage symbol. The
+    /// storage name is a query coordinate, never positive evidence: storage
+    /// bounds never order structurally (the storage may hold a different
+    /// occurrence at each statement), so stated evidence can only claim them
+    /// in a scope where the establishment binding is version-pinned. The row
+    /// retains in the serialized vocabulary as the plain `Symbol` form.
+    Storage {
+        symbol: SymbolHandle,
+    },
     /// `first + second + offset` over two distinct immutable symbols in
     /// canonical arena order; `offset` may be zero because a two-symbol sum
     /// has no simpler spelling.
@@ -37,6 +46,7 @@ pub(super) fn selector_value(bound: NormalizedBound) -> BorrowCompatibilitySelec
         NormalizedBound::Symbol { symbol, offset } => {
             BorrowCompatibilitySelectorValue::SymbolOffset { symbol, offset }
         }
+        NormalizedBound::Storage { symbol } => BorrowCompatibilitySelectorValue::Symbol(symbol),
         NormalizedBound::SymbolSum {
             first,
             second,
@@ -87,6 +97,7 @@ fn bound_offset(bound: NormalizedBound) -> Option<i64> {
     match bound {
         NormalizedBound::Integer(value) => Some(value),
         NormalizedBound::Symbol { offset, .. } => Some(offset),
+        NormalizedBound::Storage { .. } => Some(0),
         NormalizedBound::SymbolSum { offset, .. } => Some(offset),
     }
 }
@@ -324,51 +335,13 @@ impl<'a> SelectorSnapshotEvaluation<'a> {
                 return None;
             }
             self.next_frozen += 1;
-            let value = match row.value {
-                None => None,
-                Some(BorrowCompatibilitySelectorValue::Integer(value)) => {
-                    Some(NormalizedBound::Integer(value))
-                }
-                Some(BorrowCompatibilitySelectorValue::Symbol(symbol)) if symbol.is_valid() => {
-                    Some(NormalizedBound::Symbol { symbol, offset: 0 })
-                }
-                Some(BorrowCompatibilitySelectorValue::Symbol(_)) => {
-                    self.mark_drift(CompatibilityReplayDrift::SelectorSnapshot);
-                    None
-                }
-                Some(BorrowCompatibilitySelectorValue::SymbolOffset { symbol, offset })
-                    if symbol.is_valid() && offset != 0 =>
-                {
-                    Some(NormalizedBound::Symbol { symbol, offset })
-                }
-                Some(BorrowCompatibilitySelectorValue::SymbolOffset { .. }) => {
-                    self.mark_drift(CompatibilityReplayDrift::SelectorSnapshot);
-                    None
-                }
-                Some(BorrowCompatibilitySelectorValue::SymbolSum {
-                    first,
-                    second,
-                    offset,
-                }) if first.is_valid()
-                    && second.is_valid()
-                    && (first.arena_index(), first.generation())
-                        < (second.arena_index(), second.generation()) =>
-                {
-                    Some(NormalizedBound::SymbolSum {
-                        first,
-                        second,
-                        offset,
-                    })
-                }
-                Some(BorrowCompatibilitySelectorValue::SymbolSum { .. }) => {
-                    self.mark_drift(CompatibilityReplayDrift::SelectorSnapshot);
-                    None
-                }
-            };
+            // The verified row matches the re-derived value in the retained
+            // vocabulary, so the fresh bound is the canonical one to use: it
+            // keeps storage-bound mutability the serialized row cannot spell.
             if self.drift.is_none() {
-                self.recorded.push((location, position, value));
+                self.recorded.push((location, position, current));
             }
-            return value;
+            return current;
         }
 
         let value = current();
@@ -580,7 +553,7 @@ fn range_integer_bounds(
         selectors.bound(
             location,
             BorrowCompatibilitySelectorPosition::RangeStart,
-            || normalized_bound(program, range.start),
+            || selector_bound(program, range.start),
         ),
         exclusive_end_bound(program, range, location, selectors),
     )
@@ -681,7 +654,7 @@ pub(super) fn index_expression_extent_with_selectors(
                     .expression_table
                     .constant_integer_value(expression)
                     .map(NormalizedBound::Integer)
-                    .or_else(|| normalized_bound(program, expression))
+                    .or_else(|| selector_bound(program, expression))
             },
         )),
     }
@@ -709,7 +682,7 @@ fn exclusive_end_bound(
         location,
         BorrowCompatibilitySelectorPosition::RangeExclusiveEnd,
         || {
-            let end = normalized_bound(program, range.end)?;
+            let end = selector_bound(program, range.end)?;
             if !range.end_inclusive {
                 return Some(end);
             }
@@ -718,6 +691,9 @@ fn exclusive_end_bound(
                 NormalizedBound::Symbol { symbol, offset } => offset
                     .checked_add(1)
                     .map(|offset| NormalizedBound::Symbol { symbol, offset }),
+                // `storage + 1` is outside the storage vocabulary, so an
+                // inclusive mutable end reports unknown.
+                NormalizedBound::Storage { .. } => None,
                 NormalizedBound::SymbolSum {
                     first,
                     second,
@@ -732,6 +708,22 @@ fn exclusive_end_bound(
             }
         },
     )
+}
+
+/// A selector position's bound. Beyond the immutable-bound vocabulary, a
+/// bare mutable storage name contributes its storage bound — the bound
+/// means the value currently stored there. Storage bounds are query
+/// coordinates only: `bound_terms_equal` never equates them, so a claim can
+/// only reach one through a guarantee whose result binding is version-pinned
+/// to the same occurrence.
+pub(super) fn selector_bound(
+    program: &typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<NormalizedBound> {
+    normalized_bound(program, expression).or_else(|| {
+        validation::mutable_integer_bound_storage_symbol(program, expression)
+            .map(|symbol| NormalizedBound::Storage { symbol })
+    })
 }
 
 pub(super) fn normalized_bound(
