@@ -144,17 +144,17 @@
       "slot": "c2l-blowup",
       "agent_id": "ef0cff81",
       "result": "wip-parked",
-      "commits": ["546fa2d83d"],
+      "commits": ["546fa2d83d", "97228fe69f"],
       "item_closed": false,
-      "notes": "branch swarm/macw4-c2l-blowup; 44-file mid-refactor checkpoint, unvalidated; resume via branch + board WIP line"
+      "notes": "branch swarm/macw4-c2l-blowup; mid-refactor checkpoint, unvalidated; second commit is post-drain continuation (cast_custody/chain refactor); resume via branch + board WIP line"
     },
     {
       "slot": "spill-realization",
       "agent_id": "df9ccc86",
       "result": "wip-parked",
-      "commits": ["3ee6bf7ebc"],
+      "commits": ["3ee6bf7ebc", "d0154b6e50"],
       "item_closed": false,
-      "notes": "branch swarm/macw4-spill-realization; rate-limit kill mid-work; touched files + resume guidance on TASKS_OPTIMIZER.md"
+      "notes": "branch swarm/macw4-spill-realization; rate-limit kill mid-work; second commit is post-drain continuation; touched files + resume guidance on TASKS_OPTIMIZER.md"
     },
     {
       "slot": "plan-laid-views",

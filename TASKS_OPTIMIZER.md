@@ -285,7 +285,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     probing and setup are frame/provisioning work, not an owner-blocked
     language choice.
 
-  Parked macw4 WIP: branch `swarm/macw4-spill-realization` at `3ee6bf7ebc`
+  Parked macw4 WIP: branch `swarm/macw4-spill-realization` at `d0154b6e50`
   holds an unvalidated drain checkpoint — in-flight edits in
   `assignment/runtime_spill/{mod,recovery,replay}.rs`, `output/retained.rs`,
   `register_allocation.rs`, `analyses/spill_choice/compute.rs`, plus two
