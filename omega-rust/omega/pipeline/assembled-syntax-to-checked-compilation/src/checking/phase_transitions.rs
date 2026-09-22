@@ -55,6 +55,7 @@ pub(crate) struct SelectedExecutionSettlementInput<'a> {
         Option<&'a package_compilation::AcceptedSemanticBinding>,
     pub(crate) accepted_filesystem_binding:
         Option<&'a package_compilation::AcceptedSemanticBinding>,
+    pub(crate) accepted_time_host_binding: Option<&'a package_compilation::AcceptedSemanticBinding>,
     pub(crate) accepted_entry_binding: Option<&'a package_compilation::AcceptedSemanticBinding>,
 }
 
@@ -351,6 +352,13 @@ pub(crate) fn settle_selected_execution(
         })
         .transpose()
         .map_err(|diagnostic| vec![diagnostic])?;
+    let resolved_time_host_binding = settlement
+        .accepted_time_host_binding
+        .map(|binding| {
+            selected_dispatch::resolve_accepted_service_binding(&checked.program, binding)
+        })
+        .transpose()
+        .map_err(|diagnostic| vec![diagnostic])?;
     let expected_entry_role = settlement
         .selected_target_profile
         .map(|profile| profile.program_entry_slot())
@@ -392,6 +400,7 @@ pub(crate) fn settle_selected_execution(
         resolved_semantic_bindings: resolved_exit_bindings
             .into_iter()
             .chain(resolved_filesystem_binding)
+            .chain(resolved_time_host_binding)
             .chain(resolved_entry_binding)
             .collect(),
         component_progress,
