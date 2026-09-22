@@ -3,11 +3,11 @@
 //! by `value_instructions`, `storage_instructions`, `call_instructions` and
 //! `scalar_instructions`.
 
-use super::{
-    AbstractOperationPlan, Error, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    LegalizedValueDefinition, PsiOptimizationUnit, TargetOperationPlan,
-};
+use super::{AbstractOperationPlan, Error, PsiOptimizationUnit, TargetOperationPlan};
 use abstract_operations::AbstractOperation;
+use legalized_operations::{
+    LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedValueDefinition,
+};
 mod call_instructions;
 mod scalar_instructions;
 mod storage_instructions;

@@ -1,14 +1,14 @@
 //! Call and hosted boundary instructions replayed against the abstract
 //! call each legalizes.
 
-use super::super::{
-    AbstractOperationPlan, Error, LegalizedOperationPlan, LegalizedScalarArgument,
-    LegalizedScalarInstruction, LegalizedScalarInstructionKind, NativeCallOrigin,
-    PsiOptimizationUnit, TargetOperationPlan,
-};
+use super::super::{AbstractOperationPlan, Error, PsiOptimizationUnit, TargetOperationPlan};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
 use abstract_operations::AbstractOperation;
+use legalized_operations::{
+    LegalizedOperationPlan, LegalizedScalarArgument, LegalizedScalarInstruction,
+    LegalizedScalarInstructionKind, NativeCallOrigin,
+};
 use semantic_vocabulary::OperationId;
 
 #[allow(clippy::too_many_arguments)]

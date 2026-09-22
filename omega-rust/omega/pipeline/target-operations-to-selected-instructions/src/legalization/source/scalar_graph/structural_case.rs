@@ -1,10 +1,11 @@
 //! Source construction of exact case destinations and structural-home layout.
-use super::{
-    AbstractOperationPlan, Error, LegalizedScalarTerminator, LegalizedStructuralCasePayload,
-    LegalizedStructuralCaseSuccessor, LegalizedValueDefinition, scalar_graph_input,
-};
+use super::{AbstractOperationPlan, Error, scalar_graph_input};
 use crate::LegalizationError;
 use abstract_operations::AbstractOperation;
+use legalized_operations::{
+    LegalizedScalarTerminator, LegalizedStructuralCasePayload, LegalizedStructuralCaseSuccessor,
+    LegalizedValueDefinition,
+};
 
 pub(super) fn project(
     node: &optimization_unit::OptimizationNode,

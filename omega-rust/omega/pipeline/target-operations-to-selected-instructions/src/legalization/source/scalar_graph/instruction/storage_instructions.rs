@@ -1,12 +1,11 @@
 //! Primitive-local, structural-field and byte-sequence operations projected
 //! to the legalized instruction kind that realizes each.
 
-use super::super::{
-    AbstractOperationPlan, Error, LegalizedScalarInstructionKind, PsiOptimizationUnit,
-};
+use super::super::{AbstractOperationPlan, Error, PsiOptimizationUnit};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
 use abstract_operations::AbstractOperation;
+use legalized_operations::LegalizedScalarInstructionKind;
 use semantic_vocabulary::ScalarType;
 
 pub(super) fn project_structural_case_membership(
