@@ -76,7 +76,10 @@ the complete product bar; focused successes below do not establish that baseline
   Owners: Psi's `tokens-to-syntax-trees/src/type_syntax/parse_type.rs`,
   syntax/resolved/typed Range variants, range-shell generic matching, endpoint
   folding, and `validation/src/proof_contracts/arithmetic_domains/`.
-  Migrate libraries, compiler source, tests and samples, including Epsilon's
+  Use the [migration recipe](wiki/drafts/range_suffix_migration.md). Libraries
+  still need migration, including scalar fields in `std/calling.omg`; this is
+  distinct from the Binding carrier rename. Migrate compiler source, tests and
+  samples too, including Epsilon's
   `bootstrap/5_omega/{parser,representations}.epsilon` and
   `tests/bootstrap/omega-parser`. Repin the changed D closure and run its parser
   gate; this changes Omega syntax, not the bootstrap languages.
@@ -1309,7 +1312,9 @@ syntax and other terminal services are not prerequisites.
 
   - Connect the checked signature to Terminal evidence and receiver checking;
     extend machine-valued body denotation and applied carriers as required by
-    the controls below. Replace authored-name sort classification in
+    the controls below, including member-call target resolution inside
+    mathematical definitions and ordering over non-integer operands.
+    Replace authored-name sort classification in
     `typed-trees-to-checked-trees/src/proof/mathematical_{declarations,signature}.rs`
     with canonical symbol identity and supply the fixed `core::Level`,
     `Type`, `Strict` and `Squash` declarations.
@@ -3701,25 +3706,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   tests prove row suppression, not absence of inner measurement; cover the
   actual collection choice on both production paths.
 
-- **CONSTRUCTIVE-REAL-FOUNDATIONS.** Mined candidate — resolved:
-  scope verified, owned elsewhere. The name re-mines the constructive
-  Real foundation — replacing `source/library/core/real.omg` (N5's
-  temporary opaque axiomatic package; "N6/N8 can replace this package
-  with the constructive Cauchy quotient without changing consumers'
-  contracts"). [mathematics.md](source/library/core/mathematics.md)
-  records the state: `cauchy.omg` carries generator/modulus machines in
-  the currently expressible pointwise proofs (`doubled_nat_max_modulus`,
-  `doubled_nat_max_threshold` compose `M3(e) = nat_max(M1(2e), M2(2e))`
-  statically), but the heterogeneous transitivity theorem still awaits
-  two entailment-tier capabilities — general function/predicate binders
-  and the quotient step — that keep `converges_together_at_triangle_split`
-  from verifying (math roster N3). The migration itself is owned on this
-  board by **PROOF-CONTRACT-MIGRATION** and **QUOTIENT-THEOREM-LIFT**;
-  replacing Real requires the relation, witness, quotient and
-  receiving-axiom contracts to survive. No independent slice exists here.
 
 
-- **GENERAL-SOURCE-BINDER-SYNTAX.** Resolved — scope verified: the general mathematical binder surface (`let`/`boundary let` telescopes, `core::Level`/`core::Type<u>`/`core::Strict<v>`/`core::Squash` carriers, generalized and authored universe binders, arrow-typed telescope parameters, named assumptions) already landed under the PROOF-CONTRACT-MIGRATION structural legs; the in-fence residual was the bounded machine-valued body denotation in `typed-trees-to-checked-trees/src/proof`. Extended it: `x != y` now denotes `Squash (Not (Id S l r))` through an interned `Not : Π(_ : Type 0). Type 0` assumption — kept at `Type 0`, not `sEmpty` elimination, so inequality composes inside `&&`/`||` like `==` — and `()` interned a dedicated `Unit : Type 0` carrier, so unit binder domains and unit-carried calls denote instead of refusing. Remaining named legs stay with their owners: `core::*` symbol-identity classification (blocked on the fixed `core::*` declarations landing in `source/library/core`), checked-signature encoding into Terminal evidence, member-call `target_symbol` binding inside `let` bodies, and order relations over non-integer operands. Gate on linux x86-64: `cargo check`/`clippy -p typed-trees-to-checked-trees` clean of new warnings; `cargo nextest run -p typed-trees-to-checked-trees` 5008/5009 — `open_range_token_use_rejects_instead_of_falling_back` fails verbatim at base `d82697ffca` (unrelated wave breakage). Re-verified at `8734480a01`: the filtered binder/signature/denotation suite passes 128/128 and `open_range_token_use_rejects_instead_of_falling_back` is green again — the unrelated failure has since been repaired.
 - **GENERATED-CODEC-INDEPENDENT-VERIFICATION.** Establish sufficient
   independently checked evidence for generated codecs' `Derived` trust under
   [public codec agreement](wiki/spec/layouts/codecs.md#agreement-and-trust).
@@ -3783,22 +3771,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 
 
 
-- **NEW-RBRA-MIGRATION-RECIPE.** Inserted row — slice landed. Planner-scoped
-  to `wiki/drafts/range_suffix_migration.md`, which did not exist: authored it
-  as the migration recipe for REMOVE-BRACKETED-RANGE-ANNOTATIONS (:62) — a
-  position-by-position decision table (`-> T [lo..=hi]` → `T in D` or `-> T`
-  + `ensures`; `x: T [..]` → `T in D` or `T` + `requires`; exclusive and
-  receiver-dependent endpoint forms; extent/const positions reject to const
-  extents), the per-file procedure, and the corpus-first ordering against the
-  measured 1,598 occurrences / 544 files. The `RBRA` series names the
-  REMOVE-BRACKETED-RANGE-ANNOTATIONS legs (NEW-RBRA-EPSILON-PARSER-RETIREMENT,
-  NEW-RBRA-STD-LIBRARY-MIGRATION, NEW-RBRA-PASS-RECAST-GENERICS,
-  NEW-RBRA-FAIL-DEPENDENT, NEW-RBRA-PASS-TERMINATION); this is the recipe the
-  corpus migration executes against.
-- **NEW-RBRA-STD-LIBRARY-MIGRATION.** Inserted row, scope verified at `891194236afa` (planner-scoped to `source/library/std/{console,time,calling}.omg` + `source/library/std/targets/{linux_x86_64,linux_arm64,windows_x86_64,macos_x86_64}`) — no migration is pending on the scoped surface: every assigned path is byte-identical between this worktree and `origin/main` (empty `git diff --stat` per file/dir), and the std library already spells the current `Service<R>` carrier vocabulary (`time.omg:951` `host: Service<TimeHost>`; bare boundary-trait value spellings reject under `32f5182254`). The `RBRA` token occurs nowhere in the tree or boards; the only sibling in the series is NEW-RBRA-PASS-RECAST-GENERICS, which holds `tests/omega/pass/{recast,generics}` (15:22Z) — the corpus side of whatever migration the series names. Nothing to implement under this name until a concrete contract or failing customer identifies the delta.
-- **NEW-TLBR-PARAMETERIZED-REQUIREMENT-ADMISSION.** Inserted row, scope verified at `c3dd8016a74d` (planner-scoped to `psi/semantics/validation/src/machine_calls/calls/generic_bounds.rs`, byte-identical to origin/main) — the parameterized-requirement admission frontier is `is_directly_callable_top_level_requirement`: a top-level `boundary requirement` may be body-called only when public, nongeneric (`lifetime_parameters.is_empty()` AND `machine_type_parameters(callee).is_empty()`), single-state, and self-free or owned-self; generic/lifetime-parameterized requirements deliberately keep the symbol fence ("receiver custody and obligation transfer are a separate settlement shape"). Widening the predicate is not a slice inside this file: it decides which bodyless symbols may execute, which requires the selected-provider settlement to answer a generic instantiation plus the lifetime-linked return frontier — machinery in selected-dispatch/provider-planning, not validation. The instantiation-bound machinery that an admitted parameterized call would need (`validate_type_parameter_instantiation_bounds` positional pinning + `type_satisfies_declared_property`) already exists and is exercised through the resolved-target rung. No bounded slice remains under the assigned file; the cross-file leg needs a dispatch that includes selected-dispatch's provider resolution.
-- **MODULE-CONSTANT-BUILTIN-CARRIER** — mined candidate; verify scope then implement.
-- **OBLIGATION-NORMALIZED-IDENTITY** — mined candidate; verify scope then implement.
 
 
 - **PLACED-ACCESS-NATIVE-OPS.** Realize the native indexed primitive store
@@ -3824,11 +3796,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   substituted bounds or access authority reject. **PLAN-LAID-VIEWS** separately
   owns provider-backed view establishment and access-plan realization; this
   indexed-store delivery does not complete that larger contract.
-- **PRODUCER-HISTORY-CUSTODY** — mined candidate; verify scope then implement.
-- **PROVIDER-ATTACHMENT-MACHINE-PLAN** — mined candidate; scope verified, no bounded slice this wave (z175, `500878c473f4c`). The namesake surface — `typed-trees-to-checked-trees/src/execution/unit/providers.rs` — already produces the exact `CheckedProviderAttachmentRequirementPlan` roster (`checked_provider_attachment_requirements` + the composed-leaf variant), pinned across `tests/flow/terminal_unit` and rejoined to authored call sites by c2l `unit/attached_unit/provider_attachments/source.rs`. The residual the name carries is BOUNDARY-ISSUANCE's open frontier — the provider-planning/native-settlement join to the installed occurrence. Plan-side work left for this item is join design across crates, not a file-local patch. providers.rs itself is unclaimed this wave.
-  covered — roster already produced in `execution/unit/providers.rs`; residue is cross-crate join design, not a bounded slice
-- **PROVIDER-ATTACHMENT-MACHINE-PLAN.** — mined candidate; verify scope then implement.
-  covered — roster already produced in `execution/unit/providers.rs`; residue is cross-crate join design, not a bounded slice
 
 - **RECAST-SOURCE-POSITIONS.** Compose admitted representation recasts in
   guard operands, call arguments and nested expressions without requiring a
@@ -3858,7 +3825,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   identical valid artifacts and unchanged rejection of corrupted/substituted
   encoded objects. Do not remove decode-boundary checking or introduce
   package-acceptance receipts.
-- **ROOT-FILE-DISCIPLINE.** — mined candidate; verify scope then implement.
 - **RUNTIME-SIZED-ACTIVATION-CONTRACT.** Connect the ratified
   [bounded activation claim](wiki/spec/resources/activation_storage.md) to
   authored source and Terminal Psi. Use ordinary callable/core-declaration
@@ -3885,132 +3851,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   locals, provider-backed issuance, a new syntax category or an OS allocator.
 
 - **TERMINAL-SLICE-VIEW-VOCABULARY.** (split-of:SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT)
-  Give Terminal Psi a borrowed-view vocabulary for non-byte element types, so
-  a callee can use a `&[T]` it receives. `d7a48d7af0` made the view local a
-  checked shape and a `&[T]` formal carry it, which moved the samples'
-  frontier from local construction to the call — but a callee that *uses* the
-  view is still omitted. `Adder::fletcher` and `Summer::sum` need `s.len`,
-  `s[0]` and `s[1..]` over a non-byte element and have no Terminal
-  descriptor; the nine sites landed in `checked-trees-to-lowered-psi` and
-  `selected-dispatch` reject with "borrowed slice view has no Terminal
-  descriptor" rather than dropping the extent.
+  Complete portable lowering and native realization of borrowed non-byte
+  `&[T]` views: runtime length, element access and subslices with exact
+  backing, extent, element identity and loan custody. Checked locals/formals
+  already retain `BorrowedSliceView { element_type_identity }` and ordinary
+  sequencing forwards them; `slice_view_locals.rs` uses an empty callee,
+  not a view-consuming implementation. Lowering still rejects the shape as
+  lacking a Terminal descriptor.
+  Extend the Terminal operation/type contract and independent checking rather
+  than erasing extent or adding a sample-specific recognizer. Core
+  `Slice::index<T [copy]>` already settles shared by-value element access.
 
-  This is a vocabulary gap, not a language decision, and the row should stay
-  engineering unless the owner disagrees.
-  [byte views](wiki/spec/terminal-psi/byte_views.md) already supplies length,
-  read and subslice, but scopes itself to borrowed **byte** views in its title
-  and at `:5` ("immutable observations and fixed-extent writes through
-  borrowed byte views"). The language side is settled — `Slice::index` and
-  `Slice::range` are given in the language guide, chapter 5 lines 244-248 and
-  chapter 19 lines 46-50 — so what is missing is the Terminal form of an
-  already-decided semantics, plus the spec section that states it. If the
-  owner reads the generalization of byte_views.md to arbitrary element types
-  as a design decision rather than a transcription, say so and this becomes
-  an owner question instead.
+  Acceptance: a non-byte-view callee consumes `.len`, indexing and subslicing
+  through Terminal production and native realization; bounds, element-type,
+  alias and access violations reject. `fletcher_checksum` executes its real
+  entry and exits 56; `recursive_sum` establishes sum 50/count 4 and exits 70
+  on Linux x86-64, with **SAMPLE-CORPUS** retaining their complete sample
+  obligations. Reuse byte-view custody where applicable and keep general
+  cyclic/value sequencing with its existing owners.
 
-  Settle one thing first, because the read operation cannot be written
-  without it: **does `Slice::index` require a `[copy]` element?** Three
-  sources disagree. `source/library/core/slice.omg:19` and the language
-  guide chapter 5 line 244 both declare
-  `boundary machine [] Slice::index<T>(items: &[T], index: u64) -> T`, while
-  chapter 19 line 46 declares the same machine as
-  `Slice::index<T [copy]>`. [ownership](wiki/spec/language/ownership.md)
-  makes Affine the default for owned data and permits "move at most once",
-  so returning a non-copy `T` by value out of a shared `&[T]` would move out
-  of borrowed storage — which points at chapter 19 being right and the
-  library declaration being under-constrained. Nothing in the tree settles
-  it: the only in-tree uses of `Slice::index` are fail fixtures pinning
-  duplicate-operator rejection
-  (`fail/operators/root_operator_{duplicate,alpha_equivalent_generic_duplicate}`),
-  which carry `<T>` incidentally and decide nothing. `byte_views.md` gives no
-  guidance either, since `ByteSequenceRead -> u8` is trivially copyable.
-  Resolve this from the checker's actual behaviour if you can; if the checker
-  does not decide it, it is an owner question about the core surface, not a
-  choice to make while implementing.
 
-  Acceptance: a callee taking `&[T]` for a non-byte `T` reads its length,
-  indexes it and takes a subslice, reaching native production; the nine
-  "borrowed slice view has no Terminal descriptor" rejections are replaced by
-  real descriptors; and `fletcher_checksum` and `recursive_sum` pass
-  SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT's acceptance on `linux_x86_64`.
-- **SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT.** (split-of:SAMPLE-CORPUS)
-  Complete entry establishment for ordinary slice-view locals and callees.
-  On `linux_x86_64`, `linux_arm64` and
-  `macos_arm64` the gate reads "selected ProgramEntry establishment rejoins 0
-  Terminal attachment identities; expected one" because the entry machine
-  leaves the unit plan roster at local construction over a `&[T]` view local
-  such as `let s: &[i32 in Wrapping] = self.adder.bytes.as_slice();`. The
-  pattern appears in 12 samples, including `samples/cli/text/fletcher_checksum`,
-  `samples/cli/arithmetic/recursive_sum`, `samples/cli/collections/slice_maximum`
-  and `samples/cli/systems/framed_payload`.
-
-  The view local itself now composes. `CheckedUnitStructuralTypeShape`
-  (`checked-trees/src/checked_trees/flow/terminal/structural_type_plans.rs`)
-  carries `BorrowedSliceView { element_type_identity }` — no length, because a
-  slice's extent is its own stored runtime length — and the local's value is
-  `CheckedStructuralValueKind::BorrowedSliceView`, which rejoins the shared
-  loan checked borrow admission already records for the lent collection.
-  Ordinary statement sequencing establishes it and forwards it whole to a
-  `&[T]` formal, and callee `&[T]` parameters carry the same shape. Terminal
-  lowering rejects the shape with "borrowed slice view has no Terminal
-  descriptor" rather than dropping its extent.
-
-  The frontier is now the `&[T]`-consuming callee. Both samples report
-  `statement sequence: call: call operation` (recursive_sum: state 0,
-  statement 6) because `Adder::fletcher` / `Summer::sum` have no plan of their
-  own: their bodies need `s.len`, `s[0]` and `s[1..]` over a non-byte view, and
-  `wiki/spec/terminal-psi/byte_views.md` supplies length, read and subslice
-  operations only for borrowed *byte* views. `Slice::index` and `Slice::range`
-  are settled at the language level (language guide chapters 5 and 19), so the
-  missing piece is the Terminal Psi vocabulary and its spec section, not a
-  language decision. Do not add a recognizer for this statement arrangement
-  (AGENTS.md, compositional lowering).
-
-  Acceptance: `fletcher_checksum` and `recursive_sum` reach selected
-  ProgramEntry establishment on `linux_x86_64` without the "rejoins 0 Terminal
-  attachment identities" refusal, and `cargo nextest run -p
-  typed-trees-to-checked-trees --lib` stays green.
-
-- **SEALED-COMPOSITION-EXTRACTION** — mined candidate; verify scope then implement.
-- **SELECTED-REWRITE-ANCESTRY-REMOVAL.** — mined candidate; resolved
-  alias of the settled SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL surface
-  (carrier row above). Re-verified at `8f58b6676b0` on linux x86-64:
-  `cargo nextest run -p selected-instructions-to-selected-instructions
-  --test ancestry_contract` → 2/2 pass —
-  `staged_types_read_current_data_not_producer_ancestry` and
-  `named_stage_hops_stay_at_custody_sites` — still zero
-  `.optimized_target()` data reads under
-  `rewrites/selected_lowering/` and the stage entrance; staged types
-  expose `selected`/`register_environment`/`selections`/
-  `budget_per_pass`/`liveness`/`ranges`/`legality` directly and the
-  surviving `liveness_stage`/`selected_stage` hops are the pinned
-  custody-validator inputs, not data reads. No implementation slice
-  remains under this name.
-  covered — alias of settled SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL; ancestry_contract 2/2
-
-- **SERVICE-CARRIER-FIXTURE-MIGRATION** — recorded at revision 6d00135b89:
-  `tests/native-differential/tests/terminal_psi_runnable.rs` migrates its two
-  embedded fixtures to `pub boundary trait Console` + `Service<Console>`
-  fields, seeding `source/library/core/service.omg` as a Toolchain source in
-  `project_source_entry` (new `source` foundation dep). The three
-  carrier-spelling legs now pass source checking and stop at the sibling
-  `InvalidUnitMachinePlan` unit-admission family. Remaining carrier fixtures
-  sit under live fences: coverage.rs (RC-NATIVE-MATRIX-MACOS-ARM64),
-  typed-trees `src/tests` (PROOF-CERTIFICATION-BRIDGE family),
-  checked-trees-to-lowered-psi tests (WRITE-ONLY-BORROW family).
-- **SIGNATURE-FREE-TRAIT-CANDIDATE-SCOPE.** — resolved; the scope-verification
-  record is landed: `wiki/drafts/scope_signature_free_trait_candidate_scope.md`
-  (`11821e2821`) — the candidate-scope law in
-  `syntax-trees-to-symbol-resolved-trees/src/selection/signature_free_requirements.rs`
-  is package-scoped via
-  `lookup_signature_free_top_level_from_source_matching(..., use_span, ...)`,
-  pinned by the 11-member `signature_free` battery (11/11 pass at
-  `59e0b5ec22d09`). Named residuals are upstream-gated elsewhere
-  (symbolic boundary applications; `same_semantic_name` widening is a
-  compatibility decision). No slice under this name at `bb192d7ea9e`.
-  Re-verified at `2dbfecd98e49` (z133, linux x86-64): the battery re-runs
-  11/11 green and `signature_free_requirements.rs` is unchanged since the
-  stamp above (zero upstream edits to the crate since `bb192d7ea9e`).
 
 
 
