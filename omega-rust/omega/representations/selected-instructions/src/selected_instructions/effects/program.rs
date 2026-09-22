@@ -10,7 +10,7 @@ mod instructions;
 
 pub use encoding::PreAllocationMachineEffectDecodeError;
 pub use identity::pre_allocation_machine_effect_identity;
-pub use instructions::*;
+pub use instructions::{BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects};
 
 use crate::{MachineEffectCatalogIdentity, SelectedInstructionPlanIdentity};
 use optimization_core::OptimizationUnitIdentity;

@@ -33,7 +33,12 @@ pub mod structural_case;
 pub mod values;
 
 pub use calls::normalized_foreign::SelectedNormalizedForeignCall;
-pub use calls::ordinary::*;
+pub use calls::ordinary::{
+    FrameStorageSlotId, LocalStorageSlotId, OutgoingArgumentSlotId, OutgoingArgumentSlotRole,
+    SelectedBoundarySettlement, SelectedBoundarySettlementPayload, SelectedCallContract,
+    SelectedLocalStorageSlot, SelectedMemoryAccess, SelectedMemoryAccessOrigin,
+    SelectedMemoryAccessRole, SelectedOutgoingArgumentSlot,
+};
 pub use constraints::{
     SelectedConstraintKeys, SelectedFixedInputConstraint, SelectedSelectionConstraints,
 };
@@ -60,8 +65,18 @@ pub use identity::{
 };
 pub use instructions::{SelectedInstruction, SelectedInstructionKind};
 pub use legalized_operations::{SaturatingCarrier, SaturatingOperation};
-pub use live_ranges::*;
-pub use liveness::*;
+pub use live_ranges::{
+    ArchitecturalUnitAction, ArchitecturalUnitActionKind, ArchitecturalUnitLiveRange,
+    BlockPointDomain, CopyAffinity, DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse,
+    EdgeRegisterTransfer, FunctionLiveRanges, LiveRangeEdgeConnector, LiveRangeFragment,
+    LiveRangeIdentity, LiveRangePlan, LiveRangePoint, VirtualFixedConstraint,
+    VirtualFixedConstraintSite, VirtualInterference, VirtualLiveRange, VirtualOccurrence,
+    live_range_identity,
+};
+pub use liveness::{
+    BlockLiveness, EntryDefinition, FunctionLiveness, InstructionLiveness, LivenessIdentity,
+    LivenessPlan, LivenessPosition, OperandPosition, SuccessorLiveness, liveness_identity,
+};
 pub use plan_identity::selected_instruction_plan_identity;
 pub use provenance::SelectedInstructionProvenance;
 pub use structural_case::{

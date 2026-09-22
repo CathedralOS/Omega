@@ -6,7 +6,7 @@
 use optimization_core::{Optimization, OptimizationSelectionIdentity};
 
 mod identities;
-pub use identities::*;
+pub use identities::{Aarch64CbnzFusionIdentity, Aarch64MovnMaterializationIdentity};
 
 /// Rule-independent evidence retained by later physical stages.
 ///
