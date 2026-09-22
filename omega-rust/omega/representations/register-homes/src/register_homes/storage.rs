@@ -1,7 +1,12 @@
 //! Function-local physical views assigned to virtual registers.
 
 pub mod fixed_precolored_segment_homes;
-pub use fixed_precolored_segment_homes::*;
+pub use fixed_precolored_segment_homes::{
+    FixedPrecoloredHomeDomainId, FixedPrecoloredSegmentHomePlan,
+    FixedPrecoloredSegmentHomePlanIdentity, FixedPrecoloredSegmentHomePolicy,
+    FixedPrecoloredSourceSegmentHome, FunctionFixedPrecoloredSegmentHomes,
+    fixed_precolored_segment_home_plan_identity,
+};
 
 use register_model::{RegisterClassId, RegisterViewId};
 use selected_instructions::VirtualRegisterId;

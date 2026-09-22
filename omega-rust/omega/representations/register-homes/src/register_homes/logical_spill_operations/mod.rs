@@ -9,4 +9,9 @@ mod identity;
 mod model;
 
 pub use identity::logical_spill_operation_identity;
-pub use model::*;
+pub use model::{
+    FunctionLogicalSpillOperations, LogicalReloadValueId, LogicalSpillAction,
+    LogicalSpillOperationDecodeError, LogicalSpillOperationIdentity, LogicalSpillOperationPlan,
+    LogicalSpillOperationPolicy, LogicalSpillReload, LogicalSpillStorage, LogicalSpillStorageClass,
+    LogicalSpillStorageId, LogicalSpillStore, LogicalSpillUseRewrite,
+};
