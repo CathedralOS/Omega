@@ -11,7 +11,7 @@ mod fragment_comparison;
 use super::derivation::hashing::{
     canonical_usize, hash_object_symbol, hash_relocation_origin, relocation_kind_tag,
 };
-use super::model::{
+use super::{
     NativeByteSpan, OptimizedOperatorOccurrence, PhysicalRelocationDisposition,
     dynamic_call_relocation_custody, native_byte_span,
 };

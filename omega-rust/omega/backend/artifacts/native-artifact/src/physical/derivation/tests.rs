@@ -16,17 +16,17 @@ fn reference_projection_identity_is_distinct_from_owned_paths() {
     assert_ne!(reference, identity(&[StructuralPathSegment::FixedIndex(3)]));
 }
 use crate::NativeSelectedProviderPlanDigest;
+use crate::physical::NativeOptimizationProjection;
+use crate::physical::NativePhysicalOccurrence;
 use crate::physical::derivation::evidence::PhysicalChildCoordinate;
 use crate::physical::derivation::evidence::boundary_occurrence_identity;
 use crate::physical::derivation::evidence::operator_occurrence_identity;
 use crate::physical::derivation::evidence::validate_exact_physical_child_coordinates;
 use crate::physical::derivation::settlement_identity::admitted_provider_settlement_identity;
 use crate::physical::derivation::settlement_identity::hosted_builtin_settlement_identity;
-use crate::physical::model::NativeOptimizationProjection;
-use crate::physical::model::NativePhysicalOccurrence;
-use crate::physical::model::native_optimization_projection;
-use crate::physical::model::optimized_boundary_occurrence;
-use crate::physical::model::optimized_operator_occurrence;
+use crate::physical::native_optimization_projection;
+use crate::physical::optimized_boundary_occurrence;
+use crate::physical::optimized_operator_occurrence;
 use optimization_core::NativeOptimizationProjectionIdentity;
 use optimization_core::OptimizedBoundaryOccurrenceIdentity;
 use optimization_core::OptimizedOperatorOccurrenceIdentity;
@@ -1169,7 +1169,7 @@ fn physical_child_identity_binds_every_retained_field() {
     };
 
     use crate::physical::derivation::evidence::physical_child_identity;
-    use crate::physical::model::native_byte_span;
+    use crate::physical::native_byte_span;
     use crate::{
         BoundaryTraitSettlementParts, BoundaryTraitSettlementRole, CompilerBuiltinResult,
         CompilerBuiltinScalarArgument, NativeCompilerBuiltinCatalogIdentity, PhysicalChildParent,
@@ -1522,7 +1522,7 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
     };
 
     use crate::physical::derivation::evidence::physical_child_identity;
-    use crate::physical::model::{
+    use crate::physical::{
         native_byte_span, normalized_foreign_call_relocation,
         normalized_foreign_callback_relocation,
     };
@@ -1958,7 +1958,7 @@ fn physical_child_coordinates_reject_repeated_and_cross_role_occurrences() {
 #[test]
 fn dynamic_call_occurrence_binds_its_dispatch_role_and_parent_identity() {
     use crate::physical::derivation::evidence::physical_child_identity;
-    use crate::physical::model::{dynamic_call_dispatch, native_byte_span};
+    use crate::physical::{dynamic_call_dispatch, native_byte_span};
     use crate::{PhysicalChildParent, PhysicalRelocationDisposition};
 
     let terminal = terminal_psi::TerminalPsiIdentity {
@@ -2041,8 +2041,8 @@ fn dynamic_call_occurrence_binds_its_dispatch_role_and_parent_identity() {
 
 #[test]
 fn physical_evidence_gap_identity_binds_the_exact_subject() {
+    use crate::physical::NativePhysicalEvidenceGapSubject;
     use crate::physical::derivation::hashing::physical_evidence_gap_identity;
-    use crate::physical::model::NativePhysicalEvidenceGapSubject;
     use semantic_vocabulary::{EdgeId, ServiceId};
     use target_operations::CallSiteOwner;
 
@@ -2146,9 +2146,9 @@ fn physical_evidence_gap_identity_binds_the_exact_subject() {
 
 #[test]
 fn physical_evidence_gap_names_the_blocking_occurrence() {
+    use crate::physical::NativePhysicalEvidenceGapSubject;
     use crate::physical::derivation::hashing::physical_evidence_gap_identity;
-    use crate::physical::model::NativePhysicalEvidenceGapSubject;
-    use crate::physical::model::native_physical_evidence_gap;
+    use crate::physical::native_physical_evidence_gap;
     use semantic_vocabulary::EdgeId;
     use target_operations::CallSiteOwner;
 

@@ -24,10 +24,10 @@ use crate::physical::derivation::settlement_identity::{
     hosted_builtin_settlement_identity,
 };
 use crate::physical::fragment_publication::FragmentPublicationBinding;
-use crate::physical::model::native_byte_span;
-use crate::physical::model::normalized_foreign_call_import_field;
-pub(crate) use crate::physical::model::normalized_foreign_call_relocation;
-use crate::physical::model::normalized_foreign_callback_relocation;
+use crate::physical::native_byte_span;
+use crate::physical::normalized_foreign_call_import_field;
+pub(crate) use crate::physical::normalized_foreign_call_relocation;
+use crate::physical::normalized_foreign_callback_relocation;
 use crate::{
     CompilerBuiltinResult, CompilerBuiltinScalarArgument, NativeProviderExecution,
     NativeSelectedProviderPlan, NativeSelectedProviderPlanDigest,

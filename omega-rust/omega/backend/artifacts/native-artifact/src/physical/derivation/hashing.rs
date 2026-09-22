@@ -11,7 +11,7 @@ use target_operations::{
     BoundaryRealization, CallSiteOwner, CompilerBuiltinExecution, CompletionClaimSource,
 };
 
-use crate::physical::model::NativePhysicalEvidenceGapSubject;
+use crate::physical::NativePhysicalEvidenceGapSubject;
 
 pub(crate) fn hash_structural_path(
     digest: &mut Sha256,

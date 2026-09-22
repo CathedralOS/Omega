@@ -20,16 +20,16 @@ use crate::physical::derivation::hashing::{
     hash_object_symbol, hash_relocation_origin, physical_evidence_gap_identity,
     relocation_kind_tag,
 };
-use crate::physical::model::dynamic_call_dispatch;
-use crate::physical::model::native_optimization_projection;
-use crate::physical::model::native_physical_evidence;
-use crate::physical::model::native_physical_evidence_gap;
-use crate::physical::model::optimized_boundary_occurrence;
-use crate::physical::model::optimized_operator_occurrence;
-use crate::physical::model::{NativePhysicalEvidenceGap, NativePhysicalEvidenceGapSubject};
+use crate::physical::dynamic_call_dispatch;
+use crate::physical::native_optimization_projection;
+use crate::physical::native_physical_evidence;
+use crate::physical::native_physical_evidence_gap;
 use crate::physical::operator_applications::{
     derive_dynamic_call_span, derive_operator_physical_span,
 };
+use crate::physical::optimized_boundary_occurrence;
+use crate::physical::optimized_operator_occurrence;
+use crate::physical::{NativePhysicalEvidenceGap, NativePhysicalEvidenceGapSubject};
 use crate::{NativePhysicalEvidenceScope, NativeProviderExecution, NativeSelectedProviderPlan};
 use boundary_applications::TerminalBoundaryApplicationCoverage;
 use optimization_core::{
