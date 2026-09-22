@@ -380,10 +380,10 @@ pub fn mutable_integer_bound_storage_symbol(
 /// receiver the value currently stored under the projected coordinate,
 /// which stated evidence can only claim under the version-pin evidence the
 /// storage vocabulary already requires.
-pub fn projected_integer_bound_root(
-    program: &TypedTrees,
+fn projected_integer_bound_field<'program>(
+    program: &'program TypedTrees,
     expression: ExpressionHandle,
-) -> Option<(SymbolHandle, SymbolHandle, bool)> {
+) -> Option<(SymbolHandle, &'program typed_trees::data::DataField, bool)> {
     let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -440,6 +440,14 @@ pub fn projected_integer_bound_root(
         member.member.as_str(),
         None,
     )?;
+    Some((symbol, field, is_mutable))
+}
+
+pub fn projected_integer_bound_root(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<(SymbolHandle, SymbolHandle, bool)> {
+    let (symbol, field, is_mutable) = projected_integer_bound_field(program, expression)?;
     let primitive = program
         .type_reference_table
         .primitive_type(field.type_reference)?;
@@ -459,6 +467,16 @@ pub fn projected_integer_bound_root(
         return None;
     }
     Some((symbol, field.symbol, is_mutable))
+}
+
+/// The declared type of a projected integer-bound subject: the member field's
+/// own reference, for consumers comparing a member subject's carrier against a
+/// declared domain or contract type.
+pub fn projected_integer_bound_subject_type(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    projected_integer_bound_field(program, expression).map(|(_, field, _)| field.type_reference)
 }
 
 /// Normalize an integer literal or finite immutable local-copy chain to one
