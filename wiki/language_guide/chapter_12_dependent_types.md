@@ -14,8 +14,10 @@ this systems fragment. The examples illustrate the required contracts, not a
 claim that every form is implemented. A strict relational bound also discharges
 representability through the ceiling's own
 carrier (`self.count < self.cap` proves `self.count + 1` fits because `cap`'s
-declared type bounds it). Equality facts do not yet transport through writes,
-and solver-general proofs and dependent views remain narrower. General
+declared type bounds it). Scalar writes can transport established equality
+through their retained value expressions when intervening writes are accounted
+for; this does not preserve a stale fact about the overwritten place.
+Solver-general proofs and dependent views remain narrower. General
 mathematical foundations have their separate
 [proof contract](../spec/proofs/contracts.md).
 

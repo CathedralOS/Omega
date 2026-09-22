@@ -4286,62 +4286,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   from the stop. The blocker is the item-owned
   OMEGA-PRODUCT-COMPILER-SOURCE frontier, not a fence.
   Remaining: none inside this row.
-- **DEPENDENT-RELATIONAL-PROOFS-VIEWS.** — mined candidate; scope verified at
-  `ded56393da`: re-mines the same chapter_12 sentence as resolved sibling
-  **DEPENDENT-RELATIONAL-PROOF-SUPPORT** (this section) — "implementation
-  support for relational proofs and views remains narrower". The landed
-  slice covers strict relational bounds discharging representability through
-  the ceiling's carrier at every integer width (`ordered_values::
-  composed_ceiling_gap` + `operand_carrier_bound`, pinned by
-  `guard_narrowing/tests.rs:65
-  a_strict_place_ceiling_proves_the_increment_for_narrower_carriers`).
-  This row's distinct residual is the "views" half plus the solver-general
-  proofs opening — a multi-session solver/representation leg, not a bounded
-  slice landable from this stub. The other named opening, equality facts
-  through writes, is DEPENDENT-VALUES-CHECKER-COVERAGE's slice (already
-  annotated on this board). No live claim currently fences
-  `proof_contracts/ordered_values.rs` or `guard_narrowing`; the neighboring
-  DEPENDENT-RELATIONAL-PROOF-VIEW-SUPPORT stub re-mines the same sentence.
-- **DEPENDENT-RELATIONAL-PROOF-VIEW-SUPPORT.** — mined candidate; scope
-  verified at `0f75a052f0`, covered. Re-mines the same chapter-12 sentence
-  as the sibling above ("solver-general proofs and dependent views remain
-  narrower", chapter_12_dependent_types.md:18): the views half of
-  relational proofs plus solver-general widening is exactly the residual
-  DEPENDENT-RELATIONAL-PROOFS-VIEWS records — a multi-session
-  solver/representation leg, not a bounded slice landable under this name.
-  The landed relational slice (strict bounds discharged through the
-  ceiling's carrier, `ordered_values::composed_ceiling_gap` +
-  `operand_carrier_bound`) stays where the sibling puts it; equality
-  through writes is DEPENDENT-VALUES-CHECKER-COVERAGE's slice. No
-  independent slice exists here.
-- **DEPENDENT-VALUES-CHECKER-COVERAGE.** Mined candidate; scope verified at
-  `33eb8d92ff`: the residual named by the rewritten
-  [chapter 12](wiki/language_guide/chapter_12_dependent_types.md) sentence is
-  equality facts through writes — `requires self.count == before` +
-  `self.count = self.count + 1` still rejects `ensures self.count == before +
-  1` ("cannot prove ensures contract for exit from Counter::bump"), while the
-  unwritten and stale-equality directions check correctly (soundness holds;
-  the write retires the requires row from exit contexts). The slice is
-  transport inside `checks/contracts/exits/scalars.rs`: substitute the
-  equality fact live at the write's incoming statement context into the
-  place's retained `AssignedValue` expression. Note: a live freeform claim by
-  `devin-w9-dependent-values` (ticket 6c47f5116a7c, expires ~22:20Z) already
-  fences `proof_contracts/default_domains` for this item — coordinate before
-  working it. Re-verified at `a43a1929b1` (linux x86-64, 2026-09-21 ~07:23Z):
-  the named slice's surface `checks/contracts/exits/` is now fenced outright
-  to PROOF-CERTIFICATION-BRIDGE (zergling-136, exp 10:52Z) and the sibling
-  `checks/contracts/writes.rs` is under NEW-MNR-LOCAL-INITIALIZER-PREDICATE-
-  DOMAIN (zergling-200, exp 15:18Z) — no unfenced slice remains under this
-  name until those lanes settle. Re-verified at `416e9dd7e6`
-  (z175 leg): the sibling's named work landed at `e8bcd8812989f` ("psi:
-  enforce predicate-domain establishment on local initializers") — a local
-  `let x: T in D = value` under a predicate-body domain now discharges D's
-  proof facts against the initializer before minting the membership, and
-  its zergling-200 fence has drained. `cargo nextest run -p
-  typed-trees-to-checked-trees -E 'test(~predicate_domain) or
-  test(~predicate)'` → 52/52 PASS on linux x86-64, including all seven
-  `predicate_domain_initializer_*` pins. `checks/contracts/exits/` stays
-  under PROOF-CERTIFICATION-BRIDGE.
 
 
 - **NEW-TPV-DECLARATION-ORDER-NORMALIZATION-PIN.** Mined candidate; slice
@@ -4416,35 +4360,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Fence caveat: a dangling helper under a still-Admitted flip would be
   dead machinery, so the check and the pin inversion land together
   once `admission/` opens. No unfenced slice exists.
-- **GENERIC-RETURNED-VIEW-LIFETIMES.** Mined candidate — scope verified,
-  owner row; residuals fenced or spec-gated. This is the named owner of
-  the view-lifetime correspondence surface cited by resolved sibling
-  LIFETIME-SOURCE-CORRESPONDENCE (`8ccd793fa8`): `borrow/view_link.rs`
-  ("Lifetimes stage 2") resolves an explicit result lifetime to exactly
-  one input parameter and its complete matching structural leaves —
-  reusing one lifetime across multiple inputs rejects today, and that
-  rejection is the deliberate recorded boundary, not a gap. Residuals:
-  (1) multi-source leg — every parameter carrying the selected lifetime
-  contributes its leaves as possible sources, each supporting the
-  returned access — is implementation work on the fenced
-  `checks/borrows/` surface (live claim BORROW-PROOF-CONVERGENCE,
-  ~06:46Z); (2) outlives leg — general authored outlives bounds have no
-  surface: lifetimes.md spells binders only and conformances.md states
-  whole-conformance applications do not gain outlives/variance/
-  subtyping, so it waits on a spec decision, not a checker gap. No
-  unclaimed slice exists this wave; sibling LIFETIME-MULTI-SOURCE-AND-
-  OUTLIVES mines the same residual pair. Re-verified at `61eea9d820`
-  (linux x86-64, 2026-09-21 ~07:10Z): residual (1) has since LANDED —
-  `resolve_signature_view_return_source` routes multi-input same-lifetime
-  signatures through `structural_view_return_source`, which unions every
-  matching leaf as candidate sources, and the landed tests pass
-  (`direct_result_links_the_union_of_inputs_sharing_the_result_lifetime`,
-  `direct_result_union_tracks_the_loan_on_every_candidate_source`,
-  `carrier_result_same_lifetime_leaves_are_unioned_within_one_input` —
-  135/135 filtered green); the recorded BORROW-PROOF-CONVERGENCE fence
-  expired and `src/borrow/` is currently unclaimed. Residual (2) is still
-  spec-gated (lifetimes.md:33, conformances.md:66). The only open slice
-  under this name remains the outlives spec decision.
+- **GENERIC-RETURNED-VIEW-LIFETIMES.** Complete caller-side attribution of
+  generic returned views under
+  [returned views](wiki/spec/language/lifetimes.md#returned-views).
+  Exact selected callable/argument substitution currently admits template-dependent
+  results only when the complete instantiated frontier is view-free. Carry the
+  instantiated result-to-input relation and exact loans for view-bearing results.
+  Owners: `checks/borrows/elision/templates.rs`, `borrow/view_link.rs` and caller
+  loan attribution. Reuse the shared complete-frontier query; unresolved structure
+  is not an empty frontier, and discarding a result cannot bypass call admission.
+
+  Acceptance: extend
+  `generic_frontiers/static_calls.rs::exact_static_callable_substitution_allows_only_closed_view_free_results`
+  to its view-bearing `Outcome<i32, Job>` customer, retaining original backing,
+  path and access. Reject writes to every possible live source, unrelated/local
+  backing, access escalation, missing/conflicting callable substitution and
+  unresolved frontiers. Preserve view-free admission, concrete carriers and
+  ambiguous-elision rejection. Explicit same-lifetime multi-source unions already
+  work; general authored outlives syntax is outside the current contract, not an
+  implementation prerequisite.
 - **INDEXED-OPERAND-ATTACHED-RECEIVER** — mined candidate; scope verified, covered — same indexing-through-attached-receiver surface as the resolved sibling INDEXING-ATTACHED-RECEIVER-BORROW, which names this stub (verified `669925b8b9`, linux x86-64): `tests/multiplicity/borrowed_case_payloads.rs` exercises `self.kinds[slot]` transitions under `&self`/`&mut self` custody, loan lifetime across successors, and index-argument consumption; `tests/multiplicity/borrowed_observations.rs` pins reborrows into the attached receiver and rejects a borrowed indexed collection moving into an owned receiver; affine extraction still rejects; the indexed operand route through the receiver_self_match loan is additionally pinned by BASELINE-T2C-INDEXED-OPERAND-ACCESS's landing (`7ec7ee32e8`, 8/8 `borrowed_observations` green at `d05ec39a5d`). No independent slice exists here.
 - **INDEXING-ATTACHED-RECEIVER-BORROW.** Mined candidate — resolved,
   covered on `origin/main` (verified `669925b8b9`, linux x86-64). The
@@ -4473,63 +4407,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   macos_x86_64 sources at 00:10Z+1d; final_image_validation.rs +
   installed_artifact.rs at 00:12Z+1d; native_evidence.rs at 00:24Z+1d —
   all Devin / swarm-w9-macos-x64-host-profile).
-- **LIFETIME-MULTI-SOURCE-AND-OUTLIVES.** — mined candidate; scope verified,
-- **LIFETIME-MULTI-SOURCE-AND-OUTLIVES.** Mined candidate — scope verified,
-  two legs — re-mines the [lifetimes](wiki/spec/language/lifetimes.md)
-  returned-view frontier and the [conformances](wiki/spec/language/conformances.md)
-  application-matching boundary. Multi-source leg (landed at `9106b1ca037`
-  upstream and `2d0de49fe8a8` on the z148 lane):
-  `typed-trees-to-checked-trees/src/borrow/view_link.rs` maps an explicit
-  result lifetime to EVERY input parameter carrying it — direct reference
-  parameters and structurally carried leaves alike — each contributing its
-  matching leaves as possible sources of the returned view and each required
-  to supply the result's access (`IncompatibleSourceAccess` still rejects a
-  restricted sibling). The shared resolver feeds the declaration check and
-  the loan attributor unchanged: multi-source signatures resolve to
-  `ViewReturnSource::Fields` with one field per (result leaf x matching input
-  leaf), and the existing per-field loan path tracks each contributing
-  source, so writing any candidate while the view is live rejects
-  (`borrow/` multi_source_* canaries on the z148 lane). Elision stays
-  single-source: unannotated multiple candidates still reject as
-  `ElidedMultipleInputs`. Outlives leg:
-
-  general authored outlives bounds have no surface — lifetimes.md spells
-  binders only, conformances.md states whole-conformance applications do
-  not gain outlives/variance/subtyping and introducing them requires
-  revisiting the application-matching rule; there is no authored syntax or
-  semantics to implement, so that leg waits on a spec decision, not a
-  checker gap.
-  The two stale reject-expectation pins the earlier residual named
-  (`carrier_result_ambiguous_inputs_and_access_escalation_reject`,
-  `direct_result_rejects_ambiguity_between_owned_and_direct_inputs`) and
-  the retired `LifetimeMatchesMultipleInputs` variant plus its elision
-  diagnostic arm are drained on both lanes (upstream `9106b1ca037`,
-  z148 `2d0de49fe8a8`).
-- **LIFETIME-SOURCE-CORRESPONDENCE.** Scope verified on `8ccd793fa8` — re-mine
-  of the same clause family as sibling GENERIC-RETURNED-VIEW-LIFETIMES
-  (annotated dispatch above). `borrow/view_link.rs` ("Lifetimes stage 2")
-  resolves an explicit result lifetime to exactly one input parameter and its
-  complete matching structural leaves — reusing one lifetime across multiple
-  inputs rejects, as the README's lifetime-source-correspondence section
-  records; that rejection is the deliberate boundary, not a gap. The residual
-  named the multi-source leg — every parameter carrying the selected lifetime
-  contributes leaves as possible sources, each supporting the returned access.
-  That leg has since landed at `9106b1ca037` ("explicit result lifetime unions
-  same-lifetime inputs as view sources"): `view_link.rs` now links an explicit
-  result lifetime to every input carrying the name, the returned view's sources
-  form the union of those inputs' matching leaves, and each candidate must
-  supply the result's access (README section updated in the same commit; the
-  unannotated-multiple-carried-sources case still rejects as the deliberate
-  boundary). Open residuals: general caller-side generic returned-view
-  attribution (README §Lifetime source correspondence, "remain incomplete"),
-  and the outlives leg — no authored syntax exists (lifetimes.md spells binders
-  only, conformances.md states whole-conformance applications do not gain
-  outlives/variance/subtyping), so it waits on a spec decision, not a checker
-  gap. Re-verified at `e7c0099cb2b7`: `view_link.rs` and `loans.rs` are
-  claim-free, but the witness surfaces stay fenced — `src/checks/borrows` +
-  `src/tests/borrow` to BORROW-PROOF-CONVERGENCE (exp 06:46Z) and the crate's
-  `tests/` dir to PROOF-CONTRACT-MIGRATION (exp 10:38Z). No independent
-  unclaimed slice exists here.
 - **LOWERED-CRASH-MEMBER-BYTE-ENTRIES.** — mined candidate; scope verified, family repaired. The stub names the crash-member byte-entry group of checked-trees-to-lowered-psi (`tests/crash_member_source/byte_entries.rs`); `wiki/drafts/known_baseline_failures.md`'s own re-reading at d8d48fe4ff already records crash-member byte entries green alongside boundary byte buffers and the ordered-boolean row, and the whole `crash_member_source` suite re-verifies green at this revision (`cargo nextest run -p checked-trees-to-lowered-psi --test suite crash_member_source`: 48/48, linux x86-64). Re-witnessed again at `d6a0625f6b`: 48/48 pass in 61.3s (the `unsupported_mixed_aggregate_equality_shapes_remain_fenced` member is a 60.7s slow pin, not a failure). The live residual families in that crate are already owned: bare boundary-trait fixture spellings by ENTRY-CONTENT-ROOTS, scalar-return custody / provider attachment / attached-unit sets by C2L-BASELINE-FAILURE-ATTRIBUTION and C2L-RESIDUAL-FAILURE-ATTRIBUTION, and the proof-search blowup by C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT. No independent slice remains on this row.
 - **LOWERED-OPERATION-PROOF-MACHINE-CALLS.** — mined candidate; scope verified, route already exercised. The stub names operation proofs on lowered machine-call operations and proof-output call custody in checked-trees-to-lowered-psi. Both are implemented and green at e76d715c8e (verified base 6ef64f6dd6): `proofs/operation_proofs.rs::finalize_operation_proofs` discharges call obligations (the previously red `unit_scalar_result_source::boundary_wrappers::ordered_boolean_guarantees::ordered_boolean_call_computations_preserve_normal_guarantees` machine_calls row now passes — the group reads 28/28 green), `proofs/evidence_lowering/proof_output_calls.rs::lower_proof_output_calls` keeps runtime-value bindings on their ordinary scalar Call operation, `terminal-verifier/validation/evidence/proof_output_calls.rs` cross-checks `runtime_call.operation` against the caller's operations, and `proof_recursion.rs::proof_machine_dependency_closure` covers proof machine call reachability (6/6 green). Pins: `evidence_identity_source` suite 22/22 green (cargo nextest, linux x86-64) including `runtime_value_proof_output_links_one_scalar_call_and_executes_once`. The live residuals in this crate are already owned: bare `Service<R>` fixture spellings by ENTRY-CONTENT-ROOTS, transitive machine plans by GENERAL-CYCLIC-EXECUTION/UEFI-OS-HANDOFF, site_guard crash namespace and scalar-return custody by WRITE-ONLY-BORROW integer-entry-ranges, `established by` qualification by BOUNDARY-ISSUANCE, and the proof-search blowup by C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT. No independent slice remains on this row.
 - **LOWERED-CRASH-MEMBER-BYTE-ENTRIES** — mined candidate; scope verified, family repaired. The stub names the crash-member byte-entry group of checked-trees-to-lowered-psi (`tests/crash_member_source/byte_entries.rs`); `wiki/drafts/known_baseline_failures.md`'s own re-reading at d8d48fe4ff already records crash-member byte entries green alongside boundary byte buffers and the ordered-boolean row, and the whole `crash_member_source` suite re-verifies green at this revision (`cargo nextest run -p checked-trees-to-lowered-psi --test suite crash_member_source`: 48/48, linux x86-64). The live residual families in that crate are already owned: bare boundary-trait fixture spellings by ENTRY-CONTENT-ROOTS, scalar-return custody / provider attachment / attached-unit sets by C2L-BASELINE-FAILURE-ATTRIBUTION and C2L-RESIDUAL-FAILURE-ATTRIBUTION, and the proof-search blowup by C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT. No independent slice remains on this row.
@@ -4841,7 +4718,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   scoped files.
 
 
-- **NEW-LSC-MULTI-SOURCE-LIFETIME-LEAVES.** Inserted row, scope verified at `b868b9ee8f27` (planner-scoped to `typed-trees-to-checked-trees/src/borrow/view_link.rs`) — the multi-source lifetime-leaf machinery is already implemented in that file: `structural_view_return_source` enumerates input leaves via `carried_lifetimes`, an elided output requires exactly one leaf across the frontier (`ElidedMultipleInputs` at `matching.len() != 1`, covering one parameter carrying several unnamed sources), an explicit output lifetime emits one `ViewReturnFieldSource` per matching leaf. **SUPERSEDED — this row was inserted after its own blocker was already gone.** `9106b1ca03725` ("psi: explicit result lifetime unions same-lifetime inputs as view sources") landed the multi-source leg inside `view_link.rs`: an explicit result lifetime now links *every* input carrying the name and emits one `ViewReturnFieldSource` per matching leaf across inputs (`view_link.rs:256-285`, comment at :257-259). `LifetimeMatchesMultipleInputs` and its diagnostic have zero hits in any `.rs` file; the only multi-match rejection left is `ElidedMultipleInputs`, guarded by `output.lifetime.is_none() && matching.len() != 1` (:246-248). The sibling row at :12926 already calls the variant retired. No slice remains here. No live fence covers the file; the cross-file leg needs its own dispatch with `elision.rs` + `loans.rs` in scope.
 - **NEW-NATIVE-DIFF-IGNORED-OPERAND-PROBE-INTENT.** Inserted row, scope
   verified (planner-scoped to `tests/native-differential/tests/real_fs.rs`)
   — the ignored-operand probe intent is already implemented and green:
