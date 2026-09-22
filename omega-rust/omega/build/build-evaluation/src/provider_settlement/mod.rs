@@ -9,13 +9,16 @@
 mod canonical_filesystem_host;
 mod independent_components;
 
+pub use canonical_filesystem_host::{
+    MintedFilesystemHostPlan, mint_canonical_filesystem_host_plan,
+};
 pub use independent_components::verify_independent_component_descriptions;
 
 use crate::admission::target_machines::SelectedTargetMachineDeclarations;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::ProviderPlan;
-use package_compilation::PackageCompilationInputs;
+use package_compilation::{AcceptedSemanticBindingRole, PackageCompilationInputs};
 use provider_planning::ProviderSelection;
 use provider_planning::SelectedProviderReviewProvenance;
 use provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
@@ -93,7 +96,9 @@ pub fn settle_checked_providers(
     // below without entering the pre-selection derivation provenance.
     let toolchain_filesystem_plan = canonical_filesystem_host::mint_canonical_filesystem_host_plan(
         typed,
-        package_inputs,
+        package_inputs.and_then(|inputs| {
+            inputs.accepted_semantic_binding(AcceptedSemanticBindingRole::FilesystemHostService)
+        }),
         target_name,
         &selected_provider_plans
             .iter()

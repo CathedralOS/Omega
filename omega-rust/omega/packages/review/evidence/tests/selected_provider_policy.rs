@@ -14,6 +14,8 @@ mod inherited;
 mod installation;
 #[path = "selected_provider_policy/signatures.rs"]
 mod signatures;
+#[path = "selected_provider_policy/toolchain_settled.rs"]
+mod toolchain_settled;
 
 use fixtures::Fixture;
 use package_evidence::encoding::PackagePolicyRecoveryLimits;

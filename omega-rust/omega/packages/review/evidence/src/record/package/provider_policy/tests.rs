@@ -57,7 +57,7 @@ fn plan(name: &str, requirement: &str) -> PackagePolicyProviderPlan {
         rows: vec![PackagePolicyProviderRow {
             method: "realize".to_owned(),
             requirement: nominal(requirement),
-            realization: nominal("Provider::realize"),
+            realization: Some(nominal("Provider::realize")),
             requirement_lifetime_partition: vec![],
             binding: PackagePolicyProviderBinding::CheckedAdapter {
                 machine_identity: "Provider::realize()".to_owned(),
@@ -115,7 +115,7 @@ fn family_links_retain_overloads_without_receipt_coordinates() {
 #[test]
 fn row_realization_cannot_change_its_exact_package_owner() {
     let mut value = policy();
-    value.plans[0].rows[0].realization.owner =
+    value.plans[0].rows[0].realization.as_mut().unwrap().owner =
         PackageReviewNominalOwner::Package(PackageKeyIdentity::from_digest([8; 32]).unwrap());
     assert!(value.validate_canonical_structure().is_err());
 }

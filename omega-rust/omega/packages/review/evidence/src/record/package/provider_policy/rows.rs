@@ -5,7 +5,10 @@ use semantic_vocabulary::PackageKeyIdentity;
 pub struct PackagePolicyProviderRow {
     pub(crate) method: String,
     pub(crate) requirement: PackageReviewNominalIdentity,
-    pub(crate) realization: PackageReviewNominalIdentity,
+    /// The authored realization machine, when one exists. A toolchain-settled
+    /// plan row has no authored machine to name: its realization is a
+    /// toolchain settlement table entry, so this stays `None`.
+    pub(crate) realization: Option<PackageReviewNominalIdentity>,
     pub(crate) requirement_lifetime_partition: Vec<u32>,
     pub(crate) binding: PackagePolicyProviderBinding,
     pub(crate) compiler_intrinsic_execution: Option<PackageReviewCompilerIntrinsicExecution>,
@@ -21,8 +24,8 @@ impl PackagePolicyProviderRow {
         &self.requirement
     }
 
-    pub fn realization(&self) -> &PackageReviewNominalIdentity {
-        &self.realization
+    pub fn realization(&self) -> Option<&PackageReviewNominalIdentity> {
+        self.realization.as_ref()
     }
 
     pub fn requirement_lifetime_partition(&self) -> &[u32] {

@@ -16,6 +16,7 @@ pub(super) fn project(
     compilation: &PackageReviewInput<'_>,
     target: TargetProfile,
     retained: &SelectedProviderReviewProvenance,
+    toolchain_settled: bool,
 ) -> Result<Vec<PackagePolicyProviderRow>, Vec<Diagnostic>> {
     let plan = &retained.plan;
     plan.rows
@@ -34,20 +35,39 @@ pub(super) fn project(
                 declaring_schema,
                 requirement_symbol,
             )?;
-            let realization = nominal_identity(compilation, realization_symbol)?;
-            validate_selected_provider_declaration_owner(
-                &realization,
-                plan.origin_package_identity,
-                &plan.name,
-                "row realization",
-            )?;
-            validate_lifetime_partition(
-                compilation,
-                declaring_schema,
-                requirement_symbol,
-                realization_symbol,
-                &row.requirement_lifetime_partition,
-            )?;
+            // A toolchain-settled row is realized by the toolchain settlement
+            // table, not an authored machine: the provenance retains an
+            // `invalid` realization symbol by construction, so the row keeps
+            // no realization nominal and no lifetime partition.
+            let realization = if toolchain_settled {
+                if realization_symbol.is_valid() {
+                    return Err(rejected(
+                        "toolchain-settled row names an authored realization",
+                    ));
+                }
+                if !row.requirement_lifetime_partition.is_empty() {
+                    return Err(rejected(
+                        "toolchain-settled row retains a lifetime partition",
+                    ));
+                }
+                None
+            } else {
+                let realization = nominal_identity(compilation, realization_symbol)?;
+                validate_selected_provider_declaration_owner(
+                    &realization,
+                    plan.origin_package_identity,
+                    &plan.name,
+                    "row realization",
+                )?;
+                validate_lifetime_partition(
+                    compilation,
+                    declaring_schema,
+                    requirement_symbol,
+                    realization_symbol,
+                    &row.requirement_lifetime_partition,
+                )?;
+                Some(realization)
+            };
             Ok(PackagePolicyProviderRow {
                 method: row.method.clone(),
                 requirement: requirement.clone(),
@@ -58,6 +78,7 @@ pub(super) fn project(
                     &row.binding,
                     requirement_symbol,
                     realization_symbol,
+                    toolchain_settled,
                 )?,
                 compiler_intrinsic_execution: project_compiler_intrinsic_execution(
                     compilation,

@@ -214,11 +214,15 @@ impl Names<'_> {
                 )?;
             }
             for row in plan.rows() {
+                let realization = match row.realization() {
+                    Some(realization) => self.name(realization).to_string(),
+                    None => "toolchain-settlement".to_owned(),
+                };
                 writeln!(
                     output,
                     "    binding {} -> {} {:?}",
                     self.name(row.requirement()),
-                    self.name(row.realization()),
+                    realization,
                     row.binding()
                 )?;
                 if let Some(reach) = row.installation_reach() {
