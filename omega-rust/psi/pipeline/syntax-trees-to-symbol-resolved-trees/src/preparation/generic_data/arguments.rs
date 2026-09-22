@@ -12,8 +12,10 @@ use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::DomainDefinition;
 use syntax_trees::item::Item;
+use syntax_trees::item::ItemHandle;
 use syntax_trees::item::TypeParameter;
 use syntax_trees::item::TypeParameterKind;
+use syntax_trees::types::DomainConstraint;
 use syntax_trees::types::FixedArrayLength;
 use syntax_trees::types::TypeConstraintNode;
 use syntax_trees::types::TypeReferenceHandle;
@@ -610,9 +612,9 @@ pub(crate) fn closed_argument_identity(
 /// carrier: `domain<T> T::Foreign` reserves its first parameter for the
 /// generic carrier, while a concrete carrier like
 /// `domain<const C: u64> u64::AtMost<C>` keeps every declared parameter as an
-/// index. Mirrors the structural matcher's rule in
-/// `type_structure::applications`.
-fn domain_index_parameters(
+/// index. This is the one rule shared by identity, argument normalization and
+/// the structural matcher in `type_structure::applications`.
+pub(crate) fn domain_index_telescope(
     syntax: &SyntaxTrees,
     definition: &DomainDefinition,
 ) -> (Vec<TypeParameter>, bool) {
@@ -670,7 +672,7 @@ fn indexed_domain_identity(
     let Item::Domain(definition) = syntax.root_item(declaration) else {
         return None;
     };
-    let (index_parameters, generic_carrier) = domain_index_parameters(syntax, definition);
+    let (index_parameters, generic_carrier) = domain_index_telescope(syntax, definition);
     if generic_carrier {
         return None;
     }
@@ -694,4 +696,171 @@ fn indexed_domain_identity(
         declaration,
         indices,
     ))
+}
+
+/// One in-forest `domain` declaration selected as a carrier-qualified
+/// application head.
+pub(crate) struct DomainHead {
+    pub(crate) declaration: ItemHandle,
+    /// The declaration's own name. A generic family's retains only the domain
+    /// segments (`domain<const C: u64> u64::AtMost<C>` declares `AtMost`),
+    /// which is also the canonical constraint name a rewritten spelling
+    /// carries.
+    pub(crate) declared_name: Identifier,
+    /// The family's index telescope: its declared parameters minus a leading
+    /// type binder that names a generic carrier (`domain<T> T::Foreign`).
+    pub(crate) index_parameters: Vec<TypeParameter>,
+    /// The declared carrier, retained as the canonical constrained base.
+    pub(crate) target_type: TypeReferenceHandle,
+}
+
+/// Select the domain a `Carrier::Name` or bare `Name` head applies: the
+/// declared name or its leaf owns the spelled leaf, and a `::` prefix must
+/// spell the declared target's own name. Competing or carrier-mismatched
+/// owners decline rather than equate spellings, and a generic-carrier family
+/// (`domain<T> T::Foreign`) has no closed application — its binder needs its
+/// own binding law first. This is the single head law shared with the
+/// structural matcher's `application()`; identity sees exactly the
+/// declaration matching chose.
+pub(crate) fn domain_application_head(
+    syntax: &SyntaxTrees,
+    name: &Identifier,
+) -> Option<DomainHead> {
+    let spelled = name.as_str();
+    let (carrier, leaf) = match spelled.rsplit_once("::") {
+        Some((carrier, leaf)) => (Some(carrier), leaf),
+        None => (None, spelled),
+    };
+    let mut candidates = syntax.root_item_handles().iter().copied().filter(|handle| {
+        let Item::Domain(definition) = syntax.root_item(*handle) else {
+            return false;
+        };
+        let declared = definition.name.as_str();
+        let declared_leaf = declared.rsplit("::").next().unwrap_or(declared);
+        if declared != spelled && declared_leaf != leaf {
+            return false;
+        }
+        match carrier {
+            None => true,
+            Some(carrier) => matches!(
+                syntax
+                    .type_references
+                    .type_reference(definition.target_type),
+                TypeReferenceNode::Named(target) if target.as_str() == carrier
+            ),
+        }
+    });
+    let declaration = candidates.next()?;
+    if candidates.next().is_some() {
+        return None;
+    }
+    let Item::Domain(definition) = syntax.root_item(declaration) else {
+        return None;
+    };
+    let (index_parameters, generic_carrier) = domain_index_telescope(syntax, definition);
+    if generic_carrier {
+        return None;
+    }
+    Some(DomainHead {
+        declaration,
+        declared_name: definition.name.clone(),
+        index_parameters,
+        target_type: definition.target_type,
+    })
+}
+
+/// A carrier-qualified `Carrier::Name<indices>` type spells the same domain
+/// application as the constrained `Carrier in Name<indices>` node. Rewrite
+/// every reachable head in `positions` before the closed-index
+/// canonicalization snapshot so a module constant inside one folds exactly as
+/// an authored constraint, and solving, identity, naming and substitution all
+/// observe the one canonical shape the constrained spelling produces.
+/// `positions` is the owner-position walk: every type reference reachable
+/// from a concrete owner or an open template member.
+pub(crate) fn normalize_domain_head_positions(
+    syntax: &mut SyntaxTrees,
+    selection: Option<&constant_selection::ConstantSelection>,
+    positions: &[TypeReferenceHandle],
+) {
+    for &position in positions {
+        normalize_domain_head_node(syntax, selection, position);
+    }
+}
+
+fn normalize_domain_head_node(
+    syntax: &mut SyntaxTrees,
+    selection: Option<&constant_selection::ConstantSelection>,
+    handle: TypeReferenceHandle,
+) {
+    match syntax.type_references.type_reference(handle).clone() {
+        TypeReferenceNode::Generic {
+            base_name,
+            lifetime_arguments,
+            arguments,
+        } => {
+            let nested = syntax
+                .type_references
+                .type_reference_handles(arguments)
+                .to_vec();
+            // A data application keeps its nominal head; only a node whose
+            // head selects no in-forest data is a domain candidate, the same
+            // precedence the structural matcher gives `closed_name_identity`.
+            // Arity is not rechecked here: a wrong tuple becomes the same
+            // constraint the authored `in` spelling writes, and the domain
+            // family's own arity diagnostic reports it.
+            if lifetime_arguments.is_empty()
+                && selected_data_item(syntax, selection, &base_name).is_none()
+                && let Some(head) = domain_application_head(syntax, &base_name)
+            {
+                let constraints =
+                    syntax
+                        .type_references
+                        .insert_constraints([TypeConstraintNode::Domain(DomainConstraint {
+                            name: Identifier::new(
+                                head.declared_name.as_str(),
+                                base_name.source_span(),
+                            ),
+                            arguments,
+                        })]);
+                syntax.type_references.replace_type_reference(
+                    handle,
+                    TypeReferenceNode::Constrained {
+                        base_type: head.target_type,
+                        constraints,
+                    },
+                );
+            }
+            // The arguments move into the rewritten constraint unchanged, so
+            // one descent covers a nested head in either shape.
+            for nested in nested {
+                normalize_domain_head_node(syntax, selection, nested);
+            }
+        }
+        TypeReferenceNode::Reference { referee, .. } => {
+            normalize_domain_head_node(syntax, selection, referee);
+        }
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => {
+            normalize_domain_head_node(syntax, selection, element_type);
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            normalize_domain_head_node(syntax, selection, base_type);
+            for constraint in syntax.type_references.constraints(constraints).to_vec() {
+                let TypeConstraintNode::Domain(domain) = constraint else {
+                    continue;
+                };
+                for argument in syntax
+                    .type_references
+                    .type_reference_handles(domain.arguments)
+                    .to_vec()
+                {
+                    normalize_domain_head_node(syntax, selection, argument);
+                }
+            }
+        }
+        _ => {}
+    }
 }
