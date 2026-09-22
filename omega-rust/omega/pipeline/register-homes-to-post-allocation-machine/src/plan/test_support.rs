@@ -1,4 +1,4 @@
-use super::model::ValidatedPostAllocationMachinePlan;
+use super::ValidatedPostAllocationMachinePlan;
 
 /// One substitutable field of [`PostAllocationMachineReceipt`](super::PostAllocationMachineReceipt). The custody matrix substitutes
 /// exactly one field per leg so a rejection attributes to that claim alone.
