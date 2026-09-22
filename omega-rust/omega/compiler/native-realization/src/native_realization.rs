@@ -70,8 +70,11 @@ use self::{
     realization_diagnostics::realization_error,
 };
 
-/// Realize one Terminal artifact using explicit image, custody, and reuse inputs.
-/// Failure returns the exact image request; no product is silently substituted.
+/// Realize one Terminal artifact using explicit image, custody, and reuse inputs
+/// and no retained behavior exclusions: the no-exclusion form of
+/// [`realize_native_artifact_with_behavior_exclusions`], which is the one
+/// realization entrance. Failure returns the exact image request; no product
+/// is silently substituted.
 pub fn realize_native_artifact(
     artifact: terminal_codec::CanonicalTerminalArtifact,
     request: NativeRealizationRequest<'_>,

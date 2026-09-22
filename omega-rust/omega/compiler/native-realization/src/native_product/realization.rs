@@ -142,25 +142,18 @@ pub(super) fn realize(
         native_callbacks: &[],
         callback_thunks: &[],
     };
-    // Unions carrying no physical-authority row leave mechanism adjudication
-    // with nothing to reject, so they take the canonical entry; a union that
-    // requests a physical absence goes through the exclusion-taking entry.
-    if behavior_exclusions.physical_authority_classes().is_empty() {
-        crate::realize_native_artifact(artifact, request)
-    } else {
-        crate::realize_native_artifact_with_behavior_exclusions(
-            artifact,
-            request,
-            &behavior_exclusions,
-        )
-    }
-    .map_err(|error| error.into_parts().1)?
-    .into_direct()
-    .map_err(|_| {
-        vec![Diagnostic::error(
-            "direct native realization returned a different image kind",
-        )]
-    })
+    // The retained exclusion union goes to realization as it is: a union
+    // carrying no physical-authority row leaves mechanism adjudication with
+    // nothing to reject, and that judgement belongs to the closure review, not
+    // to a caller choosing between entrances.
+    crate::realize_native_artifact_with_behavior_exclusions(artifact, request, &behavior_exclusions)
+        .map_err(|error| error.into_parts().1)?
+        .into_direct()
+        .map_err(|_| {
+            vec![Diagnostic::error(
+                "direct native realization returned a different image kind",
+            )]
+        })
 }
 
 #[cfg(test)]
