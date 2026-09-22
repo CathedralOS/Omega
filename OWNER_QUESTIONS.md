@@ -410,6 +410,39 @@ ruling or at least a note so later legs make the same choice:
    nothing; the crate-root roster keeps `post_handoff_writer` as a
    `layout-plans` area.
 
+8. **Is a routed `Service<R>` carrier moved or copied when a machine passes
+   it by value out of its own storage?** (named decision:
+   `service-carrier-argument-multiplicity`). Since 32f5182254 the only
+   service value spelling is the intrinsic `Service<R>` carrier, and the
+   value-custody check treats it like any non-copy data value: the pass
+   canary `capabilities/uses_caller_folder`
+   (`self.librarian.archive(self.folder)`, where `archive` takes
+   `folder: Service<Folder>` by value) is refused with "cannot make a
+   boundary or service call at statement 0 while `self.folder` is absent:
+   restore the value moved out of borrowed storage" and "cannot transfer a
+   non-copy value out of borrowed storage without replacing its owner". The
+   fixture was written when the field was a bare boundary trait, which the
+   checker treated as a capability handle rather than an owned value, and it
+   is the corpus's only by-value hand-off of a `Service<R>` field from a
+   `&mut self` receiver. Options:
+
+   - (a) A routed carrier is a capability handle: the checker classifies
+     `Service<R>` as copy in argument position (the callee receives the
+     same routed slot; nothing is vacated), and the fixture stays as
+     written. `type_multiplicity` learns the carrier the way it learns
+     integers.
+   - (b) A routed carrier is an affine value: by-value hand-off out of
+     receiver storage is a move, the fixture is rewritten to lend
+     (`archive(&self, folder: &Service<Folder>)` and
+     `self.librarian.archive(&self.folder)`), and a fail canary pins the
+     refusal.
+   - (c) Status quo, documented: the refusal stands and the canary is
+     re-rostered as a fail control until (a) or (b) is chosen.
+
+   Until answered, `checked_only_capability_canaries_compile_in_isolation`
+   stays red on that one fixture and the architecture sweep does not touch
+   the multiplicity classifier.
+
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
 [foundation](wiki/spec/proofs/foundation.md). Their implementation and required
