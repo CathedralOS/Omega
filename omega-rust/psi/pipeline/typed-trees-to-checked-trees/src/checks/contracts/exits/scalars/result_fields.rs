@@ -116,7 +116,7 @@ impl ExitScalars<'_, '_> {
         ))
     }
 
-    fn result_projection(
+    pub(super) fn result_projection(
         &self,
         expression: ExpressionHandle,
     ) -> Option<(ExpressionHandle, Vec<facts::PlaceSegment>)> {

@@ -460,15 +460,30 @@ const PROJECTED_RESULT_WINDOW: &str = r#"
 "#;
 
 #[test]
-fn projected_result_premise_reaches_borrow_evidence_awaiting_exit_proof() {
-    let Err(diagnostics) = checked_program_result(PROJECTED_RESULT_WINDOW) else {
-        panic!("callee-side projection of constructed result members is not yet proven");
-    };
-    assert!(
-        diagnostics.iter().all(|diagnostic| {
-            diagnostic.message.contains("cannot prove ensures")
-                && diagnostic.message.contains("result.first >= 2")
-        }),
-        "expected only the exit-projection residual, not a borrow conflict: {diagnostics:#?}"
+fn projected_result_guarantee_certifies_disjoint_window_write() {
+    let mut checked = checked_program(PROJECTED_RESULT_WINDOW);
+    let certificate = checked
+        .facts
+        .borrow
+        .mutation_certificates
+        .iter()
+        .map(|(_, certificate)| certificate)
+        .next()
+        .expect("one mutation certificate");
+    assert_eq!(
+        certificate.derivation,
+        checked_trees::BorrowCompatibilityDerivation::Premised
     );
+    // The retained premise keeps the projection's symbol+segment identity:
+    // `result.first` binds the pinned binding's `pair.first` place.
+    assert!(
+        certificate.premises.iter().any(|premise| matches!(
+            premise.right,
+            checked_trees::BorrowCompatibilitySelectorValue::Segmented { .. }
+        )),
+        "the projected-result premise records a segmented bound: {:?}",
+        certificate.premises
+    );
+    crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+        .expect("retained projected-result certificate replays its exact tokens");
 }
