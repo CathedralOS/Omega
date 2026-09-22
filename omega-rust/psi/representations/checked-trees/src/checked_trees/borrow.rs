@@ -176,6 +176,13 @@ pub enum BorrowCompatibilitySelectorValue {
         symbol: SymbolHandle,
         segments: Vec<facts::PlaceSegment>,
     },
+    /// The value produced by one exact call occurrence, named by its
+    /// expression handle. A call result has no place identity, so a nested
+    /// call's `ensures` binds the occurrence itself — the intra-statement
+    /// fact context for guarantees minted inside the same statement.
+    CallResult {
+        expression: ExpressionHandle,
+    },
 }
 
 /// One formation-frozen normalized selector value.
