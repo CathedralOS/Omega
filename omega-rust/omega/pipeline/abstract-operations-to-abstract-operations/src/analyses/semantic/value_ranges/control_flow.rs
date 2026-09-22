@@ -7,7 +7,7 @@ use semantic_vocabulary::{BlockId, MachineId};
 
 use crate::analyses::control_flow::DominatorAnalysis;
 
-use super::super::shared::scalar_operation_successors;
+use super::super::scalar_operation_successors;
 
 pub(super) fn dominated_blocks(
     dominators: &DominatorAnalysis,

@@ -7,7 +7,7 @@ use optimization_unit::{
 use semantic_vocabulary::ScalarType;
 
 use super::super::{
-    shared::scalar_value_definition,
+    scalar_value_definition,
     sparse_conditional_constants::{ScalarConstant, scalar_constants},
 };
 

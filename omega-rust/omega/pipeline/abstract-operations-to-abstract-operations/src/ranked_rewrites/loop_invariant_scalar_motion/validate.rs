@@ -23,7 +23,8 @@ pub(super) fn candidate(
         .iter()
         .find(|component| component.id == candidate.component)
         .ok_or(LoopInvariantScalarMotionError::UnknownComponent)?;
-    let Some(plan) = propose::component_plan(session, component)? else {
+    let effects = crate::validation::invariant_calls::unit_effect_summaries(session.unit());
+    let Some(plan) = propose::component_plan(session, component, &effects)? else {
         return Err(LoopInvariantScalarMotionError::AlreadyRelocated);
     };
 

@@ -8,7 +8,7 @@ use semantic_vocabulary::ScalarType;
 
 use crate::analyses::control_flow::DominatorAnalysis;
 
-use super::super::shared::scalar_value_definition;
+use super::super::scalar_value_definition;
 use super::{
     control_flow::{dominated_blocks, reachable_blocks},
     intervals::IntervalExtraction,
