@@ -19,8 +19,7 @@ mod sparse_conditional_constant_propagation;
 mod state_specialization;
 
 use super::super::{
-    ExternalDecisionReplayError, OptimizationRunError, VerifiedPsiOptimizationSession,
-    replay_psi_pipeline, run_psi_pipeline, run_unit,
+    ExternalDecisionReplayError, OptimizationRunError, VerifiedPsiOptimizationSession, run_unit,
 };
 use super::{
     Optimization, OptimizationSelections, OptimizationWorkBudget, budget, verified_empty_unit,
@@ -29,6 +28,7 @@ use crate::{
     OptimizedAbstractProjectionError, built_in_psi_registry, optimize_abstract_operations,
     publish_optimization_run,
 };
+use crate::{replay_psi_pipeline, run_psi_pipeline};
 use optimization_core::OptimizationRuleIdentity;
 use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
 

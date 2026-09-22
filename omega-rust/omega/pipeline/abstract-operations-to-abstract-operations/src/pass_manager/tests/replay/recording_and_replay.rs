@@ -1,7 +1,4 @@
-use super::super::super::{
-    OptimizationRunError, replay_psi_pipeline, replay_psi_registry, run_psi_pipeline,
-    run_psi_registry, validate_external_decision_recording,
-};
+use super::super::super::{OptimizationRunError, validate_external_decision_recording};
 use super::super::{
     ExternalDecisionAction, Optimization, OptimizationSelections, budget, built_in_psi_registry,
     verified_compatible_policy_cse_unit, verified_compatible_policy_phi_gvn_unit,
@@ -9,6 +6,7 @@ use super::super::{
     verified_exact_self_divide_unit, verified_exact_self_remainder_unit,
     verified_exact_signed_remainder_by_negative_one_unit,
 };
+use crate::{replay_psi_pipeline, replay_psi_registry, run_psi_pipeline, run_psi_registry};
 
 #[test]
 fn external_decision_recording_rejects_detached_valid_context() {

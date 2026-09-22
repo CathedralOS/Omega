@@ -149,9 +149,9 @@ impl PlanEvidence<'_> {
     /// computed once over the session's verified seed unit.
     fn effects(&self) -> std::cell::Ref<'_, crate::EffectSummaryAnalysis> {
         if self.call_effects.borrow().is_none() {
-            *self.call_effects.borrow_mut() = Some(crate::validation::unit_effect_summaries(
-                self.session.unit(),
-            ));
+            *self.call_effects.borrow_mut() = Some(
+                crate::validation::invariant_calls::unit_effect_summaries(self.session.unit()),
+            );
         }
         std::cell::Ref::map(self.call_effects.borrow(), |slot| {
             slot.as_ref().expect("effect table just computed")
@@ -207,9 +207,9 @@ fn admit_member_node(
     let component = evidence.component;
     let mut root_rewrite = None;
     let mut argument_rewrites = Vec::new();
-    let operand_rewrites = if crate::validation::admissible_scalar_leaf_relocation(node) {
+    let operand_rewrites = if crate::validation::invariant_operations::admissible_scalar_leaf_relocation(node) {
         Vec::new()
-    } else if let Some(source) = crate::validation::admissible_invariant_place_read(node) {
+    } else if let Some(source) = crate::validation::invariant_operations::admissible_invariant_place_read(node) {
         // An invariant place observation keeps both halves of the
         // non-speculative gate — observing a root performs work a skipped
         // traversal would not — and additionally needs the component to
@@ -220,7 +220,7 @@ fn admit_member_node(
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
             return None;
         }
-        let root = crate::validation::invariant_place_observation_admission(
+        let root = crate::validation::place_observations::invariant_place_observation_admission(
             function,
             component,
             node,
@@ -228,7 +228,7 @@ fn admit_member_node(
         )?;
         root_rewrite = (root != source).then_some((source, root));
         Vec::new()
-    } else if let Some((source, _, _)) = crate::validation::admissible_invariant_byte_read(node) {
+    } else if let Some((source, _, _)) = crate::validation::invariant_operations::admissible_invariant_byte_read(node) {
         // A byte read keeps the same non-speculative gate as a place
         // observation — the read performs work a bypassed traversal would
         // not — then needs both evidence halves at once: its storage root
@@ -240,7 +240,7 @@ fn admit_member_node(
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
             return None;
         }
-        let (root, substitution) = crate::validation::invariant_byte_read_admission(
+        let (root, substitution) = crate::validation::place_observations::invariant_byte_read_admission(
             function,
             component,
             node,
@@ -252,7 +252,7 @@ fn admit_member_node(
         }
         root_rewrite = (root != source).then_some((source, root));
         substitution.into_iter().collect()
-    } else if let Some((source, _, _, _)) = crate::validation::admissible_invariant_subslice(node) {
+    } else if let Some((source, _, _, _)) = crate::validation::invariant_operations::admissible_invariant_subslice(node) {
         // A subslice keeps the byte family's whole evidence surface: the
         // non-speculative gate, the observation-root resolution, the
         // `start`/`end`/`length` substitution, and the `length` coupling to
@@ -262,7 +262,7 @@ fn admit_member_node(
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
             return None;
         }
-        let (root, substitution) = crate::validation::invariant_subslice_admission(
+        let (root, substitution) = crate::validation::place_observations::invariant_subslice_admission(
             function,
             component,
             node,
@@ -274,7 +274,7 @@ fn admit_member_node(
         }
         root_rewrite = (root != source).then_some((source, root));
         substitution.into_iter().collect()
-    } else if crate::validation::admissible_invariant_byte_literal(node) {
+    } else if crate::validation::invariant_operations::admissible_invariant_byte_literal(node) {
         // A byte-sequence-literal establishment is the family's first
         // non-observation structural relocation: it declares a fresh
         // immutable view root over constant bytes, reads no scalar or
@@ -289,7 +289,7 @@ fn admit_member_node(
             return None;
         }
         Vec::new()
-    } else if crate::validation::admissible_invariant_primitive_local(node).is_some() {
+    } else if crate::validation::invariant_operations::admissible_invariant_primitive_local(node).is_some() {
         // A primitive-local establishment is the byte literal's
         // operand-carrying sibling — and the storage prerequisite a
         // `CallStructuralScalar` borrows: the cyclic eligibility fence only
@@ -307,14 +307,14 @@ fn admit_member_node(
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
             return None;
         }
-        let substitution = crate::validation::invariant_primitive_local_admission(
+        let substitution = crate::validation::invariant_operations::invariant_primitive_local_admission(
             function, component, node, relocating,
         )?;
         if !evidence.representable(&substitution, relocating) {
             return None;
         }
         substitution.into_iter().collect()
-    } else if crate::validation::admissible_invariant_record(node).is_some() {
+    } else if crate::validation::invariant_operations::admissible_invariant_record(node).is_some() {
         // A record establishment is the primitive local's multi-field
         // sibling: it declares a fresh claim-free record place
         // whose declaration-ordered initializers are scalar reads or owned
@@ -342,7 +342,7 @@ fn admit_member_node(
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
             return None;
         }
-        let (substitution, rewrites) = crate::validation::invariant_record_admission(
+        let (substitution, rewrites) = crate::validation::invariant_operations::invariant_record_admission(
             function,
             component,
             node,
@@ -354,7 +354,7 @@ fn admit_member_node(
         }
         argument_rewrites = rewrites;
         substitution.into_iter().collect()
-    } else if crate::validation::admissible_invariant_scalar_array(node).is_some() {
+    } else if crate::validation::invariant_operations::admissible_invariant_scalar_array(node).is_some() {
         // A scalar-array establishment is the record's flat sibling: it
         // declares a fresh claim-free unrestricted array place whose
         // declaration-ordered scalar leaves each obey the use-site
@@ -368,14 +368,14 @@ fn admit_member_node(
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
             return None;
         }
-        let substitution = crate::validation::invariant_scalar_array_admission(
+        let substitution = crate::validation::invariant_operations::invariant_scalar_array_admission(
             function, component, node, relocating,
         )?;
         if !evidence.representable(&substitution, relocating) {
             return None;
         }
         substitution.into_iter().collect()
-    } else if crate::validation::admissible_invariant_scalar_case(node).is_some() {
+    } else if crate::validation::invariant_operations::admissible_invariant_scalar_case(node).is_some() {
         // A scalar-case establishment is the family's first custody-rewriting
         // relocation: the cyclic eligibility fence already confines its
         // affine sum result to the member block that dispatches or returns
@@ -394,14 +394,14 @@ fn admit_member_node(
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
             return None;
         }
-        let substitution = crate::validation::invariant_scalar_case_admission(
+        let substitution = crate::validation::invariant_operations::invariant_scalar_case_admission(
             function, component, node, relocating,
         )?;
         if !evidence.representable(&substitution, relocating) {
             return None;
         }
         substitution.into_iter().collect()
-    } else if crate::validation::admissible_invariant_trivial_affine_local(node).is_some() {
+    } else if crate::validation::invariant_operations::admissible_invariant_trivial_affine_local(node).is_some() {
         // A trivial affine local establishment is the scalar-case family's
         // operand-free sibling: the cyclic eligibility fence already
         // confines the declared affine place to the member block that
@@ -418,9 +418,9 @@ fn admit_member_node(
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
             return None;
         }
-        crate::validation::invariant_trivial_affine_local_admission(function, component, node)?;
+        crate::validation::invariant_operations::invariant_trivial_affine_local_admission(function, component, node)?;
         Vec::new()
-    } else if crate::validation::admissible_invariant_scalar_call(node).is_some() {
+    } else if crate::validation::invariant_calls::admissible_invariant_scalar_call(node).is_some() {
         // A scalar-signature call keeps the full non-speculative gate — it
         // performs callee work a skipped traversal would not — and then adds
         // its own evidence: the callee's transitive effect summary must
@@ -433,14 +433,14 @@ fn admit_member_node(
             return None;
         }
         let effects = evidence.effects();
-        let substitution = crate::validation::invariant_scalar_call_admission(
+        let substitution = crate::validation::invariant_calls::invariant_scalar_call_admission(
             function, component, node, relocating, &effects,
         )?;
         if !evidence.representable(&substitution, relocating) {
             return None;
         }
         substitution.into_iter().collect()
-    } else if crate::validation::admissible_invariant_unit_call(node).is_some() {
+    } else if crate::validation::invariant_calls::admissible_invariant_unit_call(node).is_some() {
         // A unit-result call keeps the scalar call's full evidence surface —
         // the non-speculative gate, the pure transitive callee, and the
         // unobservable member roster — then adds the structural halves: the
@@ -456,7 +456,7 @@ fn admit_member_node(
             return None;
         }
         let effects = evidence.effects();
-        let (substitution, rewrites) = crate::validation::invariant_unit_call_admission(
+        let (substitution, rewrites) = crate::validation::invariant_calls::invariant_unit_call_admission(
             function,
             component,
             node,
@@ -469,7 +469,7 @@ fn admit_member_node(
         }
         argument_rewrites = rewrites;
         substitution.into_iter().collect()
-    } else if crate::validation::admissible_invariant_structural_scalar_call(node).is_some() {
+    } else if crate::validation::invariant_calls::admissible_invariant_structural_scalar_call(node).is_some() {
         // A scalar-result structural call keeps the unit call's whole
         // evidence surface — the non-speculative gate, the pure transitive
         // callee, the unobservable member roster, the whole-component
@@ -483,7 +483,7 @@ fn admit_member_node(
         }
         let effects = evidence.effects();
         let (substitution, rewrites) =
-            crate::validation::invariant_structural_scalar_call_admission(
+            crate::validation::invariant_calls::invariant_structural_scalar_call_admission(
                 function,
                 component,
                 node,
@@ -496,7 +496,7 @@ fn admit_member_node(
         }
         argument_rewrites = rewrites;
         substitution.into_iter().collect()
-    } else if crate::validation::admissible_invariant_structural_call(node).is_some() {
+    } else if crate::validation::invariant_calls::admissible_invariant_structural_call(node).is_some() {
         // A structural-result call keeps the borrow call family's whole
         // evidence surface — the non-speculative gate, the pure transitive
         // callee, the unobservable member roster, the whole-component
@@ -525,7 +525,7 @@ fn admit_member_node(
             return None;
         }
         let effects = evidence.effects();
-        let (substitution, rewrites) = crate::validation::invariant_structural_call_admission(
+        let (substitution, rewrites) = crate::validation::invariant_calls::invariant_structural_call_admission(
             function,
             component,
             node,
@@ -542,7 +542,7 @@ fn admit_member_node(
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
             return None;
         }
-        let substitution = crate::validation::invariant_scalar_operand_substitution(
+        let substitution = crate::validation::member_blocks::invariant_scalar_operand_substitution(
             function, component, node, relocating,
         )?;
         if !evidence.representable(&substitution, relocating) {
@@ -582,7 +582,9 @@ fn mutable_borrowers_relocate(
     extended.insert(root);
     for block in &evidence.function.blocks {
         for node in &block.nodes {
-            if !crate::validation::mutable_borrow_roots(&node.operation).contains(&root) {
+            if !crate::validation::place_observations::mutable_borrow_roots(&node.operation)
+                .contains(&root)
+            {
                 continue;
             }
             if !evidence.component.members.contains(&block.id)
@@ -610,7 +612,8 @@ pub(super) fn component_plan(
     // several of them exist — a multi-arm dispatch whose every arm enters the
     // cycle. Entries departing different blocks leave no unique insertion
     // point, so the component declines.
-    let Some(preheader_source) = crate::validation::shared_entry_source(component) else {
+    let Some(preheader_source) = crate::validation::member_blocks::shared_entry_source(component)
+    else {
         return Ok(None);
     };
     let preheader = function
@@ -645,7 +648,7 @@ pub(super) fn component_plan(
         })
         .count();
     let insertion = terminator_index - certificate_tail;
-    let sites = crate::validation::value_definition_sites(function);
+    let sites = crate::validation::member_blocks::value_definition_sites(function);
     // Profitability gate: a computation moves only when reaching the
     // preheader guarantees entering the component, and only out of a member
     // block guaranteed to execute on every traversal that leaves it. A block
@@ -656,7 +659,7 @@ pub(super) fn component_plan(
     // constant in the preheader performs no work the traversal could have
     // skipped. Both halves of the gate are derived topology over the
     // authenticated component, so validation replays them exactly.
-    let guaranteed = crate::validation::guaranteed_executed_member_blocks(component);
+    let guaranteed = crate::validation::member_blocks::guaranteed_executed_member_blocks(component);
     // Invariant discovery is a fixed point: a computation whose
     // member-internal operand is defined by an already-planned relocation is
     // itself invariant — the run preserves the producer's result identity and
@@ -720,7 +723,8 @@ pub(super) fn component_plan(
                 // borrower's admission with the root already produced;
                 // admission is monotone in the run sets, so the borrower
                 // lands on a later pass.
-                if let Some(root) = crate::validation::produced_place_root(&node.operation)
+                if let Some(root) =
+                    crate::validation::place_observations::produced_place_root(&node.operation)
                     && !mutable_borrowers_relocate(&evidence, root, &relocating, &relocating_roots)
                 {
                     continue;
@@ -740,40 +744,40 @@ pub(super) fn component_plan(
                         // multi-definition node cannot pass an admission
                         // gate, so reaching one here means the plan drifted.
                         AbstractOperation::ByteSequenceSubslice { result, .. }
-                            if crate::validation::admissible_invariant_subslice(node).is_some() =>
+                            if crate::validation::invariant_operations::admissible_invariant_subslice(node).is_some() =>
                         {
                             LoopInvariantNodeResult::Structural(result.clone())
                         }
                         AbstractOperation::EstablishByteSequenceLiteral { place, .. }
-                            if crate::validation::admissible_invariant_byte_literal(node) =>
+                            if crate::validation::invariant_operations::admissible_invariant_byte_literal(node) =>
                         {
                             LoopInvariantNodeResult::LiteralPlace(*place)
                         }
                         AbstractOperation::EstablishPrimitiveLocal { result, .. }
-                            if crate::validation::admissible_invariant_primitive_local(node)
+                            if crate::validation::invariant_operations::admissible_invariant_primitive_local(node)
                                 .is_some() =>
                         {
                             LoopInvariantNodeResult::Structural(result.clone())
                         }
                         AbstractOperation::EstablishRecord { result, .. }
-                            if crate::validation::admissible_invariant_record(node).is_some() =>
+                            if crate::validation::invariant_operations::admissible_invariant_record(node).is_some() =>
                         {
                             LoopInvariantNodeResult::Structural(result.clone())
                         }
                         AbstractOperation::EstablishScalarArray { result, .. }
-                            if crate::validation::admissible_invariant_scalar_array(node)
+                            if crate::validation::invariant_operations::admissible_invariant_scalar_array(node)
                                 .is_some() =>
                         {
                             LoopInvariantNodeResult::Structural(result.clone())
                         }
                         AbstractOperation::EstablishScalarCase { result, .. }
-                            if crate::validation::admissible_invariant_scalar_case(node)
+                            if crate::validation::invariant_operations::admissible_invariant_scalar_case(node)
                                 .is_some() =>
                         {
                             LoopInvariantNodeResult::Structural(result.clone())
                         }
                         AbstractOperation::EstablishTrivialAffineLocal { place, .. }
-                            if crate::validation::admissible_invariant_trivial_affine_local(
+                            if crate::validation::invariant_operations::admissible_invariant_trivial_affine_local(
                                 node,
                             )
                             .is_some() =>
@@ -781,13 +785,13 @@ pub(super) fn component_plan(
                             LoopInvariantNodeResult::TrivialAffineLocal(*place)
                         }
                         AbstractOperation::CallUnit { .. }
-                            if crate::validation::admissible_invariant_unit_call(node)
+                            if crate::validation::invariant_calls::admissible_invariant_unit_call(node)
                                 .is_some() =>
                         {
                             LoopInvariantNodeResult::Unit
                         }
                         AbstractOperation::CallStructural { result, .. }
-                            if crate::validation::admissible_invariant_structural_call(node)
+                            if crate::validation::invariant_calls::admissible_invariant_structural_call(node)
                                 .is_some() =>
                         {
                             LoopInvariantNodeResult::Structural(result.clone())
@@ -797,7 +801,9 @@ pub(super) fn component_plan(
                     _ => return Err(LoopInvariantScalarMotionError::CandidateMismatch),
                 };
                 admitted.insert(psi_operation);
-                if let Some(root) = crate::validation::produced_place_root(&node.operation) {
+                if let Some(root) =
+                    crate::validation::place_observations::produced_place_root(&node.operation)
+                {
                     relocating_roots.insert(root);
                 }
                 nodes.push(LoopInvariantScalarNode {

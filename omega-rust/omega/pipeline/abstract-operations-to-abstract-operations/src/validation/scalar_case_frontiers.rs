@@ -186,7 +186,8 @@ fn case_result_owned_sites(
             if let Some(PsiProvenance::Operation(operation)) = node.provenance.first() {
                 plan.operations.push((
                     *operation,
-                    crate::validation::produced_place_root(&node.operation) == Some(place),
+                    crate::validation::place_observations::produced_place_root(&node.operation)
+                        == Some(place),
                 ));
                 sites.push(OwnershipFrontierSite::OperationEntry(*operation));
                 sites.push(OwnershipFrontierSite::OperationExit(*operation));

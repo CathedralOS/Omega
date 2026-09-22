@@ -1,22 +1,20 @@
 //! Optimizer module role: stage group. Deterministic execution of exact selected Psi optimization passes.
 //!
-//! Start with [`entry`] for the four run/replay APIs. [`model`] owns the run
-//! carrier and closed error surface, [`execution`] owns candidate dispatch and
-//! external-decision replay, and [`accounting`] owns convergence and manifests.
+//! The run and replay entries live in `abstract_optimization.rs`; they open a
+//! [`VerifiedPsiOptimizationSession`] and hand it to `run_registries` here.
+//! [`model`] owns the run carrier and closed error surface, [`execution`] owns
+//! candidate dispatch and external-decision replay, and [`accounting`] owns
+//! convergence and manifests.
 
 mod accounting;
 mod baseline;
-mod entry;
 mod execution;
 mod external_policy;
 mod model;
 
 use optimization_core::TargetCostModelIdentity;
 
-pub use entry::{
-    replay_psi_pipeline, replay_psi_registry, run_psi_pipeline, run_psi_pipeline_for_projection,
-    run_psi_registry,
-};
+pub(crate) use execution::{run_registries, run_registries_with_external_decisions};
 pub use external_policy::validate_external_decision_recording;
 pub use model::{
     CandidateContractAxis, ExternalDecisionContextAxis, ExternalDecisionReplayError,

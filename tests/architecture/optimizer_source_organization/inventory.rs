@@ -95,7 +95,7 @@ pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
         ],
         output_marker: "built_in_psi_registries",
         consumers: &[
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/entry.rs",
+            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/abstract_optimization.rs",
         ],
     },
     RuleStageDescriptor {

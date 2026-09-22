@@ -390,7 +390,8 @@ fn transitive_member_parameter_computation_hoists_rebinding_to_its_anchor() {
         .expect("entry binds the carried header parameter")
         .argument;
     assert_eq!(
-        crate::validation::invariant_member_parameters(function, component).get(&member_parameter),
+        crate::validation::member_blocks::invariant_member_parameters(function, component)
+            .get(&member_parameter),
         Some(&anchor),
         "the member parameter resolves transitively to its preheader anchor"
     );
@@ -477,7 +478,7 @@ fn loop_carried_member_parameter_computation_stays_inside() {
         .expect("component machine exists");
     let (_, addition, member_parameter) = member_addition(function, component);
     assert!(
-        !crate::validation::invariant_member_parameters(function, component)
+        !crate::validation::member_blocks::invariant_member_parameters(function, component)
             .contains_key(&member_parameter),
         "the back edge advances the member parameter, so it stays loop-carried"
     );
@@ -766,12 +767,14 @@ fn bypassed_member_computation_is_speculation_and_stays_inside() {
         .expect("entry binds the carried header parameter")
         .argument;
     assert_eq!(
-        crate::validation::invariant_member_parameters(function, component).get(&member_parameter),
+        crate::validation::member_blocks::invariant_member_parameters(function, component)
+            .get(&member_parameter),
         Some(&anchor),
         "the member parameter still resolves transitively to its preheader anchor"
     );
     assert!(
-        !crate::validation::guaranteed_executed_member_blocks(component).contains(&member_block.id),
+        !crate::validation::member_blocks::guaranteed_executed_member_blocks(component)
+            .contains(&member_block.id),
         "the bypassed member block is outside the non-speculative gate"
     );
 
@@ -878,12 +881,12 @@ fn conditional_entry_keeps_computations_inside_while_leaves_still_relocate() {
     // its entry representative — only the two-successor preheader terminator
     // declines the computation's relocation.
     assert!(
-        !crate::validation::guaranteed_executed_member_blocks(component).is_empty(),
+        !crate::validation::member_blocks::guaranteed_executed_member_blocks(component).is_empty(),
         "member blocks qualify; the conditional entry is the only rejection"
     );
     let (_, addition, member_parameter) = member_addition(function, component);
     assert!(
-        crate::validation::invariant_member_parameters(function, component)
+        crate::validation::member_blocks::invariant_member_parameters(function, component)
             .contains_key(&member_parameter),
         "the member parameter is still provably invariant"
     );
@@ -1086,11 +1089,13 @@ fn invariant_place_observation_relocates_with_its_chained_computation() {
         "the observed root is the function's `self` structural parameter"
     );
     assert!(
-        crate::validation::component_preserves_place_observations(function, component),
+        crate::validation::place_observations::component_preserves_place_observations(
+            function, component
+        ),
         "no member mutates or moves custody of any place"
     );
     assert_eq!(
-        crate::validation::invariant_place_observation_admission(
+        crate::validation::place_observations::invariant_place_observation_admission(
             function,
             component,
             read,
@@ -1237,7 +1242,9 @@ fn member_store_keeps_place_observations_inside() {
         .find(|function| function.machine == component.id.machine)
         .expect("component machine exists");
     assert!(
-        !crate::validation::component_preserves_place_observations(function, component),
+        !crate::validation::place_observations::component_preserves_place_observations(
+            function, component
+        ),
         "the member store ends the component's place-custody preservation"
     );
     let reads = member_field_reads(function, component);
@@ -1251,7 +1258,7 @@ fn member_store_keeps_place_observations_inside() {
         .collect::<Vec<_>>();
     for (_, read) in &reads {
         assert!(
-            crate::validation::invariant_place_observation_admission(
+            crate::validation::place_observations::invariant_place_observation_admission(
                 function,
                 component,
                 read,
@@ -1345,17 +1352,19 @@ fn bypassed_member_place_observation_stays_inside() {
         .find(|function| function.machine == component.id.machine)
         .expect("component machine exists");
     assert!(
-        crate::validation::component_preserves_place_observations(function, component),
+        crate::validation::place_observations::component_preserves_place_observations(
+            function, component
+        ),
         "the custody gate is intact; only speculation refuses the observation"
     );
     let (observing_block, read) = member_field_reads(function, component)[0];
     assert!(
-        !crate::validation::guaranteed_executed_member_blocks(component)
+        !crate::validation::member_blocks::guaranteed_executed_member_blocks(component)
             .contains(&observing_block.id),
         "the observing member does not dominate every exit"
     );
     assert!(
-        crate::validation::admissible_invariant_place_read(read).is_some(),
+        crate::validation::invariant_operations::admissible_invariant_place_read(read).is_some(),
         "the observation's own shape is admitted"
     );
     let read_operation = match read.provenance.first() {
@@ -1442,7 +1451,7 @@ fn member_view_parameter_observation_relocates_rebinding_its_root() {
         panic!("the machine carries one structural parameter")
     };
     assert_eq!(
-        crate::validation::invariant_member_place_parameters(
+        crate::validation::place_observations::invariant_member_place_parameters(
             function,
             component,
             &std::collections::BTreeSet::new()
@@ -1456,12 +1465,12 @@ fn member_view_parameter_observation_relocates_rebinding_its_root() {
         panic!("one member length observation")
     };
     assert_eq!(
-        crate::validation::admissible_invariant_place_read(read),
+        crate::validation::invariant_operations::admissible_invariant_place_read(read),
         Some(view_parameter.place),
         "the observation reads through the member view parameter"
     );
     assert_eq!(
-        crate::validation::invariant_place_observation_admission(
+        crate::validation::place_observations::invariant_place_observation_admission(
             function,
             component,
             read,
@@ -1471,7 +1480,9 @@ fn member_view_parameter_observation_relocates_rebinding_its_root() {
         "the admission rebinds the observed root to the preheader-visible representative"
     );
     assert!(
-        crate::validation::component_preserves_place_observations(function, component),
+        crate::validation::place_observations::component_preserves_place_observations(
+            function, component
+        ),
         "no member mutates or moves custody of any place"
     );
     let read_operation = match read.provenance.first() {
@@ -1631,7 +1642,7 @@ fn member_view_parameters_resolve_across_member_edges() {
     // with the entry edge's `entries` anchor breaking the tie.
     for (_, read) in &reads {
         assert_eq!(
-            crate::validation::invariant_place_observation_admission(
+            crate::validation::place_observations::invariant_place_observation_admission(
                 function,
                 component,
                 read,
@@ -1672,10 +1683,9 @@ fn member_view_parameters_resolve_across_member_edges() {
         assert_eq!(representative, entries_parameter.place);
         assert_eq!(
             Some(parameter),
-            crate::validation::admissible_invariant_place_read(find_member_node(
-                function,
-                relocation.node().location()
-            )),
+            crate::validation::invariant_operations::admissible_invariant_place_read(
+                find_member_node(function, relocation.node().location())
+            ),
             "each relocation rebinds its member parameter root to `entries`"
         );
         assert_eq!(relocation.destination().block, preheader);
@@ -1768,7 +1778,7 @@ fn member_produced_view_parameter_stays_loop_carried() {
         panic!("the observing member carries one view structural parameter")
     };
     assert!(
-        !crate::validation::invariant_member_place_parameters(
+        !crate::validation::place_observations::invariant_member_place_parameters(
             function,
             component,
             &std::collections::BTreeSet::new()
@@ -1784,7 +1794,9 @@ fn member_produced_view_parameter_stays_loop_carried() {
     // member-produced place on the back edge, so it stays loop-carried and
     // every observation through it refuses below.
     assert!(
-        crate::validation::component_preserves_place_observations(function, component),
+        crate::validation::place_observations::component_preserves_place_observations(
+            function, component
+        ),
         "establishing a fresh view mutates no established place"
     );
     let reads = member_length_reads(function, component);
@@ -1792,7 +1804,7 @@ fn member_produced_view_parameter_stays_loop_carried() {
         .iter()
         .map(|(_, read)| {
             assert!(
-                crate::validation::invariant_place_observation_admission(
+                crate::validation::place_observations::invariant_place_observation_admission(
                     function,
                     component,
                     read,
@@ -2119,21 +2131,24 @@ fn invariant_byte_read_relocates_rebinding_its_root_and_index() {
         _ => panic!("one observed result"),
     };
     assert_eq!(
-        crate::validation::admissible_invariant_byte_read(read),
+        crate::validation::invariant_operations::admissible_invariant_byte_read(read),
         Some((read_source, read_index, read_length)),
         "the byte read carries the source-owned admission shape"
     );
     assert!(
-        crate::validation::guaranteed_executed_member_blocks(component).contains(&member),
+        crate::validation::member_blocks::guaranteed_executed_member_blocks(component)
+            .contains(&member),
         "the read's member block dominates every exit"
     );
     assert!(
-        crate::validation::component_preserves_place_observations(function, component),
+        crate::validation::place_observations::component_preserves_place_observations(
+            function, component
+        ),
         "no member mutates or moves custody of any place"
     );
     let entries_place = entries_parameter.place;
     assert_eq!(
-        crate::validation::invariant_member_place_parameters(
+        crate::validation::place_observations::invariant_member_place_parameters(
             function,
             component,
             &std::collections::BTreeSet::new()
@@ -2142,10 +2157,11 @@ fn invariant_byte_read_relocates_rebinding_its_root_and_index() {
         Some(&entries_place),
         "the read's member view parameter resolves to `entries`"
     );
-    let index_anchor = crate::validation::invariant_member_parameters(function, component)
-        .get(&read_index)
-        .copied()
-        .expect("the read's member index parameter resolves to its preheader anchor");
+    let index_anchor =
+        crate::validation::member_blocks::invariant_member_parameters(function, component)
+            .get(&read_index)
+            .copied()
+            .expect("the read's member index parameter resolves to its preheader anchor");
     // The length operand is the member-internal `ByteSequenceLength` result:
     // the shared admission couples the read to that producer — it must
     // relocate in the same run and measure the read's rebound root.
@@ -2163,7 +2179,7 @@ fn invariant_byte_read_relocates_rebinding_its_root_and_index() {
     );
     let relocating = std::collections::BTreeSet::from([read_length]);
     assert_eq!(
-        crate::validation::invariant_byte_read_admission(
+        crate::validation::place_observations::invariant_byte_read_admission(
             function,
             component,
             read,
@@ -2353,13 +2369,13 @@ fn carried_index_keeps_the_byte_read_inside() {
         _ => unreachable!("member_byte_reads only yields byte reads"),
     };
     assert!(
-        !crate::validation::invariant_member_parameters(function, component)
+        !crate::validation::member_blocks::invariant_member_parameters(function, component)
             .contains_key(&read_index),
         "the back edge binds a member-produced constant, so `i` stays loop-carried"
     );
     // The root half still resolves — only the carried index operand refuses.
     assert!(
-        crate::validation::invariant_member_place_parameters(
+        crate::validation::place_observations::invariant_member_place_parameters(
             function,
             component,
             &std::collections::BTreeSet::new()
@@ -2369,7 +2385,7 @@ fn carried_index_keeps_the_byte_read_inside() {
     );
     let relocating = std::collections::BTreeSet::from([read_length]);
     assert!(
-        crate::validation::invariant_byte_read_admission(
+        crate::validation::place_observations::invariant_byte_read_admission(
             function,
             component,
             read,
@@ -2408,7 +2424,9 @@ fn carried_view_keeps_the_byte_read_inside() {
         .find(|function| function.machine == component.id.machine)
         .expect("component machine exists");
     assert!(
-        crate::validation::component_preserves_place_observations(function, component),
+        crate::validation::place_observations::component_preserves_place_observations(
+            function, component
+        ),
         "no member produces or mutates a place — the refusal is the root's alone"
     );
     let reads = member_byte_reads(function, component);
@@ -2425,7 +2443,7 @@ fn carried_view_keeps_the_byte_read_inside() {
         _ => unreachable!("member_byte_reads only yields byte reads"),
     };
     assert!(
-        !crate::validation::invariant_member_place_parameters(
+        !crate::validation::place_observations::invariant_member_place_parameters(
             function,
             component,
             &std::collections::BTreeSet::new()
@@ -2435,7 +2453,7 @@ fn carried_view_keeps_the_byte_read_inside() {
     );
     let relocating = std::collections::BTreeSet::from([read_length]);
     assert!(
-        crate::validation::invariant_byte_read_admission(
+        crate::validation::place_observations::invariant_byte_read_admission(
             function,
             component,
             read,
@@ -2811,7 +2829,7 @@ fn invariant_byte_subslice_relocates_preserving_its_structural_result() {
             _ => unreachable!("member_subslices only yields subslices"),
         };
     assert_eq!(
-        crate::validation::admissible_invariant_subslice(subslice),
+        crate::validation::invariant_operations::admissible_invariant_subslice(subslice),
         Some((subslice_source, start, end, length)),
         "the subslice carries the source-owned admission shape"
     );
@@ -2820,16 +2838,19 @@ fn invariant_byte_subslice_relocates_preserving_its_structural_result() {
         "the structural result defines no scalar"
     );
     assert!(
-        crate::validation::guaranteed_executed_member_blocks(component).contains(&member),
+        crate::validation::member_blocks::guaranteed_executed_member_blocks(component)
+            .contains(&member),
         "the subslice's member block dominates every exit"
     );
     assert!(
-        crate::validation::component_preserves_place_observations(function, component),
+        crate::validation::place_observations::component_preserves_place_observations(
+            function, component
+        ),
         "no member mutates or moves custody of any established place"
     );
     let entries_place = entries_parameter.place;
     assert_eq!(
-        crate::validation::invariant_member_place_parameters(
+        crate::validation::place_observations::invariant_member_place_parameters(
             function,
             component,
             &std::collections::BTreeSet::new()
@@ -2843,7 +2864,7 @@ fn invariant_byte_subslice_relocates_preserving_its_structural_result() {
     // the same run relocates, so the substitution is empty.
     let relocating = std::collections::BTreeSet::from([start, end, length]);
     assert_eq!(
-        crate::validation::invariant_subslice_admission(
+        crate::validation::place_observations::invariant_subslice_admission(
             function,
             component,
             subslice,
@@ -3294,7 +3315,8 @@ fn invariant_obligated_computation_relocates_preserving_its_obligation() {
         .expect("entry binds the carried header parameter")
         .argument;
     assert_eq!(
-        crate::validation::invariant_member_parameters(function, component).get(&member_parameter),
+        crate::validation::member_blocks::invariant_member_parameters(function, component)
+            .get(&member_parameter),
         Some(&anchor),
         "the member parameter resolves transitively to its preheader anchor"
     );
@@ -3489,8 +3511,10 @@ fn carried_obligated_computation_is_rejected_by_the_freeze_fence() {
         })
         .find_map(|(member, node)| {
             if let AbstractOperation::ExactIntegerSubtract { left, .. } = &node.operation
-                && !crate::validation::invariant_member_parameters(function, component)
-                    .contains_key(left)
+                && !crate::validation::member_blocks::invariant_member_parameters(
+                    function, component,
+                )
+                .contains_key(left)
             {
                 return Some((member, operation_of(node)));
             }
@@ -3543,14 +3567,15 @@ fn bypassed_member_computation_moved_by_hand_is_rejected_by_the_freeze_fence() {
         _ => panic!("computation carries its operation identity"),
     };
     assert!(
-        !crate::validation::guaranteed_executed_member_blocks(component).contains(&member),
+        !crate::validation::member_blocks::guaranteed_executed_member_blocks(component)
+            .contains(&member),
         "the bypassed member block is outside the non-speculative gate"
     );
     // Rebind the operand to the invariant representative exactly as the
     // proposal would spell it, so the seed-derived substitution replays
     // cleanly and only the non-speculative custody can reject the move.
-    let anchor =
-        crate::validation::invariant_member_parameters(function, component)[&member_parameter];
+    let anchor = crate::validation::member_blocks::invariant_member_parameters(function, component)
+        [&member_parameter];
     let (input, mut unit) = session.into_parts();
     let mut moved = take_operation(&mut unit, operation);
     if let AbstractOperation::WrappingIntegerAdd { left, right, .. } = &mut moved.operation {
@@ -3608,14 +3633,15 @@ fn conditional_entry_computation_moved_by_hand_is_rejected_by_the_freeze_fence()
         _ => panic!("computation carries its operation identity"),
     };
     assert!(
-        crate::validation::guaranteed_executed_member_blocks(component).contains(&member),
+        crate::validation::member_blocks::guaranteed_executed_member_blocks(component)
+            .contains(&member),
         "the member qualifies; only the conditional entry can reject the move"
     );
     // Rebind the operand to the invariant representative exactly as the
     // proposal would spell it, so the seed-derived substitution replays
     // cleanly and only the non-speculative custody can reject the move.
-    let anchor =
-        crate::validation::invariant_member_parameters(function, component)[&member_parameter];
+    let anchor = crate::validation::member_blocks::invariant_member_parameters(function, component)
+        [&member_parameter];
     let (input, mut unit) = session.into_parts();
     let mut moved = take_operation(&mut unit, operation);
     if let AbstractOperation::WrappingIntegerAdd { left, right, .. } = &mut moved.operation {
@@ -3660,7 +3686,7 @@ fn multi_entry_preheader_relocates_the_guaranteed_member_computation() {
         2,
         "both dispatch arms enter the component"
     );
-    let preheader = crate::validation::shared_entry_source(component)
+    let preheader = crate::validation::member_blocks::shared_entry_source(component)
         .expect("every entry edge departs the one dispatch block");
     let function = session
         .unit()
@@ -3670,7 +3696,7 @@ fn multi_entry_preheader_relocates_the_guaranteed_member_computation() {
         .expect("component machine exists");
     let (member_block, addition, member_parameter) = member_addition(function, component);
     let (bypassed_block, multiplication, _) = member_multiplication(function, component);
-    let guaranteed = crate::validation::guaranteed_executed_member_blocks(component);
+    let guaranteed = crate::validation::member_blocks::guaranteed_executed_member_blocks(component);
     assert!(
         guaranteed.contains(&member_block.id),
         "the exit-dominating member is guaranteed to execute"
@@ -3702,7 +3728,8 @@ fn multi_entry_preheader_relocates_the_guaranteed_member_computation() {
         .expect("the entry edge binds the carried parameter")
         .argument;
     assert_eq!(
-        crate::validation::invariant_member_parameters(function, component).get(&member_parameter),
+        crate::validation::member_blocks::invariant_member_parameters(function, component)
+            .get(&member_parameter),
         Some(&anchor),
         "the member parameter resolves to its shared-preheader anchor"
     );
@@ -3772,7 +3799,7 @@ fn multi_source_entries_decline_the_whole_component() {
         "the component is entered through edges of different blocks"
     );
     assert_eq!(
-        crate::validation::shared_entry_source(component),
+        crate::validation::member_blocks::shared_entry_source(component),
         None,
         "entries departing different blocks share no preheader"
     );
@@ -3784,7 +3811,7 @@ fn multi_source_entries_decline_the_whole_component() {
         .expect("component machine exists");
     let (_, _, member_parameter) = member_addition(function, component);
     assert!(
-        !crate::validation::invariant_member_parameters(function, component)
+        !crate::validation::member_blocks::invariant_member_parameters(function, component)
             .contains_key(&member_parameter),
         "the member parameter binds different representatives on the two entries"
     );
@@ -3806,7 +3833,7 @@ fn multi_entry_bypassed_member_moved_by_hand_is_rejected_by_the_freeze_fence() {
         panic!("one multi-entry component")
     };
     let machine = component.id.machine;
-    let preheader = crate::validation::shared_entry_source(component)
+    let preheader = crate::validation::member_blocks::shared_entry_source(component)
         .expect("every entry edge departs the one dispatch block");
     let function = session
         .unit()
@@ -3822,14 +3849,15 @@ fn multi_entry_bypassed_member_moved_by_hand_is_rejected_by_the_freeze_fence() {
         _ => panic!("computation carries its operation identity"),
     };
     assert!(
-        !crate::validation::guaranteed_executed_member_blocks(component).contains(&member),
+        !crate::validation::member_blocks::guaranteed_executed_member_blocks(component)
+            .contains(&member),
         "the bypassed member block is outside the non-speculative gate"
     );
     // Rebind the operand to the invariant representative exactly as the
     // proposal would spell it, so the seed-derived substitution replays
     // cleanly and only the non-speculative custody can reject the move.
-    let anchor =
-        crate::validation::invariant_member_parameters(function, component)[&member_parameter];
+    let anchor = crate::validation::member_blocks::invariant_member_parameters(function, component)
+        [&member_parameter];
     let (input, mut unit) = session.into_parts();
     let mut moved = take_operation(&mut unit, operation);
     if let AbstractOperation::WrappingIntegerMultiply { left, right, .. } = &mut moved.operation {
@@ -3869,7 +3897,7 @@ fn multi_entry_relocation_outside_the_shared_preheader_is_rejected_by_the_freeze
         panic!("one multi-entry component")
     };
     let machine = component.id.machine;
-    let preheader = crate::validation::shared_entry_source(component)
+    let preheader = crate::validation::member_blocks::shared_entry_source(component)
         .expect("every entry edge departs the one dispatch block");
     let function = session
         .unit()
@@ -3883,8 +3911,8 @@ fn multi_entry_relocation_outside_the_shared_preheader_is_rejected_by_the_freeze
         Some(PsiProvenance::Operation(operation)) => *operation,
         _ => panic!("computation carries its operation identity"),
     };
-    let anchor =
-        crate::validation::invariant_member_parameters(function, component)[&member_parameter];
+    let anchor = crate::validation::member_blocks::invariant_member_parameters(function, component)
+        [&member_parameter];
     let destination = function
         .blocks
         .iter()
@@ -4126,7 +4154,8 @@ fn invariant_scalar_call_relocates_rebinding_its_argument() {
         } => (*psi_operation, arguments[0], *callee),
         operation => panic!("the member node is a scalar call: {operation:?}"),
     };
-    let anchor = crate::validation::invariant_member_parameters(function, component)[&argument];
+    let anchor = crate::validation::member_blocks::invariant_member_parameters(function, component)
+        [&argument];
 
     let candidates =
         propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
@@ -4237,13 +4266,13 @@ fn carried_argument_call_stays_inside() {
     // exactly the carried argument: `pending` never resolves to a preheader
     // representative, so no substitution exists.
     assert!(
-        !crate::validation::invariant_member_parameters(function, component)
+        !crate::validation::member_blocks::invariant_member_parameters(function, component)
             .contains_key(&argument),
         "the back edge advances the call's argument, so it stays loop-carried"
     );
-    let effects = crate::validation::unit_effect_summaries(session.unit());
+    let effects = crate::validation::invariant_calls::unit_effect_summaries(session.unit());
     assert!(
-        crate::validation::invariant_scalar_call_admission(
+        crate::validation::invariant_calls::invariant_scalar_call_admission(
             function,
             component,
             call,
@@ -4297,9 +4326,9 @@ fn bypassed_member_call_is_speculation_and_stays_inside() {
     // member observability, and the invariant-argument substitution all hold.
     // The rejection is the non-speculative gate alone: the call's member
     // block does not dominate the entry state's own `done` exit.
-    let effects = crate::validation::unit_effect_summaries(session.unit());
+    let effects = crate::validation::invariant_calls::unit_effect_summaries(session.unit());
     assert!(
-        crate::validation::invariant_scalar_call_admission(
+        crate::validation::invariant_calls::invariant_scalar_call_admission(
             function,
             component,
             call,
@@ -4310,7 +4339,8 @@ fn bypassed_member_call_is_speculation_and_stays_inside() {
         "call admission is intact; the member gate is the only rejection"
     );
     assert!(
-        !crate::validation::guaranteed_executed_member_blocks(component).contains(&call_block.id),
+        !crate::validation::member_blocks::guaranteed_executed_member_blocks(component)
+            .contains(&call_block.id),
         "the bypassed member block is outside the non-speculative gate"
     );
 
@@ -4415,12 +4445,12 @@ fn impure_callee_fails_scalar_call_admission() {
         AbstractOperation::Call { callee, .. } => *callee,
         operation => panic!("the member node is a scalar call: {operation:?}"),
     };
-    let effects = crate::validation::unit_effect_summaries(session.unit());
+    let effects = crate::validation::invariant_calls::unit_effect_summaries(session.unit());
     // The real summary admits the call: the refusals below isolate the
     // callee-purity half of admission — the member roster is unchanged and
     // the argument substitution still resolves.
     assert!(
-        crate::validation::invariant_scalar_call_admission(
+        crate::validation::invariant_calls::invariant_scalar_call_admission(
             function,
             component,
             call,
@@ -4448,7 +4478,7 @@ fn impure_callee_fails_scalar_call_admission() {
             _ => summary.suspension = crate::EffectKnowledge::May,
         }
         assert!(
-            crate::validation::invariant_scalar_call_admission(
+            crate::validation::invariant_calls::invariant_scalar_call_admission(
                 function,
                 component,
                 call,
@@ -4463,7 +4493,7 @@ fn impure_callee_fails_scalar_call_admission() {
     let mut absent = effects.clone();
     absent.functions.retain(|summary| summary.machine != callee);
     assert!(
-        crate::validation::invariant_scalar_call_admission(
+        crate::validation::invariant_calls::invariant_scalar_call_admission(
             function,
             component,
             call,
@@ -4488,7 +4518,7 @@ fn observable_member_keeps_the_scalar_call_inside() {
         .find(|function| function.machine == component.id.machine)
         .expect("component machine exists");
     let (_, call) = member_call(function, component);
-    let effects = crate::validation::unit_effect_summaries(session.unit());
+    let effects = crate::validation::invariant_calls::unit_effect_summaries(session.unit());
     // Forge one non-call member node's summary to observable work — member
     // calls are judged by their callee's purity, so the forged row must be a
     // node whose own observable axis the member scan consults. Relocating
@@ -4525,7 +4555,7 @@ fn observable_member_keeps_the_scalar_call_inside() {
         .expect("the member node has a summary row")
         .observable = crate::EffectKnowledge::May;
     assert!(
-        crate::validation::invariant_scalar_call_admission(
+        crate::validation::invariant_calls::invariant_scalar_call_admission(
             function,
             component,
             call,
@@ -4683,9 +4713,7 @@ fn invariant_byte_literal_relocates_preserving_its_declared_place() {
         } => (*place, structural_type.clone(), bytes.clone()),
         operation => panic!("the member node is a byte literal: {operation:?}"),
     };
-    assert!(crate::validation::admissible_invariant_byte_literal(
-        literal
-    ));
+    assert!(crate::validation::invariant_operations::admissible_invariant_byte_literal(literal));
     let literal_operation = operation_of(literal);
 
     let candidates =
@@ -4830,7 +4858,7 @@ fn bypassed_member_byte_literal_stays_inside() {
         .expect("component machine exists");
     let (literal_block, literal) = member_literal(function, component);
     assert!(
-        !crate::validation::guaranteed_executed_member_blocks(component)
+        !crate::validation::member_blocks::guaranteed_executed_member_blocks(component)
             .contains(&literal_block.id),
         "the bypassed member block is outside the non-speculative gate"
     );
@@ -4977,7 +5005,7 @@ fn invariant_unit_call_relocates_rebinding_its_borrowed_root() {
     };
     // The borrowed root is `step`'s member structural parameter; every
     // reaching edge resolves it to the `buf` parameter root.
-    let representative = crate::validation::invariant_member_place_parameters(
+    let representative = crate::validation::place_observations::invariant_member_place_parameters(
         function,
         component,
         &std::collections::BTreeSet::new(),
@@ -5094,7 +5122,7 @@ fn carried_borrow_unit_call_stays_inside() {
         operation => panic!("the member node is a unit call: {operation:?}"),
     };
     assert!(
-        !crate::validation::invariant_member_place_parameters(
+        !crate::validation::place_observations::invariant_member_place_parameters(
             function,
             component,
             &std::collections::BTreeSet::new()
@@ -5603,7 +5631,8 @@ fn structural_scalar_call_relocates_with_its_primitive_local() {
         "the call's shared borrow names the local's declared place"
     );
     let scalar_anchor =
-        crate::validation::invariant_member_parameters(function, component)[&scalar_argument];
+        crate::validation::member_blocks::invariant_member_parameters(function, component)
+            [&scalar_argument];
 
     let candidates =
         propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
@@ -6729,7 +6758,7 @@ fn member_read_relocates_with_its_member_produced_root() {
     // empty run refuses — covering the producer's root admits the read and
     // resolves to the root it already spells.
     assert!(
-        crate::validation::invariant_place_observation_admission(
+        crate::validation::place_observations::invariant_place_observation_admission(
             function,
             component,
             read,
@@ -6739,7 +6768,7 @@ fn member_read_relocates_with_its_member_produced_root() {
         "an uncovered member-produced root keeps the read inside"
     );
     assert_eq!(
-        crate::validation::invariant_place_observation_admission(
+        crate::validation::place_observations::invariant_place_observation_admission(
             function,
             component,
             read,
@@ -6831,7 +6860,7 @@ fn member_read_stays_when_its_producer_cannot_relocate() {
     let call_operation = operation_of(call);
     let read_operation = operation_of(read);
     assert!(
-        crate::validation::invariant_place_observation_admission(
+        crate::validation::place_observations::invariant_place_observation_admission(
             function,
             component,
             read,
@@ -6974,7 +7003,7 @@ fn member_parameter_rebinds_to_a_run_covered_member_produced_root() {
     // binds it to the member-produced subslice root, so the representative is
     // the covered root — not a preheader-visible place.
     assert!(
-        !crate::validation::place_observation_root_visible(
+        !crate::validation::place_observations::place_observation_root_visible(
             function,
             function
                 .blocks
@@ -7999,7 +8028,7 @@ fn invariant_owned_parameter_scalar_call_relocates_rebinding_its_root() {
             _ => None,
         })
         .expect("the member block holds the owned-argument scalar call");
-    let representative = crate::validation::invariant_member_place_parameters(
+    let representative = crate::validation::place_observations::invariant_member_place_parameters(
         function,
         component,
         &std::collections::BTreeSet::new(),
@@ -9287,7 +9316,7 @@ fn invariant_borrow_structural_call_relocates_rebinding_its_borrowed_root() {
         member_parameter.place, borrowed_place,
         "the borrowed argument names the member parameter"
     );
-    let representative = crate::validation::invariant_member_place_parameters(
+    let representative = crate::validation::place_observations::invariant_member_place_parameters(
         function,
         component,
         &std::collections::BTreeSet::new(),
@@ -9523,7 +9552,9 @@ fn member_mutation_keeps_borrow_structural_call_inside() {
         .find(|function| function.machine == component.id.machine)
         .expect("component machine exists");
     assert!(
-        !crate::validation::component_preserves_place_observations(function, component),
+        !crate::validation::place_observations::component_preserves_place_observations(
+            function, component
+        ),
         "the member's `self.ticks` store ends the component's place custody"
     );
     let calls = member_structural_calls(function, component);
@@ -9576,7 +9607,7 @@ fn forged_structural_call_borrow_root_is_rejected_by_the_freeze_fence() {
     // preheader-visible place that is not the derived representative, so a
     // moved call spelling it is a well-formed place reference that fails
     // admission replay.
-    let representative = crate::validation::invariant_member_place_parameters(
+    let representative = crate::validation::place_observations::invariant_member_place_parameters(
         function,
         component,
         &std::collections::BTreeSet::new(),
