@@ -84,7 +84,7 @@ pub(super) fn validate_call_unit(
                         module, machine, argument,
                     )
                     || is_unrestricted_write_only_subloan(module, machine, parameter, argument)
-                    || is_unrestricted_shared_subloan(machine, parameter, argument)
+                    || is_unrestricted_shared_subloan(module, machine, parameter, argument)
                     || is_unrestricted_mutable_subloan(module, machine, parameter, argument)
             });
     let result_projection = structural_arguments.iter().any(|argument| {
@@ -152,7 +152,7 @@ pub(super) fn validate_call_unit(
                     .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
                     && argument.access == StructuralAccess::WriteOnlyBorrow))
                 && !is_unrestricted_write_only_subloan(module, machine, expected, argument)
-                && !is_unrestricted_shared_subloan(machine, expected, argument)
+                && !is_unrestricted_shared_subloan(module, machine, expected, argument)
                 && !is_unrestricted_mutable_subloan(module, machine, expected, argument)
                 && !(argument.access == StructuralAccess::Owned
                     && expected.multiplicity == StructuralMultiplicity::Affine

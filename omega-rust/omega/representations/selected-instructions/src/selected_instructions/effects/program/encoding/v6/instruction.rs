@@ -367,6 +367,10 @@ pub fn decode_local_storage_slot(
                 .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
         }),
         1 => Ok(crate::LocalStorageSlotId::Boundary { operation }),
+        5 => Ok(crate::LocalStorageSlotId::StructuralCallArgument {
+            operation,
+            argument_index: cursor.u32()?,
+        }),
         _ => Err(PreAllocationMachineEffectDecodeError::InvalidField),
     }
 }
@@ -715,6 +719,42 @@ mod local_slot_tests {
     use semantic_vocabulary::{BlockId, PlaceId};
 
     #[test]
+    fn structural_call_argument_slot_roundtrip_binds_operation_and_argument_index() {
+        let mut identities = std::collections::BTreeSet::new();
+        for (operation, argument_index) in [(1, 0), (1, 1), (2, 0), (u64::MAX, u32::MAX)] {
+            let slot = LocalStorageSlotId::StructuralCallArgument {
+                operation: OperationId::new(operation).unwrap(),
+                argument_index,
+            };
+            let mut encoded = Vec::new();
+            slot.encode_identity(&mut encoded);
+            let mut expected = vec![5];
+            expected.extend_from_slice(&operation.to_le_bytes());
+            expected.extend_from_slice(&argument_index.to_le_bytes());
+            assert_eq!(encoded, expected);
+            assert!(identities.insert(encoded.clone()));
+            let mut cursor = Cursor::new(&encoded);
+            let decoded = decode_local_storage_slot(&mut cursor).unwrap();
+            assert_eq!(decoded, slot);
+            assert_eq!(cursor.remaining(), 0);
+            let mut reencoded = Vec::new();
+            decoded.encode_identity(&mut reencoded);
+            assert_eq!(encoded, reencoded);
+            for truncated_length in 0..encoded.len() {
+                assert!(
+                    decode_local_storage_slot(&mut Cursor::new(&encoded[..truncated_length]))
+                        .is_err()
+                );
+            }
+            encoded[1..9].fill(0);
+            assert_eq!(
+                decode_local_storage_slot(&mut Cursor::new(&encoded)),
+                Err(PreAllocationMachineEffectDecodeError::InvalidField)
+            );
+        }
+    }
+
+    #[test]
     fn owned_entry_slot_codec_retains_place_without_operation_or_block_identity() {
         let place = PlaceId::new(0x0102_0304_0506_0708).unwrap();
         let slot = LocalStorageSlotId::StructuralParameter { place };
@@ -759,7 +799,7 @@ mod local_slot_tests {
             Err(PreAllocationMachineEffectDecodeError::InvalidField)
         );
         let mut unknown_tag = encoded;
-        unknown_tag[0] = 5;
+        unknown_tag[0] = 6;
         assert_eq!(
             decode_local_storage_slot(&mut Cursor::new(&unknown_tag)),
             Err(PreAllocationMachineEffectDecodeError::InvalidField)

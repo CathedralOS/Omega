@@ -26,6 +26,8 @@ pub(crate) enum ByteSequenceBinding {
     MutableArray {
         array: StructuralRuntimePlace,
         array_type: StructuralTypeId,
+        offset: u64,
+        length: u64,
         referent: TerminalStructuralValue,
     },
     MutableField {
@@ -55,14 +57,31 @@ impl ByteSequenceBinding {
         if let Self::MutableArray {
             array,
             array_type,
+            offset,
+            length,
             referent,
         } = self
         {
+            let (backing_path, exact_window) = match referent.path.split_last() {
+                Some((StructuralPathSegment::FixedByteRange { start, end }, backing)) => (
+                    backing,
+                    *start == *offset && start.checked_add(*length) == Some(*end),
+                ),
+                _ => (
+                    referent.path.as_slice(),
+                    *offset == 0
+                        && byte_arrays::byte_array_length(structural_types, *array_type)
+                            == Some(*length),
+                ),
+            };
             return if value == referent
-                && *array == StructuralRuntimePlace::from(referent)
+                && array.opaque_identity == referent.opaque_identity
+                && array.path == backing_path
+                && exact_window
                 && referent.qualifications.is_empty()
-                && byte_arrays::byte_array_length(structural_types, *array_type).is_some()
-            {
+                && byte_arrays::byte_array_length(structural_types, *array_type).is_some_and(
+                    |extent| offset.checked_add(*length).is_some_and(|end| end <= extent),
+                ) {
                 Ok(())
             } else {
                 Err(invalid())
@@ -197,22 +216,23 @@ impl TerminalExecution {
                                 && field.field_type.scalar_type().is_some())))
                     })
         });
-        if (machine.result == TerminalMachineResult::Unit || scalar_case_result)
-            && opaque_parameters
-                .iter()
-                .zip(&opaque_arguments)
-                .any(|(parameter, _argument)| {
-                    parameter.access == StructuralAccess::MutableBorrow
-                        && self
-                            .structural_types
-                            .get(&parameter.structural_type)
-                            .is_some_and(|declaration| {
-                                declaration.shape
-                                    == StructuralTypeShape::ByteSequence(
-                                        terminal_psi::ByteSequenceCarrier::BorrowedView,
-                                    )
-                            })
-                })
+        if opaque_parameters
+            .iter()
+            .zip(&opaque_arguments)
+            .any(|(parameter, _argument)| {
+                (parameter.access == StructuralAccess::SharedBorrow
+                    || (parameter.access == StructuralAccess::MutableBorrow
+                        && (machine.result == TerminalMachineResult::Unit || scalar_case_result)))
+                    && self
+                        .structural_types
+                        .get(&parameter.structural_type)
+                        .is_some_and(|declaration| {
+                            declaration.shape
+                                == StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BorrowedView,
+                                )
+                        })
+            })
         {
             // Share only exact referent preparation. External buffer staging and
             // replacement are not part of an ordinary call. Its result form

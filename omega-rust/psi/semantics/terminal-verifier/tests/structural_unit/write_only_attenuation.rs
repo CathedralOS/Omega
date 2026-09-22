@@ -76,7 +76,7 @@ pub(super) fn record_receiver_module(path: &[StructuralPathSegment]) -> Terminal
     for segment in path.iter().rev() {
         let id = structural_type_id(module.structural_types.len() as u64 + 1);
         let shape = match segment {
-            StructuralPathSegment::Referent => {
+            StructuralPathSegment::Referent | StructuralPathSegment::FixedByteRange { .. } => {
                 panic!("this fixture builds only owned record and array containers")
             }
             StructuralPathSegment::Field(identity) => StructuralTypeShape::Record {
@@ -233,7 +233,7 @@ fn indexed_write_only_record_receiver_checks_every_index_and_field() {
     for (position, segment) in path.iter().enumerate() {
         let mut changed = module.clone();
         call_arguments(&mut changed)[0].path[position] = match segment {
-            StructuralPathSegment::Referent => {
+            StructuralPathSegment::Referent | StructuralPathSegment::FixedByteRange { .. } => {
                 panic!("this control mutates only record and array projections")
             }
             StructuralPathSegment::Field(_) => "absent".into(),

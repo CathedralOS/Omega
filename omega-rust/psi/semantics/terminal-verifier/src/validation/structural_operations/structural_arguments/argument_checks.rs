@@ -381,7 +381,7 @@ pub(super) fn validate_structural_argument(
     // the shared loan grants no mutation, storage, or extent replacement.
     let shared_buffer_presentation = (source_policy
         == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
-        || (borrowed_call && is_unrestricted_shared_subloan(caller, expected, argument)))
+        || (borrowed_call && is_unrestricted_shared_subloan(module, caller, expected, argument)))
         && terminal_semantics::shared_boundary_buffer_capacity(
             module.structural_types.iter(),
             root_type,
@@ -395,7 +395,7 @@ pub(super) fn validate_structural_argument(
     let fixed_array_presentation = (borrowed_call
         || source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals)
         && caller.structural_parameters.iter().any(|actual| {
-            terminal_semantics::mutable_fixed_byte_array_extent(
+            terminal_semantics::fixed_byte_array_extent(
                 module.structural_types.iter(),
                 actual,
                 argument,
@@ -446,7 +446,7 @@ pub(super) fn validate_structural_argument(
     let unrestricted_write_only_field_subloan =
         is_unrestricted_write_only_subloan(module, caller, expected, argument);
     let unrestricted_shared_field_subloan =
-        is_unrestricted_shared_subloan(caller, expected, argument);
+        is_unrestricted_shared_subloan(module, caller, expected, argument);
     let unrestricted_mutable_field_subloan =
         is_unrestricted_mutable_subloan(module, caller, expected, argument);
     // A shared view is unrestricted without changing the owning root's

@@ -192,8 +192,10 @@ pub(crate) fn bind_structural_arguments(
                 parameter.access,
                 StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
             );
-            let overlapping = previous_argument.path.starts_with(&argument.path)
-                || argument.path.starts_with(&previous_argument.path);
+            let overlapping = terminal_semantics::structural_paths_may_overlap(
+                &previous_argument.path,
+                &argument.path,
+            );
             // Multiplicity retains its existing whole-identity restriction.
             // Exclusive access additionally forbids overlapping projected
             // referents, even when both values are unrestricted.

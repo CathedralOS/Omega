@@ -1,5 +1,6 @@
 use super::super::{
-    EntryClaim, IntegerSign, IntegerType, boundary_id, claim_id, content_entry_claim,
+    ContractClause, EntryClaim, IntegerSign, IntegerType, boundary_id, claim_id,
+    content_entry_claim, content_predicate, obligation_id,
 };
 use super::{
     AdmissionProfile, ModuleError, OperationKind, ProofBundle, ScalarType, StructuralAccess,
@@ -57,12 +58,226 @@ fn extent(module: &TerminalModule) -> Option<u64> {
     else {
         unreachable!()
     };
-    terminal_semantics::mutable_fixed_byte_array_extent(
+    terminal_semantics::fixed_byte_array_extent(
         module.structural_types.iter(),
         &module.machines[0].structural_parameters[0],
         &structural_arguments[0],
         &module.machines[1].structural_parameters[0],
     )
+}
+
+#[test]
+fn fixed_byte_shared_windows_preserve_access_and_cannot_upgrade_to_mutable() {
+    for projected in [false, true] {
+        for access in [
+            StructuralAccess::MutableBorrow,
+            StructuralAccess::SharedBorrow,
+        ] {
+            for range in [None, Some((0, 0)), Some((1, 3))] {
+                let mut module = fixture(projected);
+                module.machines[0].structural_parameters[0].access = access;
+                module.machines[1].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+                call_argument(&mut module).access = StructuralAccess::SharedBorrow;
+                if let Some((start, end)) = range {
+                    call_argument(&mut module)
+                        .path
+                        .push(StructuralPathSegment::FixedByteRange { start, end });
+                }
+                verify_module(
+                    &module,
+                    &ProofBundle::default(),
+                    &AdmissionProfile::default(),
+                )
+                .unwrap();
+                verify_module(
+                    &boundary_fixture(module.clone()),
+                    &ProofBundle::default(),
+                    &AdmissionProfile::default(),
+                )
+                .unwrap();
+                module.machines[0].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+                module.machines[1].structural_parameters[0].access =
+                    StructuralAccess::MutableBorrow;
+                call_argument(&mut module).access = StructuralAccess::MutableBorrow;
+                assert_eq!(extent(&module), None);
+                assert!(validate_module(&module).is_err());
+                assert!(validate_module(&boundary_fixture(module)).is_err());
+            }
+        }
+    }
+}
+
+#[test]
+fn fixed_byte_windows_preserve_backing_and_admit_empty_call_loans() {
+    for projected in [false, true] {
+        for (start, end) in [(0, 0), (3, 3), (0, 3), (1, 3)] {
+            let mut module = fixture(projected);
+            let backing = call_argument(&mut module).path.clone();
+            call_argument(&mut module)
+                .path
+                .push(StructuralPathSegment::FixedByteRange { start, end });
+            assert_eq!(extent(&module), Some(end - start));
+            let argument = call_argument(&mut module).clone();
+            // Call presentation must not fabricate an owned subtree type
+            // usable by generic stores, transfers, or returned projections.
+            assert!(
+                terminal_semantics::runtime_structural_path_tip(
+                    module.structural_types.iter(),
+                    module.machines[0].structural_parameters[0].structural_type,
+                    &argument.path,
+                )
+                .is_none()
+            );
+            let window = terminal_semantics::fixed_byte_array_window(
+                module.structural_types.iter(),
+                &module.machines[0].structural_parameters[0],
+                &argument,
+                &module.machines[1].structural_parameters[0],
+            )
+            .unwrap();
+            assert_eq!(window.backing_path, backing);
+            assert_eq!(
+                (window.backing_length, window.offset, window.length),
+                (3, start, end - start)
+            );
+            verify_module(
+                &module,
+                &ProofBundle::default(),
+                &AdmissionProfile::default(),
+            )
+            .unwrap();
+            verify_module(
+                &boundary_fixture(module),
+                &ProofBundle::default(),
+                &AdmissionProfile::default(),
+            )
+            .unwrap();
+        }
+    }
+}
+
+#[test]
+fn fixed_byte_windows_reject_bounds_access_and_nonterminal_projection() {
+    for mutation in 0..10 {
+        let mut module = fixture(true);
+        let (start, end) = match mutation {
+            0 => (2, 1),
+            1 => (0, 4),
+            2 => (u64::MAX, u64::MAX),
+            _ => (1, 3),
+        };
+        call_argument(&mut module)
+            .path
+            .push(StructuralPathSegment::FixedByteRange { start, end });
+        match mutation {
+            3 => call_argument(&mut module).access = StructuralAccess::Owned,
+            4 => call_argument(&mut module).access = StructuralAccess::SharedBorrow,
+            5 => call_argument(&mut module)
+                .path
+                .push(StructuralPathSegment::FixedIndex(0)),
+            6 => call_argument(&mut module)
+                .path
+                .push(StructuralPathSegment::FixedByteRange { start: 0, end: 1 }),
+            7 => module.machines[0].structural_parameters[0].access = StructuralAccess::Owned,
+            8 => module.machines[1].structural_parameters[0].access = StructuralAccess::Owned,
+            9 => {
+                let StructuralTypeShape::FixedArray { length, .. } =
+                    &mut module.structural_types[2].shape
+                else {
+                    unreachable!()
+                };
+                *length = 0;
+                *call_argument(&mut module).path.last_mut().unwrap() =
+                    StructuralPathSegment::FixedByteRange { start: 0, end: 0 };
+            }
+            _ => {}
+        }
+        assert_eq!(extent(&module), None, "mutation {mutation}");
+        assert!(validate_module(&module).is_err(), "mutation {mutation}");
+        assert!(
+            validate_module(&boundary_fixture(module)).is_err(),
+            "boundary mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn fixed_byte_windows_cannot_substitute_backing_for_observed_callee_content() {
+    for projected in [false, true] {
+        let mut module = fixture(projected);
+        call_argument(&mut module)
+            .path
+            .push(StructuralPathSegment::FixedByteRange { start: 1, end: 2 });
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .unwrap();
+        module.machines[1].contract.ensures.push(ContractClause {
+            obligation: obligation_id(1),
+            proposition: content_predicate(place_id(2)),
+        });
+        // The window is not the complete backing, even with the same byte
+        // carrier. No canonical owned projection can substitute this binder.
+        assert!(matches!(
+            validate_module(&module),
+            Err(ModuleError::ProjectedUnitCallContractUsesStructuralParameter { .. })
+        ));
+    }
+}
+
+#[test]
+fn fixed_byte_windows_check_exclusive_sibling_intervals() {
+    for (left, right, overlaps) in [
+        ((0, 2), (1, 3), true),
+        ((1, 1), (2, 3), true),
+        ((0, 0), (3, 3), true),
+        ((0, 1), (1, 3), false),
+    ] {
+        let mut module = fixture(false);
+        let mut parameter = module.machines[1].structural_parameters[0].clone();
+        parameter.place = place_id(3);
+        parameter.position = 1;
+        module.machines[1].structural_parameters.push(parameter);
+        module.machines[1]
+            .structural_places
+            .push(StructuralPlaceDeclaration {
+                id: place_id(3),
+                kind: StructuralPlaceKind::Parameter {
+                    position: 1,
+                    is_self: false,
+                },
+            });
+        let OperationKind::CallUnit {
+            structural_arguments,
+            ..
+        } = &mut module.machines[0].blocks[0].operations[0].kind
+        else {
+            unreachable!()
+        };
+        structural_arguments.push(structural_arguments[0].clone());
+        for (argument, (start, end)) in structural_arguments.iter_mut().zip([left, right]) {
+            argument
+                .path
+                .push(StructuralPathSegment::FixedByteRange { start, end });
+        }
+        for candidate in [&module, &boundary_fixture(module.clone())] {
+            if overlaps {
+                assert!(matches!(
+                    validate_module(candidate),
+                    Err(ModuleError::OverlappingExclusiveStructuralArguments { .. })
+                ));
+            } else {
+                verify_module(
+                    candidate,
+                    &ProofBundle::default(),
+                    &AdmissionProfile::default(),
+                )
+                .unwrap();
+            }
+        }
+    }
 }
 
 fn boundary_fixture(mut module: TerminalModule) -> TerminalModule {

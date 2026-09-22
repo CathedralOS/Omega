@@ -187,3 +187,127 @@ fn fixed_byte_array_view_ledger_replays_the_exact_array_extent() {
         }
     }
 }
+
+#[test]
+fn fixed_byte_range_calls_round_trip_exact_endpoints_and_empty_windows() {
+    for projected in [false, true] {
+        for boundary in [false, true] {
+            for (start, end) in [(0, 3), (1, 3), (1, 2), (0, 0), (3, 3)] {
+                let mut module = fixture(projected);
+                argument(&mut module)
+                    .path
+                    .push(StructuralPathSegment::FixedByteRange { start, end });
+                let module = if boundary {
+                    boundary_fixture(module)
+                } else {
+                    module
+                };
+                let bytes = encode_module(&module).unwrap();
+                let decoded = decode_module(&bytes).unwrap();
+                assert_eq!(decoded, module);
+                assert_eq!(encode_module(&decoded).unwrap(), bytes);
+            }
+        }
+    }
+}
+
+#[test]
+fn fixed_byte_range_hostile_bytes_reject_bounds_path_and_access_changes() {
+    for mutation in 0..8 {
+        let mut module = fixture(true);
+        argument(&mut module)
+            .path
+            .push(StructuralPathSegment::FixedByteRange { start: 1, end: 3 });
+        encode_module(&module).expect("hostile fixture starts lawful");
+        match mutation {
+            0 => {
+                *argument(&mut module).path.last_mut().unwrap() =
+                    StructuralPathSegment::FixedByteRange { start: 2, end: 1 };
+            }
+            1 => {
+                *argument(&mut module).path.last_mut().unwrap() =
+                    StructuralPathSegment::FixedByteRange { start: 1, end: 4 };
+            }
+            2 => {
+                *argument(&mut module).path.last_mut().unwrap() =
+                    StructuralPathSegment::FixedByteRange {
+                        start: u64::MAX,
+                        end: u64::MAX,
+                    };
+            }
+            3 => argument(&mut module)
+                .path
+                .push(StructuralPathSegment::FixedIndex(0)),
+            4 => argument(&mut module)
+                .path
+                .push(StructuralPathSegment::FixedByteRange { start: 0, end: 1 }),
+            5 => argument(&mut module).access = StructuralAccess::SharedBorrow,
+            6 => {
+                module.machines[0].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+            }
+            _ => {
+                module.machines[1].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+            }
+        }
+        for (boundary, module) in [(false, module.clone()), (true, boundary_fixture(module))] {
+            assert!(
+                encode_module(&module).is_err(),
+                "encode mutation {mutation}, boundary {boundary}"
+            );
+            let bytes = crate::sections::semantic_module::module_wire::encode_raw(&module).unwrap();
+            assert!(
+                decode_module(&bytes).is_err(),
+                "decode mutation {mutation}, boundary {boundary}"
+            );
+        }
+    }
+}
+
+#[test]
+fn fixed_byte_range_is_not_an_owned_structural_projection() {
+    let module = fixture(false);
+    assert!(
+        crate::sections::semantic_module::module_foundation_validation::validate_structural_path(
+            &module,
+            id(3),
+            &[StructuralPathSegment::FixedByteRange { start: 0, end: 3 }],
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn fixed_byte_range_ledger_binds_endpoints_even_for_equal_length_windows() {
+    for boundary in [false, true] {
+        let mut module = fixture(true);
+        argument(&mut module)
+            .path
+            .push(StructuralPathSegment::FixedByteRange { start: 0, end: 2 });
+        let module = if boundary {
+            boundary_fixture(module)
+        } else {
+            module
+        };
+        let trust = crate::current_terminal_trust_graph().unwrap();
+        let ledger = crate::build_terminal_obligation_ledger(&module, &trust).unwrap();
+        let bytes = crate::encode_terminal_obligation_ledger(&ledger).unwrap();
+        let decoded = crate::decode_terminal_obligation_ledger(&bytes).unwrap();
+        crate::validate_terminal_obligation_ledger(&decoded, &module, &trust).unwrap();
+        let mut changed = module;
+        let structural_arguments = match &mut changed.machines[0].blocks[0].operations[0].kind {
+            OperationKind::CallUnit {
+                structural_arguments,
+                ..
+            }
+            | OperationKind::BoundaryCall {
+                structural_arguments,
+                ..
+            } => structural_arguments,
+            _ => unreachable!(),
+        };
+        *structural_arguments[0].path.last_mut().unwrap() =
+            StructuralPathSegment::FixedByteRange { start: 1, end: 3 };
+        encode_module(&changed).expect("shifted window remains independently lawful");
+        assert!(crate::validate_terminal_obligation_ledger(&decoded, &changed, &trust).is_err());
+    }
+}

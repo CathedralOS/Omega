@@ -6,6 +6,7 @@ use checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 enum SourceProjection {
     Field(ExpressionHandle, symbols::SymbolHandle),
     Index(u64),
+    ByteRange(ExpressionHandle),
 }
 
 /// Identify a potential producer; `source_place_path` validates its typed path.
@@ -106,6 +107,25 @@ pub(crate) fn source_place_path(
                 expression = member.receiver;
             }
             ExpressionNode::Indexed(indexed) => {
+                if matches!(
+                    checked.expression_table.expression(indexed.index),
+                    ExpressionNode::Range(_)
+                ) {
+                    if !projections.is_empty()
+                        || !matches!(
+                            access,
+                            Some(
+                                checked_trees::CheckedStructuralAccess::MutableBorrow
+                                    | checked_trees::CheckedStructuralAccess::SharedBorrow
+                            )
+                        )
+                    {
+                        return unsupported("byte range must end a borrowed call projection");
+                    }
+                    projections.push(SourceProjection::ByteRange(expression));
+                    expression = indexed.collection;
+                    continue;
+                }
                 let ExpressionNode::Integer(index) =
                     checked.expression_table.expression(indexed.index)
                 else {
@@ -142,6 +162,54 @@ pub(crate) fn source_place_path(
     for projection in projections.into_iter().rev() {
         type_reference = unqualified_source_type(checked, type_reference)?;
         match projection {
+            SourceProjection::ByteRange(expression) => {
+                let ExpressionNode::Indexed(indexed) =
+                    checked.expression_table.expression(expression)
+                else {
+                    return unsupported("byte window lost indexed source");
+                };
+                let ExpressionNode::Range(range) =
+                    checked.expression_table.expression(indexed.index)
+                else {
+                    return unsupported("byte window lost range source");
+                };
+                let TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: checked_trees::types::FixedArrayLength::Literal(extent),
+                } = checked.type_reference_table.type_reference(type_reference)
+                else {
+                    return unsupported("byte window has no fixed-array backing");
+                };
+                let extent = u64::try_from(*extent)
+                    .map_err(|_| LoweringError::Unsupported("byte window backing exceeds u64"))?;
+                let endpoint = |expression, omitted| -> Result<u64, LoweringError> {
+                    if !checked.expression_table.expression_is_valid(expression) {
+                        return Ok(omitted);
+                    }
+                    let ExpressionNode::Integer(value) =
+                        checked.expression_table.expression(expression)
+                    else {
+                        return unsupported("byte window requires constant source endpoints");
+                    };
+                    value.value_bignum().and_then(|value| value.to_u64()).ok_or(
+                        LoweringError::Unsupported("byte window source endpoint exceeds u64"),
+                    )
+                };
+                let start = endpoint(range.start, 0)?;
+                let end = endpoint(range.end, extent)?;
+                if range.end_inclusive
+                    || extent == 0
+                    || start > end
+                    || end > extent
+                    || checked.primitive_type_reference(*element_type)
+                        != Some(checked_trees::types::PrimitiveType::U8)
+                {
+                    return unsupported("byte window does not fit its fixed byte backing");
+                }
+                path.push(
+                    checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange { start, end },
+                );
+            }
             SourceProjection::Field(expression, symbol) => {
                 let owner = match checked.type_reference_table.type_reference(type_reference) {
                     TypeReferenceNode::Named { symbol, .. } => *symbol,

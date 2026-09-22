@@ -14,7 +14,10 @@ use crate::values::TerminalScalarValue;
 
 pub(crate) enum MutableByteSequenceStorage {
     Field(StructuralByteSequenceRuntimeField),
-    Array(crate::values::StructuralRuntimePlace),
+    Array {
+        backing: crate::values::StructuralRuntimePlace,
+        offset: u64,
+    },
 }
 
 impl TerminalExecution {
@@ -63,7 +66,11 @@ impl TerminalExecution {
         let binding = self.byte_sequence_values.get(&place).ok_or_else(invalid)?;
         binding.validate_mutable_referent(&self.structural_types, value)?;
         if let ByteSequenceBinding::MutableArray {
-            array, array_type, ..
+            array,
+            array_type,
+            offset,
+            length: window_length,
+            ..
         } = binding
         {
             let length = crate::structural_inputs::byte_arrays::byte_array_length(
@@ -75,7 +82,13 @@ impl TerminalExecution {
             if bytes.len() as u128 != u128::from(length) {
                 return Err(invalid());
             }
-            return Ok((MutableByteSequenceStorage::Array(array.clone()), length));
+            return Ok((
+                MutableByteSequenceStorage::Array {
+                    backing: array.clone(),
+                    offset: *offset,
+                },
+                *window_length,
+            ));
         }
         let ByteSequenceBinding::MutableField {
             field, capacity, ..
@@ -137,17 +150,21 @@ impl TerminalExecution {
         if claimed_length != current_length || byte_index >= current_length {
             return Err(invalid());
         }
-        let byte_index = usize::try_from(byte_index).map_err(|_| invalid())?;
         let byte = u8::try_from(byte).map_err(|_| invalid())?;
-        match storage {
-            MutableByteSequenceStorage::Field(field) => {
-                self.structural_byte_sequence_fields.get_mut(&field)
-            }
-            MutableByteSequenceStorage::Array(array) => self.structural_byte_arrays.get_mut(&array),
-        }
-        .ok_or_else(invalid)?
-        .replace_byte(byte_index, byte)
-        .ok_or_else(invalid)
+        let (bytes, backing_index) = match storage {
+            MutableByteSequenceStorage::Field(field) => (
+                self.structural_byte_sequence_fields.get_mut(&field),
+                byte_index,
+            ),
+            MutableByteSequenceStorage::Array { backing, offset } => (
+                self.structural_byte_arrays.get_mut(&backing),
+                offset.checked_add(byte_index).ok_or_else(invalid)?,
+            ),
+        };
+        bytes
+            .ok_or_else(invalid)?
+            .replace_byte(usize::try_from(backing_index).map_err(|_| invalid())?, byte)
+            .ok_or_else(invalid)
     }
 
     fn byte_sequence_unsigned_operand(

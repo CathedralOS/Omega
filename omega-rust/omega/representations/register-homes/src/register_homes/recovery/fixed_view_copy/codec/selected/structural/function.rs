@@ -41,6 +41,12 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
             place: decode_id(cursor, PlaceId::new)?,
         }),
         1 => Ok(selected_instructions::LocalStorageSlotId::Boundary { operation }),
+        5 => Ok(
+            selected_instructions::LocalStorageSlotId::StructuralCallArgument {
+                operation,
+                argument_index: cursor.u32()?,
+            },
+        ),
         tag => Err(FixedViewCopyDecodeError::UnknownOption(tag)),
     }
 }
@@ -326,6 +332,39 @@ mod local_slot_tests {
     use crate::register_homes::recovery::fixed_view_copy::codec::selected::structural::encode_contracts;
 
     #[test]
+    fn structural_call_argument_slot_roundtrip_binds_operation_and_argument_index() {
+        let mut identities = std::collections::BTreeSet::new();
+        for (operation, argument_index) in [(1, 0), (1, 1), (2, 0), (u64::MAX, u32::MAX)] {
+            let slot = selected_instructions::LocalStorageSlotId::StructuralCallArgument {
+                operation: OperationId::new(operation).unwrap(),
+                argument_index,
+            };
+            let mut encoded = Vec::new();
+            slot.encode_identity(&mut encoded);
+            let mut expected = vec![5];
+            expected.extend_from_slice(&operation.to_le_bytes());
+            expected.extend_from_slice(&argument_index.to_le_bytes());
+            assert_eq!(encoded, expected);
+            assert!(identities.insert(encoded.clone()));
+            let mut cursor = Cursor::new(&encoded);
+            let decoded = decode_local_slot(&mut cursor).unwrap();
+            assert_eq!(decoded, slot);
+            assert_eq!(cursor.remaining(), 0);
+            let mut reencoded = Vec::new();
+            decoded.encode_identity(&mut reencoded);
+            assert_eq!(encoded, reencoded);
+            for truncated_length in 0..encoded.len() {
+                assert!(decode_local_slot(&mut Cursor::new(&encoded[..truncated_length])).is_err());
+            }
+            encoded[1..9].fill(0);
+            assert!(matches!(
+                decode_local_slot(&mut Cursor::new(&encoded)),
+                Err(FixedViewCopyDecodeError::InvalidSemanticId(0))
+            ));
+        }
+    }
+
+    #[test]
     fn byte_span_contract_roundtrip_retains_length_obligation_and_accepted_fact() {
         let empty = || SelectedFunction {
             machine: semantic_vocabulary::MachineId::new(1).unwrap(),
@@ -421,10 +460,10 @@ mod local_slot_tests {
         zero_place[1] = 0;
         assert!(decode_local_slot(&mut Cursor::new(&zero_place)).is_err());
         let mut unknown_tag = encoded;
-        unknown_tag[0] = 5;
+        unknown_tag[0] = 6;
         assert_eq!(
             decode_local_slot(&mut Cursor::new(&unknown_tag)),
-            Err(FixedViewCopyDecodeError::UnknownOption(5))
+            Err(FixedViewCopyDecodeError::UnknownOption(6))
         );
     }
 }

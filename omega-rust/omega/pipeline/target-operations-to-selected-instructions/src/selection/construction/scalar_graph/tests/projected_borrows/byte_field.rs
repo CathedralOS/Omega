@@ -135,9 +135,9 @@ fn bounded_byte_field_call_stages_live_length_descriptor() {
         };
         validate(&source, &selected).unwrap();
         let place = semantic_vocabulary::PlaceId::new(1).unwrap();
-        let slot = selected_instructions::LocalStorageSlotId::Structural {
+        let slot = selected_instructions::LocalStorageSlotId::StructuralCallArgument {
             operation: source.blocks[0].instructions[0].operation,
-            place,
+            argument_index: 0,
         };
         // The field pointer is the root plus its authored offset; the data
         // pointer is eight bytes later, past the inline live length word.

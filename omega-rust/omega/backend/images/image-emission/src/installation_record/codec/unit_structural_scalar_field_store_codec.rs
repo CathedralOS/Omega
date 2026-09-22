@@ -173,6 +173,11 @@ pub(crate) fn encode_path(
                 bytes.extend_from_slice(&[2, 0, 0, 0]);
                 push_u64(bytes, *index);
             }
+            StructuralPathSegment::FixedByteRange { start, end } => {
+                bytes.extend_from_slice(&[4, 0, 0, 0]);
+                push_u64(bytes, *start);
+                push_u64(bytes, *end);
+            }
         }
     }
     Ok(())
@@ -206,6 +211,10 @@ pub(crate) fn decode_path(
             }
             2 => StructuralPathSegment::FixedIndex(reader.u64()?),
             3 => StructuralPathSegment::Referent,
+            4 => StructuralPathSegment::FixedByteRange {
+                start: reader.u64()?,
+                end: reader.u64()?,
+            },
             tag => return Err(InstallationError::InvalidSettlementArgumentPathTag(tag)),
         });
     }

@@ -785,11 +785,19 @@ bound strictly ordered.
 
 <!-- structural-path-segment-tags -->
 
-| tag | Structural path segment |
-| --- | --- |
+| tag | Structural path segment | Fields after the tag |
+| --- | --- | --- |
 | 1 | Field | field identity string |
 | 2 | FixedIndex | `u64` index |
-| 3 | Referent |
+| 3 | Referent | none |
+| 4 | FixedByteRange | `u64` start + `u64` end |
+
+`FixedByteRange` retains the exact half-open byte window `[start, end)` of
+initialized fixed-array backing for one borrowed call argument. Both endpoints
+participate in canonical identity, including empty windows. This terminal
+segment follows the backing's field-only path; it does not identify an owned
+subtree or an escaping reference. The call's type, access, bounds, and overlap
+checks remain required by [byte views](byte_views.md#calls-and-control-transfers).
 
 <!-- canonical-path-segment-tags -->
 

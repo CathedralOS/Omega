@@ -22,6 +22,7 @@ proof-admission = { path = "../../semantics/proof-admission" }
 source = { path = "../../foundation/source" }
 symbols = { path = "../../foundation/symbols" }
 terminal-psi = { path = "../../representations/terminal-psi" }
+terminal-semantics = { path = "../../semantics/terminal-semantics" }
 terminal-codec = { path = "../../semantics/terminal-codec" }
 terminal-verifier = { path = "../../semantics/terminal-verifier" }
 validation = { path = "../../semantics/validation" }

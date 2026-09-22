@@ -76,23 +76,24 @@ pub(super) fn argument(
         &semantic.path,
         types,
     );
-    // A bounded inline byte field has no projected carrier identity; its own
-    // record walk supplies the field offset and the destination supplies the
-    // borrowed-view type the descriptor presents.
-    let (structural_type, source_byte_offset) = match (projection, byte_field) {
-        (Some((projected, offset)), None) => (projected, offset),
-        (None, Some((offset, _))) => (destination.structural_type, offset),
-        _ => return Err(invalid),
-    };
-    let referent =
-        crate::structural_inputs::structural_reference_input::shape(structural_type, types)
-            .ok_or(invalid.clone())?;
     let byte_view = crate::structural_inputs::structural_reference_input::fixed_byte_array_view(
         source,
         semantic,
         destination.structural_type,
         types,
     );
+    // A bounded inline byte field has no projected carrier identity; its own
+    // record walk supplies the field offset and the destination supplies the
+    // borrowed-view type the descriptor presents.
+    let (structural_type, source_byte_offset) = match (projection, byte_field, byte_view) {
+        (_, None, Some((offset, _))) => (destination.structural_type, offset),
+        (Some((projected, offset)), None, None) => (projected, offset),
+        (None, Some((offset, _)), None) => (destination.structural_type, offset),
+        _ => return Err(invalid),
+    };
+    let referent =
+        crate::structural_inputs::structural_reference_input::shape(structural_type, types)
+            .ok_or(invalid.clone())?;
     let descriptor = byte_view.is_some() || byte_field.is_some();
     let shape = if descriptor {
         ValueShape::borrowed_reference(16, 8)

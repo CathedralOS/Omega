@@ -6,7 +6,7 @@ use abstract_operations::AbstractOperation;
 use optimization_unit::PsiOptimizationUnit;
 use terminal_psi::{StructuralAccess, StructuralTypeShape};
 
-fn boundary_array_unit(nested: bool) -> PsiOptimizationUnit {
+fn boundary_array_unit(nested: bool, window: bool) -> PsiOptimizationUnit {
     let source = if nested {
         r#"
         pub data Bytes { prefix: u64; bytes: [u8; 8]; }
@@ -23,7 +23,11 @@ fn boundary_array_unit(nested: bool) -> PsiOptimizationUnit {
         machine enter(buffer: &mut Buffer) reaches Sink { Sink::take(&mut buffer.bytes); }
         "#
     };
-    source_unit(source)
+    if window {
+        source_unit(&source.replace(".bytes);", ".bytes[2..5]);"))
+    } else {
+        source_unit(source)
+    }
 }
 
 fn source_unit(source: &str) -> PsiOptimizationUnit {
@@ -68,8 +72,8 @@ fn source_unit(source: &str) -> PsiOptimizationUnit {
 
 #[test]
 fn boundary_fixed_byte_views_preserve_source_projection_and_reject_corruption() {
-    for nested in [false, true] {
-        let baseline = boundary_array_unit(nested);
+    for (nested, window) in [(false, false), (true, false), (false, true), (true, true)] {
+        let baseline = boundary_array_unit(nested, window);
         validate_psi_optimization_unit(&baseline)
             .expect("verified boundary array loans survive abstract reconstruction");
         let caller = baseline

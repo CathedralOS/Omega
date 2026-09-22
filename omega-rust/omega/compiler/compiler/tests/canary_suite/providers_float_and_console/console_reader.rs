@@ -5,6 +5,59 @@ use crate::{compile_reviewed_repository_fixture, interpret, pass_canary};
 use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
 
+const BOUNDED_LINE_CASES: &[(&[u8], i32, &[u8])] = &[
+    (b"", 20, b"\xa5\xa5\xa5\xa5"),
+    (b"\nX", 11, b"\n\xa5\xa5\xa5X"),
+    (b"ab", 22, b"ab\xa5\xa5"),
+    (b"abc\nX", 14, b"abc\nX"),
+    (b"abcd\n", 34, b"abcd\n"),
+    (b"abcd", 34, b"abcd"),
+    (b"\0\r\n\xff", 13, b"\0\r\n\xa5\xff"),
+    (b"\xc3\xa9\xff\0X", 34, b"\xc3\xa9\xff\0X"),
+];
+
+#[test]
+fn bounded_line_window_results_run_natively_with_zero_extent_nonconsumption() {
+    if !cfg!(any(
+        all(target_os = "macos", target_arch = "aarch64"),
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        )
+    )) {
+        eprintln!("SKIP: hosted bounded input requires a matching Linux or macOS ARM64 host");
+        return;
+    }
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let canary = pass_canary("host/runtime_console_bounded_line_exit");
+    let scratch =
+        std::env::temp_dir().join(format!("omega-bounded-line-window-{}", std::process::id()));
+    let compilation = crate::compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("full bounded-line result and fixed byte windows publish native code");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("native publication receipt");
+    for &(input, expected_exit, expected_output) in BOUNDED_LINE_CASES {
+        let mut child = Command::new(executable)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child.stdin.take().unwrap().write_all(input).unwrap();
+        let output = child.wait_with_output().unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(expected_exit),
+            "input {input:?}: {output:?}"
+        );
+        assert_eq!(output.stdout, expected_output, "input {input:?}");
+        assert!(output.stderr.is_empty(), "{output:?}");
+    }
+    std::fs::remove_dir_all(scratch).expect("remove completed bounded-line native output");
+}
+
 #[test]
 fn fixed_array_line_reader_executes_only_until_its_first_completion() {
     if !cfg!(any(
@@ -247,17 +300,7 @@ fn selected_console_line_reader_preserves_raw_prefix_count_and_unread_suffix() {
             Some(target),
         ))
         .unwrap_or_else(|diagnostics| panic!("{target}: {diagnostics:#?}"));
-        let cases: &[(&[u8], i32, &[u8])] = &[
-            (b"", 20, b"\xa5\xa5\xa5\xa5"),
-            (b"\nX", 11, b"\n\xa5\xa5\xa5X"),
-            (b"ab", 22, b"ab\xa5\xa5"),
-            (b"abc\nX", 14, b"abc\nX"),
-            (b"abcd\n", 34, b"abcd\n"),
-            (b"abcd", 34, b"abcd"),
-            (b"\0\r\n\xff", 13, b"\0\r\n\xa5\xff"),
-            (b"\xc3\xa9\xff\0X", 34, b"\xc3\xa9\xff\0X"),
-        ];
-        for &(input, expected_exit, expected_output) in cases {
+        for &(input, expected_exit, expected_output) in BOUNDED_LINE_CASES {
             let outcome = interpret(&checked, input);
             assert_eq!(outcome.error, None, "{target}: input {input:?}");
             assert_eq!(

@@ -19,6 +19,43 @@ use terminal_psi::{
     StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
+/// Conservative overlap of borrowed projections. Prefixes retain their whole
+/// subtree; distinct range spellings are not evidence of disjoint storage.
+pub fn structural_paths_may_overlap(
+    left: &[StructuralPathSegment],
+    right: &[StructuralPathSegment],
+) -> bool {
+    left.iter()
+        .zip(right)
+        .all(|(left, right)| match (left, right) {
+            // Empty loans still retain their backing: do not derive exclusive
+            // alias freedom from the absence of writable bytes. Invalid ranges
+            // are rejected by presentation validation, never trusted here.
+            (
+                StructuralPathSegment::FixedByteRange {
+                    start: left_start,
+                    end: left_end,
+                },
+                StructuralPathSegment::FixedByteRange {
+                    start: right_start,
+                    end: right_end,
+                },
+            ) => {
+                left_start >= left_end
+                    || right_start >= right_end
+                    || (left_start < right_end && right_start < left_end)
+            }
+            (
+                StructuralPathSegment::FixedByteRange { start, end },
+                StructuralPathSegment::FixedIndex(index),
+            )
+            | (
+                StructuralPathSegment::FixedIndex(index),
+                StructuralPathSegment::FixedByteRange { start, end },
+            ) => start >= end || (start <= index && index < end),
+            _ => left == right,
+        })
+}
 /// Resolve `path` from `root` to its tip declaration, rejecting a duplicated
 /// declaration or field id. This grants no access or establishment authority
 /// for the root.

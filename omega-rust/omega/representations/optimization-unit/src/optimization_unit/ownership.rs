@@ -164,6 +164,11 @@ fn encode_frontier_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
                 bytes.extend_from_slice(&index.to_le_bytes());
             }
             StructuralPathSegment::Referent => bytes.push(3),
+            StructuralPathSegment::FixedByteRange { start, end } => {
+                bytes.push(4);
+                bytes.extend_from_slice(&start.to_le_bytes());
+                bytes.extend_from_slice(&end.to_le_bytes());
+            }
         }
     }
 }

@@ -715,7 +715,7 @@ fn byte_field_boundary_loan(
         return false;
     };
     if super::super::structural_operations::is_unrestricted_shared_subloan(
-        machine, expected, argument,
+        module, machine, expected, argument,
     ) {
         return terminal_semantics::shared_boundary_buffer_capacity(
             module.structural_types.iter(),
@@ -723,7 +723,14 @@ fn byte_field_boundary_loan(
             argument,
             expected,
         )
-        .is_some();
+        .is_some()
+            || terminal_semantics::fixed_byte_array_extent(
+                module.structural_types.iter(),
+                actual,
+                argument,
+                expected,
+            )
+            .is_some();
     }
     let mutable_subloan = super::super::structural_operations::is_unrestricted_mutable_subloan(
         module, machine, expected, argument,
@@ -736,7 +743,7 @@ fn byte_field_boundary_loan(
             expected,
         )
         .is_some()
-            || terminal_semantics::mutable_fixed_byte_array_extent(
+            || terminal_semantics::fixed_byte_array_extent(
                 module.structural_types.iter(),
                 actual,
                 argument,

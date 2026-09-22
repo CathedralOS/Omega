@@ -111,6 +111,11 @@ pub(super) fn encode_structural_path(bytes: &mut Vec<u8>, path: &[StructuralPath
     for segment in path {
         match segment {
             StructuralPathSegment::Referent => bytes.push(3),
+            StructuralPathSegment::FixedByteRange { start, end } => {
+                bytes.push(4);
+                bytes.extend_from_slice(&start.to_le_bytes());
+                bytes.extend_from_slice(&end.to_le_bytes());
+            }
             StructuralPathSegment::Field(identity) => {
                 bytes.push(1);
                 encode_string(bytes, identity);

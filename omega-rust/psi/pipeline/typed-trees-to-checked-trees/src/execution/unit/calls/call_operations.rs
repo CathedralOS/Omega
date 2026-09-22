@@ -11,7 +11,7 @@ use crate::execution::terminal_unit::calls::argument_paths::{
 };
 use crate::execution::terminal_unit::calls::boundary_admission::{
     boundary_argument_presentation_is_admitted, boundary_value_result_matches,
-    fixed_byte_array_mutable_view_is_admitted, is_registered_boundary_scalar_target,
+    fixed_byte_array_view_is_admitted, is_registered_boundary_scalar_target,
     provider_attachment_receiver_matches,
 };
 use crate::execution::terminal_unit::calls::structural_arguments::{
@@ -386,7 +386,7 @@ pub(in crate::execution) fn build_call_operation(
                 // type identity; access and source custody still replay below.
                 if caller_parameter.type_identity != target_identity
                     && !(caller_parameter.qualifications.is_empty()
-                        && fixed_byte_array_mutable_view_is_admitted(
+                        && fixed_byte_array_view_is_admitted(
                             program,
                             source_parameter.type_reference,
                             formal,
@@ -395,6 +395,25 @@ pub(in crate::execution) fn build_call_operation(
                     return None;
                 }
                 Vec::new()
+            } else if matches!(
+                place.segments.last(),
+                Some(facts::PlaceSegment::FixedRange { .. })
+            ) {
+                if !matches!(
+                    caller_parameter.access,
+                    CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::SharedBorrow
+                ) || caller_parameter.multiplicity != Multiplicity::Unrestricted
+                    || !caller_parameter.qualifications.is_empty()
+                {
+                    return None;
+                }
+                super::argument_paths::fixed_byte_array_range_path(
+                    program,
+                    state.symbol,
+                    call.statement_index,
+                    &place,
+                    formal,
+                )?
             } else {
                 if !caller_parameter.qualifications.is_empty() {
                     return None;
@@ -407,7 +426,7 @@ pub(in crate::execution) fn build_call_operation(
                     formal,
                     &target_identity,
                     substitutions.as_slice(),
-                ) && !fixed_byte_array_mutable_view_is_admitted(program, projected_type, formal)
+                ) && !fixed_byte_array_view_is_admitted(program, projected_type, formal)
                 {
                     return None;
                 }

@@ -134,7 +134,8 @@ pub(crate) fn replay_structural_projection(
     let mut selected_shape = None;
     for segment in path {
         let (selected_type, shape, local_offset) = match segment {
-            terminal_psi::StructuralPathSegment::Referent => return None,
+            terminal_psi::StructuralPathSegment::Referent
+            | terminal_psi::StructuralPathSegment::FixedByteRange { .. } => return None,
             terminal_psi::StructuralPathSegment::Field(identity) => {
                 let declaration = declarations.get(&structural_type)?;
                 let terminal_psi::StructuralTypeShape::Record { fields } = &declaration.shape

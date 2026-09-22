@@ -142,6 +142,111 @@ fn fixed_array_call(
 }
 
 #[test]
+fn fixed_array_shared_call_windows_replay_without_mutable_authority() {
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
+        target::NativeTarget::windows_x64(),
+    ] {
+        for range in [None, Some((0, 0)), Some((2, 5))] {
+            let (mut source, mut call) = fixed_array_call(native);
+            let signature = source.structural.as_mut().unwrap();
+            signature.parameters[0].semantic.access = StructuralAccess::SharedBorrow;
+            signature.parameters[0].target.access = StructuralAccess::SharedBorrow;
+            let LegalizedScalarArgument::Structural { semantic, target } = &mut call.arguments[0]
+            else {
+                unreachable!()
+            };
+            semantic.access = StructuralAccess::SharedBorrow;
+            target.access = StructuralAccess::SharedBorrow;
+            if let Some((start, end)) = range {
+                semantic
+                    .path
+                    .push(terminal_psi::StructuralPathSegment::FixedByteRange { start, end });
+                target.path = semantic.path.clone();
+                target.source_byte_offset = start as u32;
+                target.fixed_array_length = Some(end - start);
+            }
+            let operation = OperationId::new(1).unwrap();
+            assert_eq!(
+                validate_borrowed_argument(&source, &call, operation, 0),
+                Some(())
+            );
+            let LegalizedScalarArgument::Structural { semantic, target } = &mut call.arguments[0]
+            else {
+                unreachable!()
+            };
+            semantic.access = StructuralAccess::MutableBorrow;
+            target.access = StructuralAccess::MutableBorrow;
+            assert_eq!(
+                validate_borrowed_argument(&source, &call, operation, 0),
+                None
+            );
+        }
+    }
+}
+
+#[test]
+fn fixed_byte_call_windows_replay_offset_extent_and_access() {
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
+        target::NativeTarget::windows_x64(),
+    ] {
+        for (start, end) in [(0, 0), (17, 17), (1, 3), (0, 17)] {
+            let (source, mut call) = fixed_array_call(native);
+            let LegalizedScalarArgument::Structural { semantic, target } = &mut call.arguments[0]
+            else {
+                unreachable!()
+            };
+            semantic
+                .path
+                .push(terminal_psi::StructuralPathSegment::FixedByteRange { start, end });
+            target.path = semantic.path.clone();
+            target.source_byte_offset = start as u32;
+            target.fixed_array_length = Some(end - start);
+            let operation = OperationId::new(1).unwrap();
+            assert_eq!(
+                validate_borrowed_argument(&source, &call, operation, 0),
+                Some(())
+            );
+            for mutation in 0..6 {
+                let mut changed = call.clone();
+                let LegalizedScalarArgument::Structural { semantic, target } =
+                    &mut changed.arguments[0]
+                else {
+                    unreachable!()
+                };
+                match mutation {
+                    0 => target.source_byte_offset += 1,
+                    1 => target.fixed_array_length = Some(end - start + 1),
+                    2 => target.element_stride = Some(2),
+                    3 => {
+                        semantic.path[0] = terminal_psi::StructuralPathSegment::FixedByteRange {
+                            start: 0,
+                            end: 18,
+                        };
+                        target.path = semantic.path.clone();
+                    }
+                    4 => {
+                        semantic.access = StructuralAccess::WriteOnlyBorrow;
+                        target.access = semantic.access;
+                    }
+                    _ => target.path.clear(),
+                }
+                assert_eq!(
+                    validate_borrowed_argument(&source, &changed, operation, 0),
+                    None,
+                    "mutation {mutation}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn fixed_array_view_preserves_extent_across_unit_and_scalar_result_calls() {
     for target in [
         target::NativeTarget::linux_x64(),

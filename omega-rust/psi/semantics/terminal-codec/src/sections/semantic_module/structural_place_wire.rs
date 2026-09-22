@@ -71,6 +71,11 @@ pub(crate) fn encode_structural_path(
                 writer.u64(*index);
             }
             StructuralPathSegment::Referent => writer.u8(3),
+            StructuralPathSegment::FixedByteRange { start, end } => {
+                writer.u8(4);
+                writer.u64(*start);
+                writer.u64(*end);
+            }
         }
     }
     Ok(())
@@ -190,6 +195,10 @@ pub(crate) fn decode_structural_path(
         )),
         2 => Ok(StructuralPathSegment::FixedIndex(reader.u64()?)),
         3 => Ok(StructuralPathSegment::Referent),
+        4 => Ok(StructuralPathSegment::FixedByteRange {
+            start: reader.u64()?,
+            end: reader.u64()?,
+        }),
         tag => Err(CodecError::InvalidTag("StructuralPathSegment", tag)),
     })
 }

@@ -129,6 +129,11 @@ pub(super) fn encode_structural_path_segment(
             bytes.u64(*index);
         }
         StructuralPathSegment::Referent => bytes.u8(3),
+        StructuralPathSegment::FixedByteRange { start, end } => {
+            bytes.u8(4);
+            bytes.u64(*start);
+            bytes.u64(*end);
+        }
     }
 }
 

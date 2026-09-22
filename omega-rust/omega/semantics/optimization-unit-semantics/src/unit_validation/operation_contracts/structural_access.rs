@@ -3,7 +3,6 @@ use crate::BTreeSet;
 use crate::O;
 use crate::PlaceId;
 use crate::PsiOptimizationFunction;
-use crate::ScalarType;
 use crate::StructuralDomainId;
 use crate::StructuralTypeId;
 use crate::unit_validation::operation_contracts::record_loan;
@@ -114,7 +113,8 @@ pub(crate) fn structural_arguments_match(
             && argument.path.iter().all(|segment| match segment {
                 terminal_psi::StructuralPathSegment::Field(identity) => !identity.is_empty(),
                 terminal_psi::StructuralPathSegment::FixedIndex(_) => true,
-                terminal_psi::StructuralPathSegment::Referent => false,
+                terminal_psi::StructuralPathSegment::Referent
+                | terminal_psi::StructuralPathSegment::FixedByteRange { .. } => false,
             });
         let path_shape_matches = match projection {
             StructuralProjectionPolicy::Unit => {
@@ -174,8 +174,30 @@ pub(crate) fn structural_arguments_match(
             )
             .is_some();
         let byte_field_presentation = buffer_presentation || shared_buffer_presentation;
+        // Fixed windows borrow their real backing; they do not resolve to an
+        // owned structural subtree. Reconstruct the exact array/view relation
+        // even after optimization instead of treating equal lengths as identity.
+        let fixed_array_presentation = matches!(
+            projection,
+            StructuralProjectionPolicy::Unit | StructuralProjectionPolicy::Boundary
+        ) && caller.structural_parameters.iter().any(|actual| {
+            terminal_semantics::fixed_byte_array_window(
+                types.values().copied(),
+                actual,
+                argument,
+                parameter,
+            )
+            .is_some()
+        }) && !caller
+            .entry_claim_declarations
+            .iter()
+            .any(|claim| claim.input == argument.place)
+            && !caller
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == argument.place);
         let actual_type = resolve_structural_path(types, source.structural_type, &argument.path);
-        if actual_type.is_none() && !byte_field_presentation {
+        if actual_type.is_none() && !byte_field_presentation && !fixed_array_presentation {
             return false;
         }
         // The owned parent of an exclusive mutable subloan suspends the same
@@ -189,42 +211,9 @@ pub(crate) fn structural_arguments_match(
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && actual_type == Some(parameter.structural_type);
-        // The byte-view presentation belongs to the borrowed argument, not
-        // the call's result or whether selection crosses a boundary. Terminal
-        // admits the same exact fixed range for ordinary calls on this route
-        // and boundaries. Keep the other call routes' existing restrictions.
-        // A readable source can also lend the same fixed extent as a shared
-        // byte view: the read-only presentation cannot outlive the call, so
-        // the same alias, extent, and element checks apply.
-        let fixed_byte_view = matches!(projection, StructuralProjectionPolicy::Unit | StructuralProjectionPolicy::Boundary)
-            && (argument.path.is_empty() || is_nonempty_field_path(&argument.path))
-            && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-            && source.qualifications.is_empty()
-            && source.projected_qualifications.is_empty()
-            && ((source.access == terminal_psi::StructuralAccess::MutableBorrow
-                && argument.access == terminal_psi::StructuralAccess::MutableBorrow)
-                || (structural_access_can_supply(
-                    source.access,
-                    terminal_psi::StructuralAccess::SharedBorrow,
-                ) && argument.access == terminal_psi::StructuralAccess::SharedBorrow))
-            && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-            && parameter.qualifications.is_empty()
-            && parameter.projected_qualifications.is_empty()
-            && !caller.entry_claim_declarations.iter().any(|claim| claim.input == argument.place)
-            && !caller.content_entry_claims.iter().any(|claim| claim.input.root == argument.place)
-            && matches!(types.get(&parameter.structural_type).map(|declaration| &declaration.shape),
-                Some(terminal_psi::StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView)))
-            && actual_type.and_then(|actual| types.get(&actual)).is_some_and(|declaration| {
-                let terminal_psi::StructuralTypeShape::FixedArray { element, length: 1.. } = declaration.shape else {
-                    return false;
-                };
-                matches!(types.get(&element).map(|declaration| &declaration.shape),
-                    Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)))
-                        if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address())
-            });
-        if !path_shape_matches
+        if (!path_shape_matches && !fixed_array_presentation)
             || (actual_type != Some(parameter.structural_type)
-                && !fixed_byte_view
+                && !fixed_array_presentation
                 && !byte_field_presentation)
             || argument.access != parameter.access
             || !structural_access_can_supply(source.access, argument.access)
@@ -295,6 +284,7 @@ pub(crate) fn structural_arguments_match(
             } else if argument.path.is_empty() {
                 source.multiplicity
             } else if unrestricted_write_only_subloan
+                || fixed_array_presentation
                 || unrestricted_mutable_subloan
                 || unrestricted_owned_mutable_subloan
                 || unrestricted_shared_subloan
@@ -523,12 +513,7 @@ pub(crate) fn structural_access_is_exclusive(access: terminal_psi::StructuralAcc
     )
 }
 
-pub(crate) fn structural_paths_may_overlap(
-    left: &[terminal_psi::StructuralPathSegment],
-    right: &[terminal_psi::StructuralPathSegment],
-) -> bool {
-    left.iter().zip(right).all(|(left, right)| left == right)
-}
+pub(crate) use terminal_semantics::structural_paths_may_overlap;
 
 pub(crate) fn is_nonempty_field_path(path: &[terminal_psi::StructuralPathSegment]) -> bool {
     !path.is_empty()

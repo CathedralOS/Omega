@@ -184,6 +184,9 @@ pub(crate) fn validate_structural_path(
             return malformed("structural path has an unknown structural type");
         };
         structural_type = match (segment, &declaration.shape) {
+            (StructuralPathSegment::FixedByteRange { .. }, _) => {
+                return malformed("fixed byte ranges require call-scoped byte-view custody");
+            }
             (StructuralPathSegment::Referent, StructuralTypeShape::Reference { referent, .. }) => {
                 *referent
             }
@@ -654,7 +657,7 @@ fn validate_structural_arguments(
         // The canonical form retains the real array type at both ordinary and
         // boundary calls; the shared extent check recognizes the exact loan.
         if machine.structural_parameters.iter().any(|actual| {
-            terminal_semantics::mutable_fixed_byte_array_extent(
+            terminal_semantics::fixed_byte_array_extent(
                 module.structural_types.iter(),
                 actual,
                 argument,

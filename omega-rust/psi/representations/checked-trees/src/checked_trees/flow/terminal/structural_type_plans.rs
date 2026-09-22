@@ -221,5 +221,10 @@ pub struct CheckedUnitStructuralParameterPlan {
 pub enum CheckedUnitStructuralPathSegment {
     Field(String),
     FixedIndex(u64),
+    /// Terminal, call-scoped window over initialized fixed byte-array backing.
+    FixedByteRange {
+        start: u64,
+        end: u64,
+    },
     Referent,
 }

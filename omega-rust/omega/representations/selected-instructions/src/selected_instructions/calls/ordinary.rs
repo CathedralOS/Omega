@@ -51,6 +51,11 @@ pub enum LocalStorageSlotId {
         operation: OperationId,
         place: PlaceId,
     },
+    /// One transient descriptor per call operand, even when operands share backing.
+    StructuralCallArgument {
+        operation: OperationId,
+        argument_index: u32,
+    },
     Boundary {
         operation: OperationId,
     },
@@ -59,7 +64,9 @@ pub enum LocalStorageSlotId {
 impl LocalStorageSlotId {
     pub const fn operation(self) -> Option<OperationId> {
         match self {
-            Self::Structural { operation, .. } | Self::Boundary { operation } => Some(operation),
+            Self::Structural { operation, .. }
+            | Self::StructuralCallArgument { operation, .. }
+            | Self::Boundary { operation } => Some(operation),
             Self::Spill { .. }
             | Self::StructuralBlockParameter { .. }
             | Self::StructuralParameter { .. } => None,
@@ -71,13 +78,23 @@ impl LocalStorageSlotId {
             Self::Structural { place, .. }
             | Self::StructuralBlockParameter { place, .. }
             | Self::StructuralParameter { place } => Some(place),
-            Self::Boundary { .. } | Self::Spill { .. } => None,
+            Self::Boundary { .. } | Self::Spill { .. } | Self::StructuralCallArgument { .. } => {
+                None
+            }
         }
     }
 
     /// Tagged storage-origin identity; boundary scratch never fabricates a place.
     pub fn encode_identity(self, bytes: &mut Vec<u8>) {
         match self {
+            Self::StructuralCallArgument {
+                operation,
+                argument_index,
+            } => {
+                bytes.push(5);
+                bytes.extend_from_slice(&operation.get().to_le_bytes());
+                bytes.extend_from_slice(&argument_index.to_le_bytes());
+            }
             Self::StructuralParameter { place } => {
                 bytes.push(4);
                 bytes.extend_from_slice(&place.get().to_le_bytes());

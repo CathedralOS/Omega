@@ -77,19 +77,33 @@ Invocation storage preserves nested/repeated calls and their independent content
 Descriptors may share immutable backing; deriving a view does not require copying
 its bytes.
 
-An admitted ordinary helper or boundary can receive a mutable view of an
+An admitted ordinary helper or boundary can receive a shared or mutable view of an
 initialized raw `FixedArray(PrimitiveScalar(u8), N)` with `N > 0`.
-The source is either the whole mutable
+The backing is either the whole borrowed
 parameter or a relevant field-only projection from it; both ends are
 unrestricted, unqualified, and claim-free. The array remains a fixed array:
 its borrowed extent is exactly `N`, and writes retain the
-original referent and untouched elements. This presentation supplies no
+original referent and untouched elements. A shared source supplies only shared
+access; a mutable source can lend shared or mutable access. This presentation supplies no
 initialization, source-owned construction, or boundary replacement authority.
 Missing initialized backing rejects even when an opaque referent is supplied.
 The boundary retains its requirement identity and result custody; an installed
 checked provider borrows the original backing through its ordinary call frame.
 The external whole-field replacement callback cannot consume this array loan.
-Indexed projection paths are not admitted by this presentation.
+A terminal `FixedByteRange { start, end }` call-argument projection may select
+a call-scoped half-open window of that backing. Independently reconstruct
+`start <= end <= N`; the visible extent is `end - start` and byte zero addresses
+the backing's `start`, not its beginning. Equal endpoints, including `N..N`,
+are valid empty loans of existing initialized storage. The projection remains
+attached to its original backing and the ordinary call's reborrow/restore
+lifetime: it is neither an owned subtree nor an escaping operation result.
+Sibling exclusive arguments must have independently disjoint paths; unequal
+range spellings do not establish disjointness. Empty loans conservatively
+retain overlap with their backing. No range may enter owned cleanup or claim
+paths, and an observed callee content contract cannot substitute the whole
+array for the window. Dynamic bounds and windows of runtime-length views still
+need their own exact extent evidence; this fixed projection does not admit them.
+Element-index projection paths are not admitted by this presentation.
 Empty primitive arrays retain their complete types
 under [owned array construction](calls_and_outcomes.md#primitive-array-construction);
 that construction does not by itself supply this borrowed backing presentation.
@@ -146,8 +160,10 @@ State edges evaluate conditional endpoints only after selection and preserve
 mixed argument order. Descriptor establishment follows graph dependencies,
 not declaration order. Anonymous indices land through the existing `u64`
 literal rules; explicit signed indices cannot silently become unsigned.
-Inclusive ranges, custom range operators, mutable subslices, and projections do
-not become supported merely by constructing an unchecked descriptor.
+Inclusive ranges, custom range operators, and independently live mutable
+subslice descriptors do not become supported merely by constructing an unchecked
+descriptor. Fixed call-scoped byte windows use the separate checked projection
+rule above; they do not widen the immutable `ByteSequenceSubslice` operation.
 
 ## Element-typed slice views
 

@@ -9,17 +9,45 @@ use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
 use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId};
 
+/// Descriptor scratch is operand-owned; its provenance retains the actual
+/// backing place by rejoining that operand, not by fabricating a storage owner.
+fn storage_origin_place(
+    row: &LegalizedScalarInstruction,
+    slot: LocalStorageSlotId,
+) -> Option<PlaceId> {
+    let LocalStorageSlotId::StructuralCallArgument {
+        operation,
+        argument_index,
+    } = slot
+    else {
+        return slot.structural_place();
+    };
+    if operation != row.operation {
+        return None;
+    }
+    let legalized_operations::LegalizedScalarInstructionKind::Call(call) = &row.kind else {
+        return None;
+    };
+    let legalized_operations::LegalizedScalarArgument::Structural { semantic, .. } =
+        call.arguments.get(usize::try_from(argument_index).ok()?)?
+    else {
+        return None;
+    };
+    Some(semantic.place)
+}
+
 /// Stage only the descriptor; its backing remains the caller's original array.
 pub(in crate::selection::construction::scalar_graph) fn fixed_array_argument(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
     place: PlaceId,
+    argument_index: u32,
     backing: VirtualRegisterId,
     length: u64,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let slot = LocalStorageSlotId::Structural {
+    let slot = LocalStorageSlotId::StructuralCallArgument {
         operation: row.operation,
-        place,
+        argument_index,
     };
     builder
         .transport
@@ -51,12 +79,13 @@ pub(in crate::selection::construction::scalar_graph) fn byte_field_argument(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
     place: PlaceId,
+    argument_index: u32,
     field: VirtualRegisterId,
     field_offset: u32,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let slot = LocalStorageSlotId::Structural {
+    let slot = LocalStorageSlotId::StructuralCallArgument {
         operation: row.operation,
-        place,
+        argument_index,
     };
     builder
         .transport
@@ -111,7 +140,7 @@ pub(super) fn store(
     memory(
         builder,
         row,
-        slot.structural_place().ok_or_else(invalid)?,
+        storage_origin_place(row, slot).ok_or_else(invalid)?,
         offset,
         8,
         SelectedMemoryAccessRole::WriteLocal { slot },
@@ -137,13 +166,13 @@ pub(super) fn address(
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let register = transport_register(
         builder,
-        slot.structural_place().ok_or_else(invalid)?,
+        storage_origin_place(row, slot).ok_or_else(invalid)?,
         offset,
     )?;
     memory(
         builder,
         row,
-        slot.structural_place().ok_or_else(invalid)?,
+        storage_origin_place(row, slot).ok_or_else(invalid)?,
         offset,
         byte_count,
         SelectedMemoryAccessRole::AddressLocal { slot },

@@ -63,6 +63,11 @@ pub(crate) fn structural_crash_route_argument_prefix(
                 "structural crash route argument path type is absent",
             ))?;
         match segment {
+            StructuralPathSegment::FixedByteRange { .. } => {
+                return unsupported(
+                    "byte window crash predicates require exact view extent custody",
+                );
+            }
             StructuralPathSegment::Referent => {
                 return unsupported(
                     "reference crash paths require retained referent projection custody",

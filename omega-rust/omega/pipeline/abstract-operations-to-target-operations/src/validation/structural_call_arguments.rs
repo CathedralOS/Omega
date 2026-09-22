@@ -3095,6 +3095,41 @@ impl Replay<'_> {
         let Some(root) = self.roots.get(&semantic.place) else {
             return Ok(());
         };
+        if let Some(window) = self.source.structural_parameters.iter().find_map(|source| {
+            terminal_semantics::fixed_byte_array_window(
+                self.declarations.iter(),
+                source,
+                semantic,
+                declared,
+            )
+        }) {
+            let (_, backing_offset) = structural_shapes::project_static_path(
+                root.structural_type,
+                window.backing_path,
+                self.declarations,
+            )
+            .map_err(|_| psi_operation)?;
+            let offset = u64::from(backing_offset)
+                .checked_add(window.offset)
+                .and_then(|offset| u32::try_from(offset).ok())
+                .ok_or(psi_operation)?;
+            if actual.root_structural_type != root.structural_type
+                || actual.source_byte_offset != offset
+                || actual.fixed_array_length != Some(window.length)
+                || actual.element_stride != Some(1)
+            {
+                return Err(psi_operation);
+            }
+            return Ok(());
+        }
+        // A range cannot fall through the ordinary owned projection checks.
+        if semantic
+            .path
+            .iter()
+            .any(|segment| matches!(segment, StructuralPathSegment::FixedByteRange { .. }))
+        {
+            return Err(psi_operation);
+        }
         // Static subloans carry a pointer to the reconstructed leaf, not
         // an array-view descriptor. Indexed paths need the same carrier
         // and offset replay as fields; owned indexed copies retain their

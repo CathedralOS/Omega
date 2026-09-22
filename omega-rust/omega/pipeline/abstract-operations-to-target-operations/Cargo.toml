@@ -21,6 +21,7 @@ terminal-psi-to-abstract-operations = { path = "../terminal-psi-to-abstract-oper
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 access-plans = { path = "../../../psi/foundation/access-plans" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
+terminal-semantics = { path = "../../../psi/semantics/terminal-semantics" }
 
 [dev-dependencies]
 task-plans = { path = "../../representations/task-plans" }

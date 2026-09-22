@@ -217,6 +217,7 @@ pub(super) fn validate_borrowed_argument(
     if (source.attachment.is_some()
         && !exclusive
         && aggregate.is_none()
+        && byte_view.is_none()
         && source.call_plan.result.is_some())
         || !signature.entry_claims.is_empty()
         || (source.call_plan.result.is_some() && !signature.published_service_ceiling.is_empty())
@@ -232,6 +233,7 @@ pub(super) fn validate_borrowed_argument(
         || call.call_plan != expected
         || (!exclusive
             && aggregate.is_none()
+            && byte_view.is_none()
             && byte_field.is_none()
             && (semantic.access != StructuralAccess::SharedBorrow || !semantic.path.is_empty()))
         || target.place != semantic.place
@@ -239,11 +241,13 @@ pub(super) fn validate_borrowed_argument(
         || target.path != semantic.path
         || (!exclusive
             && aggregate.is_none()
+            && byte_view.is_none()
             && byte_field.is_none()
             && target.root_structural_type != target.structural_type)
         || target.shape != shape
         || (!exclusive
             && aggregate.is_none()
+            && byte_view.is_none()
             && byte_field.is_none()
             && target.source_byte_offset != 0)
         || target.fixed_array_length != byte_view.map(|(_, length)| length)
