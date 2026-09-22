@@ -1,7 +1,5 @@
 //! Canonical optimization-unit, fact, ownership, and CFG custody walk.
 
-use super::operation_encoding::*;
-use super::structural_encoding::*;
 use super::{
     AbstractFunctionResult, AcceptedObligationFact, EffectLink, FuelSettlement, OptimizationEdge,
     OptimizationFact, OptimizationNode, OptimizationUnitIdentity, OwnershipEvent,
@@ -15,6 +13,13 @@ use crate::optimization_unit::identity::carrier_encoding::{
     encode_abstract_result, encode_binding, encode_ids, encode_integer_value, encode_multiplicity,
     encode_optional, encode_scalar_type, encode_structural_argument, encode_structural_binding,
     encode_structural_parameter, encode_structural_path_segment,
+};
+use crate::optimization_unit::identity::operation_encoding::encode_operation;
+use crate::optimization_unit::identity::structural_encoding::{
+    encode_boundary_machine, encode_cleanup, encode_content_entry_claim, encode_entry_claim,
+    encode_evidence_contract_lane, encode_machine_contract, encode_place_declaration,
+    encode_projected_qualification_roster, encode_provider_candidate, encode_residual_cleanup,
+    encode_structural_domain, encode_structural_type,
 };
 
 const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v29\0";

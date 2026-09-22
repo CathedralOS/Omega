@@ -3,10 +3,15 @@
 use super::canonical_encoding::{
     encode_integer_type, encode_integer_value, encode_len, encode_scalar_type,
 };
-use super::model::*;
 use super::{
     BlockId, CanonicalStructuralPathSegment, OptimizationRuleContract, OptimizationUnitIdentity,
     OwnershipFrontierSite, PsiProvenance,
+};
+use crate::optimization_unit::rewrite::model::{
+    FieldValueResolution, FoldedFieldValue, NodeLocation, ProofCertifiedScalarIdentityKind,
+    ProvenanceDisposition, ProvenanceRewrite, PsiRealizationSite, PsiRewriteDecisionPoint,
+    PsiRewritePatch, PsiRewriteWitness, ScalarEvaluationWitness, ScalarSubstitution,
+    TotalScalarIdentityKind,
 };
 
 #[allow(clippy::too_many_arguments)]
