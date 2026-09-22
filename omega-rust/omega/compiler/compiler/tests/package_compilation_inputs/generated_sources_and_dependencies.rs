@@ -630,7 +630,7 @@ fn multi_target_generated_source_failure_is_child_local() {
             .with_complete_dependency_generated_sources(vec![bundle])
             .expect("exact child should retain its dependency-generated bundle")
     };
-    let targets = ExplicitTargetSet::from_caller_names(["windows_x64", "linux_x64"])
+    let targets = ExplicitTargetSet::from_caller_names(["windows_x86_64", "linux_x86_64"])
         .expect("explicit generated-source targets");
     let (sources, _) = base_inputs.clone().into_parts();
     let request = CompileRequest::new(CompileOptions {

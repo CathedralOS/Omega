@@ -7,7 +7,7 @@ fn checked_progress_entry_retains_selected_syscall_binding_without_table_project
     let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(
         "../../../../tests/omega/pass/progress/provider_receiver_progress_installation/main.omg",
     );
-    let checked = compile_to_checked(CheckedCompileRequest::new(&source, Some("linux_x64")))
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source, Some("linux_x86_64")))
         .expect("selected progress-bearing source entry should check");
     assert_eq!(checked.selected_program_entry_machine(), Some("Main::main"));
     let [plan] = checked.selected_provider_plans().plans() else {

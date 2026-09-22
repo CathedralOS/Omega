@@ -348,24 +348,26 @@ impl TargetProfile {
         }
     }
 
+    /// Parse one target spelling supplied at a request boundary (CLI `--target`,
+    /// `CompileOptions.target_name`, explicit target sets). An absent name is
+    /// the Host convenience; a present name must be the exact canonical
+    /// spelling — retired aliases such as `windows_x64` for `windows_x86_64`
+    /// are unknown profiles, never a second name for one.
     pub fn from_omega_target_name(target_name: Option<&str>) -> Result<Self, Diagnostic> {
         let Some(target_name) = target_name else {
             return Ok(Self::host());
         };
-        Self::ALL
-            .into_iter()
-            .find(|profile| {
-                profile.target_name() == target_name
-                    || profile.legacy_cli_alias() == Some(target_name)
-            })
-            .ok_or_else(|| Diagnostic::error(format!(
+        Self::from_canonical_target_name(target_name).map_err(|_| {
+            Diagnostic::error(format!(
                 "unknown target profile `{target_name}`; expected linux_arm64, linux_x86_64, macos_arm64, macos_x86_64, windows_x86_64, uefi_x86_64, cross_platform_cli, local_unchecked, or alpha_bootstrap"
-            )))
+            ))
+        })
     }
 
     /// Parse a canonical target identity outside the invocation boundary.
-    /// Transitional CLI aliases must normalize before entering source selection,
-    /// locks, review evidence, or semantic identity.
+    /// The request boundary rejects retired CLI spellings outright, so nothing
+    /// downstream — source selection, locks, review evidence, or semantic
+    /// identity — ever re-parses or normalizes them.
     pub fn from_canonical_target_name(target_name: &str) -> Result<Self, Diagnostic> {
         Self::ALL
             .into_iter()
@@ -396,22 +398,8 @@ impl TargetProfile {
         }
     }
 
-    const fn legacy_cli_alias(self) -> Option<&'static str> {
-        match self {
-            Self::LinuxX64 => Some("linux_x64"),
-            Self::WindowsX64 => Some("windows_x64"),
-            Self::UefiX64 => Some("uefi_x64"),
-            Self::LinuxArm64
-            | Self::MacosArm64
-            | Self::MacosX64
-            | Self::CrossPlatformCli
-            | Self::LocalUnchecked
-            | Self::AlphaBootstrap => None,
-        }
-    }
-
     /// Canonical source-visible case supplied through the compiler-owned
-    /// `Build.target` field. This identity is distinct from transitional CLI
+    /// `Build.target` field. This identity is distinct from request-boundary
     /// spellings and target root-slot owner namespaces.
     pub const fn build_case_name(self) -> &'static str {
         match self {
@@ -905,8 +893,8 @@ mod tests {
     }
 
     #[test]
-    fn legacy_cli_aliases_normalize_to_canonical_profile_identities() {
-        for (legacy, canonical, profile, identity) in [
+    fn retired_cli_aliases_reject_at_every_name_boundary() {
+        for (retired, canonical, profile, identity) in [
             (
                 "linux_x64",
                 "linux_x86_64",
@@ -926,9 +914,17 @@ mod tests {
                 "omega.target-profile.v1:uefi_x86_64",
             ),
         ] {
-            assert_eq!(
-                TargetProfile::from_omega_target_name(Some(legacy)).unwrap(),
-                profile
+            let diagnostic = TargetProfile::from_omega_target_name(Some(retired))
+                .expect_err("retired CLI alias must reject at the request boundary");
+            assert!(
+                diagnostic
+                    .message
+                    .contains(&format!("unknown target profile `{retired}`")),
+                "{diagnostic:?}"
+            );
+            assert!(
+                TargetProfile::from_canonical_target_name(retired).is_err(),
+                "{retired} must stay unknown below the request boundary"
             );
             assert_eq!(
                 TargetProfile::from_omega_target_name(Some(canonical)).unwrap(),
@@ -940,7 +936,7 @@ mod tests {
                 TargetProfile::from_root_slot_owner(canonical).unwrap(),
                 profile
             );
-            assert!(TargetProfile::from_root_slot_owner(legacy).is_err());
+            assert!(TargetProfile::from_root_slot_owner(retired).is_err());
         }
     }
 
@@ -1069,7 +1065,6 @@ mod tests {
         );
         assert_eq!(profile.target_name(), "macos_x86_64");
         assert_eq!(profile.root_slot_owner_name(), "macos_x86_64");
-        assert_eq!(profile.legacy_cli_alias(), None);
         assert_eq!(
             profile.identity().as_str(),
             "omega.target-profile.v1:macos_x86_64"

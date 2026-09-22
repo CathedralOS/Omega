@@ -102,7 +102,7 @@ fn install_accepts_options_before_and_after_source() {
             "--rev",
             "release/版本",
             "--target",
-            "linux_x64",
+            "linux_x86_64",
             "../source",
             "--as",
             "renamed",
@@ -231,13 +231,19 @@ fn duplicate_singleton_options_and_package_selections_reject() {
 }
 
 #[test]
-fn duplicate_targets_reject_after_alias_normalization() {
-    for arguments in [
-        ["--target", "linux_x86_64", "--target", "linux_x86_64"],
-        ["--target", "linux_x64", "--target", "linux_x86_64"],
-    ] {
-        rejects(PackageCommandKind::Update, &arguments, "duplicate target");
-    }
+fn duplicate_targets_reject_on_the_same_canonical_profile() {
+    rejects(
+        PackageCommandKind::Update,
+        &["--target", "linux_x86_64", "--target", "linux_x86_64"],
+        "duplicate target",
+    );
+    // A retired alias never reaches the duplicate check: it is an unknown
+    // target profile, not a second spelling of one.
+    rejects(
+        PackageCommandKind::Update,
+        &["--target", "linux_x64", "--target", "linux_x86_64"],
+        "unknown target",
+    );
 }
 
 #[test]

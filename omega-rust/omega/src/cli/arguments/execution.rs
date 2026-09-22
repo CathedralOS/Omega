@@ -89,7 +89,7 @@ mod tests {
     #[test]
     fn probe_preserves_ordinary_options() {
         let arguments = parse_arguments(
-            ["--both", "main.omg", "--keep", "--target", "linux_x64"]
+            ["--both", "main.omg", "--keep", "--target", "linux_x86_64"]
                 .into_iter()
                 .map(std::ffi::OsString::from),
         )
@@ -97,7 +97,7 @@ mod tests {
         assert!(arguments.both);
         assert!(arguments.keep);
         assert_eq!(arguments.main_path, std::path::PathBuf::from("main.omg"));
-        assert_eq!(arguments.target_name.as_deref(), Some("linux_x64"));
+        assert_eq!(arguments.target_name.as_deref(), Some("linux_x86_64"));
     }
 
     #[test]
@@ -110,10 +110,10 @@ mod tests {
             vec!["--keep", "main.omg", "--keep"],
             vec![
                 "--target",
-                "linux_x64",
+                "linux_x86_64",
                 "main.omg",
                 "--target",
-                "windows_x64",
+                "windows_x86_64",
             ],
         ] {
             assert!(

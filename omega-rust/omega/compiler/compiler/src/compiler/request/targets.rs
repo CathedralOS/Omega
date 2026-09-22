@@ -100,14 +100,35 @@ mod tests {
     }
 
     #[test]
-    fn aliases_normalize_deduplicate_and_sort_in_catalog_order() {
+    fn retired_cli_aliases_reject_like_any_unknown_profile() {
+        for retired in ["linux_x64", "windows_x64", "uefi_x64"] {
+            let diagnostics = ExplicitTargetSet::from_caller_names([retired])
+                .expect_err("retired CLI alias must reject");
+            assert_eq!(diagnostics.len(), 1);
+            assert!(
+                diagnostics[0]
+                    .message
+                    .contains(&format!("unknown target profile `{retired}`")),
+                "{:?}",
+                diagnostics[0].message
+            );
+        }
+        // An alias does not pair with its canonical spelling into a duplicate:
+        // the request fails before deduplication ever runs.
+        let diagnostics =
+            ExplicitTargetSet::from_caller_names(["linux_x64", "linux_x86_64"]).unwrap_err();
+        assert_eq!(diagnostics.len(), 1);
+    }
+
+    #[test]
+    fn exact_names_deduplicate_and_sort_in_catalog_order() {
         let targets = ExplicitTargetSet::from_caller_names([
-            "windows_x64",
+            "windows_x86_64",
             "linux_x86_64",
-            "linux_x64",
+            "linux_x86_64",
             "macos_arm64",
         ])
-        .expect("exact names and transitional aliases normalize");
+        .expect("exact names normalize");
         assert_eq!(
             targets.profiles(),
             &[
@@ -124,7 +145,7 @@ mod tests {
             ExplicitTargetSet::from_caller_names(["linux_arm64", "uefi_x86_64", "local_unchecked"])
                 .expect("forward request");
         let reverse =
-            ExplicitTargetSet::from_caller_names(["local_unchecked", "uefi_x64", "linux_arm64"])
+            ExplicitTargetSet::from_caller_names(["local_unchecked", "uefi_x86_64", "linux_arm64"])
                 .expect("reverse request");
         assert_eq!(forward, reverse);
     }

@@ -187,11 +187,11 @@ fn targets_are_canonical_and_share_one_input_owner() {
 }
 
 #[test]
-fn target_aliases_normalize_without_native_inference_for_neutral_checks() {
+fn canonical_target_names_validate_without_native_inference_for_neutral_checks() {
     let admitted = CompileRequest::new(CompileOptions {
         root_path: "missing.omg".into(),
         build_dir: None,
-        target_name: Some("windows_x64".into()),
+        target_name: Some("windows_x86_64".into()),
     })
     .validate_for_execution()
     .unwrap();
@@ -199,15 +199,18 @@ fn target_aliases_normalize_without_native_inference_for_neutral_checks() {
         admitted.targets[0].options.target_name.as_deref(),
         Some("windows_x86_64")
     );
-    assert!(
-        CompileRequest::new(CompileOptions {
-            root_path: "missing.omg".into(),
-            build_dir: None,
-            target_name: Some("unknown".into())
-        })
-        .validate_for_execution()
-        .is_err()
-    );
+    for retired_or_unknown in ["windows_x64", "linux_x64", "uefi_x64", "unknown"] {
+        assert!(
+            CompileRequest::new(CompileOptions {
+                root_path: "missing.omg".into(),
+                build_dir: None,
+                target_name: Some(retired_or_unknown.into())
+            })
+            .validate_for_execution()
+            .is_err(),
+            "{retired_or_unknown} must reject at the request boundary"
+        );
+    }
 }
 
 #[test]

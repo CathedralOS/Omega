@@ -248,7 +248,7 @@ fn native_batch_reuses_exact_terminal_input_before_distinct_target_lowering() {
         .join("tests/omega/pass")
         .join(fixture_roster::NO_SELECTION_EMPTY_ENTRY)
         .join("main.omg");
-    let targets = ExplicitTargetSet::from_caller_names(["linux_x64", "linux_arm64"])
+    let targets = ExplicitTargetSet::from_caller_names(["linux_x86_64", "linux_arm64"])
         .expect("hosted targets should canonicalize");
     let batch = CompileRequest::new(CompileOptions {
         root_path: root.clone(),
@@ -345,7 +345,7 @@ machine ArmMain::main(&mut self) { }
 }
 "#,
     );
-    let targets = ExplicitTargetSet::from_caller_names(["linux_x64", "linux_arm64"])
+    let targets = ExplicitTargetSet::from_caller_names(["linux_x86_64", "linux_arm64"])
         .expect("hosted targets should canonicalize");
     let batch = fixture
         .request()
@@ -392,8 +392,9 @@ fn exact_target_batch_is_canonical_and_matches_standalone() {
 }
 "#,
     );
-    let targets = ExplicitTargetSet::from_caller_names(["windows_x64", "linux_arm64", "linux_x64"])
-        .expect("explicit target set should canonicalize");
+    let targets =
+        ExplicitTargetSet::from_caller_names(["windows_x86_64", "linux_arm64", "linux_x86_64"])
+            .expect("explicit target set should canonicalize");
     let batch = fixture.request().with_target_configurations(
         targets
             .profiles()
@@ -449,7 +450,7 @@ fn shared_source_failure_is_retained_for_every_exact_target() {
 }
 "#,
     );
-    let targets = ExplicitTargetSet::from_caller_names(["windows_x64", "linux_x64"])
+    let targets = ExplicitTargetSet::from_caller_names(["windows_x86_64", "linux_x86_64"])
         .expect("explicit target set should canonicalize");
     let batch = fixture.request().with_target_configurations(
         targets
@@ -478,8 +479,9 @@ fn batch_manifest_binds_the_explicit_set_and_child_commitments() {
 }
 "#,
     );
-    let targets = ExplicitTargetSet::from_caller_names(["windows_x64", "linux_arm64", "linux_x64"])
-        .expect("explicit target set should canonicalize");
+    let targets =
+        ExplicitTargetSet::from_caller_names(["windows_x86_64", "linux_arm64", "linux_x86_64"])
+            .expect("explicit target set should canonicalize");
     let batch = fixture.request().with_target_configurations(
         targets
             .profiles()
@@ -512,7 +514,7 @@ fn batch_manifest_binds_the_explicit_set_and_child_commitments() {
     }
     assert!(manifest.validate());
 
-    let targets = ExplicitTargetSet::from_caller_names(["linux_x64", "linux_arm64"])
+    let targets = ExplicitTargetSet::from_caller_names(["linux_x86_64", "linux_arm64"])
         .expect("smaller set should canonicalize");
     let smaller = fixture.request().with_target_configurations(
         targets

@@ -117,7 +117,7 @@ pub struct ProviderPlan {
     /// toolchain/standalone/source-free trees retain `None`; consumers must not
     /// infer this from `provider_type` or the realizing machine's package.
     pub provider_type_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
-    /// The target this plan serves (`windows_x64`; empty = every target).
+    /// The target this plan serves (`windows_x86_64`; empty = every target).
     pub target: String,
     /// The schema served.
     pub schema: ServiceSchema,
