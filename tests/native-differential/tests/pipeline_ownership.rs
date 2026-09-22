@@ -1,4 +1,10 @@
 //! Cross-stage realization and independent replay after pipeline-owner consolidation.
+
+// The front end these fixtures run is named here rather than re-sequenced at
+// every site.
+#[path = "common/front_end.rs"]
+mod front_end;
+
 #[path = "pipeline_ownership/mod.rs"]
 mod tests;
 

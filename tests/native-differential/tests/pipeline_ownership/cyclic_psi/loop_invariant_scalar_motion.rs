@@ -1,9 +1,8 @@
 //! Optimizer module role: test leaf. General single-entry loop-invariant scalar motion.
 
 use super::{
-    AbstractOperation, Lexer, OptimizationUnitValidationError, ResolutionRequest,
-    VerifiedPsiOptimizationSession, build_verified_psi_optimization_unit, lower_artifact,
-    lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
+    AbstractOperation, OptimizationUnitValidationError, VerifiedPsiOptimizationSession,
+    build_verified_psi_optimization_unit, lower_artifact,
 };
 use abstract_operations_to_abstract_operations::validation::{
     validate_transformed_psi_cycle_components, validate_transformed_psi_optimization_unit,
@@ -17,7 +16,6 @@ use optimization_unit::{
     ProvenanceDisposition, PsiProvenance, PsiRealizationSite,
     recompute_psi_optimization_unit_identity,
 };
-use typed_trees_to_checked_trees::CheckingRequest;
 
 const NATURAL_LOOP_SOURCE: &str = r#"
     data Root {}
@@ -98,17 +96,7 @@ fn lowered_unit(
     terminal_psi::TerminalModule,
     terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit,
 ) {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .unwrap_or_else(|error| panic!("tokenize {label}: {error:?}"));
-    let syntax =
-        parse_syntax_trees(&tokens).unwrap_or_else(|error| panic!("parse {label}: {error:?}"));
-    let resolved = resolve(ResolutionRequest::new(&syntax))
-        .unwrap_or_else(|error| panic!("resolve {label}: {error:?}"));
-    let typed = lower_symbol_resolved_trees(&resolved)
-        .unwrap_or_else(|error| panic!("type {label}: {error:?}"));
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .unwrap_or_else(|error| panic!("check {label}: {error:?}"));
+    let checked = crate::front_end::checked_program(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::scan"),

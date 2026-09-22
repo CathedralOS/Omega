@@ -642,21 +642,8 @@ fn runtime_indexed_stores_reject_indices_without_checked_bounds() {
             values[index] = 17;
         }",
     ] {
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let typed =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let error = typed_trees_to_checked_trees::lower_typed_trees(
-            typed,
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .expect_err("an index without a checked bound cannot store");
+        let error = crate::front_end::checked_program_result(source)
+            .expect_err("an index without a checked bound cannot store");
         let rendered = format!("{error:?}");
         assert!(
             rendered.contains("cannot prove index"),
@@ -753,21 +740,8 @@ fn write_only_indexed_reads_reject_during_checking() {
             values[2]
         }",
     ] {
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let typed =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let error = typed_trees_to_checked_trees::lower_typed_trees(
-            typed,
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .expect_err("a write-only indexed read cannot grant observation");
+        let error = crate::front_end::checked_program_result(source)
+            .expect_err("a write-only indexed read cannot grant observation");
         let rendered = format!("{error:?}");
         assert!(
             rendered.contains("write-only"),

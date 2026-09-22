@@ -1,6 +1,11 @@
 //! Prerequisite companions for the owned scalar walk: ordinary scalar cycles.
 //! Owned-record realization and primitive-local storage remain separate work.
 
+// The front end these fixtures run is named here rather than re-sequenced at
+// every site.
+#[path = "common/front_end.rs"]
+mod front_end;
+
 use proof_admission::{AdmissionProfile, EvidenceRoute, PrimitiveJudgment};
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_production::{
@@ -45,22 +50,7 @@ fn produce_candidate(
     source: &str,
     entry: &str,
 ) -> Result<CanonicalTerminalArtifact, terminal_production::TerminalArtifactProductionError> {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap_or_else(|error| panic!("tokenize scalar cycle: {error:?}\n{source}"));
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
-        .unwrap_or_else(|error| panic!("parse scalar cycle: {error:?}\n{source}"));
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap_or_else(|error| panic!("resolve scalar cycle: {error:?}\n{source}"));
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .unwrap_or_else(|error| panic!("type scalar cycle: {error:?}\n{source}"));
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap_or_else(|error| panic!("check scalar cycle: {error:#?}\n{source}"));
+    let checked = crate::front_end::checked_program(source);
     terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name(entry),

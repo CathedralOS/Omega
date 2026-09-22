@@ -14,15 +14,9 @@ use optimization_unit::{OptimizerCycleComponentSnapshot, OptimizerRankingCertifi
 use optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_psi_optimization_unit,
 };
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_psi_to_abstract_operations::{
     VerifiedPsiOptimizationInput, build_verified_psi_optimization_unit, lower_artifact,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 const COUNTDOWN_SOURCE: &str = r#"
     data Token { value: i32; }
@@ -47,13 +41,7 @@ mod loop_invariant_scalar_motion;
 mod ranking_relocated_invariant_constants;
 
 fn countdown_input() -> (terminal_psi::TerminalModule, VerifiedPsiOptimizationInput) {
-    let tokens = Lexer::new(COUNTDOWN_SOURCE)
-        .tokenize()
-        .expect("tokenize countdown");
-    let syntax = parse_syntax_trees(&tokens).expect("parse countdown");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve countdown");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type countdown");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check countdown");
+    let checked = crate::front_end::checked_program(COUNTDOWN_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::countdown"),

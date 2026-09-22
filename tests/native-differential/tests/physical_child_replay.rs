@@ -101,15 +101,14 @@
 //! the consumer's accepted nonzero-divisor obligation.
 
 use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct};
-use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
-use semantic_vocabulary::PackageKeyIdentity;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-static PROJECT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+// Every project here is authored into a scratch directory and depends on no
+// published package; one harness owns their package identities and bindings.
+#[path = "common/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
 
-fn package_identity(marker: u8) -> PackageKeyIdentity {
-    PackageKeyIdentity::from_digest([marker; 32]).expect("nonzero package identity")
-}
+static PROJECT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 fn replay_native_artifact_parts(
     parts: &native_realization::NativeArtifactParts,
@@ -202,17 +201,7 @@ machine Main::main(&mut self) {
 "#,
     )
     .expect("write wrapping-remainder physical-child build");
-    let root_identity = package_identity(47);
-    let inputs = PackageCompilationInputs::new_package(
-        root_identity,
-        vec![PackageSourceBinding::new(
-            root_identity,
-            "root",
-            root.clone(),
-        )],
-        Vec::new(),
-    )
-    .expect("wrapping-remainder physical-child package graph should validate");
+    let inputs = fixture_package_inputs::scratch_package_inputs(&[(47, "root", &root)]);
     let report = compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: root.join("main.omg"),
@@ -428,17 +417,7 @@ machine Main::main(&mut self) {
 "#,
     )
     .expect("write literal-copy physical-child build");
-    let root_identity = package_identity(48);
-    let inputs = PackageCompilationInputs::new_package(
-        root_identity,
-        vec![PackageSourceBinding::new(
-            root_identity,
-            "root",
-            root.clone(),
-        )],
-        Vec::new(),
-    )
-    .expect("literal-copy physical-child package graph should validate");
+    let inputs = fixture_package_inputs::scratch_package_inputs(&[(48, "root", &root)]);
     let report = compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: root.join("main.omg"),
@@ -653,17 +632,7 @@ machine Main::main(&mut self) {
 "#,
     )
     .expect("write bitwise-and-zero physical-child build");
-    let root_identity = package_identity(49);
-    let inputs = PackageCompilationInputs::new_package(
-        root_identity,
-        vec![PackageSourceBinding::new(
-            root_identity,
-            "root",
-            root.clone(),
-        )],
-        Vec::new(),
-    )
-    .expect("bitwise-and-zero physical-child package graph should validate");
+    let inputs = fixture_package_inputs::scratch_package_inputs(&[(49, "root", &root)]);
     let report = compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: root.join("main.omg"),
@@ -880,17 +849,7 @@ machine Main::main(&mut self) {
 "#,
     )
     .expect("write bitwise-xor-zero physical-child build");
-    let root_identity = package_identity(50);
-    let inputs = PackageCompilationInputs::new_package(
-        root_identity,
-        vec![PackageSourceBinding::new(
-            root_identity,
-            "root",
-            root.clone(),
-        )],
-        Vec::new(),
-    )
-    .expect("bitwise-xor-zero physical-child package graph should validate");
+    let inputs = fixture_package_inputs::scratch_package_inputs(&[(50, "root", &root)]);
     let report = compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: root.join("main.omg"),
@@ -1109,17 +1068,7 @@ machine Main::main(&mut self) {
 "#,
     )
     .expect("write literal-extension physical-child build");
-    let root_identity = package_identity(51);
-    let inputs = PackageCompilationInputs::new_package(
-        root_identity,
-        vec![PackageSourceBinding::new(
-            root_identity,
-            "root",
-            root.clone(),
-        )],
-        Vec::new(),
-    )
-    .expect("literal-extension physical-child package graph should validate");
+    let inputs = fixture_package_inputs::scratch_package_inputs(&[(51, "root", &root)]);
     let report = compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: root.join("main.omg"),
@@ -1337,17 +1286,7 @@ machine Main::main(&mut self) {
 "#,
     )
     .expect("write wrapping-add-zero physical-child build");
-    let root_identity = package_identity(52);
-    let inputs = PackageCompilationInputs::new_package(
-        root_identity,
-        vec![PackageSourceBinding::new(
-            root_identity,
-            "root",
-            root.clone(),
-        )],
-        Vec::new(),
-    )
-    .expect("wrapping-add-zero physical-child package graph should validate");
+    let inputs = fixture_package_inputs::scratch_package_inputs(&[(52, "root", &root)]);
     let report = compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: root.join("main.omg"),
@@ -1567,17 +1506,7 @@ machine Main::main(&mut self) {
 "#,
     )
     .expect("write bitwise-and-ones physical-child build");
-    let root_identity = package_identity(53);
-    let inputs = PackageCompilationInputs::new_package(
-        root_identity,
-        vec![PackageSourceBinding::new(
-            root_identity,
-            "root",
-            root.clone(),
-        )],
-        Vec::new(),
-    )
-    .expect("bitwise-and-ones physical-child package graph should validate");
+    let inputs = fixture_package_inputs::scratch_package_inputs(&[(53, "root", &root)]);
     let report = compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: root.join("main.omg"),
@@ -1811,17 +1740,7 @@ machine Main::main(&mut self) {
 "#,
     )
     .expect("write wrapping-remainder-zero-dividend physical-child build");
-    let root_identity = package_identity(54);
-    let inputs = PackageCompilationInputs::new_package(
-        root_identity,
-        vec![PackageSourceBinding::new(
-            root_identity,
-            "root",
-            root.clone(),
-        )],
-        Vec::new(),
-    )
-    .expect("wrapping-remainder-zero-dividend physical-child package graph should validate");
+    let inputs = fixture_package_inputs::scratch_package_inputs(&[(54, "root", &root)]);
     let report = compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: root.join("main.omg"),
@@ -2054,17 +1973,7 @@ machine Main::main(&mut self) {
 "#,
     )
     .expect("write exact-divide-zero-dividend physical-child build");
-    let root_identity = package_identity(55);
-    let inputs = PackageCompilationInputs::new_package(
-        root_identity,
-        vec![PackageSourceBinding::new(
-            root_identity,
-            "root",
-            root.clone(),
-        )],
-        Vec::new(),
-    )
-    .expect("exact-divide-zero-dividend physical-child package graph should validate");
+    let inputs = fixture_package_inputs::scratch_package_inputs(&[(55, "root", &root)]);
     let report = compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: root.join("main.omg"),
@@ -2297,17 +2206,7 @@ machine Main::main(&mut self) {
 "#,
     )
     .expect("write load8-indexed physical-child build");
-    let root_identity = package_identity(56);
-    let inputs = PackageCompilationInputs::new_package(
-        root_identity,
-        vec![PackageSourceBinding::new(
-            root_identity,
-            "root",
-            root.clone(),
-        )],
-        Vec::new(),
-    )
-    .expect("load8-indexed physical-child package graph should validate");
+    let inputs = fixture_package_inputs::scratch_package_inputs(&[(56, "root", &root)]);
     let report = compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: root.join("main.omg"),
@@ -2525,17 +2424,7 @@ machine Main::main(&mut self) {
 "#,
     )
     .expect("write structural-operator physical-child build");
-    let root_identity = package_identity(53);
-    let inputs = PackageCompilationInputs::new_package(
-        root_identity,
-        vec![PackageSourceBinding::new(
-            root_identity,
-            "root",
-            root.clone(),
-        )],
-        Vec::new(),
-    )
-    .expect("structural-operator physical-child package graph should validate");
+    let inputs = fixture_package_inputs::scratch_package_inputs(&[(53, "root", &root)]);
     let report = compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: root.join("main.omg"),
@@ -2746,17 +2635,7 @@ machine probe(left: i32, right: i32) -> bool {
 "#,
     )
     .expect("write integer-comparison physical-child build");
-    let root_identity = package_identity(57);
-    let inputs = PackageCompilationInputs::new_package(
-        root_identity,
-        vec![PackageSourceBinding::new(
-            root_identity,
-            "root",
-            root.clone(),
-        )],
-        Vec::new(),
-    )
-    .expect("integer-comparison physical-child package graph should validate");
+    let inputs = fixture_package_inputs::scratch_package_inputs(&[(57, "root", &root)]);
     let report = compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: root.join("main.omg"),

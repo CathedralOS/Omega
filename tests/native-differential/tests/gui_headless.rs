@@ -15,35 +15,21 @@
 //! against -- the unmanaged route would instead look for an
 //! `omega_language_std/` module below the sample root.
 
-use build_declarations::{BuildDeclaration, extract_build_declaration};
 use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
 use compiler::{CheckedCompilation, compile_to_checked};
 use diagnostics::Diagnostic;
-use package_compilation::{
-    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+use fixture_package_inputs::{
+    console_acceptance, fixture_package_identity, repo_root, standard_library_package_inputs,
 };
-use semantic_vocabulary::PackageKeyIdentity;
-use std::path::{Path, PathBuf};
+use package_compilation::PackageCompilationInputs;
+use std::path::Path;
 
-// The compiler test target owns the exact Console provider acceptance this
-// harness must replay; including it keeps both targets on one derivation.
-#[path = "../../../omega-rust/omega/compiler/compiler/tests/support/console_acceptance.rs"]
-mod console_acceptance;
-
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(2)
-        .expect("native differential tests live under tests/native-differential")
-        .to_path_buf()
-}
-
-fn fixture_package_identity(marker: u8) -> PackageKeyIdentity {
-    PackageKeyIdentity::from_digest([marker; 32])
-        .expect("window_demo fixture package identity is nonzero")
-}
+// One harness owns the bundled standard library's location, the fixture
+// package identities and the Console acceptance this target replays.
+#[path = "common/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
 
 /// Package inputs for `samples/gui/window_demo`: the root package bound to the
 /// sample directory plus the ordinary std dependency its `build.omg` declares.
@@ -51,41 +37,7 @@ fn window_demo_package_inputs(root_path: &Path) -> PackageCompilationInputs {
     let project_root = root_path
         .parent()
         .expect("window_demo source has a project root");
-    let declaration = extract_build_declaration(project_root)
-        .unwrap_or_else(|error| panic!("window_demo {}: {error}", project_root.display()));
-    let root_role = declaration.kind();
-    let root_name = match declaration {
-        BuildDeclaration::Application(application) => application.name,
-        BuildDeclaration::Package(package) => package.name,
-        BuildDeclaration::Workspace(_) => {
-            panic!(
-                "window_demo {} cannot be a workspace root",
-                project_root.display()
-            )
-        }
-    };
-    let root_identity = fixture_package_identity(1);
-    let standard_library_identity = fixture_package_identity(2);
-    let packages = vec![
-        PackageSourceBinding::new(
-            root_identity,
-            root_name.into_string(),
-            project_root.to_path_buf(),
-        ),
-        PackageSourceBinding::new(
-            standard_library_identity,
-            "omega-language-std",
-            repo_root().join("source/library/std"),
-        ),
-    ];
-    let dependencies = vec![PackageDependencyBinding::new(
-        root_identity,
-        "omega_language_std",
-        standard_library_identity,
-    )];
-
-    PackageCompilationInputs::new(root_identity, root_role, packages, dependencies)
-        .unwrap_or_else(|errors| panic!("window_demo {}: {errors:#?}", project_root.display()))
+    standard_library_package_inputs(project_root, 1, 2)
 }
 
 /// The package graph plus this harness's test acceptance of the exact std

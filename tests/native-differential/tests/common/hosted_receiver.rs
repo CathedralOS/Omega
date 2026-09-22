@@ -23,26 +23,6 @@ pub(crate) struct HostedEntry {
     pub signature: program_entry_plan::SelectedProgramEntrySourceSignature,
 }
 
-/// The source-to-checked ladder mirrors the shared fragment fixture: one
-/// source-free resolution, typed lowering, then settled checking.
-fn checked_source(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("check")
-}
-
 /// Re-derive the source signature the entry route admits: the terminal
 /// selection's own machine/state symbols, its normalized callable spelling,
 /// and the receiver's normalized type identity when the entry carries
@@ -227,7 +207,7 @@ pub(crate) fn compile_attached_entry(
     machine_name: &str,
     profile: target::TargetProfile,
 ) -> HostedEntry {
-    let checked = checked_source(source);
+    let checked = crate::front_end::checked_program(source);
     let signature = entry_signature(&checked, machine_name, profile);
     let container = fragment_container(&checked, machine_name, profile.native_target());
     let artifact = image_emission::build_function_fragment_object_artifact(Arc::clone(&container))
