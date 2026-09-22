@@ -101,7 +101,7 @@ pub(super) fn substitute_bound(
             | NormalizedBound::Projected { .. }
             | NormalizedBound::StorageProjected { .. } => None,
         },
-        NormalizedBound::Projected { symbol, segment } => match argument_bound(symbol)? {
+        NormalizedBound::Projected { symbol, segments } => match argument_bound(symbol)? {
             // `p.first` with `p` substituted by the argument names the
             // argument's same member place.
             NormalizedBound::Symbol {
@@ -109,7 +109,7 @@ pub(super) fn substitute_bound(
                 offset: 0,
             } => Some(NormalizedBound::Projected {
                 symbol: actual,
-                segment,
+                segments,
             }),
             _ => None,
         },

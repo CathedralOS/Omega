@@ -756,6 +756,130 @@ fn statement_call_indexed_actual_tokens_reject_changed_coordinates() {
     }
 }
 
+const STATEMENT_CALL_MEMBER_INDEXED_WINDOW: &str = r#"
+    data Main { items: [i32; 4]; pivot: [u64 [0..=4]; 4]; cut: u64 [0..=4]; }
+    machine ordain(slot: &mut u64 [0..=4]) ensures slot >= 2 { slot = 2; }
+    machine Main::main(&mut self) -> u64 {
+        self.pivot[2] = 0;
+        ordain(&mut self.pivot[2]);
+        let held: &mut [i32] = self.items[self.pivot[2]..4];
+        self.items[0] = 3;
+        held.len
+    }
+"#;
+
+#[test]
+fn statement_call_member_indexed_actual_certifies_disjoint_window_write() {
+    let mut checked = checked_program(STATEMENT_CALL_MEMBER_INDEXED_WINDOW);
+    let certificate = checked
+        .facts
+        .borrow
+        .mutation_certificates
+        .iter()
+        .map(|(_, certificate)| certificate)
+        .next()
+        .expect("one mutation certificate");
+    assert_eq!(
+        certificate.derivation,
+        checked_trees::BorrowCompatibilityDerivation::Premised
+    );
+    // `&mut self.pivot[2]` mints the multi-segment `Field + FixedIndex` path.
+    assert!(
+        certificate.premises.iter().any(|premise| matches!(
+            &premise.right,
+            checked_trees::BorrowCompatibilitySelectorValue::Segmented { segments, .. }
+                if matches!(
+                    segments.as_slice(),
+                    [
+                        facts::PlaceSegment::Field { .. },
+                        facts::PlaceSegment::FixedIndex { index: 2 },
+                    ]
+                )
+        )),
+        "the member-indexed premise records a two-segment bound: {:?}",
+        certificate.premises
+    );
+    crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+        .expect("member-indexed certificate replays its exact tokens");
+}
+
+#[test]
+fn statement_call_member_indexed_actual_rejects_foreign_weakened_or_rebound() {
+    for predicate in ["", "ensures slot >= 0 ", "ensures slot >= 2 || slot == 0 "] {
+        assert_conflict(
+            &STATEMENT_CALL_MEMBER_INDEXED_WINDOW.replace("ensures slot >= 2 ", predicate),
+        );
+    }
+    // A guarantee on a different element or a different member does not
+    // describe `self.pivot[2]`.
+    assert_conflict(
+        &STATEMENT_CALL_MEMBER_INDEXED_WINDOW
+            .replace("ordain(&mut self.pivot[2])", "ordain(&mut self.pivot[1])"),
+    );
+    assert_conflict(
+        &STATEMENT_CALL_MEMBER_INDEXED_WINDOW
+            .replace("ordain(&mut self.pivot[2])", "ordain(&mut self.cut)"),
+    );
+    // Re-establishing or rebinding the element retires the call's assertion.
+    assert_conflict(
+        &STATEMENT_CALL_MEMBER_INDEXED_WINDOW.replace("let held:", "self.pivot[2] = 0; let held:"),
+    );
+    assert_conflict(
+        &STATEMENT_CALL_MEMBER_INDEXED_WINDOW
+            .replace("let held:", "self.pivot[2] = self.pivot[1]; let held:"),
+    );
+    // A runtime (non-fixed) index is handle identity, not a coordinate the
+    // bound vocabulary can name; it stays unbound.
+    assert_conflict(&STATEMENT_CALL_MEMBER_INDEXED_WINDOW.replace(
+        "ordain(&mut self.pivot[2])",
+        "ordain(&mut self.pivot[self.cut])",
+    ));
+}
+
+#[test]
+fn statement_call_member_indexed_actual_tokens_reject_changed_coordinates() {
+    for change in 0..5 {
+        let mut checked = checked_program(STATEMENT_CALL_MEMBER_INDEXED_WINDOW);
+        let handle = checked
+            .facts
+            .borrow
+            .mutation_certificates
+            .iter()
+            .find_map(|(handle, certificate)| (!certificate.premises.is_empty()).then_some(handle))
+            .expect("premised mutation");
+        let certificate = checked.facts.borrow.mutation_certificates.get_mut(handle);
+        match change {
+            0 => certificate.premises.clear(),
+            4 => {
+                let checked_trees::BorrowCompatibilitySelectorValue::Segmented { segments, .. } =
+                    &mut certificate.premises[0].right
+                else {
+                    panic!("member-indexed premise records a segmented bound");
+                };
+                segments[1] = facts::PlaceSegment::FixedIndex { index: 1 };
+            }
+            _ => {
+                let checked_trees::BorrowCompatibilityPremiseSource::CallEnsures {
+                    fact,
+                    statement_index,
+                    call_ordinal,
+                    ..
+                } = &mut certificate.premises[0].source
+                else {
+                    panic!("call token");
+                };
+                match change {
+                    1 => *fact = arena::Handle::invalid(),
+                    2 => *statement_index += 1,
+                    3 => *call_ordinal += 1,
+                    _ => unreachable!(),
+                }
+            }
+        }
+        assert_replay_rejects(&mut checked);
+    }
+}
+
 #[test]
 fn projected_result_guarantee_certifies_disjoint_window_write() {
     let mut checked = checked_program(PROJECTED_RESULT_WINDOW);

@@ -123,12 +123,22 @@ fn assert_captured_adjacency(checked: &mut checked_trees::CheckedTrees, reverse:
         certificate
             .selector_snapshot
             .iter()
-            .map(|row| row.value)
+            .map(|row| row.value.clone())
             .collect::<Vec<_>>(),
         if reverse {
-            vec![Some(Integer(0)), boundary, boundary, Some(Integer(4))]
+            vec![
+                Some(Integer(0)),
+                boundary.clone(),
+                boundary,
+                Some(Integer(4)),
+            ]
         } else {
-            vec![boundary, Some(Integer(4)), Some(Integer(0)), boundary]
+            vec![
+                boundary.clone(),
+                Some(Integer(4)),
+                Some(Integer(0)),
+                boundary,
+            ]
         }
     );
     assert!(certificate.conclusion.disjoint);
