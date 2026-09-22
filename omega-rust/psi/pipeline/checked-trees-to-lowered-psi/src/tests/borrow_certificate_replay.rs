@@ -99,6 +99,20 @@ const STATEMENT_CALL_MEMBER_PREMISED_WRITE: &str = r#"
     }
 "#;
 
+const STATEMENT_CALL_INDEXED_PREMISED_WRITE: &str = r#"
+    data Main { items: [i32; 4]; }
+
+    machine ordain(slot: &mut u64 [0..=4]) ensures slot >= 2 { slot = 2; }
+
+    machine Main::main(&mut self, mut pivot: [u64 [0..=4]; 4]) -> u64 {
+        pivot[2] = 0;
+        ordain(&mut pivot[2]);
+        let held: &mut [i32] = self.items[pivot[2]..4];
+        self.items[0] = 3;
+        held.len
+    }
+"#;
+
 #[test]
 fn published_borrow_certificates_replay_at_the_lowering_boundary() {
     for source in [
@@ -108,6 +122,7 @@ fn published_borrow_certificates_replay_at_the_lowering_boundary() {
         STATEMENT_CALL_PREMISED_WRITE,
         PROJECTED_DOMAIN_PREMISED_WRITE,
         STATEMENT_CALL_MEMBER_PREMISED_WRITE,
+        STATEMENT_CALL_INDEXED_PREMISED_WRITE,
     ] {
         let checked = checked_source(source);
         assert!(

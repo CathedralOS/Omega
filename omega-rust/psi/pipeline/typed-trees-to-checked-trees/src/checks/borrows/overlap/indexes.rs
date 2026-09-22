@@ -762,6 +762,7 @@ pub(super) fn selector_bound(
                 .map(|symbol| NormalizedBound::Storage { symbol })
         })
         .or_else(|| projected_bound(program, expression))
+        .or_else(|| indexed_bound(program, expression))
 }
 
 /// The bound of one receiver-rooted field projection (`pair.first`). An
@@ -783,6 +784,23 @@ pub(super) fn projected_bound(
         _ => field,
     };
     let segment = facts::PlaceSegment::Field { symbol: field };
+    Some(if is_mutable {
+        NormalizedBound::StorageProjected { symbol, segment }
+    } else {
+        NormalizedBound::Projected { symbol, segment }
+    })
+}
+
+/// The bound of one fixed-index element place (`items[2]`). An immutable
+/// collection contributes the frozen element identity; a mutable collection
+/// contributes the element's storage coordinate under the same pin-evidence
+/// contract as `Storage`.
+pub(super) fn indexed_bound(
+    program: &typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<NormalizedBound> {
+    let (symbol, index, is_mutable) = validation::indexed_integer_bound_root(program, expression)?;
+    let segment = facts::PlaceSegment::FixedIndex { index };
     Some(if is_mutable {
         NormalizedBound::StorageProjected { symbol, segment }
     } else {

@@ -166,9 +166,16 @@ impl PremiseScope<'_> {
                                 // A member-of-self actual (`&mut self.cut`)
                                 // writes the projected coordinate: the bound
                                 // is that coordinate's post-call contents.
+                                // A fixed-element actual (`&mut items[2]`)
+                                // likewise writes one canonical element
+                                // coordinate; a runtime `Index` expression is
+                                // handle identity and stays unbound.
                                 (
                                     facts::PlaceRoot::Symbol(symbol),
-                                    [segment @ facts::PlaceSegment::Field { .. }],
+                                    [
+                                        segment @ (facts::PlaceSegment::Field { .. }
+                                        | facts::PlaceSegment::FixedIndex { .. }),
+                                    ],
                                 ) => Some(NormalizedBound::StorageProjected {
                                     symbol,
                                     segment: *segment,
