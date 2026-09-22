@@ -1,0 +1,166 @@
+{
+  "wave": "linw2-r4",
+  "drained_at": "2025-11-15T03:00Z",
+  "drain_reason": "user-requested wrap; no more looping",
+  "tank_model": "6 concurrent local subagents, paced refill via tools/swarm/fill.py ledger",
+  "slots": [
+    {
+      "slot": "evaluated-foreign-bindings",
+      "result": "landed + parked-superseded",
+      "commits": ["d5e8ceef51"],
+      "unpublished": ["d42d5a8eaa on swarm/linw2-evaluated-foreign-bindings — foreign_calls writer leg, superseded by upstream before landing"],
+      "item_closed": false,
+      "notes": "item reclaimed by parallel waves repeatedly; final leg parked as branch"
+    },
+    {
+      "slot": "crash-contract",
+      "result": "landed + handed off",
+      "commits": ["0066958407", "a64e174ca8", "6c5ac74efb", "062adb465a", "63163c7025", "ded56393da", "dbfc160332"],
+      "item_closed": false,
+      "notes": "fail-closed crash-contract joins; surface handed to zergling-113"
+    },
+    {
+      "slot": "custody-mutation-coverage",
+      "result": "landed, item complete",
+      "commits": ["5b663204d9", "3377dea23b", "23eb96315d"],
+      "item_closed": true,
+      "notes": "all 16 staged custody receipt families + offline manifest + shared substitution driver"
+    },
+    {
+      "slot": "proof-contract-migration",
+      "result": "landed, item closed upstream",
+      "commits": ["e0c88679ff", "b4715233c8"],
+      "item_closed": true,
+      "notes": "parse/elaboration legs; w9 landed equivalent elaboration in parallel, agent kept residual tests"
+    },
+    {
+      "slot": "arithmetic-policy-realization",
+      "result": "landed + walled",
+      "commits": ["1aa4ea28e0", "4133043eab", "20b85b23ed"],
+      "item_closed": false,
+      "notes": "modular conversion + Bool→int legs; remainder design-blocked on OWNER_QUESTIONS entry"
+    },
+    {
+      "slot": "symbolic-materialization",
+      "result": "landed + design-blocked",
+      "commits": ["533305219a", "23188e474f", "6a21a60893", "039ebae769"],
+      "item_closed": false,
+      "notes": "per-element/bit placement + closed-generic arrays; non-literal leg genuinely design-blocked"
+    },
+    {
+      "slot": "termination-ranking-checks",
+      "result": "landed",
+      "commits": ["836baca2", "79e13847bd"],
+      "item_closed": false,
+      "notes": "79e13847bd was landed by coordinator via landing.py after agent died on rate limit"
+    },
+    {
+      "slot": "proof-kernel-core",
+      "result": "landed + fenced",
+      "commits": ["465bc009", "6b65714271", "e17aa4e15b", "0c5db44fde", "cce9b4a9e4", "5246ff65f4"],
+      "item_closed": false,
+      "notes": "four denotation legs; re-fenced by w9-ffival mathematical_core claim until 09:00Z"
+    },
+    {
+      "slot": "translation-validation",
+      "result": "landed + roster-complete",
+      "commits": ["06ab218a05"],
+      "item_closed": false,
+      "notes": "intrinsic coverage roster-complete; remaining work gated on FRAME-LAYOUT"
+    },
+    {
+      "slot": "entry-content-roots",
+      "result": "landed, unfenced surface done",
+      "commits": ["0ca4939b4a", "7fb7cbf216", "164abfbbdb", "3a58d4f13f"],
+      "item_closed": false,
+      "notes": "exact Service<R> carrier resolution, diagnostics, residual spelling cleanup"
+    },
+    {
+      "slot": "borrowed-storage-restoration",
+      "result": "landed + fenced",
+      "commits": ["d6de647804", "c52d9c95da"],
+      "item_closed": false,
+      "notes": "borrowed-storage windows + optimizer pinning; producer leg TR3-fenced, native leg corp5-fenced"
+    },
+    {
+      "slot": "top-level-boundary-requirements",
+      "result": "landed via pivot",
+      "commits": ["25709a6870"],
+      "item_closed": false,
+      "notes": "item claimed mid-flight by z104; agent pivoted to glob-import repair; original paths fenced by w9-uefi"
+    },
+    {
+      "slot": "exact-machine-simplifications",
+      "result": "landed + converged",
+      "commits": ["5ae1ed1fe5", "55543b1847", "8d07935235", "d886a23b72"],
+      "item_closed": false,
+      "notes": "50/51 rewrite validators independent; last (bypass_relocation) sibling-held; catalog work handoff-gated"
+    },
+    {
+      "slot": "alias-aware-memory",
+      "result": "landed",
+      "commits": ["9637703955", "feec9f2a2d"],
+      "item_closed": false,
+      "notes": "load_forwarding independence + divergent-join merge forwarding; store-motion/dead-store legs remain"
+    },
+    {
+      "slot": "state-specialization",
+      "result": "landed + WIP-parked",
+      "commits": ["7b25940907", "6165a54d4d", "6a22e040fe", "52d95a9d76", "5c124263e8"],
+      "unpublished": ["bc6988638f on swarm/linw2-state-specialization — rep-spec variant-relevance leg interrupted mid-implementation at drain"],
+      "item_closed": false,
+      "notes": "state-spec complete through result specialization; pivoted to REPRESENTATION-SPECIALIZATION (case-membership + field-value landed); variant relevance + invariant window remain; WIP preserved"
+    },
+    {
+      "slot": "integer-division-entry-selection",
+      "result": "landed via pivot",
+      "commits": ["f44a1177ed"],
+      "item_closed": false,
+      "notes": "pivoted to orphan public entrance demotion (PIPELINE-ORPHAN-ENTRANCE-RESIDUE)"
+    },
+    {
+      "slot": "structural-borrow-identity",
+      "result": "never launched",
+      "commits": [],
+      "item_closed": false,
+      "notes": "item held by w9 throughout; manifest row kept for future wave"
+    },
+    {
+      "slot": "general-licm (coordinator)",
+      "result": "superseded + WIP-parked",
+      "commits": [],
+      "unpublished": ["309b9eb548 on park/linw2-general-licm-wip"],
+      "item_closed": false,
+      "notes": "upstream 576b9a76dc landed a strict superset of the EstablishTrivialAffineLocal leg; remaining work starts upstream in psi"
+    },
+    {
+      "slot": "tooling (coordinator)",
+      "result": "landed",
+      "commits": ["d74f2145b9"],
+      "item_closed": true,
+      "notes": "tools/swarm/fill.py slot ledger + planner + recover/sweep; paced-refill protocol in local-swarm skill"
+    }
+  ],
+  "parked_branches": {
+    "park/linw2-general-licm-wip": "superseded LICM implementation, WIP commit 309b9eb548",
+    "park/linw2-tpr6-preserve": "pre-wave preserve commit 34c3a7e405",
+    "swarm/linw2-declarative-peepholes": "2 unpublished commits (older parked work)",
+    "swarm/linw2-evaluated-foreign-bindings": "superseded foreign_calls writer d42d5a8eaa",
+    "swarm/linw2-nominal-field-flow": "unpublished parked work 889a14a01b",
+    "swarm/linw2-state-specialization": "landed rep-spec legs + variant-relevance WIP bc6988638f",
+    "swarm/linw2-tpr6": "1 unpublished commit decb78c0c6"
+  },
+  "friction": [
+    "shared model rate-limit: burst resumes of 5-6 handles repeatedly killed the whole wave; mitigated by fill.py ledger + paced refill (one action per block, resume-before-spawn)",
+    "claim churn: ~145-200 live claims from w9/zergling/Codex waves repeatedly fenced linw2 slots mid-flight; agents learned to pivot or park honestly",
+    "coordinator claims reaped twice during long implementations (c88b4584/82e12a2a, then again) — leases need renewal during multi-hour legs",
+    "disk pressure: 19 worktrees × ~8G target/ filled / to 100%; sweep freed ~135G",
+    "upstream drift: ElementView consumer sweep left optimization-unit-semantics red on main for a window; LICM had 7 pre-existing fixture failures from in-flight c2l claims",
+    "swarm/linw2-general-licm branch auto-deleted as 'landed' during drain — WIP commit was orphaned by an earlier reset --hard; recovered onto park/linw2-general-licm-wip"
+  ],
+  "totals": {
+    "landed_commits": 38,
+    "slots_run": 19,
+    "items_closed": 3
+  }
+}
