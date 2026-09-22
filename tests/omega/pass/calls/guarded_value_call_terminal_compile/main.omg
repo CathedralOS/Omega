@@ -2,7 +2,7 @@
 // (`dbl(x + 1)`), is evaluated inside the selected arm at its authored point
 // and compiles end to end on the native route; resolution synthesizes no
 // continuation state for it.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::service;
 data Main { console: Service<Console>; }
 machine dbl(x: i32 [0..=1001]) -> i32 {
