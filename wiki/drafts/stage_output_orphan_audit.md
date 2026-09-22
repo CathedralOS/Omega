@@ -2,7 +2,9 @@
 
 Two companion sweeps cover the placement rule's halves: whether each rule
 stage's produced route still has a named consumer, and whether every designed
-accessor channel on a stage product has an external reader.
+accessor channel on a stage product has an external reader. Delete this audit
+once the zero-reader accessors are pruned or kept by a representation-contract
+ruling.
 
 ## Produced-route consumers
 

@@ -4,7 +4,9 @@ Audit of every surface where a producer-written decision, annotation, or
 recorded disposition reaches a checker or consumer that must not trust it.
 Covers the mined `PRODUCER-CHECKER-*` cluster (BOUNDARY-AUDIT,
 DECISION-SEPARATION, DECISION-SHARING-AUDIT, SHARING-AUDIT) — those items
-name the same seam family and this ledger holds their union.
+name the same seam family and this ledger holds their union. Delete this
+ledger once that cluster closes and a permanent spec section owns the surface
+table.
 
 Verified at revision `12dea522b2` (2026-09-20, Linux x86_64) by reading the
 cited code and its existing negative tests; no new test was needed because

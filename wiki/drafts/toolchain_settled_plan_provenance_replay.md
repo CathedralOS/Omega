@@ -2,6 +2,8 @@
 
 Status: diagnosis record with a handoff, not a repair. The fix is a design
 choice inside the provider-settlement feature and belongs to that lane.
+Delete this record once that lane makes minted toolchain-settled plans pass
+provenance replay.
 
 All measurements on macOS arm64 with ONE pinned `dev` binary built at
 `d782d2a5ee`. Cross-run comparison in this family is only valid against a

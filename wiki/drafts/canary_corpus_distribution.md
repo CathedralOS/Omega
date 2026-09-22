@@ -5,7 +5,9 @@ linux x86-64 — how the authored corpus divides across capability groups and
 outcome suffixes. This is a snapshot record: the corpus changes per landing,
 so the counts carry the revision they were measured at. Refresh by re-running
 the enumeration below on a later HEAD and replacing the tables wholesale —
-do not append dated copies of the same table.
+do not append dated copies of the same table. Delete this census once a
+generated inventory report carries these counts beside the roster tests that
+already pin the corpus.
 
 Revision: `bb192d7ea9eb` (origin/main at measurement time, 2026-09-21).
 Host: linux x86-64. Method: directory enumeration of

@@ -5,6 +5,8 @@ coarse boundary rows into per-stage rows — finer in-Psi rows need a Psi-owned
 timing carrier because `terminal-production` cannot depend on `artifacts`
 under `psi_does_not_depend_on_omega`"). This draft records the carrier design
 the row asks for, what is already landed, and the one remaining call-site leg.
+Delete this draft once the prepared-project route threads the timings flag and
+COMPILER-PASS-PROFILE-TIMINGS closes.
 
 ## Constraint
 

@@ -6,7 +6,8 @@ command, revision, and failure set — instead of re-running a stash baseline.
 Refresh or remove a row when its failures are fixed or when a task's diff could
 plausibly interact with them; a listed failure does not excuse an unexplained
 failure in affected behavior, and this file is not validation policy (see
-[AGENTS.md](../../AGENTS.md#validation-scope)).
+[AGENTS.md](../../AGENTS.md#validation-scope)). Delete this draft when no row
+survives — every listed failure fixed or re-attributed to a task diff.
 
 Rows verified by independent stash-baseline reproduction at revision
 `8220f55febc1` on 2026-09-13, macOS arm64, unless noted otherwise.

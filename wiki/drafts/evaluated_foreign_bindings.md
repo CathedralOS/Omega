@@ -10,7 +10,9 @@ The recipe exists because the producing chain for privileged port effects is
 the missing slice, and every producing surface is fenced — by sibling board
 items or by live claims (see the fence map). Resume by claiming the producing
 surface again (or coordinating with its holder): `claim` on a contested path
-returns exit 2 while it is live.
+returns exit 2 while it is live. Delete this recipe once the producer legs
+land and a port-bearing artifact retains its exact effects through native
+replay.
 
 ## Landed state — do not rebuild
 

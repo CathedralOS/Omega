@@ -4,7 +4,9 @@ Status: measurement record, not a design or implementation task. Distills the
 instrumented evidence behind the `checked-trees-to-lowered-psi` member that
 never returns, for whatever lane picks up the open asymptotic centre. Every
 number below is copied from measurements recorded on the C2L blowup row; the
-hotspots are load-bearing facts, not hypotheses.
+hotspots are load-bearing facts, not hypotheses. Delete this record once
+hotspot 2 is repaired and the subject fixture returns a verdict under an
+ordinary test timeout.
 
 Subject fixture:
 `nominal_affine_source::integer_comparison::mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`.

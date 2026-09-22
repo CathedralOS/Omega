@@ -8,7 +8,9 @@ means a `HashMap`/`BTreeMap` keyed by a `str`/`String`/identifier that resolves
 program declarations — the role the scoped `SymbolTable` already owns. Maps
 keyed by handles, source coordinates, canonical identities, or runtime binder
 names are data-plane storage, not declaration lookup, and are enumerated only
-where they could be mistaken for the covered kind.
+where they could be mistaken for the covered kind. Delete this audit once
+`tests/architecture/scoped_lookup_maps.rs` and its key-domain catalog carry
+every justification recorded here.
 
 ## Method
 

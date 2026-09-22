@@ -10,6 +10,8 @@ because the work is unclear: at snapshot, both mirror files sit inside
 `NEW-NF-LEGALIZER-AGGREGATE-SOURCE-CUSTODY` (Devin / z56, expires
 2026-09-21T13:34Z). Resume by claiming that surface again (or coordinating
 with its holder) — `claim` on the two paths returns exit 2 while it is live.
+Delete this recipe once legalization and selection admit the owned-aggregate
+and descriptor argument classes with their mirrored witnesses.
 
 ## Landed state — do not rebuild
 

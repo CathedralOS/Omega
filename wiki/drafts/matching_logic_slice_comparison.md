@@ -2,6 +2,7 @@
 
 Status: both columns measured; the metrics aggregation axis stays pending on `MATCHING-LOGIC-COMPARISON-METRICS` (tools/matching-logic-metrics).
 Method and checklist: [matching_logic.md](matching_logic.md). Regenerate: `python3 tools/matching-logic-slice-comparison/compare.py`.
+Delete this record once the metrics aggregation column lands and the `bag_view` divergence resolves.
 
 ## Provenance
 

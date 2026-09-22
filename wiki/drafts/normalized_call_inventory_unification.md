@@ -8,7 +8,9 @@ shape. Extend the ordinary `Call` and its explicit result custody with
 argument classes and callee sources realized by the target's calling
 policy as native descriptor support lands. Preserve the foreign
 formal-order mapping and independent checks; do not introduce another
-call family for each newly supported signature combination."
+call family for each newly supported signature combination." Delete this
+design once the unified `Call` lands and the eight retired variants leave
+`TargetUnitOperation`.
 
 ## Problem
 

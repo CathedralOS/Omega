@@ -4,6 +4,8 @@ Status: design for the open asymptotic centre of the C2L conjunct-lowering
 cliff. The measurement record is `wiki/drafts/c2l_conjunct_lowering_cliff.md`;
 the owning row's acceptance is unchanged — the unreduced fixture terminates
 with a verdict under an ordinary test timeout with **no obligation abandoned**.
+Delete this design once the projection lands and the cliff record's hotspot 2
+is closed.
 
 ## What is being rebuilt today
 

@@ -6,7 +6,8 @@ method: sequential runs on an otherwise idle checkout, wall-clock `time` around
 each invocation, no concurrent agent-owned builds or tests. Where the earlier
 note measured Windows scheduling samples, this page measures the selector's
 three input classes and the selected-versus-full execution gap on a single
-host.
+host. Delete this page once a later remeasurement supersedes these figures or
+the slow-tail exclusion policy is decided.
 
 ## Scope
 

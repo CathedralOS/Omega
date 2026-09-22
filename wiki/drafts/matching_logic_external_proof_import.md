@@ -5,6 +5,8 @@ Bounded-comparison leg drafted by
 with its exact source axiom closure and checked proof-object translation.*
 Semantic expressibility alone is insufficient — the imported object must be
 replayed by the local checker, and its axiom closure is part of the evidence.
+Delete this draft once the bounded comparison reaches a verdict on the
+matching-logic route, or when the importer is retired.
 
 Tool: `tools/matching-logic-external-proof-import/external_proof_import.py`
 (Python 3.9+, standard library only). It reads a foreign flat-step export

@@ -5,7 +5,8 @@ process adapter → image entry symbol → container header entry field → host
 process execution — read against the board row
 `BACKEND-RUNTIME-STARTUP-ENTRY-MECHANICS` ("Host acceptance on
 macOS/Windows/QEMU remains a host leg") and the mined stubs
-PHYSICAL-ENTRY-BRIDGES / PHYSICAL-ENTRY-END-TO-END.
+PHYSICAL-ENTRY-BRIDGES / PHYSICAL-ENTRY-END-TO-END. Delete this audit once the
+macOS, Windows, and QEMU/arm64 host legs report their own runs on that row.
 
 ## Route
 

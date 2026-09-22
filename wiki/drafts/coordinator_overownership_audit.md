@@ -23,7 +23,8 @@ Method: enumerate `src/` top-level files and module directories per crate,
 read each entry file and the largest submodules, and classify the resident
 code as *forwards* (constructs requests, sequences typed calls, carries
 results) or *owns* (contains the algorithm, policy table, or formatting
-logic itself).
+logic itself). Delete this audit once F2, F3 and F4 are relocated by their
+sibling board items, or when a later sweep supersedes it.
 
 ## Verdicts
 

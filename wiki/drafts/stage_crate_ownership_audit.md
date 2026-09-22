@@ -17,7 +17,9 @@ module trees were audited clean, and entrance connectivity is now enforced by
 `tests/architecture/stage_crate_ownership.rs` rather than catalogued. This leg
 classifies the *module inventory* of each stage crate — every top-level `src/`
 entry is declared transform, declared private working state, or foreign
-(representation data, semantics algorithms, backend detail).
+(representation data, semantics algorithms, backend detail). Delete this audit
+once F1 through F5 are boarded or repaired, or when a later ownership sweep
+supersedes it.
 
 ## Method
 
