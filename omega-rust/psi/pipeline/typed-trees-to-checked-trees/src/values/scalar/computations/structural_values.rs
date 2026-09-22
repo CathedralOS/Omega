@@ -166,6 +166,26 @@ pub(super) fn is_borrowed_slice_view_value(
         .is_some()
 }
 
+/// A LocalData initializer whose declared type is a fixed array of structural
+/// elements spelled as a literal. Primitive arrays keep their scalar-element
+/// route; structural elements each register their own value node, the same
+/// way record fields do inside a constructor.
+pub(super) fn is_fixed_array_value(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    expected: TypeReferenceHandle,
+) -> bool {
+    matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::ArrayLiteral(_)
+    ) && validation::unwrapped_type_reference(program, expected).is_some_and(|reference| {
+        matches!(
+            program.type_reference_table.type_reference(reference),
+            typed_trees::types::TypeReferenceNode::FixedArray { .. }
+        )
+    }) && !validation::is_closed_primitive_array_type(program, expected)
+}
+
 /// The element type of an owned or borrowed contiguous collection place.
 /// A fixed array declares its extent and a slice carries a stored one; both
 /// lend the same elements, so both can back a view.
@@ -447,6 +467,10 @@ impl Builder<'_, '_> {
             && literal.case_symbol.is_none()
         {
             self.record_value(expression, expected, values, pure)?
+        } else if let ExpressionNode::ArrayLiteral(literal) =
+            self.program.expression_table.expression(expression)
+        {
+            self.fixed_array_value(expected, *literal, values, pure)?
         } else if let Some(symbol) =
             validation::scalar_case_value_source(self.program, expression, expected)
         {
@@ -970,6 +994,38 @@ impl Builder<'_, '_> {
                 .into_string(),
             access: checked_trees::CheckedStructuralAccess::Owned,
         })
+    }
+
+    /// Element-wise array literal establishment: each element registers as
+    /// its own structural value under the declared element type, exactly as
+    /// record fields do inside a constructor.
+    fn fixed_array_value(
+        &mut self,
+        expected: TypeReferenceHandle,
+        literal: arena::HandleSpan<ExpressionHandle>,
+        values: &mut CheckedStructuralValuePlans,
+        pure: &CheckedScalarExpressionPlans,
+    ) -> Option<CheckedStructuralValueKind> {
+        if validation::is_closed_primitive_array_type(self.program, expected) {
+            return None;
+        }
+        let reference = validation::unwrapped_type_reference(self.program, expected)?;
+        let TypeReferenceNode::FixedArray { element_type, .. } = self
+            .program
+            .type_reference_table
+            .type_reference(reference)
+        else {
+            return None;
+        };
+        let mut elements = Vec::new();
+        for element in self
+            .program
+            .expression_table
+            .expression_handles(literal)
+        {
+            elements.push(self.structural_value(*element, *element_type, values, pure)?);
+        }
+        Some(CheckedStructuralValueKind::FixedArray { elements })
     }
 
     fn record_value(

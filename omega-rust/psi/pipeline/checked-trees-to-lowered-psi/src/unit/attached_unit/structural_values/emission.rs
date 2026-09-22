@@ -648,6 +648,12 @@ impl Emission<'_, '_, '_> {
                 }
                 Ok(place)
             }
+            // Terminal Psi has no owned structural-array establishment
+            // operation yet, so a fixed array of owned elements rejects here
+            // instead of losing element custody.
+            CheckedStructuralValueKind::FixedArray { .. } => {
+                unsupported("fixed array literal has no Terminal establishment")
+            }
             CheckedStructuralValueKind::Call { .. } => {
                 let mut matching = self.operand_calls.iter().filter(|call| call.value == value);
                 let call = matching.next().ok_or(LoweringError::Unsupported(

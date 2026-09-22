@@ -327,6 +327,13 @@ pub(super) fn has_statement_shape(
                     .primitive_type_reference(local.type_reference)
                     .is_some()
                     || has_structural_result(program, facts, machine, statement)
+                    || u32::try_from(index).ok().is_some_and(|ordinal| {
+                        facts
+                            .values
+                            .structural_values
+                            .root_at(state.symbol, ordinal)
+                            .is_some()
+                    })
                     || borrow_aliases
                         .iter()
                         .any(|alias| alias.owner == local.symbol)
@@ -1978,6 +1985,9 @@ fn consume_value_places(
                     }
                     consume_result(operations, result.binding_ordinal, argument.access, true)?;
                 }
+            }
+            checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
+                pending.extend(elements.iter().copied());
             }
             checked_trees::CheckedStructuralValueKind::Reference { .. }
             | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
