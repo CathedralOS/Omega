@@ -3,6 +3,9 @@
 
 use proof_admission::{AdmissionProfile, EvidenceRoute, PrimitiveJudgment};
 use terminal_codec::CanonicalTerminalArtifact;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_psi::{OperationKind, TerminalRankedScc};
 use terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact};
 
@@ -58,7 +61,15 @@ fn produce_candidate(
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap_or_else(|error| panic!("check scalar cycle: {error:#?}\n{source}"));
-    terminal_production::TerminalProductionRequest::new(&checked, entry).produce_artifact()
+    terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name(entry),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .map(|produced| produced.into_artifact())
+    .map_err(|error| error.into_parts().0)
 }
 
 fn produce(source: &str, ranked: bool) -> CanonicalTerminalArtifact {

@@ -10,6 +10,9 @@ use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_psi::{OperationKind, StructuralAccess};
 use tokens_to_syntax_trees::parse_syntax_trees;
 
@@ -67,9 +70,15 @@ fn borrowed_primitive_local_read_observes_the_callee_write() {
         }
     "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
-        .produce_artifact()
-        .expect("borrowing local storage must preserve the callee's write for a later read");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("borrowing local storage must preserve the callee's write for a later read")
+    .into_artifact();
     execute_with_expectations(
         &artifact,
         &[],
@@ -87,9 +96,15 @@ fn borrowed_primitive_local_read_observes_the_callee_write() {
 #[test]
 fn borrowed_scalar_callee_and_returned_value_reach_the_callers_closure() {
     let checked = checked(SOURCE);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
-        .produce_artifact()
-        .expect("borrowed scalar callee belongs to the ordinary shared call closure");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("borrowed scalar callee belongs to the ordinary shared call closure")
+    .into_artifact();
     execute(&artifact, &[], 7);
 }
 
@@ -107,9 +122,15 @@ fn immutable_snapshot_precedes_the_call_and_fresh_local_read_observes_zero() {
         }
     "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     execute_with_expectations(
         &artifact,
         &[],
@@ -137,9 +158,15 @@ fn local_overwrite_commits_the_returned_scalar_before_a_fresh_read() {
         }
     "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     execute_with_expectations(
         &artifact,
         &[],
@@ -172,9 +199,15 @@ fn repeated_calls_keep_distinct_local_referents_and_charge_each_invocation() {
         }
     "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert_eq!(
         module.machines.len(),
@@ -199,9 +232,15 @@ fn repeated_calls_keep_distinct_local_referents_and_charge_each_invocation() {
 fn unused_primitive_local_still_establishes_once_and_cannot_be_removed_or_duplicated() {
     let original =
         checked("machine enter(value: &mut u64) { let mut unused: u64 = 13; value = 7; }");
-    let artifact = terminal_production::TerminalProductionRequest::new(&original, "enter")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     execute_with_expectations(
         &artifact,
         &[],
@@ -229,9 +268,14 @@ fn unused_primitive_local_still_establishes_once_and_cannot_be_removed_or_duplic
             operations.remove(0);
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "enter")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("enter")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "unused establishment roster mutation, duplicate={duplicate}"
         );
     }
@@ -250,9 +294,15 @@ const TWO_LOCAL_SOURCE: &str = r#"
 #[test]
 fn primitive_local_initializer_cannot_move_after_its_borrow_or_use_another_symbol() {
     let original = checked(TWO_LOCAL_SOURCE);
-    let artifact = terminal_production::TerminalProductionRequest::new(&original, "enter")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     execute_with_expectations(
         &artifact,
         &[],
@@ -318,9 +368,14 @@ fn primitive_local_initializer_cannot_move_after_its_borrow_or_use_another_symbo
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "enter")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("enter")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "primitive declaration/borrow custody mutation {mutation}"
         );
     }
@@ -329,9 +384,15 @@ fn primitive_local_initializer_cannot_move_after_its_borrow_or_use_another_symbo
 #[test]
 fn primitive_storage_read_cannot_substitute_another_symbol_initializer_or_scalar_binding() {
     let original = checked(TWO_LOCAL_SOURCE);
-    let _ = terminal_production::TerminalProductionRequest::new(&original, "enter")
-        .produce_artifact()
-        .expect("original storage read");
+    let _ = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("original storage read")
+    .into_artifact();
     let caller_index = ordinary_body_index(&original, "enter");
     let caller_state = original.facts.flow.terminal_unit_effects.machines[caller_index].state;
     for (mutation, synchronize_expression) in
@@ -418,9 +479,14 @@ fn primitive_storage_read_cannot_substitute_another_symbol_initializer_or_scalar
             expression.expression = replacement;
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "enter")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("enter")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "storage read custody mutation {mutation}, synchronized expression={synchronize_expression}"
         );
     }
@@ -429,9 +495,15 @@ fn primitive_storage_read_cannot_substitute_another_symbol_initializer_or_scalar
 #[test]
 fn primitive_local_plan_cannot_grant_mutability_to_an_immutable_authored_binding() {
     let mut changed = checked(TWO_LOCAL_SOURCE);
-    let _ = terminal_production::TerminalProductionRequest::new(&changed, "enter")
-        .produce_artifact()
-        .expect("original mutable local");
+    let _ = terminal_production::TerminalProductionRequest::new(
+        &changed,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("original mutable local")
+    .into_artifact();
     let caller_index = ordinary_body_index(&changed, "enter");
     let state_symbol = changed.facts.flow.terminal_unit_effects.machines[caller_index].state;
     let statements = changed
@@ -449,9 +521,14 @@ fn primitive_local_plan_cannot_grant_mutability_to_an_immutable_authored_binding
     assert!(local.is_mutable);
     local.is_mutable = false;
     assert!(
-        terminal_production::TerminalProductionRequest::new(&changed, "enter")
-            .produce_artifact()
-            .is_err()
+        terminal_production::TerminalProductionRequest::new(
+            &changed,
+            TerminalMachineSelection::Name("enter")
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default()
+        ))
+        .is_err()
     );
 }
 
@@ -468,9 +545,15 @@ fn pure_call_argument_replays_its_authored_local_even_when_cached_and_plan_reads
         }
     "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&original, "enter")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let caller = module
         .machines
@@ -570,9 +653,14 @@ fn pure_call_argument_replays_its_authored_local_even_when_cached_and_plan_reads
             cached_row.expression = substituted;
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "enter")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("enter")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "same-typed consume argument substitution, synchronized expression={synchronize_expression}"
         );
     }
@@ -776,9 +864,15 @@ fn scalar_parameters_and_write_only_reborrows_keep_their_authored_positions() {
     let checked = checked(
         "machine reset(value: &write u64, returned: u64) -> u64 { value = 0; returned } machine enter(value: &mut u64, returned: u64) { let replacement: u64 = reset(&write value, returned); value = replacement; }",
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     execute(&artifact, &[unsigned(37)], 37);
 }
 
@@ -787,9 +881,15 @@ fn unrelated_structural_return_bodies_do_not_join_the_selected_call_catalog() {
     let source = format!(
         "{SOURCE} data Unused {{}} machine Unused::reset(value: &mut bool) -> bool {{ value = false; true }}"
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked(&source), "enter")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked(&source),
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert_eq!(module.machines.len(), 2);
     assert_eq!(module.structural_types.len(), 1);
@@ -809,9 +909,15 @@ fn attached_callee_uses_the_shared_catalogs_nested_type_and_field_identities() {
         }
     "#;
     let checked = checked(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Earlier::enter")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Earlier::enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     execute(&artifact, &[], 7);
 }
 
@@ -839,9 +945,14 @@ fn borrowed_scalar_call_rejects_missing_duplicated_or_substituted_callee_custody
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "enter")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("enter")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "callee custody mutation {mutation}"
         );
     }
@@ -852,9 +963,15 @@ fn same_typed_borrowed_parameter_cannot_replace_the_authored_actual() {
     let mut checked = checked(
         "machine reset(value: &mut u64) -> u64 { value = 0; 7 } machine enter(first: &mut u64, second: &mut u64) { let returned: u64 = reset(&mut first); }",
     );
-    let _ = terminal_production::TerminalProductionRequest::new(&checked, "enter")
-        .produce_artifact()
-        .expect("original borrowed actual");
+    let _ = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("original borrowed actual")
+    .into_artifact();
     let caller = checked
         .facts
         .flow
@@ -880,9 +997,14 @@ fn same_typed_borrowed_parameter_cannot_replace_the_authored_actual() {
     structural_arguments[0].source =
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 };
     assert!(
-        terminal_production::TerminalProductionRequest::new(&checked, "enter")
-            .produce_artifact()
-            .is_err()
+        terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("enter")
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default()
+        ))
+        .is_err()
     );
 }
 
@@ -910,9 +1032,14 @@ fn caller_store_cannot_substitute_a_literal_for_the_returned_value() {
     };
     *value = zero;
     assert!(
-        terminal_production::TerminalProductionRequest::new(&checked, "enter")
-            .produce_artifact()
-            .is_err()
+        terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("enter")
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default()
+        ))
+        .is_err()
     );
 }
 
@@ -942,9 +1069,14 @@ fn caller_store_roster_rejects_deleted_duplicate_or_stale_assignment_sites() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "enter")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("enter")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "store roster mutation {mutation}"
         );
     }
@@ -955,17 +1087,28 @@ fn an_unused_scalar_result_cannot_erase_its_callees_borrowed_write() {
     let mut checked = checked(
         "machine reset(value: &mut u64) -> u64 { value = 0; 7 } machine enter(value: &mut u64) { let returned: u64 = reset(&mut value); }",
     );
-    let _ = terminal_production::TerminalProductionRequest::new(&checked, "enter")
-        .produce_artifact()
-        .expect("unused result still calls");
+    let _ = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("unused result still calls")
+    .into_artifact();
     let caller_index = ordinary_body_index(&checked, "enter");
     checked.facts.flow.terminal_unit_effects.machines[caller_index]
         .operations
         .remove(0);
     assert!(
-        terminal_production::TerminalProductionRequest::new(&checked, "enter")
-            .produce_artifact()
-            .is_err()
+        terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("enter")
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default()
+        ))
+        .is_err()
     );
 }
 
@@ -984,9 +1127,15 @@ fn ordinary_borrowed_scalar_body_replays_store_result_and_completion_custody() {
     legacy.remove(0);
     // This actually executes the fallback, including the borrowed zero store
     // followed by the scalar seven returned into the caller's second store.
-    let artifact = terminal_production::TerminalProductionRequest::new(&original, "enter")
-        .produce_artifact()
-        .expect("complete ordinary borrowed scalar body");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("complete ordinary borrowed scalar body")
+    .into_artifact();
     execute(&artifact, &[], 7);
     let plan = &original.facts.flow.terminal_unit_effects.machines[callee_index];
     assert!(matches!(
@@ -1027,9 +1176,14 @@ fn ordinary_borrowed_scalar_body_replays_store_result_and_completion_custody() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "enter")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("enter")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "consumed ordinary callee custody mutation {mutation}"
         );
     }

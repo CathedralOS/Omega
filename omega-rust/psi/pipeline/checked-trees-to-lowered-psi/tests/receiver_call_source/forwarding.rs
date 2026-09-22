@@ -9,6 +9,9 @@ use super::{
 };
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 #[test]
 fn transitive_write_only_self_calls_retain_receivers_in_every_declaration_order() {
     let declarations = [
@@ -77,10 +80,15 @@ fn transitive_write_only_self_calls_retain_receivers_in_every_declaration_order(
             );
         }
 
-        let artifact =
-            terminal_production::TerminalProductionRequest::new(&checked, "Record::outer")
-                .produce_artifact()
-                .expect("transitive receiver chain reaches canonical Terminal production");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Record::outer"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("transitive receiver chain reaches canonical Terminal production")
+        .into_artifact();
         drop(checked);
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
@@ -247,9 +255,15 @@ fn empty_shared_receiver_callee_keeps_provisional_self_erased() {
         assert_eq!(*target_machine, callee.machine);
         assert!(structural_arguments.is_empty());
 
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "invoke")
-            .produce_artifact()
-            .expect("erased shared noop receiver reaches Terminal production");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("invoke"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("erased shared noop receiver reaches Terminal production")
+        .into_artifact();
         drop(checked);
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();

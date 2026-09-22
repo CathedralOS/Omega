@@ -3,6 +3,9 @@ use semantic_vocabulary::IeeeFloatValue;
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[cfg(any(
     all(
@@ -28,9 +31,15 @@ fn assert_source_free_scalar_result(
     machine: &str,
     expected: TerminalScalarValue,
 ) {
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, machine)
-        .produce_artifact()
-        .expect("machine-computed constant reaches Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name(machine),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("machine-computed constant reaches Terminal")
+    .into_artifact();
     drop(checked);
     assert_eq!(
         interpret_terminal_artifact(
@@ -779,8 +788,14 @@ fn assert_exact_arithmetic_rejected(root: &std::path::Path, context: &str) {
     )) {
         Err(diagnostics) => assert!(!diagnostics.is_empty(), "{context}"),
         Ok(checked) => {
-            let result = terminal_production::TerminalProductionRequest::new(&checked, "read")
-                .produce_artifact();
+            let result = terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("read"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .map(|produced| produced.into_artifact());
             assert!(
                 result.is_err(),
                 "{context}: invalid Exact arithmetic published {result:?}"
@@ -837,9 +852,15 @@ fn assert_native_result_after_source_removal(
     optimizations: &[optimization_core::Optimization],
 ) {
     let checked = compile(&root, root_inputs(&root));
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
-        .produce_artifact()
-        .expect("checked constant reaches Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("read"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("checked constant reaches Terminal")
+    .into_artifact();
     let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
         .expect("reload independent Terminal artifact");
     drop(checked);

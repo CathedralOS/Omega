@@ -5,6 +5,9 @@
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use std::path::PathBuf;
 use terminal_interpreter::{TerminalExecutionResult, TerminalScalarValue};
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[cfg(any(
     all(
@@ -77,9 +80,15 @@ fn assert_source_free_execution(
         None,
     ))
     .expect("the unchanged guarded-operator customer checks");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, selected_machine)
-        .produce_artifact()
-        .expect("selected operator and enclosing call retain verified crash contracts");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name(selected_machine),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("selected operator and enclosing call retain verified crash contracts")
+    .into_artifact();
     let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
         .expect("reload independent Terminal artifact");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();

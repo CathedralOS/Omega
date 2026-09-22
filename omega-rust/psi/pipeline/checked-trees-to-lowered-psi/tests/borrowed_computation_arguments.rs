@@ -7,6 +7,9 @@ use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
@@ -44,9 +47,15 @@ fn execute_with_arguments(
     expected_borrow_calls: u64,
 ) {
     let checked = checked(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
-        .produce_artifact()
-        .expect("nested primitive borrow reaches the existing Terminal call closure");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("nested primitive borrow reaches the existing Terminal call closure")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let caller = module
         .machines
@@ -393,9 +402,14 @@ fn folded_prefix_preserves_a_nested_mutable_condition() {
         };
         *source_expression = replacement;
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "enter")
-                .produce_artifact()
-                .is_err()
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("enter")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err()
         );
     }
 }
@@ -414,9 +428,15 @@ fn comparison_operand_cannot_substitute_a_different_mutable_read() {
         }
     "#,
     );
-    let _artifact = terminal_production::TerminalProductionRequest::new(&original, "enter")
-        .produce_artifact()
-        .unwrap();
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let caller = original
         .machines()
         .iter()
@@ -460,8 +480,13 @@ fn comparison_operand_cannot_substitute_a_different_mutable_read() {
     }
     assert!(mutations > 0);
     assert!(
-        terminal_production::TerminalProductionRequest::new(&changed, "enter")
-            .produce_artifact()
-            .is_err()
+        terminal_production::TerminalProductionRequest::new(
+            &changed,
+            TerminalMachineSelection::Name("enter")
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default()
+        ))
+        .is_err()
     );
 }

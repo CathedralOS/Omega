@@ -9,6 +9,9 @@ use std::{
     path::PathBuf,
     sync::atomic::{AtomicU64, Ordering},
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 static NEXT_PROJECT: AtomicU64 = AtomicU64::new(0);
 
@@ -103,9 +106,15 @@ fn runtime_remainder_endpoint_reaches_terminal_and_native_execution() {
     "#,
     );
     let checked = project.check().expect("runtime remainder endpoint checks");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "walk")
-        .produce_artifact()
-        .expect("countdown reaches source-free Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("walk"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("countdown reaches source-free Terminal")
+    .into_artifact();
     drop(checked);
     drop(project);
     assert_eq!(

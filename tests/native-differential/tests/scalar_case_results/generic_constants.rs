@@ -1,6 +1,9 @@
 //! Closed generic constant invocations reach native execution without source.
 
 use super::{CanonicalTerminalArtifact, NativeTarget, membership, publish};
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 struct Sources(std::path::PathBuf);
 
@@ -48,9 +51,15 @@ fn assert_native_source(
     .unwrap();
     let checked = compiler::compile_to_checked(compiler::CheckedCompileRequest::new(&root, None))
         .expect("closed generic constant passes ordinary source compilation");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read_constant")
-        .produce_artifact()
-        .expect("generic constant reaches Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("read_constant"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("generic constant reaches Terminal")
+    .into_artifact();
     let artifact = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
     drop(checked);
     drop(sources);

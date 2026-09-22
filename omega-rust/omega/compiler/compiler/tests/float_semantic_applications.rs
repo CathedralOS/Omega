@@ -7,6 +7,9 @@ use numerics::float_semantics_catalog::{
     FLOAT_SEMANTICS_NAMESPACE, FloatSemanticOperation, FloatSemanticValueKind,
 };
 use semantic_vocabulary::IeeeFloatFormat;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_psi::{
     DirectMachineFloatParameter, FloatMeaningProjection, FloatMeaningProjectionOperation,
     FloatMeaningSource, FloatProjectionContractIdentity, FloatSemanticApplication,
@@ -87,9 +90,15 @@ fn compile_source(
 
 fn source_free_module() -> TerminalModule {
     let checked = compile_source("machine read(value: f32) -> f32 { value }").unwrap();
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("read"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let bytes = artifact.to_bytes();
     drop(artifact);
     drop(checked);
@@ -262,9 +271,15 @@ fn produced_artifact_verifies_authored_float_meaning_ensures() {
          { 7 }",
     )
     .unwrap();
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("read"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let bytes = artifact.to_bytes();
     let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();

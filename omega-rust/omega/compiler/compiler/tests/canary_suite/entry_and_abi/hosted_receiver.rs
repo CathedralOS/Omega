@@ -8,6 +8,9 @@ use crate::{
     repo_root, unique_no_output_build_dir,
 };
 use compiler::CheckedCompileRequest;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 struct HostedProject(PathBuf);
 
 impl Drop for HostedProject {
@@ -514,13 +517,21 @@ fn assert_erased_service_settlement_requires_its_source_row(root: &Path) {
             .expect("check the actual core service carrier and selected provider");
     let selected = checked.selected_program_entry().unwrap();
     let source = selected.source_signature();
-    let produced = terminal_production::TerminalProductionRequest::for_machine_symbol(
+    let produced = terminal_production::TerminalProductionRequest::new(
         &checked,
-        source.machine_symbol(),
+        TerminalMachineSelection::Symbol(source.machine_symbol()),
     )
-    .produce_program_entry(source.identity().bytes())
+    .produce(TerminalProductionCustody {
+        entry_identity: Some(source.identity().bytes()),
+        callback_custody: (),
+        timings: &mut TerminalProductionTimings::default(),
+    })
     .unwrap();
-    let eligible = produced.receipt().receiver_eligibility().unwrap();
+    let eligible = produced
+        .receipt()
+        .expect("entry receipt")
+        .receiver_eligibility()
+        .unwrap();
     assert!(matches!(
         eligible.projection(),
         terminal_psi::CheckedProgramEntryReceiverProjection::Erased { .. }
@@ -541,7 +552,7 @@ fn assert_erased_service_settlement_requires_its_source_row(root: &Path) {
     assert_eq!(rows.len(), 1);
     native_realization::validate_native_program_entry_settlement(
         produced.artifact(),
-        produced.receipt(),
+        produced.receipt().expect("entry receipt"),
         native_realization::NativeProgramEntrySettlement::new(source, calling_plans, rows),
         target::NativeTarget::macos_arm64(),
     )
@@ -549,7 +560,7 @@ fn assert_erased_service_settlement_requires_its_source_row(root: &Path) {
     assert_eq!(
         native_realization::validate_native_program_entry_settlement(
             produced.artifact(),
-            produced.receipt(),
+            produced.receipt().expect("entry receipt"),
             native_realization::NativeProgramEntrySettlement::new(source, calling_plans, &[]),
             target::NativeTarget::macos_arm64(),
         ),

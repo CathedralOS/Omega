@@ -1,6 +1,9 @@
 //! Hosted ProgramEntry artifact, terminal receipt, and source-signature custody.
 
 use super::checked_source::checked;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
 /// Minimal hosted program used to evaluate a profile's real `ProgramEntry`
@@ -113,17 +116,27 @@ pub(in crate::tests) fn hosted_custody() -> (
         Vec::new(),
     )
     .expect("hosted source signature");
-    let produced = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
-        .produce_program_entry(source.identity().bytes())
-        .expect("ProgramEntry Terminal artifact");
+    let produced = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::launch"),
+    )
+    .produce(TerminalProductionCustody {
+        entry_identity: Some(source.identity().bytes()),
+        callback_custody: (),
+        timings: &mut TerminalProductionTimings::default(),
+    })
+    .expect("ProgramEntry Terminal artifact");
     let (
         artifact,
         receipt,
+        _,
+        (),
         _,
         selected_ieee_float_fma_occurrences,
         selected_ieee_float_comparison_occurrences,
         selected_integer_comparison_occurrences,
     ) = produced.into_parts();
+    let receipt = receipt.expect("entry receipt");
     assert!(selected_ieee_float_fma_occurrences.is_empty());
     assert!(selected_ieee_float_comparison_occurrences.is_empty());
     assert!(selected_integer_comparison_occurrences.is_empty());

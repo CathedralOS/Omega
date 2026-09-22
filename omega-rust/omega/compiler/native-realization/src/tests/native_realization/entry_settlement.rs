@@ -8,6 +8,9 @@ use crate::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
     validate_native_program_entry_settlement,
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[test]
 fn settled_entry_retains_the_bound_placed_view_establishments() {
@@ -231,9 +234,16 @@ pub(crate) fn fused_service_custody() -> (
         Vec::new(),
     )
     .expect("hosted source signature");
-    let produced = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
-        .produce_program_entry(source.identity().bytes())
-        .expect("ProgramEntry Terminal artifact");
+    let produced = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::launch"),
+    )
+    .produce(TerminalProductionCustody {
+        entry_identity: Some(source.identity().bytes()),
+        callback_custody: (),
+        timings: &mut TerminalProductionTimings::default(),
+    })
+    .expect("ProgramEntry Terminal artifact");
     let module = terminal_codec::decode_module(produced.artifact().semantic_bytes())
         .expect("decode Terminal module");
     let entry = module
@@ -263,10 +273,13 @@ pub(crate) fn fused_service_custody() -> (
         artifact,
         receipt,
         _,
+        (),
+        _,
         selected_ieee_float_fma_occurrences,
         selected_ieee_float_comparison_occurrences,
         selected_integer_comparison_occurrences,
     ) = produced.into_parts();
+    let receipt = receipt.expect("entry receipt");
     assert!(selected_ieee_float_fma_occurrences.is_empty());
     assert!(selected_ieee_float_comparison_occurrences.is_empty());
     assert!(selected_integer_comparison_occurrences.is_empty());

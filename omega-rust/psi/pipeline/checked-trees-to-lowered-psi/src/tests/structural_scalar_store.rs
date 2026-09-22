@@ -7,6 +7,7 @@ use checked_trees::{
 use semantic_vocabulary::IntegerValue;
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralAccess, StructuralPathSegment,
     StructuralTypeShape, Terminator,
@@ -27,12 +28,15 @@ fn guarded_bounded_integer_field_increment_publishes_checked_terminal() {
              state done(&mut self) {}
          }",
     );
-    let artifact =
-        terminal_production::TerminalProductionRequest::new(&checked, "Counter::advance")
-            .produce_artifact()
-            .expect(
-                "guarded replacement proves arithmetic and the destination range independently",
-            );
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Counter::advance"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("guarded replacement proves arithmetic and the destination range independently")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert_eq!(
         module
@@ -92,10 +96,15 @@ fn bounded_integer_field_store_retains_the_destination_range() {
             "data Counter [copy] {{ value: {field_type}; }}
                  machine Counter::replace(&mut self) {{ self.value = {replacement}; }}",
         ));
-        let artifact =
-            terminal_production::TerminalProductionRequest::new(&checked, "Counter::replace")
-                .produce_artifact()
-                .expect("bounded counter replacement publishes checked Terminal");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("Counter::replace"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("bounded counter replacement publishes checked Terminal")
+        .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let entry = module
             .machines
@@ -166,10 +175,13 @@ fn ieee_field_stores_retain_exact_parameters_and_literal_bits() {
                 ));
                 let artifact = terminal_production::TerminalProductionRequest::new(
                     &checked,
-                    "Record::replace",
+                    terminal_production::TerminalMachineSelection::Name("Record::replace"),
                 )
-                .produce_artifact()
-                .expect("IEEE field store publishes canonical Terminal");
+                .produce(TerminalProductionCustody::artifact_only(
+                    &mut TerminalProductionTimings::default(),
+                ))
+                .expect("IEEE field store publishes canonical Terminal")
+                .into_artifact();
                 let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
                 let entry = module
                     .machines
@@ -326,9 +338,15 @@ fn source_indexed_shared_call_reaches_serialized_interpretation() {
         }
     "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Root::forward")
-        .produce_artifact()
-        .expect("source indexed shared call produces canonical Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Root::forward"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("source indexed shared call produces canonical Terminal")
+    .into_artifact();
     drop(checked);
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module

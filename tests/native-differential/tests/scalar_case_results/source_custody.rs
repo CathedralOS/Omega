@@ -5,6 +5,9 @@ use super::{
 };
 use legalized_operations::{LegalizedScalarTerminator, LegalizedStructuralCaseSource};
 use semantic_vocabulary::{BlockId, OperationId, PlaceId, StructuralTypeId};
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[test]
 fn nested_record_replay_rejects_effectful_operand_and_projected_local_substitution() {
@@ -61,10 +64,15 @@ fn nested_record_replay_rejects_effectful_operand_and_projected_local_substituti
             "each authored argument has one root"
         );
     }
-    let _artifact =
-        terminal_production::TerminalProductionRequest::new(&checked, "ordered_children")
-            .produce_artifact()
-            .expect("unique authored roots publish");
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("ordered_children"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("unique authored roots publish")
+    .into_artifact();
     // Nested structural calls consume retained computation handles directly.
     // Substituting an authored occurrence changes that authority; duplicating
     // an unused catalog row would not change the selected argument.
@@ -110,9 +118,14 @@ fn nested_record_replay_rejects_effectful_operand_and_projected_local_substituti
         .get_mut(effectful[0].root)
         .authored_root = substituted_source;
     assert!(
-        terminal_production::TerminalProductionRequest::new(&changed, "ordered_children")
-            .produce_artifact()
-            .is_err(),
+        terminal_production::TerminalProductionRequest::new(
+            &changed,
+            TerminalMachineSelection::Name("ordered_children")
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default()
+        ))
+        .is_err(),
         "receiving checks reject another effectful argument's authored occurrence"
     );
 
@@ -178,9 +191,14 @@ fn nested_record_replay_rejects_effectful_operand_and_projected_local_substituti
             }
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "ordered_children")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("ordered_children")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "projected local mutation {mutation}"
         );
     }
@@ -242,9 +260,15 @@ fn projected_record_getter_replay_rejects_sibling_root_path_and_endpoint_substit
     )
     .expect("valid projected shared getter source");
     for entry in ["distinct_roots", "projected"] {
-        let _artifact = terminal_production::TerminalProductionRequest::new(&checked, entry)
-            .produce_artifact()
-            .expect("unchanged projected receiver custody independently publishes");
+        let _artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name(entry),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("unchanged projected receiver custody independently publishes")
+        .into_artifact();
     }
     let declared_field = |owner: &str, name: &str| {
         let definition = checked
@@ -320,9 +344,14 @@ fn projected_record_getter_replay_rejects_sibling_root_path_and_endpoint_substit
             _ => argument.type_identity = "Outer".into(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "distinct_roots")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("distinct_roots")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "projected operand mutation {mutation}"
         );
     }
@@ -361,9 +390,14 @@ fn projected_record_getter_replay_rejects_sibling_root_path_and_endpoint_substit
             _ => call.has_receiver = false,
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "distinct_roots")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("distinct_roots")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "receiver endpoint mutation {mutation}"
         );
     }
@@ -393,9 +427,15 @@ fn local_record_getter_replay_rejects_substituted_receiver_custody() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("valid local getter source");
-    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "observe")
-        .produce_artifact()
-        .expect("unchanged receiver custody independently replays");
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("observe"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("unchanged receiver custody independently replays")
+    .into_artifact();
     let machine = checked
         .machines()
         .iter()
@@ -455,9 +495,14 @@ fn local_record_getter_replay_rejects_substituted_receiver_custody() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "observe")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("observe")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "receiver mutation {mutation}"
         );
     }

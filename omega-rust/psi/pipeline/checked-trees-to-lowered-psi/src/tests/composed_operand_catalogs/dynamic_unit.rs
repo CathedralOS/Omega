@@ -10,6 +10,7 @@ use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralBooleanFieldValue, TerminalStructuralValue,
 };
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 fn source(route: usize, qualified: bool, trailing: bool) -> String {
     let source = DYNAMIC_CONTINUATION_SOURCE
@@ -101,10 +102,13 @@ fn dynamic_routes_share_ordinary_bodies_and_scalar_helpers() {
                 assert_source_custody(&checked);
                 let artifact = terminal_production::TerminalProductionRequest::new(
                     &checked,
-                    "Main::main",
+                    terminal_production::TerminalMachineSelection::Name("Main::main"),
                 )
-                .produce_artifact()
-                .expect("dynamic ordinary Unit continuation publishes through the public producer");
+                .produce(TerminalProductionCustody::artifact_only(
+                    &mut TerminalProductionTimings::default(),
+                ))
+                .expect("dynamic ordinary Unit continuation publishes through the public producer")
+                .into_artifact();
                 assert_eq!(
                     terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),
                     lowered.semantic_module
@@ -154,9 +158,15 @@ fn unused_root_provider_field_retains_identity_without_a_fabricated_requirement(
             place.kind,
             semantic_vocabulary::StructuralPlaceKind::ProviderAttachment { .. }
         )));
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
-            .produce_artifact()
-            .expect("unused provider field survives public publication");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("Main::main"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("unused provider field survives public publication")
+        .into_artifact();
         assert_eq!(
             terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),
             lowered.semantic_module

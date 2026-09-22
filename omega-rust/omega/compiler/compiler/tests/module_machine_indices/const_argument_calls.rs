@@ -2,6 +2,9 @@
 
 use super::{Sources, compile, root_inputs};
 use terminal_interpreter::{TerminalExecutionResult, interpret_terminal_artifact};
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 fn assert_integer_argument(expression: &str, expected: u64) {
     let tree = Sources::new();
@@ -23,9 +26,15 @@ fn assert_integer_argument(expression: &str, expected: u64) {
         ),
     );
     let checked = compile(&root, root_inputs(&root));
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
-        .produce_artifact()
-        .expect("computed argument reaches Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("read"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("computed argument reaches Terminal")
+    .into_artifact();
     drop(checked);
     drop(tree);
     assert!(!root.exists());
@@ -185,9 +194,15 @@ fn const_argument_calls_keep_module_selected_helpers_and_constants() {
          }",
     );
     let checked = compile(&root, root_inputs(&root));
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
-        .produce_artifact()
-        .expect("module-selected index reaches Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("read"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("module-selected index reaches Terminal")
+    .into_artifact();
     drop(checked);
     drop(tree);
     assert_eq!(
@@ -217,7 +232,13 @@ fn short_circuit_calls_do_not_discharge_skipped_invocations() {
          }",
     );
     let checked = compile(&root, root_inputs(&root));
-    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
-        .produce_artifact()
-        .expect("skipped call does not become an execution requirement");
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("read"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("skipped call does not become an execution requirement")
+    .into_artifact();
 }

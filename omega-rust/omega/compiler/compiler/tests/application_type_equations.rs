@@ -11,6 +11,9 @@ use std::{
     path::PathBuf,
     sync::atomic::{AtomicU64, Ordering},
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 static NEXT_PROJECT: AtomicU64 = AtomicU64::new(0);
 
@@ -85,9 +88,15 @@ fn executes(sources: &[(&str, &str)]) -> terminal_codec::CanonicalTerminalArtifa
     let [entry] = entries.as_slice() else {
         panic!("one closed recovered entry: {entries:?}");
     };
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, entry)
-        .produce_artifact()
-        .expect("application equation reaches Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name(entry),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("application equation reaches Terminal")
+    .into_artifact();
     drop(checked);
     let root = project.0.clone();
     drop(project);
@@ -387,9 +396,15 @@ fn boolean_equation_artifact(
     let [entry] = entries.as_slice() else {
         panic!("one Boolean entry: {entries:?}");
     };
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, entry)
-        .produce_artifact()
-        .expect("Boolean equation reaches Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name(entry),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("Boolean equation reaches Terminal")
+    .into_artifact();
     drop(checked);
     let root = project.0.clone();
     drop(project);

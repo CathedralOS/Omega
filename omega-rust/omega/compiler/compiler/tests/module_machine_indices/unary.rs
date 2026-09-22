@@ -3,6 +3,9 @@ use super::{
     selections,
 };
 use compiler::CheckedCompileRequest;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 const FLAG: &str = "pub data Flag<const Enabled: bool> { value: u8; }";
 
@@ -148,9 +151,15 @@ fn unary_constant_arguments_feed_source_free_terminal_execution() {
             ),
         );
         let checked = compile(&root, root_inputs(&root));
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
-            .produce_artifact()
-            .expect("constant specialization reaches Terminal");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("read"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("constant specialization reaches Terminal")
+        .into_artifact();
         drop(checked);
         assert_eq!(
             terminal_interpreter::interpret_terminal_artifact(

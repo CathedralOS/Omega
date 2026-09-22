@@ -4,6 +4,7 @@ use crate::TerminalMachineSelection;
 use crate::terminal_identities::obligation_id;
 use checked_trees::CheckedScalarComputationKind;
 use checked_trees::types::PrimitiveType;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, StructuralAccess, StructuralTypeShape};
 
 const SOURCE: &str = "
@@ -280,9 +281,15 @@ fn projected_shared_actual_preserves_root_path_and_observation_custody() {
 fn local_record_reads_publish_direct_and_transported_places() {
     let checked = checked_source(SOURCE);
     for name in ["observe", "joined"] {
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, name)
-            .produce_artifact()
-            .expect("record read publishes");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name(name),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("record read publishes")
+        .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let entry = module
             .machines
@@ -324,9 +331,15 @@ fn nested_record_reads_reject_same_typed_path_substitution() {
              record.left.value
          }",
     );
-    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "observe")
-        .produce_artifact()
-        .expect("nested record path publishes");
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("observe"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("nested record path publishes")
+    .into_artifact();
     let handle = checked
         .facts
         .values
@@ -360,9 +373,14 @@ fn nested_record_reads_reject_same_typed_path_substitution() {
             })
             .collect();
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "observe")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                terminal_production::TerminalMachineSelection::Name("observe")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "a valid sibling with the same leaf type is not the authored observation"
         );
     }
@@ -371,9 +389,15 @@ fn nested_record_reads_reject_same_typed_path_substitution() {
 #[test]
 fn local_record_reads_reject_changed_field_source_and_carrier() {
     let checked = checked_source(SOURCE);
-    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "observe")
-        .produce_artifact()
-        .expect("uncorrupted source publishes");
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("observe"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("uncorrupted source publishes")
+    .into_artifact();
     let handle = checked
         .facts
         .values
@@ -417,9 +441,14 @@ fn local_record_reads_reject_changed_field_source_and_carrier() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "observe")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                terminal_production::TerminalMachineSelection::Name("observe")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "corruption {corruption} must reject"
         );
     }
@@ -435,9 +464,15 @@ fn bounded_record_reads_require_exact_construction_and_observation_evidence() {
             accept(record.payload)
         }",
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "observe")
-        .produce_artifact()
-        .expect("bounded record publishes with range evidence");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("observe"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("bounded record publishes with range evidence")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let bundle = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     let profile = proof_admission::AdmissionProfile::default();
@@ -504,9 +539,15 @@ fn shared_record_getter_keeps_receiver_custody_separate_from_arguments() {
             retained.get_payload()
         }",
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "observe")
-        .produce_artifact()
-        .expect("shared local getter publishes");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("observe"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("shared local getter publishes")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines
@@ -559,9 +600,14 @@ fn shared_record_getter_keeps_receiver_custody_separate_from_arguments() {
     };
     argument.access = checked_trees::CheckedStructuralAccess::Owned;
     assert!(
-        terminal_production::TerminalProductionRequest::new(&changed, "observe")
-            .produce_artifact()
-            .is_err(),
+        terminal_production::TerminalProductionRequest::new(
+            &changed,
+            terminal_production::TerminalMachineSelection::Name("observe")
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default()
+        ))
+        .is_err(),
         "a shared receiver cannot become an owned transfer"
     );
 }
@@ -584,9 +630,15 @@ fn local_record_reads_compose_with_calls_and_selective_booleans() {
          }",
     ] {
         let checked = checked_source(source);
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "observe")
-            .produce_artifact()
-            .expect("record reads compose in ordinary expressions");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("observe"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("record reads compose in ordinary expressions")
+        .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         terminal_verifier::verify_module(
             &module,
@@ -607,9 +659,15 @@ fn local_record_reads_cannot_swap_same_typed_operand_occurrences() {
             retained.first ^ retained.second
         }",
     );
-    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "observe")
-        .produce_artifact()
-        .expect("distinct fields publish");
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("observe"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("distinct fields publish")
+    .into_artifact();
     let fields = checked
         .facts
         .values
@@ -642,9 +700,14 @@ fn local_record_reads_cannot_swap_same_typed_operand_occurrences() {
         .get_mut(fields[0])
         .kind = replacement;
     assert!(
-        terminal_production::TerminalProductionRequest::new(&changed, "observe")
-            .produce_artifact()
-            .is_err(),
+        terminal_production::TerminalProductionRequest::new(
+            &changed,
+            terminal_production::TerminalMachineSelection::Name("observe")
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default()
+        ))
+        .is_err(),
         "another valid same-typed read cannot replace this operand"
     );
 }

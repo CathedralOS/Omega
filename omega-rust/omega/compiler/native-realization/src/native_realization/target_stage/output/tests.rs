@@ -3,15 +3,24 @@ use crate::tests::fixtures::checked_source::checked;
 use optimization_core::{Optimization, OptimizationSelections};
 use proof_admission::AdmissionProfile;
 use target::NativeTarget;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 fn optimized_target(
     target: NativeTarget,
     selections: OptimizationSelections,
 ) -> ValidatedOptimizedTargetOperations {
     let checked = checked("data Main {} machine Main::launch() {}");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
-        .produce_artifact()
-        .expect("publish independent Terminal fixture");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::launch"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("publish independent Terminal fixture")
+    .into_artifact();
     let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: artifact.semantic_bytes(),

@@ -6,6 +6,9 @@
 //! its slice of the hole and belongs in a topical sibling file with
 //! caller-storage observation instead.
 
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 fn checked_error(source: &str) -> String {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
@@ -42,7 +45,15 @@ fn production_error(source: &str, entry: &str) -> String {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    match terminal_production::TerminalProductionRequest::new(&checked, entry).produce_artifact() {
+    match terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name(entry),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .map(|produced| produced.into_artifact())
+    {
         Ok(_) => panic!("{entry}: expected the production frontier, got an artifact"),
         Err(error) => format!("{error:?}"),
     }

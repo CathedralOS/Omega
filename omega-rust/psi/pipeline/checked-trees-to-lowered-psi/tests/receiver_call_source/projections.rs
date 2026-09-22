@@ -4,6 +4,9 @@ use super::{
     StructuralTypeShape, checked_from_source,
 };
 use checked_trees::CheckedUnitStructuralPathSegment;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_psi::StructuralPathSegment;
 
 #[path = "projections/harness.rs"]
@@ -131,9 +134,15 @@ fn assert_corrupted_projected_receiver(callee_borrow: &str) {
     let (source, caller_name, _) =
         projected_source("mut", callee_borrow, true, false, false, false, false);
     let checked = checked_from_source(&source);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, caller_name)
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name(caller_name),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     drop(checked);
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();

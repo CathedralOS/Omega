@@ -15,6 +15,7 @@ use checked_interpreter::InterpretOptions;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 #[test]
 fn domain_operator_selection_records_signature_domain_meaning_as_evidence() {
@@ -224,9 +225,14 @@ fn float_match_executes_selected_arms_through_verified_terminal() {
     compiler::validate_lowered_ieee_float_comparison_custody(&checked, &lowered)
         .expect("each comparison independently rejoins its selected provider");
     assert_eq!(lowered.selected_ieee_float_comparison_occurrences.len(), 2);
-    let produced = terminal_production::TerminalProductionRequest::new(&checked, "choose")
-        .produce_checked_artifact()
-        .expect("selected Match application scope survives canonical publication");
+    let produced = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("choose"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("selected Match application scope survives canonical publication");
     assert_eq!(produced.boundary_operator_scope().occurrences().len(), 2);
     for change_relation in [false, true] {
         let mut changed = lowered.clone();

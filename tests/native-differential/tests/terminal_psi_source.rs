@@ -4,6 +4,7 @@
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 #[path = "../fixture_rosters/terminal_sources.rs"]
 mod fixture_roster;
 
@@ -831,9 +832,15 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
     assert_eq!(demand.profile_identity, "SchedulerHandle::WeakFair");
     assert_eq!(demand.establishment_routes.len(), 1);
 
-    let terminal = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
-        .produce_artifact()
-        .expect("progress source produces canonical Terminal custody");
+    let terminal = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("progress source produces canonical Terminal custody")
+    .into_artifact();
     let abstract_plan = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: terminal.semantic_bytes(),

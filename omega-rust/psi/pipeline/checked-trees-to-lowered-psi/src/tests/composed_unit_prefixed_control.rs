@@ -3,6 +3,7 @@
 use super::{CheckedTrees, LoweringError, checked_source, lower_machine};
 use crate::TerminalMachineSelection;
 use checked_trees::CheckedComposedUnitControlTerminatorPlan;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{Operation, OperationKind, Terminator};
 
 #[test]
@@ -36,9 +37,15 @@ fn interleaved_states_preserve_mixed_handoffs_and_effect_order() {
             }
         "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Root::enter")
-        .produce_artifact()
-        .expect("mixed signatures and interleaved state declarations publish one graph");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Root::enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("mixed signatures and interleaved state declarations publish one graph")
+    .into_artifact();
 
     #[derive(Default)]
     struct Trace(Vec<i128>);

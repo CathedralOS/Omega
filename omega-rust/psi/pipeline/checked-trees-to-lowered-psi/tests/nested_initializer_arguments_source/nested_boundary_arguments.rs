@@ -9,6 +9,7 @@ use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, OperationResult, Terminator};
 
 #[test]
@@ -157,10 +158,15 @@ fn nested_boundary_arguments_preserve_effect_order_result_slots_and_cleanup() {
             }
             let checked = checked(&source);
             let artifact = encoded_locals(&checked, &names);
-            let published =
-                terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
-                    .produce_artifact()
-                    .unwrap();
+            let published = terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("Main::main"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .unwrap()
+            .into_artifact();
             let module = decode_module(&artifact.0).unwrap();
             assert_eq!(decode_module(published.semantic_bytes()).unwrap(), module);
             let entry = module

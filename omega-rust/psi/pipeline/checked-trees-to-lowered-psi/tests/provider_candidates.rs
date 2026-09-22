@@ -10,6 +10,7 @@ use terminal_interpreter::{
     ProviderInstallationSelection, TerminalEffect, TerminalExecution, TerminalExecutionResult,
     TerminalExecutionStatus, TerminalStructuralValue, admit_provider_installation_from_artifact,
 };
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::OperationKind;
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::CheckingRequest;
@@ -415,9 +416,13 @@ fn installed_program_storage_provider_transfers_and_settles_both_owned_extent_cl
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let produced = terminal_production::TerminalProductionRequest::new(
         &checked,
-        "ProgramLocalProducer::handoff",
+        TerminalMachineSelection::Name("ProgramLocalProducer::handoff"),
     )
-    .produce_program_entry([0xa5; 32])
+    .produce(TerminalProductionCustody {
+        entry_identity: Some([0xa5; 32]),
+        callback_custody: (),
+        timings: &mut TerminalProductionTimings::default(),
+    })
     .expect("receipt-coupled ProgramStorage artifact");
     let module = decode_module(produced.artifact().semantic_bytes()).expect("semantic module");
     let [candidate] = module.provider_candidates.as_slice() else {

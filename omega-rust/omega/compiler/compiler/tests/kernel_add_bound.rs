@@ -2,6 +2,9 @@
 //! bounds, with fixed arithmetic assumptions visible in their exact closures.
 
 use std::path::Path;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 use compiler::{CheckedCompileRequest, compile_to_checked};
 use proof_admission::{
@@ -60,9 +63,15 @@ fn check_source_correlated_add_bound(machine_name: &str, lower: bool) {
         .join("tests/omega/pass/terminal_psi/integer_control_contract/main.omg");
     let checked = compile_to_checked(CheckedCompileRequest::new(&source, Some("linux_x86_64")))
         .expect("existing exact arithmetic source customer checks");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, machine_name)
-        .produce_artifact()
-        .expect("existing customer produces Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name(machine_name),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("existing customer produces Terminal")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let bundle = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     terminal_verifier::verify_module(

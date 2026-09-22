@@ -1,6 +1,9 @@
 //! Call-computed indices cross a real consumer before source-free execution.
 
 use super::{CanonicalTerminalArtifact, NativeTarget, membership, publish};
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 struct Sources(std::path::PathBuf);
 
@@ -38,9 +41,15 @@ fn composed_call_indices_reach_native_consumers_after_source_removal() {
     .unwrap();
     let checked = compiler::compile_to_checked(compiler::CheckedCompileRequest::new(&root, None))
         .expect("composed indices pass source compilation and exact consumer matching");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
-        .produce_artifact()
-        .expect("composed indices reach Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("read"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("composed indices reach Terminal")
+    .into_artifact();
     let artifact = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
     drop(checked);
     drop(sources);

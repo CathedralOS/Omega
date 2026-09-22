@@ -6,6 +6,7 @@ use crate::tests::{
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::OperationKind;
 use typed_trees_to_checked_trees::CheckingRequest;
 
@@ -21,9 +22,15 @@ fn direct_boundary_calls_transfer_both_owned_claims() {
         { Sink::take(first, second); }
     "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Root::enter")
-        .produce_artifact()
-        .expect("publish direct boundary claim transfer");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Root::enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("publish direct boundary claim transfer")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).expect("reload claims");
     let entry = module
         .machines
@@ -81,14 +88,25 @@ fn nominal_unit_callbacks_require_a_closed_executable_selection() {
     "#;
     let checked = checked_source(source);
     assert!(
-        terminal_production::TerminalProductionRequest::new(&checked, "Root::unselected")
-            .produce_artifact()
-            .is_err(),
+        terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("Root::unselected")
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default()
+        ))
+        .is_err(),
         "an unresolved binder must not become a boundary execution choice"
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Root::selected")
-        .produce_artifact()
-        .expect("publish the closed quiet selection");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Root::selected"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("publish the closed quiet selection")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).expect("reload");
     assert!(
         module.boundary_machines.is_empty(),
@@ -124,9 +142,16 @@ fn closed_nominal_callback_transfers_both_claims_to_its_selected_body() {
         { Root::forward<selected>(first, second); }
     "#,
     );
-    let produced = terminal_production::TerminalProductionRequest::new(&checked, "Root::enter")
-        .produce_program_entry([0xa5; 32])
-        .expect("closed generic ProgramEntry publishes");
+    let produced = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Root::enter"),
+    )
+    .produce(TerminalProductionCustody {
+        entry_identity: Some([0xa5; 32]),
+        callback_custody: (),
+        timings: &mut TerminalProductionTimings::default(),
+    })
+    .expect("closed generic ProgramEntry publishes");
     let artifact = produced.artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).expect("reload");
     let entry = module
@@ -204,9 +229,15 @@ fn nominal_callback_selected_reach_survives_terminal_publication() {
         let checked = checked_source(&source);
         let lowered = lower_machine(&checked, TerminalMachineSelection::Name("enter"))
             .unwrap_or_else(|error| panic!("selected callback {callback_reach:?}: {error:?}"));
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
-            .produce_artifact()
-            .expect("publish traversal");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("enter"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("publish traversal")
+        .into_artifact();
         let module =
             terminal_codec::decode_module(artifact.semantic_bytes()).expect("decode traversal");
         assert_eq!(module, lowered.semantic_module);
@@ -296,9 +327,15 @@ fn authored_unit_reach_survives_ordinary_helper_publication() {
         pub machine enter() { note(); }
     "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
-        .produce_artifact()
-        .expect("publish inert Unit helper");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("publish inert Unit helper")
+    .into_artifact();
     let module =
         terminal_codec::decode_module(artifact.semantic_bytes()).expect("decode Unit helper");
     assert_eq!(module.services[0].identity, "Console");
@@ -343,9 +380,15 @@ fn direct_installation_boundary_keeps_its_required_declaration() {
             continue;
         }
         let checked = result.expect("complete direct reach declaration checks");
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Root::enter")
-            .produce_artifact()
-            .expect("publish complete direct installation-bound declaration");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("Root::enter"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("publish complete direct installation-bound declaration")
+        .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).expect("reload");
         assert_eq!(
             service_names(&module, &module.boundary_machines[0].fixed_service_reach),

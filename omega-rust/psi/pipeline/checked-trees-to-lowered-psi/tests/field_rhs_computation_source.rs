@@ -10,6 +10,7 @@ use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue, TerminalStructuralValue,
 };
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
@@ -112,9 +113,15 @@ fn execute(
     expected_stores: u64,
 ) {
     let checked = checked(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
-        .produce_artifact()
-        .expect("field RHS computations publish");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("field RHS computations publish")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     let profile = proof_admission::AdmissionProfile::default();
@@ -483,9 +490,15 @@ fn receiver_field_rhs_call_reaches_canonical_terminal() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("check field RHS call");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
-        .produce_artifact()
-        .expect("call-bearing field RHS must reach canonical Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("call-bearing field RHS must reach canonical Terminal")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     terminal_verifier::verify_module(

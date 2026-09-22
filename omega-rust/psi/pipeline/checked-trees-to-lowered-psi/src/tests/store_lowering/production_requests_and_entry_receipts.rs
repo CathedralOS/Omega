@@ -3,6 +3,7 @@ use crate::lower_machine;
 use crate::tests::checked_source;
 use semantic_vocabulary::{ScalarType, StructuralPlaceKind};
 use terminal_production::{ProgramEntryTerminalReceiptError, TerminalArtifactProductionError};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{
     BindingRelevance, OperationKind, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
     StructuralTypeShape, TerminalMachineResult, Terminator,
@@ -23,15 +24,30 @@ fn terminal_production_request_preserves_configuration_across_evidence_products(
             machine: terminal_production::TerminalMachineSelection::Name("Main::launch"),
             optimization_selections: selections.clone(),
         };
-        let artifact = request().produce_artifact().expect("portable artifact");
+        let artifact = request()
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("portable artifact")
+            .into_artifact();
         let scoped = request()
-            .produce_checked_artifact()
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
             .expect("checked artifact");
         let callbacks = request()
-            .produce_with_callback_custody(Box::new([11u64, 29u64]))
+            .produce(TerminalProductionCustody {
+                entry_identity: None,
+                callback_custody: Box::new([11u64, 29u64]),
+                timings: &mut TerminalProductionTimings::default(),
+            })
             .expect("callback artifact");
         let entry = request()
-            .produce_program_entry([7; 32])
+            .produce(TerminalProductionCustody {
+                entry_identity: Some([7; 32]),
+                callback_custody: (),
+                timings: &mut TerminalProductionTimings::default(),
+            })
             .expect("entry artifact");
         assert_eq!(artifact.optimization().selections(), &selections);
         assert_eq!(&artifact, scoped.artifact());
@@ -45,10 +61,25 @@ fn terminal_production_request_preserves_configuration_across_evidence_products(
             scoped.boundary_operator_scope(),
             entry.boundary_operator_scope()
         );
-        assert_eq!(entry.receipt().source_signature_identity(), [7; 32]);
-        assert_eq!(entry.receipt().source_machine_name(), "Main::launch");
         assert_eq!(
-            entry.receipt().terminal_psi_identity(),
+            entry
+                .receipt()
+                .expect("entry receipt")
+                .source_signature_identity(),
+            [7; 32]
+        );
+        assert_eq!(
+            entry
+                .receipt()
+                .expect("entry receipt")
+                .source_machine_name(),
+            "Main::launch"
+        );
+        assert_eq!(
+            entry
+                .receipt()
+                .expect("entry receipt")
+                .terminal_psi_identity(),
             artifact.manifest().semantic()
         );
     }
@@ -71,7 +102,11 @@ fn terminal_production_request_returns_nonclone_callback_custody_after_productio
         .expect("unique selection"),
     };
     let rejected = request
-        .produce_with_callback_custody(custody)
+        .produce(TerminalProductionCustody {
+            entry_identity: None,
+            callback_custody: custody,
+            timings: &mut TerminalProductionTimings::default(),
+        })
         .expect_err("an unknown machine rejects production before lowering completes");
     assert!(matches!(
         rejected.error(),
@@ -79,10 +114,17 @@ fn terminal_production_request_returns_nonclone_callback_custody_after_productio
     ));
     let (_, custody) = rejected.into_parts();
     assert_eq!(custody.0.as_ptr(), allocation);
-    let produced = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
-        .produce_with_callback_custody(custody)
-        .expect("returned custody can retry identity production");
-    let (_, _, custody, _, _, _) = produced.into_parts();
+    let produced = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::launch"),
+    )
+    .produce(TerminalProductionCustody {
+        entry_identity: None,
+        callback_custody: custody,
+        timings: &mut TerminalProductionTimings::default(),
+    })
+    .expect("returned custody can retry identity production");
+    let (_, _, _, custody, _, _, _, _) = produced.into_parts();
     assert_eq!(custody.0.as_ptr(), allocation);
     assert_eq!(*custody.0, [11, 29]);
 }
@@ -96,23 +138,44 @@ fn callback_custody_crosses_terminal_production_in_exact_order_and_returns_on_re
         "#,
     );
     let custody = vec![(11u64, "first"), (29u64, "second")];
-    let produced = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
-        .produce_with_callback_custody(custody.clone())
-        .expect("opaque callback custody crosses canonical Terminal production");
+    let produced = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::launch"),
+    )
+    .produce(TerminalProductionCustody {
+        entry_identity: None,
+        callback_custody: custody.clone(),
+        timings: &mut TerminalProductionTimings::default(),
+    })
+    .expect("opaque callback custody crosses canonical Terminal production");
     assert_eq!(produced.callback_custody(), &custody);
     produced.artifact().validate().expect("canonical artifact");
-    let (_, _, returned, _, _, _) = produced.into_parts();
+    let (_, _, _, returned, _, _, _, _) = produced.into_parts();
     assert_eq!(returned, custody);
 
     let swapped = vec![(29u64, "second"), (11u64, "first")];
-    let produced = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
-        .produce_with_callback_custody(swapped.clone())
-        .expect("opaque callback custody preserves caller-provided order");
+    let produced = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::launch"),
+    )
+    .produce(TerminalProductionCustody {
+        entry_identity: None,
+        callback_custody: swapped.clone(),
+        timings: &mut TerminalProductionTimings::default(),
+    })
+    .expect("opaque callback custody preserves caller-provided order");
     assert_eq!(produced.callback_custody(), &swapped);
 
-    let rejected = terminal_production::TerminalProductionRequest::new(&checked, "Main::missing")
-        .produce_with_callback_custody(custody.clone())
-        .expect_err("missing Terminal machine rejects transactionally");
+    let rejected = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::missing"),
+    )
+    .produce(TerminalProductionCustody {
+        entry_identity: None,
+        callback_custody: custody.clone(),
+        timings: &mut TerminalProductionTimings::default(),
+    })
+    .expect_err("missing Terminal machine rejects transactionally");
     let TerminalArtifactProductionError::Lowering(error) = rejected.error() else {
         panic!("missing machine must reject during lowering");
     };
@@ -129,9 +192,14 @@ fn checked_boundary_operator_scope_rejects_terminal_artifact_substitution() {
             machine Main::launch() {}
         "#,
     );
-    let produced = terminal_production::TerminalProductionRequest::new(&first, "Main::launch")
-        .produce_checked_artifact()
-        .expect("checked Terminal production");
+    let produced = terminal_production::TerminalProductionRequest::new(
+        &first,
+        terminal_production::TerminalMachineSelection::Name("Main::launch"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("checked Terminal production");
 
     let second = checked_source(
         r#"
@@ -141,9 +209,15 @@ fn checked_boundary_operator_scope_rejects_terminal_artifact_substitution() {
             machine Main::launch() { Helper::touch(); }
         "#,
     );
-    let substituted = terminal_production::TerminalProductionRequest::new(&second, "Main::launch")
-        .produce_artifact()
-        .expect("distinct canonical Terminal artifact");
+    let substituted = terminal_production::TerminalProductionRequest::new(
+        &second,
+        terminal_production::TerminalMachineSelection::Name("Main::launch"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("distinct canonical Terminal artifact")
+    .into_artifact();
     let first_lowered = lower_machine(&first, TerminalMachineSelection::Name("Main::launch"))
         .expect("first source lowers");
     assert_eq!(
@@ -193,9 +267,14 @@ fn checked_boundary_operator_scope_retains_the_complete_exact_demand_roster() {
         "#,
     );
     checked.facts.operators.boundary_applications = vec![expected.clone()];
-    let produced = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
-        .produce_checked_artifact()
-        .expect("checked Terminal production retains exact D29 demand custody");
+    let produced = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::launch"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("checked Terminal production retains exact D29 demand custody");
 
     assert_eq!(
         produced.boundary_operator_scope().applications(),
@@ -214,10 +293,17 @@ fn program_entry_receipt_binds_checked_source_to_canonical_terminal_entry() {
         "#,
     );
     let source_signature_identity = [0x5a; 32];
-    let produced = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
-        .produce_program_entry(source_signature_identity)
-        .expect("produce checked Unit ProgramEntry artifact");
-    let receipt = produced.receipt();
+    let produced = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::launch"),
+    )
+    .produce(TerminalProductionCustody {
+        entry_identity: Some(source_signature_identity),
+        callback_custody: (),
+        timings: &mut TerminalProductionTimings::default(),
+    })
+    .expect("produce checked Unit ProgramEntry artifact");
+    let receipt = produced.receipt().expect("entry receipt");
     let decoded = terminal_codec::decode_module(produced.artifact().semantic_bytes())
         .expect("decode canonical semantic module");
 
@@ -282,11 +368,15 @@ fn program_entry_receipt_retains_two_granted_extent_roots_and_their_boundary_han
     let source_signature_identity = [0xa5; 32];
     let produced = terminal_production::TerminalProductionRequest::new(
         &checked,
-        "ProgramLocalProducer::handoff",
+        terminal_production::TerminalMachineSelection::Name("ProgramLocalProducer::handoff"),
     )
-    .produce_program_entry(source_signature_identity)
+    .produce(TerminalProductionCustody {
+        entry_identity: Some(source_signature_identity),
+        callback_custody: (),
+        timings: &mut TerminalProductionTimings::default(),
+    })
     .expect("produce exact two-root Unit ProgramEntry artifact");
-    let receipt = produced.receipt();
+    let receipt = produced.receipt().expect("entry receipt");
     let decoded = terminal_codec::decode_module(produced.artifact().semantic_bytes())
         .expect("decode canonical two-root semantic module");
 
@@ -428,9 +518,18 @@ fn program_entry_receipt_rejects_a_scalar_result_machine() {
             machine Main::launch(token: Token) -> u64 { 7u64 }
         "#,
     );
-    let error = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
-        .produce_program_entry([0x11; 32])
-        .expect_err("ProgramEntry receipt requires a Unit result");
+    let error = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::launch"),
+    )
+    .produce(TerminalProductionCustody {
+        entry_identity: Some([0x11; 32]),
+        callback_custody: (),
+        timings: &mut TerminalProductionTimings::default(),
+    })
+    .expect_err("ProgramEntry receipt requires a Unit result")
+    .into_parts()
+    .0;
     assert!(
         matches!(
             &error,

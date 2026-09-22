@@ -8,6 +8,7 @@ use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{BoundaryMachineResult, OperationKind, OperationResult, Terminator};
 
 pub(super) fn source(completion: &str) -> String {
@@ -120,9 +121,15 @@ fn ordinary_and_direct_boundary_consumers_transfer_the_exact_result_once() {
     ] {
         let checked = checked(&source(completion));
         let artifact = encoded_locals(&checked, &names);
-        let published = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
-            .produce_artifact()
-            .unwrap();
+        let published = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Main::main"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
         assert_eq!(
             decode_module(published.semantic_bytes()).unwrap(),
             decode_module(&artifact.0).unwrap()

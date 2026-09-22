@@ -6,6 +6,9 @@ use crate::{
 };
 use compiler::CheckedCompileRequest;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use typed_trees::types::PrimitiveType;
 
 #[test]
@@ -102,9 +105,15 @@ fn declared_range_boolean_endpoints_survive_terminal_publication() {
         ("whole_expression_flag", 257),
         ("call_free_flag", 257),
     ] {
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, name)
-            .produce_artifact()
-            .unwrap_or_else(|error| panic!("Terminal endpoint consumer {name}: {error:?}"));
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name(name),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap_or_else(|error| panic!("Terminal endpoint consumer {name}: {error:?}"))
+        .into_artifact();
         // The consumer receives serialized evidence and a fresh argument. It
         // must observe the bound selected by ordinary generic inference, with
         // no access to the compiler's constant-evaluation result table.
@@ -258,9 +267,15 @@ fn declared_range_inference_returns_the_selected_endpoint() {
             })
             .collect::<Vec<_>>();
         let expected = integer(expected, state.return_type);
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, name)
-            .produce_artifact()
-            .unwrap_or_else(|error| panic!("Terminal range consumer {name}: {error:?}"));
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name(name),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap_or_else(|error| panic!("Terminal range consumer {name}: {error:?}"))
+        .into_artifact();
         // Only canonical bytes and fresh input values enter the receiver;
         // compile-time execution cannot stand in for this separate check.
         let execution = terminal_interpreter::interpret_terminal_artifact_measured(
@@ -321,8 +336,15 @@ fn declared_range_inference_local_effects_retain_pending_terminal_boundaries() {
     ).unwrap();
     let plain =
         compile_reviewed_repository_fixture(CheckedCompileRequest::new(&path, None)).unwrap();
-    let plain = terminal_production::TerminalProductionRequest::new(&plain, "borrowed_store")
-        .produce_artifact();
+    let plain = terminal_production::TerminalProductionRequest::new(
+        &plain,
+        TerminalMachineSelection::Name("borrowed_store"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .map(|produced| produced.into_artifact())
+    .map_err(|error| error.into_parts().0);
     assert!(
         matches!(
             plain,
@@ -417,9 +439,15 @@ fn declared_range_inference_record_copies_and_full_width_fields_execute() {
         fs::write(&path, text).unwrap();
         let checked =
             compile_reviewed_repository_fixture(CheckedCompileRequest::new(&path, None)).unwrap();
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, name)
-            .produce_artifact()
-            .unwrap_or_else(|error| panic!("{name}: {error:?}"));
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name(name),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap_or_else(|error| panic!("{name}: {error:?}"))
+        .into_artifact();
         let result = terminal_interpreter::interpret_terminal_artifact_measured(
             artifact.semantic_bytes(),
             artifact.proof_bytes(),
@@ -677,9 +705,15 @@ fn declared_range_inference_hosted_entry_runs_natively() {
         None,
     ))
     .expect("checked hosted range caller");
-    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
-        .produce_artifact()
-        .expect("hosted caller retains its inferred call through Terminal production");
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("hosted caller retains its inferred call through Terminal production")
+    .into_artifact();
     let scratch = unique_no_output_build_dir();
     // Execute the authored entry with its real receiver and selected Console;
     // observing N in the evaluator alone does not establish native inference.

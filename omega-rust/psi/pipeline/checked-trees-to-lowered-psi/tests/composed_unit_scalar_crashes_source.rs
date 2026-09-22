@@ -9,6 +9,7 @@ use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
 };
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
@@ -75,9 +76,15 @@ fn roundtrip(checked: &checked_trees::CheckedTrees) -> lowered_psi::LoweredPsi {
     .expect("decoded guarded Unit call verifies independently");
     assert_eq!(module, lowered.semantic_module);
     assert_eq!(proof, lowered.proof_bundle);
-    let published = terminal_production::TerminalProductionRequest::new(checked, "Main::main")
-        .produce_artifact()
-        .expect("guarded Unit closure publishes");
+    let published = terminal_production::TerminalProductionRequest::new(
+        checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("guarded Unit closure publishes")
+    .into_artifact();
     assert_eq!(
         terminal_codec::decode_module(published.semantic_bytes()).unwrap(),
         module

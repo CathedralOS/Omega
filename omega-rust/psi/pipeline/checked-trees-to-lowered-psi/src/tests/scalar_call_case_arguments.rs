@@ -4,6 +4,7 @@ use crate::TerminalMachineSelection;
 use checked_trees::{CheckedScalarComputationKind, CheckedScalarComputationStructuralArgument};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, StructuralAccess, StructuralTypeShape};
 
 const ORDERED_CONSTRUCTOR: &str = r#"
@@ -81,10 +82,15 @@ fn ordered_plan_index(checked: &checked_trees::CheckedTrees, name: &str) -> usiz
 fn ordered_structural_constructor_replays_guards_fallback_and_exact_values() {
     use checked_trees::{CheckedComposedUnitControlTerminatorPlan, CheckedUnitEffectOperationPlan};
     let checked = checked_source(ORDERED_CONSTRUCTOR);
-    let artifact =
-        terminal_production::TerminalProductionRequest::new(&checked, "MemoryAlignment::from")
-            .produce_artifact()
-            .expect("source ordered constructor reaches canonical Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("MemoryAlignment::from"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("source ordered constructor reaches canonical Terminal")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     for (input, expected) in [
         (i32::MIN, "Alignment1"),
@@ -349,9 +355,15 @@ fn ordered_constructor_local_sum_lends_original_result_to_scalar_getter() {
 #[test]
 fn ordered_structural_payload_effects_preserve_selected_mutation_and_reject_substitution() {
     let checked = checked_source(ORDERED_PAYLOAD_EFFECTS);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "choose")
-        .produce_artifact()
-        .expect("selected payload effects reach canonical Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("choose"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("selected payload effects reach canonical Terminal")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines

@@ -4,6 +4,7 @@ use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
@@ -53,9 +54,15 @@ fn roundtrip(checked: &checked_trees::CheckedTrees) -> lowered_psi::LoweredPsi {
     .expect("independent verification of mixed runtime requirements");
     assert_eq!(module, lowered.semantic_module);
     assert_eq!(proof, lowered.proof_bundle);
-    let artifact = terminal_production::TerminalProductionRequest::new(checked, "Main::main")
-        .produce_artifact()
-        .expect("mixed runtime requirements publish");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("mixed runtime requirements publish")
+    .into_artifact();
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),
         module
@@ -281,9 +288,14 @@ fn reflexive_call_requirement_cannot_prove_unbounded_argument_addition_safe() {
             "{primitive}: {error:?}"
         );
         assert!(
-            terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "unsafe computed arithmetic must not publish: {primitive}"
         );
     }

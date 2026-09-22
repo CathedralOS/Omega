@@ -2,6 +2,9 @@ use std::{
     collections::BTreeSet,
     path::{Path, PathBuf},
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 use compiler::{CheckedCompileRequest, compile_to_checked};
 use proof_admission::{
@@ -39,9 +42,15 @@ fn source_rank_decrease_has_checked_subtraction_evidence() {
         Some("linux_x86_64"),
     ))
     .unwrap();
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "walk")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("walk"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     terminal_verifier::verify_module(
@@ -211,9 +220,15 @@ fn check_source_subtraction_bound(relative: &str, declarations: u32) {
         Some("linux_x86_64"),
     ))
     .unwrap();
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "walk")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("walk"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let bundle = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     terminal_verifier::verify_module(

@@ -6,6 +6,9 @@ use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_psi::OperationKind;
 
 fn signed(value: i128) -> TerminalScalarValue {
@@ -106,10 +109,15 @@ fn computed_primitive_store_rejects_replaced_roots_and_literal_meaning() {
         }
     "#,
     );
-    let _original_artifact =
-        terminal_production::TerminalProductionRequest::new(&original, "Sink::fill")
-            .produce_artifact()
-            .expect("original computed assignment");
+    let _original_artifact = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("Sink::fill"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("original computed assignment")
+    .into_artifact();
     for mutation in 0..3 {
         let mut changed = original.clone();
         if mutation == 0 {
@@ -185,9 +193,14 @@ fn computed_primitive_store_rejects_replaced_roots_and_literal_meaning() {
             *literal = numerics::literals::IntegerLiteral::from_value(42);
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "Sink::fill")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("Sink::fill")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "store mutation {mutation}"
         );
     }
@@ -213,9 +226,15 @@ fn checked_source(source: &str) -> checked_trees::CheckedTrees {
 
 fn execute(source: &str, arguments: &[TerminalScalarValue], expected: &[TerminalScalarValue]) {
     let checked = checked_source(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Sink::fill")
-        .produce_artifact()
-        .expect("publish exact store sequence");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Sink::fill"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("publish exact store sequence")
+    .into_artifact();
     let module =
         terminal_codec::decode_module(artifact.semantic_bytes()).expect("reload semantics");
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).expect("reload proof");

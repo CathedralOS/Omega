@@ -1,6 +1,9 @@
 //! Authored countdowns retain ordinary Natural evidence with every pass selection.
 
 use crate::tests::fixtures::checked_source::checked;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 const RANKED_COUNTDOWN_SOURCE: &str = r#"
     data Token { value: i32; }
@@ -20,9 +23,15 @@ const RANKED_COUNTDOWN_SOURCE: &str = r#"
 #[test]
 fn natural_countdown_native_preparation_preserves_ordinary_admission() {
     let checked = checked(RANKED_COUNTDOWN_SOURCE);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Root::countdown")
-        .produce_artifact()
-        .expect("produce ranked Terminal Psi");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Root::countdown"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("produce ranked Terminal Psi")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert!(module.machines.iter().any(|machine| matches!(
         machine.ranked_scc,

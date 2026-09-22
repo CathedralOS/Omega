@@ -11,6 +11,7 @@ use crate::TerminalMachineSelection;
 use crate::terminal_identities::value_id;
 use crate::tests::{checked_source, checked_source_with_core_service, lower_machine};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{Operation, OperationKind, OperationResult, Terminator, ValueDeclaration};
 
 #[test]
@@ -72,9 +73,15 @@ fn lowers_transparent_forwarding_chain_after_a_two_predecessor_join() {
     }));
     assert_eq!(lowered.source_call_occurrences.len(), 5);
 
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
-        .produce_artifact()
-        .expect("forwarded joined module should encode canonically");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("forwarded joined module should encode canonically")
+    .into_artifact();
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes())
             .expect("forwarded joined module should decode"),
@@ -169,9 +176,15 @@ fn lowers_result_less_dynamic_join_through_the_shared_helper_chain() {
     }));
     assert_eq!(lowered.source_call_occurrences.len(), 5);
 
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
-        .produce_artifact()
-        .expect("result-less joined module should encode canonically");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("result-less joined module should encode canonically")
+    .into_artifact();
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes())
             .expect("result-less joined module should decode"),
@@ -262,9 +275,15 @@ fn lowers_parameter_sourced_dynamic_forwarding_as_two_explicit_helpers() {
     );
     assert_eq!(lowered.source_call_occurrences.len(), 3);
 
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
-        .produce_artifact()
-        .expect("multi-hop dynamic module should encode canonically");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("multi-hop dynamic module should encode canonically")
+    .into_artifact();
     let decoded = terminal_codec::decode_module(artifact.semantic_bytes())
         .expect("multi-hop dynamic module should decode");
     assert_eq!(decoded.dynamic_dispatch.parameters.len(), 2);
@@ -336,9 +355,15 @@ fn retains_multi_hop_forwarded_scalar_result_control() {
     ));
     assert_eq!(lowered.source_call_occurrences.len(), 5);
 
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
-        .produce_artifact()
-        .expect("multi-hop scalar result control should encode canonically");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("multi-hop scalar result control should encode canonically")
+    .into_artifact();
     let decoded = terminal_codec::decode_module(artifact.semantic_bytes())
         .expect("multi-hop scalar result control should decode");
     assert_eq!(decoded, lowered.semantic_module);
@@ -435,9 +460,15 @@ fn forwarded_descriptor_calculations_execute_through_verified_artifact() {
             composed_helper_source()
         };
         let checked = checked_source_with_core_service(&source);
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
-            .produce_artifact()
-            .expect("composed helper source publishes canonical verified artifact");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("Main::run"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("composed helper source publishes canonical verified artifact")
+        .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let entry = module
             .machines
@@ -584,9 +615,15 @@ fn lowers_parameter_sourced_dynamic_unit_forwarding_as_two_explicit_helpers() {
     }));
     assert_eq!(lowered.source_call_occurrences.len(), 3);
 
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
-        .produce_artifact()
-        .expect("multi-hop dynamic Unit module should encode canonically");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("multi-hop dynamic Unit module should encode canonically")
+    .into_artifact();
     let decoded = terminal_codec::decode_module(artifact.semantic_bytes())
         .expect("multi-hop dynamic Unit module should decode");
     assert_eq!(decoded.dynamic_dispatch.parameters.len(), 2);
@@ -650,9 +687,15 @@ fn lowers_direct_dynamic_unit_without_allocating_a_scalar_result() {
         callable.result,
         terminal_psi::ClosedConformanceCallableResult::Unit
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
-        .produce_artifact()
-        .expect("direct dynamic Unit module encodes");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("direct dynamic Unit module encodes")
+    .into_artifact();
     let decoded = terminal_codec::decode_module(artifact.semantic_bytes())
         .expect("direct dynamic Unit module decodes");
     assert_eq!(decoded, lowered.semantic_module);
@@ -693,9 +736,15 @@ fn lowers_rebound_dynamic_unit_to_a_resultless_indirect_dispatch() {
         scalar_type: semantic_vocabulary::ScalarType::Boolean,
     });
     assert!(terminal_verifier::validate_module(&lowered.semantic_module).is_err());
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
-        .produce_artifact()
-        .expect("rebound dynamic Unit module encodes");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("rebound dynamic Unit module encodes")
+    .into_artifact();
     assert_dynamic_unit_artifact_executes(&artifact);
 }
 
@@ -824,9 +873,15 @@ fn preserves_forwarded_dynamic_unit_parameter_abi_without_a_result_value() {
         }
     ));
     assert_eq!(lowered.source_call_occurrences.len(), 2);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
-        .produce_artifact()
-        .expect("forwarded dynamic Unit module encodes");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("forwarded dynamic Unit module encodes")
+    .into_artifact();
     terminal_codec::decode_module(artifact.semantic_bytes())
         .expect("forwarded dynamic Unit module decodes");
     assert_dynamic_unit_artifact_executes(&artifact);
@@ -866,9 +921,15 @@ fn forwards_a_direct_dynamic_unit_selection_without_fabricating_a_rebound_descri
         terminal_psi::TerminalDynamicDescriptorSource::Selection { ordinal: 1 };
     assert!(terminal_verifier::validate_module(&lowered.semantic_module).is_err());
 
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
-        .produce_artifact()
-        .expect("direct forwarded dynamic Unit module encodes");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("direct forwarded dynamic Unit module encodes")
+    .into_artifact();
     let decoded = terminal_codec::decode_module(artifact.semantic_bytes())
         .expect("direct forwarded dynamic Unit module decodes");
     assert_eq!(
@@ -945,9 +1006,15 @@ fn preserves_forwarded_dynamic_parameter_abi_from_checked_source() {
     ));
     assert_eq!(lowered.source_call_occurrences.len(), 2);
 
-    let produced = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
-        .produce_artifact()
-        .expect("source-produced dynamic parameter module encodes");
+    let produced = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("source-produced dynamic parameter module encodes")
+    .into_artifact();
     let decoded = terminal_codec::decode_module(produced.semantic_bytes())
         .expect("source-produced dynamic parameter module decodes");
     assert_eq!(decoded, lowered.semantic_module);

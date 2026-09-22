@@ -3,6 +3,9 @@ use super::{OperationKind, StructuralAccess, checked_from_source, source};
 use checked_trees::BorrowAccessKind;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 fn nested_source() -> String {
     source(
@@ -17,9 +20,15 @@ fn nested_source() -> String {
 #[test]
 fn mutable_chain_retains_each_access_and_exact_projected_calls() {
     let checked = checked_from_source(&nested_source());
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "forward")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("forward"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     terminal_verifier::verify_module(
@@ -96,9 +105,15 @@ fn mutable_chain_retains_each_access_and_exact_projected_calls() {
 #[test]
 fn mutable_alias_source_replay_rejects_access_path_and_lifetime_substitution() {
     let original = checked_from_source(&nested_source());
-    let _artifact = terminal_production::TerminalProductionRequest::new(&original, "forward")
-        .produce_artifact()
-        .unwrap();
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("forward"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let (direct_handle, direct) = original
         .facts
         .borrow
@@ -226,9 +241,14 @@ fn mutable_alias_source_replay_rejects_access_path_and_lifetime_substitution() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&checked, "forward")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("forward")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "mutable alias mutation {mutation}"
         );
     }

@@ -9,6 +9,7 @@ use terminal_codec::CanonicalTerminalArtifact;
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 fn checked(source: &str) -> CheckedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
@@ -29,9 +30,15 @@ fn checked(source: &str) -> CheckedTrees {
 }
 
 fn publish(checked: &CheckedTrees) -> (CanonicalTerminalArtifact, terminal_psi::TerminalModule) {
-    let artifact = terminal_production::TerminalProductionRequest::new(checked, "enter")
-        .produce_artifact()
-        .expect("unmodified source must publish before custody mutations");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("unmodified source must publish before custody mutations")
+    .into_artifact();
     let module =
         terminal_codec::decode_module(artifact.semantic_bytes()).expect("reload semantics");
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).expect("reload proof");
@@ -91,9 +98,14 @@ fn reject_erased_contract(original: &CheckedTrees, owner: &str, expected_message
         Ok(_) => panic!("accepted erased scalar contract for {owner}"),
     }
     assert!(
-        terminal_production::TerminalProductionRequest::new(&changed, "enter")
-            .produce_artifact()
-            .is_err(),
+        terminal_production::TerminalProductionRequest::new(
+            &changed,
+            TerminalMachineSelection::Name("enter")
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default()
+        ))
+        .is_err(),
         "erased scalar contract must not publish"
     );
 }

@@ -7,6 +7,7 @@ use checked_trees::{
 };
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
 pub(super) const PUT: &str = r#"
     machine put(out: &mut [u8], byte: u8) {
@@ -24,17 +25,29 @@ fn fixed_byte_array_lends_mutable_view() {
     let checked = checked_source(&format!(
         "{PUT}\n machine run(out: &mut [u8; 3]) {{ put(out, 65); put(out, 0); }}"
     ));
-    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "run")
-        .produce_artifact()
-        .expect("a raw fixed byte array lends its exact initialized writable range");
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("a raw fixed byte array lends its exact initialized writable range")
+    .into_artifact();
 }
 
 #[test]
 fn guarded_mutable_byte_view_write_publishes_terminal() {
     let checked = checked_source(PUT);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "put")
-        .produce_artifact()
-        .expect("guarded mutable byte-view write publishes verified Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("put"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("guarded mutable byte-view write publishes verified Terminal")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     terminal_verifier::validate_module(&module).unwrap();
 }
@@ -56,9 +69,15 @@ fn byte_view_write_rejects_changed_source_operands_access_and_roster() {
         }
     "#,
     );
-    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "put")
-        .produce_artifact()
-        .expect("lawful two-write source publishes first");
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("put"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("lawful two-write source publishes first")
+    .into_artifact();
     let plan_index = checked
         .facts
         .flow
@@ -168,9 +187,15 @@ fn guarded_mutable_byte_write_keeps_original_field_extent_and_tail() {
         }}
     "#
         ));
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Record::run")
-            .produce_artifact()
-            .expect("checked caller retains original borrowed field backing");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("Record::run"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("checked caller retains original borrowed field backing")
+        .into_artifact();
         let mut redirected = checked.clone();
         let caller = redirected
             .facts

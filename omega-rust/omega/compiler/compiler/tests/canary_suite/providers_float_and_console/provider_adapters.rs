@@ -10,6 +10,7 @@ use crate::{
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 #[test]
 fn checked_operator_fragment_publication_retains_complete_d29_call_interval() {
@@ -398,9 +399,14 @@ fn specialized_structural_fixed_operator_terminal_custody_canary_compiles() {
         Some("linux_x86_64"),
     ))
     .expect("structural fixed-token custody canary should check");
-    let produced = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
-        .produce_checked_artifact()
-        .expect("structural fixed-token application should reach Terminal");
+    let produced = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("exercise"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("structural fixed-token application should reach Terminal");
     produced
         .boundary_operator_scope()
         .validate_for_artifact(produced.artifact())
@@ -533,10 +539,14 @@ fn nested_checked_boundary_operator_physical_custody_canary_compiles() {
         .find(|contract| contract.machine == helper)
         .expect("nested checked-body helper contract")
         .closed_scalar_values = Default::default();
-    let rejected =
-        terminal_production::TerminalProductionRequest::new(&missing_helper_contract, &entry)
-            .produce_with_callback_custody(())
-            .expect_err("a nested scalar helper cannot lose its independently replayable contract");
+    let rejected = terminal_production::TerminalProductionRequest::new(
+        &missing_helper_contract,
+        TerminalMachineSelection::Name(&entry),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect_err("a nested scalar helper cannot lose its independently replayable contract");
     assert!(matches!(
         rejected.error(),
         terminal_production::TerminalArtifactProductionError::Lowering(

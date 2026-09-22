@@ -11,7 +11,7 @@ mod terminal_production;
 pub use checked_trees_to_lowered_psi::TerminalMachineSelection;
 pub use stage_timings::{TerminalProductionStage, TerminalProductionTimings};
 pub use terminal_production::{
-    CallbackCustodyTerminalArtifactProductionError, ProducedProgramEntryTerminalArtifact,
-    ProducedTerminalArtifact, ProducedTerminalArtifactWithCallbackCustody,
-    ProgramEntryTerminalReceiptError, TerminalArtifactProductionError, TerminalProductionRequest,
+    CallbackCustodyTerminalArtifactProductionError, ProducedTerminalArtifact,
+    ProgramEntryTerminalReceiptError, TerminalArtifactProductionError, TerminalProductionCustody,
+    TerminalProductionRequest,
 };

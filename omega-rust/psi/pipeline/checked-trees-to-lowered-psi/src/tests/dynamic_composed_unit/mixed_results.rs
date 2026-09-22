@@ -1,5 +1,6 @@
 use crate::TerminalMachineSelection;
 use crate::tests::{checked_source, lower_machine};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::ClosedConformanceCallableResult;
 
 const MIXED_RESULTS: &str = r#"
@@ -40,9 +41,15 @@ fn dynamic_table_retains_each_members_result_kind() {
         let checked = checked_source(&source(call));
         let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
             .expect("query and command use the same complete mixed-result conformance");
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
-            .produce_artifact()
-            .expect("mixed-result table verifies and serializes");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("Main::run"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("mixed-result table verifies and serializes")
+        .into_artifact();
         let decoded = terminal_codec::decode_module(artifact.semantic_bytes())
             .expect("mixed-result table decodes");
         assert_eq!(decoded, lowered.semantic_module);
@@ -105,9 +112,14 @@ fn mixed_table_cannot_omit_an_uncalled_member() {
             panic!("one mixed-table call plan")
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &checked,
+                terminal_production::TerminalMachineSelection::Name("Main::run")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "a forwarded descriptor requires its complete table"
         );
     }

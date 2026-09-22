@@ -1,6 +1,9 @@
 //! Source-produced primitive writes retain caller storage and scalar return ABI.
 use proof_admission::AdmissionProfile;
 use terminal_codec::CanonicalTerminalArtifact;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_psi::OperationKind;
 
 #[path = "primitive_store_return/publication.rs"]
@@ -49,9 +52,15 @@ fn produce(source: &str, entry: &str) -> CanonicalTerminalArtifact {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("check store-return source");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, entry)
-        .produce_artifact()
-        .expect("publish store-return Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name(entry),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("publish store-return Terminal")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     assert_eq!(

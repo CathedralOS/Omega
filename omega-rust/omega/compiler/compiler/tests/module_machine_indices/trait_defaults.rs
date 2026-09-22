@@ -5,6 +5,9 @@ use package_compilation::{
 };
 use std::path::Path;
 use terminal_interpreter::{TerminalExecutionResult, interpret_terminal_artifact};
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[test]
 fn imported_trait_default_keeps_its_declaring_module_through_terminal_execution() {
@@ -49,9 +52,15 @@ fn assert_source_free_result(checked: compiler::CheckedCompilation) {
             "implementation states belong to the conforming package, not the template",
         );
     }
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
-        .produce_artifact()
-        .expect("imported default reaches Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("read"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("imported default reaches Terminal")
+    .into_artifact();
     drop(checked);
     assert_eq!(
         interpret_terminal_artifact(

@@ -11,6 +11,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 #[path = "../../../../../tests/native-differential/tests/common/native_function.rs"]
 #[allow(dead_code)]
@@ -72,9 +73,15 @@ fn assert_recovered_executes_without_source(
             fixture.root.display()
         )
     });
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "recovered")
-        .produce_artifact()
-        .expect("recovered constant reaches Terminal publication");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("recovered"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("recovered constant reaches Terminal publication")
+    .into_artifact();
     drop(checked);
     let source_root = fixture.root.clone();
     drop(fixture);

@@ -2,6 +2,9 @@
 
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 #[path = "payloadless_case_return_source/guarded_payloadless_calls.rs"]
 mod guarded_payloadless_calls;
 #[path = "payloadless_case_return_source/ordered_case_returns.rs"]
@@ -74,9 +77,15 @@ fn assert_guarded_case_results(
     entry: &str,
     cases_to_run: &[(terminal_interpreter::TerminalScalarValue, &str)],
 ) {
-    let artifact = terminal_production::TerminalProductionRequest::new(checked, entry)
-        .produce_artifact()
-        .expect("ordered scalar guards retain selected case construction");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        checked,
+        TerminalMachineSelection::Name(entry),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("ordered scalar guards retain selected case construction")
+    .into_artifact();
     let artifact =
         terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
     let module = decode_module(artifact.semantic_bytes()).unwrap();

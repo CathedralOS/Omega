@@ -6,6 +6,9 @@ use crate::{
 };
 use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[test]
 fn checked_compilation_retains_the_exact_selected_program_entry() {
@@ -155,11 +158,15 @@ fn uefi_entry_machine_plan_produces_terminal_artifact() {
         .composed_for_machine(source.machine_symbol())
         .expect("Boot::launch must retain its checked transitive Unit machine plan");
     assert_eq!(plan.states.len(), 2);
-    let produced = terminal_production::TerminalProductionRequest::for_machine_symbol(
+    let produced = terminal_production::TerminalProductionRequest::new(
         trees,
-        source.machine_symbol(),
+        TerminalMachineSelection::Symbol(source.machine_symbol()),
     )
-    .produce_program_entry(source.identity().bytes());
+    .produce(TerminalProductionCustody {
+        entry_identity: Some(source.identity().bytes()),
+        callback_custody: (),
+        timings: &mut TerminalProductionTimings::default(),
+    });
     // Both claims stay pinned on their owned entry roots for the loop's whole
     // cyclic lifetime — nothing in the emitted graph rebinds, consumes, or
     // transfers them — so the verifier's claim-custody fence admits the
@@ -167,7 +174,13 @@ fn uefi_entry_machine_plan_produces_terminal_artifact() {
     // physical entry adapter remains downstream of this product.
     let produced = produced
         .expect("the claim-pinned retain cycle must validate and produce the Terminal artifact");
-    assert_eq!(produced.receipt().source_machine_name(), "Boot::launch");
+    assert_eq!(
+        produced
+            .receipt()
+            .expect("entry receipt")
+            .source_machine_name(),
+        "Boot::launch"
+    );
 }
 
 #[test]

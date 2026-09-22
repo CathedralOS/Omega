@@ -15,6 +15,9 @@ use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralValue,
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_psi::{
     OperationKind, OperationResult, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
     StructuralTypeShape, TerminalMachineResult, Terminator,
@@ -182,9 +185,15 @@ fn assert_receiver_call(access: StructuralAccess, from_parameter: bool, self_cal
             assert!(scalar_arguments.is_empty());
         }
 
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, caller_name)
-            .produce_artifact()
-            .expect("receiver call reaches canonical Terminal production");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name(caller_name),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("receiver call reaches canonical Terminal production")
+        .into_artifact();
         drop(checked);
         let module = terminal_codec::decode_module(artifact.semantic_bytes())
             .expect("reload canonical receiver call semantics");

@@ -4,6 +4,9 @@ use super::{
 };
 use build_time_evaluation::{BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue};
 use compiler::CheckedCompileRequest;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[test]
 fn package_qualified_case_values_and_membership_select_the_declaring_owner() {
@@ -67,9 +70,15 @@ fn package_qualified_case_values_and_membership_select_the_declaring_owner() {
         )
         .unwrap();
         let checked = compile(&root, inputs);
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "matches")
-            .produce_artifact()
-            .expect("package-qualified borrowed membership reaches canonical Terminal");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("matches"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("package-qualified borrowed membership reaches canonical Terminal")
+        .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         assert!(
             module
@@ -113,9 +122,14 @@ fn package_qualified_case_values_and_membership_select_the_declaring_owner() {
                 .expect("checked membership evaluates with its selected nominal owner");
             assert_eq!(result.value(), &BuildTimeValue::Bool(expected));
             if matches!(entry, "is_empty" | "is_some" | "local_is_empty")
-                && let Err(error) =
-                    terminal_production::TerminalProductionRequest::new(&checked, entry)
-                        .produce_artifact()
+                && let Err(error) = terminal_production::TerminalProductionRequest::new(
+                    &checked,
+                    TerminalMachineSelection::Name(entry),
+                )
+                .produce(TerminalProductionCustody::artifact_only(
+                    &mut TerminalProductionTimings::default(),
+                ))
+                .map(|produced| produced.into_artifact())
             {
                 terminal_failures.push(format!("{expression}, {entry}: {error:?}"));
             }

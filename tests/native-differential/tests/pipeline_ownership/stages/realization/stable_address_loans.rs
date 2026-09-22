@@ -17,6 +17,9 @@ use crate::tests::{
     validate_optimized_ordinary_callable_entry, validate_target_frame_layout,
 };
 use semantic_vocabulary::{OperationId, PlaceId};
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 const SOURCE: &str =
     include_str!("../../../../../omega/pass/structural/local_record_receivers/main.omg");
@@ -40,9 +43,15 @@ fn produce() -> (Vec<u8>, Vec<u8>) {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "sum_local")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("sum_local"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let artifact =
         terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();

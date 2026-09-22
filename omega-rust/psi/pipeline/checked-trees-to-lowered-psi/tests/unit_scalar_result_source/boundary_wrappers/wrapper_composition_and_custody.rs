@@ -4,6 +4,7 @@ use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle};
 use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 #[test]
 fn scalar_wrapper_explicit_entry_predicate_survives_call_proofs() {
@@ -555,9 +556,14 @@ fn ordinary_boundary_wrapper_replays_actual_body_and_call_custody() {
         // Do not rebuild source plans here: the receiving stage must reject
         // corrupted retained evidence despite an otherwise valid typed source.
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "Main::main")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "{mutation}"
         );
     }

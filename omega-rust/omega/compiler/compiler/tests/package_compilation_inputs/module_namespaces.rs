@@ -3,6 +3,9 @@ use super::{
     compile_to_checked, identity,
 };
 use compiler::CheckedCompileRequest;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 fn root_inputs(root: &Path) -> PackageCompilationInputs {
     PackageCompilationInputs::new_package(
@@ -48,9 +51,15 @@ fn repeated_imports_of_package_private_machines_execute_across_files() {
             ..CheckedCompileRequest::new(&root.join("main.omg"), None)
         })
         .expect("same-package private selection and repeated imports are legal");
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "score")
-            .produce_artifact()
-            .expect("private module call reaches Terminal");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("score"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("private module call reaches Terminal")
+        .into_artifact();
         let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
             .expect("reload canonical artifact");
         drop(checked);

@@ -6,6 +6,7 @@ use super::{
 use crate::TerminalMachineSelection;
 use crate::tests::{checked_source, checked_source_with_core_service, lower_machine};
 use checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, Terminator};
 
 #[test]
@@ -93,9 +94,15 @@ fn lowers_exact_named_dynamic_field_call_without_selecting_ambient_lookalike() {
             ))
     );
 
-    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
-        .produce_artifact()
-        .expect("direct dynamic module has canonical source-free encoding");
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("direct dynamic module has canonical source-free encoding")
+    .into_artifact();
 }
 
 #[test]
@@ -217,9 +224,15 @@ fn lowers_checked_integer_field_store_through_the_selected_dynamic_realization()
         }]
     ));
 
-    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
-        .produce_artifact()
-        .expect("integer store route has canonical source-free encoding");
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("integer store route has canonical source-free encoding")
+    .into_artifact();
 }
 
 #[test]
@@ -421,9 +434,15 @@ fn lowers_dynamic_scalar_result_into_console_effect_control() {
         2
     );
     assert_eq!(lowered.source_call_occurrences.len(), 3);
-    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
-        .produce_artifact()
-        .expect("direct dynamic result control has canonical source-free encoding");
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("direct dynamic result control has canonical source-free encoding")
+    .into_artifact();
 
     let mut wrong_self = lowered.semantic_module.clone();
     let realization_attachment = wrong_self

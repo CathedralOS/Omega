@@ -10,6 +10,7 @@ use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralBooleanFieldValue, TerminalStructuralValue,
 };
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
@@ -143,9 +144,15 @@ fn roundtrip(checked: &checked_trees::CheckedTrees) -> lowered_psi::LoweredPsi {
         &proof_admission::AdmissionProfile::default(),
     )
     .expect("mixed Unit crash predicate verifies independently");
-    let artifact = terminal_production::TerminalProductionRequest::new(checked, "Main::main")
-        .produce_artifact()
-        .expect("mixed Unit crash predicate publishes");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("mixed Unit crash predicate publishes")
+    .into_artifact();
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),
         module

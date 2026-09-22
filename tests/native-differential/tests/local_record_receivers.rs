@@ -4,6 +4,9 @@ use target::NativeTarget;
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[cfg(any(
     all(
@@ -34,9 +37,15 @@ fn produce() -> CanonicalTerminalArtifact {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "observe")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("observe"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let artifact = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();

@@ -10,6 +10,7 @@ use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationResult, Terminator};
 
 #[test]
@@ -22,9 +23,15 @@ fn anonymous_shared_result_keeps_its_owner_until_call_completion() {
         machine main(token: Token) { read(&forward(token)); }
     "#,
     );
-    let _pure_artifact = terminal_production::TerminalProductionRequest::new(&pure, "main")
-        .produce_artifact()
-        .expect("anonymous shared call with an empty consumer publishes");
+    let _pure_artifact = terminal_production::TerminalProductionRequest::new(
+        &pure,
+        TerminalMachineSelection::Name("main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("anonymous shared call with an empty consumer publishes")
+    .into_artifact();
     let boundary = checked(
         r#"
         pub data Token { value: u64; }
@@ -33,9 +40,15 @@ fn anonymous_shared_result_keeps_its_owner_until_call_completion() {
         machine main() reaches Factory { read(&Factory::create()); }
     "#,
     );
-    let _boundary_artifact = terminal_production::TerminalProductionRequest::new(&boundary, "main")
-        .produce_artifact()
-        .expect("zero-parameter free caller retains a boundary-produced temporary");
+    let _boundary_artifact = terminal_production::TerminalProductionRequest::new(
+        &boundary,
+        TerminalMachineSelection::Name("main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("zero-parameter free caller retains a boundary-produced temporary")
+    .into_artifact();
     for boundary in [false, true] {
         for fields in ["value: u64;", "", "elements: [u16; 3];"] {
             assert_anonymous_shared(&anonymous_source(boundary, fields), boundary, &[]);
@@ -72,9 +85,15 @@ fn assert_anonymous_shared(source: &str, boundary: bool, names: &[&str]) {
 
     let checked = checked(source);
     let artifact = encoded_locals(&checked, names);
-    let published = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
-        .produce_artifact()
-        .expect("anonymous shared argument retains and then cleans its owner");
+    let published = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("anonymous shared argument retains and then cleans its owner")
+    .into_artifact();
     let module = decode_module(&artifact.0).unwrap();
     assert_eq!(decode_module(published.semantic_bytes()).unwrap(), module);
     let caller = module
@@ -288,9 +307,14 @@ fn anonymous_shared_result_permissions_rejoin_exact_owner_and_continuation() {
                 }
                 *changed.facts.flow.ownership.permissions.get_mut(*handle) = altered;
                 assert!(
-                    terminal_production::TerminalProductionRequest::new(&changed, "Main::main")
-                        .produce_artifact()
-                        .is_err(),
+                    terminal_production::TerminalProductionRequest::new(
+                        &changed,
+                        TerminalMachineSelection::Name("Main::main")
+                    )
+                    .produce(TerminalProductionCustody::artifact_only(
+                        &mut TerminalProductionTimings::default()
+                    ))
+                    .is_err(),
                     "boundary={boundary}, kind={:?}, mutation={mutation}",
                     event.kind
                 );
@@ -310,9 +334,14 @@ fn anonymous_shared_result_permissions_rejoin_exact_owner_and_continuation() {
             .permissions
             .get_mut(events[2].0) = events[1].1.clone();
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "Main::main")
-                .produce_artifact()
-                .is_err()
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err()
         );
     }
 }
@@ -362,9 +391,14 @@ fn anonymous_shared_results_reject_conflicting_return_cleanup() {
         };
         *discard_result_on_return = true;
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "Main::main")
-                .produce_artifact()
-                .is_err()
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err()
         );
     }
 }
@@ -411,9 +445,14 @@ fn anonymous_shared_continuation_rejects_missing_delayed_or_rebound_cleanup() {
                 }
             }
             assert!(
-                terminal_production::TerminalProductionRequest::new(&changed, "Main::main")
-                    .produce_artifact()
-                    .is_err(),
+                terminal_production::TerminalProductionRequest::new(
+                    &changed,
+                    TerminalMachineSelection::Name("Main::main")
+                )
+                .produce(TerminalProductionCustody::artifact_only(
+                    &mut TerminalProductionTimings::default()
+                ))
+                .is_err(),
                 "boundary={boundary}, mutation={mutation}"
             );
         }
@@ -525,10 +564,15 @@ fn named_results_share_their_identity_across_reads_and_final_disposition() {
                 };
                 let checked = checked(&source(&format!("{prefix} {calls} {completion}")));
                 let artifact = encoded_locals(&checked, &names);
-                let published =
-                    terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
-                        .produce_artifact()
-                        .unwrap();
+                let published = terminal_production::TerminalProductionRequest::new(
+                    &checked,
+                    TerminalMachineSelection::Name("Main::main"),
+                )
+                .produce(TerminalProductionCustody::artifact_only(
+                    &mut TerminalProductionTimings::default(),
+                ))
+                .unwrap()
+                .into_artifact();
                 let module = decode_module(&artifact.0).unwrap();
                 assert_eq!(decode_module(published.semantic_bytes()).unwrap(), module);
                 let entry = module

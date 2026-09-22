@@ -4,6 +4,9 @@ use std::{
     path::PathBuf,
     sync::atomic::{AtomicU64, Ordering},
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 use compiler::{CheckedCompileRequest, compile_to_checked};
 use proof_admission::{
@@ -67,9 +70,15 @@ fn source_nested_boolean_equations_have_kernel_transport() {
         Some("linux_x86_64"),
     ))
     .unwrap();
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     drop(checked);
     drop(project);
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
@@ -356,9 +365,15 @@ fn source_opaque_operation_equations_have_kernel_transport() {
         Some("linux_x86_64"),
     ))
     .unwrap();
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     drop(checked);
     drop(project);
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();

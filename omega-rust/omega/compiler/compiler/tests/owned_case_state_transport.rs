@@ -10,6 +10,9 @@ use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue, TerminalStructuralValue,
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 struct Fixture(PathBuf);
 
@@ -57,9 +60,15 @@ machine evaluate(selected: bool) -> u64 {{ helper(selected) }}
             Some("linux_x86_64"),
         ))
         .expect("scalar caller and locally established cases check");
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "evaluate")
-            .produce_artifact()
-            .expect("callee-local storage is not a caller input");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("evaluate"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("callee-local storage is not a caller input")
+        .into_artifact();
         let input = terminal_psi_to_abstract_operations::lower_artifact(
             terminal_psi_to_abstract_operations::ArtifactSections {
                 semantic_bytes: artifact.semantic_bytes(),
