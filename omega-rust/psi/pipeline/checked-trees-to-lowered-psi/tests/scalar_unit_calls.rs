@@ -7,6 +7,9 @@ use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_psi::OperationKind;
 
 #[path = "scalar_unit_calls/custody.rs"]
@@ -50,9 +53,15 @@ fn unsigned(value: u128) -> TerminalScalarValue {
 
 fn execute(source: &str, arguments: &[TerminalScalarValue], expected: TerminalScalarValue) {
     let checked = checked(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "observe")
-        .produce_artifact()
-        .expect("scalar caller retains its ordinary Unit call closure");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("observe"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("scalar caller retains its ordinary Unit call closure")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     let profile = proof_admission::AdmissionProfile::default();

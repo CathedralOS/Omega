@@ -37,12 +37,13 @@ the boundary call returns.
   keeps call order. When `enabled` is false the work runs unmeasured, so
   every production path shares one instrumented body — no measured and
   unmeasured copies of the pipeline.
-- `terminal_production.rs` threads `&mut TerminalProductionTimings` through
-  the shared body and wraps each leg (`MachineSelection` at the selector,
-  `LedgerCheck`/`Lowering`/`Optimization` in `lower_and_optimize_timed`,
-  `EntryReceipt`, `TerminalIdentity`, `ReceiverEligibility`, `Publication`,
-  `BoundaryOperatorScope` in `produce_program_entry_parts_timed`). The
-  carrier rides on the produced artifact as `stage_timings`.
+- `terminal_production.rs` threads the `TerminalProductionCustody` carrier's
+  `&mut TerminalProductionTimings` through the one `produce` body and wraps
+  each leg (`MachineSelection` at the selector,
+  `LedgerCheck`/`Lowering`/`Optimization` in `lower_and_optimize`,
+  `EntryReceipt`, `TerminalIdentity`, `ReceiverEligibility` in
+  `prepare_entry_receipt`, then `Publication` and `BoundaryOperatorScope`).
+  The carrier rides on the produced artifact as `stage_timings`.
 - The Omega side names the rows at merge time:
   `checked-compilation-to-terminal-artifact/terminal_artifact.rs`
   `terminal_production_stage_meta` maps each `TerminalProductionStage` to a

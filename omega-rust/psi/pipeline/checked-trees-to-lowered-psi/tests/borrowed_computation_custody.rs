@@ -7,6 +7,9 @@ use checked_trees::{
     CheckedScalarComputationStructuralArgument, CheckedStructuralAccess, CheckedTrees,
     CheckedUnitStructuralArgumentSourcePlan,
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 const LOCAL_SOURCE: &str = r#"
     machine stamp(value: &mut u64, number: u64) -> u64 { value = number; number }
@@ -49,9 +52,15 @@ fn checked(source: &str) -> CheckedTrees {
 
 fn publish_original(source: &str) -> CheckedTrees {
     let checked = checked(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
-        .produce_artifact()
-        .expect("unmodified source must publish before custody mutations are meaningful");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("unmodified source must publish before custody mutations are meaningful")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert!(
         module
@@ -69,9 +78,14 @@ fn publish_original(source: &str) -> CheckedTrees {
 
 fn reject(checked: &CheckedTrees, mutation: &str) {
     assert!(
-        terminal_production::TerminalProductionRequest::new(checked, "enter")
-            .produce_artifact()
-            .is_err(),
+        terminal_production::TerminalProductionRequest::new(
+            checked,
+            TerminalMachineSelection::Name("enter")
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default()
+        ))
+        .is_err(),
         "publication accepted computed borrow mutation: {mutation}"
     );
 }

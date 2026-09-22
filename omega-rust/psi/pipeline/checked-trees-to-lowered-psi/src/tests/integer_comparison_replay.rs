@@ -10,6 +10,7 @@ use lowered_psi::{
     LoweredSelectedIntegerComparisonOperandOrder, LoweredSelectedIntegerComparisonOperation,
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, OperationId};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 /// Omega separately rejoins these opaque commitments to actual selected
 /// ProviderPlans; this unit boundary tests only source-to-Terminal custody.
@@ -85,9 +86,14 @@ fn a_replayed_integer_occurrence_is_admitted_into_the_custody_scope() {
                 IntegerType::new(sign, bits).expect("primitive integer type"),
                 "{source}"
             );
-            let produced = terminal_production::TerminalProductionRequest::new(&checked, "choose")
-                .produce_checked_artifact()
-                .expect("selected integer comparison custody publishes");
+            let produced = terminal_production::TerminalProductionRequest::new(
+                &checked,
+                terminal_production::TerminalMachineSelection::Name("choose"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("selected integer comparison custody publishes");
             let scope = produced.boundary_operator_scope();
             let [published] = scope.occurrences() else {
                 panic!("one exact published integer comparison occurrence: {source}");
@@ -119,9 +125,14 @@ fn a_replayed_integer_occurrence_is_admitted_into_the_custody_scope() {
 fn a_stale_integer_occurrence_rejects() {
     let checked = i32_equality();
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("choose")).unwrap();
-    let produced = terminal_production::TerminalProductionRequest::new(&checked, "choose")
-        .produce_checked_artifact()
-        .unwrap();
+    let produced = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("choose"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap();
     let replay = |corrupted: &lowered_psi::LoweredPsi| {
         lowered_psi_to_terminal_psi::checked_boundary_operator_scope(
             &checked,
@@ -159,9 +170,14 @@ fn a_stale_integer_occurrence_rejects() {
 fn a_duplicated_integer_occurrence_rejects() {
     let checked = i32_equality();
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("choose")).unwrap();
-    let produced = terminal_production::TerminalProductionRequest::new(&checked, "choose")
-        .produce_checked_artifact()
-        .unwrap();
+    let produced = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("choose"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap();
     let mut corrupted = lowered.clone();
     let duplicate = corrupted.selected_integer_comparison_occurrences[0];
     corrupted
@@ -182,9 +198,14 @@ fn a_duplicated_integer_occurrence_rejects() {
 fn a_foreign_integer_occurrence_rejects() {
     let checked = i32_equality();
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("choose")).unwrap();
-    let produced = terminal_production::TerminalProductionRequest::new(&checked, "choose")
-        .produce_checked_artifact()
-        .unwrap();
+    let produced = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("choose"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap();
     let replay = |corrupted: &lowered_psi::LoweredPsi| {
         lowered_psi_to_terminal_psi::checked_boundary_operator_scope(
             &checked,

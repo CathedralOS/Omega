@@ -2,6 +2,9 @@ use super::conditional_fixture::Comparison;
 use super::{OptimizedFragmentPublicationRequest, conditional_fixture, emit_optimized_fragments};
 use optimization_core::{Optimization, OptimizationSelections};
 use semantic_vocabulary::IntegerSign;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[test]
 fn catalog_integer_predicates_use_shared_publication_without_opt_in() {
@@ -279,9 +282,15 @@ fn source_common_return_conditionals_use_the_shared_native_pipeline() {
         let checked = crate::tests::fixtures::checked_source::checked(&format!(
             "machine value(left: {operand}, right: {operand}) -> u64\nrequires true\nensures result == result\n{{ transition left {comparison} right {{ true -> 1234605616436508552u64 _ -> 0u64 }} }}"
         ));
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "value")
-            .produce_artifact()
-            .unwrap();
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("value"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
         for target in [
             target::NativeTarget::windows_x64(),
             target::NativeTarget::linux_x64(),

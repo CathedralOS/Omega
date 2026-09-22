@@ -9,6 +9,7 @@ use crate::terminal_identities::service_id;
 use crate::tests::{SymbolHandle, TerminalModule, checked_source};
 use language_semantics::{ServiceReachId, ServiceReachRowId, ServiceReachSummary};
 use semantic_vocabulary::ServiceId;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 fn nominal_schema_forwarding_module() -> terminal_psi::TerminalModule {
     let checked = checked_source(
@@ -25,9 +26,15 @@ fn nominal_schema_forwarding_module() -> terminal_psi::TerminalModule {
         pub machine enter(value: u64) -> u64 { outer<selected>(value) }
     "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
-        .produce_artifact()
-        .expect("nominal schema forwarded through a private helper");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("nominal schema forwarded through a private helper")
+    .into_artifact();
     drop(checked);
     terminal_codec::decode_module(artifact.semantic_bytes()).expect("forwarded schema reload")
 }

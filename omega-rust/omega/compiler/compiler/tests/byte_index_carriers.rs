@@ -7,6 +7,9 @@ use terminal_interpreter::{
     AcceptTerminalEffects, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
     TerminalScalarValue, TerminalStructuralInputs, TerminalStructuralValue,
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_psi::OperationKind;
 
 fn check(source: &str) -> Result<CheckedTrees, Vec<Diagnostic>> {
@@ -42,9 +45,15 @@ fn assert_replacement_executes(index_type: &str) {
 
 fn assert_replacement_program_executes(source: &str, index_type: &str, expected: &[u8]) {
     let checked = check(source).expect("bounded index source checks");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Record::replace")
-        .produce_artifact()
-        .expect("bounded index publishes independently verified Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Record::replace"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("bounded index publishes independently verified Terminal")
+    .into_artifact();
     drop(checked);
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).expect("decode");
     terminal_verifier::validate_module(&module).expect("validate decoded module");
@@ -228,10 +237,15 @@ fn signed_index_rejects_substituted_retained_operand() {
         }
     "#;
     let checked = check(source).expect("source checks");
-    let _artifact =
-        terminal_production::TerminalProductionRequest::new(&checked, "Record::replace")
-            .produce_artifact()
-            .expect("original dynamic index publishes");
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Record::replace"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("original dynamic index publishes")
+    .into_artifact();
     let mut changed = checked.clone();
     let replacement = checked_trees::CheckedScalarExpression::IntegerLiteral {
         literal: numerics::literals::IntegerLiteral::from_value(0).with_landing(
@@ -277,9 +291,14 @@ fn signed_index_rejects_substituted_retained_operand() {
     }
     assert!(stores > 0);
     assert!(
-        terminal_production::TerminalProductionRequest::new(&changed, "Record::replace")
-            .produce_artifact()
-            .is_err(),
+        terminal_production::TerminalProductionRequest::new(
+            &changed,
+            TerminalMachineSelection::Name("Record::replace")
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default()
+        ))
+        .is_err(),
         "an in-bounds substituted operand is not the authored index",
     );
 }
@@ -341,9 +360,15 @@ fn signed_index_mutates_the_callers_borrowed_byte_view() {
     "#,
     )
     .expect("borrowed index checks");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "run")
-        .produce_artifact()
-        .expect("borrowed index publishes");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("borrowed index publishes")
+    .into_artifact();
     drop(checked);
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).expect("decode");
     let entry = module

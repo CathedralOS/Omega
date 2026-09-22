@@ -5,6 +5,9 @@ use super::{
 };
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use typed_trees_to_checked_trees::CheckingRequest;
 pub(super) fn checked(length: usize) -> checked_trees::CheckedTrees {
     // The same customer is also run through the CLI with the bundled library.
@@ -25,10 +28,15 @@ pub(super) fn checked(length: usize) -> checked_trees::CheckedTrees {
 fn projected_claims_survive_nominal_mixed_call_chains_without_source() {
     for length in [1, 2, 3] {
         let checked = checked(length);
-        let artifact =
-            terminal_production::TerminalProductionRequest::new(&checked, "Main::demand")
-                .produce_artifact()
-                .expect("publish projected return custody");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Main::demand"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("publish projected return custody")
+        .into_artifact();
         drop(checked);
         let module = decode_module(artifact.semantic_bytes()).expect("reload semantics");
         let caller = module
@@ -181,9 +189,14 @@ fn projected_claims_reject_changed_checked_custody() {
             }
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&invalid, "Main::demand")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &invalid,
+                TerminalMachineSelection::Name("Main::demand")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "changed {mutation} must reject"
         );
     }
@@ -192,9 +205,15 @@ fn projected_claims_reject_changed_checked_custody() {
 #[test]
 fn projected_claims_reject_incomplete_portable_return_frontiers() {
     let checked = checked(2);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::demand")
-        .produce_artifact()
-        .expect("publish projected returns");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::demand"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("publish projected returns")
+    .into_artifact();
     drop(checked);
     let module = decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();

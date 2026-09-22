@@ -1,5 +1,8 @@
 use super::{Sources, compile, root_inputs};
 use terminal_interpreter::{TerminalExecutionResult, interpret_terminal_artifact};
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[test]
 fn computed_nominal_customer_publishes_and_executes_without_source() {
@@ -13,9 +16,15 @@ fn computed_nominal_customer_publishes_and_executes_without_source() {
         )),
     );
     let checked = compile(&root, root_inputs(&root));
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
-        .produce_artifact()
-        .expect("computed record field reaches Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("read"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("computed record field reaches Terminal")
+    .into_artifact();
     drop(checked);
     let result = interpret_terminal_artifact(
         artifact.semantic_bytes(),
@@ -59,9 +68,15 @@ fn computed_nominal_indices_keep_exact_module_carriers_and_private_dependencies(
     assert!(!dependencies.is_empty());
     assert!(dependencies.iter().all(|selection| selection.exposure() ==
         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation));
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
-        .produce_artifact()
-        .expect("module-owned record projection reaches Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("read"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("module-owned record projection reaches Terminal")
+    .into_artifact();
     drop(checked);
     assert_eq!(
         interpret_terminal_artifact(
@@ -99,9 +114,15 @@ fn computed_nominal_member_read_evaluates_in_constant_position() {
     assert!(!dependencies.is_empty());
     assert!(dependencies.iter().all(|selection| selection.exposure() ==
         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation));
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
-        .produce_artifact()
-        .expect("module-owned record member constant reaches Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("read"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("module-owned record member constant reaches Terminal")
+    .into_artifact();
     drop(checked);
     assert_eq!(
         interpret_terminal_artifact(

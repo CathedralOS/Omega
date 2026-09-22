@@ -7,13 +7,22 @@ use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_psi::{OperationKind, Terminator};
 
 fn artifact(prefix: &str) -> terminal_codec::CanonicalTerminalArtifact {
     let checked = checked(prefix);
-    terminal_production::TerminalProductionRequest::new(&checked, "exercise")
-        .produce_artifact()
-        .expect("ordinary sequencing must retain the returned reference and its source loan")
+    terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("exercise"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("ordinary sequencing must retain the returned reference and its source loan")
+    .into_artifact()
 }
 
 fn checked(prefix: &str) -> checked_trees::CheckedTrees {
@@ -87,18 +96,30 @@ fn local_record_checked(prefix: &str) -> checked_trees::CheckedTrees {
 #[test]
 fn local_reference_record_preserves_original_storage() {
     let checked = local_record_checked("");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
-        .produce_artifact()
-        .expect("local reference record has exact leaf custody");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("exercise"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("local reference record has exact leaf custody")
+    .into_artifact();
     execute(&artifact, 1, 0);
 }
 
 #[test]
 fn local_reference_record_composes_with_scalar_computation() {
     let checked = local_record_checked("let offset: i32 = 1 + 2;");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
-        .produce_artifact()
-        .expect("ordinary scalar computation preserves reference construction");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("exercise"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("ordinary scalar computation preserves reference construction")
+    .into_artifact();
     execute(&artifact, 1, 0);
 }
 
@@ -282,9 +303,14 @@ fn local_reference_record_rejects_changed_source_custody() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "exercise")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("exercise")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "mutation {mutation} must not fabricate carrier authority"
         );
     }
@@ -335,9 +361,15 @@ fn owned_reference_record_argument_preserves_original_storage() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("owned reference record arguments reach checked trees");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
-        .produce_artifact()
-        .expect("owned reference record arguments preserve complete leaf custody");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("exercise"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("owned reference record arguments preserve complete leaf custody")
+    .into_artifact();
     execute(&artifact, 1, 1);
 }
 
@@ -352,9 +384,15 @@ fn owned_reference_record_argument_composes_with_ordinary_work() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
-        .produce_artifact()
-        .expect("owned ingress composes with scalar formals and ordinary effects");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("exercise"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("owned ingress composes with scalar formals and ordinary effects")
+    .into_artifact();
     execute(&artifact, 1, 1);
 }
 
@@ -435,9 +473,14 @@ fn owned_reference_record_argument_rejects_changed_prior_custody() {
             );
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "exercise")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("exercise")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "changed transferred custody {mutation}"
         );
     }
@@ -480,9 +523,15 @@ fn stored_reference_result_preserves_original_storage() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap_or_else(|diagnostics| panic!("stored-reference checking: {diagnostics:#?}"));
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
-        .produce_artifact()
-        .expect("stored result carries exact returned leaf origins");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("exercise"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("stored result carries exact returned leaf origins")
+    .into_artifact();
     execute(&artifact, 1, 1);
 }
 
@@ -502,9 +551,15 @@ fn stored_reference_result_composes_with_an_ordinary_effect() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
-        .produce_artifact()
-        .expect("ordinary effect precedes reference record completion");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("exercise"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("ordinary effect precedes reference record completion")
+    .into_artifact();
     execute(&artifact, 2, 1);
 }
 
@@ -523,9 +578,15 @@ fn stored_reference_result_rejoins_full_formal_positions() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
-        .produce_artifact()
-        .expect("structural ordinal rejoins its full authored argument position");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("exercise"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("structural ordinal rejoins its full authored argument position")
+    .into_artifact();
     execute(&artifact, 1, 1);
 }
 
@@ -544,9 +605,15 @@ fn stored_reference_result_rejects_changed_return_and_actual_origins() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    let _ = terminal_production::TerminalProductionRequest::new(&original, "exercise")
-        .produce_artifact()
-        .expect("unmodified same-typed helper roster");
+    let _ = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("exercise"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("unmodified same-typed helper roster")
+    .into_artifact();
     let helper = original
         .machines()
         .iter()
@@ -646,9 +713,14 @@ fn stored_reference_result_rejects_changed_return_and_actual_origins() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "exercise")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("exercise")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "mutation {mutation} cannot replace exact returned or caller origins"
         );
     }
@@ -662,9 +734,15 @@ fn reference_release_processing_preserves_empty_helpers() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("check empty helper");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
-        .produce_artifact()
-        .expect("empty helper has no last-statement release boundary");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("exercise"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("empty helper has no last-statement release boundary")
+    .into_artifact();
     drop(checked);
     let mut execution = TerminalExecution::start_artifact(
         artifact.semantic_bytes(),
@@ -717,9 +795,15 @@ fn reference_result_rejects_changed_source_loan_and_weakening() {
         CheckedUnitStructuralArgumentSourcePlan as Source,
     };
     let original = checked("");
-    let _ = terminal_production::TerminalProductionRequest::new(&original, "exercise")
-        .produce_artifact()
-        .expect("untampered reference custody");
+    let _ = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("exercise"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("untampered reference custody")
+    .into_artifact();
     for mutation in 0..7 {
         let mut changed = original.clone();
         let plans = &mut changed.facts.flow.terminal_unit_effects.machines;
@@ -838,9 +922,14 @@ fn reference_result_rejects_changed_source_loan_and_weakening() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "exercise")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("exercise")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "source-custody mutation {mutation} must reject"
         );
     }
@@ -1036,9 +1125,15 @@ fn projected_reference_result_preserves_original_storage() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap_or_else(|diagnostics| panic!("projected reference-result checking: {diagnostics:#?}"));
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
-        .produce_artifact()
-        .expect("a projected leaf return keeps exact ingress custody");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("exercise"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("a projected leaf return keeps exact ingress custody")
+    .into_artifact();
     execute(&artifact, 1, 1);
 }
 
@@ -1053,9 +1148,15 @@ fn projected_reference_result_rejects_changed_leaf_custody() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    let _ = terminal_production::TerminalProductionRequest::new(&original, "exercise")
-        .produce_artifact()
-        .expect("untampered projected leaf custody");
+    let _ = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("exercise"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("untampered projected leaf custody")
+    .into_artifact();
     for mutation in 0..6 {
         let mut changed = original.clone();
         let plans = &mut changed.facts.flow.terminal_unit_effects.machines;
@@ -1140,9 +1241,14 @@ fn projected_reference_result_rejects_changed_leaf_custody() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "exercise")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("exercise")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "projected leaf custody mutation {mutation} must reject"
         );
     }
@@ -1176,9 +1282,15 @@ fn nested_call_record_argument_rejects_changed_leaf_custody() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    let _ = terminal_production::TerminalProductionRequest::new(&original, "exercise")
-        .produce_artifact()
-        .expect("untampered nested call-operand custody");
+    let _ = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("exercise"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("untampered nested call-operand custody")
+    .into_artifact();
     for mutation in 0..6 {
         let mut changed = original.clone();
         let plans = &mut changed.facts.flow.terminal_unit_effects.machines;
@@ -1294,9 +1406,14 @@ fn nested_call_record_argument_rejects_changed_leaf_custody() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "exercise")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("exercise")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "nested call-operand custody mutation {mutation} must reject"
         );
     }
@@ -1323,9 +1440,15 @@ fn nested_call_record_argument_preserves_original_storage() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap_or_else(|diagnostics| panic!("nested operand checking: {diagnostics:#?}"));
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
-        .produce_artifact()
-        .expect("nested operand terminal production");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("exercise"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("nested operand terminal production")
+    .into_artifact();
     // `forward_outer` returns `Outer` and `select` returns `&mut i32`.
     execute(&artifact, 1, 2);
 }
@@ -1348,9 +1471,15 @@ fn projected_record_argument_preserves_original_storage() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap_or_else(|diagnostics| panic!("projected record-argument checking: {diagnostics:#?}"));
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
-        .produce_artifact()
-        .expect("a projected record operand keeps exact ingress custody");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("exercise"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("a projected record operand keeps exact ingress custody")
+    .into_artifact();
     execute(&artifact, 1, 1);
 }
 
@@ -1365,9 +1494,15 @@ fn projected_record_argument_rejects_changed_leaf_custody() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    let _ = terminal_production::TerminalProductionRequest::new(&original, "exercise")
-        .produce_artifact()
-        .expect("untampered projected record-argument custody");
+    let _ = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("exercise"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("untampered projected record-argument custody")
+    .into_artifact();
     for mutation in 0..4 {
         let mut changed = original.clone();
         let plans = &mut changed.facts.flow.terminal_unit_effects.machines;
@@ -1445,9 +1580,14 @@ fn projected_record_argument_rejects_changed_leaf_custody() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "exercise")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("exercise")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "projected record-argument custody mutation {mutation} must reject"
         );
     }

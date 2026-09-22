@@ -2,6 +2,9 @@ use super::{CheckedChildExecution, PreparedCheckedSource};
 use checked_interpreter::InterpretOptions;
 use std::fs;
 use std::sync::atomic::{AtomicU64, Ordering};
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 static NEXT_PREPARED_FIXTURE: AtomicU64 = AtomicU64::new(0);
 
@@ -156,9 +159,13 @@ machine Main::query(&mut self) -> i32 reaches Sink { self.sink.echo(35) }
         assert_eq!(statement_outcome.error, None);
         let produced = terminal_production::TerminalProductionRequest::new(
             checked.terminal_production_trees(),
-            "Main::main",
+            TerminalMachineSelection::Name("Main::main"),
         )
-        .produce_artifact();
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .map(|produced| produced.into_artifact())
+        .map_err(|error| error.into_parts().0);
         if forwarding {
             // Terminal still has no layout/Unit plan for an ordinary trait-valued
             // provider parameter. Interpreter forwarding does not grant one.

@@ -6,6 +6,9 @@ use terminal_interpreter::{
     TerminalEffect, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
     TerminalScalarValue,
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 const SOURCE: &str = r#"
     boundary trait Sink { machine record(value: u64); }
@@ -54,9 +57,15 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
 #[test]
 fn local_nested_record_getter_composes_with_conditional_state_exit() {
     let checked = checked(SOURCE);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
-        .produce_artifact()
-        .expect("state-local records are not required successor arguments");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("state-local records are not required successor arguments")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     terminal_verifier::verify_module(
@@ -114,9 +123,15 @@ fn mutable_call_result_records_keep_storage_through_state_local_receivers() {
         }
     "#;
     let checked = checked(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
-        .produce_artifact()
-        .expect("mutable call results retain their exact state-local storage");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("mutable call results retain their exact state-local storage")
+    .into_artifact();
     let entry = checked
         .machines()
         .iter()
@@ -131,9 +146,14 @@ fn mutable_call_result_records_keep_storage_through_state_local_receivers() {
     };
     local.is_mutable = false;
     assert!(
-        terminal_production::TerminalProductionRequest::new(&immutable, "Main::main")
-            .produce_artifact()
-            .is_err(),
+        terminal_production::TerminalProductionRequest::new(
+            &immutable,
+            TerminalMachineSelection::Name("Main::main")
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default()
+        ))
+        .is_err(),
         "a retained mutable receiver cannot borrow an immutable result destination"
     );
     let selected = checked
@@ -163,9 +183,14 @@ fn mutable_call_result_records_keep_storage_through_state_local_receivers() {
         .get_mut(receipt)
         .source = language_semantics::PermissionEventSource::Statement { statement_index: 0 };
     assert!(
-        terminal_production::TerminalProductionRequest::new(&wrong_receipt, "Main::main")
-            .produce_artifact()
-            .is_err(),
+        terminal_production::TerminalProductionRequest::new(
+            &wrong_receipt,
+            TerminalMachineSelection::Name("Main::main")
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default()
+        ))
+        .is_err(),
         "normal return cannot replace its local StateExit receipt with a statement receipt"
     );
     let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
@@ -220,9 +245,15 @@ fn copy_record_state_exit_needs_no_affine_receipt_or_disposal() {
 }
 
 fn artifact(source: &str) -> terminal_codec::CanonicalTerminalArtifact {
-    terminal_production::TerminalProductionRequest::new(&checked(source), "Main::main")
-        .produce_artifact()
-        .expect("exact local lifetime publishes")
+    terminal_production::TerminalProductionRequest::new(
+        &checked(source),
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("exact local lifetime publishes")
+    .into_artifact()
 }
 
 fn assert_execution(
@@ -347,9 +378,14 @@ fn local_record_direct_jump_and_asymmetric_transfer_preserve_observations() {
             event.source = language_semantics::PermissionEventSource::StateExit;
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "Main::main")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "transfer authority mutation {mutation}"
         );
     }
@@ -454,9 +490,15 @@ fn selected_edge_drops_two_locals_in_reverse_order_and_rejects_corruption() {
 #[test]
 fn local_edge_cleanup_rejects_forged_permission_origins() {
     let checked = checked(SOURCE);
-    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
-        .produce_artifact()
-        .unwrap();
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let machine = checked
         .machines()
         .iter()
@@ -494,9 +536,14 @@ fn local_edge_cleanup_rejects_forged_permission_origins() {
             .get_mut(handle)
             .provenance = language_semantics::PermissionProvenance::Unknown;
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "Main::main")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "forged local ownership provenance"
         );
     }

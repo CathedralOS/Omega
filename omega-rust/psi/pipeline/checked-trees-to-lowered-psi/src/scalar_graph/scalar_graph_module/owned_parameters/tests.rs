@@ -10,6 +10,7 @@ use super::{
     StructuralParameterDeclaration, TerminalAffineCleanupAction, Terminator, complete,
 };
 use semantic_vocabulary::OperationId;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 #[test]
 fn parameter_completion_preserves_disjoint_temporary_and_local_cleanup() {
@@ -533,9 +534,15 @@ fn actual_affine_limits_artifact_rejects_missing_duplicate_and_transferred_clean
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("checked");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "root")
-        .produce_artifact()
-        .expect("publish affine scalar graph");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("root"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("publish affine scalar graph")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).expect("module");
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).expect("proof");
     let profile = proof_admission::AdmissionProfile::default();

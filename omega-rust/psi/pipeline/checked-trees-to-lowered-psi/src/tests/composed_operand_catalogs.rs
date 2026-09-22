@@ -2,6 +2,7 @@
 use super::{CheckedTrees, checked_source_with_core_service, lower_machine};
 use crate::TerminalMachineSelection;
 use lowered_psi::LoweredPsi;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, Terminator};
 use typed_trees::{expression::ExpressionNode, statement::StatementNode};
 
@@ -846,10 +847,15 @@ fn closed_sum_unit_closure_shares_helpers_and_preserves_payload_and_cleanup() {
             assert_eq!(lowered.semantic_module.machines.len(), 4);
             assert_closed_sum_unit_catalog(&checked, &lowered);
             assert_closed_sum_unit_source_custody(&checked);
-            let artifact =
-                terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
-                    .produce_artifact()
-                    .expect("complete ordinary callees survive Terminal publication");
+            let artifact = terminal_production::TerminalProductionRequest::new(
+                &checked,
+                terminal_production::TerminalMachineSelection::Name("Main::main"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("complete ordinary callees survive Terminal publication")
+            .into_artifact();
             assert_eq!(
                 terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),
                 lowered.semantic_module

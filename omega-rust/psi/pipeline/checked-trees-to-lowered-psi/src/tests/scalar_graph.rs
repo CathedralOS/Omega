@@ -16,6 +16,7 @@ use crate::terminal_identities::{
 use checked_trees::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedUnitEffectOperationPlan,
 };
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::Terminator;
 
 #[test]
@@ -83,9 +84,15 @@ fn scalar_completion_after_array_calls_replays_its_expression_and_statement_orde
         "../../../../../../tests/omega/pass/collections/owned_array_scalar_comparisons/main.omg"
     ));
     for entry in ["scalar_comparison", "array_comparison"] {
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, entry)
-            .produce_artifact()
-            .expect("comparison completes the ordered array/call body in Terminal");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name(entry),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("comparison completes the ordered array/call body in Terminal")
+        .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
         let profile = proof_admission::AdmissionProfile::default();
@@ -184,9 +191,14 @@ fn scalar_completion_after_array_calls_replays_its_expression_and_statement_orde
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "scalar_comparison")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                terminal_production::TerminalMachineSelection::Name("scalar_comparison")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "corruption {corruption}"
         );
     }

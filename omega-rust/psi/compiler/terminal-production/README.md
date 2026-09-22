@@ -16,12 +16,16 @@ keeps shared retention policy separate from pass execution.
 [Publication ownership](../../pipeline/lowered-psi-to-terminal-psi/README.md)
 separates canonical sealing from checked boundary-operator occurrence replay.
 
-`TerminalProductionRequest` carries the checked trees, selected machine, and
-exact Psi optimization selection. Its artifact, checked-scope, callback-custody,
-and ProgramEntry methods share lowering/optimization and publication operations
-while retaining distinct output evidence. ProgramEntry checks its unique Unit
-entry before publication and rejoins the published semantic identity afterward.
-Callback rejection returns the original opaque sidecar without cloning it.
+`TerminalProductionRequest` carries the checked trees, the
+`TerminalMachineSelection` naming the machine, and the exact Psi optimization
+selection. Its one `produce` entry takes a `TerminalProductionCustody`: an
+optional ProgramEntry source-signature identity, the caller's opaque callback
+sidecar, and the stage-timing carrier. Every product runs the same ledger,
+lowering, optimization, publication, and boundary-scope legs; an entry identity
+adds the ProgramEntry receipt legs, which check the unique Unit entry before
+publication and rejoin the published semantic identity afterward. The
+`ProducedTerminalArtifact` returns the artifact beside that retained custody,
+and rejection returns the original opaque sidecar without cloning it.
 
 ProgramEntry also retains source-derived receiver eligibility when the exact
 attached record is ZII-valid and needs no executable nominal cleanup. The

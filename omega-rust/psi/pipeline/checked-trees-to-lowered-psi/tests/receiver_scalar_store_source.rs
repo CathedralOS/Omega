@@ -11,6 +11,9 @@ use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralValue,
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use terminal_psi::{
     OperationKind, OperationResult, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
     StructuralPathSegment, StructuralTypeShape, Terminator,
@@ -61,9 +64,15 @@ fn receiver_store_sequence_retains_each_write_around_an_ordinary_call() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("ordered receiver stores check");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Pair::replace")
-        .produce_artifact()
-        .expect("every authored store and intervening call reaches Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Pair::replace"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("every authored store and intervening call reaches Terminal")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     let profile = proof_admission::AdmissionProfile::default();
@@ -190,9 +199,15 @@ fn receiver_field_stores_keep_a_local_snapshot_and_a_fresh_read_across_a_borrowe
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("local snapshot and current storage field assignments check");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Pair::replace")
-        .produce_artifact()
-        .expect("field stores receive immutable bindings and primitive storage independently");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Pair::replace"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("field stores receive immutable bindings and primitive storage independently")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert_eq!(
         terminal_codec::encode_module(&module).unwrap(),
@@ -428,9 +443,15 @@ fn assert_receiver_store_with_access(
     assert_eq!(store.statement_index, 0);
     assert_eq!(store.field_identity, "value");
 
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, machine_name)
-        .produce_artifact()
-        .expect("receiver store reaches canonical Terminal through production");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name(machine_name),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("receiver store reaches canonical Terminal through production")
+    .into_artifact();
     drop(checked);
     let module = terminal_codec::decode_module(artifact.semantic_bytes())
         .expect("reload canonical receiver store semantics");
@@ -684,9 +705,15 @@ fn canonical_verifier_rejects_shared_access_substituted_for_mutable_receiver() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Pair::direct")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Pair::direct"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let mut module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines
@@ -717,9 +744,15 @@ fn ranged_field_store_proves_a_nonnegative_bitwise_and_mask() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("ranged bitwise-and store checks");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Cell::mask")
-        .produce_artifact()
-        .expect("the mask image proves into the declared range");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Cell::mask"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("the mask image proves into the declared range")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     let profile = proof_admission::AdmissionProfile::default();
@@ -781,9 +814,15 @@ fn ranged_field_store_proves_a_guard_bounded_binary_operand() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("guarded binary operand store checks");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
-        .produce_artifact()
-        .expect("the guard-bounded operand proves the sum into the declared range");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("the guard-bounded operand proves the sum into the declared range")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     let profile = proof_admission::AdmissionProfile::default();

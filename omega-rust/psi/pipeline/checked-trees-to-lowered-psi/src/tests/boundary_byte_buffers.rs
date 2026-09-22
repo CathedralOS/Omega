@@ -2,6 +2,7 @@
 use super::{checked_source, lower_machine};
 use crate::TerminalMachineSelection;
 use terminal_interpreter::TerminalStructuralInputs;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 mod checked_provider;
 use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
 use terminal_interpreter::{
@@ -31,9 +32,15 @@ const INPUT_SOURCE: &str = r#"
 
 fn start(source: &str) -> (terminal_psi::TerminalModule, TerminalExecution) {
     let checked = checked_source(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Record::run")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Record::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines

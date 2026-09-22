@@ -136,15 +136,22 @@ mod tests {
     use super::{lower_realization_input, prepare_native_realization_input};
     use proof_admission::{AdmissionAcceptance, AdmissionProfile};
     use semantic_vocabulary::{AdmissionSiteId, EvidenceIdentity, ProfileDecisionId};
+    use terminal_production::{
+        TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+    };
 
     fn artifact_fixture() -> terminal_codec::CanonicalTerminalArtifact {
         let checked = crate::tests::fixtures::checked_source::checked(
             "data Main {} machine Main::launch() {}",
         );
-        let produced =
-            terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
-                .produce_checked_artifact()
-                .expect("produce Terminal fixture");
+        let produced = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Main::launch"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("produce Terminal fixture");
         produced.into_parts().0
     }
 
@@ -160,9 +167,15 @@ mod tests {
                 }
             "#,
         );
-        terminal_production::TerminalProductionRequest::new(&checked, "Root::cleanup_prefix")
-            .produce_artifact()
-            .expect("produce alternate Terminal fixture")
+        terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Root::cleanup_prefix"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("produce alternate Terminal fixture")
+        .into_artifact()
     }
 
     fn nonempty_profile() -> AdmissionProfile {

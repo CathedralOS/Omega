@@ -6,6 +6,9 @@ use checked_trees::{
 };
 use provider_planning::ProviderPlanDerivation;
 use std::sync::Arc;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 const SOURCE: &str = r#"
     data Math {}
@@ -125,9 +128,15 @@ fn settled_selected_initializer_lowers_and_cannot_be_deleted() {
     };
     assert_eq!(rewritten.target_symbol, *realization_state);
 
-    let artifact = terminal_production::TerminalProductionRequest::new(&settled, "Root::enter")
-        .produce_artifact()
-        .expect("selected initializer lowers without ordinary occurrence custody");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &settled,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("selected initializer lowers without ordinary occurrence custody")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes())
         .expect("decode selected initializer artifact");
     let entry = module
@@ -157,9 +166,14 @@ fn settled_selected_initializer_lowers_and_cannot_be_deleted() {
         .expect("retained caller");
     caller.operations.remove(0);
     assert!(
-        terminal_production::TerminalProductionRequest::new(&deleted, "Root::enter")
-            .produce_artifact()
-            .is_err(),
+        terminal_production::TerminalProductionRequest::new(
+            &deleted,
+            TerminalMachineSelection::Name("Root::enter")
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default()
+        ))
+        .is_err(),
         "source-derived initializer coverage must reject a deleted selected operation"
     );
 }

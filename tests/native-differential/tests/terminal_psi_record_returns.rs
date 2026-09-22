@@ -1,5 +1,8 @@
 //! Incoming record values remain live across ordinary writes and calls.
 use target::NativeTarget;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[path = "common/native_function.rs"]
 #[allow(dead_code)]
@@ -40,9 +43,15 @@ fn optimized_record(
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "forward")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("forward"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     // Retain ordinary verified write/call operations and explicitly author the
     // Terminal parameter/result contract for the receiving-corruption controls.
     // Fully source-authored return cases live in scalar_case_results/record_reads.

@@ -10,6 +10,7 @@ use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, Terminator};
 
 #[test]
@@ -107,9 +108,14 @@ fn ordered_case_returns_reject_changed_construction_control_and_coverage() {
             }
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&checked, "MemoryAlignment::from")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("MemoryAlignment::from")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "mutation {mutation} must fail independent source replay"
         );
     }
@@ -184,9 +190,15 @@ fn borrowed_case_membership_uses_an_observation_operation() {
             machine observe(choice: &Choice) -> bool {{ {body} }}
         "
         ));
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "observe")
-            .produce_artifact()
-            .expect("whole borrowed case membership reaches Terminal");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("observe"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("whole borrowed case membership reaches Terminal")
+        .into_artifact();
         let module = decode_module(artifact.semantic_bytes()).unwrap();
         assert!(
             module

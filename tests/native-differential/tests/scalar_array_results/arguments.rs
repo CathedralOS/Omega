@@ -1,4 +1,7 @@
 //! The complete module customer must transport owned payloads, not just construct them.
+use super::native_function;
+use super::{NativeTarget, publish, publish_target, target_artifact};
+use compiler::CheckedCompileRequest;
 #[cfg(any(
     all(
         target_os = "linux",
@@ -6,9 +9,9 @@
     ),
     all(target_os = "macos", target_arch = "aarch64")
 ))]
-use super::native_function;
-use super::{NativeTarget, publish, publish_target, target_artifact};
-use compiler::CheckedCompileRequest;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[test]
 fn array_local_control_preserves_selected_returns_and_prefix_effects() {
@@ -139,9 +142,15 @@ fn transitive_source_array_arguments_and_returns_reach_native_execution() {
         compiler::compile_to_checked(CheckedCompileRequest::new(&path, Some("macos_arm64")))
             .unwrap();
     let entry = "transitive_computation_row";
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, entry)
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name(entry),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     for target in [
         NativeTarget::linux_x64(),
         NativeTarget::linux_arm64(),

@@ -7,6 +7,7 @@ use super::{
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::TerminalStructuralInputs;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 pub(super) fn assert_source(
     source: &str,
     boundary: bool,
@@ -39,9 +40,15 @@ fn assert_source_with_scalars(
     expected_ticks: &[terminal_interpreter::TerminalScalarValue],
 ) {
     let checked = checked(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Root::enter")
-        .produce_artifact()
-        .unwrap_or_else(|error| panic!("{source}\n{error:?}"));
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap_or_else(|error| panic!("{source}\n{error:?}"))
+    .into_artifact();
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -338,9 +345,14 @@ fn scalar_projection_admission_keeps_parameter_and_final_return_limits() {
              machine Root::enter(first: u16, value: Pair) {{ {body} }}"
         );
         assert!(
-            terminal_production::TerminalProductionRequest::new(&checked(&source), "Root::enter")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &checked(&source),
+                TerminalMachineSelection::Name("Root::enter")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "only result-root Jump continuations admit scalar callers"
         );
     }
@@ -429,10 +441,15 @@ fn projected_continuation_plans_reject_cleanup_and_permission_drift() {
                 )
             };
             let original = checked(&format!("{source} machine Sink::done() {{}}"));
-            let _artifact =
-                terminal_production::TerminalProductionRequest::new(&original, "Root::enter")
-                    .produce_artifact()
-                    .unwrap();
+            let _artifact = terminal_production::TerminalProductionRequest::new(
+                &original,
+                TerminalMachineSelection::Name("Root::enter"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .unwrap()
+            .into_artifact();
             let root = original
                 .machines()
                 .iter()
@@ -534,9 +551,14 @@ fn projected_continuation_plans_reject_cleanup_and_permission_drift() {
                     _ => unreachable!(),
                 }
                 assert!(
-                    terminal_production::TerminalProductionRequest::new(&changed, "Root::enter")
-                        .produce_artifact()
-                        .is_err(),
+                    terminal_production::TerminalProductionRequest::new(
+                        &changed,
+                        TerminalMachineSelection::Name("Root::enter")
+                    )
+                    .produce(TerminalProductionCustody::artifact_only(
+                        &mut TerminalProductionTimings::default()
+                    ))
+                    .is_err(),
                     "boundary={boundary}, empty={empty}, cleanup mutation={mutation}"
                 );
             }
@@ -565,9 +587,11 @@ fn projected_continuation_plans_reject_cleanup_and_permission_drift() {
                     assert!(
                         terminal_production::TerminalProductionRequest::new(
                             &changed,
-                            "Root::enter"
+                            TerminalMachineSelection::Name("Root::enter")
                         )
-                        .produce_artifact()
+                        .produce(TerminalProductionCustody::artifact_only(
+                            &mut TerminalProductionTimings::default()
+                        ))
                         .is_err(),
                         "boundary={boundary}, empty={empty}, event={:?}, permission mutation={mutation}",
                         event.kind

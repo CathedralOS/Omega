@@ -8,6 +8,7 @@ use terminal_interpreter::{
     TerminalExecutionStatus, TerminalStructuralByteArrayValue, TerminalStructuralValue,
     admit_provider_installation_from_artifact,
 };
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::StructuralPathSegment;
 
 const PROVIDER: &str = r#"
@@ -51,10 +52,17 @@ fn fixed_array_boundary_provider_publishes_whole_root_and_record_field() {
         let checked = checked_array_caller(field);
         let artifact = terminal_production::TerminalProductionRequest::new(
             &checked,
-            if field { "Root::run" } else { "run" },
+            terminal_production::TerminalMachineSelection::Name(if field {
+                "Root::run"
+            } else {
+                "run"
+            }),
         )
-        .produce_artifact()
-        .expect("fixed-array boundary call retains the exact writable range");
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("fixed-array boundary call retains the exact writable range")
+        .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
         terminal_verifier::verify_module(
@@ -78,10 +86,17 @@ fn fixed_array_boundary_provider_writes_original_storage_across_every_fuel_pause
         let checked = checked_array_caller(field);
         let artifact = terminal_production::TerminalProductionRequest::new(
             &checked,
-            if field { "Root::run" } else { "run" },
+            terminal_production::TerminalMachineSelection::Name(if field {
+                "Root::run"
+            } else {
+                "run"
+            }),
         )
-        .produce_artifact()
-        .unwrap();
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let [candidate] = module.provider_candidates.as_slice() else {
             panic!("one checked provider")
@@ -209,9 +224,15 @@ fn fixed_array_boundary_provider_writes_original_storage_across_every_fuel_pause
 #[test]
 fn fixed_array_boundary_provider_rejects_missing_initialization_and_installation() {
     let checked = checked_array_caller(false);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "run")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let candidate = &module.provider_candidates[0];
     let profile = proof_admission::AdmissionProfile::default();
@@ -312,9 +333,15 @@ fn fixed_array_boundary_provider_rejects_missing_initialization_and_installation
 #[test]
 fn fixed_array_boundary_provider_replays_exact_field_and_mutable_access() {
     let checked = checked_array_caller(true);
-    let _ = terminal_production::TerminalProductionRequest::new(&checked, "Root::run")
-        .produce_artifact()
-        .unwrap();
+    let _ = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Root::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     for change_access in [false, true] {
         let mut changed = checked.clone();
         let call = changed

@@ -1,6 +1,9 @@
 //! Source-produced locals keep their address, writes, reads and reinitialization.
 use proof_admission::AdmissionProfile;
 use terminal_codec::CanonicalTerminalArtifact;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[path = "primitive_locals/boolean_control.rs"]
 mod boolean_control;
@@ -37,9 +40,15 @@ fn produce(source: &str, entry: &str) -> CanonicalTerminalArtifact {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, entry)
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name(entry),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default()).unwrap();

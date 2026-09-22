@@ -4,6 +4,9 @@ use crate::native_realization::optimized_fragment_projection::{
     OptimizedFragmentPublicationRequest, emit_optimized_fragments,
 };
 use crate::native_realization::target_stage::lower_realization_target_stage;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 mod conditional;
 mod conditional_fixture;
 mod general_call_frame;
@@ -17,9 +20,15 @@ mod stack_probe_commit;
 fn physical_and_object_publication_retain_the_original_abstract_allocation() {
     let checked =
         crate::tests::fixtures::checked_source::checked("data Main {} machine Main::launch() {}");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::launch"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     for target in [
         target::NativeTarget::windows_x64(),
         target::NativeTarget::linux_x64(),
@@ -132,11 +141,18 @@ fn return_programs_publish_replayable_native_evidence_on_every_target() {
                 Vec::new(),
             )
             .unwrap();
-        let (artifact, _, scope, _, _, _) =
-            terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
-                .produce_program_entry(signature.identity().bytes())
-                .unwrap()
-                .into_parts();
+        let (artifact, _, scope, (), _, _, _, _) =
+            terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("Main::launch"),
+            )
+            .produce(TerminalProductionCustody {
+                entry_identity: Some(signature.identity().bytes()),
+                callback_custody: (),
+                timings: &mut TerminalProductionTimings::default(),
+            })
+            .unwrap()
+            .into_parts();
         let outcome = crate::realize_native_artifact(
             artifact,
             crate::NativeRealizationRequest {
@@ -204,9 +220,15 @@ fn return_programs_publish_replayable_native_evidence_on_every_target() {
 fn malformed_unit_inputs_reject_at_legalization() {
     let checked =
         crate::tests::fixtures::checked_source::checked("data Main {} machine Main::launch() {}");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::launch"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: artifact.semantic_bytes(),

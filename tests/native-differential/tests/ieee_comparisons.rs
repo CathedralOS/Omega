@@ -2,6 +2,7 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;
 use std::path::Path;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 use native_realization::{compiler_baseline_request_v1, optimize_artifact_sections};
 use optimization_core::OptimizationSelections;
@@ -38,9 +39,14 @@ fn text(
             .unwrap();
     compiler::validate_lowered_ieee_float_comparison_custody(checked, &lowered)
         .expect("source comparison joins exact selected provider and operands");
-    let produced = terminal_production::TerminalProductionRequest::new(checked, entry)
-        .produce_checked_artifact()
-        .expect("canonical Terminal with retained exact checked scope");
+    let produced = terminal_production::TerminalProductionRequest::new(
+        checked,
+        TerminalMachineSelection::Name(entry),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("canonical Terminal with retained exact checked scope");
     assert_eq!(
         produced.selected_ieee_float_comparison_occurrences().len(),
         expected_comparisons

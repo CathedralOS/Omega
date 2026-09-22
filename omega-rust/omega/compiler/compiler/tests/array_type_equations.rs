@@ -11,6 +11,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
 
@@ -83,9 +86,15 @@ fn assert_capacity_executes_without_source(source: &str, expected: u64) {
             "inferred and explicit tuples must select one concrete attached capacity machine: {capacities:?}"
         );
     };
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, capacity)
-        .produce_artifact()
-        .expect("recovered const argument reaches an attached machine's Terminal product");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name(capacity),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("recovered const argument reaches an attached machine's Terminal product")
+    .into_artifact();
     drop(checked);
     let source_root = fixture.root.clone();
     drop(fixture);

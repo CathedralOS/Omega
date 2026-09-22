@@ -6,6 +6,9 @@ use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, PackageKeyIdentity};
 use std::sync::atomic::{AtomicU64, Ordering};
 use terminal_interpreter::{TerminalExecutionResult, TerminalScalarValue};
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[path = "../../../../../tests/native-differential/tests/common/native_function.rs"]
 #[allow(dead_code)]
@@ -302,9 +305,15 @@ fn typed_range_endpoint_rejects_value_beyond_computed_bound() {
 }
 
 fn assert_endpoint_executes(checked: compiler::CheckedCompilation) {
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "main")
-        .produce_artifact()
-        .expect("bounded endpoint calls publish Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("bounded endpoint calls publish Terminal")
+    .into_artifact();
     drop(checked);
     assert_eq!(
         terminal_interpreter::interpret_terminal_artifact(
@@ -413,9 +422,16 @@ fn inferred_slice_selectors_check_but_await_structural_control_plan() {
             "machine has no source-independent checked scalar control plan",
         ),
     ] {
-        let error = terminal_production::TerminalProductionRequest::new(&checked, machine)
-            .produce_artifact()
-            .expect_err("slice control-plan production remains unfinished");
+        let error = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name(machine),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect_err("slice control-plan production remains unfinished")
+        .into_parts()
+        .0;
         assert!(
             format!("{error:?}").contains(stop),
             "{machine} stopped at a different omission: {error:?}",

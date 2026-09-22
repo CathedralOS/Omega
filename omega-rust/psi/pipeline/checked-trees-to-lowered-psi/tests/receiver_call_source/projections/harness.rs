@@ -14,6 +14,9 @@ use super::{
 };
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 pub(super) fn projected_source(
     caller_borrow: &str,
     callee_borrow: &str,
@@ -175,10 +178,15 @@ pub(super) fn assert_projected_receiver(
                 assert!(callee.scalar_parameters.is_empty());
             }
 
-            let artifact =
-                terminal_production::TerminalProductionRequest::new(&checked, caller_name)
-                    .produce_artifact()
-                    .expect("projected receiver reaches canonical Terminal production");
+            let artifact = terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name(caller_name),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("projected receiver reaches canonical Terminal production")
+            .into_artifact();
             drop(checked);
             let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
             let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();

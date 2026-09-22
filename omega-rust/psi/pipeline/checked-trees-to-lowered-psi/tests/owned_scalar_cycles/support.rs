@@ -1,5 +1,6 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use std::collections::BTreeSet;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 use semantic_vocabulary::{BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, ValueId};
 use terminal_psi::{
@@ -114,9 +115,15 @@ pub fn publish(source: &str) -> (TerminalModule, ProofBundle, Vec<u8>, Vec<u8>) 
         terminal_codec::decode_debug_map(&lowered.semantic_module, &debug_bytes).unwrap(),
         debug
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "walk")
-        .produce_artifact()
-        .expect("publish cyclic walk and reset closure");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("walk"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("publish cyclic walk and reset closure")
+    .into_artifact();
     let module =
         terminal_codec::decode_module(artifact.semantic_bytes()).expect("canonical cycle decode");
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();

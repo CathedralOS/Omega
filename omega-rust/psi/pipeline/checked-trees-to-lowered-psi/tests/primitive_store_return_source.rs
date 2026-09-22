@@ -11,6 +11,7 @@ use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::OperationKind;
 use tokens_to_syntax_trees::parse_syntax_trees;
 
@@ -31,9 +32,15 @@ fn primitive_reference_reads_under_operators_preserve_pre_store_values() {
     let checked = checked(
         "machine change(value: &mut u64, mask: u64) -> u64 { value = value ^ mask; value }",
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "change")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("change"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     execute(
         &artifact,
         &[unsigned(0x81)],
@@ -46,9 +53,15 @@ fn primitive_reference_reads_under_operators_preserve_pre_store_values() {
 #[test]
 fn boolean_reference_negation_preserves_pre_store_value() {
     let checked = checked("machine toggle(value: &mut bool) -> bool { value = !value; value }");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "toggle")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("toggle"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     for initial in [false, true] {
         execute(
             &artifact,
@@ -63,9 +76,15 @@ fn boolean_reference_negation_preserves_pre_store_value() {
 #[test]
 fn primitive_reference_write_then_scalar_return_reaches_terminal() {
     let checked = checked("machine reset(value: &mut u64) -> u64 { value = 0; 0 }");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "reset")
-        .produce_artifact()
-        .expect("the operand callee must execute its store before returning");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("reset"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("the operand callee must execute its store before returning")
+    .into_artifact();
     let zero = unsigned(0);
     execute(&artifact, &[], unsigned(91), zero, zero);
 }
@@ -175,9 +194,15 @@ fn write_only_parameter_delivery_and_distinct_result_keep_dense_scalar_order() {
     let checked = checked(
         "machine replace(destination: &write u64, replacement: u64, result_value: u64) -> u64 { destination = replacement; result_value }",
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "replace")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("replace"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     execute(
         &artifact,
         &[unsigned(27), unsigned(43)],
@@ -192,9 +217,15 @@ fn boolean_store_and_return_keep_separate_values() {
     let checked = checked(
         "machine replace(destination: &mut bool, replacement: bool) -> bool { destination = replacement; false }",
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "replace")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("replace"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     execute(
         &artifact,
         &[TerminalScalarValue::Boolean(true)],
@@ -209,9 +240,15 @@ fn attached_store_return_retains_its_exact_owner() {
     let mut checked = checked(
         "data First {} data Second {} machine First::reset(value: &mut u64) -> u64 { value = 0; 0 } machine Second::reset(value: &mut u64) -> u64 { value = 0; 0 }",
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "First::reset")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("First::reset"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     execute(&artifact, &[], unsigned(91), unsigned(0), unsigned(0));
     let plans = &mut checked
         .facts
@@ -404,9 +441,15 @@ fn ordinary_store_completion_replays_retained_effects_without_legacy_return_rows
         .terminal_structural_scalar_returns
         .machines
         .retain(|plan| plan.machine != target);
-    let artifact = terminal_production::TerminalProductionRequest::new(&original, "reset")
-        .produce_artifact()
-        .expect("ordinary operation body independently retains the store and scalar result");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("reset"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("ordinary operation body independently retains the store and scalar result")
+    .into_artifact();
     execute(&artifact, &[], unsigned(91), unsigned(0), unsigned(0));
     for mutation in [
         "missing body",
@@ -478,9 +521,14 @@ fn ordinary_store_completion_replays_retained_effects_without_legacy_return_rows
             }
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "reset")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("reset")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "{mutation}"
         );
     }

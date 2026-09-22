@@ -1,6 +1,7 @@
 //! Boolean preconditions retain their actual scalar identity across Unit calls.
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 fn checked(source: &str) -> checked_trees::CheckedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
@@ -40,9 +41,15 @@ fn roundtrip(source: &str) -> lowered_psi::LoweredPsi {
         &proof_admission::AdmissionProfile::default(),
     )
     .expect("independent Boolean call requirement verification");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
-        .produce_artifact()
-        .expect("Boolean requirement source publishes Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("Boolean requirement source publishes Terminal")
+    .into_artifact();
     assert_eq!(
         terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),
         module

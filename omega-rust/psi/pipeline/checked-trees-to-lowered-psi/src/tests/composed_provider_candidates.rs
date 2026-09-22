@@ -7,6 +7,7 @@ use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     admit_provider_installation_from_artifact,
 };
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 const SOURCE: &str = r#"
     data ReadResult { case Empty; case Bytes(count: u64); }
@@ -43,9 +44,15 @@ fn composed_provider_candidate_publishes_from_ordinary_discarding_caller() {
             .composed_for_machine(provider.symbol)
             .is_some()
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "run")
-        .produce_artifact()
-        .expect("checked state-graph provider belongs to the ordinary caller closure");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("checked state-graph provider belongs to the ordinary caller closure")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     terminal_verifier::verify_module(
@@ -95,9 +102,15 @@ fn composed_provider_candidate_preserves_helper_effects_across_every_fuel_pause(
             machine mark_middle() reaches Host + Relay { Relay::mark(7); }
         "#;
     let checked = checked_source(&source);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "run")
-        .produce_artifact()
-        .expect("complete provider helper closure");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("complete provider helper closure")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert_eq!(
         module.provider_candidates.len(),
@@ -216,9 +229,15 @@ fn composed_provider_candidate_preserves_borrowed_byte_view_signature() {
         .replace("flag: bool)", "flag: bool, buffer: &mut [u8])")
         .replace("Host::read(flag)", "Host::read(flag, buffer)");
     let checked = checked_source(&source);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "run")
-        .produce_artifact()
-        .expect("borrowed mutable byte view remains part of the composed provider signature");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("borrowed mutable byte view remains part of the composed provider signature")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let [candidate] = module.provider_candidates.as_slice() else {
         panic!("one exact checked provider")
@@ -246,9 +265,15 @@ fn composed_provider_candidate_preserves_borrowed_byte_view_signature() {
 fn composed_provider_candidate_rejects_result_and_body_roster_corruption() {
     let source = SOURCE.to_owned() + "machine identity(value: ReadResult) -> ReadResult { value }";
     let baseline = checked_source(&source);
-    let _ = terminal_production::TerminalProductionRequest::new(&baseline, "run")
-        .produce_artifact()
-        .expect("unmodified exact provider");
+    let _ = terminal_production::TerminalProductionRequest::new(
+        &baseline,
+        terminal_production::TerminalMachineSelection::Name("run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("unmodified exact provider")
+    .into_artifact();
     let provider = baseline.facts.flow.terminal_unit_effects.composed_machines[0].machine;
     for corruption in 0..6 {
         let mut changed = baseline.clone();
@@ -292,9 +317,14 @@ fn composed_provider_candidate_rejects_result_and_body_roster_corruption() {
             _ => plans.composed_machines.clear(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "run")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                terminal_production::TerminalMachineSelection::Name("run")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "provider corruption {corruption}"
         );
     }

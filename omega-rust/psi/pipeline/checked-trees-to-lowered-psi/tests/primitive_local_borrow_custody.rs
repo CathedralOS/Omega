@@ -4,6 +4,9 @@ use checked_trees::{BorrowAccessKind, CheckedUnitEffectOperationPlan};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 const SOURCE: &str = r#"
@@ -32,18 +35,30 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
 fn primitive_local_mutable_and_write_only_borrows_publish_with_exact_custody() {
     for source in [SOURCE.to_owned(), SOURCE.replace("&mut", "&write")] {
         let checked = checked(&source);
-        let _ = terminal_production::TerminalProductionRequest::new(&checked, "enter")
-            .produce_artifact()
-            .expect("exact local borrow custody");
+        let _ = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("enter"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("exact local borrow custody")
+        .into_artifact();
     }
 }
 
 #[test]
 fn primitive_local_publication_rejects_missing_duplicate_and_drifted_borrow_facts() {
     let original = checked(SOURCE);
-    let _ = terminal_production::TerminalProductionRequest::new(&original, "enter")
-        .produce_artifact()
-        .expect("original custody");
+    let _ = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("original custody")
+    .into_artifact();
     let plan = original
         .facts
         .flow
@@ -131,9 +146,14 @@ fn primitive_local_publication_rejects_missing_duplicate_and_drifted_borrow_fact
             }
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "enter")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("enter")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "borrow custody mutation {mutation}"
         );
     }
@@ -142,9 +162,15 @@ fn primitive_local_publication_rejects_missing_duplicate_and_drifted_borrow_fact
 #[test]
 fn primitive_local_coherent_plan_and_borrow_substitution_cannot_replace_authored_actual() {
     let mut changed = checked(SOURCE);
-    let _ = terminal_production::TerminalProductionRequest::new(&changed, "enter")
-        .produce_artifact()
-        .expect("original custody");
+    let _ = terminal_production::TerminalProductionRequest::new(
+        &changed,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("original custody")
+    .into_artifact();
     let plan = changed
         .facts
         .flow
@@ -192,8 +218,13 @@ fn primitive_local_coherent_plan_and_borrow_substitution_cannot_replace_authored
             .root_symbol = spare;
     }
     assert!(
-        terminal_production::TerminalProductionRequest::new(&changed, "enter")
-            .produce_artifact()
-            .is_err()
+        terminal_production::TerminalProductionRequest::new(
+            &changed,
+            TerminalMachineSelection::Name("enter")
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default()
+        ))
+        .is_err()
     );
 }

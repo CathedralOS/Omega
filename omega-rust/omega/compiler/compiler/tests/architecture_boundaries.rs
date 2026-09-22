@@ -323,7 +323,7 @@ fn compiler_driver_delegates_terminal_product_semantics_to_one_owner() {
         "the compiler driver must stop Terminal production through its named product owner"
     );
     for forbidden in [
-        "produce_with_callback_custody",
+        "TerminalProductionRequest",
         "verify_module",
         "TerminalNativeRealizationProposal::new",
         "RetainedTerminalArtifact::new_with_native_realization_proposal",
@@ -337,7 +337,7 @@ fn compiler_driver_delegates_terminal_product_semantics_to_one_owner() {
 
     let mut ordered_owner = owner.as_str();
     for stage in [
-        "produce_program_entry_with_callback_custody_timed(",
+        ".produce(TerminalProductionCustody {",
         "verify_terminal_artifact(",
         "project_terminal_native_realization_proposal(",
         "RetainedTerminalArtifact::new_with_native_realization_proposal(",

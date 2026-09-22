@@ -4,6 +4,9 @@ use native_realization::{compiler_baseline_request_v1, optimize_artifact_section
 use optimization_core::OptimizationSelections;
 use proof_admission::AdmissionProfile;
 use target::NativeTarget;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[cfg(any(
     all(
@@ -61,7 +64,15 @@ fn produce(
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    terminal_production::TerminalProductionRequest::new(&checked, entry).produce_artifact()
+    terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name(entry),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .map(|produced| produced.into_artifact())
+    .map_err(|error| error.into_parts().0)
 }
 
 fn target_plan(

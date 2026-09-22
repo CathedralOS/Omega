@@ -546,7 +546,9 @@ mod tests {
         CheckedProgramEntryFusedServiceField, CheckedProgramEntryReceiverProjection, CheckedTrees,
         StructuralFieldType, StructuralTypeShape, admit_fused_service_field, derive,
     };
+    use crate::TerminalProductionCustody;
     use crate::TerminalProductionRequest;
+    use crate::TerminalProductionTimings;
     use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
     fn check_source(source: &str) -> CheckedTrees {
@@ -579,11 +581,22 @@ mod tests {
                  data Main {{ value: i32; direct: [u8; {capacity}] in SafeBytes; child: Child; }}
                  machine Main::run(&mut self) {{ self.value = 7; }}"
             ));
-            let produced = TerminalProductionRequest::new(&checked, "Main::run")
-                .produce_program_entry([7; 32])
-                .unwrap();
+            let produced = TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("Main::run"),
+            )
+            .produce(TerminalProductionCustody {
+                entry_identity: Some([7; 32]),
+                callback_custody: (),
+                timings: &mut TerminalProductionTimings::default(),
+            })
+            .unwrap();
             assert!(
-                produced.receipt().receiver_eligibility().is_some(),
+                produced
+                    .receipt()
+                    .expect("entry receipt")
+                    .receiver_eligibility()
+                    .is_some(),
                 "{predicate}"
             );
             let module =
@@ -633,10 +646,21 @@ mod tests {
             "data Main { value: i32; bytes: [u8; 3]; }
              machine Main::run(&mut self) { self.value = 7; }",
         );
-        let produced = TerminalProductionRequest::new(&checked, "Main::run")
-            .produce_program_entry([7; 32])
-            .unwrap();
-        assert!(produced.receipt().receiver_eligibility().is_some());
+        let produced =
+            TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("Main::run"))
+                .produce(TerminalProductionCustody {
+                    entry_identity: Some([7; 32]),
+                    callback_custody: (),
+                    timings: &mut TerminalProductionTimings::default(),
+                })
+                .unwrap();
+        assert!(
+            produced
+                .receipt()
+                .expect("entry receipt")
+                .receiver_eligibility()
+                .is_some()
+        );
         let mut module =
             terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
         let declaration = module
@@ -693,11 +717,22 @@ mod tests {
                  data Main {{ value: i32; child: Child; }}
                  machine Main::run(&mut self) {{ self.value = 7; }}"
             ));
-            let produced = TerminalProductionRequest::new(&checked, "Main::run")
-                .produce_program_entry([7; 32])
-                .unwrap();
+            let produced = TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("Main::run"),
+            )
+            .produce(TerminalProductionCustody {
+                entry_identity: Some([7; 32]),
+                callback_custody: (),
+                timings: &mut TerminalProductionTimings::default(),
+            })
+            .unwrap();
             assert_eq!(
-                produced.receipt().receiver_eligibility().is_some(),
+                produced
+                    .receipt()
+                    .expect("entry receipt")
+                    .receiver_eligibility()
+                    .is_some(),
                 eligible,
                 "{domains}"
             );
@@ -709,10 +744,21 @@ mod tests {
         let checked = check_source(
             "data Counter { value: i32; bytes: [u8; 4]; } data Pair { first: Counter; second: Counter; } data Main { value: i32; pair: Pair; } machine Main::run(&mut self) { self.value = 7; }",
         );
-        let produced = TerminalProductionRequest::new(&checked, "Main::run")
-            .produce_program_entry([7; 32])
-            .unwrap();
-        assert!(produced.receipt().receiver_eligibility().is_some());
+        let produced =
+            TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("Main::run"))
+                .produce(TerminalProductionCustody {
+                    entry_identity: Some([7; 32]),
+                    callback_custody: (),
+                    timings: &mut TerminalProductionTimings::default(),
+                })
+                .unwrap();
+        assert!(
+            produced
+                .receipt()
+                .expect("entry receipt")
+                .receiver_eligibility()
+                .is_some()
+        );
         let module = terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
         let selection = checked_trees_to_lowered_psi::select_terminal_machine(
             &checked,
@@ -768,11 +814,22 @@ mod tests {
                 "data Main {{ value: i32; values: {array}; }} \
                  machine Main::run(&mut self) {{ self.value = 7; }}"
             ));
-            let produced = TerminalProductionRequest::new(&checked, "Main::run")
-                .produce_program_entry([7; 32])
-                .unwrap();
+            let produced = TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("Main::run"),
+            )
+            .produce(TerminalProductionCustody {
+                entry_identity: Some([7; 32]),
+                callback_custody: (),
+                timings: &mut TerminalProductionTimings::default(),
+            })
+            .unwrap();
             assert!(
-                produced.receipt().receiver_eligibility().is_some(),
+                produced
+                    .receipt()
+                    .expect("entry receipt")
+                    .receiver_eligibility()
+                    .is_some(),
                 "{array}"
             );
             let mut module =
@@ -814,11 +871,22 @@ mod tests {
             "data Event { case Quiet; case Loud(gain: i32); } data Wrap { event: Event; } data Main { value: i32; wrap: Wrap; } machine Main::run(&mut self) { self.value = 7; }",
         ] {
             let checked = check_source(source);
-            let produced = TerminalProductionRequest::new(&checked, "Main::run")
-                .produce_program_entry([7; 32])
-                .unwrap();
+            let produced = TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("Main::run"),
+            )
+            .produce(TerminalProductionCustody {
+                entry_identity: Some([7; 32]),
+                callback_custody: (),
+                timings: &mut TerminalProductionTimings::default(),
+            })
+            .unwrap();
             assert!(
-                produced.receipt().receiver_eligibility().is_some(),
+                produced
+                    .receipt()
+                    .expect("entry receipt")
+                    .receiver_eligibility()
+                    .is_some(),
                 "{source}"
             );
         }
@@ -834,11 +902,22 @@ mod tests {
             "data Pair { first: i32; second: i32; } data Main { value: i32; grid: [[Pair; 2]; 3]; } machine Main::run(&mut self) { self.value = 7; }",
         ] {
             let checked = check_source(source);
-            let produced = TerminalProductionRequest::new(&checked, "Main::run")
-                .produce_program_entry([7; 32])
-                .unwrap_or_else(|error| panic!("{source}: {error:?}"));
+            let produced = TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("Main::run"),
+            )
+            .produce(TerminalProductionCustody {
+                entry_identity: Some([7; 32]),
+                callback_custody: (),
+                timings: &mut TerminalProductionTimings::default(),
+            })
+            .unwrap_or_else(|error| panic!("{source}: {error:?}"));
             assert!(
-                produced.receipt().receiver_eligibility().is_some(),
+                produced
+                    .receipt()
+                    .expect("entry receipt")
+                    .receiver_eligibility()
+                    .is_some(),
                 "{source}"
             );
         }
@@ -847,10 +926,21 @@ mod tests {
         let checked = check_source(
             "domain [u8; 3]::NonEmpty requires non_empty(self); data Pair { bytes: [u8; 3] in NonEmpty; } data Main { value: i32; grid: [Pair; 2]; } machine Main::run(&mut self) { self.value = 7; }",
         );
-        let produced = TerminalProductionRequest::new(&checked, "Main::run")
-            .produce_program_entry([7; 32])
-            .unwrap();
-        assert!(produced.receipt().receiver_eligibility().is_none());
+        let produced =
+            TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("Main::run"))
+                .produce(TerminalProductionCustody {
+                    entry_identity: Some([7; 32]),
+                    callback_custody: (),
+                    timings: &mut TerminalProductionTimings::default(),
+                })
+                .unwrap();
+        assert!(
+            produced
+                .receipt()
+                .expect("entry receipt")
+                .receiver_eligibility()
+                .is_none()
+        );
     }
 
     #[test]
@@ -865,11 +955,22 @@ mod tests {
             "data Event { case Loud(gain: i32 [1..=9]); case Quiet; } data Main { value: i32; event: Event; } machine Main::run(&mut self) { self.value = 7; }",
         ] {
             let checked = check_source(source);
-            let produced = TerminalProductionRequest::new(&checked, "Main::run")
-                .produce_program_entry([7; 32])
-                .unwrap();
+            let produced = TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("Main::run"),
+            )
+            .produce(TerminalProductionCustody {
+                entry_identity: Some([7; 32]),
+                callback_custody: (),
+                timings: &mut TerminalProductionTimings::default(),
+            })
+            .unwrap();
             assert!(
-                produced.receipt().receiver_eligibility().is_none(),
+                produced
+                    .receipt()
+                    .expect("entry receipt")
+                    .receiver_eligibility()
+                    .is_none(),
                 "{source}"
             );
         }
@@ -880,10 +981,19 @@ mod tests {
         let checked = check_source(
             "domain [u8; 3]::SafeBytes requires valid_utf8(self); data Event { case Say(text: [u8; 3] in SafeBytes, count: i32); case Quiet; } data Main { value: i32; event: Event; } machine Main::run(&mut self) { self.value = 7; }",
         );
-        let produced = TerminalProductionRequest::new(&checked, "Main::run")
-            .produce_program_entry([7; 32])
+        let produced =
+            TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("Main::run"))
+                .produce(TerminalProductionCustody {
+                    entry_identity: Some([7; 32]),
+                    callback_custody: (),
+                    timings: &mut TerminalProductionTimings::default(),
+                })
+                .unwrap();
+        let eligible = produced
+            .receipt()
+            .expect("entry receipt")
+            .receiver_eligibility()
             .unwrap();
-        let eligible = produced.receipt().receiver_eligibility().unwrap();
         let module = terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
         let selection = checked_trees_to_lowered_psi::select_terminal_machine(
             &checked,
@@ -959,10 +1069,15 @@ mod tests {
     #[test]
     fn source_receiver_eligibility_rejoins_exact_terminal_self() {
         let checked = check_source(SOURCE);
-        let produced = TerminalProductionRequest::new(&checked, "Main::run")
-            .produce_program_entry([7; 32])
-            .unwrap();
-        let receipt = produced.receipt();
+        let produced =
+            TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("Main::run"))
+                .produce(TerminalProductionCustody {
+                    entry_identity: Some([7; 32]),
+                    callback_custody: (),
+                    timings: &mut TerminalProductionTimings::default(),
+                })
+                .unwrap();
+        let receipt = produced.receipt().expect("entry receipt");
         let eligible = receipt
             .receiver_eligibility()
             .expect("plain source record needs no executable cleanup");
@@ -1021,10 +1136,21 @@ mod tests {
             "data Main { value: i32; bytes: [u8; 4]; } machine Main::run(&mut self) {}",
         ] {
             let checked = check_source(source);
-            let produced = TerminalProductionRequest::new(&checked, "Main::run")
-                .produce_program_entry([9; 32])
+            let produced = TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("Main::run"),
+            )
+            .produce(TerminalProductionCustody {
+                entry_identity: Some([9; 32]),
+                callback_custody: (),
+                timings: &mut TerminalProductionTimings::default(),
+            })
+            .unwrap();
+            let eligible = produced
+                .receipt()
+                .expect("entry receipt")
+                .receiver_eligibility()
                 .unwrap();
-            let eligible = produced.receipt().receiver_eligibility().unwrap();
             assert_eq!(
                 eligible.projection(),
                 CheckedProgramEntryReceiverProjection::Erased { source_position: 0 }
@@ -1086,10 +1212,21 @@ mod tests {
                 "data Evidence {{}} data Main {{ value: i32; proof [erased]: Evidence; }} \
                  machine Main::run(&mut self) {{ {body} }}"
             ));
-            let produced = TerminalProductionRequest::new(&checked, "Main::run")
-                .produce_program_entry([9; 32])
+            let produced = TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("Main::run"),
+            )
+            .produce(TerminalProductionCustody {
+                entry_identity: Some([9; 32]),
+                callback_custody: (),
+                timings: &mut TerminalProductionTimings::default(),
+            })
+            .unwrap();
+            let eligible = produced
+                .receipt()
+                .expect("entry receipt")
+                .receiver_eligibility()
                 .unwrap();
-            let eligible = produced.receipt().receiver_eligibility().unwrap();
             assert!(eligible.fused_service_fields().is_empty());
             let module =
                 terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
@@ -1112,9 +1249,14 @@ mod tests {
     #[test]
     fn erased_receivers_cannot_hide_nominal_cleanup_or_nonzero_gates() {
         let checked = check_source("data Main { value: i32; } machine Main::run(&mut self) {}");
-        let produced = TerminalProductionRequest::new(&checked, "Main::run")
-            .produce_program_entry([9; 32])
-            .unwrap();
+        let produced =
+            TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("Main::run"))
+                .produce(TerminalProductionCustody {
+                    entry_identity: Some([9; 32]),
+                    callback_custody: (),
+                    timings: &mut TerminalProductionTimings::default(),
+                })
+                .unwrap();
         let module = terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
         // The erased Terminal attachment cannot establish source obligations;
         // derive must inspect the actual nominal owner even without a self place.
@@ -1137,9 +1279,14 @@ mod tests {
     #[test]
     fn source_nominal_cleanup_and_zero_gates_cannot_acquire_receiver_eligibility() {
         let base = check_source(SOURCE);
-        let artifact = TerminalProductionRequest::new(&base, "Main::run")
-            .produce_program_entry([7; 32])
-            .unwrap();
+        let artifact =
+            TerminalProductionRequest::new(&base, TerminalMachineSelection::Name("Main::run"))
+                .produce(TerminalProductionCustody {
+                    entry_identity: Some([7; 32]),
+                    callback_custody: (),
+                    timings: &mut TerminalProductionTimings::default(),
+                })
+                .unwrap();
         let module = terminal_codec::decode_module(artifact.artifact().semantic_bytes()).unwrap();
         // A same-named Terminal record cannot prove source cleanup absence.
         // Both owning forms must be checked on the actual source type graph.
@@ -1182,10 +1329,21 @@ mod tests {
                 .iter()
                 .find(|machine| machine.name.as_str() == "Main::run")
                 .unwrap();
-            let produced = TerminalProductionRequest::for_machine_symbol(&checked, machine.symbol)
-                .produce_program_entry([9; 32])
+            let produced = TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Symbol(machine.symbol),
+            )
+            .produce(TerminalProductionCustody {
+                entry_identity: Some([9; 32]),
+                callback_custody: (),
+                timings: &mut TerminalProductionTimings::default(),
+            })
+            .unwrap();
+            let eligible = produced
+                .receipt()
+                .expect("entry receipt")
+                .receiver_eligibility()
                 .unwrap();
-            let eligible = produced.receipt().receiver_eligibility().unwrap();
             assert_eq!(eligible.owned_receiver_type_identity(), "named(name(Main))");
             assert_ne!(
                 eligible.source_receiver_type_identity(),
@@ -1193,11 +1351,20 @@ mod tests {
             );
         }
         let checked = check_source("data Main {} machine Main::run() {}");
-        let produced = TerminalProductionRequest::new(&checked, "Main::run")
-            .produce_program_entry([9; 32])
-            .unwrap();
+        let produced =
+            TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("Main::run"))
+                .produce(TerminalProductionCustody {
+                    entry_identity: Some([9; 32]),
+                    callback_custody: (),
+                    timings: &mut TerminalProductionTimings::default(),
+                })
+                .unwrap();
         assert!(
-            produced.receipt().receiver_eligibility().is_none(),
+            produced
+                .receipt()
+                .expect("entry receipt")
+                .receiver_eligibility()
+                .is_none(),
             "a free entry does not acquire an implicit receiver"
         );
     }
@@ -1214,11 +1381,21 @@ mod tests {
             "data Main { value: i32; } machine Main::run(self) {}",
         ] {
             let checked = check_source(source);
-            if let Ok(produced) =
-                TerminalProductionRequest::new(&checked, "Main::run").produce_program_entry([9; 32])
-            {
+            if let Ok(produced) = TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("Main::run"),
+            )
+            .produce(TerminalProductionCustody {
+                entry_identity: Some([9; 32]),
+                callback_custody: (),
+                timings: &mut TerminalProductionTimings::default(),
+            }) {
                 assert!(
-                    produced.receipt().receiver_eligibility().is_none(),
+                    produced
+                        .receipt()
+                        .expect("entry receipt")
+                        .receiver_eligibility()
+                        .is_none(),
                     "{source}"
                 );
             }

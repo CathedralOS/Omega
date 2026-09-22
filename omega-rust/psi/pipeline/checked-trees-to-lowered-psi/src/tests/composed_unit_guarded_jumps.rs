@@ -4,6 +4,7 @@
 use super::{checked_source, lower_machine};
 use crate::TerminalMachineSelection;
 use checked_trees::CheckedComposedUnitControlTerminatorPlan;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 #[test]
 fn ordered_literal_dispatch_selects_each_arm_and_the_fallback() {
@@ -30,9 +31,15 @@ fn ordered_literal_dispatch_selects_each_arm_and_the_fallback() {
             }
         "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Root::enter")
-        .produce_artifact()
-        .expect("ordered literal dispatch publishes one terminal artifact");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Root::enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("ordered literal dispatch publishes one terminal artifact")
+    .into_artifact();
 
     #[derive(Default)]
     struct Trace(Vec<i128>);

@@ -430,6 +430,7 @@ mod tests {
         append_closed_conformance_applications_excluding,
     };
     use crate::TerminalMachineSelection;
+    use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
     type Owners = Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>;
 
@@ -543,9 +544,15 @@ mod tests {
         append_closed_conformance_applications_excluding(&checked, &owners, root, &mut module)
             .expect("identical retained callee application is reused");
         assert_eq!(module, once);
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
-            .produce_artifact()
-            .expect("public production retains both source-owned applications");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("Main::main"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("public production retains both source-owned applications")
+        .into_artifact();
         assert_eq!(
             terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),
             module

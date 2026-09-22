@@ -4,13 +4,22 @@ use checked_trees::FlowClaimOutcomeSource;
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionEventKind, PermissionEventSource,
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[test]
 fn projected_returns_reject_changed_semantic_outcome_paths_and_rosters() {
     let checked = super::projected_claims::checked(2);
-    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::demand")
-        .produce_artifact()
-        .expect("valid projected customer publishes before mutation");
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::demand"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("valid projected customer publishes before mutation")
+    .into_artifact();
     let callee = checked
         .machines()
         .iter()
@@ -93,9 +102,14 @@ fn projected_returns_reject_changed_semantic_outcome_paths_and_rosters() {
         let entries = ownership.claim_outcome_entries.insert_many(entries);
         ownership.claim_outcome_maps.get_mut(map_handle).entries = entries;
         assert!(
-            terminal_production::TerminalProductionRequest::new(&invalid, "Main::demand")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &invalid,
+                TerminalMachineSelection::Name("Main::demand")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "semantic {mutation} must reject"
         );
     }
@@ -104,9 +118,15 @@ fn projected_returns_reject_changed_semantic_outcome_paths_and_rosters() {
 #[test]
 fn projected_returns_reject_same_path_semantic_claim_identity_swaps() {
     let checked = super::projected_claims::checked(2);
-    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::demand")
-        .produce_artifact()
-        .expect("valid projected customer publishes before mutation");
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::demand"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("valid projected customer publishes before mutation")
+    .into_artifact();
     for entry in [true, false] {
         let name = if entry {
             "Main::forward"
@@ -177,9 +197,14 @@ fn projected_returns_reject_same_path_semantic_claim_identity_swaps() {
             .get_mut(*second_handle)
             .claim_identity = first.claim_identity;
         assert!(
-            terminal_production::TerminalProductionRequest::new(&invalid, "Main::demand")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &invalid,
+                TerminalMachineSelection::Name("Main::demand")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "same-path semantic identity swap entry={entry} must reject"
         );
     }

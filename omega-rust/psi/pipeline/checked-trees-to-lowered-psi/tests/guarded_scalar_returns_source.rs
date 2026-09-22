@@ -10,6 +10,7 @@ use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use typed_trees_to_checked_trees::CheckingRequest;
@@ -81,9 +82,15 @@ fn stored_returned_cases_support_borrowed_refined_getters() {
         "#,
         BranchForm::Separate,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
-        .produce_artifact()
-        .expect("stored ordinary case results remain exact borrowed getter receivers");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("stored ordinary case results remain exact borrowed getter receivers")
+    .into_artifact();
     let receivers = checked
         .facts
         .values
@@ -121,9 +128,14 @@ fn stored_returned_cases_support_borrowed_refined_getters() {
             argument.access = checked_trees::CheckedStructuralAccess::MutableBorrow;
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "Main::main")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "stored receiver mutation {mutation} must fail exact source replay"
         );
     }
@@ -242,9 +254,15 @@ fn borrowed_case_getter_executes_every_refined_return_from_encoded_evidence() {
              }}"
         );
         let checked = checked_source(&source, BranchForm::Separate);
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "value")
-            .produce_artifact()
-            .expect("borrowed case getter retains its refined result into caller division");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("value"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("borrowed case getter retains its refined result into caller division")
+        .into_artifact();
         let artifact =
             terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
         drop(checked);
@@ -286,9 +304,15 @@ fn ordered_scalar_returns_execute_the_authored_fallback() {
         "machine value(input: u64) -> u64 { transition input { 0 -> (1) 1 -> (2) _ -> (3) } }",
         BranchForm::Separate,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "value")
-        .produce_artifact()
-        .expect("ordered scalar guards with explicit fallback");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("value"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("ordered scalar guards with explicit fallback")
+    .into_artifact();
     drop(checked);
     for (input, expected) in [(0, 1), (1, 2), (2, 3), (u64::MAX, 3)] {
         assert_eq!(
@@ -307,10 +331,15 @@ fn ordered_scalar_returns_execute_the_authored_fallback() {
 #[test]
 fn guarded_case_replay_rejects_changed_order_guards_and_final_destination() {
     let checked = checked_source(ALIGNMENT_GETTER, BranchForm::Separate);
-    let artifact =
-        terminal_production::TerminalProductionRequest::new(&checked, "Alignment::width")
-            .produce_artifact()
-            .expect("complete borrowed case getter before hostile plan edits");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Alignment::width"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("complete borrowed case getter before hostile plan edits")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     for (original, outside) in [(1, 0), (8, 9)] {
@@ -366,9 +395,14 @@ fn guarded_case_replay_rejects_changed_order_guards_and_final_destination() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&invalid, "Alignment::width")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &invalid,
+                TerminalMachineSelection::Name("Alignment::width")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "changed ordered-exit custody {mutation} must reject"
         );
     }

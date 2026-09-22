@@ -3,6 +3,9 @@ use super::{
     CheckedUnitStructuralArgumentSourcePlan, OperationKind, SOURCE, TWO_LOCALS, publish_original,
     reject,
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 #[test]
 fn scalar_local_graph_rejects_erased_and_swapped_binding_destinations() {
     let original = publish_original(TWO_LOCALS);
@@ -285,9 +288,15 @@ fn scalar_local_snapshot_read_rejects_erased_or_reordered_source_namespace() {
 #[test]
 fn independent_verifier_rejects_local_place_tampering_after_valid_publication() {
     let original = publish_original(SOURCE);
-    let artifact = terminal_production::TerminalProductionRequest::new(&original, "enter")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     let foreign_place = module

@@ -7,6 +7,7 @@ use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralBooleanFieldValue, TerminalStructuralValue,
 };
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{
     OperationKind, StructuralAccess, StructuralMultiplicity, StructuralTypeShape, TerminalModule,
 };
@@ -55,9 +56,15 @@ pub fn publish(source: &str, entry: &str) -> (CheckedTrees, TerminalModule, Vec<
         terminal_codec::decode_debug_map(&lowered.semantic_module, &debug_bytes).unwrap(),
         debug
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, entry)
-        .produce_artifact()
-        .expect("publish owned scalar graph closure");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name(entry),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("publish owned scalar graph closure")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     terminal_verifier::verify_module(
@@ -269,9 +276,14 @@ pub fn execute(source: &str, entry: &str, left: bool, right: bool, expected: boo
 
 pub fn reject(checked: &CheckedTrees, mutation: &str) {
     assert!(
-        terminal_production::TerminalProductionRequest::new(checked, "enter")
-            .produce_artifact()
-            .is_err(),
+        terminal_production::TerminalProductionRequest::new(
+            checked,
+            TerminalMachineSelection::Name("enter")
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default()
+        ))
+        .is_err(),
         "accepted owned scalar custody mutation: {mutation}"
     );
 }

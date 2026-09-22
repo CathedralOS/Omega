@@ -5,6 +5,9 @@ use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 const SOURCE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -55,9 +58,15 @@ fn local_receiver_scalar_and_fresh_case_keep_argument_identity_and_once_only_eff
             &typed_trees_to_checked_trees::CheckingRequest::settled(),
         )
         .unwrap();
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
-            .produce_artifact()
-            .expect("mixed call establishes its fresh case before borrowing the local receiver");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Main::main"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("mixed call establishes its fresh case before borrowing the local receiver")
+        .into_artifact();
         let owner = checked
             .data_definitions()
             .iter()
@@ -98,9 +107,14 @@ fn local_receiver_scalar_and_fresh_case_keep_argument_identity_and_once_only_eff
         };
         subject.case = other_case;
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "Main::main")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "a same-typed case cannot replace the authored argument"
         );
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
@@ -234,9 +248,15 @@ fn scalar_return_helper_reads_its_established_local_record_across_fuel() {
             .map(|plan| plan.machine)
             .collect::<Vec<_>>()
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "sum_local")
-        .produce_artifact()
-        .expect("scalar-result helper retains its local receiver storage");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("sum_local"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("scalar-result helper retains its local receiver storage")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     terminal_verifier::validate_module(&module).unwrap();
     for initial_fuel in 0..32 {
@@ -290,9 +310,15 @@ fn nested_record_constructor_and_mutable_receiver_publish_verified_terminal() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "observe")
-        .produce_artifact()
-        .expect("nested record observer retains its checked transitive body");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("observe"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("nested record observer retains its checked transitive body")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     terminal_verifier::verify_module(
@@ -326,9 +352,15 @@ fn owned_record_children_reuse_parameter_and_local_places() {
             &typed_trees_to_checked_trees::CheckingRequest::settled(),
         )
         .unwrap();
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "wrap")
-            .produce_artifact()
-            .unwrap_or_else(|error| panic!("{body}: {error:?}"));
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("wrap"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap_or_else(|error| panic!("{body}: {error:?}"))
+        .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
         terminal_verifier::verify_module(

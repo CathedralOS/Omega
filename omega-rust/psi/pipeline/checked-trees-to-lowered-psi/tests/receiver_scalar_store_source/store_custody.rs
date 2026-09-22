@@ -1,4 +1,7 @@
 use super::{CheckedUnitEffectOperationPlan, typed_from_source};
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 const ORDERED_SOURCE: &str = r#"
     data Pair { left: u16; right: u16; }
     machine observe() {}
@@ -40,10 +43,15 @@ fn plan_mut(
 
 #[test]
 fn ordered_store_source_custody_rejects_omission_reordering_and_substitution() {
-    let _artifact =
-        terminal_production::TerminalProductionRequest::new(&checked(), "Pair::ordered")
-            .produce_artifact()
-            .expect("unmodified authored store sequence publishes");
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked(),
+        TerminalMachineSelection::Name("Pair::ordered"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("unmodified authored store sequence publishes")
+    .into_artifact();
     for mutation in 0..11 {
         let mut checked = checked();
         let plan = plan_mut(&mut checked);
@@ -135,9 +143,14 @@ fn ordered_store_source_custody_rejects_omission_reordering_and_substitution() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&checked, "Pair::ordered")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("Pair::ordered")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "store custody mutation {mutation} must reject"
         );
     }
@@ -151,9 +164,15 @@ fn unrelated_scalar_local_cannot_hide_an_omitted_call_between_stores() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "Pair::ordered")
-        .produce_artifact()
-        .expect("authored local and ordered stores publish together");
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Pair::ordered"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("authored local and ordered stores publish together")
+    .into_artifact();
     let plan = plan_mut(&mut checked);
     let position = plan
         .operations
@@ -162,8 +181,13 @@ fn unrelated_scalar_local_cannot_hide_an_omitted_call_between_stores() {
         .unwrap();
     plan.operations.remove(position);
     assert!(
-        terminal_production::TerminalProductionRequest::new(&checked, "Pair::ordered")
-            .produce_artifact()
-            .is_err()
+        terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Pair::ordered")
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default()
+        ))
+        .is_err()
     );
 }

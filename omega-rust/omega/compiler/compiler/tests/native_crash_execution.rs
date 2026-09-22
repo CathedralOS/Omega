@@ -2,6 +2,9 @@
 //! The host caller observes a child process so a crash cannot kill the test runner.
 
 use terminal_interpreter::{TerminalExecutionResult, TerminalScalarValue};
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[cfg(any(
     all(
@@ -47,10 +50,15 @@ fn explicit_crashes_execute_after_source_removal() {
             let checked =
                 compiler::compile_to_checked(compiler::CheckedCompileRequest::new(&source, None))
                     .expect("explicit crash source checks");
-            let artifact =
-                terminal_production::TerminalProductionRequest::new(&checked, selected_machine)
-                    .produce_artifact()
-                    .expect("publish crash-bearing caller and callee");
+            let artifact = terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name(selected_machine),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("publish crash-bearing caller and callee")
+            .into_artifact();
             let artifact =
                 terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
                     .expect("reload canonical crash artifact");

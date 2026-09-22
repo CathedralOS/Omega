@@ -2,6 +2,9 @@
 
 use proof_admission::AdmissionProfile;
 use terminal_codec::CanonicalTerminalArtifact;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[path = "scalar_control_cycles/publication.rs"]
 mod publication;
@@ -38,9 +41,15 @@ fn produce(source: &str) -> CanonicalTerminalArtifact {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "countdown")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("countdown"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default()).unwrap();

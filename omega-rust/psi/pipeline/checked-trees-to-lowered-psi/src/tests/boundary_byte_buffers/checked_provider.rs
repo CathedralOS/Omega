@@ -12,6 +12,7 @@ use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     ProviderInstallationSelection, admit_provider_installation_from_artifact,
 };
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 #[test]
 fn checked_provider_byte_buffers_forward_original_field_across_fuel_suspension() {
@@ -75,9 +76,15 @@ fn assert_forwarded_input(source: &str, ordinary_helper: bool, expected_stored: 
         );
     }
     let checked = checked_source(&source);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Record::run")
-        .produce_artifact()
-        .expect("authored forwarding provider produces verified Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Record::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("authored forwarding provider produces verified Terminal")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let [candidate] = module.provider_candidates.as_slice() else {
         panic!("one authored provider candidate")

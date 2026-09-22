@@ -2,6 +2,9 @@
 use super::{CheckedUnitEffectOperationPlan, checked_from_source, source, unit_plan};
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[test]
 fn projected_aliases_compose_formation_and_receiver_paths() {
@@ -83,10 +86,15 @@ fn projected_aliases_compose_formation_and_receiver_paths() {
                 panic!("projected receiver call");
             };
             assert_eq!(structural_arguments[0].path.len(), path_length, "{text}");
-            let artifact =
-                terminal_production::TerminalProductionRequest::new(&checked, caller_name)
-                    .produce_artifact()
-                    .unwrap_or_else(|error| panic!("{text}: {error:?}"));
+            let artifact = terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name(caller_name),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .unwrap_or_else(|error| panic!("{text}: {error:?}"))
+            .into_artifact();
             let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
             assert_eq!(
                 module.reborrow_root_handoffs.len(),
@@ -109,10 +117,15 @@ fn bare_attached_alias_capture_keeps_its_authored_name_identity() {
         "let held: &write Record = &write records[1];",
         "held.replace(value);",
     ));
-    let artifact =
-        terminal_production::TerminalProductionRequest::new(&original, "Container::forward")
-            .produce_artifact()
-            .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("Container::forward"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     assert!(terminal_codec::decode_module(artifact.semantic_bytes()).is_ok());
     let (resource_handle, resource) = original
         .facts
@@ -179,9 +192,14 @@ fn bare_attached_alias_capture_keeps_its_authored_name_identity() {
             }
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&checked, "Container::forward")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("Container::forward")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "bare capture mutation {mutation}"
         );
     }
@@ -194,9 +212,15 @@ fn projected_alias_replay_rejects_source_and_captured_place_substitution() {
         "let held: &write Record = &write destination[1];",
         "held.replace(value);",
     ));
-    let artifact = terminal_production::TerminalProductionRequest::new(&original, "forward")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("forward"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     assert!(terminal_codec::decode_module(artifact.semantic_bytes()).is_ok());
     let caller = unit_plan(&original, "forward").machine;
     let machine = original
@@ -287,9 +311,14 @@ fn projected_alias_replay_rejects_source_and_captured_place_substitution() {
             }
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&checked, "forward")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("forward")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "projected alias mutation {mutation}"
         );
     }
@@ -302,10 +331,15 @@ fn projected_self_alias_replay_binds_field_capture_and_nested_suffix() {
         "let held: &write Container = &write self.container; let child: &write Record = &write held.records[1];",
         "child.replace(value);",
     ));
-    let artifact =
-        terminal_production::TerminalProductionRequest::new(&original, "Nested::forward")
-            .produce_artifact()
-            .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &original,
+        TerminalMachineSelection::Name("Nested::forward"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert_eq!(module.reborrow_root_handoffs[0].lineage.len(), 1);
     let (direct_handle, direct) = original
@@ -381,9 +415,14 @@ fn projected_self_alias_replay_binds_field_capture_and_nested_suffix() {
             }
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&checked, "Nested::forward")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("Nested::forward")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "projected self alias mutation {mutation}"
         );
     }

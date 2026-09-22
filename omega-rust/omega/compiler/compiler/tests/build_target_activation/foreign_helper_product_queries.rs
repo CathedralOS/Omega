@@ -4,6 +4,7 @@ use compiler::{
     compile_to_checked,
 };
 use std::fs;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 fn helper_entry_inputs(
     project: &TempProject,
@@ -398,15 +399,25 @@ fn same_named_entry_in_another_package_rejoins_production_and_settlement_by_symb
         ),
         optimization_selections: psi_optimizations,
     }
-    .produce_program_entry(entry.source_signature().identity().bytes())
+    .produce(TerminalProductionCustody {
+        entry_identity: Some(entry.source_signature().identity().bytes()),
+        callback_custody: (),
+        timings: &mut TerminalProductionTimings::default(),
+    })
     .expect("Terminal production rejoins the selected machine by exact symbol");
     assert_eq!(
-        produced.receipt().source_machine_name(),
+        produced
+            .receipt()
+            .expect("entry receipt")
+            .source_machine_name(),
         "setup::launch",
         "the receipt keeps the qualified display name for diagnostics"
     );
     assert_eq!(
-        produced.receipt().source_machine_symbol(),
+        produced
+            .receipt()
+            .expect("entry receipt")
+            .source_machine_symbol(),
         entry.source_signature().machine_symbol(),
         "the receipt carries the exact selected machine symbol"
     );
@@ -419,7 +430,7 @@ fn same_named_entry_in_another_package_rejoins_production_and_settlement_by_symb
     });
     native_realization::validate_native_program_entry_settlement(
         produced.artifact(),
-        produced.receipt(),
+        produced.receipt().expect("entry receipt"),
         native_realization::NativeProgramEntrySettlement::new(
             entry.source_signature(),
             calling_plans,

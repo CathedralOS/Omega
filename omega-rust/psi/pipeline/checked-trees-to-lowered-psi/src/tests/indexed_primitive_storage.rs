@@ -7,6 +7,7 @@ use checked_trees::{
     CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
 };
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, StructuralPathSegment};
 use typed_trees_to_checked_trees::CheckingRequest;
 #[test]
@@ -60,10 +61,15 @@ fn indexed_primitive_source_rejects_out_of_bounds_and_shared_writes() {
 fn source_indexed_primitive_storage_retains_canonical_leaf_paths() {
     for (primitive, value) in [("u8", "65"), ("i32", "65"), ("bool", "true")] {
         let checked = checked_source_with_core_service(&source(primitive, value));
-        let artifact =
-            terminal_production::TerminalProductionRequest::new(&checked, "Buffer::update")
-                .produce_artifact()
-                .expect("indexed primitive source produces canonical Terminal");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("Buffer::update"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("indexed primitive source produces canonical Terminal")
+        .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let entry = module
             .machines
@@ -95,9 +101,15 @@ fn source_indexed_primitive_storage_retains_canonical_leaf_paths() {
 #[test]
 fn source_indexed_primitive_store_and_read_share_serialized_backing() {
     let checked = checked_source_with_core_service(&source("u8", "65"));
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Buffer::update")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Buffer::update"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines

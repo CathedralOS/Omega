@@ -1,6 +1,9 @@
 //! Explicit scalar conversions retain their landing inside constant expressions.
 
 use std::sync::atomic::{AtomicU64, Ordering};
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 static NEXT_PROJECT: AtomicU64 = AtomicU64::new(0);
 
@@ -36,9 +39,15 @@ fn artifact(files: &[(&str, &str)], expected: u128) -> terminal_codec::Canonical
     let path = sources.0.join("main.omg");
     let checked = compiler::compile_to_checked(compiler::CheckedCompileRequest::new(&path, None))
         .expect("an ordinary total integer conversion forms a constant");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
-        .produce_artifact()
-        .expect("converted constant reaches Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("read"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("converted constant reaches Terminal")
+    .into_artifact();
     drop(checked);
     drop(sources);
     assert!(!path.exists());

@@ -5,6 +5,7 @@ use crate::scalar_graph::scalar_graph_lowering::prepare_scalar_graph_machine;
 use crate::scalar_graph::scalar_graph_module::build_scalar_graph_module;
 use crate::terminal_identities::machine_id;
 use checked_trees::types::PrimitiveType;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, Terminator};
 use terminal_verifier::reconstruct_operation_obligations;
 #[test]
@@ -14,10 +15,15 @@ fn unconditional_and_expression_getters_retain_the_same_borrowed_field() {
             "data Record [copy] {{ value: i32; }}
              machine Record::read(&self) -> i32 {{ {completion} }}"
         ));
-        let artifact =
-            terminal_production::TerminalProductionRequest::new(&checked, "Record::read")
-                .produce_artifact()
-                .expect("ordinary scalar completion publishes checked Terminal");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("Record::read"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("ordinary scalar completion publishes checked Terminal")
+        .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         assert!(
             module

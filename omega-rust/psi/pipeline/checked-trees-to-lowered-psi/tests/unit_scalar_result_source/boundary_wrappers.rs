@@ -3,6 +3,7 @@
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::TerminalStructuralInputs;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 #[path = "boundary_wrappers/ordered_boolean_guarantees.rs"]
 mod ordered_boolean_guarantees;
 #[path = "boundary_wrappers/scalar_guarantees_and_boundary_requirements.rs"]
@@ -50,9 +51,15 @@ fn artifact(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
     assert_eq!(module, lowered.semantic_module);
     assert_eq!(proof, lowered.proof_bundle);
     terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default()).unwrap();
-    let published = terminal_production::TerminalProductionRequest::new(checked, "Main::main")
-        .produce_artifact()
-        .expect("source-owned shared closure publishes");
+    let published = terminal_production::TerminalProductionRequest::new(
+        checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("source-owned shared closure publishes")
+    .into_artifact();
     assert_eq!(decode_module(published.semantic_bytes()).unwrap(), module);
     (semantic, evidence)
 }

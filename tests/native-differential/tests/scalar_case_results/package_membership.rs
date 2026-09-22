@@ -7,6 +7,9 @@ use package_compilation::{
 };
 use semantic_vocabulary::PackageKeyIdentity;
 use std::path::PathBuf;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 struct Sources(PathBuf);
 
@@ -73,9 +76,15 @@ fn foreign_domain_constant_helpers_execute_after_source_removal() {
         ..compiler::CheckedCompileRequest::new(&main, None)
     })
     .expect("foreign domain retains its exact record carrier");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
-        .produce_artifact()
-        .expect("foreign record domain reaches Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("read"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("foreign record domain reaches Terminal")
+    .into_artifact();
     let artifact = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
     drop(checked);
     std::fs::write(&main, source("Point { value: 37 }")).unwrap();
@@ -155,9 +164,15 @@ fn package_qualified_constructors_and_locals_execute_with_their_declaring_case()
             ("is_some", !expected),
             ("local_is_empty", expected),
         ] {
-            let artifact = terminal_production::TerminalProductionRequest::new(&checked, entry)
-                .produce_artifact()
-                .expect("package-qualified construction reaches Terminal");
+            let artifact = terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name(entry),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("package-qualified construction reaches Terminal")
+            .into_artifact();
             let artifact = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
             execute(
                 &artifact,

@@ -10,6 +10,7 @@ use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
     TerminalStructuralByteArrayValue, TerminalStructuralValue,
 };
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, StructuralPathSegment, StructuralTypeShape};
 use typed_trees_to_checked_trees::CheckingRequest;
 
@@ -69,9 +70,15 @@ fn line_result_constructor_retains_runtime_count_in_terminal() {
         }
         "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "full")
-        .produce_artifact()
-        .expect("a returned line outcome retains its runtime count");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("full"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("a returned line outcome retains its runtime count")
+    .into_artifact();
     for count in [0, 7, u64::MAX] {
         let argument = terminal_interpreter::TerminalScalarValue::Integer {
             scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
@@ -110,9 +117,15 @@ fn scalar_case_return_preserves_authored_multifield_identity_and_rejects_plan_dr
         }
     "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "pair")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("pair"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let selected = module
         .structural_types
@@ -216,9 +229,14 @@ fn scalar_case_return_preserves_authored_multifield_identity_and_rejects_plan_dr
             }
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "pair")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                terminal_production::TerminalMachineSelection::Name("pair")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "corruption {corruption}"
         );
     }
@@ -231,9 +249,15 @@ fn scalar_case_return_bounded_literal_requires_constructor_evidence() {
         machine bounded() -> Bounded { Bounded::Count { value: 7 } }
     "#;
     let checked = checked_source(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "bounded")
-        .produce_artifact()
-        .expect("literal proves the exact declaration range");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("bounded"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("literal proves the exact declaration range")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert!(module.machines.iter().flat_map(|machine| &machine.blocks).flat_map(|block| &block.operations)
         .any(|operation| matches!(&operation.kind, OperationKind::EstablishScalarCase { fields, .. }
@@ -244,9 +268,14 @@ fn scalar_case_return_bounded_literal_requires_constructor_evidence() {
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
     if let Ok(checked) = lower_typed_trees(typed, &CheckingRequest::settled()) {
         assert!(
-            terminal_production::TerminalProductionRequest::new(&checked, "bounded")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &checked,
+                terminal_production::TerminalMachineSelection::Name("bounded")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "out-of-range construction must not publish an artifact"
         );
     }
@@ -297,9 +326,15 @@ fn scalar_case_return_multistate_borrowed_view_and_ordinary_call_observe_count()
         machine Record::run(&mut self, full: bool) { collect(&mut self.out, full); }
     "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Record::run")
-        .produce_artifact()
-        .expect("ordinary scalar-case call composes with view and count transfers");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Record::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("ordinary scalar-case call composes with view and count transfers")
+    .into_artifact();
     for full in [false, true] {
         let path = vec![StructuralPathSegment::Field("out".into())];
         let mut execution = TerminalExecution::start_artifact(
@@ -391,9 +426,15 @@ fn same_named_case_payloads_preserve_identity_through_calls_and_interpretation()
         }
     "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Record::run")
-        .produce_artifact()
-        .expect("same-named payloads retain distinct case identities in Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Record::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("same-named payloads retain distinct case identities in Terminal")
+    .into_artifact();
     let artifact =
         terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
     let path = vec![StructuralPathSegment::Field("out".into())];
@@ -441,9 +482,15 @@ fn same_named_case_payloads_preserve_identity_through_calls_and_interpretation()
 #[test]
 fn byte_input_exact_narrowing_uses_retained_payload_range_evidence() {
     let checked = checked_source(READ_ONE);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read_one")
-        .produce_artifact()
-        .expect("the selected declaration-bound payload proves exact byte narrowing");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("read_one"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("the selected declaration-bound payload proves exact byte narrowing")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert!(
         module.structural_types.iter().any(|declaration| {
@@ -505,9 +552,15 @@ fn byte_input_exact_narrowing_preserves_forwarded_and_reordered_field_ranges() {
         }
     "#,
     );
-    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "read_one")
-        .produce_artifact()
-        .expect("exact low-field bounds survive reversed case bindings and ordinary forwarding");
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("read_one"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("exact low-field bounds survive reversed case bindings and ordinary forwarding")
+    .into_artifact();
 }
 
 #[test]
@@ -515,9 +568,15 @@ fn byte_input_case_payload_and_borrowed_view_compose_in_a_write_cycle() {
     let checked = checked_source(include_str!(
         "../../../../../../tests/native-differential/tests/terminal_byte_views/byte_input.omg"
     ));
-    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "classify_bytes")
-        .produce_artifact()
-        .expect("case payloads, ordinary scalar arguments and mutable views compose in a cycle");
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("classify_bytes"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("case payloads, ordinary scalar arguments and mutable views compose in a cycle")
+    .into_artifact();
 }
 
 #[test]
@@ -550,17 +609,29 @@ fn byte_input_case_roster_and_multiple_payloads_are_not_console_specific() {
         }
     "#,
     );
-    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "collect")
-        .produce_artifact()
-        .expect("three cases and reversed payload positions use the same checked control path");
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("collect"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("three cases and reversed payload positions use the same checked control path")
+    .into_artifact();
 }
 
 #[test]
 fn byte_write_loop_publishes_fresh_guarded_writes() {
     let checked = checked_source(FILL);
-    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "fill")
-        .produce_artifact()
-        .expect("a fresh guard proves every write and cursor advance");
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("fill"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("a fresh guard proves every write and cursor advance")
+    .into_artifact();
 }
 
 fn entry_argument(artifact: &terminal_codec::CanonicalTerminalArtifact) -> TerminalStructuralValue {
@@ -587,10 +658,15 @@ fn byte_write_loop_fills_each_raw_prefix_once_across_fuel_suspension() {
                 "{FILL}\ndata Record {{ out: [u8; {length}]; other: [u8; {length}]; }}\n\
                  machine Record::run(&mut self) {{ fill(&mut self.out, {byte}); }}"
             ));
-            let artifact =
-                terminal_production::TerminalProductionRequest::new(&checked, "Record::run")
-                    .produce_artifact()
-                    .expect("a raw array caller reaches the safety-checked fill loop");
+            let artifact = terminal_production::TerminalProductionRequest::new(
+                &checked,
+                terminal_production::TerminalMachineSelection::Name("Record::run"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("a raw array caller reaches the safety-checked fill loop")
+            .into_artifact();
             let path = vec![StructuralPathSegment::Field("out".into())];
             let sibling_path = vec![StructuralPathSegment::Field("other".into())];
             let sibling = vec![0x42; length];
@@ -733,9 +809,15 @@ fn byte_write_loop_empty_initialized_view_never_writes() {
         }}
     "#
     ));
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Record::run")
-        .produce_artifact()
-        .expect("empty initialized view caller");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Record::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("empty initialized view caller")
+    .into_artifact();
     let argument = entry_argument(&artifact);
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let declaration = module

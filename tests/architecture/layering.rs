@@ -2167,7 +2167,8 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         compiler_terminal.contains(".project_psi()")
             && compiler_terminal
                 .contains("optimization_selections: psi_optimizations.selections().clone()")
-            && compiler_terminal.contains(".produce_program_entry_with_callback_custody_timed(")
+            && compiler_terminal.contains("entry_identity: Some(source_signature_identity)")
+            && compiler_terminal.contains("callback_custody: callback_placements")
             && compiler_terminal.contains(".project_post_terminal()"),
         "the retained Terminal-product route must project executed Psi selections into publication and pending physical selections into its companion, carrying the checked ProgramEntry receipt"
     );
@@ -2792,7 +2793,7 @@ fn retained_native_product_enters_only_terminal_realization() {
             root.join("omega-rust/omega/compiler/native-realization/src/native_product.rs")
         )
         .expect("read native coordinator"),
-        recursive_rust_source(
+        recursive_production_rust_source(
             &root.join("omega-rust/omega/compiler/native-realization/src/native_product")
         )
     );
@@ -2832,8 +2833,9 @@ fn retained_native_product_enters_only_terminal_realization() {
         "the StateGraph compatibility compiler must stay deleted"
     );
     assert!(
-        terminal.contains(".produce_program_entry_timed(")
-            && !native.contains(".produce_program_entry("),
+        terminal
+            .contains("entry_identity: Some(program_entry.source_signature().identity().bytes())")
+            && !native.contains("TerminalProductionRequest"),
         "the program-entry Terminal artifact is produced by the Terminal stage, not by native realization"
     );
     for required in [

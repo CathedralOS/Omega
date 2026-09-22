@@ -11,6 +11,7 @@ use checked_trees::{
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::TerminalScalarValue;
 use terminal_interpreter::TerminalStructuralInputs;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 #[test]
 fn composed_attached_literal_calls_preserve_positions_after_unused_self_erasure() {
@@ -168,9 +169,15 @@ machine Main::main(&mut self, selected: bool, fail: bool) reaches Trace crashes 
 #[test]
 fn mixed_literal_positions_keep_scalars_across_selective_operand_control() {
     let checked = checked_source(SOURCE);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
-        .produce_artifact()
-        .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let entry = module
         .machines

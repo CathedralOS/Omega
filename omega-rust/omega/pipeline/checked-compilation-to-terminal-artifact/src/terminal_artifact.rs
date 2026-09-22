@@ -13,7 +13,9 @@ use artifacts::allocations::AllocationDelta;
 use artifacts::compile_timings::{CompileTimings, StageMeta, TimingCategory};
 use assembled_syntax_to_checked_compilation::{CheckedCompilation, OptimizationRollback};
 use diagnostics::Diagnostic;
-use terminal_production::{TerminalProductionStage, TerminalProductionTimings};
+use terminal_production::{
+    TerminalProductionCustody, TerminalProductionStage, TerminalProductionTimings,
+};
 
 pub(crate) mod behavior_exclusions;
 pub(crate) mod composition_modes;
@@ -225,11 +227,11 @@ fn produce_retained_terminal_artifact(
                 ),
                 optimization_selections: psi_optimizations.selections().clone(),
             }
-            .produce_program_entry_with_callback_custody_timed(
-                source_signature_identity,
-                callback_placements,
-                &mut production_timings,
-            )
+            .produce(TerminalProductionCustody {
+                entry_identity: Some(source_signature_identity),
+                callback_custody: callback_placements,
+                timings: &mut production_timings,
+            })
         })
         .map_err(|error| {
             vec![Diagnostic::error(format!(
@@ -247,7 +249,12 @@ fn produce_retained_terminal_artifact(
         selected_ieee_float_fma_occurrences,
         selected_ieee_float_comparison_occurrences,
         selected_integer_comparison_occurrences,
-    ) = produced.into_parts_with_source_calls();
+    ) = produced.into_parts();
+    let checked_program_entry = checked_program_entry.ok_or_else(|| {
+        vec![Diagnostic::error(
+            "terminal-artifact production retained no checked ProgramEntry receipt",
+        )]
+    })?;
     stage_timings.record_result(TERMINAL_VERIFICATION_STAGE, || {
         verification::verify_terminal_artifact(&artifact, profile)
     })?;
@@ -361,10 +368,11 @@ pub fn produce_program_entry_terminal_artifact(
                 ),
                 optimization_selections: psi_optimizations.selections().clone(),
             }
-            .produce_program_entry_timed(
-                program_entry.source_signature().identity().bytes(),
-                &mut production_timings,
-            )
+            .produce(TerminalProductionCustody {
+                entry_identity: Some(program_entry.source_signature().identity().bytes()),
+                callback_custody: (),
+                timings: &mut production_timings,
+            })
         })
         .map_err(|error| {
             vec![Diagnostic::error(format!(
@@ -376,10 +384,17 @@ pub fn produce_program_entry_terminal_artifact(
         artifact,
         checked_program_entry,
         checked_boundary_operator_scope,
+        (),
+        _source_call_occurrences,
         selected_ieee_float_fma_occurrences,
         selected_ieee_float_comparison_occurrences,
         selected_integer_comparison_occurrences,
     ) = produced.into_parts();
+    let checked_program_entry = checked_program_entry.ok_or_else(|| {
+        vec![Diagnostic::error(
+            "native-artifact Terminal production retained no checked ProgramEntry receipt",
+        )]
+    })?;
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).map_err(|error| {
         vec![Diagnostic::error(format!(
             "native comparison custody could not decode Terminal semantics: {error}"

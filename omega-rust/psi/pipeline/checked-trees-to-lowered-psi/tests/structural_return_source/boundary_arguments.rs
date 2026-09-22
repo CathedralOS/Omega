@@ -3,6 +3,7 @@
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::TerminalStructuralInputs;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 #[path = "boundary_arguments/anonymous_fields.rs"]
 mod anonymous_fields;
 #[path = "boundary_arguments/constructed_wrappers_and_qualifications.rs"]
@@ -130,9 +131,15 @@ fn unit_wrapper_artifact(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec
         &AdmissionProfile::default(),
     )
     .unwrap();
-    let published = terminal_production::TerminalProductionRequest::new(checked, "Root::enter")
-        .produce_artifact()
-        .unwrap();
+    let published = terminal_production::TerminalProductionRequest::new(
+        checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     assert_eq!(published.semantic_bytes(), artifact.0);
     artifact
 }

@@ -2,6 +2,9 @@
 //! Native callers observe stores through the original projected referent.
 
 use target::NativeTarget;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[path = "common/native_function.rs"]
 #[allow(dead_code)]
@@ -77,9 +80,15 @@ fn artifact_for(source: &str, entry: &str) -> terminal_codec::CanonicalTerminalA
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    terminal_production::TerminalProductionRequest::new(&checked, entry)
-        .produce_artifact()
-        .unwrap()
+    terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name(entry),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact()
 }
 
 fn optimize(

@@ -3,6 +3,7 @@ use super::super::CheckedScalarComputationKind;
 use crate::TerminalMachineSelection;
 use checked_trees::CheckedTrees;
 use checked_trees::expression::ExpressionNode;
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 fn checked(source: &str) -> CheckedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
@@ -56,9 +57,14 @@ fn ordinary_selected_float_comparisons_emit_one_exact_operation() {
             let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
                 .expect("selected comparison lowers");
             assert_eq!(lowered.selected_ieee_float_comparison_occurrences.len(), 1);
-            let produced = terminal_production::TerminalProductionRequest::new(&checked, "choose")
-                .produce_checked_artifact()
-                .expect("selected comparison custody publishes");
+            let produced = terminal_production::TerminalProductionRequest::new(
+                &checked,
+                terminal_production::TerminalMachineSelection::Name("choose"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("selected comparison custody publishes");
             let [published] = produced.boundary_operator_scope().occurrences() else {
                 panic!("one exact published comparison occurrence");
             };
@@ -207,9 +213,14 @@ fn ordinary_selected_integer_comparisons_emit_one_exact_operation() {
                 usize::from(negated),
                 "{source}"
             );
-            let produced = terminal_production::TerminalProductionRequest::new(&checked, "choose")
-                .produce_checked_artifact()
-                .expect("selected integer comparison custody publishes");
+            let produced = terminal_production::TerminalProductionRequest::new(
+                &checked,
+                terminal_production::TerminalMachineSelection::Name("choose"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("selected integer comparison custody publishes");
             assert_eq!(produced.selected_integer_comparison_occurrences().len(), 1);
             assert_eq!(
                 produced.selected_integer_comparison_occurrences()[0].terminal_operation,
@@ -229,9 +240,14 @@ fn published_match_custody_rejects_missing_and_duplicate_occurrences() {
         }",
     );
     let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose")).unwrap();
-    let produced = terminal_production::TerminalProductionRequest::new(&checked, "choose")
-        .produce_checked_artifact()
-        .expect("both selected arms publish exact custody");
+    let produced = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("choose"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("both selected arms publish exact custody");
     assert_eq!(produced.boundary_operator_scope().occurrences().len(), 2);
     for duplicate in [false, true] {
         let mut corrupted = lowered.clone();

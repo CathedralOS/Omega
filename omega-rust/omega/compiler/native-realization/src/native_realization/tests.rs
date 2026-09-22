@@ -4,6 +4,9 @@ use crate::{
     NativeProgramEntrySettlement, NativeRealizationRequest, RequestedNativeArtifact,
     RequestedNativeArtifactError,
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 const RECEIVER_STORE: &str = r#"
     data Main { value: i32; }
@@ -16,7 +19,7 @@ fn entry_fixture(
     source_text: &str,
     target_profile: target::TargetProfile,
 ) -> (
-    terminal_production::ProducedProgramEntryTerminalArtifact,
+    terminal_production::ProducedTerminalArtifact<()>,
     program_entry_plan::SelectedProgramEntrySourceSignature,
     Option<build_evaluation::SelectedProgramEntryCallingPlans>,
 ) {
@@ -72,9 +75,16 @@ fn entry_fixture(
             Vec::new(),
         )
         .expect("selected source signature");
-    let produced = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
-        .produce_program_entry(signature.identity().bytes())
-        .expect("source receiver store produces a receipt-coupled Terminal artifact");
+    let produced = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::launch"),
+    )
+    .produce(TerminalProductionCustody {
+        entry_identity: Some(signature.identity().bytes()),
+        callback_custody: (),
+        timings: &mut TerminalProductionTimings::default(),
+    })
+    .expect("source receiver store produces a receipt-coupled Terminal artifact");
     // Slots that declare their two-surface calling custody need the evaluated
     // paired plans; a hosted free entry supplies them for the profile.
     let slot = signature.target_slot();
@@ -123,10 +133,11 @@ fn request<'request>(
 /// validate the checked entry settlement against the request, then realize
 /// with the checked scope and entry receipt attached.
 fn realize_checked_entry(
-    produced: terminal_production::ProducedProgramEntryTerminalArtifact,
+    produced: terminal_production::ProducedTerminalArtifact<()>,
     request: NativeRealizationRequest<'_>,
 ) -> Result<RequestedNativeArtifact, RequestedNativeArtifactError> {
-    let (artifact, checked_entry, checked_scope, _, _, _) = produced.into_parts();
+    let (artifact, checked_entry, checked_scope, (), _, _, _, _) = produced.into_parts();
+    let checked_entry = checked_entry.expect("entry receipt");
     if let Err(error) = crate::validate_native_program_entry_settlement(
         &artifact,
         &checked_entry,
@@ -257,7 +268,8 @@ fn erased_receiver_eligibility_is_required_for_fresh_and_prepared_inputs() {
         "data Child {} machine Child::drop(&mut self) {} data Main { child: Child; } machine Main::launch(&mut self) {}",
     ] {
         let (produced, signature, plans) = entry_fixture(source, target::TargetProfile::WindowsX64);
-        let (artifact, receipt, scope, _, _, _) = produced.into_parts();
+        let (artifact, receipt, scope, (), _, _, _, _) = produced.into_parts();
+        let receipt = receipt.expect("entry receipt");
         assert!(receipt.receiver_eligibility().is_none());
         let prepared =
             crate::prepare_native_realization_input(&artifact, &profile, &optimizations, &[])
@@ -385,7 +397,8 @@ fn erased_provisioned_receiver_must_retain_its_attached_type() {
 fn retained_receiver_entry_must_preserve_its_checked_receiver_identity() {
     let (produced, signature, plans) =
         entry_fixture(RECEIVER_STORE, target::TargetProfile::MacosArm64);
-    let (artifact, receipt, _, _, _, _) = produced.into_parts();
+    let (artifact, receipt, _, (), _, _, _, _) = produced.into_parts();
+    let receipt = receipt.expect("entry receipt");
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
@@ -546,7 +559,8 @@ fn unprovisioned_receiver_entry_rejects_fresh_and_prepared_executable_realizatio
         target::TargetProfile::UefiX64,
     ] {
         let (produced, signature, plans) = entry_fixture(RECEIVER_STORE, target_profile);
-        let (artifact, receipt, scope, _, _, _) = produced.into_parts();
+        let (artifact, receipt, scope, (), _, _, _, _) = produced.into_parts();
+        let receipt = receipt.expect("entry receipt");
         let settlement = crate::validate_native_program_entry_settlement(
             &artifact,
             &receipt,
@@ -638,7 +652,8 @@ fn unprovisioned_receiver_entry_rejects_fresh_and_prepared_executable_realizatio
 fn admitted_receiver_entry_rejects_callback_occupancy() {
     let (produced, signature, plans) =
         entry_fixture(RECEIVER_STORE, target::TargetProfile::WindowsX64);
-    let (artifact, receipt, scope, _, _, _) = produced.into_parts();
+    let (artifact, receipt, scope, (), _, _, _, _) = produced.into_parts();
+    let receipt = receipt.expect("entry receipt");
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
@@ -699,7 +714,7 @@ fn callback_thunk_signature_must_match_its_boundary_entry_plan() {
         "data Main {}\nmachine Main::launch() {}",
         target::TargetProfile::WindowsX64,
     );
-    let (artifact, _, _, _, _, _) = produced.into_parts();
+    let (artifact, _, _, (), _, _, _, _) = produced.into_parts();
     let target = signature.target_slot().owner.native_target();
     let (thunk_artifact, receipt) =
         crate::tests::native_realization::callback_custody::callback_thunk_artifact();
@@ -756,7 +771,8 @@ fn callback_thunk_signature_must_match_its_boundary_entry_plan() {
 fn admitted_receiver_provisioning_must_reach_the_emitted_object() {
     let (produced, signature, plans) =
         entry_fixture(RECEIVER_STORE, target::TargetProfile::MacosArm64);
-    let (artifact, receipt, scope, _, _, _) = produced.into_parts();
+    let (artifact, receipt, scope, (), _, _, _, _) = produced.into_parts();
+    let receipt = receipt.expect("entry receipt");
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
@@ -843,7 +859,8 @@ fn admitted_receiver_provisioning_must_reach_the_emitted_object() {
 fn emitted_receiver_binding_rejects_unadmitted_and_substituted_identities() {
     let (produced, signature, plans) =
         entry_fixture(RECEIVER_STORE, target::TargetProfile::LinuxX64);
-    let (artifact, receipt, scope, _, _, _) = produced.into_parts();
+    let (artifact, receipt, scope, (), _, _, _, _) = produced.into_parts();
+    let receipt = receipt.expect("entry receipt");
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
@@ -1018,7 +1035,7 @@ fn native_request_scope_and_reuse_preserve_direct_image_bytes() {
         "data Main {} machine Main::launch() {}",
         target::TargetProfile::WindowsX64,
     );
-    let (artifact, _, scope, _, _, _) = produced.into_parts();
+    let (artifact, _, scope, (), _, _, _, _) = produced.into_parts();
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
@@ -1061,12 +1078,12 @@ fn native_request_rejects_substituted_scope_or_prepared_input_and_returns_image_
         "data Main {} machine Main::launch() {}",
         target::TargetProfile::WindowsX64,
     );
-    let (artifact, _, scope, _, _, _) = produced.into_parts();
+    let (artifact, _, scope, (), _, _, _, _) = produced.into_parts();
     let (other, ..) = entry_fixture(
         "data Main {} machine Main::launch() { Main::work(); } machine Main::work() {}",
         target::TargetProfile::WindowsX64,
     );
-    let (other_artifact, _, other_scope, _, _, _) = other.into_parts();
+    let (other_artifact, _, other_scope, (), _, _, _, _) = other.into_parts();
     assert_ne!(
         artifact.manifest().identity(),
         other_artifact.manifest().identity()
@@ -1151,7 +1168,8 @@ fn bound_placed_view_establishment() -> terminal_interpreter::TerminalPlacedView
 fn bound_placed_view_establishments_ride_the_admitted_entry_settlement() {
     let (produced, signature, plans) =
         entry_fixture(RECEIVER_STORE, target::TargetProfile::MacosArm64);
-    let (artifact, receipt, _, _, _, _) = produced.into_parts();
+    let (artifact, receipt, _, (), _, _, _, _) = produced.into_parts();
+    let receipt = receipt.expect("entry receipt");
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
@@ -1241,7 +1259,8 @@ fn receiverless_entry_boundaries_reject_bound_placed_view_establishments() {
     // the bound set still has nothing that can lend it.
     let (produced, signature, plans) =
         entry_fixture(ERASED_RECEIVER, target::TargetProfile::WindowsX64);
-    let (artifact, receipt, _, _, _, _) = produced.into_parts();
+    let (artifact, receipt, _, (), _, _, _, _) = produced.into_parts();
+    let receipt = receipt.expect("entry receipt");
     let input = super::lower_realization_input(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),

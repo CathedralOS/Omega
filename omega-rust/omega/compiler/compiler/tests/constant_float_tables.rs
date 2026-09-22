@@ -1,6 +1,9 @@
 //! Floating constant tables retain their declared format and representation.
 
 use std::sync::atomic::{AtomicU64, Ordering};
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 static NEXT_PROJECT: AtomicU64 = AtomicU64::new(0);
 
@@ -57,9 +60,15 @@ fn floating_tables_execute_after_source_removal() {
             let checked =
                 compiler::compile_to_checked(compiler::CheckedCompileRequest::new(&path, None))
                     .expect("copied floating record table checks");
-            let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
-                .produce_artifact()
-                .expect("floating table read reaches Terminal");
+            let artifact = terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("read"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("floating table read reaches Terminal")
+            .into_artifact();
             drop(checked);
             drop(sources);
             assert!(!path.exists());

@@ -78,6 +78,9 @@ use semantic_vocabulary::PackageKeyIdentity;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[path = "support/console_acceptance.rs"]
 mod console_acceptance;
@@ -1028,9 +1031,15 @@ fn generic_counter_sample_reaches_terminal_psi() {
     let compilation =
         compile_sample_to_checked(&main_path, None).expect("generic counter source checks");
     let checked = &compilation.into_program();
-    let _ = terminal_production::TerminalProductionRequest::new(checked, "Main::main")
-        .produce_artifact()
-        .expect("the complete counter program must reach Terminal Psi");
+    let _ = terminal_production::TerminalProductionRequest::new(
+        checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("the complete counter program must reach Terminal Psi")
+    .into_artifact();
 }
 
 #[test]

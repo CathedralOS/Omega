@@ -4,6 +4,9 @@ use optimization_core::OptimizationSelections;
 use proof_admission::AdmissionProfile;
 use target::NativeTarget;
 use terminal_codec::CanonicalTerminalArtifact;
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[path = "scalar_case_results/admission.rs"]
 mod admission;
@@ -100,9 +103,15 @@ fn produce_source(entry: &str, source: &str) -> CanonicalTerminalArtifact {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("check scalar-case source");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, entry)
-        .produce_artifact()
-        .unwrap_or_else(|error| panic!("publish scalar-case Terminal: {error:#?}"));
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name(entry),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap_or_else(|error| panic!("publish scalar-case Terminal: {error:#?}"))
+    .into_artifact();
     let artifact = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
     terminal_verifier::verify_module(
         &terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),

@@ -172,6 +172,9 @@ mod tests {
     use package_compilation::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
     use semantic_vocabulary::PackageKeyIdentity;
     use target_operations::CompilerBuiltinExecution;
+    use terminal_production::{
+        TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+    };
 
     /// One reachable boundary invocation whose selected provider is a
     /// compiler intrinsic, so the mechanism-closure review exercises the
@@ -228,15 +231,21 @@ mod tests {
                 Vec::new(),
             )
             .expect("selected source signature");
-        let produced =
-            terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
-                .produce_program_entry_with_callback_custody(signature.identity().bytes(), ())
-                .expect("Sink entry produces a Terminal artifact");
+        let produced = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("Main::launch"),
+        )
+        .produce(TerminalProductionCustody {
+            entry_identity: Some(signature.identity().bytes()),
+            callback_custody: (),
+            timings: &mut TerminalProductionTimings::default(),
+        })
+        .expect("Sink entry produces a Terminal artifact");
         let plans = hosted_calling_plans(target_profile);
         let artifact =
             terminal_codec::CanonicalTerminalArtifact::from_bytes(&produced.artifact().to_bytes())
                 .expect("produced artifact replays from canonical bytes");
-        let receipt = produced.receipt().clone();
+        let receipt = produced.receipt().expect("entry receipt").clone();
         (artifact, receipt, signature, plans)
     }
 

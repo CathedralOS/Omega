@@ -4,6 +4,9 @@ use checked_trees::CheckedScalarComputationKind;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
@@ -25,9 +28,15 @@ fn computed_field_rhs_rejects_same_typed_call_operand_substitution() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    let _ = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
-        .produce_artifact()
-        .expect("unmodified field RHS operands publish");
+    let _ = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("unmodified field RHS operands publish")
+    .into_artifact();
 
     let plans = &mut checked.facts.values.scalar_computations;
     let calls = plans
@@ -63,8 +72,14 @@ fn computed_field_rhs_rejects_same_typed_call_operand_substitution() {
         unreachable!()
     };
     *arguments = *second_arguments;
-    let result = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
-        .produce_artifact();
+    let result = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .map(|produced| produced.into_artifact());
     assert!(
         result.is_err(),
         "same-typed operand substitution must reject"

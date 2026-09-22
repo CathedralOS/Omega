@@ -8,6 +8,7 @@ use terminal_interpreter::{
     TerminalExecution, TerminalExecutionStatus, TerminalStructuralByteArrayValue,
     TerminalStructuralValue,
 };
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::StructuralPathSegment;
 
 fn array_fixture(
@@ -34,10 +35,17 @@ fn array_fixture(
     let checked = checked_source(&format!("{}\n{caller}", byte_sequence_write::PUT));
     terminal_production::TerminalProductionRequest::new(
         &checked,
-        if field { "Record::run" } else { "run" },
+        terminal_production::TerminalMachineSelection::Name(if field {
+            "Record::run"
+        } else {
+            "run"
+        }),
     )
-    .produce_artifact()
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
     .expect("source-produced raw fixed array lends a mutable view")
+    .into_artifact()
 }
 
 fn entry_argument(artifact: &terminal_codec::CanonicalTerminalArtifact) -> TerminalStructuralValue {
@@ -281,10 +289,15 @@ fn fixed_byte_windows_replay_authored_endpoints() {
          machine Record::run(&mut self) {{ {invocation}; }}",
             byte_sequence_write::PUT
         ));
-        let _artifact =
-            terminal_production::TerminalProductionRequest::new(&checked, "Record::run")
-                .produce_artifact()
-                .unwrap();
+        let _artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("Record::run"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .unwrap()
+        .into_artifact();
         // Each substitute is itself a valid array window. Bounds validation alone
         // cannot establish that it is the window the caller actually authored.
         for (start, end) in [(0, 2), (1, 2), (3, 3)] {
@@ -324,9 +337,15 @@ fn fixed_byte_array_views_replay_authored_field_and_access() {
          machine Record::run(&mut self) {{ put(&mut self.out,65); }}",
         byte_sequence_write::PUT
     ));
-    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "Record::run")
-        .produce_artifact()
-        .unwrap();
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Record::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     for change_access in [false, true] {
         let mut changed = checked.clone();
         let call = changed

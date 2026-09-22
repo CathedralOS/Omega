@@ -4,6 +4,7 @@ use crate::tests::checked_source;
 use lowered_psi_to_lowered_psi::run_psi_optimization;
 use lowered_psi_to_terminal_psi::finalize_terminal_artifact;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::OperationKind;
 
 #[test]
@@ -11,9 +12,15 @@ fn generic_callback_schema_retains_both_closed_callees_after_reload() {
     let checked = checked_source(include_str!(
         "../../../../../../../tests/omega/pass/effects/generic_callback_schema_reach/main.omg"
     ));
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
-        .produce_artifact()
-        .expect("two closed applications of one selected schema");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("two closed applications of one selected schema")
+    .into_artifact();
     drop(checked);
     let module = terminal_codec::decode_module(artifact.semantic_bytes())
         .expect("source-free schema reload");
@@ -159,9 +166,15 @@ fn unused_schema_selection_reuses_the_same_retained_application_header() {
     )
     .replace("selected, unused", "selected, selected");
     let checked = checked_source(&source);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
-        .produce_artifact()
-        .expect("used and unused bindings select one family");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("used and unused bindings select one family")
+    .into_artifact();
     drop(checked);
     let mut module = terminal_codec::decode_module(artifact.semantic_bytes())
         .expect("source-free mixed-use reload");
@@ -226,9 +239,15 @@ fn generic_callback_schema_keeps_each_nested_selected_reach() {
         pub machine enter(value: u64) -> u64 { outer<schema>(value) }
     "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
-        .produce_artifact()
-        .expect("nested schema applications");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("nested schema applications")
+    .into_artifact();
     drop(checked);
     let module =
         terminal_codec::decode_module(artifact.semantic_bytes()).expect("nested schema reload");
@@ -412,9 +431,15 @@ fn closed_callback_dependency_survives_source_discard() {
         pub machine enter() { forward<selected>(); }
     "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
-        .produce_artifact()
-        .expect("closed callback product");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("closed callback product")
+    .into_artifact();
     drop(checked);
     let module =
         terminal_codec::decode_module(artifact.semantic_bytes()).expect("source-free reload");
@@ -456,9 +481,15 @@ fn generic_template_commitment_retains_private_helper_reach_dependency() {
     let additive = checked_source(&source("reaches Console", "quiet"));
     let selected = checked_source(&source("", "loud"));
     for checked in [&quiet, &additive, &selected] {
-        let _artifact = terminal_production::TerminalProductionRequest::new(checked, "enter")
-            .produce_artifact()
-            .expect("closed callback publication");
+        let _artifact = terminal_production::TerminalProductionRequest::new(
+            checked,
+            terminal_production::TerminalMachineSelection::Name("enter"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("closed callback publication")
+        .into_artifact();
     }
     let original = &quiet.machine_specializations[0];
     let changed = &additive.machine_specializations[0];
@@ -483,9 +514,14 @@ fn generic_template_commitment_retains_private_helper_reach_dependency() {
         "re-hashing a stale dependency cannot authorize the changed original graph"
     );
     assert!(
-        terminal_production::TerminalProductionRequest::new(&stale, "enter")
-            .produce_artifact()
-            .is_err()
+        terminal_production::TerminalProductionRequest::new(
+            &stale,
+            terminal_production::TerminalMachineSelection::Name("enter")
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default()
+        ))
+        .is_err()
     );
 }
 
@@ -519,9 +555,15 @@ fn generic_dependency_identity_ignores_call_order_and_helper_extraction() {
                 {entries}
                 "#
             ));
-            let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
-                .produce_artifact()
-                .expect("nested callback dependency publication");
+            let artifact = terminal_production::TerminalProductionRequest::new(
+                &checked,
+                terminal_production::TerminalMachineSelection::Name("enter"),
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("nested callback dependency publication")
+            .into_artifact();
             let template = checked
                 .machines()
                 .iter()
@@ -594,9 +636,15 @@ fn generic_dependency_preserves_the_referenced_telescope_position() {
     let first = checked_source(&source("First"));
     let second = checked_source(&source("Second"));
     for (checked, binder) in [(&first, 1), (&second, 3)] {
-        let artifact = terminal_production::TerminalProductionRequest::new(checked, "enter")
-            .produce_artifact()
-            .expect("one of two same-contract binders");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            checked,
+            terminal_production::TerminalMachineSelection::Name("enter"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("one of two same-contract binders")
+        .into_artifact();
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let application = module
             .machines
@@ -635,9 +683,15 @@ fn type_only_generic_template_retains_concrete_helper_dependency() {
             pub machine enter(value: u64) -> u64 {{ forward<u64>(value) }}
             "#
         ));
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
-            .produce_artifact()
-            .expect("type-only generic helper dependency");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("enter"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("type-only generic helper dependency")
+        .into_artifact();
         commitments.push(checked.machine_specializations[0].template_contract_commitment);
         drop(checked);
         let mut module = terminal_codec::decode_module(artifact.semantic_bytes())
@@ -672,9 +726,15 @@ fn const_only_application_retains_its_fixed_dependency_after_reload() {
         pub machine enter(value: u64) -> u64 { identity<2>(value) }
     "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
-        .produce_artifact()
-        .expect("const-only generic product");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("const-only generic product")
+    .into_artifact();
     drop(checked);
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).expect("reload constant");
     let owner = module
@@ -717,9 +777,15 @@ fn ordinary_callback_publication_replays_its_exact_specialization() {
         "#,
     ] {
         let checked = checked_source(source);
-        let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
-            .produce_artifact()
-            .expect("valid ordinary closed callback");
+        let _artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("enter"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("valid ordinary closed callback")
+        .into_artifact();
         assert_eq!(checked.machine_specializations.len(), 1);
         let alternative = checked
             .machines()
@@ -753,9 +819,14 @@ fn ordinary_callback_publication_replays_its_exact_specialization() {
                 );
             }
             assert!(
-                terminal_production::TerminalProductionRequest::new(&invalid, "enter")
-                    .produce_artifact()
-                    .is_err(),
+                terminal_production::TerminalProductionRequest::new(
+                    &invalid,
+                    terminal_production::TerminalMachineSelection::Name("enter")
+                )
+                .produce(TerminalProductionCustody::artifact_only(
+                    &mut TerminalProductionTimings::default()
+                ))
+                .is_err(),
                 "ordinary publication must reject stale specialization custody: {mutation}"
             );
         }
@@ -903,9 +974,15 @@ fn nested_generic_callbacks_replay_interleaved_telescope_positions() {
         pub machine enter(value: u64) -> u64 { wrapper<first, second>(value) }
     "#,
     );
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
-        .produce_artifact()
-        .expect("nested closed callbacks");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("nested closed callbacks")
+    .into_artifact();
     assert_eq!(checked.machine_specializations.len(), 2);
     for specialization in &checked.machine_specializations {
         let mut invalid = checked.clone();
@@ -918,9 +995,14 @@ fn nested_generic_callbacks_replay_interleaved_telescope_positions() {
             .machine_arguments
             .swap(0, 1);
         assert!(
-            terminal_production::TerminalProductionRequest::new(&invalid, "enter")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &invalid,
+                terminal_production::TerminalMachineSelection::Name("enter")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "same-contract selections retain binder positions"
         );
     }

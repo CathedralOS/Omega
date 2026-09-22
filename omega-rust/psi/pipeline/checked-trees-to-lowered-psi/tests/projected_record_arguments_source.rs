@@ -1,6 +1,9 @@
 //! Shared projected actuals preserve both authored roots through nested calls.
 
 use terminal_interpreter::{TerminalExecutionResult, TerminalScalarValue};
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
@@ -41,9 +44,15 @@ fn nested_equality_borrows_distinct_projected_receiver_and_explicit_actual() {
         "#
         );
         let checked = checked(&source);
-        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "value")
-            .produce_artifact()
-            .expect("nested equality retains both projected shared actuals");
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("value"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("nested equality retains both projected shared actuals")
+        .into_artifact();
         if expected {
             reject_projected_argument_substitutions(&checked);
         }
@@ -108,9 +117,14 @@ fn reject_projected_argument_substitutions(checked: &checked_trees::CheckedTrees
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&forged, "value")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &forged,
+                TerminalMachineSelection::Name("value")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "projected source/path/access substitution {mutation} must reject"
         );
     }
@@ -159,9 +173,14 @@ fn reject_projected_argument_substitutions(checked: &checked_trees::CheckedTrees
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&forged, "value")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &forged,
+                TerminalMachineSelection::Name("value")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "captured source/path/access substitution {mutation} must reject"
         );
     }

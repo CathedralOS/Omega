@@ -4,6 +4,9 @@ use package_compilation::{
 };
 use std::path::Path;
 use terminal_interpreter::{TerminalExecutionResult, interpret_terminal_artifact};
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 fn package_inputs(root: &Path, library: &Path) -> PackageCompilationInputs {
     PackageCompilationInputs::new_package(
@@ -869,9 +872,15 @@ fn assert_separate_package_domains_through_terminal(indexed: bool) {
         })
         .expect("library domain");
     assert_ne!(local.semantic_id, foreign.semantic_id);
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "bounds::read")
-        .produce_artifact()
-        .expect("distinct owners reach Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("bounds::read"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("distinct owners reach Terminal")
+    .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).expect("decode Terminal");
     assert_eq!(module.scalar_qualifications.domains.len(), 2);
     let domains = &module.scalar_qualifications.domains;
@@ -1627,9 +1636,15 @@ fn nested_indexed_recursion_remains_fenced() {
 }
 
 fn assert_source_free_seven(checked: compiler::CheckedCompilation) {
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
-        .produce_artifact()
-        .expect("indexed constrained constant reaches Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("read"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("indexed constrained constant reaches Terminal")
+    .into_artifact();
     drop(checked);
     assert_eq!(
         interpret_terminal_artifact(

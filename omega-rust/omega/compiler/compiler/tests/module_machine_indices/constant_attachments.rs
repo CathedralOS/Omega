@@ -5,6 +5,9 @@ use package_compilation::{
 };
 use std::path::Path;
 use terminal_interpreter::{TerminalExecutionResult, interpret_terminal_artifact};
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 fn package_inputs(root: &Path, library: &Path) -> PackageCompilationInputs {
     PackageCompilationInputs::new_package(
@@ -81,9 +84,15 @@ fn specialized_foreign_template_constant_reaches_source_free_execution() {
 }
 
 fn assert_source_free_result(checked: compiler::CheckedCompilation) {
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
-        .produce_artifact()
-        .expect("foreign nominal constant reaches Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("read"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("foreign nominal constant reaches Terminal")
+    .into_artifact();
     drop(checked);
     assert_eq!(
         interpret_terminal_artifact(

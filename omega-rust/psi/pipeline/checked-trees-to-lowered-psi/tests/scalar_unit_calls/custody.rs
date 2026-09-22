@@ -4,12 +4,21 @@ use checked_trees::{
     CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentSourcePlan,
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 fn original() -> (checked_trees::CheckedTrees, symbols::SymbolHandle) {
     let checked = super::checked(super::BOOLEAN_BRANCH);
-    let _ = terminal_production::TerminalProductionRequest::new(&checked, "observe")
-        .produce_artifact()
-        .expect("unmodified source must publish before mutation");
+    let _ = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("observe"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("unmodified source must publish before mutation")
+    .into_artifact();
     let machine = checked
         .machines()
         .iter()
@@ -71,9 +80,14 @@ fn scalar_unit_call_rejects_missing_duplicate_reordered_or_substituted_rows() {
             }
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "observe")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("observe")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "accepted Unit call custody mutation {mutation}"
         );
     }
@@ -117,9 +131,14 @@ fn scalar_unit_call_requires_its_exact_borrow_occurrence() {
             _ => unreachable!(),
         }
         assert!(
-            terminal_production::TerminalProductionRequest::new(&changed, "observe")
-                .produce_artifact()
-                .is_err(),
+            terminal_production::TerminalProductionRequest::new(
+                &changed,
+                TerminalMachineSelection::Name("observe")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
             "accepted missing or substituted borrow occurrence {mutation}"
         );
     }
@@ -132,9 +151,15 @@ fn coherent_call_and_borrow_substitution_cannot_select_another_local() {
         "    let mut spare: bool = replacement;\n    replace(&mut spare, initial);\n    replace(&mut scratch, replacement);",
     );
     let mut changed = super::checked(&source);
-    let _ = terminal_production::TerminalProductionRequest::new(&changed, "observe")
-        .produce_artifact()
-        .unwrap();
+    let _ = terminal_production::TerminalProductionRequest::new(
+        &changed,
+        TerminalMachineSelection::Name("observe"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap()
+    .into_artifact();
     let machine = changed
         .machines()
         .iter()
@@ -183,9 +208,14 @@ fn coherent_call_and_borrow_substitution_cannot_select_another_local() {
             .root_symbol = spare;
     }
     assert!(
-        terminal_production::TerminalProductionRequest::new(&changed, "observe")
-            .produce_artifact()
-            .is_err(),
+        terminal_production::TerminalProductionRequest::new(
+            &changed,
+            TerminalMachineSelection::Name("observe")
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default()
+        ))
+        .is_err(),
         "matching cached call/borrow rows cannot replace the authored local"
     );
 }
@@ -205,9 +235,15 @@ machine observe(initial: bool, replacement: bool) -> u64 {
 }
 "#;
     let mut changed = super::checked(source);
-    let _ = terminal_production::TerminalProductionRequest::new(&changed, "observe")
-        .produce_artifact()
-        .expect("two distinct primitive borrows publish before corruption");
+    let _ = terminal_production::TerminalProductionRequest::new(
+        &changed,
+        TerminalMachineSelection::Name("observe"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("two distinct primitive borrows publish before corruption")
+    .into_artifact();
     let machine = changed
         .machines()
         .iter()
@@ -258,9 +294,14 @@ machine observe(initial: bool, replacement: bool) -> u64 {
     *changed.facts.borrow.argument_accesses.get_mut(handles[0]) = second;
     *changed.facts.borrow.argument_accesses.get_mut(handles[1]) = first;
     assert!(
-        terminal_production::TerminalProductionRequest::new(&changed, "observe")
-            .produce_artifact()
-            .is_err(),
+        terminal_production::TerminalProductionRequest::new(
+            &changed,
+            TerminalMachineSelection::Name("observe")
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default()
+        ))
+        .is_err(),
         "reordered borrow occurrences must not replace authored argument order"
     );
 }

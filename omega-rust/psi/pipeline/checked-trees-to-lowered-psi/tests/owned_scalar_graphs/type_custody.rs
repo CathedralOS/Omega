@@ -3,6 +3,9 @@
 use checked_trees::types::PrimitiveType;
 use checked_trees::{CheckedTrees, CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape};
 use semantic_vocabulary::{BoundedIntegerType, IntegerSign, IntegerType, IntegerValue};
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 use super::support;
 
@@ -84,9 +87,16 @@ fn corrupt(
 }
 
 fn reject(checked: &CheckedTrees) {
-    let error = terminal_production::TerminalProductionRequest::new(checked, "enter")
-        .produce_artifact()
-        .expect_err("source type custody must reject a consistently forged catalog");
+    let error = terminal_production::TerminalProductionRequest::new(
+        checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect_err("source type custody must reject a consistently forged catalog")
+    .into_parts()
+    .0;
     assert!(
         format!("{error:?}")
             .contains("owned structural catalog differs from its typed declaration"),
@@ -461,7 +471,13 @@ fn nested_source_range_shells_reconstruct_their_intersection() {
         panic!("bounded source field")
     };
     field.type_reference = reference;
-    let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
-        .produce_artifact()
-        .expect("equivalent intersected source ranges preserve the retained catalog");
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("equivalent intersected source ranges preserve the retained catalog")
+    .into_artifact();
 }

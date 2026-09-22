@@ -6,6 +6,9 @@ use crate::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
     validate_native_program_entry_settlement,
 };
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
 
 #[test]
 fn rejects_source_signature_target_and_artifact_substitution() {
@@ -59,10 +62,15 @@ fn rejects_source_signature_target_and_artifact_substitution() {
             machine Main::launch(token: Token) -> u64 { 7u64 }
         "#,
     );
-    let substituted_artifact =
-        terminal_production::TerminalProductionRequest::new(&scalar, "Main::launch")
-            .produce_artifact()
-            .expect("different canonical artifact");
+    let substituted_artifact = terminal_production::TerminalProductionRequest::new(
+        &scalar,
+        TerminalMachineSelection::Name("Main::launch"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("different canonical artifact")
+    .into_artifact();
     assert!(matches!(
         validate_native_program_entry_settlement(
             &substituted_artifact,
