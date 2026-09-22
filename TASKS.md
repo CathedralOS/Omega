@@ -2554,6 +2554,15 @@ syntax and other terminal services are not prerequisites.
     `rewrite_guarded_transition_argument_calls` still synthesizes states.
     Delete superseded shape producers as their operations compose; a failed
     custody rejoin must never fall back to a weaker recognizer.
+  - Rejoin composed scalar calls with structural/boundary callees, structural
+    arguments and claim transfers before structural returns.
+    `unit/attached_unit/composed_control/admission.rs::retain_scalar_call`
+    still refuses this custody. Extend ordinary ordered operations, not a
+    fallback recognizer. Preserve
+    `owned_record_return_source::effectful_discarded_call_writes_before_return_across_fuel`:
+    two borrowed-output writes precede the exact record return, finish at 73,
+    and survive fuel exhaustion without replay. Retain record/array/generic
+    return-substitution and affine-transfer rejection controls.
   - Complete structural/Unit control-flow composition with computed successor
     arguments, preserving owned values, loans and ordered operations through
     joins and calls. `unit/structural_unit_control.rs` still rejects checked
@@ -3646,8 +3655,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   same-name rows — this one, a bare stub at ~:8503, and a sibling
   adjudication at ~:8580 (verified `138ed79a677`, same verdict from the
   program-entry-lane angle); all reach "no independent slice".
-- **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS.** — mined candidate; resolved as drained: the same-name row below carries the triage (57-failure census at bd6cddcb59, closed by attribution into `wiki/drafts/known_baseline_failures.md`); residual ledger refreshed at `e7c0099cb2b7` (2206 run / 2183 pass / 23 fail, member→family mapping current). Repairs stay with the owning lanes named there; no slice under this stub.
-  covered — drained; census closed into known_baseline_failures.md, families owned by their named lanes
 - **BACKEND-RUNTIME-STARTUP-MECHANICS** — mined candidate; scope verified,
   covered — sibling alias on the settled STARTUP-ENTRY-MECHANICS-OWNERSHIP
   surface recorded on the resolved ENTRY-MECHANICS-RUNTIME-CONSOLIDATION
@@ -3697,47 +3704,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   provenance replays under validate_target or per-node dispatch under
   validate). Territory: `target-operations-to-selected-instructions/src/{legalization,selection}`
   + `representations/abstract-operations` (read-only enumeration).
-- **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS.** Mined candidate — scope verified, covered — re-mines the checked-trees-to-lowered-psi failure-cluster surface of `wiki/drafts/known_baseline_failures.md` §checked-trees-to-lowered-psi. The cluster ledger is maintained by CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION (fresh member-by-member reading recorded at `6ef64f6dd6`: 2152 run, 2093 passed, 59 failed, 1 SIGTERM blowup), and every cluster family is already owned by a named row — bare `Service<R>` fixture spellings → ENTRY-CONTENT-ROOTS + BASELINE-SERVICE-CARRIER-FAILURES, missing transitive machine plans → GENERAL-CYCLIC-EXECUTION + UEFI-OS-HANDOFF, site_guard crash-namespace + scalar-return custody → WRITE-ONLY-BORROW + C2L-BASELINE/RESIDUAL-FAILURE-ATTRIBUTION, the proof-search blowup → C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT, crash-member byte entries → resolved under LOWERED-CRASH-MEMBER-BYTE-ENTRIES (48/48 green). No independent slice exists here. Sibling stubs on the same surface: BASELINE-SERVICE-CARRIER-FAILURES, STATE-LOCAL-VALUE-FRONTIER, BASELINE-T2C-PROVIDER-ATTACHMENT-AND-RESULTS, LOWERED-PSI-BASELINE-TAIL, LOWERED-CRASH-MEMBER-BYTE-ENTRIES, RC-REPOSITORY-CLOSURE.
-- **BASELINE-SERVICE-CARRIER-FAILURES.** Partially advanced at
-  `62c502f9f6` — the bare `Service<R>`-carrier family of
-  `known_baseline_failures.md`'s c2l attribution: 33 tests spelled
-  `console: Console` / `runtime: TaskRuntime` / `output: Output` in value
-  position and rejected under `validate_no_bare_boundary_trait_values`
-  (32f5182254). Done (this slice): `tests/unit_plan_omissions.rs`'s 4 bare
-  `runtime: TaskRuntime` spellings migrated to `&'s mut TaskRuntime`
-  receivers on `Main<'s>`/`Carrier<'s>` per the 0e1977994b raw-pipeline
-  recipe. The 3 carrier-semantic members now pass source checking and stop
-  at `signature`-phase local construction, joining the missing-transitive-
-  machine-plan family (GENERAL-CYCLIC-EXECUTION / UEFI-OS-HANDOFF fences)
-  until ENTRY-CONTENT-ROOTS' receiver-lifecycle leg lands; the `&TaskRuntime`
-  shared-borrow negative control still pins the same stop. Remaining
-  (fenced): `checked-trees-to-lowered-psi/src/tests/{attached_unit_cases,
-  composed_operand_catalogs{,/dynamic_unit}, composed_unit_nested_control,
-  dynamic_composed_unit, indexed_primitive_storage,
-  structural_control_cases}.rs` (21 bare spellings) sit inside
-  PROOF-CERTIFICATION-BRIDGE's `src/tests` claim (expires ~2026-09-21T00:51Z)
-  — same migration applies there when the fence settles.
-- **BASELINE-T2C-PROVIDER-ATTACHMENT-AND-RESULTS** — mined candidate; verify scope then implement.
-- **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS** — triaged at bd6cddcb59 (Linux x86-64): `cargo nextest run -p checked-trees-to-lowered-psi --no-fail-fast` reports 2146 run, 2088 pass, 57 named failures, 1 non-terminating (`nominal_affine_source::integer_comparison::mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`, >1020 s, no nextest timeout). Clusters recorded in `wiki/drafts/known_baseline_failures.md`: bare boundary-trait value fields vs the `Service<R>` gate (33, 32f5182254 — fixture migration under SERVICE-CARRIER-FIXTURE-MIGRATION; the inline `resolve` harness loads no core library, so respelling needs a core-aware resolution path), attached-Unit transitive machine plan on `&mut`-trait provider fields (16 — a distinct Unit-plan admission gate, not the check diagnostic), crash predicate scalar namespace (3 — LOWERED-PSI-BASELINE-TAIL owns `proofs/crash_routes*`), owned-record-return custody (4, unbisected), Registration::Live qualification (1, unbisected). Repairs belong to those owning lanes; this row is closed by the attribution, not by repair. (Draft reading superseded by main's 6ef64f6dd6 census in `known_baseline_failures.md`.)
-  covered — drained; census closed into known_baseline_failures.md, families owned by their named lanes
-- **BASELINE-SERVICE-CARRIER-FAILURES.** Resolved. The bare
-  boundary-trait carrier family is fully migrated: the 21
-  `console: Console` and `output: Output` spellings across the lowering
-  crate's `src/tests` sources became `Service<R>` carrier fields at
-  00a69f066b0, with `checked_source_with_core_service` installing the core
-  service source, and `tests/unit_plan_omissions.rs`'s 4
-  `runtime: TaskRuntime` spellings became `&'s mut TaskRuntime` receivers at
-  37e309e6060. Verified at 00e1da7ae2a on macOS arm64, 2199 run and 2174
-  passed with no `validate_no_bare_boundary_trait_values` rejection left in
-  the log, and every declared boundary trait in those trees scanned for a
-  value-position field. The library members pass, not vacuously: their
-  harness ends in a check the fixture must survive before the tests assert
-  on the lowered result. The three carrier-semantic `unit_plan_omissions`
-  members reach the further stop the item predicted, `signature`-phase local
-  construction, joining the missing-transitive-machine-plan family behind
-  the **GENERAL-CYCLIC-EXECUTION** and **UEFI-OS-HANDOFF** fences until
-  **ENTRY-CONTENT-ROOTS**' receiver-lifecycle leg lands; the shared-borrow
-  negative control still pins that stop.
 
 - **BACKEND-STARTUP-ENTRY-MECHANICS.** — mined candidate; scope verified at
   `138ed79a677` (linux x86-64) for sibling stub
@@ -3748,116 +3714,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   custody-matrix migration belongs to CUSTODY-MUTATION-COVERAGE in
   TASKS_OPTIMIZER.md, not a
   startup-mechanics leg. No independent slice landable from this stub.
-- **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS.** — mined candidate; resolved
-  as drained (re-verified `7d03d489e3d`): the canonical same-name row below
-  carries the triage (57-failure census at `bd6cddcb59`, closed by
-  attribution into `wiki/drafts/known_baseline_failures.md`; residual
-  ledger refreshed at `e7c0099cb2b7` — 2206 run / 2183 pass / 23 fail).
-  Repairs stay with the owning lanes named there; the ledger itself is
-  claim-fenced this wave (NEW-KBF-LIB-CLUSTER-AND-STALE-ROWS-REFRESH holds
-  the draft path; RC-REPOSITORY-CLOSURE +
-  CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION live pathless). No slice under
-  this stub.
-  covered — drained; census closed into known_baseline_failures.md, families owned by their named lanes
 
 
-- **C2L-BASELINE-FAILURE-ATTRIBUTION.** Inserted owner row — the name other rows cite as the owner of the checked-trees-to-lowered-psi residual families (scalar-return custody / provider attachment / attached-unit sets); no `**NAME.**` row previously existed. The attribution leg itself is landed: the member-by-member census `wiki/drafts/c2l_failure_census_d936717f.md` (landed `54e321bdf00`) records 2199 members / 24 failures, every one inside an already-owned `known_baseline_failures.md` family, and the §checked-trees-to-lowered-psi ledger re-read stands at `6ef64f6dd6` (2152 run, 2093 passed, 59 failed, 1 SIGTERM). The repair legs the name covers are separately owned and live: scalar-return custody → C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES (live claim, `tests/owned_record_return_source.rs`, 10:35Z); provider attachment / attached-unit sets → C2L-RESIDUAL-FAILURE-ATTRIBUTION's lane plus WRITE-ONLY-BORROW fences; bare fixture spellings → ENTRY-CONTENT-ROOTS; the unattributed tail → C2L-UNATTRIBUTED-FAILURE-TAIL (verified empty at `f43b4e8869c`). No unowned slice remains under this name — it is a ledger-owning umbrella, not a repair row.
-  Claim freshness at `7a62e962b2a7` (zergling-168): the recorded scalar-return
-  custody claim (~10:35Z) has drained — that family is currently unfenced on
-  the board owner C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES. Live neighbors on
-  the crate: CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET (Devin/f8ad694c,
-  ~14:02Z) — the tail stub this row verified empty — and
-  NEW-C2L-SUITE-ERASED-PROOF-FORMALS-COMPILE-FIX (z78, ~13:53Z) on
-  `tests/registered_callback_lifetime.rs`. Umbrella verdict unchanged.
-  covered — ledger umbrella; census landed, every family owned by a named row
-- **C2L-BOUNDARY-BYTE-BUFFER-FAILURES** — mined candidate; scope verified,
-- **C2L-BOUNDARY-BYTE-BUFFER-FAILURES.** — mined candidate; scope verified,
-  family repaired. Re-mines the boundary-byte-buffer group of
-  checked-trees-to-lowered-psi recorded green at the d8d48fe4ff re-reading
-  in `wiki/drafts/known_baseline_failures.md`; re-verified at this revision
-  on linux x86-64: `cargo nextest run -p checked-trees-to-lowered-psi -E
-  'test(~boundary_byte_buffer)'` — 10/10 PASS. Live residual families in
-  that crate stay owned elsewhere (bare boundary-trait fixture spellings by
-  ENTRY-CONTENT-ROOTS; scalar-return custody / provider attachment /
-  attached-unit sets by C2L-BASELINE-FAILURE-ATTRIBUTION and
-  C2L-RESIDUAL-FAILURE-ATTRIBUTION). No independent slice remains; sibling
-  stub LOWERED-BOUNDARY-BYTE-BUFFER-FAILURES carries the same resolution.
-- **C2L-UNATTRIBUTED-FAILURE-TAIL.** Scope verified at `f43b4e8869c` —
-  the tail is measured, and it is empty. The fresh member-by-member
-  `checked-trees-to-lowered-psi` census at `d936717fd2`
-  (`wiki/drafts/c2l_failure_census_d936717f.md`, landed `54e321bdf00`)
-  records 2199 members / 24 failures, every one inside an already-owned
-  `known_baseline_failures.md` family: missing transitive machine plans
-  (16), unit-plan omissions (3), scalar-return custody (4 — since
-  re-spelled onto admitted surfaces at `f43b4e8869c`), the ranked
-  safe-point fixed-fuel bound (1), and the proof-search blowup (1).
-  Verdict text: "the unattributed tail is still empty." No independent
-  slice exists — a census that finds unattributed members is the next
-  dispatch's input, and producing it again is a fresh measurement, not a
-  residual.
 - **CANARY-ACQUIRES-THROUGH-HELPER-RETURN** — mined candidate; scope verified, real residual — the canary exists and is rostered (`tests/omega/pass/capabilities/acquires_through_helper_return`, in `tests/canary_suite.rs` + `tests/fixture_rosters/reports_and_capabilities.rs`), but the rostered fixture is red on `1fc01bb690`: `pass_canaries_compile` filtered to it fails at native-artifact Terminal production — `InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: "`Main::main` has no admitted body (local construction stopped at signature)" }`. The remaining leg is the checked/lowering gap that stops `Main::main`'s local construction at the signature (authority-propagating helper-return shape reaches no admitted body), not a missing corpus member. Fixture path is under a live same-item claim (Devin / cathr-acquires-helper-return).
 - **CANARY-CORE-NAME-COLLISION** — mined candidate; verify scope then implement.
-- **C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES.** The slice this row was opened
-  for has landed; what remains is one dead negative control and two reds owned
-  elsewhere. `source_replay_requires_the_exact_affine_return_transfer` passes
-  as of `eb376f7340` ("terminal-production: re-verify the checked permission
-  ledger before lowering"), which added
-  `psi/compiler/terminal-production/src/checked_ledger.rs`, called from
-  `terminal_production.rs:593` before lowering.
-  `wiki/drafts/known_baseline_failures.md:604-616` already records it repaired.
 
-  Measured at `f44a1177ed`: `cargo nextest run -p checked-trees-to-lowered-psi
-  -E 'test(~owned_record_return_source)'` selects **9** tests, not the 4 this
-  row's earlier acceptance named, and reads 6 passed, 3 failed.
-
-  All three reds share one root cause: a `retain` body with a discarded-call
-  prefix is no longer planned as an ordinary unit-effect plan, it is a
-  composed-control plan.
-  - `discarded_scalar_invocation_precedes_whole_owned_return` asserts
-    `terminal_unit_effects.for_machine(..)` is `Some`. A stale plan-ownership
-    assertion; no production change needed.
-  - `effectful_discarded_call_writes_before_return_across_fuel` is a real
-    production refusal, "composed Unit scalar call requires structural call
-    custody", from `src/unit/attached_unit/composed_control/`.
-  - `source_replay_rejects_return_parameter_and_carrier_substitution` is a
-    **dead negative control**: it panics on
-    `plan.structural_result.as_mut().unwrap()` before reaching its first
-    assertion, because the `[copy] Record` case now has no ordinary plan to
-    tamper with, so its `[Entry; 3]` and `Buffer<Entry>` cases never run
-    either. It currently verifies nothing. The production rejection it means
-    to pin does exist and is source-derived — mutating the terminator result,
-    `plan.result` and `states[0].structural_parameters[1]` together, so the
-    plan stays internally consistent, still refuses with "structural return
-    exchanged its owned parameter" and "structural graph result signature
-    disagrees with source". The repair is test-side: re-point it at whichever
-    planner owns the machine, ordinary `machines` or `composed_machines`.
-
-  Acceptance: the `~owned_record_return_source` filter is green across all 9
-  members, and the substitution control actually executes its three carrier
-  cases rather than panicking before its first assertion.
-
-- **C2L-UNATTRIBUTED-FAILURE-TAIL.** Mined candidate; scope verified, tail
-  still empty — fresh member-by-member reading at `23392bc467` (linux
-  x86-64): 2183 run, 2127 passed, 56 failed. All 55 FAIL + the
-  proof-search blowup map onto the ledger's owned families with identical
-  diagnostics (33 bare `Service<R>` spellings, 16 missing transitive
-  machine plans, 4 scalar-return custody, 2 ranked safe-point bounds, 1
-  blowup). Shrinkage since the `6ef64f6dd6` reading: the 3 site_guard
-  crash-namespace rejections and the closed-projection replay member now
-  pass — their unbisected suspects sit in the retained-borrow/
-  result-contract lane. Re-censused at `e5bbe53956` after the crate moved:
-  2199 run, 2175 passed, 23 FAIL + 1 blowup — the bare `Service<R>`
-  family is GONE (landed `00a69f066b`, the `src/tests` carrier migration)
-  and the missing transitive-plan family collapsed into provider-
-  attachment legs. Current reds: `unit_state_graph::provider_attachments`
-  ×9 + `provider_attachment_source` ×6 (provider-attachment lane),
-  `unit_plan_omissions` ×3, `owned_record_return_source` ×3 +
-  `guarded_scalar_returns_source` ×1 (scalar-return custody lane),
-  `unit_state_graph::bindings` ×1, and the `mixed_nominal_integer_comparison`
-  blowup (SIGTERM >1026s). Full attribution recorded in
-  `wiki/drafts/known_baseline_failures.md`; sibling subsets C2L-SCALAR-
-  RETURN-SOURCE-CUSTODY-FAILURES / CHECKED-TREES-TO-LOWERED-PSI-
-  UNATTRIBUTED-SET remain named on the parent row.
 - **CANARY-ACQUIRES-THROUGH-HELPER-RETURN.** Mined candidate — resolved,
   already landed. The stub names the canary
   `tests/omega/pass/capabilities/acquires_through_helper_return` (chapter
@@ -4047,139 +3908,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   identities (622,933-byte receipt request, 565,909-byte customer, 45-byte
   expected observation); executing half stays seed-host-gated.
   covered — sibling stub of PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's resolved verdict (1fc01bb690)
-- **CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION.** Scope verified and leg
-  completed — the attribution ledger
-  `wiki/drafts/known_baseline_failures.md` §checked-trees-to-lowered-psi
-  now carries a fresh member-by-member reading at 6ef64f6dd6 (Linux
-  x86-64): 2152 run, 2093 passed, 59 failed, blowup member SIGTERM'd at
-  ~892s. Prior family owners reconfirmed at identical panic sites
-  (33 bare `Service<R>` spellings, 16 missing transitive machine plans,
-  3 site_guard crash rejections, 4 scalar-return custody cases,
-  C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT blowup); deltas recorded: the `established by`
-  call-result qualification family closed in-window (registered_callback_
-  lifetime green; 851052b4f8f / 1fc01bb6907), and two new families opened —
-  ranked safe-point segment bounds charge component-scale ceilings
-  (3·2³³ / BoundOverflow; unchanged `derive_fixed_safe_point_segments` reads
-  39e156c73a0's new verified inputs; post-base 7591b2607c7 is mid-migration
-  on the same surface) and closed-projection replay admits invalid/foreign
-  member symbols (suspects 39e156c73a0 / 143636cec8a, unbisected). Residual:
-  the two new families want a single-test bisect by their owning lanes;
-  sibling stub CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET remains open.
-  Sibling alias C2L-BASELINE-FAILURE-ATTRIBUTION re-mines this attribution
-  surface; scope verified at `27deadf412` — the reading is current
-  (C2L-UNATTRIBUTED-FAILURE-TAIL's fresh 23392bc467 census attributes all
-  56 reds onto owned families with identical diagnostics), and every
-  residual family the alias is named for on the cluster rows is fenced to
-  a live claim: scalar-return custody
-  (`tests/owned_record_return_source.rs` ×4, plus
-  `src/returns`/`terminal-production` source-replay legs) under
-  C2L-RESIDUAL-FAILURE-ATTRIBUTION (~04:59Z Sep 21), provider-attachment
-  and attached-unit sets under GENERAL-CYCLIC-EXECUTION /
-  UEFI-OS-HANDOFF / WRITE-ONLY-BORROW / PROOF-CERTIFICATION-BRIDGE
-  per the ledger's fence notes, and the ledger doc itself under
-  LOWERED-UNIT-FAILURE-ATTRIBUTION (~01:17Z) and this row's own live
-  claim (~01:42Z). No independent slice remains; the open board owners
-  are C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES (the four-test family)
-  and C2L-RESIDUAL-FAILURE-ATTRIBUTION (in flight).
-
-  Re-verified at `a84ebca972` (linux x86-64, scoped): the attribution has
-  drifted in the green direction — the **ranked safe-point segment
-  bounds** family the 6ef64f6dd6 reading opened (bisected to
-  7591b2607c77) is now GREEN: both
-  `ranked_countdown_lowers_to_verified_resumable_interpreter_execution`
-  and `ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64`
-  pass, repaired by the terminal-fixed-fuel bounded-walk series
-  (`0d0f85459ad`/`8c6294fcfc8`/`9b6aed267fe`/`faf902cea48`/
-  `94e764a6da6`). `closed_record_projections_replay_exact_sources_carriers_and_all_siblings`
-  stays green (closed at 7af30a1f839a). The scalar-return custody family
-  is still red at an identical signature —
-  `owned_record_return_source::effectful_discarded_call_writes_before_return_across_fuel`
-  fails `Lowering(Unsupported("composed Unit scalar call requires
-  structural call custody"))` — while the other sampled
-  owned_record_return_source members pass; ownership unchanged
-  (C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES, live ~10:35Z on
-  `tests/owned_record_return_source.rs`). The ledger doc needs a
-  one-line refresh for the ranked pair whenever its fence next opens
-  (LOWERED-UNIT-FAILURE-ATTRIBUTION lane); verdict otherwise holds.
-
-  Re-verified at `23338b3d093c` (linux x86-64): the pending doc refresh
-  has landed on main — `known_baseline_failures.md` now carries the
-  `e7c0099cb2b7` member-level reading (81b9e64faeb, via this lane's
-  sibling item): the ranked-pair closure is recorded, the
-  missing-transitive-plan family re-attributed to 18 members
-  (provider_attachment_source ×6, unit_plan_omissions ×3,
-  guarded_scalar_returns ×1 drained; conformance_applications ×3,
-  composed_operand_catalogs ×5, composed_unit_internal_calls ×1 joined),
-  scalar-return custody down to the single structural-custody member,
-  and a new 4-member `scalar_array_source::cyclic` index-out-of-bounds
-  family (`call_lowering.rs:419`) surfaced for the scalar-graph/LICM
-  lane. Fence map refreshed: C2L-RESIDUAL-FAILURE-ATTRIBUTION and this
-  row's earlier claims have expired; live fences at this reading are
-  UEFI-OS-HANDOFF (~10:19Z), C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES
-  (~10:35Z on `tests/owned_record_return_source.rs`),
-  PROOF-CERTIFICATION-BRIDGE (~10:52Z),
-  GENERAL-CYCLIC-EXECUTION-OPTIMIZER (~13:51Z), and sibling
-  CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET under live claim
-  (~14:02Z). Verdict stands — no independent slice.
-
-  Re-verified at `59e0b5ec22` (linux x86-64, scoped 77-member filter —
-  [z70 ledger](wiki/drafts/c2l_baseline_attribution_z70.md)): 72/77 green;
-  both recorded closures hold (ranked pair, closed-projection replay),
-  and all 5 reds are owned families at identical signatures — the single
-  structural-custody member and the 4-member `scalar_array_source::cyclic`
-  index-out-of-bounds family (`call_lowering.rs:419`). No new drift.
-  Re-verified at `661a4d50c0a` (linux x86-64, same 77-member filter,
-  C2L-BASELINE-FAILURE-ATTRIBUTION dispatch): **76/77 — the
-  `scalar_array_source::cyclic` family closed.** All five cyclic
-  members pass; repair is `891194236af` ("scalar successors keep
-  checked and lowered target indices apart"), which fixes the exact
-  recorded signature — `lower_scalar_graph_successor` indexed the
-  checked state roster by a lowered branch index (`len 1, index 3` at
-  `call_lowering.rs`), now rebound onto separate index spaces.
-  The single remaining red is the scalar-return custody member
-  (`owned_record_return_source::effectful_discarded_call_writes_before_return_across_fuel`,
-  identical `Lowering(Unsupported("composed Unit scalar call requires
-  structural call custody"))` at tests/owned_record_return_source.rs:306);
-  its owner claim C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES has drained —
-  the family is currently unfenced. The z70 ledger draft is folded into
-  this row and deleted (its field note's instruction); the canonical
-  ledger `known_baseline_failures.md` stays fenced to
-  NEW-KBF-LIB-CLUSTER-AND-STALE-ROWS-REFRESH (~12:26Z). No independent
-  slice remains.
-- **CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET.** — scope verified and
-  bisected at `c267df86acb8` (linux x86-64): the unattributed set is the
-  three members the 6ef64f6dd6 reading opened as two new families, now
-  fully attributed —
-  1. **Ranked safe-point segment bounds** (2 tests, still red):
-     `structural_control_cases::ranked_countdown_lowers_to_verified_resumable_interpreter_execution`
-     (per-edge segments read `0x600000000` instead of 3 at
-     src/tests/structural_control_cases.rs:1497) and
-     `ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64`
-     (`BoundOverflow` at :1890). First-bad commit **7591b2607c77**
-     ("bound segments through ranked cyclic components") — green at its
-     parent, red at the commit; the recorded prime suspect `39e156c73a0`
-     is green at itself, cleared by test. The break is the derivation
-     rewrite's own component-scale charging (`natural_component_geometry`
-     in terminal-fixed-fuel `fuel_certification/outcome_bounds.rs`), not
-     its inputs. Owning lane: ranked-cycle/fuel (the commit's lane).
-  2. **Closed-projection replay admission** (1 test, already closed):
-     `expression_preparation::bindings::tests::closed_record_projections_replay_exact_sources_carriers_and_all_siblings`
-     — first-bad **090802e8a790** ("evaluate member-read leaves of
-     computed aggregate constants in constant position"), green at both
-     recorded suspects (`39e156c73a0`, `143636cec8a`); **fixed by**
-     **7af30a1f839a** ("replay the complete closed record projection for
-     scalar member sources") — green at `c267df86acb8`.
-  Residual: family 1 stays red under the ranked-cycle/fuel lane;
-  recording the attributions into `wiki/drafts/known_baseline_failures.md`
-  is fenced to that doc's live claims (LOWERED-UNIT-FAILURE-ATTRIBUTION,
-  CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION). Re-verified at `1805e07c7d`
-  (2026-09-21 ~06:02Z): the fence map rotated but the surface stays
-  claimed — the ledger doc now sits under RC-REPOSITORY-CLOSURE
-  (swarm-z143, exp 13:57Z) and family 1's surface
-  `terminal-fixed-fuel/src/fuel_certification` is under PSIIR
-  (devin-848972c1, exp 13:59Z). No independent slice remains.
-  CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION).
-  CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION).
 - **COMPILER-PASS-PROFILE-TIMINGS.** Preserve timing opt-in through retained
   and direct Terminal production. Both paths in
   `checked-compilation-to-terminal-artifact/src/terminal_artifact.rs`
@@ -4214,56 +3942,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   board by **PROOF-CONTRACT-MIGRATION** and **QUOTIENT-THEOREM-LIFT**;
   replacing Real requires the relation, witness, quotient and
   receiving-axiom contracts to survive. No independent slice exists here.
-- **CTTL-FAILURE-ATTRIBUTION** — mined candidate; scope verified, resolved.
-  Names the attribution pass over the `typed-trees-to-checked-trees` section
-  of `wiki/drafts/known_baseline_failures.md` (last recorded reading:
-  `660f5af762` macOS arm64, 4159 run / 6 failed — the long-standing trio
-  plus the rank_ranges field-endpoint set). Re-verified green on linux
-  x86-64 at `d32183a35c`:
-  `cargo nextest run -p typed-trees-to-checked-trees --lib --no-fail-fast`
-  → 5014 run, 5014 passed, 0 failed — every recorded member closed
-  (`indexed_operand_access_preserves_shared_collection_and_owned_index`,
-  `consuming_call_that_returns_an_obligation_transfers_its_origin`,
-  `scalar_caller_retains_call_produced_record_local_before_getter`, and
-  the three rank_ranges field-endpoint cases all pass), so the residual
-  tail is empty and there is nothing left to attribute. The ledger
-  section's stale draft rows belong to the live claims already fencing
-  `wiki/drafts/known_baseline_failures.md` (LOWERED-UNIT-FAILURE-
-  ATTRIBUTION until ~01:17Z, BASELINE-PACKAGE-COMPILATION-INPUTS until
-  ~20:19Z); this lane claims no file paths.
-  Re-verified at `ded56393da2` (linux x86-64): the custody gate itself is
-  unchanged — `selected-dispatch/service_custody` last moved at
-  `0e1977994b9` and the stop still emits at `root.rs:145`; the
-  `linux_dynamic_realization` pin suite reads 3/4 PASS. The fourth is a
-  new unrecorded baseline failure:
-  `aggregate_foreign_boundary_members_refuse_at_terminal_entry_establishment`
-  no longer reaches the pinned stop — the fixture now refuses earlier,
-  inside checked-trees-to-lowered-psi emission with
-  `Lowering(Unsupported("record store destination projected beyond its
-  authored root"))` (guard added by `9a81cd68774`); the `4607987316f` pin
-  is stale. `bde84d1765a`'s one-hop projected-receiver admit is adjacent
-  progress but does not touch establishment custody — the lane is still
-  red upstream of itself. Re-verified at `a84ebca972` on linux x86-64
-  (z146): the service-custody stop is unchanged —
-  `selected-dispatch/src/service_custody/root.rs:146` still emits
-  "selected ProgramEntry establishment rejoins {} Terminal attachment
-  identities; expected one" (line shifted by `3bbc8855339`'s stage
-  naming), `source/psi/test-parser.sh` remains the lane's only
-  entrypoint, and the `aggregate_foreign_boundary_members` early-refusal
-  recorded above is still absent from `wiki/drafts/known_baseline_failures.md`.
-  The lane is still red upstream of itself.
-  Re-verified at `0a0662ad27a` (linux x86-64): the custody stop is
-  unchanged at `root.rs:146` and the pin suite is back to 4/4 PASS —
-  `36b4b2c0a0d76` re-pinned `aggregate_foreign_boundary_members_refuse_at_terminal_entry_establishment`
-  against the earlier c2l guard, discharging the `ded56393da2` staleness
-  note. The z50 parser merge (`e1fed3a9f83ec`: generic parameter lists on
-  data declarations, harness growth) landed upstream but does not move
-  the custody frontier. No claims on `service_custody`, `source/psi`,
-  `source/omega`, or the test-parser surfaces; the only adjacent fence
-  is NOMINAL-FIELD-FLOW's `boundary_dispatch.rs` (z30 ~11:23Z), disjoint
-  from the stop. The blocker is the item-owned
-  OMEGA-PRODUCT-COMPILER-SOURCE frontier, not a fence.
-  Remaining: none inside this row.
 
 
 - **NEW-TPV-DECLARATION-ORDER-NORMALIZATION-PIN.** Mined candidate; slice
@@ -4280,19 +3958,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   17/17 PASS on linux x86-64; `cargo fmt` clean. Worked unclaimed — no
   claimable marker existed for this name and the file carries no live
   fence.
-- **NEW-C2LPSB-RANGE-FACTS-RECURSION-PROFILE.** Mined candidate; slice
-  landed. The name resolves to the recursion profile of the range-facts
-  dependency walks: three sites carried the same unnamed `128` bound —
-  `record_dependencies` and `collect_reads` recursion guards plus the two
-  chain-unrolling loops in `captures.rs` — and `reads.rs` already asked
-  for it to be named once. The bound is now
-  `dependencies::EXPRESSION_WALK_DEPTH_BOUND`, shared by all eight sites,
-  and `tests/depth.rs` asserts against the constant itself so the pin and
-  the profile cannot drift. `cargo nextest run -p
-  typed-trees-to-checked-trees --lib -E 'test(/depth/) | test(/dependencies/)
-  | test(/captures/) | test(/reads/)'`: 197/197 PASS on linux x86-64;
-  `cargo fmt` clean. Worked unclaimed — no claimable marker existed for
-  this name and `checks/ranges/facts/dependencies*` carries no live fence.
 - **GENERAL-SOURCE-BINDER-SYNTAX.** Resolved — scope verified: the general mathematical binder surface (`let`/`boundary let` telescopes, `core::Level`/`core::Type<u>`/`core::Strict<v>`/`core::Squash` carriers, generalized and authored universe binders, arrow-typed telescope parameters, named assumptions) already landed under the PROOF-CONTRACT-MIGRATION structural legs; the in-fence residual was the bounded machine-valued body denotation in `typed-trees-to-checked-trees/src/proof`. Extended it: `x != y` now denotes `Squash (Not (Id S l r))` through an interned `Not : Π(_ : Type 0). Type 0` assumption — kept at `Type 0`, not `sEmpty` elimination, so inequality composes inside `&&`/`||` like `==` — and `()` interned a dedicated `Unit : Type 0` carrier, so unit binder domains and unit-carried calls denote instead of refusing. Remaining named legs stay with their owners: `core::*` symbol-identity classification (blocked on the fixed `core::*` declarations landing in `source/library/core`), checked-signature encoding into Terminal evidence, member-call `target_symbol` binding inside `let` bodies, and order relations over non-integer operands. Gate on linux x86-64: `cargo check`/`clippy -p typed-trees-to-checked-trees` clean of new warnings; `cargo nextest run -p typed-trees-to-checked-trees` 5008/5009 — `open_range_token_use_rejects_instead_of_falling_back` fails verbatim at base `d82697ffca` (unrelated wave breakage). Re-verified at `8734480a01`: the filtered binder/signature/denotation suite passes 128/128 and `open_range_token_use_rejects_instead_of_falling_back` is green again — the unrelated failure has since been repaired.
 - **GENERATED-CODEC-INDEPENDENT-VERIFICATION.** Give generated wire codecs a
   route to `Derived` trust that does not depend on an authored grammar
@@ -4357,20 +4022,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ambiguous-elision rejection. Explicit same-lifetime multi-source unions already
   work; general authored outlives syntax is outside the current contract, not an
   implementation prerequisite.
-- **INDEXED-OPERAND-ATTACHED-RECEIVER** — mined candidate; scope verified, covered — same indexing-through-attached-receiver surface as the resolved sibling INDEXING-ATTACHED-RECEIVER-BORROW, which names this stub (verified `669925b8b9`, linux x86-64): `tests/multiplicity/borrowed_case_payloads.rs` exercises `self.kinds[slot]` transitions under `&self`/`&mut self` custody, loan lifetime across successors, and index-argument consumption; `tests/multiplicity/borrowed_observations.rs` pins reborrows into the attached receiver and rejects a borrowed indexed collection moving into an owned receiver; affine extraction still rejects; the indexed operand route through the receiver_self_match loan is additionally pinned by BASELINE-T2C-INDEXED-OPERAND-ACCESS's landing (`7ec7ee32e8`, 8/8 `borrowed_observations` green at `d05ec39a5d`). No independent slice exists here.
-- **INDEXING-ATTACHED-RECEIVER-BORROW.** Mined candidate — resolved,
-  covered on `origin/main` (verified `669925b8b9`, linux x86-64). The
-  indexing-through-borrowed-attached-receiver surface is implemented and
-  pinned: `tests/multiplicity/borrowed_case_payloads.rs` exercises
-  `self.kinds[slot]` transitions under `&self`/`&mut self` custody
-  (borrowed_indexed_affine_case_observation_preserves_array), loan
-  lifetime across successors, and consumption of index arguments;
-  `tests/multiplicity/borrowed_observations.rs` pins reborrows into the
-  attached receiver and rejects a borrowed indexed collection moving
-  into an owned receiver; affine extraction still rejects. Scoped run:
-  9/9 `borrowed_indexed`/`indexed_case`/`indexed_observation` tests
-  PASS. Sibling stub on the same surface:
-  INDEXED-OPERAND-ATTACHED-RECEIVER.
 - **INTEL-MACOS-HOST-PROFILE** — mined candidate; verify scope then implement.
   Verified scope: named alias of **MACOS-X64-HOST-PROFILE** (TASKS.md:5962)
   — "Intel gap" is that row's own parenthetical. `TargetProfile::MacosX64`
@@ -4385,259 +4036,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   macos_x86_64 sources at 00:10Z+1d; final_image_validation.rs +
   installed_artifact.rs at 00:12Z+1d; native_evidence.rs at 00:24Z+1d —
   all Devin / swarm-w9-macos-x64-host-profile).
-- **LOWERED-CRASH-MEMBER-BYTE-ENTRIES.** — mined candidate; scope verified, family repaired. The stub names the crash-member byte-entry group of checked-trees-to-lowered-psi (`tests/crash_member_source/byte_entries.rs`); `wiki/drafts/known_baseline_failures.md`'s own re-reading at d8d48fe4ff already records crash-member byte entries green alongside boundary byte buffers and the ordered-boolean row, and the whole `crash_member_source` suite re-verifies green at this revision (`cargo nextest run -p checked-trees-to-lowered-psi --test suite crash_member_source`: 48/48, linux x86-64). Re-witnessed again at `d6a0625f6b`: 48/48 pass in 61.3s (the `unsupported_mixed_aggregate_equality_shapes_remain_fenced` member is a 60.7s slow pin, not a failure). The live residual families in that crate are already owned: bare boundary-trait fixture spellings by ENTRY-CONTENT-ROOTS, scalar-return custody / provider attachment / attached-unit sets by C2L-BASELINE-FAILURE-ATTRIBUTION and C2L-RESIDUAL-FAILURE-ATTRIBUTION, and the proof-search blowup by C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT. No independent slice remains on this row.
-- **LOWERED-OPERATION-PROOF-MACHINE-CALLS.** — mined candidate; scope verified, route already exercised. The stub names operation proofs on lowered machine-call operations and proof-output call custody in checked-trees-to-lowered-psi. Both are implemented and green at e76d715c8e (verified base 6ef64f6dd6): `proofs/operation_proofs.rs::finalize_operation_proofs` discharges call obligations (the previously red `unit_scalar_result_source::boundary_wrappers::ordered_boolean_guarantees::ordered_boolean_call_computations_preserve_normal_guarantees` machine_calls row now passes — the group reads 28/28 green), `proofs/evidence_lowering/proof_output_calls.rs::lower_proof_output_calls` keeps runtime-value bindings on their ordinary scalar Call operation, `terminal-verifier/validation/evidence/proof_output_calls.rs` cross-checks `runtime_call.operation` against the caller's operations, and `proof_recursion.rs::proof_machine_dependency_closure` covers proof machine call reachability (6/6 green). Pins: `evidence_identity_source` suite 22/22 green (cargo nextest, linux x86-64) including `runtime_value_proof_output_links_one_scalar_call_and_executes_once`. The live residuals in this crate are already owned: bare `Service<R>` fixture spellings by ENTRY-CONTENT-ROOTS, transitive machine plans by GENERAL-CYCLIC-EXECUTION/UEFI-OS-HANDOFF, site_guard crash namespace and scalar-return custody by WRITE-ONLY-BORROW integer-entry-ranges, `established by` qualification by BOUNDARY-ISSUANCE, and the proof-search blowup by C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT. No independent slice remains on this row.
-- **LOWERED-CRASH-MEMBER-BYTE-ENTRIES** — mined candidate; scope verified, family repaired. The stub names the crash-member byte-entry group of checked-trees-to-lowered-psi (`tests/crash_member_source/byte_entries.rs`); `wiki/drafts/known_baseline_failures.md`'s own re-reading at d8d48fe4ff already records crash-member byte entries green alongside boundary byte buffers and the ordered-boolean row, and the whole `crash_member_source` suite re-verifies green at this revision (`cargo nextest run -p checked-trees-to-lowered-psi --test suite crash_member_source`: 48/48, linux x86-64). The live residual families in that crate are already owned: bare boundary-trait fixture spellings by ENTRY-CONTENT-ROOTS, scalar-return custody / provider attachment / attached-unit sets by C2L-BASELINE-FAILURE-ATTRIBUTION and C2L-RESIDUAL-FAILURE-ATTRIBUTION, and the proof-search blowup by C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT. No independent slice remains on this row.
-- **LOWERED-OPERATION-PROOF-MACHINE-CALLS.** Mined candidate — scope verified, route already exercised. The stub names operation proofs on lowered machine-call operations and proof-output call custody in checked-trees-to-lowered-psi. Both are implemented and green at e76d715c8e (verified base 6ef64f6dd6): `proofs/operation_proofs.rs::finalize_operation_proofs` discharges call obligations (the previously red `unit_scalar_result_source::boundary_wrappers::ordered_boolean_guarantees::ordered_boolean_call_computations_preserve_normal_guarantees` machine_calls row now passes — the group reads 28/28 green), `proofs/evidence_lowering/proof_output_calls.rs::lower_proof_output_calls` keeps runtime-value bindings on their ordinary scalar Call operation, `terminal-verifier/validation/evidence/proof_output_calls.rs` cross-checks `runtime_call.operation` against the caller's operations, and `proof_recursion.rs::proof_machine_dependency_closure` covers proof machine call reachability (6/6 green). Pins: `evidence_identity_source` suite 22/22 green (cargo nextest, linux x86-64) including `runtime_value_proof_output_links_one_scalar_call_and_executes_once`. The live residuals in this crate are already owned: bare `Service<R>` fixture spellings by ENTRY-CONTENT-ROOTS, transitive machine plans by GENERAL-CYCLIC-EXECUTION/UEFI-OS-HANDOFF, site_guard crash namespace and scalar-return custody by WRITE-ONLY-BORROW integer-entry-ranges, `established by` qualification by BOUNDARY-ISSUANCE, and the proof-search blowup by C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT. No independent slice remains on this row.
-- **LOWERED-PSI-BASELINE-TAIL.** Mined candidate; scope verified at
-  9beef2b045 — the stub names the remaining checked-trees-to-lowered-psi
-  baseline tail (57 FAIL + 1 SIGTERM at bcb0086e22 per
-  `wiki/drafts/known_baseline_failures.md`'s six-family attribution).
-  Every family is already owned and fenced: (1) stale bare
-  `Service<R>`-spelling fixtures, 33 tests → ENTRY-CONTENT-ROOTS
-  (`src/tests` additionally under PROOF-CERTIFICATION-BRIDGE, crate
-  `tests/` under WRITE-ONLY-BORROW); (2) missing checked transitive
-  machine plan, 16 tests → fences GENERAL-CYCLIC-EXECUTION +
-  UEFI-OS-HANDOFF; (3) site_guard crash-namespace, 3 tests →
-  WRITE-ONLY-BORROW integer-entry-ranges; (4) scalar-return custody,
-  4 tests → WRITE-ONLY-BORROW + C2L-BASELINE/RESIDUAL-FAILURE-
-  ATTRIBUTION; (5) `established by` qualification, 1 test →
-  ENTRY-CONTENT-ROOTS / BOUNDARY-ISSUANCE; (6) proof-search SIGTERM →
-  C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT. No unowned slice remains — the tail is the
-  union of those owned residuals. Claim attempt on the c2l surface
+- **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT.** Recheck and resolve excessive
+  compile time for
+  `nominal_affine_source::integer_comparison::mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
+  in `checked-trees-to-lowered-psi --test suite`. Historical timeout evidence
+  predates further algorithmic repairs; current completion/time is unverified.
+  Run the unreduced customer with an explicit test timeout, then profile current
+  checking/lowering/certificate work if still slow. Improve measured work without
+  abandoning obligations or weakening independent verification. The first 72
+  top-level `&&` conjuncts (counting the leading parenthesized triple as one)
+  remain a profiling aid, not acceptance.
 
-  `"crash predicate value position is outside the selected scalar
-  namespace"` cluster (3 tests —
-  `exact_shift_left_certificate_source::bounded_exact_left_shift_uses_only_its_canonical_certificate`,
-  `exact_affine_sibling_source::landed_affine_sibling_custody_crosses_source_codec_and_independent_verification`,
-  `mixed_shift_source::erased_arithmetic_prefix_still_requires_its_own_certificate`).
-  Root cause: `returns/structural_scalar_return/nominal.rs` stages a
-  synthetic `CheckedUnitEffectMachinePlan` for scalar-return machines
-  needing nominal affine cleanup with `scalar_parameters: Vec::new()`,
-  but the staged scratch contract kept the machine's authored
-  `requires` prefix; `signature.requires` lowering then crashed against
-  the empty scalar lane. The staged contract now carries only its
-  derived requires tail (the return lane republishes authored scalar
-  requirements onto the real caller itself). Remaining tail: the other
-  documented `checked-trees-to-lowered-psi` baseline clusters
-  (`provider_attachment`, `composed_operand_catalogs`,
-  `dynamic_composed_unit`, `unit_state_graph`,
-  `owned_record_return_source`, `unit_plan_omissions`) — see
-  `wiki/drafts/known_baseline_failures.md`; several sit under live
-  sibling claims, so partition by claim fence before picking up.
-- **LOWERED-SCALAR-RESULT-SOURCE-CUSTODY** — mined candidate; verify scope then implement.
-- **LOWERED-UNIT-FAILURE-ATTRIBUTION.** Scope verified at `9637703955c` —
-  names the unit-* failure attribution leg inside
-  `checked-trees-to-lowered-psi`. The attribution is already performed by
-  the fresh census (`wiki/drafts/c2l_failure_census_d936717f.md`, landed
-  `54e321bdf00`): the unit family is 19 of the 24 live failures —
-  `provider_attachment_source::*` (6) + `unit_state_graph::
-  provider_attachments::*` (9) + `guarded_scalar_returns_source::
-  stored_returned_cases_support_borrowed_refined_getters` (1) all in the
-  missing-transitive-machine-plans family owned by
-  GENERAL-CYCLIC-EXECUTION/UEFI-OS-HANDOFF, and `unit_plan_omissions::*`
-  (3) missing entry claims on omitted local constructions.
-  Re-verified at `c267df86acb` (linux x86-64): `cargo nextest run -p
-  checked-trees-to-lowered-psi --no-fail-fast` now reads 2187 legs — 2130
-  passed, 55 FAIL, plus the same
-  `mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
-  blowup killed by SIGTERM at ~900s (still C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT's).
-  Members stay inside the recorded families — 32 bare `Service<R>`
-  fixture spellings at `src/tests.rs:83` (ENTRY-CONTENT-ROOTS), missing
-  checked transitive machine plans in `provider_attachment_source` (×6),
-  `unit_state_graph` (×9) and `unit_plan_omissions` (×3), scalar-return
-  custody in `owned_record_return_source` (×4) plus
-  `guarded_scalar_returns_source` (×1) — 3 fewer than the 6ef64f6dd6
-  reading; member-level re-attribution belongs to the sibling
-  attribution claims holding `wiki/drafts/known_baseline_failures.md`
-  (LOWERED-UNIT-FAILURE-ATTRIBUTION ~01:17Z, BASELINE-CANARY-PASS-
-  CLUSTER ~23:41Z, CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION ~01:42Z), so
-  this update stays on the board line and leaves the doc to them.
-  Re-verified at `0f75a052f0` (z151, linux x86-64): the tail halved —
-  22 named-member fails plus the known SIGTERM vs 55+SIGTERM at
-  c267df86acb. `--lib` is fully green (791/791): the `Service<R>`
-  stale-fixture family has drained under the service-spelling wave.
-  The family-3 crash-namespace trio (`exact_affine_sibling_source`,
-  `exact_shift_left_certificate_source`, `mixed_shift_source`
-  members), the family-5 `established by` leg
-  (`boundary_result_domain_calls`), and the `composed_operand_catalogs`/
-  `dynamic_composed_unit` modules all pass in the filtered selection.
-  Every remaining fail shares the owned signatures: the
-  provider-attachment/transitive-plan cluster reads 19 —
-  `provider_attachment_source` (×6), `unit_state_graph::provider_attachments`
-  (×9), `unit_plan_omissions` (×3), plus
-  `guarded_scalar_returns_source::stored_returned_cases_support_borrowed_refined_getters`
-  whose signature migrated into the same `InvalidUnitMachinePlan`
-  "missing a checked transitive machine plan" family (producers
-  `src/unit/attached_unit` and t2c `execution/unit/*`); scalar-return custody reads 3 in
-  `owned_record_return_source` (4→3) — discarded pure-call elision,
-  "composed Unit scalar call requires structural call custody", and a
-  replay unwrap — the C2L custody lane's residual (file under
-  C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES to 10:35Z, producing
-  surfaces under CRASH-CONTRACT 04:27Z + PROOF-RELEVANCE-MIGRATION
-  11:29Z). The nominal_affine SIGTERM leg is un-rerun — its file sits
-  under RC-REPOSITORY-CLOSURE (12:15Z). Still no unowned slice.
-- **LOWERED-UNIT-FAILURE-ATTRIBUTION.** Owns the
-  `wiki/drafts/known_baseline_failures.md` attribution sweep the
-  sibling rows keep deferring to. Executed at `e7c0099cb2b7` (linux
-  x86-64): `cargo nextest run -p checked-trees-to-lowered-psi
-  --no-fail-fast` with the C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT blowup member
-  filtered out reads 2206 run / 2183 passed / 23 failed / 1 skipped —
-  same headline as 7b224763615, different composition. The doc now
-  carries the fresh member-level attribution: the missing-transitive-
-  machine-plan family shifted to 18 members (provider_attachment_source
-  ×6, unit_plan_omissions ×3, guarded_scalar_returns ×1 drained;
-  conformance_applications ×3, composed_operand_catalogs ×5,
-  composed_unit_internal_calls ×1 joined; unit_state_graph::
-  provider_attachments holds at 9 under reworked names), scalar-return
-  custody is down to the single structural-custody member, the
-  fixed-fuel verdict closed, and a new 4-member family opened —
-  `scalar_array_source::cyclic` index-out-of-bounds panic at
-  `call_lowering.rs:419` (erased-proof-argument roster zip; entered with
-  f0f808f419989/576b9a76dc49a — a lowering bug for the scalar-graph/LICM
-  lane, not an authored rejection). Unattributed tail: empty. The
-  earlier pass-canary and staged-local refreshes stand; the doc's
-  remaining stale spots are now current at this revision.
-- **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT.** Remove the cubic lowering cost that
-  makes `nominal_affine_source::integer_comparison::mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
-  never return. **The name is wrong and this row's earlier hypothesis is
-  refuted** — measured at `de5798c306`, it is not a proof search, nothing
-  diverges, and `proof/src/checker` is not involved.
-
-  What was measured, by bisecting the fixture on two axes with a scratch probe
-  timing `lower_typed_trees` and `lower_machine` separately:
-  - **The 80-premise `requires` pool is not the driver.** Dropping 48 of the
-    80 premises, including all ten redundant `input` upper bounds, changes
-    lowering cost by 1.5x (3251ms to 2191ms). No cliff, no sign of subset
-    enumeration.
-  - **The machine body carries the whole cliff.** Holding premises fixed and
-    varying the top-level `&&` conjuncts of `staged`: 24 conjuncts lowers in
-    3.1s, 72 in 37.5s, 73 in 37.3s, and **74 exceeds 400s**. It is a count
-    threshold, not one conjunct — omitting group 74 and taking six later ones
-    (79 conjuncts) also exceeds 240s. Below the cliff the curve is smooth and
-    polynomial, about n^2.5 to n^3.
-  - **Every obligation converges and succeeds.** Tracing producer calls over
-    200ms at the cliff: 192 calls, 99.6s total, **192 of 192 returned a
-    proof**; the relaxed fallback was never reached and the kernel's own
-    `StepCeiling` was never hit. There is no non-converging obligation to
-    contain.
-  - Terminating reduced input for future work: the first 73 body conjuncts
-    with all 80 premises, 45s total.
-
-  The cost is four compounding centres, none in `proof/src/checker`:
-  - `proofs/scalar_block_invariants.rs:48` and
-    `proofs/scalar_block_invariants/cyclic_guarantees.rs:40` each call
-    `terminal_verifier::reconstruct_terminal_obligations` on the same
-    unchanged module, and each reconstruction is itself O(N^2) — about 47% of
-    lowering even when the candidate roster is empty and neither loop
-    iterates.
-  - `terminal-verifier/src/verification/reconstruction/path_facts/conditions.rs:71-84`
-    clones **every** `Equal(Value, _)` axiom in the roster into a certificate
-    per condition fact, and `condition_fact` runs twice per conditional. A
-    chain of N short-circuiting `&&`s gives O(N) conditionals with O(N)
-    rosters — O(N^2) kernel work, and the source of ~20,000 certificate
-    acceptances.
-  - Per-certificate kernel cost is linear in chain length:
-    `mathematical_core::typing::infer_type` recurses past depth 260 on one
-    certificate from this program.
-  - Independently, in checking (16% of the run),
-    `typed-trees-to-checked-trees/src/authored_selections/operator_targets.rs:56`
-    scans per operator-by-fact pair and `member_targets.rs:369-381` tests
-    membership with a `Vec` linear scan.
-
-  **Two of the four centres are closed at `4003c703186`**, measured on the
-  terminating reduction: the checking-stage `expression_contains` visited set
-  and per-operator scan (7.02s to 3.35s, 2.09x), and the duplicated
-  whole-module reconstruction in `retain_provable` (lowering 37.8s to 31.0s;
-  a counter inside `reconstruct_terminal_obligations` showed the call count
-  fall from 2 to 1, 13.4s to 6.7s, so the whole saving is the removed
-  duplicate). Total 51.6s to 41.1s, 1.26x. The same obligations are
-  discharged either way — 633 evidence rows and 633 reconstructed obligations
-  before and after, on every run. The unreduced fixture still returns no
-  verdict, killed at 780s; these two were never predicted to make it
-  terminate.
-
-  **The third centre was measured and is misattributed.** Rebuilding the
-  roster at `path_facts/conditions.rs:71-84` is real, but it is **0.4-1.4% of
-  the `condition_fact` call** and it is *linear* (0.125 us/axiom, flat from
-  N=1 to N=801). The call itself is super-linear over the same range (x2 on N
-  costs x2.45, then x2.80, then x3.25), so the quadratic is provably
-  elsewhere. Counting inside the kernel at one `condition_fact` call:
-  `check_node` visits and `context.validate` calls are linear in N, while
-  comparisons in `proof-admission/src/proof.rs`'s `record_premise` are
-  exactly N(N-1)/2 -- 325 at N=26, 20,100 at N=201, 352,575 at N=801. Each
-  comparison is a full structural `Proposition == Proposition`. A certificate
-  cites the whole roster by design, so N cited nodes x an O(N) scan of the
-  accepted set is the O(N^2), and it is O(N^3) per path.
-
-  **Closed.** `record_premise`'s accepted-premise list now carries an
-  index-keyed map of the positions each index occupies, so the proposition
-  comparison runs only against rows that already share the citation's index.
-  The admitted predicate is untouched -- a citation is new unless a recorded
-  premise shares both index and proposition -- and cited axioms carry
-  distinct indices, so the pathological case falls from N(N-1)/2 comparisons
-  to none. Both copies of the routine were converted (`proof.rs` and
-  `mathematical_core/bounded_denotation.rs`); 1316/1316 green across
-  proof-admission, proof and terminal-verifier, with the two trusted-surface
-  digests re-recorded.
-
-  This is a whole-system win, not a condition-fact one: every certificate the
-  kernel accepts went through that scan.
-
-  Hoisting the roster itself was written and validated separately and is
-  **not worth landing**: `ValueEqualityTransport` owns its equalities, so each
-  certificate must still deep-clone them, and measurement puts the saving at
-  ~12% of a term that is at most 1.4% of the call, against churn in five
-  digest-pinned files. Narrowing the cited roster to the equations the walk
-  actually traversed remains the only other asymptotic lever, and that one
-  does alter what the kernel is shown.
-
-  Tail-risk note: across a full `terminal-verifier` run (4,835 calls) the
-  roster is tiny -- p50 2, p90 6, p99 42, max 582 -- so this was a deep
-  straight-line-path risk, not a present cost in the suite.
-
-  A fourth centre is now what remains of checking, and it is not one the
-  original diagnosis named: a profile of the remaining 3.3s shows no frame in
-  the repaired walk at all, and the time sits in
-  `checks::ranges::indexes::check_expression` and
-  `checks::ranges::facts::dependencies::RangeFacts::record_dependencies`,
-  each recursing about 25 levels beneath `seed_binary_guard_facts`. The
-  diagnosis's estimate that the two checking fixes were worth "most of a
-  7-second checking stage" was half right — they were worth exactly half.
-
-  Reproduction note for the reduction: it is the first **72** top-level `&&`
-  conjuncts under a split that treats the leading parenthesised triple as one
-  conjunct. That reading is the one that reproduces 7s checking, 38s lowering
-  and 633 evidence rows; counting the triple separately gives 73.
-
-  **Do not bound the search.** 192 of 192 traced obligations are provable, so
-  any bound here abandons obligations the compiler demonstrably proves. The
-  other option this row used to offer — refusing fail-closed — is recorded as
-  **design-blocked** in OWNER_QUESTIONS.md question 4.
-
-  Also recorded, because several rows depend on it:
-  `OMEGA_PROOF_MEASUREMENTS` does not instrument this stage at all. On the
-  terminating reduction its whole report is `obligations=1 ...
-  decided_elsewhere=1`, with every other counter zero — the ~20,000 kernel
-  acceptances and 633 evidence rows this program costs are all produced
-  outside `check_proof_plan`; instrument the actual producer before attributing
-  its cost to that search path.
-
-  Acceptance: the unreduced fixture terminates with a verdict under an
-  ordinary test timeout, with no obligation abandoned — that is, the repair is
-  algorithmic and the traced producer calls still return their proofs — and a
-  `--no-fail-fast` run of `checked-trees-to-lowered-psi` reports no SIGTERM
-  member.
-
-  **DESIGN-BLOCKED for the remaining leg (verified 2026-09-21).**
-  `wiki/spec/proofs/kernel_metatheory.md` speaks only per-conversion, and says
-  `DEFAULT_CONVERSION_STEPS` "is a policy default, not part of the calculus";
-  `grep -c aggregate` over that file is 0. Nothing states what the compiler owes
-  for the AGGREGATE of individually-bounded acceptances, which is exactly what a
-  containment bound would have to be. Open as `compile-time-proof-work-ceiling`
-  (OWNER_QUESTIONS.md:196) with three unchosen answers. NOTE: this is the
-  remaining leg only -- the measured O(N^2) centre was `record_premise`'s linear
-  scan and is FIXED, and the other cost centres are landed.
+  Accepted-premise indexing, unchanged-module reconstruction reuse and reachable
+  equality-roster selection already exist. Instrument the actual producer;
+  `OMEGA_PROOF_MEASUREMENTS` does not account for all certificate work.
+  Acceptance: the unreduced test completes its assertions within an ordinary
+  test timeout, proof/reconstruction controls remain valid, and subsequent crate
+  `--no-fail-fast` validation has no timeout member. Algorithmic repair needs no
+  owner decision. Introducing an aggregate proof-work refusal ceiling requires
+  the existing `compile-time-proof-work-ceiling` decision in OWNER_QUESTIONS.md.
 
 - **NATIVE-DIFF-FRONTEND-DROP-ORDER.** Resolved — the frontend drop-order
   expectations lane is landed and green in
@@ -4742,9 +4159,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **HOSTED-RECEIVER-SERVICE-CARRIER** — mined candidate; verify scope then implement.
 - **HOSTILE-SHARED-MEMORY-PLACEMENT** — mined candidate; verify scope then implement.
 - **HOSTILE-SHARED-MEMORY-REMAPPING** — mined candidate; verify scope then implement.
-- **INDEXED-OPERAND-ATTACHED-RECEIVER** — resolved as already landed; mines the resolved BASELINE-T2C-INDEXED-OPERAND-ACCESS row (:5641). `receiver_self_match` (`typed_trees/declarations/operator/indexing.rs:88`) routes indexed operand zero through the attached-receiver loan at HEAD, so `machine [] Buffer::index(&self, ..)` admits a `Buffer` place exactly as `buffer.at(index)` borrows it, and ordinary first parameters gain no receiver adaptation (`ordinary_first_parameter_gains_no_receiver_adaptation` control). Sibling stub INDEXING-ATTACHED-RECEIVER-BORROW (:6033) mines the same row.
 - **LEGACY-COMPATIBILITY-WRAPPER-PRUNING** — mined candidate; verify scope then implement.
-- **LOWERED-BOUNDARY-BYTE-BUFFER-FAILURES** — mined candidate; verify scope then implement.
 - **MODEL-FREE-CANDIDATE-SEARCH** — mined candidate; verify scope then implement.
 - **MODULE-CONSTANT-BUILTIN-CARRIER** — mined candidate; verify scope then implement.
 - **MULTI-TARGET-BATCH-MANIFEST** — mined candidate; verify scope then implement.
@@ -5240,32 +4655,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   typed-trees-to-checked-trees --lib` stays green.
 
 - **SEALED-COMPOSITION-EXTRACTION** — mined candidate; verify scope then implement.
-- **SELECTED-DISPATCH-SERVICE-CARRIER-FIXTURES.** Scope verified at
-  `2a9f9c02ad6`, slice landed — names the selected-dispatch libtest family
-  recorded by RC-REPOSITORY-CLOSURE's `18cebfa1062`-era census: 64 failures,
-  mostly `Service<R>`-spelling stale fixtures inside
-  `omega-rust/omega/build/selected-dispatch/` (the `boundary_dispatch`
-  test tree). The migration recipe is proven by sibling
-  BASELINE-SERVICE-CARRIER-FAILURES (`62c502f9f6`): bare
-  `console: Console`/`runtime: TaskRuntime`/`output: Output` value
-  spellings migrate to `&'s mut Service<…>` receivers per the
-  `0e1977994b` raw-pipeline recipe. Landed on `f2aa7d8df23a`: respelled all
-  24 fixture field declarations to `service: Service<Trait>` and made every
-  fixture boundary trait `pub` (the carrier requires a public stable slot
-  contract). `Service` resolves only against the toolchain declaration, so
-  the shared helper installs `source/library/core/service.omg` with
-  `SourceOrigin::Toolchain` and parses it under assigned source ids;
-  the erasure-binding helper mirrors provider_settlement by authorizing
-  exactly each test's selected plans (digest = the selected plan's
-  `identity_digest()`, so mutation-then-selection tests bind
-  post-mutation). 104/104 `selected-dispatch` lib tests green on Linux
-  x86-64 (upstreamed spelling: `typed_with_core_service` +
-  `bind_fixture_fused_service_erasures` + `selected_every_plan`). Caveat
-  stands per the sibling row: migrated members still stop at
-  `signature`-phase local construction, joining the
-  missing-transitive-machine-plan family until ENTRY-CONTENT-ROOTS'
-  receiver-lifecycle leg lands; `selected-dispatch/src/service_custody.rs`
-  is fenced by ENTRY-CONTENT-ROOTS (linw2, exp 09:57Z).
 - **SELECTED-REWRITE-ANCESTRY-REMOVAL.** — mined candidate; resolved
   alias of the settled SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL surface
   (carrier row above). Re-verified at `8f58b6676b0` on linux x86-64:
