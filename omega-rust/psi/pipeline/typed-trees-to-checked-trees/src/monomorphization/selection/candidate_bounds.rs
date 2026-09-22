@@ -5,7 +5,7 @@ use crate::monomorphization::body_rewriting::{
 };
 use crate::monomorphization::selection::static_bindings::same_type_identity;
 use crate::monomorphization::{
-    Candidate, Diagnostic, StaticMachineArgument, SymbolKind, TypeReferenceHandle,
+    Candidate, Diagnostic, StaticMachineArgument, SymbolHandle, SymbolKind, TypeReferenceHandle,
     TypeReferenceNode, TypedTrees,
 };
 
@@ -315,26 +315,67 @@ pub(crate) fn conformance_application_arguments_match_candidate(
             )
         })
         .collect::<Vec<_>>();
-    application.trait_arguments.len() == bound.arguments.len()
-        && bound
+    let identity = |handle, substitutions: &[(SymbolHandle, String)]| {
+        crate::conformance::conformance_applications::substituted_type_identity_with_lifetimes(
+            program,
+            handle,
+            substitutions,
+            &machine_lifetimes,
+        )
+    };
+
+    // A refinement carrier is written with the REFINEMENT's parameters
+    // (`Flipped<bool, i32>`), while the conformance being matched satisfies
+    // the BASE (`Pair<i32, bool>`). The `= Base<...>` head carries the map
+    // between them, so instantiate `refines.arguments` with the binder's
+    // arguments before comparing. Heads that reorder or partially apply their
+    // parameters agree only after that instantiation; comparing the binder's
+    // own arguments against a base application comes out right by accident
+    // only for a head that passes its parameters through in order.
+    let carrier = crate::monomorphization::selection::resolve_bound_carrier(program, bound.carrier);
+    let required = match carrier
+        .refinement
+        .and_then(|refinement| refinement.refines.as_ref().map(|base| (refinement, base)))
+    {
+        Some((refinement, base)) => {
+            let head = program
+                .data_type_parameters
+                .span_or_empty(refinement.type_parameters)
+                .iter()
+                .map(|parameter| parameter.symbol)
+                .zip(
+                    bound
+                        .arguments
+                        .iter()
+                        .map(|argument| identity(*argument, &substitutions)),
+                )
+                .collect::<Vec<_>>();
+            program
+                .type_reference_table
+                .type_reference_handles(base.arguments)
+                .iter()
+                .map(|argument| identity(*argument, &head))
+                .collect::<Vec<_>>()
+        }
+        None => bound
             .arguments
+            .iter()
+            .map(|argument| identity(*argument, &substitutions))
+            .collect::<Vec<_>>(),
+    };
+
+    application.trait_arguments.len() == required.len()
+        && required
             .iter()
             .zip(application.trait_arguments.iter())
             .all(|(required, actual)| {
-                let required =
-                    crate::conformance::conformance_applications::substituted_type_identity_with_lifetimes(
-                        program,
-                        *required,
-                        &substitutions,
-                        &machine_lifetimes,
-                    );
                 let actual = application.lifetime_arguments.iter().fold(
                     actual.clone(),
                     |identity, lifetime| {
                         identity.replace(&format!("'{lifetime}"), "'__ordinary_call_region")
                     },
                 );
-                required == actual
+                *required == actual
             })
 }
 

@@ -293,3 +293,59 @@ fn refinement_binder_requires_a_published_termination_guarantee() {
     check_source(&terminating_source("terminates;"))
         .expect("a realization publishing `terminates` fits the strengthened guarantee");
 }
+
+/// A refinement head may reorder or partially apply its base's arguments.
+/// The binder names the REFINEMENT's parameters while the selected
+/// conformance satisfies the BASE, so `refines.arguments` has to be
+/// instantiated before the two are compared.
+fn reordered_head_source(conformance_arguments: &str) -> String {
+    format!(
+        r#"
+        trait Pair<A, B> {{
+            machine write(&mut self);
+        }}
+
+        trait Flipped<X, Y> = Pair<Y, X> {{
+            machine * terminates;
+        }}
+
+        data Sink {{ pending: i32; }}
+
+        machine Sink::write(&mut self) terminates {{ self.pending = 0; }}
+
+        SinkPair: Sink satisfies Pair<{conformance_arguments}> {{
+            Pair::write = Sink::write;
+        }}
+
+        machine run<Element, P: Element satisfies Flipped<bool, i32>>(value: &mut Element) {{
+            P::write(value);
+        }}
+
+        machine caller(sink: &mut Sink) {{
+            run<Sink, SinkPair>(sink);
+        }}
+    "#
+    )
+}
+
+#[test]
+fn a_reordered_refinement_head_instantiates_before_comparing() {
+    // `Flipped<bool, i32>` binds X=bool, Y=i32, so `= Pair<Y, X>` demands
+    // `Pair<i32, bool>`. Comparing the binder's own arguments instead would
+    // look for `Pair<bool, i32>` and reject this fitting conformance.
+    check_source(&reordered_head_source("i32, bool"))
+        .expect("the instantiated head selects `Pair<i32, bool>`");
+
+    // The instantiation must still discriminate: the unflipped arguments are
+    // exactly what the old unexpanded comparison would have accepted.
+    let diagnostics = rejection(
+        &reordered_head_source("bool, i32"),
+        "an unflipped conformance does not satisfy the instantiated head",
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.contains("cannot bind `P` to conformance `SinkPair`") }),
+        "{diagnostics:#?}"
+    );
+}
