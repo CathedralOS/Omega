@@ -1,8 +1,8 @@
 //! Hoisting membership and comparison match subjects.
 
-use crate::lowering::statement::guarded_arm_rewrites::is_hoistable_builtin_guard_call;
 use crate::lowering::statement::indexed_read_hoisting::{
-    OperandHoisting, hoist_index, hoist_operand_indexed_reads, is_runtime_indexed_read,
+    OperandHoisting, hoist_index, hoist_operand_indexed_reads, is_hoistable_builtin_guard_call,
+    is_runtime_indexed_read,
 };
 use crate::lowering::statement::statement_nodes::set_expression;
 use crate::resolution::lowerer::Lowerer;

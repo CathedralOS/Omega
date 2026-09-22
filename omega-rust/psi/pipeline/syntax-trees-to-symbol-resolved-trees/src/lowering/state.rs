@@ -18,7 +18,6 @@ use symbol_resolved_trees::signature::{
 };
 use symbol_resolved_trees::state::{State, StateStorage};
 use symbol_resolved_trees::statement::Statement;
-use symbol_resolved_trees::types::TypeReference;
 use symbols::SymbolHandle;
 use syntax_trees::{self as syntax, SyntaxTrees};
 
@@ -86,8 +85,8 @@ fn lower_state_parts(
         .iter()
         .map(|parameter| parameter.name.as_str().to_string())
         .collect();
-    // The guarded-arm value-call rewrite copies parameter records (and the
-    // return type) into its synthesized continuation states.
+    // The scalar-computation classification of transition values reads the
+    // enclosing state's parameter, receiver and return shapes.
     lowerer.current_state_parameters = lowerer
         .symbol_resolved_trees
         .state_parameters(parameters)
@@ -107,7 +106,6 @@ fn lower_state_parts(
         .iter()
         .find(|parameter| parameter.is_self)
         .cloned();
-    lowerer.current_state_locals.clear();
     lowerer.current_state_return_type = return_type.clone();
     let contracts = lower_signature_contracts(lowerer, syntax_trees, contracts)?;
     let statements = lower_state_statements(lowerer, syntax_trees, statements)?;
@@ -115,7 +113,6 @@ fn lower_state_parts(
     lowerer.current_state_parameter_names = Vec::new();
     lowerer.current_state_parameters = Vec::new();
     lowerer.current_state_self_parameter = None;
-    lowerer.current_state_locals.clear();
     lowerer.current_state_return_type = None;
 
     Ok(State {
@@ -682,212 +679,4 @@ fn reference_struct_parameter_names(
             .then(|| parameter.name.as_str().to_string())
         })
         .collect()
-}
-
-/// Build one continuation state the guarded-arm value-call rewrite
-/// synthesized: parameters copied (by name and type) from the enclosing
-/// state, and a body of exactly the served let-bound spelling --
-/// `let __hoist_N = call(..); transition { _ -> (__hoist_N) }` (the same
-/// two statements `hoist_terminal_value_machine_call` mints for Always
-/// arms; the call's Name arguments resolve against the SAME-named
-/// parameters here).
-pub(crate) fn build_synthesized_arm_state(
-    lowerer: &mut Lowerer,
-    arm: crate::resolution::lowerer::SynthesizedArmState,
-) -> State {
-    use symbol_resolved_trees::expression::{ExpressionNode, TableNamePath};
-    use symbol_resolved_trees::statement::{
-        LocalData, LocalDataStorage, Statement, Transition, TransitionGuard, TransitionTarget,
-    };
-
-    let mut parameters = HandleSpan::empty();
-    for (name, type_reference) in arm.parameters {
-        let parameter = StateParameter {
-            symbol: SymbolHandle::invalid(),
-            name: DiagnosticName::generated(name),
-            type_reference,
-            is_const: false,
-            is_mutable: false,
-            is_self: false,
-            relevance: language_core::BindingRelevance::Relevant,
-        };
-        lowerer
-            .symbol_resolved_trees
-            .tables
-            .declarations
-            .state_parameters
-            .append_to_span(&mut parameters, parameter);
-    }
-
-    let hoist_name = DiagnosticName::generated(lowerer.next_hoist_name());
-    let hoist_local = Statement::LocalData(LocalData {
-        symbol: SymbolHandle::invalid(),
-        name: hoist_name.clone(),
-        storage: LocalDataStorage {
-            // Unit is the inference sentinel; the resolved -> typed lowering
-            // types the temp from the callee's declared return.
-            type_reference: TypeReference::Unit,
-            initial_value: arm.call,
-            is_mutable: false,
-            type_is_inferred: true,
-            relevance: language_core::BindingRelevance::Relevant,
-        },
-    });
-    let expressions = &mut lowerer.symbol_resolved_trees.tables.bodies.expressions;
-    let mut members = HandleSpan::empty();
-    expressions.push_name_path_member(&mut members, hoist_name);
-    let member_symbols = expressions.reserve_name_path_member_symbols(members.count());
-    let terminal = expressions.insert(ExpressionNode::Name(TableNamePath {
-        members,
-        member_symbols,
-        is_self_value: false,
-        head_symbol: SymbolHandle::invalid(),
-        symbol: SymbolHandle::invalid(),
-    }));
-    let transition = Statement::Transition(Transition {
-        target: TransitionTarget::Value(terminal),
-        continuation: None,
-        guard: TransitionGuard::Always,
-        proof_selectors: Box::default(),
-        exit: symbol_resolved_trees::statement::TransitionExit::Ordinary,
-        source_span: Default::default(),
-    });
-
-    let mut statements = HandleSpan::empty();
-    for statement in [hoist_local, transition] {
-        lowerer
-            .symbol_resolved_trees
-            .tables
-            .declarations
-            .state_statements
-            .append_to_span(&mut statements, statement);
-    }
-
-    State {
-        symbol: SymbolHandle::invalid(),
-        name: DiagnosticName::generated(arm.name),
-        storage: StateStorage {
-            parameters,
-            return_type: Some(arm.return_type),
-            contracts: HandleSpan::empty(),
-            statements,
-            statement_nodes: Default::default(),
-        },
-    }
-}
-
-/// Build an arm-selected continuation for guarded named-target value calls:
-/// materialize every direct call argument in source order, then jump to the
-/// original target with those result locals substituted at their positions.
-pub(crate) fn build_synthesized_transition_argument_state(
-    lowerer: &mut Lowerer,
-    arm: crate::resolution::lowerer::SynthesizedTransitionArgumentState,
-) -> State {
-    use symbol_resolved_trees::expression::{ExpressionNode, TableNamePath};
-    use symbol_resolved_trees::statement::{
-        LocalData, LocalDataStorage, Statement, Transition, TransitionGuard, TransitionTarget,
-    };
-
-    let mut parameters = HandleSpan::empty();
-    if let Some(mut self_parameter) = arm.self_parameter {
-        self_parameter.symbol = SymbolHandle::invalid();
-        lowerer
-            .symbol_resolved_trees
-            .tables
-            .declarations
-            .state_parameters
-            .append_to_span(&mut parameters, self_parameter);
-    }
-    for (name, type_reference, is_mutable) in arm.parameters {
-        lowerer
-            .symbol_resolved_trees
-            .tables
-            .declarations
-            .state_parameters
-            .append_to_span(
-                &mut parameters,
-                StateParameter {
-                    symbol: SymbolHandle::invalid(),
-                    name: DiagnosticName::generated(name),
-                    type_reference,
-                    is_const: false,
-                    is_mutable,
-                    is_self: false,
-                    relevance: language_core::BindingRelevance::Relevant,
-                },
-            );
-    }
-
-    let target = arm.target;
-    let mut statements = HandleSpan::empty();
-    for call in arm.calls {
-        let hoist_name = DiagnosticName::generated(lowerer.next_hoist_name());
-        let call_initializer = lowerer
-            .symbol_resolved_trees
-            .tables
-            .bodies
-            .expressions
-            .copy_from_self(call);
-        lowerer
-            .symbol_resolved_trees
-            .tables
-            .declarations
-            .state_statements
-            .append_to_span(
-                &mut statements,
-                Statement::LocalData(LocalData {
-                    symbol: SymbolHandle::invalid(),
-                    name: hoist_name.clone(),
-                    storage: LocalDataStorage {
-                        type_reference: TypeReference::Unit,
-                        initial_value: call_initializer,
-                        is_mutable: false,
-                        type_is_inferred: true,
-                        relevance: language_core::BindingRelevance::Relevant,
-                    },
-                }),
-            );
-
-        let expressions = &mut lowerer.symbol_resolved_trees.tables.bodies.expressions;
-        let mut members = HandleSpan::empty();
-        expressions.push_name_path_member(&mut members, hoist_name);
-        let member_symbols = expressions.reserve_name_path_member_symbols(members.count());
-        let result = expressions.insert(ExpressionNode::Name(TableNamePath {
-            members,
-            member_symbols,
-            is_self_value: false,
-            head_symbol: SymbolHandle::invalid(),
-            symbol: SymbolHandle::invalid(),
-        }));
-        *expressions.expression_mut(call) = expressions.expression(result).clone();
-    }
-
-    lowerer
-        .symbol_resolved_trees
-        .tables
-        .declarations
-        .state_statements
-        .append_to_span(
-            &mut statements,
-            Statement::Transition(Transition {
-                target: TransitionTarget::Named(target),
-                continuation: None,
-                guard: TransitionGuard::Always,
-                proof_selectors: Box::default(),
-                exit: symbol_resolved_trees::statement::TransitionExit::Ordinary,
-                source_span: Default::default(),
-            }),
-        );
-
-    State {
-        symbol: SymbolHandle::invalid(),
-        name: DiagnosticName::generated(arm.name),
-        storage: StateStorage {
-            parameters,
-            return_type: arm.return_type,
-            contracts: HandleSpan::empty(),
-            statements,
-            statement_nodes: Default::default(),
-        },
-    }
 }

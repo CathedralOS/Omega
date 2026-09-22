@@ -1,9 +1,7 @@
-// PASS CANARY: a guarded arm's value call rewrites to a synthesized
-// continuation state only when every argument is a bare NAME of an
-// enclosing state parameter. The computed argument (`dbl(x + 1)`) shape
-// also compiles end to end on the native route: the checked-stage fence
-// and the lowering-time operation-proof obligation that once refused it
-// were both retired upstream.
+// PASS CANARY: a guarded arm's value call, with a computed argument
+// (`dbl(x + 1)`), is evaluated inside the selected arm at its authored point
+// and compiles end to end on the native route; resolution synthesizes no
+// continuation state for it.
 use omega::language::std::console;
 use omega::language::core::service;
 data Main { console: Service<Console>; }

@@ -1,6 +1,5 @@
 //! Hoisting scalar value calls and terminal value machine calls.
 
-use crate::lowering::statement::guarded_arm_rewrites::expression_contains_call;
 use crate::lowering::statement::indexed_read_hoisting::is_integer_embedding_call;
 use crate::lowering::statement::statement_nodes::set_expression;
 use crate::resolution::lowerer::Lowerer;
@@ -272,6 +271,43 @@ pub(crate) fn hoist_terminal_value_machine_call(
         head_symbol: SymbolHandle::invalid(),
         symbol: SymbolHandle::invalid(),
     }))
+}
+
+fn expression_contains_call(lowerer: &Lowerer, expression: ExpressionHandle) -> bool {
+    let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
+    let contains = |child| expression_contains_call(lowerer, child);
+    match expressions.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            contains(dispatch.subject) || expressions.match_arms(dispatch.arms).iter().any(|arm| {
+                matches!(arm.pattern, symbol_resolved_trees::expression::MatchPattern::Value(pattern) if contains(pattern))
+                    || contains(arm.value)
+            })
+        }
+        ExpressionNode::Call(_) => true,
+        ExpressionNode::Atomic(atomic) => contains(atomic.value),
+        ExpressionNode::ArrayLiteral(values) => expressions
+            .expression_handles(*values)
+            .iter()
+            .any(|value| contains(*value)),
+        ExpressionNode::Binary(binary) => contains(binary.left) || contains(binary.right),
+        ExpressionNode::Cast(cast) => contains(cast.value),
+        ExpressionNode::Indexed(indexed) => contains(indexed.collection) || contains(indexed.index),
+        ExpressionNode::Member(member) => contains(member.receiver),
+        ExpressionNode::Membership(membership) => contains(membership.value),
+        ExpressionNode::Borrow(borrow) => contains(borrow.target),
+        ExpressionNode::Range(range) => contains(range.start) || contains(range.end),
+        ExpressionNode::StructLiteral(literal) => expressions
+            .struct_fields(literal.fields)
+            .iter()
+            .any(|field| contains(field.value)),
+        ExpressionNode::Unary(unary) => contains(unary.operand),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => false,
+    }
 }
 
 /// Preserve the free scalar spelling for checked return computation planning.

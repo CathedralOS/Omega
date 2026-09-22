@@ -1,9 +1,6 @@
 //! One-to-one lowering of statement nodes, transition guards and targets.
 
 use crate::lowering::expression::lower_private_expression_into_table;
-use crate::lowering::statement::guarded_arm_rewrites::{
-    rewrite_guarded_call_arm, rewrite_guarded_transition_argument_calls,
-};
 use crate::lowering::statement::indexed_read_hoisting::{
     OperandHoisting, hoist_child, hoist_into_temp, hoist_operand_indexed_reads,
     hoist_target_computed_indices,
@@ -334,13 +331,6 @@ pub(crate) fn lower_statement_node(
             } else {
                 TypeReference::Unit
             };
-            let capturable_local = (!matches!(type_reference, TypeReference::Unit)).then(|| {
-                (
-                    local_data.name.as_str().to_owned(),
-                    type_reference.clone(),
-                    local_data.is_mutable,
-                )
-            });
             let initial_value = if local_data.initial_value.is_valid() {
                 lower_statement_expression(lowerer, syntax_trees, local_data.initial_value)?
             } else {
@@ -368,9 +358,6 @@ pub(crate) fn lower_statement_node(
                     relevance: local_data.relevance,
                 },
             }));
-            if let Some(local) = capturable_local {
-                lowerer.current_state_locals.push(local);
-            }
             Ok(hoisted)
         }
         syntax::statement::StatementNode::Transition(transition) => {
@@ -391,49 +378,32 @@ pub(crate) fn lower_statement_node(
             )?;
             // Free scalar return calls keep their exact destination for checked
             // computation lowering. Other unconditional calls retain the older
-            // let-bound route; guarded calls must stay behind arm selection.
-            if unconditional {
-                if let TransitionTarget::Value(expression) = target
-                    && !is_scalar_return_computation(lowerer, expression)
-                {
-                    let rewritten =
-                        hoist_terminal_value_machine_call(lowerer, expression, &mut hoisted);
-                    if rewritten != expression {
-                        target = TransitionTarget::Value(rewritten);
-                    }
+            // let-bound route. A guarded arm's calls are not moved at all:
+            // they stay at their authored evaluation point inside the arm,
+            // where the arm evaluates them left to right only when it is
+            // selected, and checking reads each result there.
+            if unconditional
+                && let TransitionTarget::Value(expression) = target
+                && !is_scalar_return_computation(lowerer, expression)
+            {
+                let rewritten =
+                    hoist_terminal_value_machine_call(lowerer, expression, &mut hoisted);
+                if rewritten != expression {
+                    target = TransitionTarget::Value(rewritten);
                 }
-            } else {
-                // GUARDED-ARM DEEP FIX (task #45): a guarded arm's value call
-                // cannot hoist above the transition (the callee would run when
-                // the arm is not taken), so rewrite `cond -> (call(a, b))`
-                // into `cond -> __arm_k_N(a, b)` plus a synthesized
-                // continuation state whose Always terminal hoists the call --
-                // the mul_comm/mc_step shape the language already serves,
-                // automated. V1 gates the arguments to enclosing-parameter
-                // NAMES (the synthesized state's parameter types copy over).
-                target = rewrite_guarded_call_arm(lowerer, target);
-                target = rewrite_guarded_transition_argument_calls(lowerer, target);
             }
+            // A continuation arm runs only when the guard fails, so its calls
+            // are never hoisted ahead of the transition either. A lone
+            // wildcard arm of an Always transition keeps its target intact
+            // (including ownership-call ordinals) for the same reason.
             let continuation = if transition.continuation.is_valid() {
-                // A continuation arm is conditional by construction (it runs
-                // only when the guard fails) -- same rewrite, never a hoist.
-                let lowered = lower_transition_target_node(
+                Some(lower_transition_target_node(
                     lowerer,
                     syntax_trees,
                     transition.continuation,
                     &mut hoisted,
                     unconditional,
-                )?;
-                if unconditional {
-                    // A lone wildcard arm is represented as the continuation
-                    // of an Always transition. It is unconditional, so keep
-                    // its existing target intact (including ownership-call
-                    // ordinals) instead of synthesizing an arm-local state.
-                    Some(lowered)
-                } else {
-                    let lowered = rewrite_guarded_call_arm(lowerer, lowered);
-                    Some(rewrite_guarded_transition_argument_calls(lowerer, lowered))
-                }
+                )?)
             } else {
                 None
             };

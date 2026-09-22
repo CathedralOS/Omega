@@ -1098,6 +1098,31 @@ mod nested_call_arguments {
     }
 
     #[test]
+    fn transition_argument_nested_call_result_derives_the_exact_entry_subject() {
+        // The argument is a call whose own argument is a call. The premise
+        // still traces through both returned expressions to the caller's
+        // exact entry subject, at the arm's authored evaluation point.
+        let program = checked(
+            r#"
+            pub machine pick(handle: SchedulerHandle in WeakFair)
+            terminates;
+            -> SchedulerHandle in WeakFair { handle }
+            pub machine process(context: &Context, ready: bool)
+            requires context.scheduler in WeakFair
+            terminates;
+            -> u64 {
+                transition ready {
+                    true -> waiting(pick(pick(context.scheduler)))
+                    false -> 0
+                }
+                state waiting(selected: SchedulerHandle in WeakFair) -> u64 { consume(selected) }
+            }
+            "#,
+        );
+        assert_single_premise(&program, "process", "context", "Context::scheduler");
+    }
+
+    #[test]
     fn may_write_helper_result_derives_the_replacement_input_premise() {
         // `stamp` writes the replacement input into `context` and returns the
         // input itself: the demanded premise is the replacement's exact
