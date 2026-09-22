@@ -19,7 +19,7 @@ use super::{
     StatementNode, SymbolHandle, TypedTrees,
 };
 mod observations;
-pub(super) use observations::reads_receiver;
+pub(in crate::execution::terminal_unit) use observations::uses_receiver_storage;
 
 pub(super) fn reconcile(
     program: &TypedTrees,

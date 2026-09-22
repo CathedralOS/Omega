@@ -4,7 +4,7 @@ use super::{
     FlowInvalidationSource, StatementNode, SymbolHandle,
 };
 use crate::execution::terminal_unit::receiver_aliases::ReceiverAlias;
-use crate::execution::terminal_unit::receiver_aliases::prefix;
+use crate::execution::terminal_unit::receiver_aliases::aliases as alias_roster;
 use crate::tests::front_end::checked_program;
 
 mod mutable;
@@ -28,7 +28,30 @@ fn aliases(checked: &checked_trees::CheckedTrees) -> Option<Vec<ReceiverAlias>> 
         .iter()
         .find(|machine| machine.name.as_str() == "forward")?;
     let state = checked.machine_states(machine).first()?;
-    prefix(&checked.typed, &checked.facts, machine, state)
+    alias_roster(&checked.typed, &checked.facts, machine, state)
+}
+
+/// The Unit plan the body builder produces for `forward` from these exact
+/// facts, rebuilt so forged or escaping evidence is judged by the plan that
+/// would consume it rather than by a roster no producer reads on its own.
+fn forward_plan(
+    checked: &checked_trees::CheckedTrees,
+) -> Option<checked_trees::CheckedUnitEffectMachinePlan> {
+    let plans = crate::execution::terminal_unit::build_checked_unit_effect_plans(
+        &checked.typed,
+        &checked.facts,
+        crate::execution::terminal_unit::ScalarCalleePlans {
+            boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+            structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
+        },
+        &[],
+        &[],
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("forward"))?;
+    plans.for_machine(machine.symbol).cloned()
 }
 
 #[test]
@@ -92,20 +115,49 @@ fn independent_alias_prefix_has_no_fixed_roster_limit() {
 }
 
 #[test]
-fn alias_erasure_does_not_claim_escapes_or_early_nested_closure() {
-    for (prefix, body) in [
-        (
-            "let held: &write [Record; 2] = &write records;",
-            "consume(&write held); held[1].replace(value);",
-        ),
-        (
-            "let held: &write [Record; 2] = &write records; let child: &write [Record; 2] = &write held;",
-            "child[1].replace(value); other[0].replace(value);",
-        ),
-    ] {
-        let checked = fixture("write", prefix, body);
-        assert!(aliases(&checked).is_none());
-    }
+fn erased_alias_forwarded_as_a_call_argument_lends_its_referent() {
+    let checked = fixture(
+        "write",
+        "let held: &write [Record; 2] = &write records;",
+        "consume(&write held); held[1].replace(value);",
+    );
+    let plan = forward_plan(&checked).expect("an alias lent onward composes as its referent");
+    assert!(plan.trivial_affine_locals.is_empty());
+    let [
+        CheckedUnitEffectOperationPlan::CallUnit {
+            coordinate: consume,
+            structural_arguments: consume_arguments,
+            ..
+        },
+        CheckedUnitEffectOperationPlan::CallUnit {
+            coordinate: replace,
+            structural_arguments: replace_arguments,
+            ..
+        },
+        CheckedUnitEffectOperationPlan::Complete { .. },
+    ] = plan.operations.as_slice()
+    else {
+        panic!("two receiver calls then completion: {:?}", plan.operations);
+    };
+    assert_eq!((consume.statement_index, consume.call_ordinal), (1, 0));
+    assert!(matches!(consume_arguments.as_slice(), [argument]
+        if argument.source_parameter_index() == Some(0)
+            && argument.path.is_empty()
+            && argument.access == checked_trees::CheckedStructuralAccess::WriteOnlyBorrow));
+    assert_eq!((replace.statement_index, replace.call_ordinal), (2, 0));
+    assert!(matches!(replace_arguments.as_slice(), [argument]
+        if argument.source_parameter_index() == Some(0)
+            && argument.path == vec![CheckedUnitStructuralPathSegment::FixedIndex(1)]));
+}
+
+#[test]
+fn alias_erasure_does_not_claim_early_nested_closure() {
+    let checked = fixture(
+        "write",
+        "let held: &write [Record; 2] = &write records; let child: &write [Record; 2] = &write held;",
+        "child[1].replace(value); other[0].replace(value);",
+    );
+    assert!(forward_plan(&checked).is_none());
 }
 
 #[test]
@@ -282,8 +334,8 @@ fn projected_self_alias_retains_capture_and_normalized_receiver_paths() {
         .find(|machine| machine.name.as_str() == "Container::forward")
         .expect("attached caller");
     let state = checked.machine_states(machine).first().expect("entry");
-    let aliases =
-        prefix(&checked.typed, &checked.facts, machine, state).expect("projected self aliases");
+    let aliases = alias_roster(&checked.typed, &checked.facts, machine, state)
+        .expect("projected self aliases");
     assert_eq!(aliases[1].root, machine.symbol);
     assert_eq!(aliases[1].segments.len(), 2);
     let resource = checked
@@ -341,14 +393,8 @@ fn projected_self_alias_retains_capture_and_normalized_receiver_paths() {
         panic!("self member");
     };
     member.member_symbol = wrong_field;
-    let machine = forged
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "Container::forward")
-        .expect("attached caller");
-    let state = forged.machine_states(machine).first().expect("entry");
     assert!(
-        prefix(&forged.typed, &forged.facts, machine, state).is_none(),
+        forward_plan(&forged).is_none(),
         "another declaration's field cannot replace inherited self field custody"
     );
 }
@@ -360,7 +406,7 @@ fn projected_aliases_reject_changed_capture_or_immediate_projection() {
         "let held: &write [Record; 2] = &write records; let child: &write Record = &write held[1];",
         "child.replace(value);",
     );
-    assert!(aliases(&original).is_some());
+    assert!(forward_plan(&original).is_some());
     let resource_handle = original
         .facts
         .borrow
@@ -423,7 +469,7 @@ fn projected_aliases_reject_changed_capture_or_immediate_projection() {
             }
         }
         assert!(
-            aliases(&checked).is_none(),
+            forward_plan(&checked).is_none(),
             "projection mutation {mutation}"
         );
     }
@@ -447,7 +493,7 @@ fn nested_receiver_alias_keeps_the_exact_self_attachment() {
         .expect("attached forward");
     let state = checked.machine_states(machine).first().expect("entry");
     let aliases =
-        prefix(&checked.typed, &checked.facts, machine, state).expect("nested self receiver");
+        alias_roster(&checked.typed, &checked.facts, machine, state).expect("nested self receiver");
     assert_eq!(aliases.len(), 2);
     assert!(aliases.iter().all(|alias| alias.root == machine.symbol));
 }
@@ -455,7 +501,7 @@ fn nested_receiver_alias_keeps_the_exact_self_attachment() {
 #[test]
 fn nested_aliases_reject_forged_immediate_parent_resource_and_capture() {
     let original = nested_fixture();
-    assert!(aliases(&original).is_some());
+    assert!(forward_plan(&original).is_some());
     let resource_handle = original
         .facts
         .borrow
@@ -488,7 +534,10 @@ fn nested_aliases_reject_forged_immediate_parent_resource_and_capture() {
             10 => resource.weakening_reason = FlowBorrowWeakeningReason::LastUseExpired,
             _ => resource.parent_suspension.parent_loan = arena::Handle::invalid(),
         }
-        assert!(aliases(&checked).is_none(), "resource mutation {mutation}");
+        assert!(
+            forward_plan(&checked).is_none(),
+            "resource mutation {mutation}"
+        );
     }
     for mutation in 0..4 {
         let mut checked = original.clone();
@@ -505,7 +554,7 @@ fn nested_aliases_reject_forged_immediate_parent_resource_and_capture() {
             2 => loan.statement_index = 0,
             _ => loan.root_symbol = SymbolHandle::invalid(),
         }
-        assert!(aliases(&checked).is_none(), "loan mutation {mutation}");
+        assert!(forward_plan(&checked).is_none(), "loan mutation {mutation}");
     }
 }
 
@@ -542,7 +591,10 @@ fn nested_aliases_reject_omitted_reordered_and_retargeted_closure() {
             6 => event.shared_cohort.push(event.child_resource),
             _ => event.parent_loan = arena::Handle::invalid(),
         }
-        assert!(aliases(&checked).is_none(), "closure mutation {mutation}");
+        assert!(
+            forward_plan(&checked).is_none(),
+            "closure mutation {mutation}"
+        );
     }
     let containment_handle = original
         .facts
@@ -581,7 +633,7 @@ fn nested_aliases_reject_omitted_reordered_and_retargeted_closure() {
             }
         }
         assert!(
-            aliases(&checked).is_none(),
+            forward_plan(&checked).is_none(),
             "containment mutation {mutation}"
         );
     }
@@ -641,7 +693,10 @@ fn nested_aliases_require_unique_complete_custody_rosters() {
                 checked.facts.borrow.reborrow_disposition_events.append(row);
             }
         }
-        assert!(aliases(&checked).is_none(), "roster mutation {mutation}");
+        assert!(
+            forward_plan(&checked).is_none(),
+            "roster mutation {mutation}"
+        );
     }
 }
 
@@ -652,7 +707,7 @@ fn alias_erasure_rejoins_exact_resource_and_lifetime_custody() {
         "let held: &write [Record; 2] = &write records;",
         "held[1].replace(value);",
     );
-    assert!(aliases(&original).is_some());
+    assert!(forward_plan(&original).is_some());
     let resource_handle = original
         .facts
         .borrow
@@ -678,7 +733,10 @@ fn alias_erasure_rejoins_exact_resource_and_lifetime_custody() {
             }
             _ => resource.weakening_reason = FlowBorrowWeakeningReason::LocalReassigned,
         }
-        assert!(aliases(&checked).is_none(), "resource mutation {mutation}");
+        assert!(
+            forward_plan(&checked).is_none(),
+            "resource mutation {mutation}"
+        );
     }
     let mut checked = original.clone();
     let resource = checked
@@ -693,7 +751,7 @@ fn alias_erasure_rejoins_exact_resource_and_lifetime_custody() {
         .get_mut(resource.loan)
         .source_owner_symbol = resource.owner_symbol;
     assert!(
-        aliases(&checked).is_none(),
+        forward_plan(&checked).is_none(),
         "a derived local owner cannot impersonate a direct parameter loan"
     );
 }

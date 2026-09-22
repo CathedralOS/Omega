@@ -95,12 +95,16 @@ fn selective_crashing_field_rhs_retains_its_ordered_source_plan() {
         &mut shapes,
         machine,
         state,
-        &structural,
+        &mut structural.clone(),
         &scalar,
         &[],
         &outer,
         &[],
         0,
+        control::statement_sequence::SelectedApplications {
+            operators: &[],
+            ieee_float_fma: &[],
+        },
         None,
         &control::LocalConstructionTrace::default(),
     )

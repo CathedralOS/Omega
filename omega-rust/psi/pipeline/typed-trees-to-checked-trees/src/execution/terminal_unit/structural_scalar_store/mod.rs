@@ -176,51 +176,6 @@ pub(in crate::execution) fn build_local_scalar_field_store(
     })
 }
 
-pub(super) fn build_structural_scalar_field_store(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    structural_parameters: &[CheckedUnitStructuralParameterPlan],
-    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
-    statements: &[StatementNode],
-    scalar_result_local: Option<&CheckedUnitScalarResultBindingPlan>,
-    selected_scalar_result_local: Option<&CheckedUnitScalarResultBindingPlan>,
-    trace: &LocalConstructionTrace,
-) -> Option<CheckedStructuralScalarFieldStorePlan> {
-    let result_local = scalar_result_local.or(selected_scalar_result_local);
-    let (statement_index, assignment) = match (result_local, statements) {
-        (None, [StatementNode::Assignment(assignment)]) => (0, assignment),
-        (
-            Some(result),
-            [
-                StatementNode::LocalData(_),
-                StatementNode::Assignment(assignment),
-            ],
-        ) if result.statement_index == 0 && result.binding_ordinal == 0 => (1, assignment),
-        _ => return None,
-    };
-    let operation = build_structural_field_store_at(
-        program,
-        facts,
-        machine,
-        state,
-        structural_parameters,
-        scalar_parameters,
-        statement_index,
-        assignment,
-        result_local,
-        selected_scalar_result_local.is_some(),
-        false,
-        None,
-        trace,
-    )?;
-    let CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) = operation else {
-        return None;
-    };
-    Some(store)
-}
-
 /// `build_structural_scalar_field_store_sequence` tracing which assignment
 /// (or which write-frame guard) declined the body.
 pub(super) fn build_structural_scalar_field_store_sequence_traced(
@@ -334,16 +289,50 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
         // An assignment whose source is this statement's own call has no
         // authored scalar expression to store. Its call operation is sequenced
         // with the other calls, and the store consuming that result is
-        // appended there; it deliberately produces no row here.
+        // appended there; it deliberately produces no row here. A whole
+        // structural local as the source is likewise the sequence's own
+        // business: it is the repair store of a borrowed-storage window.
         if matches!(
             program.expression_table.expression(assignment.value),
             ExpressionNode::Call(_)
-        ) {
+        ) || restores_structural_local(program, state, assignment)
+        {
             continue;
         }
         return None;
     }
     Some(stores)
+}
+
+/// `place = local` where `local` is a structural (non-primitive) local of the
+/// same state: no scalar store row exists for it, so the statement sequence
+/// decides whether it repairs an open borrowed-storage window.
+fn restores_structural_local(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    assignment: &typed_trees::statement::TableAssignment,
+) -> bool {
+    let ExpressionNode::Name(path) = program.expression_table.expression(assignment.value) else {
+        return false;
+    };
+    if path.head_symbol != path.symbol
+        || program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            != 1
+    {
+        return false;
+    }
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .any(|statement| {
+            matches!(statement, StatementNode::LocalData(local)
+                if local.symbol == path.symbol
+                    && program.primitive_type_reference(local.type_reference).is_none())
+        })
 }
 
 /// Ordinary composition for `self.field = call(..)`: the statement's scalar

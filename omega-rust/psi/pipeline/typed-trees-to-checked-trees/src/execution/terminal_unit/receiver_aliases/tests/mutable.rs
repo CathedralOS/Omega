@@ -1,7 +1,7 @@
 use super::{BorrowAccessKind, FlowBorrowWeakeningReason};
-use crate::execution::terminal_unit::receiver_aliases::tests::aliases;
 use crate::execution::terminal_unit::receiver_aliases::tests::checked;
 use crate::execution::terminal_unit::receiver_aliases::tests::fixture;
+use crate::execution::terminal_unit::receiver_aliases::tests::{aliases, forward_plan};
 use crate::tests::front_end::typed_program;
 
 #[test]
@@ -179,6 +179,6 @@ fn mutable_prefix_replay_rejects_access_capture_and_lifecycle_drift() {
             }
             _ => checked.facts.borrow.reborrow_disposition_events.clear(),
         }
-        assert!(aliases(&checked).is_none(), "mutation {mutation}");
+        assert!(forward_plan(&checked).is_none(), "mutation {mutation}");
     }
 }

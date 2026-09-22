@@ -331,6 +331,10 @@ pub(super) fn build_traced(
             operation_end,
             trace,
         )?;
+        // Selected operator and FMA applications are not yet routed to the
+        // composed states, so the sequence sees none and rewrites no
+        // parameter identity; the signature stays the one recorded above.
+        let mut sequence_structural = structural.clone();
         let sequence = control::statement_sequence::build(
             program,
             facts,
@@ -338,12 +342,16 @@ pub(super) fn build_traced(
             shapes,
             machine,
             state,
-            structural,
+            &mut sequence_structural,
             scalar,
             &state_entry_claims[state_index],
             &calls,
             &[],
             binding_count,
+            control::statement_sequence::SelectedApplications {
+                operators: &[],
+                ieee_float_fma: &[],
+            },
             call_frames,
             trace,
         )?;

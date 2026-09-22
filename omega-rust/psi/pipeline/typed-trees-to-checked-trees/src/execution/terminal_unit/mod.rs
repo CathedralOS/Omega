@@ -5,8 +5,15 @@ these catalogs describe implementation coverage, not additional language rules.
 The lowerer must receive a complete plan, never a partly recognized body.
 
 Start with build_checked_unit_effect_plans below. We first collect boundary
-signatures and ordinary single-state candidates through control.rs. We then
-reconcile their implicit receivers, build composed candidates through
+signatures and ordinary single-state candidates through control.rs. A
+single-state body has one producer: control/statement_sequence.rs walks the
+authored statements in order and emits each one's operations — stores,
+borrowed-window moves and repairs, selected operator and FMA applications,
+structural and scalar bindings, calls and completion — after the prefix of
+trivial affine locals that calls/affine_locals.rs establishes. Borrowed `self`
+is retained exactly when the body uses the receiver as storage
+(receiver_calls/observations.rs); ambient attachment serves receiver calls.
+We then reconcile implicit receivers, build composed candidates through
 composed_control/assembly.rs, and reconcile composed calls against the completed
 signatures. The composed builders include specialized control shapes and the
 general state_graph.rs route; their current coverage differs, so a failed
@@ -186,11 +193,9 @@ use primitive_store::build_write_only_primitive_store;
 use providers::*;
 use returns::*;
 use scalar_locals::*;
-use selected_ieee_float::*;
 use selected_operator::*;
 use shared_convergence::checked_shared_boolean_convergence;
 pub(super) use structural_scalar_store::build_local_scalar_field_store;
-use structural_scalar_store::build_structural_scalar_field_store;
 use types::*;
 pub(crate) use types::{is_reference, strips_erased_parameter, structural_parameter_candidate};
 

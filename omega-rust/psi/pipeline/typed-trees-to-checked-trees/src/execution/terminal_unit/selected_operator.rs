@@ -16,19 +16,15 @@ use crate::execution::terminal_unit::{
     structural_access_for_type_reference,
 };
 
-pub(super) fn selected_operator_scalar_result_local<'applications>(
-    program: &TypedTrees,
+/// The exact selected boundary-operator application a `let` initializer
+/// names, when the checker retained one for that statement's local.
+pub(super) fn selected_operator_application<'applications>(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    statements: &[StatementNode],
+    statement_index: usize,
+    local: &typed_trees::statement::TableLocalData,
     applications: &'applications [crate::SelectedOperatorApplication],
-) -> Option<(
-    &'applications crate::SelectedOperatorApplication,
-    CheckedUnitScalarResultBindingPlan,
-)> {
-    let StatementNode::LocalData(local) = statements.first()? else {
-        return None;
-    };
+) -> Option<&'applications crate::SelectedOperatorApplication> {
     if local.is_mutable || !local.initial_value.is_valid() {
         return None;
     }
@@ -40,7 +36,7 @@ pub(super) fn selected_operator_scalar_result_local<'applications>(
                     == checked_trees::CheckedValueOrigin::StateStatement {
                         machine_symbol: machine.symbol,
                         state_symbol: state.symbol,
-                        statement_index: 0,
+                        statement_index,
                         role: checked_trees::CheckedValueStatementRole::LocalInitializer,
                     }
         })
@@ -48,72 +44,53 @@ pub(super) fn selected_operator_scalar_result_local<'applications>(
     let [application] = matches.as_slice() else {
         return None;
     };
-    Some((
-        *application,
-        CheckedUnitScalarResultBindingPlan {
-            statement_index: 0,
-            binding_ordinal: 0,
-            primitive_type: program.primitive_type_reference(local.type_reference)?,
-        },
-    ))
+    Some(*application)
 }
 
-pub(super) fn selected_operator_structural_result_local<'applications>(
-    program: &TypedTrees,
-    shapes: &mut ShapeCollector<'_>,
+/// Whether any local in the body binds a selected boundary-operator
+/// application: such bodies retain the operator's affine signature contract
+/// for their owned structural parameters.
+pub(super) fn binds_selected_operator(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statements: &[StatementNode],
-    applications: &'applications [crate::SelectedOperatorApplication],
-) -> Option<(
-    &'applications crate::SelectedOperatorApplication,
-    CheckedUnitStructuralResultBindingPlan,
-    SymbolHandle,
-)> {
-    let StatementNode::LocalData(local) = statements.first()? else {
-        return None;
-    };
-    if local.is_mutable
-        || !local.initial_value.is_valid()
-        || program
-            .primitive_type_reference(local.type_reference)
-            .is_some()
+    applications: &[crate::SelectedOperatorApplication],
+) -> bool {
+    statements.iter().enumerate().any(|(index, statement)| {
+        matches!(statement, StatementNode::LocalData(local)
+            if selected_operator_application(machine, state, index, local, applications).is_some())
+    })
+}
+
+/// The structural result binding a selected operator's `let` establishes:
+/// an owned affine, cleanup-free, unqualified record or sum local.
+pub(super) fn selected_operator_structural_result(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    local: &typed_trees::statement::TableLocalData,
+    statement_index: u32,
+    binding_ordinal: u32,
+) -> Option<CheckedUnitStructuralResultBindingPlan> {
+    if program
+        .primitive_type_reference(local.type_reference)
+        .is_some()
         || is_reference(program, local.type_reference)
         || crate::checks::type_multiplicity(program, local.type_reference) != Multiplicity::Affine
         || type_graph_requires_nominal_drop(program, local.type_reference)
     {
         return None;
     }
-    let matches = applications
-        .iter()
-        .filter(|application| {
-            application.expression == local.initial_value
-                && application.origin
-                    == checked_trees::CheckedValueOrigin::StateStatement {
-                        machine_symbol: machine.symbol,
-                        state_symbol: state.symbol,
-                        statement_index: 0,
-                        role: checked_trees::CheckedValueStatementRole::LocalInitializer,
-                    }
-        })
-        .collect::<Vec<_>>();
-    let [application] = matches.as_slice() else {
-        return None;
-    };
     let binders = machine_binders(program, machine);
     if !parameter_qualifications(program, shapes, local.type_reference, &binders)?.is_empty() {
         return None;
     }
-    Some((
-        *application,
-        CheckedUnitStructuralResultBindingPlan {
-            statement_index: 0,
-            binding_ordinal: 0,
-            type_identity: shapes.add_type(local.type_reference, &binders, &[])?,
-            multiplicity: Multiplicity::Affine,
-        },
-        local.symbol,
-    ))
+    Some(CheckedUnitStructuralResultBindingPlan {
+        statement_index,
+        binding_ordinal,
+        type_identity: shapes.add_type(local.type_reference, &binders, &[])?,
+        multiplicity: Multiplicity::Affine,
+    })
 }
 
 pub(super) fn build_selected_operator_scalar_call(
@@ -163,7 +140,7 @@ pub(super) fn build_selected_operator_scalar_call(
                 program,
                 &facts.operators,
                 source_state,
-                0,
+                usize::try_from(result.statement_index).ok()?,
                 *operand,
                 program.primitive_type_reference(parameter.type_reference)?,
             )

@@ -508,8 +508,7 @@ fn mutable_self_literal_indexed_element_can_supply_shared_receiver() {
                     ..
                 } => structural_arguments.iter().collect::<Vec<_>>(),
                 checked_trees::CheckedUnitEffectOperationPlan::EstablishScalarLocal {
-                    value:
-                        checked_trees::CheckedCallScalarArgument::Computation(root),
+                    value: checked_trees::CheckedCallScalarArgument::Computation(root),
                     ..
                 } => {
                     let computations = &checked.facts.values.scalar_computations;
@@ -640,7 +639,7 @@ fn explicit_shared_dynamic_indexed_argument_still_omits_caller_in_call_operation
 }
 
 #[test]
-fn local_indexed_receiver_plans_in_call_statement_shape() {
+fn local_indexed_receiver_plans_in_the_statement_sequence() {
     let checked = checked_program_result(
         "data Cell { value: u64; }
          machine Cell::get(&self) -> u64 { self.value }
