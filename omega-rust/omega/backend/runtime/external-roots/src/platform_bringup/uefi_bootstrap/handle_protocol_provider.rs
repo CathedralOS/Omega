@@ -35,7 +35,12 @@ const HANDLE_PROTOCOL_FIELD_SIZE: u32 = 8;
 const HANDLE_PROTOCOL_FIELD_ALIGNMENT: u32 = 8;
 
 mod execution;
-pub use execution::*;
+pub use execution::{
+    ExecutedUefiHandleProtocolInvocation, UefiHandleProtocolExecutionError,
+    UefiHandleProtocolExecutionStatus, UefiHandleProtocolInterfaceOutputSlot,
+    UefiHandleProtocolLoadedImageCallError, admit_uefi_loaded_image_handle_protocol_execution,
+    execute_uefi_loaded_image_handle_protocol,
+};
 
 /// Exact Boot Services occurrence and private `HandleProtocol` slot retained
 /// beneath the physical-arrival lease. The carrier is non-clone and exposes

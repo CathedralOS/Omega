@@ -18,7 +18,11 @@ use crate::{
 mod activation_loans;
 mod retained_foreign_arguments;
 
-pub use retained_foreign_arguments::*;
+pub use retained_foreign_arguments::{
+    ReleasedRetainedForeignArgument, RetainedForeignAccess, RetainedForeignArgument,
+    RetainedForeignArgumentDisposition, RetainedForeignArgumentError, RetainedForeignArgumentId,
+    RetainedForeignArgumentRange, RetainedForeignArgumentRequest,
+};
 
 #[derive(Debug)]
 struct LiveRetention {
