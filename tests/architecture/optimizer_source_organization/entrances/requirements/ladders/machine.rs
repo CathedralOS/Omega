@@ -5,7 +5,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "non-authoritative target cost model",
         paths: &[
             "omega-rust/omega/representations/physical-instructions/src/physical_instructions/costs/mod.rs",
-            "omega-rust/omega/representations/physical-instructions/src/physical_instructions/costs/model.rs",
             "omega-rust/omega/representations/physical-instructions/src/physical_instructions/costs/identity.rs",
             "omega-rust/omega/representations/physical-instructions/src/physical_instructions/costs/tests.rs",
         ],
