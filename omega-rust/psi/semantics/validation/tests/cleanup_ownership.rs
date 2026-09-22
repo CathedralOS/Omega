@@ -5,19 +5,8 @@
 //! the same member relevant does; an attached `Type::drop` keeps the owner
 //! nominal regardless of its members.
 
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::TypedTrees;
 use typed_trees::data::DataDefinition;
-
-fn typed(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokens");
-    let syntax = parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolved source");
-    lower_symbol_resolved_trees(&resolved).expect("typed source")
-}
 
 fn data<'program>(program: &'program TypedTrees, name: &str) -> &'program DataDefinition {
     program
@@ -46,7 +35,7 @@ fn parameter_type_reference(
 
 #[test]
 fn erased_record_field_never_produces_runtime_cleanup() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Evidence { tag: i32; }
          machine Evidence::drop(&mut self) {}
          data Carrier { token: i32; proof [erased]: Evidence; }
@@ -68,7 +57,7 @@ fn erased_record_field_never_produces_runtime_cleanup() {
 
 #[test]
 fn relevant_record_field_keeps_nominal_cleanup_requirement() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Evidence { tag: i32; }
          machine Evidence::drop(&mut self) {}
          data Carrier { token: i32; proof: Evidence; }
@@ -86,7 +75,7 @@ fn relevant_record_field_keeps_nominal_cleanup_requirement() {
 
 #[test]
 fn erased_case_payload_field_never_produces_runtime_cleanup() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Evidence { tag: i32; }
          machine Evidence::drop(&mut self) {}
          data Carrier {
@@ -107,7 +96,7 @@ fn erased_case_payload_field_never_produces_runtime_cleanup() {
 
 #[test]
 fn attached_drop_machine_keeps_owner_nominal_over_erased_members() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Evidence { tag: i32; }
          machine Evidence::drop(&mut self) {}
          data Carrier { token: i32; proof [erased]: Evidence; }
@@ -121,7 +110,7 @@ fn attached_drop_machine_keeps_owner_nominal_over_erased_members() {
 
 #[test]
 fn generic_member_substitution_sees_through_erased_positions() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Evidence { tag: i32; }
          machine Evidence::drop(&mut self) {}
          data Box<T> { value: T; }
@@ -131,7 +120,7 @@ fn generic_member_substitution_sees_through_erased_positions() {
         &program,
         parameter_type_reference(&program, "enter_erased", 0)
     ));
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Evidence { tag: i32; }
          machine Evidence::drop(&mut self) {}
          data Box<T> { value: T; }

@@ -5,20 +5,8 @@ use super::super::{SymbolHandle, TypeReferenceNode};
 use super::{
     ExpressionHandle, ExpressionNode, TypedTrees, WriteOnlyRoot, bare_field, captured_type, record,
 };
-fn typed_source(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolved");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("typed")
-}
-
 fn capture_fixture(source: &str) -> (TypedTrees, ExpressionHandle, Vec<WriteOnlyRoot>) {
-    let program = typed_source(source);
+    let program = crate::front_end::typed_program(source);
     let machine = program
         .machines()
         .iter()
@@ -57,7 +45,7 @@ fn bare_attached_array_receiver_rejoins_its_exact_record() {
         data Container { records: [Record; 2]; }
         machine Record::replace(&write self, replacement: u16) { self.value = replacement; }
         machine Container::invoke(&write self) { records[0].replace(17); }";
-    let program = typed_source(source);
+    let program = crate::front_end::typed_program(source);
     let machine = program
         .machines()
         .iter()

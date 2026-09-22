@@ -1,6 +1,5 @@
 use super::{ExpressionHandle, ExpressionNode, SymbolKind, TypedTrees, exact_self_field};
 use source::SourceMap;
-use source_files_to_tokens::Lexer;
 use symbols::SymbolHandle;
 
 fn fixture() -> TypedTrees {
@@ -13,29 +12,15 @@ fn fixture_with_sources(retain_sources: bool) -> TypedTrees {
             let saved: i32 = other.index;
             self.index
         }";
-    let tokens = Lexer::new(source).tokenize().expect("tokenize counters");
-    let mut sources = SourceMap::default();
-    let source_id = sources
-        .add("counter_fields.omg".into(), source.to_owned())
-        .source_id;
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
-        .expect("parse counters");
-    let resolved = if retain_sources {
-        syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: &syntax,
-                sources: Some(std::sync::Arc::new(sources)),
-                top_level_bindings: Vec::new(),
-            },
-        )
+    if retain_sources {
+        let mut sources = SourceMap::default();
+        let source_id = sources
+            .add("counter_fields.omg".into(), source.to_owned())
+            .source_id;
+        crate::front_end::typed_program_from_source_map(sources, &[(source_id, source)])
     } else {
-        syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
+        crate::front_end::typed_program(source)
     }
-    .expect("resolve counters");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type counters")
 }
 
 fn member(program: &TypedTrees, label: &str) -> ExpressionHandle {

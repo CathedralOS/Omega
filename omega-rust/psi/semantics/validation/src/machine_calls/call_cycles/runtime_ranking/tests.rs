@@ -3,7 +3,6 @@ use super::{
     extend_runtime_adjacency, weak_edges_are_acyclic,
 };
 use source::SourceMap;
-use source_files_to_tokens::Lexer;
 
 mod carriers;
 mod clamped;
@@ -40,23 +39,11 @@ fn typed_with_operator(body: &str, operator: &str) -> TypedTrees {
 }
 
 fn typed_source(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize ranking");
     let mut sources = SourceMap::default();
     let source_id = sources
         .add("joint_ranking.omg".into(), source.to_owned())
         .source_id;
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
-        .expect("parse ranking");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &syntax,
-            sources: Some(std::sync::Arc::new(sources)),
-            top_level_bindings: Vec::new(),
-        },
-    )
-    .expect("resolve ranking");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type ranking")
+    crate::front_end::typed_program_from_source_map(sources, &[(source_id, source)])
 }
 
 const DECREASE: &str = "transition remaining.inner > 0 {

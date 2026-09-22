@@ -3,22 +3,9 @@ use language_core::inline_assembly::{
     AsmAuthorityRequirement, AsmCatalogEntry, asm_catalog_entry, asm_intrinsic_mnemonic,
 };
 use symbols::BuiltinFunction;
-use typed_trees::TypedTrees;
-
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolution");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("typing")
-}
 
 fn rejection_messages(source: &str, admission: AsmAuthorityAdmission) -> Vec<String> {
-    validate_asm_discharge(&typed(source), admission)
+    validate_asm_discharge(&crate::front_end::typed_program(source), admission)
         .map(|_| Vec::new())
         .unwrap_or_else(|diagnostics| {
             diagnostics
@@ -72,13 +59,13 @@ fn hosted_admission_passes_authority_free_instructions() {
         "machine m() { asm where clobbers none { serialize; pause; nop } }",
         "data P { saved: u64; } machine P::m(&mut self) { asm where clobbers r10, r15 { pushfq self.saved } }",
     ] {
-        validate_asm_discharge(&typed(source), AsmAuthorityAdmission::HOSTED).unwrap_or_else(
-            |diagnostics| {
-                panic!(
-                    "authority-free instruction rejected under hosted admission: {diagnostics:?}"
-                )
-            },
-        );
+        validate_asm_discharge(
+            &crate::front_end::typed_program(source),
+            AsmAuthorityAdmission::HOSTED,
+        )
+        .unwrap_or_else(|diagnostics| {
+            panic!("authority-free instruction rejected under hosted admission: {diagnostics:?}")
+        });
     }
 }
 
@@ -92,10 +79,13 @@ fn machine_owner_admission_covers_every_defined_class() {
         "data P { index: u32; value: u64; } machine P::m(&mut self) { asm where clobbers r10, r11, r15, rax, rcx, rdx { rdmsr self.value, self.index; wrmsr self.index, self.value } }",
         "machine m() { asm where clobbers none { wbinvd; invd; wbnoinvd } }",
     ] {
-        validate_asm_discharge(&typed(source), AsmAuthorityAdmission::MACHINE_OWNER)
-            .unwrap_or_else(|diagnostics| {
-                panic!("machine-owner admission rejected {source}: {diagnostics:?}")
-            });
+        validate_asm_discharge(
+            &crate::front_end::typed_program(source),
+            AsmAuthorityAdmission::MACHINE_OWNER,
+        )
+        .unwrap_or_else(|diagnostics| {
+            panic!("machine-owner admission rejected {source}: {diagnostics:?}")
+        });
     }
 }
 
@@ -115,7 +105,7 @@ fn admission_is_derived_from_the_freestanding_selection() {
 fn port_io_grant_admits_port_io_without_machine_owner_authority() {
     let port_io_only = AsmAuthorityAdmission::HOSTED.with_grants(true, false);
     validate_asm_discharge(
-        &typed(
+        &crate::front_end::typed_program(
             "data P { port: u16; byte: u8; } machine P::m(&mut self) { asm where clobbers r10, r11, r15, rax, rdx { out self.port, self.byte; in self.byte, self.port } }",
         ),
         port_io_only,

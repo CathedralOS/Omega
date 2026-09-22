@@ -187,18 +187,6 @@ mod tests {
     use super::{ExpressionNode, validate_integer_embedding_calls};
     use typed_trees::typed_trees::StaticRequirementDispatch;
 
-    fn typed(source: &str) -> typed_trees::TypedTrees {
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
-    }
-
     /// Static conformance dispatch rewrites a requirement call's
     /// `target_symbol` to the satisfier's private realization and retains the
     /// public requirement on `static_requirement_dispatch`. The realization is
@@ -219,7 +207,7 @@ mod tests {
             requires embed(Order::compute()) >= 0
             { value }
         "#;
-        let mut program = typed(source);
+        let mut program = crate::front_end::typed_program(source);
         let row = program
             .conformances()
             .iter()
@@ -297,16 +285,7 @@ mod tests {
             }
             machine law(value: u8) -> u8 requires embed(source(value)) >= 0 { value }
         "#;
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let mut program =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let mut program = crate::front_end::typed_program(source);
         let source_machine = program
             .machines()
             .iter()

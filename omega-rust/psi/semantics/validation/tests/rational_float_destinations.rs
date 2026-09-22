@@ -1,27 +1,12 @@
 use numerics::literals::{FloatFormat, FloatLiteral};
-use source_files_to_tokens::Lexer;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
 fn typed(source: &str) -> TypedTrees {
-    let mut program = unlanded(source);
+    let mut program = crate::front_end::typed_program(source);
     validation::land_float_literal_destinations(&mut program);
     program
-}
-
-fn unlanded(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize rational return");
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse rational return");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve rational return");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type rational return")
 }
 
 fn returned_float(program: &TypedTrees) -> Option<&FloatLiteral> {
@@ -174,7 +159,7 @@ fn decimal_float_landing_preserves_signed_zero_arithmetic() {
 
 #[test]
 fn a_shared_large_operand_keeps_its_other_runtime_width_obligation() {
-    let mut program = unlanded(
+    let mut program = crate::front_end::typed_program(
         "machine value() -> f64 { 1000000000000000000000 / 1000000000000000000000 }
          machine other() { let integer: i32 = 0; }",
     );

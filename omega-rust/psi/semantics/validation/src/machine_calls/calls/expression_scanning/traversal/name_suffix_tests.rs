@@ -1,17 +1,3 @@
-use typed_trees::TypedTrees;
-
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
-}
-
 #[test]
 fn static_paths_cannot_continue_through_runtime_bindings() {
     let accepted = [
@@ -25,7 +11,7 @@ fn static_paths_cannot_continue_through_runtime_bindings() {
         "machine read(value: &[u8]) -> u64 { value::len }",
         "data Pair { count: u32; } machine read(value: Pair) -> u32 { value::count::Missing }",
         "data Buffer { values: [u32; 2]; } machine read(value: &Buffer) -> u32 { value::values::Missing }",
-    ].into_iter().filter(|source| crate::validate_program(&typed(source)).is_ok()).collect::<Vec<_>>();
+    ].into_iter().filter(|source| crate::validate_program(&crate::front_end::typed_program(source)).is_ok()).collect::<Vec<_>>();
     assert!(
         accepted.is_empty(),
         "unresolved lexical suffixes accepted: {accepted:#?}"
@@ -42,7 +28,7 @@ fn selected_lexical_fields_and_static_case_values_remain_legal() {
         "data Text { bytes: [u8]; } machine read(value: &Text) -> u64 { value.bytes.len }",
         "data Buffer { values: [u32; 2]; } machine read(value: &Buffer) -> u64 { value.values.len }",
     ] {
-        crate::validate_program(&typed(source))
+        crate::validate_program(&crate::front_end::typed_program(source))
             .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
     }
 }
@@ -51,7 +37,8 @@ fn selected_lexical_fields_and_static_case_values_remain_legal() {
 fn missing_head_cannot_hide_a_retained_runtime_root_in_the_leaf() {
     use typed_trees::expression::ExpressionNode;
 
-    let mut program = typed("machine read(value: u32) -> u32 { value::Missing }");
+    let mut program =
+        crate::front_end::typed_program("machine read(value: u32) -> u32 { value::Missing }");
     assert!(crate::validate_program(&program).is_err());
     let expression = program
         .expression_table

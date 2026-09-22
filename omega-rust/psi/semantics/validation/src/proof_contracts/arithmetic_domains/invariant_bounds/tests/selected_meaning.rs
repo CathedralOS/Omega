@@ -1,5 +1,5 @@
 use super::super::OperatorSpelling;
-use super::{Interval, builtin_comparison_intervals, immutable_integer_expression_bounds, typed};
+use super::{Interval, builtin_comparison_intervals, immutable_integer_expression_bounds};
 use typed_trees::typed_trees::{
     ClosedConformanceApplication, ClosedConformanceRowIdentity, MachineSpecialization,
 };
@@ -19,7 +19,7 @@ fn nested_arithmetic_retains_selected_operator_and_comparison_meaning() {
         machine comparison(input: u64) -> bool { (input % 5) < 3 }
     "#;
     for selected in [false, true] {
-        let mut program = typed(source);
+        let mut program = crate::front_end::typed_program(source);
         let conformance = program.conformances()[0].clone();
         let rows = program
             .closed_conformance_rows(&conformance)
@@ -101,7 +101,7 @@ fn nested_arithmetic_retains_selected_operator_and_comparison_meaning() {
 
 #[test]
 fn closed_primitive_range_bounds_do_not_erase_selected_trait_meaning() {
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "trait SelectedArithmetic { operator + add(left: Self, right: Self) -> Self; }
          Chosen: u64 satisfies SelectedArithmetic {
              machine add(left: u64, right: u64) -> u64 { 100u64 }

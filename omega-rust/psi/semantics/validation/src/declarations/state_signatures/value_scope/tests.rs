@@ -1,18 +1,5 @@
-use super::TypedTrees;
-fn parse(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type")
-}
-
 fn check(source: &str, accepted: bool) {
-    let program = parse(source);
+    let program = crate::front_end::typed_program(source);
     let outcome = crate::validate_program(&program);
     if accepted {
         assert!(outcome.is_ok(), "{outcome:?}\n{source}");
@@ -126,7 +113,7 @@ fn state_arrival_proposition_checks_arguments_not_proposition_name() {
 
 #[test]
 fn named_operator_namespace_does_not_reclassify_a_parameter_identity() {
-    let program = parse(
+    let program = crate::front_end::typed_program(
         "boundary operator Predicates::test(value: u64) -> bool; machine run(Predicates: u64) {}",
     );
     let machine = program

@@ -1,22 +1,10 @@
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees::TypedTrees;
 use validation::{
     OpaqueDataPropertyReceipt, OpaquePropertyValidation, validate_specialized_program,
 };
 
-fn typed(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokens");
-    let syntax = parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolved");
-    lower_symbol_resolved_trees(&resolved).expect("typed")
-}
-
 #[test]
 fn validation_returns_the_operational_and_service_analyses_for_its_exact_program() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "machine identity(input: u32) -> u32 { input }
          machine invoke(input: u32) -> u32 { identity(input) }",
     );
@@ -31,7 +19,7 @@ fn validation_returns_the_operational_and_service_analyses_for_its_exact_program
 
 #[test]
 fn preliminary_opaque_evidence_cannot_satisfy_final_validation() {
-    let program = typed("boundary data Token [copy]; machine entry() {}");
+    let program = crate::front_end::typed_program("boundary data Token [copy]; machine entry() {}");
     validate_specialized_program(&program, OpaquePropertyValidation::PendingBuildSelection)
         .expect("build checkpoint may leave copy evidence pending");
     let missing = validate_specialized_program(&program, OpaquePropertyValidation::Required(&[]))
@@ -61,7 +49,8 @@ fn preliminary_opaque_evidence_cannot_satisfy_final_validation() {
 
 #[test]
 fn preliminary_validation_still_rejects_unsafe_scalar_operations() {
-    let program = typed("machine narrow(value: u32) -> u8 { value as u8 }");
+    let program =
+        crate::front_end::typed_program("machine narrow(value: u32) -> u8 { value as u8 }");
     for mode in [
         OpaquePropertyValidation::PendingBuildSelection,
         OpaquePropertyValidation::Required(&[]),

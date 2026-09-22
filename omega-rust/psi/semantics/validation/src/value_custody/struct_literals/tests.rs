@@ -1,22 +1,9 @@
 use super::{
-    DataMember, Diagnostic, ExpressionNode, State, StatementNode, TypedTrees, guard_bounds,
+    DataMember, Diagnostic, ExpressionNode, State, StatementNode, guard_bounds,
     validate_struct_literal_fields,
 };
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolved source");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("typed source")
-}
-
 fn construction_diagnostics(source: &str) -> Vec<Diagnostic> {
-    let program = typed(source);
+    let program = crate::front_end::typed_program(source);
     let mut diagnostics = Vec::new();
     validate_struct_literal_fields(&program, &mut diagnostics);
     diagnostics
@@ -24,7 +11,7 @@ fn construction_diagnostics(source: &str) -> Vec<Diagnostic> {
 
 #[test]
 fn synthesized_payload_tags_are_not_constructor_values() {
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "trait Equatable { machine equals(&self, rhs: &Self) -> bool; }
          data Message { case Empty; case Data(value: i32); }
          MessageEquatable: Message satisfies Equatable;
@@ -67,7 +54,7 @@ fn array_elements_require_explicit_integer_carrier_conversions() {
         "machine read() -> [u8;1] { let value: u16 = 7u16; [value] }",
         "machine read() -> [u8;1] { [7u16] }",
     ] {
-        let program = typed(source);
+        let program = crate::front_end::typed_program(source);
         let diagnostics = crate::validate_program(&program).expect_err(source);
         assert!(
             diagnostics.iter().any(|diagnostic| {
@@ -91,7 +78,7 @@ fn array_elements_preserve_anonymous_landing_and_explicit_conversions() {
         "machine read() -> [u8;2] { [7, 7u16 as u8] }",
         "machine read(input: u8 [0..=7]) -> [u8;1] { [input] }",
     ] {
-        let program = typed(source);
+        let program = crate::front_end::typed_program(source);
         assert!(crate::validate_program(&program).is_ok(), "{source}");
     }
 }
@@ -180,7 +167,7 @@ fn field_reconstruction_uses_the_selected_guard_polarity() {
 
 #[test]
 fn shared_target_identity_does_not_replace_false_arm_polarity() {
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "data Countdown { remaining: u64 [0..=5]; }
          machine rebuild(countdown: Countdown) -> Countdown {
              transition countdown.remaining > 0 {
@@ -235,7 +222,7 @@ fn field_reconstruction_discards_facts_before_effectful_target_evaluation() {
 
 #[test]
 fn field_guard_rejects_nested_reference_and_foreign_same_spelled_subjects() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Countdown { remaining: u64 [0..=5]; }
          data Borrowed { countdown: &Countdown; }
          machine first(countdown: Countdown) -> u64 { countdown.remaining }
@@ -279,7 +266,7 @@ fn field_guard_rejects_nested_reference_and_foreign_same_spelled_subjects() {
 #[test]
 fn field_guard_requires_the_exact_retained_selector() {
     for selector in ["invalid", "foreign", "parameter", "other_field"] {
-        let mut program = typed(
+        let mut program = crate::front_end::typed_program(
             "data Countdown { remaining: u64 [0..=5]; other: u64 [0..=5]; }
              data Foreign { remaining: u64 [0..=5]; }
              machine read(countdown: Countdown) -> u64 { countdown.remaining }",
@@ -393,7 +380,7 @@ fn field_reconstruction_does_not_import_mutable_or_reference_guard_facts() {
 #[test]
 fn retained_case_names_in_value_positions_keep_construction_obligations() {
     for (case, expected) in [("Empty", "omits gated field"), ("Payload", "has a payload")] {
-        let mut program = typed(&format!(
+        let mut program = crate::front_end::typed_program(&format!(
             "data Choice [copy] {{ value: u32 [1..=9]; case Empty; case Payload(item: u32); }}
              machine reference(value: &Choice) -> bool {{ value in Choice::{case} }}
              machine make() -> Choice {{ Choice::Empty {{ value: 1 }} }}"

@@ -5,18 +5,6 @@ use typed_trees::TypedTrees;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
-}
-
 fn frame(program: &TypedTrees) -> NormalizedWriteFrame {
     let machine = program
         .machines()
@@ -33,7 +21,7 @@ fn frame(program: &TypedTrees) -> NormalizedWriteFrame {
 #[test]
 fn static_boundary_scalar_arguments_do_not_invent_receiver_storage() {
     for actual in ["true", "produce()"] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "boundary trait Sink {{ machine record(value: bool); }} machine produce() -> bool {{ true }} machine inspect() {{ Sink::record({actual}); }}"
         ));
         assert_eq!(
@@ -42,7 +30,7 @@ fn static_boundary_scalar_arguments_do_not_invent_receiver_storage() {
             "{actual}"
         );
     }
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Flag { enabled: bool; } data Helper {} boundary trait Sink { machine record(value: bool); } machine trigger() -> bool crashes Trap { crash Trap; } machine Helper::inspect(record: &mut Flag)\nrequires record.enabled\ncrashes Trap record.enabled\n{ record.enabled = false; Sink::record(trigger()); }",
     );
     assert_eq!(
@@ -54,7 +42,7 @@ fn static_boundary_scalar_arguments_do_not_invent_receiver_storage() {
 #[test]
 fn static_boundary_exclusive_arguments_and_nested_effects_keep_their_write_paths() {
     for body in ["Sink::touch(record);", "Sink::record(change(record));"] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "data Flag {{ enabled: bool; }} boundary trait Sink {{ machine record(value: bool); machine touch(record: &mut Flag); }} machine change(record: &mut Flag) -> bool {{ record.enabled = false; true }} machine inspect(record: &mut Flag) {{ {body} }}"
         ));
         let expected = if body.starts_with("Sink::touch") {
@@ -72,7 +60,7 @@ fn static_boundary_exclusive_arguments_and_nested_effects_keep_their_write_paths
 
 #[test]
 fn static_boundary_expression_calls_use_the_same_exact_signature_frame() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "boundary trait Sink { machine produce() -> bool; } machine inspect() -> bool { Sink::produce() }",
     );
     assert_eq!(frame(&program).complete_paths(), Some([].as_slice()));
@@ -80,7 +68,7 @@ fn static_boundary_expression_calls_use_the_same_exact_signature_frame() {
 
 #[test]
 fn static_boundary_wrong_zero_and_stale_targets_remain_opaque() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "boundary trait Sink { machine record(value: bool); machine other(value: bool); } machine inspect() { Sink::record(true); }",
     );
     let machine = &program.machines()[0];
@@ -114,7 +102,7 @@ fn static_boundary_wrong_zero_and_stale_targets_remain_opaque() {
 
 #[test]
 fn static_boundary_result_bound_to_local_keeps_its_single_origin() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Main { value: u64; } boundary trait Sink { machine reference(value: &mut u64) -> &mut u64; machine touch(record: &mut u64); } machine Main::inspect(&mut self) { let r: &mut u64 = Sink::reference(&mut self.value); Sink::touch(r); }",
     );
     assert_eq!(
@@ -210,7 +198,7 @@ fn boundary_results_bound_to_locals_join_their_proven_single_origin() {
             Some(&["self.cell", "self.cell.value"][..]),
         ),
     ] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "data Cell {{ value: u64; }} data Carrier {{ value: &mut u64; }} data Main {{ device: Device; value: u64; other: u64; cell: Cell; carrier: Carrier; }} boundary trait Device {{ machine reference(value: &mut u64) -> &mut u64; machine pick(hit: &mut u64, other: &mut u64) -> &mut u64; machine project(cell: &mut Cell) -> &mut u64; machine cell_ref(cell: &mut Cell) -> &mut Cell; machine make() -> &mut u64; machine empty() -> &mut u64; machine carrier_reference(carrier: &mut Carrier) -> &mut u64; machine touch(record: &mut u64); }} machine Main::inspect(&mut self) {{ {body} }}"
         ));
         let mut actual = frame(&program).complete_paths().map(|paths| paths.to_vec());
@@ -229,7 +217,7 @@ fn boundary_results_bound_to_locals_join_their_proven_single_origin() {
 
 #[test]
 fn boundary_result_bound_to_local_forwards_a_parameter_origin() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Main { device: Device; } boundary trait Device { machine reference(value: &mut u64) -> &mut u64; machine touch(record: &mut u64); } machine Main::inspect(&mut self, record: &mut u64) { let r: &mut u64 = Device::reference(record); self.device.touch(r); }",
     );
     assert_eq!(
@@ -240,7 +228,7 @@ fn boundary_result_bound_to_local_forwards_a_parameter_origin() {
 
 #[test]
 fn boundary_result_with_a_stale_return_type_cannot_bind_an_origin() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Main { device: Device; value: u64; } boundary trait Device { machine reference(value: &mut u64) -> &mut u64; machine touch(record: &mut u64); } machine Main::inspect(&mut self) { let r: &mut u64 = Device::reference(&mut self.value); self.device.touch(r); }",
     );
     let signature_span = program.traits()[0].machines;
@@ -266,7 +254,7 @@ fn boundary_result_with_a_stale_return_type_cannot_bind_an_origin() {
 
 #[test]
 fn static_boundary_stale_formal_types_cannot_erase_exclusive_argument_writes() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Flag { enabled: bool; } boundary trait Sink { machine touch(record: &mut Flag); } machine inspect(record: &mut Flag) { Sink::touch(record); }",
     );
     assert_eq!(
@@ -302,7 +290,7 @@ fn static_boundary_stale_formal_types_cannot_erase_exclusive_argument_writes() {
 
 #[test]
 fn static_boundary_missing_and_out_of_arena_formal_types_remain_opaque() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Flag { enabled: bool; } boundary trait Sink { machine touch(record: &mut Flag); } machine inspect(record: &mut Flag) { Sink::touch(record); }",
     );
     let parameter = program.trait_machine_signatures(&program.traits()[0])[0]
@@ -323,7 +311,7 @@ fn static_boundary_missing_and_out_of_arena_formal_types_remain_opaque() {
 
 #[test]
 fn static_boundary_finite_constraint_chains_preserve_exclusive_writes() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Flag { enabled: bool; } boundary trait Sink { machine touch(record: &mut Flag); } machine inspect(record: &mut Flag) { Sink::touch(record); }",
     );
     let parameter = program.trait_machine_signatures(&program.traits()[0])[0]
@@ -402,7 +390,7 @@ fn generic_boundary_signature_result_binds_the_caller_actual() {
             Some(&["self.device", "self.wrap.inner.value"][..]),
         ),
     ] {
-        let program = typed(source);
+        let program = crate::front_end::typed_program(source);
         let mut actual = frame(&program).complete_paths().map(|paths| paths.to_vec());
         if let Some(paths) = &mut actual {
             paths.sort();
@@ -456,7 +444,7 @@ fn generic_boundary_carriers_still_fail_closed() {
             "trait Shape {} data Cell { value: u64; } data Main { device: Device; shape: dyn Shape; } boundary trait Device { machine project<T>(carrier: &mut T); } machine Main::inspect(&mut self) { self.device.project(&mut self.shape); }",
         ),
     ] {
-        let program = typed(source);
+        let program = crate::front_end::typed_program(source);
         assert!(
             !frame(&program).is_complete(),
             "{name} unexpectedly completed"
@@ -466,7 +454,7 @@ fn generic_boundary_carriers_still_fail_closed() {
 
 #[test]
 fn static_boundary_cyclic_formal_constraints_remain_opaque() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Flag { enabled: bool; } boundary trait Sink { machine touch(record: &mut Flag); } machine inspect(record: &mut Flag) { Sink::touch(record); }",
     );
     let parameter = program.trait_machine_signatures(&program.traits()[0])[0]
@@ -507,7 +495,7 @@ fn static_boundary_cyclic_formal_constraints_remain_opaque() {
 
 #[test]
 fn boundary_receiver_cyclic_constraints_remain_opaque() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "boundary trait Sink { machine touch(); } data Main { sink: Sink; } machine Main::inspect(&mut self) { self.sink.touch(); }",
     );
     for cycle_length in [1, 2] {
@@ -598,7 +586,7 @@ fn requirement_receiver_calls_write_their_proven_origins() {
             Some(&["self.audit"][..]),
         ),
     ] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "trait Shape {{ machine code(&mut self) -> i32; machine apply(&mut self, value: &mut u64); machine peek(&self) -> i32; machine view(&self, value: &mut u64); machine touch(value: &mut u64); }}
              data Group {{ handler: dyn Shape; }}
              data Main {{ handler: dyn Shape; ref_handler: &mut dyn Shape; audit: u64; group: Group; }}
@@ -637,7 +625,7 @@ fn requirement_parameter_receivers_write_their_proven_origins() {
             Some(&["$P0"][..]),
         ),
     ] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "trait Shape {{ machine code(&mut self) -> i32; machine apply(&mut self, value: &mut u64); machine bytes(&mut self) -> i32; }}
              data Main {{ audit: u64; }}
              machine Main::inspect(&mut self, s: &mut dyn Shape) {{ {body} }}"
@@ -718,7 +706,7 @@ fn requirement_results_bound_to_locals_join_their_proven_origins() {
             None,
         ),
     ] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "data Cell {{ value: u64; }} data Carrier {{ held: &mut u64; }}
              trait Shape {{ machine get(&mut self) -> &mut u64; machine consume(&mut self, value: &mut u64); machine project(cell: &mut Cell) -> &mut u64; machine cell_ref(cell: &mut Cell) -> &mut Cell; machine lend(&mut self, value: &mut u64) -> &mut u64; machine pick(hit: &mut u64, other: &mut u64) -> &mut u64; machine spawn() -> &mut u64; machine carrier_project(carrier: &mut Carrier) -> &mut u64; }}
              data Main {{ handler: dyn Shape; cell: Cell; carrier: Carrier; audit: u64; other: u64; }}
@@ -745,7 +733,7 @@ fn requirement_results_bound_to_locals_join_their_proven_origins() {
 /// — the same signature the dispatch contract names.
 #[test]
 fn requirement_wrong_and_stale_targets_stay_consistent() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "trait Shape { machine code(&mut self) -> i32; machine peek(&self) -> i32; }
          data Main { handler: dyn Shape; }
          machine Main::inspect(&mut self) { self.handler.code(); }",
@@ -795,7 +783,7 @@ fn requirement_calls_without_proven_storage_stay_opaque() {
         ("generic_trait_receiver", "self.ghandler.gcode();"),
         ("unrelated_requirement", "self.handler.nope();"),
     ] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "trait Shape {{ machine code(&mut self) -> i32; machine apply(&mut self, value: &mut u64); machine spawn() -> &mut u64; }}
              trait G<T> {{ machine gcode(&mut self) -> i32; }}
              machine Main::make(&mut self) -> &mut dyn Shape {{ &mut self.handler }}
@@ -815,7 +803,7 @@ fn generic_boundary_owner_bindings_preserve_signature_argument_access() {
         let source = format!(
             "data Cell {{ value: u64; }} boundary trait Device<T> {{ {method} }} data Main {{ device: Device<Cell>; cell: Cell; untouched: u64; }} machine Main::inspect(&mut self) {{ self.device.consume(&mut self.cell, self.untouched); }}"
         );
-        let program = typed(&source);
+        let program = crate::front_end::typed_program(&source);
         let mut paths = frame(&program)
             .into_complete_paths()
             .expect("exact owner application");
@@ -845,7 +833,7 @@ fn generic_boundary_owner_failures_cannot_use_signature_free_frames() {
         ),
     ] {
         assert!(
-            !frame(&typed(source)).is_complete(),
+            !frame(&crate::front_end::typed_program(source)).is_complete(),
             "{name} must remain opaque"
         );
     }
@@ -853,7 +841,7 @@ fn generic_boundary_owner_failures_cannot_use_signature_free_frames() {
 
 #[test]
 fn generic_boundary_owner_result_uses_existing_candidate_origins() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Cell { value: u64; } data Main { device: Device<Cell>; cell: Cell; } boundary trait Device<T> { machine project(carrier: &mut T) -> &mut T; } machine Main::inspect(&mut self) { let r: &mut Cell = self.device.project(&mut self.cell); r.value = 1; }",
     );
     let paths = frame(&program)
@@ -869,7 +857,7 @@ fn generic_boundary_owner_result_uses_existing_candidate_origins() {
 
 #[test]
 fn generic_boundary_method_shadow_binds_its_own_declaration() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Cell { value: u64; } data Other { value: u32; } boundary trait Device<T> { machine consume<T>(carrier: &mut T); } data Main { device: Device<Cell>; other: Other; } machine Main::inspect(&mut self) { self.device.consume(&mut self.other); }",
     );
     let mut paths = frame(&program)

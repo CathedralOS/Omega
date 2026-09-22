@@ -94,19 +94,10 @@ pub(super) enum StructuralTerm {
 #[cfg(test)]
 mod case_premise_tests {
     use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
-    use source_files_to_tokens::Lexer;
-    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-    use tokens_to_syntax_trees::parse_syntax_trees;
 
     #[test]
     fn completed_result_projection_substitution_keeps_its_binding() {
-        let tokens = Lexer::new("machine caller() {}")
-            .tokenize()
-            .expect("tokens");
-        let syntax = parse_syntax_trees(&tokens).expect("syntax");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("symbols");
-        let program = lower_symbol_resolved_trees(&resolved).expect("types");
+        let program = crate::front_end::typed_program("machine caller() {}");
         let subject = program.machines()[0].symbol;
         let field = StructuralTerm::Opaque("value.marked".to_owned());
         let substituted = StructuralJudge::substitute_term(
@@ -141,10 +132,7 @@ mod case_premise_tests {
         let source = "data Tree { marked: bool; case Empty; case Node(child: Tree); }
             machine make() -> Tree { transition { _ -> Tree::Empty } }
             machine caller(value: Tree) {}";
-        let tokens = Lexer::new(source).tokenize().expect("tokens");
-        let syntax = parse_syntax_trees(&tokens).expect("syntax");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("symbols");
-        let program = lower_symbol_resolved_trees(&resolved).expect("types");
+        let program = crate::front_end::typed_program(source);
         let machine = program
             .machines()
             .iter()
@@ -217,10 +205,7 @@ mod case_premise_tests {
             data Holder { tree: Tree; }
             machine make() -> Holder { transition { _ -> Holder { tree: Tree::Empty } } }
             machine caller(holder: Holder) -> Tree { holder.tree }";
-        let tokens = Lexer::new(source).tokenize().expect("tokens");
-        let syntax = parse_syntax_trees(&tokens).expect("syntax");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("symbols");
-        let program = lower_symbol_resolved_trees(&resolved).expect("types");
+        let program = crate::front_end::typed_program(source);
         let machine = program
             .machines()
             .iter()

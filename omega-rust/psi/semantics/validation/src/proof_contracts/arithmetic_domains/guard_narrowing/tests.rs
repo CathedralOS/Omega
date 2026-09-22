@@ -8,18 +8,6 @@ use typed_trees::statement::StatementNode;
 mod equality_meaning;
 mod receiver_returns;
 
-fn arrival_program(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
-}
-
 #[test]
 fn a_receiver_requires_bound_proves_the_entry_self_increment() {
     // A `requires` fact rooted at `self` is a precondition on the established
@@ -55,7 +43,7 @@ fn a_receiver_requires_bound_proves_the_entry_self_increment() {
             false,
         ),
     ] {
-        let program = arrival_program(source);
+        let program = crate::front_end::typed_program(source);
         let result = crate::validate_program(&program);
         assert_eq!(result.is_ok(), accepted, "{source}: {result:?}");
     }
@@ -138,7 +126,7 @@ fn a_strict_place_ceiling_proves_the_increment_for_narrower_carriers() {
             false,
         ),
     ] {
-        let program = arrival_program(source);
+        let program = crate::front_end::typed_program(source);
         let result = crate::validate_program(&program);
         assert_eq!(result.is_ok(), accepted, "{source}: {result:?}");
     }
@@ -156,7 +144,7 @@ fn a_live_unsigned_ceiling_proves_joint_addition_fits_its_carrier() {
         source.to_owned(),
         source.replace("left <= capacity - right", "capacity - right >= left"),
     ] {
-        let result = crate::validate_program(&arrival_program(&source));
+        let result = crate::validate_program(&crate::front_end::typed_program(&source));
         assert!(result.is_ok(), "{source}: {result:?}");
     }
     for source in [
@@ -164,7 +152,7 @@ fn a_live_unsigned_ceiling_proves_joint_addition_fits_its_carrier() {
         source.replace("true -> (left + right)", "true -> (left + right + 1)"),
         source.replace("left <= capacity - right", "left >= capacity - right"),
     ] {
-        let result = crate::validate_program(&arrival_program(&source));
+        let result = crate::validate_program(&crate::front_end::typed_program(&source));
         assert!(result.is_err(), "{source}");
     }
 }
@@ -217,7 +205,7 @@ fn fixed_array_length_proves_its_declared_return_range() {
             true,
         ),
     ] {
-        let program = arrival_program(source);
+        let program = crate::front_end::typed_program(source);
         let result = crate::validate_program(&program);
         assert_eq!(result.is_ok(), accepted, "{source}: {result:?}");
         if !accepted {
@@ -227,7 +215,7 @@ fn fixed_array_length_proves_its_declared_return_range() {
 }
 
 fn delivered_bounds(source: &str) -> Option<Interval> {
-    let program = arrival_program(source);
+    let program = crate::front_end::typed_program(source);
     let machine = &program.machines()[0];
     let batch = incoming_guard_environments(&program, machine);
     assert_eq!(batch.len(), program.machine_states(machine).len());
@@ -427,7 +415,7 @@ fn arrival_bounds_propagate_facts_through_call_arguments() {
 
 #[test]
 fn arrival_bounds_follow_false_continuation_polarity() {
-    let mut program = arrival_program(
+    let mut program = crate::front_end::typed_program(
         "machine main(value: u32 [0..=4]) -> u32 {
         transition value >= 4 { true -> 0u32 false -> append(value) }
         state append(delivered: u32 [0..=4]) -> u32 { delivered }
@@ -463,7 +451,7 @@ fn arrival_bounds_follow_false_continuation_polarity() {
 }
 
 fn terminal_bounds(source: &str) -> Option<(i64, i64)> {
-    let program = arrival_program(source);
+    let program = crate::front_end::typed_program(source);
     terminal_bounds_for_program(&program)
 }
 
@@ -616,7 +604,7 @@ fn bounded_returns_require_all_arrivals_and_surviving_facts() {
         ("value + 1", "", false),
         ("value", "delivered = 4;", false),
     ] {
-        let program = arrival_program(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "machine main(value: u32 [0..=4], other: u32 [0..=4]) -> u32 [0..=4] {{
             transition value < 4 {{ true -> append({arguments}) false -> 0u32 }}
             state append(mut delivered: u32 [0..=4]) -> u32 [0..=4] {{
@@ -638,7 +626,7 @@ fn bounded_returns_require_all_arrivals_and_surviving_facts() {
 
 #[test]
 fn bounded_return_rejects_one_unguarded_predecessor() {
-    let program = arrival_program(
+    let program = crate::front_end::typed_program(
         "machine main(value: u32 [0..=4], choice: bool) -> u32 [0..=4] {
             transition choice { true -> guarded(value) false -> append(value) }
             state guarded(source: u32 [0..=4]) -> u32 [0..=4] {
@@ -654,7 +642,7 @@ fn bounded_return_rejects_one_unguarded_predecessor() {
 
 #[test]
 fn arrival_return_requirement_uses_the_owning_parameter_symbol() {
-    let mut program = arrival_program(
+    let mut program = crate::front_end::typed_program(
         "machine increment(value: u32 [0..=4]) -> u32 [0..=4]
             requires value < 4 { value + 1 }
          machine other(value: u32 [0..=4]) -> u32 { value }",
@@ -700,15 +688,7 @@ fn program_with_guard(condition: &str) -> TypedTrees {
              transition {condition} {{ true -> 1u32 false -> 0u32 }}
          }}"
     );
-    let tokens = source_files_to_tokens::Lexer::new(&source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
+    crate::front_end::typed_program(&source)
 }
 
 #[test]

@@ -1,26 +1,14 @@
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 use validation::{collect_dynamic_conformance_selections, validate_program};
 
-fn typed(source: &str) -> Result<TypedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax))?;
-    lower_symbol_resolved_trees(&resolved).map_err(|diagnostic| vec![diagnostic])
-}
-
 fn validate(source: &str) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    validate_program(&typed(source)?)
+    validate_program(&crate::front_end::typed_program_result(source)?)
 }
 
 #[test]
 fn admits_borrow_wrapped_exact_dynamic_coercion_receiver() {
-    let program = typed(
+    let program = crate::front_end::typed_program_result(
         r#"
         trait Shape {
             machine code(&self) -> i32;
@@ -143,7 +131,7 @@ fn accepts_ordinary_let_bound_receiver() {
 
 #[test]
 fn records_initializer_and_reassignment_selections_in_statement_order() {
-    let program = typed(
+    let program = crate::front_end::typed_program_result(
         r#"
         trait Shape {
             machine code(&self) -> i32;

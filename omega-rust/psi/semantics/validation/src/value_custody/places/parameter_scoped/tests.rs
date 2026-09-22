@@ -11,16 +11,7 @@ fn indexed_program(operator: &str) -> (TypedTrees, ExpressionHandle) {
          {operator}
          machine choose(values: [Choice; 1], index: u64) -> Choice {{ values[index] }}"
     );
-    let tokens = source_files_to_tokens::Lexer::new(&source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let program = crate::front_end::typed_program(&source);
     let indexed = program
         .expression_table
         .expression_entries()

@@ -12,19 +12,7 @@ fn fixture() -> TypedTrees {
         data Second<T [copy]> { other: T; }
         machine Second::read<T [copy]>(&self) -> T { self.other }
         machine use_both(first: &First<u64>, second: &Second<u64>) {}";
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let syntax = syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest::new(syntax),
-    )
-    .expect("normalize the two closed carrier applications");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
+    crate::front_end::typed_program_with_generic_data(source)
 }
 
 #[test]

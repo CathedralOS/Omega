@@ -241,7 +241,7 @@ mod tests {
 
     #[test]
     fn nested_result_fields_retain_exact_root_owner_and_coordinates() {
-        let program = typed(PROJECTED_RESULT);
+        let program = crate::front_end::typed_program(PROJECTED_RESULT);
         let expression = projected_occurrence(&program);
         let place = reserved_result_place(&program, expression).unwrap();
         assert_eq!(place.machine_symbol, program.machines()[0].symbol);
@@ -286,7 +286,7 @@ mod tests {
 
     #[test]
     fn projected_result_rejects_unauthored_graft_and_foreign_selection() {
-        let program = typed(PROJECTED_RESULT);
+        let program = crate::front_end::typed_program(PROJECTED_RESULT);
         let expression = projected_occurrence(&program);
         let mut grafted = program.clone();
         let forged = grafted
@@ -316,7 +316,7 @@ mod tests {
 
     #[test]
     fn projected_result_rejects_forged_field_row_owner_and_stale_type() {
-        let program = typed(PROJECTED_RESULT);
+        let program = crate::front_end::typed_program(PROJECTED_RESULT);
         let expression = projected_occurrence(&program);
         let inner = program
             .data_definitions()
@@ -360,21 +360,9 @@ mod tests {
             "data Wrapper { message: u8; } machine value(result: Wrapper) -> Wrapper ensures result.message == 1; { result }",
             "data Wrapper { message: u8; } machine value() -> Wrapper requires result.message == 1; { Wrapper { message: 1 } }",
         ] {
-            let program = typed(source);
+            let program = crate::front_end::typed_program(source);
             assert!(reserved_result_place(&program, projected_occurrence(&program)).is_none());
         }
-    }
-
-    fn typed(source: &str) -> TypedTrees {
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
     }
 
     fn result_occurrences(program: &TypedTrees) -> Vec<ExpressionHandle> {
@@ -397,7 +385,7 @@ mod tests {
 
     #[test]
     fn requirement_result_scalars_keep_exact_signature_owners() {
-        let program = typed(REQUIREMENT_RESULTS);
+        let program = crate::front_end::typed_program(REQUIREMENT_RESULTS);
         let signatures = program.trait_machine_signatures(&program.traits()[0]);
         let occurrences = result_occurrences(&program);
         assert_eq!(occurrences.len(), 2);
@@ -420,7 +408,7 @@ mod tests {
 
     #[test]
     fn requirement_result_nested_fields_support_integer_embedding() {
-        let program = typed(
+        let program = crate::front_end::typed_program(
             "data Range { length: u64; }
             data Packet { range: Range; }
             data Foreign { length: u64; }
@@ -487,7 +475,7 @@ mod tests {
             "boundary trait Geometry { machine make(result: u64) -> u64 ensures result == 1; }",
             "boundary trait Geometry { machine make(input: u64) -> u64 requires result == input; }",
         ] {
-            let program = typed(source);
+            let program = crate::front_end::typed_program(source);
             let occurrences = result_occurrences(&program);
             assert!(!occurrences.is_empty());
             for expression in occurrences {
@@ -498,7 +486,7 @@ mod tests {
 
     #[test]
     fn requirement_result_rejects_ambiguous_owner_and_invalid_result_type() {
-        let program = typed(REQUIREMENT_RESULTS);
+        let program = crate::front_end::typed_program(REQUIREMENT_RESULTS);
         let signatures = program.traits()[0].machines;
         let first = signatures.start();
         let second = arena::Handle::from_parts(first.arena_index() + 1, first.generation());
@@ -519,7 +507,7 @@ mod tests {
 
     #[test]
     fn equal_result_carriers_keep_distinct_exact_contract_owners() {
-        let program = typed(
+        let program = crate::front_end::typed_program(
             "machine first(input: u16) -> u16 ensures result == input { input }
              machine second(input: u16) -> u16 ensures result == input { input }",
         );
@@ -545,8 +533,9 @@ mod tests {
 
     #[test]
     fn authored_result_parameter_shadows_the_reserved_form() {
-        let program =
-            typed("machine identity(result: u16) -> u16 ensures result == result { result }");
+        let program = crate::front_end::typed_program(
+            "machine identity(result: u16) -> u16 ensures result == result { result }",
+        );
         let occurrences = result_occurrences(&program);
         assert!(!occurrences.is_empty());
         for expression in occurrences {
@@ -557,8 +546,9 @@ mod tests {
 
     #[test]
     fn result_spelling_outside_ensures_has_no_reserved_owner() {
-        let program =
-            typed("machine invalid(input: u16) -> u16 requires result == input { input }");
+        let program = crate::front_end::typed_program(
+            "machine invalid(input: u16) -> u16 requires result == input { input }",
+        );
         let occurrences = result_occurrences(&program);
         assert_eq!(occurrences.len(), 1);
         assert_eq!(reserved_result_owner(&program, occurrences[0]), None);
@@ -566,7 +556,9 @@ mod tests {
 
     #[test]
     fn resolved_symbol_cannot_impersonate_reserved_result() {
-        let program = typed("machine value(input: u16) -> u16 ensures result == input { input }");
+        let program = crate::front_end::typed_program(
+            "machine value(input: u16) -> u16 ensures result == input { input }",
+        );
         let expression = result_occurrences(&program)[0];
         assert!(reserved_result_owner(&program, expression).is_some());
         let symbol = program.machines()[0].symbol;

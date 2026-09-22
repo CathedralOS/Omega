@@ -1,10 +1,5 @@
 //! Operand-directed selection retains the declaration's result, not an operand carrier.
 
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
-
 const LARGE_RATIO: &str = "18446744073709551616 / 18446744073709551616";
 const SUM: &str = "operator + u8::sum(left: u8, right: u8) -> u64;";
 
@@ -34,10 +29,7 @@ fn generic_operands_do_not_make_a_concrete_declared_result_open() {
 }
 
 fn diagnostics(source: &str) -> Vec<String> {
-    let tokens = Lexer::new(source).tokenize().expect("tokens");
-    let syntax = parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing");
+    let typed = crate::front_end::typed_program(source);
     validation::validate_program(&typed)
         .err()
         .unwrap_or_default()

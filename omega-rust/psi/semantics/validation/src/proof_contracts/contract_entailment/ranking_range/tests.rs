@@ -1,12 +1,13 @@
 use super::{
     BigInt, BinaryOperator, Engine, ExpressionNode, Polynomial, PrimitiveType, RankingRangeMeasure,
-    RankingRangePremises, RankingRangeState, TypeReferenceNode, TypedTrees,
-    exact_integer_parameter, lengths, meanings, prove_ranking_range_transition, validate_mapping,
+    RankingRangePremises, RankingRangeState, TypeReferenceNode, exact_integer_parameter, lengths,
+    meanings, prove_ranking_range_transition, validate_mapping,
 };
 #[test]
 fn constructor_operands_retain_their_nominal_type_for_selected_meaning() {
-    let program =
-        typed("data Card { rank: u64; } machine make(card: Card) -> Card { Card { rank: 1 } }");
+    let program = crate::front_end::typed_program(
+        "data Card { rank: u64; } machine make(card: Card) -> Card { Card { rank: 1 } }",
+    );
     let machine = &program.machines()[0];
     let state = &program.machine_states(machine)[0];
     let (expression, owner) = program
@@ -32,7 +33,7 @@ fn constructor_operands_retain_their_nominal_type_for_selected_meaning() {
 
 #[test]
 fn state_aliases_cannot_reuse_root_or_sibling_formal_symbols() {
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "machine walk(left: u32, right: u32) -> u32 { transition { _ -> next(right, left) } state next(first: u32, second: u32) { first } }",
     );
     let machine = program.machines()[0].clone();
@@ -54,7 +55,7 @@ fn state_aliases_cannot_reuse_root_or_sibling_formal_symbols() {
 fn missing_auxiliary_source_alias_cannot_skip_destination_copy_equality() {
     use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
-    let program = typed(
+    let program = crate::front_end::typed_program(
         r#"
         machine walk(remaining: u32 [0..=5], step: u32)
         requires step > 0;
@@ -122,21 +123,10 @@ fn missing_auxiliary_source_alias_cannot_skip_destination_copy_equality() {
     );
 }
 
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
-}
-
 #[test]
 fn slice_length_projection_does_not_numeric_bind_its_descriptor() {
-    let program = typed("machine length(values: &[u8]) -> u64 { values.len }");
+    let program =
+        crate::front_end::typed_program("machine length(values: &[u8]) -> u64 { values.len }");
     let machine = &program.machines()[0];
     let state = &program.machine_states(machine)[0];
     let (expression, receiver) = program
@@ -175,7 +165,8 @@ fn slice_length_projection_does_not_numeric_bind_its_descriptor() {
 
 #[test]
 fn slice_projection_checks_subslice_geometry_before_using_its_length() {
-    let program = typed("machine tail(values: &[u8]) -> &[u8] { values[1..] }");
+    let program =
+        crate::front_end::typed_program("machine tail(values: &[u8]) -> &[u8] { values[1..] }");
     let machine = &program.machines()[0];
     let state = &program.machine_states(machine)[0];
     let expression = program
@@ -204,18 +195,8 @@ fn slice_projection_checks_subslice_geometry_before_using_its_length() {
 
 #[test]
 fn integer_rank_bindings_require_the_canonical_type_symbol() {
-    let tokens = source_files_to_tokens::Lexer::new(
-        "machine value(input: u64, signed: i64) -> u64 { input }",
-    )
-    .tokenize()
-    .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
     let mut program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        crate::front_end::typed_program("machine value(input: u64, signed: i64) -> u64 { input }");
     let machine = &program.machines()[0];
     let state = &program.machine_states(machine)[0];
     let parameters = program.state_parameters(state);
@@ -254,7 +235,6 @@ mod scalar_views {
         RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, declared_scalar_view,
         prove_ranking_range_edge, prove_ranking_range_entry,
     };
-    use super::typed;
     use typed_trees::TypedTrees;
     use typed_trees::machine::Machine;
     use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -351,7 +331,7 @@ mod scalar_views {
 
     #[test]
     fn computation_bodies_classify_only_when_strictly_increasing_and_builtin() {
-        let program = typed(DOUBLED);
+        let program = crate::front_end::typed_program(DOUBLED);
         let selected = view(&program).expect("doubled view");
         assert!(selected.computation.is_some());
         for body in [
@@ -360,24 +340,27 @@ mod scalar_views {
             "(value + 1) * 2",
             "1 + value",
         ] {
-            let program = typed(&DOUBLED.replace("value * 2", body));
+            let program = crate::front_end::typed_program(&DOUBLED.replace("value * 2", body));
             assert!(
                 view(&program).is_some_and(|view| view.computation.is_some()),
                 "{body}"
             );
         }
         // Identity stays identity; no computation is attached.
-        let identity = typed(&DOUBLED.replace("{ value * 2 }", "{ value }"));
+        let identity =
+            crate::front_end::typed_program(&DOUBLED.replace("{ value * 2 }", "{ value }"));
         assert!(view(&identity).is_some_and(|view| view.computation.is_none()));
         // Constant, non-monotone, subtracting, or widening bodies do not apply.
         for body in ["value * 0 + 1", "value - 1", "value * 0"] {
-            let program = typed(&DOUBLED.replace("value * 2", body));
+            let program = crate::front_end::typed_program(&DOUBLED.replace("value * 2", body));
             assert!(view(&program).is_none(), "{body}");
         }
-        let widened = typed(&DOUBLED.replace("(value: u8) -> u8", "(value: u16) -> u16"));
+        let widened = crate::front_end::typed_program(
+            &DOUBLED.replace("(value: u8) -> u8", "(value: u16) -> u16"),
+        );
         assert!(view(&widened).is_none());
         // An authored operator owning the spelling removes builtin meaning.
-        let authored = typed(&format!(
+        let authored = crate::front_end::typed_program(&format!(
             "operator * u8::mul(left: u8, right: u8) -> u8; {DOUBLED}"
         ));
         assert!(view(&authored).is_none());
@@ -385,7 +368,7 @@ mod scalar_views {
 
     #[test]
     fn computed_ranks_prove_membership_descent_and_carrier_formation() {
-        let program = typed(DOUBLED);
+        let program = crate::front_end::typed_program(DOUBLED);
         assert!(entry(&program));
         let proof = self_edge(&program).expect("self edge");
         assert!(proof.membership_and_pinning && proof.strictly_decreases);
@@ -393,22 +376,26 @@ mod scalar_views {
         // subject's own interval is too narrow for `value * 2` at entry. A
         // cyclic edge only preserves membership under the rank invariant it
         // assumes, so entry is where the narrow range rejects.
-        let narrow = typed(&DOUBLED.replace("in 0..=200", "in 0..=100"));
+        let narrow = crate::front_end::typed_program(&DOUBLED.replace("in 0..=200", "in 0..=100"));
         assert!(!entry(&narrow));
         assert!(self_edge(&narrow).is_some_and(|proof| proof.strictly_decreases));
         // Membership inside the authored range is not formation inside the
         // carrier: `[0..=200] * 2` fits `0..=400` but not `u8`.
-        let overflowing = typed(
+        let overflowing = crate::front_end::typed_program(
             &DOUBLED
                 .replace("[0..=100]", "[0..=200]")
                 .replace("in 0..=200", "in 0..=400"),
         );
         assert!(!entry(&overflowing));
         // An unconstrained subject proves neither membership nor formation.
-        let unbounded = typed(&DOUBLED.replace("remaining: u8 [0..=100]", "remaining: u8"));
+        let unbounded = crate::front_end::typed_program(
+            &DOUBLED.replace("remaining: u8 [0..=100]", "remaining: u8"),
+        );
         assert!(!entry(&unbounded));
         // A stalled self edge keeps its membership but proves no descent.
-        let stalled = typed(&DOUBLED.replace("walk(remaining - 1)", "walk(remaining)"));
+        let stalled = crate::front_end::typed_program(
+            &DOUBLED.replace("walk(remaining - 1)", "walk(remaining)"),
+        );
         let proof = self_edge(&stalled).expect("stalled edge");
         assert!(proof.membership_and_pinning && !proof.strictly_decreases);
     }
@@ -421,7 +408,6 @@ mod field_views {
         RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, prove_ranking_range_edge,
         prove_ranking_range_entry,
     };
-    use super::typed;
     use typed_trees::TypedTrees;
     use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
@@ -525,31 +511,32 @@ mod field_views {
 
     #[test]
     fn nested_projection_ranks_and_pins_through_the_exact_chain() {
-        let program = typed(NESTED);
+        let program = crate::front_end::typed_program(NESTED);
         assert!(entry(&program));
         let proof = self_edge(&program).expect("self edge");
         assert!(proof.membership_and_pinning && proof.strictly_decreases);
         // Rebuilding the sibling record with a literal limit still contains
         // every next rank, but it is not the pinned endpoint.
-        let written =
-            typed(&NESTED.replace("bounds: countdown.bounds", "bounds: Bounds { limit: 5 }"));
+        let written = crate::front_end::typed_program(
+            &NESTED.replace("bounds: countdown.bounds", "bounds: Bounds { limit: 5 }"),
+        );
         assert!(entry(&written));
         assert!(self_edge(&written).is_none());
         // Forwarding the ranked sub-record keeps membership without descent.
-        let stalled = typed(&NESTED.replace(
+        let stalled = crate::front_end::typed_program(&NESTED.replace(
             "inner: Inner { remaining: countdown.inner.remaining - 1 }",
             "inner: countdown.inner",
         ));
         let proof = self_edge(&stalled).expect("stalled edge");
         assert!(proof.membership_and_pinning && !proof.strictly_decreases);
         // Entry evidence must name the exact path.
-        let unrelated = typed(&NESTED.replace(
+        let unrelated = crate::front_end::typed_program(&NESTED.replace(
             "requires countdown.inner.remaining <= countdown.bounds.limit;",
             "requires countdown.bounds.limit <= countdown.bounds.limit;",
         ));
         assert!(!entry(&unrelated));
         // A same-spelled field of another declaration is a foreign owner.
-        let foreign = typed(&format!(
+        let foreign = crate::front_end::typed_program(&format!(
             "data Twin {{ remaining: u64 [0..=5]; }} {}",
             NESTED.replace("inner: Inner { remaining", "inner: Twin { remaining")
         ));
@@ -561,12 +548,13 @@ mod field_views {
         // `limit` is an unbounded u64 field, so `limit + 1` is not statically
         // formed; the requires bound lands it inside the carrier under the
         // edge's own hypotheses.
-        let program = typed(FLOW_BOUND);
+        let program = crate::front_end::typed_program(FLOW_BOUND);
         assert!(entry(&program));
         let proof = self_edge(&program).expect("self edge");
         assert!(proof.membership_and_pinning && proof.strictly_decreases);
         // Without the flow bound the same endpoint can overflow its carrier.
-        let unbounded = typed(&FLOW_BOUND.replace(" && countdown.limit <= 5", ""));
+        let unbounded =
+            crate::front_end::typed_program(&FLOW_BOUND.replace(" && countdown.limit <= 5", ""));
         assert!(!entry(&unbounded));
     }
 
@@ -575,47 +563,58 @@ mod field_views {
         // The normalized polynomial cannot excuse an intermediate that
         // already escaped its carrier: `limit + u64::MAX` overflows before
         // the trailing `- u64::MAX + 1` cancels it away.
-        let overflowing = typed(&FLOW_BOUND.replace(
+        let overflowing = crate::front_end::typed_program(&FLOW_BOUND.replace(
             "countdown.limit + 1",
             "(countdown.limit + 18446744073709551615u64) - 18446744073709551615u64 + 1",
         ));
         assert!(!entry(&overflowing));
         // An intermediate underflow is just as invisible to the final
         // polynomial.
-        let underflowing =
-            typed(&FLOW_BOUND.replace("countdown.limit + 1", "countdown.limit - 6 + 8"));
+        let underflowing = crate::front_end::typed_program(
+            &FLOW_BOUND.replace("countdown.limit + 1", "countdown.limit - 6 + 8"),
+        );
         assert!(!entry(&underflowing));
         // A `u8` literal selects no shared carrier with the `u64` field.
-        let mixed = typed(&FLOW_BOUND.replace("countdown.limit + 1", "countdown.limit + 1u8"));
+        let mixed = crate::front_end::typed_program(
+            &FLOW_BOUND.replace("countdown.limit + 1", "countdown.limit + 1u8"),
+        );
         assert!(!entry(&mixed));
         // `255u8 + 1u8` has no builtin carrier of its own, but its operation
         // still computes in `u8` and cannot form `256`.
-        let anonymous_carrier = typed(&FLOW_BOUND.replace("countdown.limit + 1", "255u8 + 1u8"));
+        let anonymous_carrier = crate::front_end::typed_program(
+            &FLOW_BOUND.replace("countdown.limit + 1", "255u8 + 1u8"),
+        );
         assert!(!entry(&anonymous_carrier));
         // An endpoint whose every operation lands under the hypotheses still
         // proves.
-        let landing =
-            typed(&FLOW_BOUND.replace("countdown.limit + 1", "(countdown.limit + 2) - 1"));
+        let landing = crate::front_end::typed_program(
+            &FLOW_BOUND.replace("countdown.limit + 1", "(countdown.limit + 2) - 1"),
+        );
         assert!(entry(&landing));
     }
 
     #[test]
     fn borrowed_subject_reads_its_referent_and_arrives_as_a_borrow() {
-        let program = typed(BORROWED);
+        let program = crate::front_end::typed_program(BORROWED);
         assert!(entry(&program));
         let proof = self_edge(&program).expect("self edge");
         assert!(proof.membership_and_pinning && proof.strictly_decreases);
-        let replaced = typed(&BORROWED.replace("}, ceiling)", "}, 5)"));
+        let replaced = crate::front_end::typed_program(&BORROWED.replace("}, ceiling)", "}, 5)"));
         assert!(self_edge(&replaced).is_none());
         // The formal itself forwarded keeps the referent, so no descent.
-        let forwarded = typed(&BORROWED.replace("&Card { power: card.power - 1 }", "card"));
+        let forwarded = crate::front_end::typed_program(
+            &BORROWED.replace("&Card { power: card.power - 1 }", "card"),
+        );
         let proof = self_edge(&forwarded).expect("forwarded edge");
         assert!(proof.membership_and_pinning && !proof.strictly_decreases);
         // An owned literal is not an arrival of the borrowed formal.
-        let owned = typed(&BORROWED.replace("walk(&Card {", "walk(Card {"));
+        let owned =
+            crate::front_end::typed_program(&BORROWED.replace("walk(&Card {", "walk(Card {"));
         assert!(self_edge(&owned).is_none());
         // Without the entry fact nothing bounds the unconstrained field.
-        let unbounded = typed(&BORROWED.replace("requires card.power <= ceiling;", ""));
+        let unbounded = crate::front_end::typed_program(
+            &BORROWED.replace("requires card.power <= ceiling;", ""),
+        );
         assert!(!entry(&unbounded));
     }
 }
@@ -627,7 +626,6 @@ mod remainder_endpoints {
         RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, prove_ranking_range_edge,
         prove_ranking_range_entry,
     };
-    use super::typed;
     use typed_trees::TypedTrees;
     use typed_trees::machine::Machine;
     use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -707,7 +705,7 @@ mod remainder_endpoints {
     fn remainder_endpoints_transport_through_value_equal_actuals() {
         // `cap - 0` is not the bare formal the static pin requires, but the
         // relational edge proves the substituted endpoint identical.
-        let program = typed(COMPUTED_COPY);
+        let program = crate::front_end::typed_program(COMPUTED_COPY);
         assert!(entry(&program));
         for premises in [
             RankingRangePremises::RankInvariant,
@@ -720,7 +718,7 @@ mod remainder_endpoints {
         // keeps the operand's exact identity rather than forcing equality.
         // Entry still proves -- the rejection is the edge's transport, not
         // the fixture's own range.
-        let moved = typed(MOVED_COPY);
+        let moved = crate::front_end::typed_program(MOVED_COPY);
         assert!(entry(&moved));
         assert!(edge(&moved, RankingRangePremises::RankInvariant).is_none());
         assert!(edge(&moved, RankingRangePremises::EntryInvariant).is_none());
@@ -732,7 +730,7 @@ mod remainder_endpoints {
             .replace("cap: u64)", "cap: u64, modulus: u64 [1..=5])")
             .replace("cap % 5", "cap % modulus")
             .replace("cap - 0)", "cap - 0, modulus - 0)");
-        let unguarded = typed(&source);
+        let unguarded = crate::front_end::typed_program(&source);
         let proof = edge(&unguarded, RankingRangePremises::EntryInvariant)
             .expect("preserved entry refinements supply divisor formation");
         assert!(proof.membership_and_pinning && proof.strictly_decreases);
@@ -743,7 +741,7 @@ mod remainder_endpoints {
             "remaining > 0",
             "remaining > 0 && modulus > 0 && modulus <= 5",
         );
-        let program = typed(&source);
+        let program = crate::front_end::typed_program(&source);
         assert!(entry(&program));
         for premises in [
             RankingRangePremises::RankInvariant,
@@ -756,7 +754,7 @@ mod remainder_endpoints {
             source.replace("modulus - 0", "1"),
             source.replace("cap - 0", "0"),
         ] {
-            let program = typed(&changed);
+            let program = crate::front_end::typed_program(&changed);
             assert!(
                 entry(&program),
                 "failure belongs to transport, not initial range formation"
@@ -781,7 +779,7 @@ mod remainder_endpoints {
                 }
             }
         "#;
-        let program = typed(source);
+        let program = crate::front_end::typed_program(source);
         assert!(entry(&program));
         for premises in [
             RankingRangePremises::RankInvariant,
@@ -791,7 +789,8 @@ mod remainder_endpoints {
             assert!(proof.membership_and_pinning && proof.strictly_decreases);
         }
         // A zero modulus in the actual cannot hide inside the substitution.
-        let zeroed = typed(&source.replace("cap % step)", "cap % (step - step))"));
+        let zeroed =
+            crate::front_end::typed_program(&source.replace("cap % step)", "cap % (step - step))"));
         assert!(edge(&zeroed, RankingRangePremises::RankInvariant).is_none());
         assert!(edge(&zeroed, RankingRangePremises::EntryInvariant).is_none());
     }
@@ -808,14 +807,14 @@ mod remainder_endpoints {
                 }
             }
         "#;
-        let program = typed(source);
+        let program = crate::front_end::typed_program(source);
         assert!(entry(&program));
         let proof = edge(&program, RankingRangePremises::EntryInvariant)
             .expect("quotient actual transports");
         assert!(proof.membership_and_pinning && proof.strictly_decreases);
         // Moving the remainder actual into the endpoint-read `cap` slot
         // changes the endpoint: `(cap % step) % step` is not `cap % step`.
-        let moved = typed(
+        let moved = crate::front_end::typed_program(
             &source
                 .replace("cap - 0, step - 0, cap / step", "cap % step, step - 0, 0")
                 .replace("cap: u64 [0..=20]", "cap: u64"),
@@ -834,7 +833,6 @@ mod moved_record_copy {
         discover_state_entry_mappings, prove_ranking_range_transition,
         ranking_range_required_symbols,
     };
-    use super::typed;
     use symbols::SymbolHandle;
     use typed_trees::TypedTrees;
     use typed_trees::machine::Machine;
@@ -921,7 +919,7 @@ mod moved_record_copy {
 
     #[test]
     fn a_rebuilt_literal_names_the_moved_copy_of_a_required_entry() {
-        let program = typed(PACKED);
+        let program = crate::front_end::typed_program(PACKED);
         let remaining =
             program.state_parameters(&program.machine_states(machine(&program))[0])[0].symbol;
         for premises in [
@@ -943,7 +941,8 @@ mod moved_record_copy {
         // `Pair { left: pair.left }` forwards the ranked leaf unchanged: the
         // copies never diverge, so neither demotes and the cycle edge keeps
         // membership but proves no descent.
-        let program = typed(&PACKED.replace("pair.left - 1", "pair.left"));
+        let program =
+            crate::front_end::typed_program(&PACKED.replace("pair.left - 1", "pair.left"));
         let mappings = mappings(&program, RankingRangePremises::RankInvariant).expect("telescope");
         let remaining =
             program.state_parameters(&program.machine_states(machine(&program))[0])[0].symbol;
@@ -978,7 +977,7 @@ mod moved_record_copy {
         // entry's copies are held equal at every arrival, so each
         // claimant's own record transports the role and the two actuals
         // must re-prove equal rather than pick a first/last winner.
-        let program = typed(TWO_LITERALS);
+        let program = crate::front_end::typed_program(TWO_LITERALS);
         let remaining =
             program.state_parameters(&program.machine_states(machine(&program))[0])[0].symbol;
         for premises in [
@@ -994,7 +993,7 @@ mod moved_record_copy {
         // The same lockstep arrival through each copy's own leaf keeps the
         // transport honest: `second.left - 1` agrees with `first.left - 1`
         // only under the copies-equal invariant.
-        let independent = typed(&TWO_LITERALS.replace(
+        let independent = crate::front_end::typed_program(&TWO_LITERALS.replace(
             "s(Pair { left: first.left - 1 }, Pair { left: first.left - 1 })",
             "s(Pair { left: first.left - 1 }, Pair { left: second.left - 1 })",
         ));
@@ -1005,7 +1004,7 @@ mod moved_record_copy {
         // carrier's stale leaf instead of its step — breaks the equality
         // the claim owes and the edge rejects. `... - 1 })` names only the
         // second literal: the first is followed by a comma.
-        let divergent = typed(&TWO_LITERALS.replace(
+        let divergent = crate::front_end::typed_program(&TWO_LITERALS.replace(
             "Pair { left: first.left - 1 })",
             "Pair { left: first.left })",
         ));
@@ -1040,7 +1039,7 @@ mod moved_record_copy {
         // claim then reads `copy` against the stepped carrier's transport
         // and the edge rejects — `pair` is the moved copy, `copy` is not
         // its equal.
-        let program = typed(STEPPED_STALE);
+        let program = crate::front_end::typed_program(STEPPED_STALE);
         let remaining =
             program.state_parameters(&program.machine_states(machine(&program))[0])[0].symbol;
         let mappings = mappings(&program, RankingRangePremises::RankInvariant).expect("telescope");

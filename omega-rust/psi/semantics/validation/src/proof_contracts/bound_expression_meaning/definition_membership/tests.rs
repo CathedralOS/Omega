@@ -2,18 +2,6 @@ use super::{
     ExpressionHandle, ExpressionNode, HandleSpan, ProofFact, SymbolHandle, TableBinaryExpression,
     TypedTrees, has_exact_data_case_membership_meaning, has_exact_domain_case_membership_meaning,
 };
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
-}
-
 const SOURCE: &str = "data Message { case Empty; case Data(value: u8); }
     data Other { case Empty; case Data(value: u8); }
     data Wrapper where message in Message::Data, { message: Message; }
@@ -38,7 +26,7 @@ fn comparison(program: &TypedTrees, expression: ExpressionHandle) -> &TableBinar
 
 #[test]
 fn domain_self_and_fields_and_data_fields_keep_their_declared_carriers() {
-    let program = typed(SOURCE);
+    let program = crate::front_end::typed_program(SOURCE);
     for domain in program.domain_definitions() {
         let expression = occurrence(&program, domain.facts);
         assert!(has_exact_domain_case_membership_meaning(
@@ -64,7 +52,7 @@ fn domain_self_and_fields_and_data_fields_keep_their_declared_carriers() {
 
 #[test]
 fn definition_membership_rejects_foreign_owner_and_unauthored_expression() {
-    let program = typed(SOURCE);
+    let program = crate::front_end::typed_program(SOURCE);
     let first = &program.domain_definitions()[0];
     let second = &program.domain_definitions()[1];
     let expression = occurrence(&program, first.facts);
@@ -100,7 +88,7 @@ fn definition_membership_rejects_foreign_owner_and_unauthored_expression() {
 
 #[test]
 fn definition_membership_rejects_foreign_field_selection_and_forged_row_owner() {
-    let program = typed(SOURCE);
+    let program = crate::front_end::typed_program(SOURCE);
     let domain = &program.domain_definitions()[2];
     let expression = occurrence(&program, domain.facts);
     let subject = comparison(&program, expression).left;
@@ -150,7 +138,7 @@ fn definition_membership_rejects_foreign_field_selection_and_forged_row_owner() 
 
 #[test]
 fn domain_membership_rejects_a_sibling_self_root_grafted_into_its_predicate() {
-    let mut program = typed(SOURCE);
+    let mut program = crate::front_end::typed_program(SOURCE);
     let first = program.domain_definitions()[0].clone();
     let second = program.domain_definitions()[1].clone();
     let expression = occurrence(&program, first.facts);
@@ -191,7 +179,7 @@ fn domain_membership_rejects_a_sibling_self_root_grafted_into_its_predicate() {
 
 #[test]
 fn data_membership_rejects_foreign_bare_field_and_changed_nominal_carrier() {
-    let program = typed(SOURCE);
+    let program = crate::front_end::typed_program(SOURCE);
     let wrapper = program
         .data_definitions()
         .iter()
@@ -243,7 +231,7 @@ fn data_membership_rejects_foreign_bare_field_and_changed_nominal_carrier() {
 
 #[test]
 fn nested_definition_fields_compose_without_a_machine_owner() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Message { case Empty; case Data(value: u8); }
         data Inner { message: Message; }
         data Wrapper where inner.message in Message::Data, { inner: Inner; }

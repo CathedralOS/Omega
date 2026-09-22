@@ -318,17 +318,7 @@ mod membership_tests {
             let source = format!(
                 "domain<const I: u64> i64::Coordinate<I>; machine run(value: i64 in Coordinate<{index}>) {{ }}"
             );
-            let tokens = source_files_to_tokens::Lexer::new(&source)
-                .tokenize()
-                .expect("tokens");
-            let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-            let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-                syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-            )
-            .expect("resolution");
-            let program =
-                symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-                    .expect("typing");
+            let program = crate::front_end::typed_program(&source);
             let state = &program.machine_states(&program.machines()[0])[0];
             normalized_facts(
                 &program,

@@ -10,21 +10,8 @@
 //! receiver and its delegated `ProductEntryRef` operand are places read at
 //! build evaluation, so an erased receiver or operand rejects identically.
 
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees::TypedTrees;
-
-fn typed(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokens");
-    let syntax = parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolved source");
-    lower_symbol_resolved_trees(&resolved).expect("typed source")
-}
-
 fn rejects(source: &str, fragment: &str) {
-    let diagnostics = validation::validate_program(&typed(source))
+    let diagnostics = validation::validate_program(&crate::front_end::typed_program(source))
         .expect_err("erased receiver on a runtime call must reject");
     assert!(
         diagnostics
@@ -35,7 +22,7 @@ fn rejects(source: &str, fragment: &str) {
 }
 
 fn accepts(source: &str) {
-    validation::validate_program(&typed(source))
+    validation::validate_program(&crate::front_end::typed_program(source))
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
 }
 

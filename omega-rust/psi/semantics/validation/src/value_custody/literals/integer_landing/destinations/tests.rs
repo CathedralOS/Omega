@@ -12,23 +12,11 @@ mod operand_edges;
 mod windows;
 
 fn typed(source_text: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source_text)
-        .tokenize()
-        .unwrap();
     let mut sources = source::SourceMap::default();
     let source_id = sources
         .add("anonymous_landing.omg".into(), source_text.to_owned())
         .source_id;
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &syntax,
-            sources: Some(std::sync::Arc::new(sources)),
-            top_level_bindings: Vec::new(),
-        },
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
+    crate::front_end::typed_program_from_source_map(sources, &[(source_id, source_text)])
 }
 
 #[test]

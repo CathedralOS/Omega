@@ -1,19 +1,7 @@
-use super::{DataMember, TypeReferenceHandle, TypeReferenceNode, TypedTrees, validate_constants};
+use super::{DataMember, TypeReferenceHandle, TypeReferenceNode, validate_constants};
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
-
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolution");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("typing")
-}
 
 #[test]
 fn complete_constant_types_reject_copy_and_cleanup_debt() {
@@ -24,7 +12,7 @@ fn complete_constant_types_reject_copy_and_cleanup_debt() {
         "data Owned [linear] { value:u64; } data Value [copy] { case Empty; case Full(value:Owned); } const VALUE:Value = Value::Empty;",
         "data Owned [copy] { value:u64; } machine Owned::drop(&mut self) {} data Value [copy] { case Empty; case Full(value:Owned); } const VALUE:Value = Value::Empty;",
     ] {
-        let program = typed(source);
+        let program = crate::front_end::typed_program(source);
         let mut diagnostics = Vec::new();
         validate_constants(&program, &mut diagnostics);
         assert_eq!(diagnostics.len(), 1, "{source}: {diagnostics:?}");
@@ -33,7 +21,7 @@ fn complete_constant_types_reject_copy_and_cleanup_debt() {
 
 #[test]
 fn destination_rechecks_live_constant_constructor_without_rebuilding_ledger() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Value [copy] { value:u64; } data Other [copy] { value:u64; } const VALUE:Value = Value { value:1 }; machine keep()->Value { let value:Value = VALUE; value }",
     );
     let machine = program
@@ -78,7 +66,7 @@ fn destination_rechecks_live_constant_constructor_without_rebuilding_ledger() {
 
 #[test]
 fn constant_type_custody_rejects_stale_handles_and_wrapper_cycles() {
-    let program = typed("const VALUE:[u8;0] = [];");
+    let program = crate::front_end::typed_program("const VALUE:[u8;0] = [];");
     let declaration = program.roots.const_declarations.start();
     let reference = program.const_declarations()[0].declared_type;
     let mut stale = program.clone();
@@ -111,7 +99,7 @@ fn constant_type_custody_rejects_stale_handles_and_wrapper_cycles() {
 
 #[test]
 fn live_case_and_field_selections_reject_substitution_with_original_ledger() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Value [copy] { case One(value:u64); case Two(value:u64); } const VALUE:Value = Value::One { value:1 }; machine keep()->Value { let value:Value = VALUE; value }",
     );
     let machine = program

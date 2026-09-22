@@ -1,23 +1,11 @@
 use super::{
-    ExpressionNode, ProofFact, StatementNode, TransitionGuardNode, TypedTrees,
-    entailment_covers_all_exits,
+    ExpressionNode, ProofFact, StatementNode, TransitionGuardNode, entailment_covers_all_exits,
 };
 use crate::proven_machine_contract_expressions;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
-
-fn parse(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
 
 #[test]
 fn positive_outcomes_keep_exact_machine_and_expression_identity() {
-    let program = parse(
+    let program = crate::front_end::typed_program(
         "machine first(value: u64) ensures value == value {}\n\
          machine second(value: u64) ensures value == value {}",
     );
@@ -48,15 +36,16 @@ fn positive_outcomes_keep_exact_machine_and_expression_identity() {
 
 #[test]
 fn unsupported_body_does_not_become_a_positive_outcome() {
-    let program =
-        parse("machine theorem(value: u64) ensures value == value { let unused: u64 = 1; }");
+    let program = crate::front_end::typed_program(
+        "machine theorem(value: u64) ensures value == value { let unused: u64 = 1; }",
+    );
     assert!(proven_machine_contract_expressions(&program, program.machines()[0].symbol).is_empty());
     assert!(!crate::collect_contract_entailment_stand_downs(&program).is_empty());
 }
 
 #[test]
 fn membership_is_not_boolean_entailment_evidence() {
-    let program = parse(
+    let program = crate::front_end::typed_program(
         "domain u64::Small requires self < 10; machine theorem(value: u64) ensures value in Small {}",
     );
     assert!(proven_machine_contract_expressions(&program, program.machines()[0].symbol).is_empty());
@@ -64,13 +53,16 @@ fn membership_is_not_boolean_entailment_evidence() {
 
 #[test]
 fn a_refuted_conjunct_prevents_exporting_partial_success() {
-    let program = parse("machine theorem(value: u64) ensures value == value\n1 == 2\n{}");
+    let program = crate::front_end::typed_program(
+        "machine theorem(value: u64) ensures value == value\n1 == 2\n{}",
+    );
     assert!(proven_machine_contract_expressions(&program, program.machines()[0].symbol).is_empty());
 }
 
 #[test]
 fn declarations_and_admissions_do_not_supply_checked_body_outcomes() {
-    let mut program = parse("machine theorem(value: u64) ensures value == value {}");
+    let mut program =
+        crate::front_end::typed_program("machine theorem(value: u64) ensures value == value {}");
     let symbol = program.machines()[0].symbol;
     for mode in [
         language_semantics::MachineSupplyMode::Boundary,
@@ -87,7 +79,7 @@ fn declarations_and_admissions_do_not_supply_checked_body_outcomes() {
 
 #[test]
 fn a_proved_guarded_arm_does_not_prove_an_implicit_fallthrough() {
-    let mut program = parse(
+    let mut program = crate::front_end::typed_program(
         "machine theorem(value: u64) -> u64 ensures value > 0 { transition value > 0 { true -> (1) false -> (0) } }",
     );
     let machine = program.machines()[0].clone();
@@ -103,7 +95,7 @@ fn a_proved_guarded_arm_does_not_prove_an_implicit_fallthrough() {
 
 #[test]
 fn exhaustive_computed_proof_subject_requires_exact_call_identity() {
-    let mut program = parse(
+    let mut program = crate::front_end::typed_program(
         r#"
         data Nat { case Zero; case Succ(prev: Nat); }
         machine identity(value: Nat) -> Nat { transition { _ -> value } }
@@ -180,7 +172,7 @@ fn exhaustive_computed_proof_subject_requires_exact_call_identity() {
 
 #[test]
 fn inherited_law_matches_retain_exact_authored_proof_roots() {
-    let program = parse(
+    let program = crate::front_end::typed_program(
         r#"
         trait Reflexive { machine law(value: u64) ensures value == value; }
         machine theorem(value: u64) satisfies Reflexive::law ensures value == value {}
@@ -197,7 +189,7 @@ fn inherited_law_matches_retain_exact_authored_proof_roots() {
 
 #[test]
 fn inherited_law_matching_does_not_prove_a_false_authored_claim() {
-    let program = parse(
+    let program = crate::front_end::typed_program(
         r#"
         trait EqualityClaim { machine law(left: u64, right: u64) ensures left == right; }
         machine theorem(left: u64, right: u64) satisfies EqualityClaim::law ensures left == right {}
@@ -216,7 +208,7 @@ fn inherited_law_matching_does_not_prove_a_false_authored_claim() {
 
 #[test]
 fn inherited_law_matching_rejects_exact_requirement_drift() {
-    let mut program = parse(
+    let mut program = crate::front_end::typed_program(
         r#"
         trait Reflexive {
             machine law(value: u64) ensures value == value;

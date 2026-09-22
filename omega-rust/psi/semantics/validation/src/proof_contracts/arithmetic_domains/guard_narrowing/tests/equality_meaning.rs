@@ -1,13 +1,13 @@
 use super::super::requires_value_environment;
 use super::{
-    Interval, StatementNode, ValueEnvironment, arrival_program, fall_through_narrowed_environment,
+    Interval, StatementNode, ValueEnvironment, fall_through_narrowed_environment,
     guard_narrowed_environment,
 };
 fn field_guard_environments(
     declaration: &str,
     condition: &str,
 ) -> (ValueEnvironment, ValueEnvironment) {
-    let program = arrival_program(&format!(
+    let program = crate::front_end::typed_program(&format!(
         "{declaration}
          data Limit {{ zero: u32 [0..=0]; }}
          machine value(input: u32, limit: Limit) -> u32 {{
@@ -132,7 +132,7 @@ fn builtin_field_inequality_false_arm_retains_equality_through_wrappers() {
 #[test]
 fn authored_scalar_literal_requires_does_not_seed_builtin_equality() {
     for condition in ["input == 0", "0 == input"] {
-        let program = arrival_program(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "operator == u8::custom(left: u8, right: u8) -> bool;
              machine value(input: u8) -> u8 requires {condition} {{ input + 1 }}"
         ));
@@ -149,7 +149,7 @@ fn authored_scalar_literal_requires_does_not_seed_builtin_equality() {
 #[test]
 fn builtin_scalar_literal_requires_still_seeds_equality() {
     for condition in ["input == 0", "0 == input"] {
-        let program = arrival_program(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "machine value(input: u8) -> u8 requires {condition} {{ input + 1 }}"
         ));
         let machine = &program.machines()[0];

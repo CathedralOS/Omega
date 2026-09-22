@@ -21,16 +21,7 @@ impl EmbeddedFields {
             machine compare(left: Extent, right: Extent)
             requires {predicate} {{ }}"
         );
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .expect("tokens");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("resolved");
-        let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("typed");
+        let program = crate::front_end::typed_program(&source);
         let machine = &program.machines()[0];
         let contract = &program.machine_contracts(machine)[0];
         let ProofFact::Expression(goal) = program.proof_facts.span_or_empty(contract.facts)[0]

@@ -99,16 +99,7 @@ fn strict_arithmetic_retains_complete_anonymous_rational_values() {
         ("1u8 / 2u8 * 2u8", None),
     ] {
         let source = format!("machine value() -> u64 {{ {expression} }}");
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let program =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let program = crate::front_end::typed_program(&source);
         let machine = &program.machines()[0];
         let state = &program.machine_states(machine)[0];
         let typed_trees::statement::StatementNode::Expression(value) =
@@ -138,16 +129,7 @@ fn proof_integer_arithmetic_lands_complete_anonymous_peers() {
         ("embed(7i32) % (1 / 2)", None),
     ] {
         let source = format!("machine predicate() ensures {arithmetic} == 0 {{}}");
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let program =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let program = crate::front_end::typed_program(&source);
         let expression = program
             .expression_table
             .iter_expressions()
@@ -177,16 +159,7 @@ fn closed_proof_integer_quotient_and_remainder_are_exact() {
     for (operator, expected) in [("/", -3), ("%", -1)] {
         let source =
             format!("machine predicate() ensures embed(-7i32) {operator} 2 == {expected} {{}}");
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let program =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let program = crate::front_end::typed_program(&source);
         let expression = program.expression_table.iter_expressions().find_map(|(handle, node)| {
             matches!(node, ExpressionNode::Binary(binary) if matches!(binary.operator, BinaryOperator::Divide | BinaryOperator::Modulo)).then_some(handle)
         }).unwrap();

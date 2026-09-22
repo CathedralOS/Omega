@@ -1,17 +1,5 @@
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 use validation::validate_program;
-
-fn typed(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
 
 #[test]
 fn executable_states_reject_implicit_entry_storage() {
@@ -31,7 +19,8 @@ fn executable_states_reject_implicit_entry_storage() {
         let source = format!(
             "data Packet {{ value: u64; }} machine Packet::touch(&mut self) {{ self.value = 1; }} machine Packet::read(&self) -> u64 {{ self.value }} machine run({parameters}) {{ {setup} transition {{ _ -> next() }} state next() {{ {body} }} }}"
         );
-        let diagnostics = validate_program(&typed(&source)).expect_err("capture must reject");
+        let diagnostics = validate_program(&crate::front_end::typed_program(&source))
+            .expect_err("capture must reject");
         assert!(
             diagnostics
                 .iter()
@@ -48,7 +37,7 @@ fn executable_states_accept_explicit_forwarding_and_prior_locals() {
         "machine store(value: &mut u64) { value = 1; } machine run(input: &mut u64) { transition { _ -> next(input) } state next(current: &mut u64) { store(current); } }",
         "data Packet { value: u64; } machine Packet::run(&mut self) { transition { _ -> next() } state next(&mut self) { self.value = 1; } }",
     ] {
-        let result = validate_program(&typed(source));
+        let result = validate_program(&crate::front_end::typed_program(source));
         assert!(result.is_ok(), "{result:?}\n{source}");
     }
 }
@@ -59,7 +48,7 @@ fn same_spelling_foreign_parameter_identity_cannot_grant_read_or_write_access() 
         let source = format!(
             "machine store(value: &mut u64) {{ value = 1; }} machine run(value: &mut u64) {{ transition {{ _ -> next(value) }} state next(value: &mut u64) {{ {expression} }} }}"
         );
-        let mut program = typed(&source);
+        let mut program = crate::front_end::typed_program(&source);
         validate_program(&program).expect("unaltered explicit bindings are valid");
         let machine = program
             .machines()
@@ -109,7 +98,7 @@ fn same_spelling_foreign_parameter_identity_cannot_grant_read_or_write_access() 
 #[test]
 fn mutable_sibling_parameter_cannot_authorize_shared_current_parameter() {
     let source = "machine store(value: &mut u64) { value = 1; } machine run(value: &mut u64) { transition { _ -> next(value) } state next(value: &u64) { store(value); } }";
-    assert!(validate_program(&typed(source)).is_err());
+    assert!(validate_program(&crate::front_end::typed_program(source)).is_err());
 }
 
 #[test]
@@ -118,7 +107,7 @@ fn local_scope_begins_after_its_initializer() {
         "let value: u64 = value;",
         "let copy: u64 = value; let value: u64 = 7;",
     ] {
-        let program = typed(&format!("machine run() {{ {body} }}"));
+        let program = crate::front_end::typed_program(&format!("machine run() {{ {body} }}"));
         let diagnostics = validate_program(&program).expect_err("later local is not live");
         assert!(
             diagnostics
@@ -138,7 +127,7 @@ fn projected_statement_receivers_retain_the_exact_current_state_root() {
         let source = format!(
             "data Inner {{ value: u64; }} data Packet {{ inner: Inner; }} machine Inner::touch(&mut self) {{ self.value = 1; }} machine run(packet: &mut Packet) {{ {body} }}"
         );
-        let program = typed(&source);
+        let program = crate::front_end::typed_program(&source);
         let machine = program
             .machines()
             .iter()
@@ -183,7 +172,7 @@ fn projected_statement_receivers_retain_the_exact_current_state_root() {
 #[test]
 fn projected_statement_receivers_reject_missing_or_foreign_state_roots() {
     let source = "data Inner { value: u64; } data Packet { inner: Inner; } machine Inner::touch(&mut self) { self.value = 1; } machine run(packet: &mut Packet) { transition { _ -> next(packet) } state next(packet: &mut Packet) { packet.inner.touch(); } }";
-    let program = typed(source);
+    let program = crate::front_end::typed_program(source);
     validate_program(&program).expect("explicit forwarded receiver");
     let machine = program
         .machines()
@@ -225,7 +214,7 @@ fn projected_statement_receivers_reject_missing_or_foreign_state_roots() {
         .replace("next(packet)", "next()")
         .replace("state next(packet: &mut Packet)", "state next()");
     assert!(
-        validate_program(&typed(&capture)).is_err(),
+        validate_program(&crate::front_end::typed_program(&capture)).is_err(),
         "nested fields do not permit implicit entry capture"
     );
 }

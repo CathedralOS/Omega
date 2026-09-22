@@ -1,27 +1,15 @@
 use super::{
-    TypedTrees, assignment_copies_primitive_referent, assignment_replaces_untracked_reference,
+    assignment_copies_primitive_referent, assignment_replaces_untracked_reference,
     state_reference_parameter_binding_is_stable,
 };
 use typed_trees::statement::StatementNode;
-
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("symbols");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("types")
-}
 
 #[test]
 fn primitive_parameter_copies_keep_exact_write_frames_and_reference_bindings() {
     for scalar in ["u8", "u64", "bool", "f32"] {
         for source_access in ["", "mut "] {
             for destination_access in ["mut", "write"] {
-                let program = typed(&format!(
+                let program = crate::front_end::typed_program(&format!(
                     "machine observe(input: &{source_access}{scalar}, output: &{destination_access} {scalar}) {{ output = input; }}"
                 ));
                 let machine = &program.machines()[0];
@@ -54,7 +42,7 @@ fn primitive_copy_classification_does_not_hide_reference_replacements() {
         "machine observe(input: &mut u8, output: &mut u8) { let mut local: &mut u8 = &mut output; local = &mut input; }",
         "data Record { value: u8; } machine observe(input: &Record, output: &mut Record) { output = input; }",
     ] {
-        let program = typed(source);
+        let program = crate::front_end::typed_program(source);
         let machine = program
             .machines()
             .iter()

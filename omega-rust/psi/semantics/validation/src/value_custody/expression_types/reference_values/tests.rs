@@ -4,18 +4,6 @@ use super::{
     TypedTrees, declared_value_type, place_forwards_mutable_reference, projected_matches_reference,
     reference_type_matches,
 };
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolution");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("typing")
-}
-
 fn member(program: &TypedTrees, name: &str) -> ExpressionHandle {
     program
         .expression_table
@@ -78,7 +66,7 @@ fn array_reference_correspondence_preserves_elements_and_access() {
                 ),
                 _ => format!("machine inspect(value: {actual}, expected: {required}) {{ value; }}"),
             };
-            let program = typed(&declarations);
+            let program = crate::front_end::typed_program(&declarations);
             let expression = program
                 .expression_table
                 .iter_expressions()
@@ -106,7 +94,7 @@ fn array_reference_correspondence_preserves_elements_and_access() {
 #[test]
 fn named_shared_reference_inference_does_not_match_closed_nominals() {
     for access in ["&", "&mut ", "&write "] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "data Card {{}} data Other {{}}
              machine inspect<T>(value: {access}Card, expected: &T, closed: &Other) {{ value; }}"
         ));
@@ -135,7 +123,7 @@ fn named_shared_reference_inference_does_not_match_closed_nominals() {
 
 #[test]
 fn array_view_matching_cannot_grant_mutation_through_shared_storage() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Holder { bytes: &mut [u8; 3]; }
          machine inspect(value: &Holder, expected: &mut [u8]) { value.bytes; }",
     );
@@ -156,8 +144,9 @@ fn array_view_matching_cannot_grant_mutation_through_shared_storage() {
 
 #[test]
 fn mutable_array_views_do_not_erase_carrier_constraints() {
-    let mut program =
-        typed("machine inspect(value: &mut [u8; 3], expected: &mut [u8], read: &[u8]) { value; }");
+    let mut program = crate::front_end::typed_program(
+        "machine inspect(value: &mut [u8; 3], expected: &mut [u8], read: &[u8]) { value; }",
+    );
     let parameters = program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
     let actual = parameters[0].type_reference;
     let mutable_view = parameters[1].type_reference;
@@ -197,7 +186,7 @@ fn shared_slice_views_forget_constrained_referee_predicates() {
     // bytes while the callee simply cannot rely on the dropped
     // qualification — the documented shared-view forget extended from
     // fixed-array carriers to a constrained slice referee.
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "machine inspect(constrained: &[u8], plain: &[u8], expected: &[u8], mutable: &mut [u8], narrow: &[u16]) { plain; }",
     );
     let parameters = program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
@@ -269,7 +258,7 @@ fn shared_slice_views_forget_constrained_referee_predicates() {
 
 #[test]
 fn generic_array_views_compare_selected_elements_not_the_data_telescope() {
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "data Box<Element> { values: [Element; 2]; } machine inspect<Value>(value: Box<Value>, expected: &[Value]) { value.values; }",
     );
     let expression = member(&program, "value.values");
@@ -309,7 +298,7 @@ fn substituted_reference_field_attenuates_mutable_only_to_shared() {
         (ReferenceAccess::Shared, "&mut Value", false),
         (ReferenceAccess::WriteOnly, "&Value", false),
     ] {
-        let mut program = typed(&format!(
+        let mut program = crate::front_end::typed_program(&format!(
             "data Box<Element> {{ value: Element; }} machine inspect<Value>(value: Box<Value>, expected: {required}) {{ value.value; }}"
         ));
         let receiver = program
@@ -362,7 +351,7 @@ fn substituted_reference_field_attenuates_mutable_only_to_shared() {
 
 #[test]
 fn repeated_generic_telescope_projection_remains_explicitly_unsupported() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Box<Element> { value: Element; } machine inspect<Value>(value: Box<Box<Value>>, expected: &Value) { value.value.value; }",
     );
     assert!(
@@ -388,7 +377,7 @@ fn indexed_reference_leaf_requires_builtin_meaning_and_exact_referee() {
             false,
         ),
     ] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "data View {{ body: &mut i32; }} data Indexing {{}} {operator}
              machine inspect(values: [View; 1], index: u64, expected: &mut i32) {{ values[index].body; }}"
         ));
@@ -403,7 +392,7 @@ fn indexed_reference_leaf_requires_builtin_meaning_and_exact_referee() {
             "{operator}"
         );
     }
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "machine inspect(values: [u32; 1], index: u64, expected: &mut i32) { values[index]; }",
     );
     let array = program.state_parameters(&program.machine_states(&program.machines()[0])[0])[0]
@@ -442,7 +431,7 @@ fn forwarding_checks_prefix_permissions_separately_from_leaf_type() {
         ("&View", false),
         ("&write View", false),
     ] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "data View {{ body: &mut i32; }} machine inspect(value: {prefix}, expected: &mut i32) {{ value.body; }}"
         ));
         let expression = member(&program, "value.body");
@@ -481,7 +470,7 @@ fn forwarding_checks_prefix_permissions_separately_from_leaf_type() {
 
 #[test]
 fn selected_field_rejects_foreign_nominal_member_identity() {
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "data View { body: &mut i32; } data Other { body: &mut i32; }
          machine inspect(value: View, expected: &mut i32) { value.body; }",
     );
@@ -515,7 +504,7 @@ fn selected_field_rejects_foreign_nominal_member_identity() {
 
 #[test]
 fn generic_index_cannot_select_builtin_meaning_from_unsubstituted_elements() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data View { body: &mut i32; } data Box<Element> { values: [Element; 1]; }
          operator [] index(values: &[View], index: u64) -> View;
          machine inspect(boxed: Box<View>, index: u64, expected: &mut i32) { boxed.values[index].body; }",

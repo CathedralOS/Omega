@@ -1,19 +1,5 @@
-use typed_trees::TypedTrees;
-
-fn parse(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type")
-}
-
 fn check(source: &str, accepted: bool) {
-    let outcome = crate::validate_program(&parse(source));
+    let outcome = crate::validate_program(&crate::front_end::typed_program(source));
     if accepted {
         assert!(outcome.is_ok(), "{outcome:?}\n{source}");
     } else {
@@ -117,7 +103,7 @@ fn same_signature_slice_bounds_and_const_array_extents_remain_valid() {
         "machine run<const N: u64>(values: &[u8; N]) { transition { _ -> next(values) } state next(items: &[u8; N]) {} }",
         true,
     );
-    let outcome = crate::validate_program(&parse(
+    let outcome = crate::validate_program(&crate::front_end::typed_program(
         "machine run(hidden: u64) { transition { _ -> next() } state next() { let items: [u8; hidden]; } }",
     ));
     assert!(
@@ -136,7 +122,7 @@ fn type_bounds_retain_exact_parameter_identity_without_name_repair() {
     };
 
     let source = "machine run(limit: f64) { transition { _ -> next(limit, 0.0) } state next(limit: f64, value: f64 [0.0..=limit]) {} }";
-    let mut program = parse(source);
+    let mut program = crate::front_end::typed_program(source);
     let states = program.machine_states(&program.machines()[0]);
     let entry = program.state_parameters(&states[0])[0].symbol;
     let target = program.state_parameters(&states[1])[0].symbol;

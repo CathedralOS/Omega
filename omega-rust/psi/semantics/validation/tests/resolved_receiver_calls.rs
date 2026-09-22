@@ -5,21 +5,10 @@
 //! declaration the call invokes, never a waiver of the caller's
 //! obligations.
 
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::TypedTrees;
 
-fn typed(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokens");
-    let syntax = parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolved source");
-    lower_symbol_resolved_trees(&resolved).expect("typed source")
-}
-
 fn rejects(source: &str, fragment: &str) {
-    let diagnostics = validation::validate_program(&typed(source))
+    let diagnostics = validation::validate_program(&crate::front_end::typed_program(source))
         .expect_err("invalid resolved receiver call must reject");
     assert!(
         diagnostics
@@ -30,7 +19,7 @@ fn rejects(source: &str, fragment: &str) {
 }
 
 fn accepts(source: &str) {
-    validation::validate_program(&typed(source))
+    validation::validate_program(&crate::front_end::typed_program(source))
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
 }
 
@@ -95,7 +84,7 @@ fn local_receiver_calls_obey_result_use() {
 fn with_resolved_nested_receiver_call(body: &str) -> TypedTrees {
     use typed_trees::statement::StatementNode;
 
-    let mut program = typed(&format!(
+    let mut program = crate::front_end::typed_program(&format!(
         "data Inner {{ value: u64; }}
          machine Inner::read(&self) -> u64 {{ self.value }}
          data Outer {{ inner: Inner; }}

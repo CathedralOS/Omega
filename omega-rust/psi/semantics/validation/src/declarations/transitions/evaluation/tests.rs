@@ -1,19 +1,7 @@
 mod returns;
 
-fn parse(source: &str) -> typed_trees::TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type")
-}
-
 fn check(source: &str, accepted: bool) {
-    check_typed(&parse(source), source, accepted);
+    check_typed(&crate::front_end::typed_program(source), source, accepted);
 }
 
 fn check_typed(typed: &typed_trees::TypedTrees, source: &str, accepted: bool) {
@@ -57,7 +45,7 @@ fn combined_transition_siblings_keep_separate_argument_ranges() {
             false,
         ),
     ] {
-        let mut typed = parse(source);
+        let mut typed = crate::front_end::typed_program(source);
         let machine = typed
             .machines()
             .iter()

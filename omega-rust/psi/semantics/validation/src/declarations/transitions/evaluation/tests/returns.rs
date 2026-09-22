@@ -1,4 +1,4 @@
-use super::{check_typed, parse};
+use super::check_typed;
 use typed_trees::{TypedTrees, statement::StatementNode};
 
 fn combine_siblings(typed: &mut TypedTrees) {
@@ -54,7 +54,7 @@ fn guarded_anonymous_return_lands_once_at_its_declared_destination() {
                 "machine run(flag: bool) -> {destination} {{ transition flag {{ true -> ({first}) false -> ({second}) }} }}"
             );
             for combined in [false, true] {
-                let mut typed = parse(&source);
+                let mut typed = crate::front_end::typed_program(&source);
                 if combined {
                     combine_siblings(&mut typed);
                 }
@@ -89,7 +89,7 @@ fn guarded_return_uses_the_selected_arm_range_and_cast_premises() {
         ),
     ] {
         for combined in [false, true] {
-            let mut typed = parse(source);
+            let mut typed = crate::front_end::typed_program(source);
             if combined {
                 combine_siblings(&mut typed);
             }
@@ -114,7 +114,7 @@ fn guarded_return_effects_invalidate_only_the_reached_branch_premises() {
             false,
         ),
     ] {
-        let mut typed = parse(source);
+        let mut typed = crate::front_end::typed_program(source);
         combine_siblings(&mut typed);
         check_typed(&typed, source, accepted);
     }
@@ -124,7 +124,7 @@ fn guarded_return_effects_invalidate_only_the_reached_branch_premises() {
 fn guarded_return_width_custody_does_not_bless_an_unrelated_shared_root() {
     use typed_trees::statement::TransitionTargetNode;
     let source = "machine run(flag: bool) -> u8 { transition flag { true -> (18446744073709551616 + 7 - 18446744073709551616) false -> (0) } } machine unrelated() { let value: bool = false; }";
-    let mut typed = parse(source);
+    let mut typed = crate::front_end::typed_program(source);
     assert!(crate::validate_program(&typed).is_ok());
     let run = typed
         .machines()

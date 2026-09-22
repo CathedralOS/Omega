@@ -14,16 +14,7 @@ fn nested_static_constructor_namespace_is_not_a_live_operand() {
             result
         }
         machine observe(inner: Inner) -> u64 { inner.observe() }";
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let program = crate::front_end::typed_program(source);
     let wrapper = program
         .machines()
         .iter()
@@ -156,16 +147,7 @@ fn missing_common_origin_is_distinct_from_stale_or_cyclic_operands() {
 #[test]
 fn exact_named_constants_have_no_live_place_origin() {
     let source = "const OFFSET: u64 = 17; machine value() -> u64 { OFFSET }";
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let mut program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let mut program = crate::front_end::typed_program(source);
     let constant = program.const_declarations()[0].symbol;
     // Constant evaluation may already have substituted the source occurrence.
     // Retain its exact declaration handle to test the provenance query boundary.

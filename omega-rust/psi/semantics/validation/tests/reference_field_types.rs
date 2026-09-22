@@ -2,7 +2,6 @@
 //! loan, permit a reference move, or prove a field's current storage provenance.
 
 use source::SourceMap;
-use source_files_to_tokens::Lexer;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
@@ -12,25 +11,11 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use validation::checked_argument_matches_type_reference;
 
 fn typed_source(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize reference fields");
     let mut sources = SourceMap::default();
     let source_id = sources
         .add("reference_fields.omg".into(), source.to_owned())
         .source_id;
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
-        .expect("parse reference fields");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &syntax,
-            sources: Some(std::sync::Arc::new(sources)),
-            top_level_bindings: Vec::new(),
-        },
-    )
-    .expect("resolve reference fields");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type reference fields")
+    crate::front_end::typed_program_from_source_map(sources, &[(source_id, source)])
 }
 
 fn fixture(actual: &str, required: &str, projection: &str) -> TypedTrees {

@@ -1,20 +1,7 @@
 use super::has_exact_case_membership_meaning;
 use super::has_exact_parameter_case_membership_meaning;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-
-fn result_bound_program(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize result bounds");
-    let syntax = parse_syntax_trees(&tokens).expect("parse result bounds");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve result bounds");
-    lower_symbol_resolved_trees(&resolved).expect("type result bounds")
-}
 
 fn result_bound_comparison(program: &TypedTrees, machine_index: usize) -> ExpressionHandle {
     let contract = &program.machine_contracts(&program.machines()[machine_index])[0];
@@ -28,7 +15,7 @@ fn result_bound_comparison(program: &TypedTrees, machine_index: usize) -> Expres
 
 #[test]
 fn result_bound_operand_types_require_exact_primitive_and_field_contract_owners() {
-    let mut program = result_bound_program(
+    let mut program = crate::front_end::typed_program(
         "data Count { value: u64; }
          machine first() -> u64 ensures result < 8 { 4 }
          machine second() -> u64 ensures result < 8 { 4 }
@@ -109,7 +96,7 @@ fn result_bound_operand_types_require_exact_primitive_and_field_contract_owners(
 #[test]
 fn result_bounds_ignore_unrelated_operators_without_bypassing_matching_operators() {
     for (carrier, builtin) in [("Other", true), ("u64", false)] {
-        let program = result_bound_program(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "data Other {{ value: u64; }}
              boundary operator < Comparison::less(left: {carrier}, right: {carrier}) -> bool;
              machine bounded() -> u64 ensures result < 8 {{ 4 }}"
@@ -139,7 +126,7 @@ fn result_bounds_ignore_unrelated_operators_without_bypassing_matching_operators
 }
 
 fn membership_program() -> (TypedTrees, ExpressionHandle, ExpressionHandle) {
-    let tokens = Lexer::new(
+    let program = crate::front_end::typed_program(
         "data Choice [copy] { case Ready(value: u64); case Empty; }
          data Foreign [copy] { case Ready(value: u64); case Empty; }
          machine member(choice: Choice, choices: [Choice; 1]) -> bool {
@@ -147,12 +134,7 @@ fn membership_program() -> (TypedTrees, ExpressionHandle, ExpressionHandle) {
          }
          machine foreign(choice: Foreign) -> bool { choice in Foreign::Ready }
          machine create() -> Choice { Choice::Ready { value: 37 } }",
-    )
-    .tokenize()
-    .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let program = lower_symbol_resolved_trees(&resolved).expect("type");
+    );
     let mut comparisons =
         program
             .expression_table
@@ -178,16 +160,11 @@ fn is_exact_membership(program: &TypedTrees, expression: ExpressionHandle) -> bo
 
 #[test]
 fn result_membership_requires_its_exact_postcondition_owner() {
-    let tokens = Lexer::new(
+    let program = crate::front_end::typed_program(
         "data Choice { case Ready(value: u64); case Empty; }
          machine first() -> Choice ensures result in Choice::Ready { Choice::Ready { value: 1 } }
          machine second() -> Choice ensures result in Choice::Ready { Choice::Ready { value: 2 } }",
-    )
-    .tokenize()
-    .unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let program = lower_symbol_resolved_trees(&resolved).unwrap();
+    );
     for machine in program.machines() {
         let contract = &program.machine_contracts(machine)[0];
         let typed_trees::domain::ProofFact::Expression(expression) =
@@ -581,18 +558,13 @@ fn generated_case_membership_requires_exact_nominal_subject_and_classifier() {
 
 #[test]
 fn attached_self_membership_requires_its_owner_and_receiver() {
-    let tokens = Lexer::new(
+    let program = crate::front_end::typed_program(
         "data Choice { case Ready(value: u64); case Empty; }
          data Foreign { case Ready(value: u64); case Empty; }
          machine Choice::member(&self) -> bool { self in Choice::Ready }
          machine Foreign::member(&self) -> bool { self in Foreign::Ready }
          machine Choice::other(&self) -> bool { self in Choice::Ready }",
-    )
-    .tokenize()
-    .unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let program = lower_symbol_resolved_trees(&resolved).unwrap();
+    );
     let (expression, comparison) = program
         .expression_table
         .expression_entries()

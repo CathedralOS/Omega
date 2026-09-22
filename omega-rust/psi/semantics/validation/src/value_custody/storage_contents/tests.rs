@@ -3,18 +3,6 @@ use super::{
     has_plain_owned_contents_with_numeric_constraints, has_service_seam_contents,
     has_stable_observable_contents,
 };
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
-}
-
 fn input(program: &TypedTrees) -> TypeReferenceHandle {
     let machine = program
         .machines()
@@ -27,7 +15,7 @@ fn input(program: &TypedTrees) -> TypeReferenceHandle {
 #[test]
 fn empty_fixed_arrays_preserve_their_element_contents_classification() {
     for carrier in ["[u8; 0]", "Empty", "Holder<[u8; 0]>"] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "data Empty {{ bytes: [u8; 0]; }} data Holder<T> {{ value: T; }} machine inspect(value: {carrier}) {{}}"
         ));
         assert!(
@@ -49,7 +37,7 @@ fn empty_fixed_arrays_preserve_their_element_contents_classification() {
         "[Dropped; 0]",
         "[u8; Width]",
     ] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "data Borrowed {{ value: &u8; }} data Resource [linear] {{ value: u8; }} data Dropped {{ value: u8; }} machine Dropped::drop(&mut self) {{}} machine inspect<const Width: u64>(value: {carrier}) {{}}"
         ));
         assert!(
@@ -67,13 +55,13 @@ fn empty_fixed_arrays_preserve_their_element_contents_classification() {
 fn primitive_ranges_inside_owned_records_do_not_introduce_cleanup() {
     let source =
         "data Limits { limit: u64; divisor: u64 [3..=5]; } machine inspect(limits: Limits) {}";
-    let program = typed(source);
+    let program = crate::front_end::typed_program(source);
     assert!(!has_plain_owned_contents(&program, input(&program)));
     assert!(has_plain_owned_contents_with_numeric_constraints(
         &program,
         input(&program)
     ));
-    let nested = typed(
+    let nested = crate::front_end::typed_program(
         "data Inner { divisor: u64 [3..=5]; } data Outer { inner: Inner; } machine inspect(outer: Outer) {}",
     );
     assert!(!has_plain_owned_contents(&nested, input(&nested)));
@@ -85,7 +73,7 @@ fn primitive_ranges_inside_owned_records_do_not_introduce_cleanup() {
         format!("{source} machine Limits::drop(&mut self) {{}}"),
         "data Inner { divisor: u64 [3..=5]; } data Outer { inner: Inner; } machine inspect(outer: Outer) {} machine Inner::drop(&mut self) {}".to_owned(),
     ] {
-        let program = typed(&source);
+        let program = crate::front_end::typed_program(&source);
         assert!(!has_plain_owned_contents(&program, input(&program)));
         assert!(!has_plain_owned_contents_with_numeric_constraints(&program, input(&program)));
     }
@@ -93,7 +81,7 @@ fn primitive_ranges_inside_owned_records_do_not_introduce_cleanup() {
 
 #[test]
 fn primitive_range_admission_does_not_erase_other_constraints() {
-    let mut program = typed("machine inspect(value: u64 [3..=5]) {}");
+    let mut program = crate::front_end::typed_program("machine inspect(value: u64 [3..=5]) {}");
     let reference = input(&program);
     assert!(!has_plain_owned_contents(&program, reference));
     assert!(has_plain_owned_contents_with_numeric_constraints(
@@ -140,7 +128,7 @@ fn stable_observation_composes_shared_contents_and_pure_value_domains() {
         "Holder<PositiveField>",
         "PositiveField in Marked",
     ] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "domain [u8]::Text requires valid_utf8(self);
              domain [u8; 8]::Text requires valid_utf8(self);
              domain u64::Positive requires self > 0;
@@ -172,7 +160,7 @@ fn stable_observation_rejects_nested_mutation_authority_and_unknown_qualifiers()
         "Holder<Holder<Mutable>>",
         "&Holder<WriteOnly>",
     ] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "data Holder<T> {{ value: T; }}
              data Mutable {{ value: &mut [u8]; }}
              data WriteOnly {{ value: &write u64; }}
@@ -188,7 +176,7 @@ fn stable_observation_rejects_nested_mutation_authority_and_unknown_qualifiers()
     // classifier even though their old authored bracket surface is retired.
     for carrier in ["u64", "Holder<Scalar>", "&[u8]", "&Holder<Bytes>"] {
         for qualifier in ["atomic", "unknown"] {
-            let mut program = typed(&format!(
+            let mut program = crate::front_end::typed_program(&format!(
                 "data Holder<T> {{ value: T; }}
                  data Scalar {{ value: u64; }} data Bytes {{ value: &[u8]; }}
                  machine inspect(value: {carrier}) {{}}"
@@ -231,7 +219,7 @@ fn service_seam_contents_leave_erased_members_with_the_observed_place() {
     // The seam marshal carries runtime contents only: an erased member stays
     // with the observed place, so it resolves but is never checked for stable
     // contents of its own.
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Evidence { case Only; }
          data Sealed { payload: u64; proof [erased]: Evidence; }
          machine inspect(value: Sealed) {}",
@@ -247,7 +235,7 @@ fn service_seam_contents_leave_erased_members_with_the_observed_place() {
 #[test]
 fn service_seam_contents_keep_the_runtime_exclusions() {
     // An unresolvable erased member type still fails closed.
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Sealed { payload: u64; proof [erased]: Missing; }
          machine inspect(value: Sealed) {}",
     );
@@ -267,7 +255,7 @@ fn service_seam_contents_keep_the_runtime_exclusions() {
          machine Sealed::drop(&mut self) {}
          machine inspect(value: Sealed) {}",
     ] {
-        let program = typed(carrier);
+        let program = crate::front_end::typed_program(carrier);
         assert!(
             !has_service_seam_contents(&program, input(&program)),
             "{carrier}"
@@ -276,7 +264,7 @@ fn service_seam_contents_keep_the_runtime_exclusions() {
     // An erased member with runtime-bearing contents still stays behind: a
     // seam-marshalable record may carry erased members whose own contents
     // would not survive observation, because they never cross.
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Loaned { holder: &u64; }
          data Evidence { case Only; }
          data Sealed { payload: u64; proof [erased]: Loaned; tag: Evidence; }
@@ -293,7 +281,7 @@ fn stable_observation_preserves_recursive_and_cleanup_exclusions() {
         "data Resource [linear] { value: u64; } machine inspect(value: &Resource) {}",
         "data Resource { value: u64; } machine Resource::drop(&mut self) {} machine inspect(value: &Resource) {}",
     ] {
-        let program = typed(source);
+        let program = crate::front_end::typed_program(source);
         assert!(
             !has_stable_observable_contents(&program, input(&program)),
             "{source}"
@@ -303,8 +291,9 @@ fn stable_observation_preserves_recursive_and_cleanup_exclusions() {
 
 #[test]
 fn stable_observation_does_not_erase_domain_authority_metadata() {
-    let original =
-        typed("domain u64::Positive requires self > 0; machine inspect(value: u64 in Positive) {}");
+    let original = crate::front_end::typed_program(
+        "domain u64::Positive requires self > 0; machine inspect(value: u64 in Positive) {}",
+    );
     let reference = input(&original);
     assert!(has_stable_observable_contents(&original, reference));
     let TypeReferenceNode::Constrained { constraints, .. } =

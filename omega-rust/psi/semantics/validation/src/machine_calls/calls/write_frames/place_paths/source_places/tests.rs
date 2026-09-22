@@ -75,25 +75,11 @@ fn fixture() -> (TypedTrees, Vec<SymbolHandle>) {
 }
 
 fn typed_source(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap_or_else(|diagnostics| panic!("tokenize: {diagnostics:#?}\n{source}"));
     let mut sources = source::SourceMap::default();
     let source_id = sources
         .add("builtin_coordinates.omg".into(), source.to_owned())
         .source_id;
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
-        .unwrap_or_else(|diagnostics| panic!("parse: {diagnostics:#?}\n{source}"));
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &syntax,
-            sources: Some(std::sync::Arc::new(sources)),
-            top_level_bindings: Vec::new(),
-        },
-    )
-    .unwrap_or_else(|diagnostics| panic!("resolve: {diagnostics:#?}\n{source}"));
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .unwrap_or_else(|diagnostics| panic!("type: {diagnostics:#?}\n{source}"))
+    crate::front_end::typed_program_from_source_map(sources, &[(source_id, source)])
 }
 
 fn selected_expression(program: &TypedTrees) -> (&Machine, &State, ExpressionHandle) {

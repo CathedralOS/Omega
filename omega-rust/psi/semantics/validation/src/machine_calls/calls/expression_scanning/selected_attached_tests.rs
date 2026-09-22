@@ -6,16 +6,7 @@ fn attached_call_requires_its_selected_state_and_receiver_owner() {
         machine First::read(&self) -> u64 { self.value }
         machine Second::read(&self) -> u64 { self.other }
         machine read(value: &First) -> u64 { value.read() }";
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let program = crate::front_end::typed_program(source);
     crate::validate_program(&program).expect("exact selected call");
     let call = program
         .expression_table
@@ -49,16 +40,7 @@ fn an_attached_call_cannot_use_a_collection_element_as_its_receiver_owner() {
     let source = "data First { value: u64; }
         machine First::read(&self) -> u64 { self.value }
         machine read(value: &First) -> u64 { value.read() }";
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let program = crate::front_end::typed_program(source);
     crate::validate_program(&program).expect("ordinary nominal receiver");
     let machine = program
         .machines()
@@ -120,16 +102,7 @@ fn static_attached_calls_check_explicit_self_and_following_arguments() {
              {{ self }}
              machine invoke({parameters}) -> First {{ First::forward({arguments}) }}"
         );
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let program =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let program = crate::front_end::typed_program(&source);
         assert_eq!(
             crate::validate_program(&program).is_ok(),
             accepted,

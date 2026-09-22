@@ -5,18 +5,6 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
-}
-
 /// The polarity and carried operation of every assignment in `publish`.
 fn publish_assignments(
     program: &TypedTrees,
@@ -49,7 +37,7 @@ fn publish_assignments(
 }
 
 fn validation_messages(source: &str) -> Vec<String> {
-    match crate::validate_program(&typed(source)) {
+    match crate::validate_program(&crate::front_end::typed_program(source)) {
         Ok(()) => Vec::new(),
         Err(diagnostics) => diagnostics
             .into_iter()
@@ -62,7 +50,7 @@ const NOT_MUTABLE: &str = "assignment cannot write `value` because it is not mut
 
 #[test]
 fn store_carrier_on_atomic_storage_demands_a_shared_receiver() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Cell { value: AtomicU32; }
          machine Cell::publish(&self, value: u32) { self.value.store(value, NoOrdering); }",
     );
@@ -78,7 +66,7 @@ fn store_carrier_on_atomic_storage_demands_a_shared_receiver() {
 
 #[test]
 fn fetch_carrier_recovers_its_family_from_the_interpreter_model() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Cell { value: AtomicU32; }
          machine Cell::publish(&self) {
              let prior: u32 = self.value.fetch_or(1, Publish);
@@ -112,7 +100,7 @@ fn fetch_carrier_recovers_its_family_from_the_interpreter_model() {
 
 #[test]
 fn swap_and_compare_exchange_carriers_share_the_receiver() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Cell { value: AtomicU32; }
          machine Cell::publish(&self) {
              let displaced: u32 = self.value.swap(7, ReceivePublish);
@@ -140,7 +128,7 @@ fn swap_and_compare_exchange_carriers_share_the_receiver() {
 
 #[test]
 fn direct_assignment_to_atomic_storage_keeps_the_exclusive_demand() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Cell { value: AtomicU32; }
          machine Cell::publish(&self, value: u32) { self.value = value; }",
     );
@@ -152,7 +140,7 @@ fn direct_assignment_to_atomic_storage_keeps_the_exclusive_demand() {
 
 #[test]
 fn store_carrier_on_plain_storage_keeps_the_exclusive_demand() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Cell { value: u32; }
          machine Cell::publish(&self, value: u32) { self.value.store(value, NoOrdering); }",
     );

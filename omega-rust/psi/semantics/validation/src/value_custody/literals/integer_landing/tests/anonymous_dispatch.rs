@@ -16,16 +16,7 @@ fn parsed_dispatch_result(
     let source = format!(
         "machine call() -> u64 {{ 1 }} machine choose() -> {result} {{ match {subject} {{ {arms} }} }}"
     );
-    let tokens = source_files_to_tokens::Lexer::new(&source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolution");
-    let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("typing");
+    let program = crate::front_end::typed_program(&source);
     let dispatch = program
         .expression_table
         .expression_entries()

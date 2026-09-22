@@ -1,8 +1,6 @@
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use source::{SourceMap, SourceOrigin};
-use source_files_to_tokens::Lexer;
 use typed_trees::TypedTrees;
 
 fn typed(text: &str, relative: &str, origin: SourceOrigin) -> TypedTrees {
@@ -11,18 +9,7 @@ fn typed(text: &str, relative: &str, origin: SourceOrigin) -> TypedTrees {
     let source_id = sources
         .add_with_metadata(root.join(relative), text.to_owned(), root, None, origin)
         .source_id;
-    let tokens = Lexer::new(text).tokenize().expect("tokenize");
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &syntax,
-            sources: Some(Arc::new(sources)),
-            top_level_bindings: Vec::new(),
-        },
-    )
-    .expect("resolve");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type")
+    crate::front_end::typed_program_from_source_map(sources, &[(source_id, text)])
 }
 
 const CALLING: &str = r#"
