@@ -169,16 +169,10 @@ fn has_external_caller(root: &Path, crate_root: &Path, ident: &str, name: &str) 
 /// plumbing delegates and test-only helpers re-exported for crate-internal or
 /// integration-test consumers, cataloged by the stage-entrance orphan audit.
 /// Adding an entry needs the same audit disposition, not an unexamined pass.
-const PLUMBING_REEXPORTS: [(&str, &str); 2] = [
-    (
-        "selected-instructions-to-selected-instructions",
-        "optimize_analyzed_selected_instructions",
-    ),
-    (
-        "typed-trees-to-checked-trees",
-        "normalize_open_index_identities",
-    ),
-];
+const PLUMBING_REEXPORTS: [(&str, &str); 1] = [(
+    "typed-trees-to-checked-trees",
+    "normalize_open_index_identities",
+)];
 
 /// Stage crates whose lowering surface is one entrance by design: every
 /// root-exported `lower_*` function must be exactly the named entrance, and
