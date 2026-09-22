@@ -6,7 +6,7 @@ use crate::borrow::loans::StatementBorrowLoan;
 use crate::borrow::loans::borrow_access_place;
 use crate::borrow::loans::borrowed_initializer_loans;
 use crate::borrow::loans::borrowed_initializers;
-use crate::borrow::loans::call_view_return_source;
+use crate::borrow::loans::call_view_return_source_at;
 use crate::borrow::loans::call_view_signature;
 use crate::borrow::loans::helper_call_aggregate_borrow_loans;
 use crate::borrow::loans::owner_path_matches;
@@ -131,12 +131,12 @@ pub(super) fn result_loans(
             }
             _ => return None,
         };
-        if let Some((_, reference)) = call_view_signature(program, call.target_symbol)
+        if let Some((_, reference, _)) = call_view_signature(program, call.target_symbol)
             && let Some(access) = reference_borrow_access_kind(program, reference)
         {
             access_limits.push(access);
         }
-        expression = match call_view_return_source(program, call.target_symbol) {
+        expression = match call_view_return_source_at(program, state_symbol, call) {
             ViewReturnSource::Fields { .. } => {
                 let loans = helper_call_aggregate_borrow_loans(
                     program,
@@ -192,6 +192,7 @@ pub(super) fn argument_loans(
     field: &ViewReturnFieldSource,
     owner_path_prefix: &[BorrowOwnerSegment],
     loan_trackers: &[StateLoanTracker],
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     carried_arguments: &mut Vec<(usize, Vec<StatementBorrowLoan>)>,
 ) -> Vec<StatementBorrowLoan> {
     let source_segments = place_segments(&field.source_path);
@@ -199,20 +200,24 @@ pub(super) fn argument_loans(
         .iter()
         .position(|(index, _)| *index == field.non_self_index)
         .unwrap_or_else(|| {
-            let loans = borrowed_initializers(program, field.source_type, argument, &[], &[])
-                .into_iter()
-                .flat_map(|initializer| {
-                    borrowed_initializer_loans(
-                        program,
-                        state_symbol,
-                        statement_index,
-                        machine_symbol,
-                        local_data,
-                        initializer,
-                        loan_trackers,
-                    )
-                })
-                .collect();
+            // `field.source_type` is the declared parameter type; the call's
+            // closed bindings resolve a type parameter to the argument's
+            // concrete carrier before its loan leaves are enumerated.
+            let loans =
+                borrowed_initializers(program, field.source_type, argument, substitutions, &[])
+                    .into_iter()
+                    .flat_map(|initializer| {
+                        borrowed_initializer_loans(
+                            program,
+                            state_symbol,
+                            statement_index,
+                            machine_symbol,
+                            local_data,
+                            initializer,
+                            loan_trackers,
+                        )
+                    })
+                    .collect();
             let index = carried_arguments.len();
             carried_arguments.push((field.non_self_index, loans));
             index

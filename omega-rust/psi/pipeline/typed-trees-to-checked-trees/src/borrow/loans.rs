@@ -796,10 +796,15 @@ fn helper_call_aggregate_borrow_loans(
     owner_path_prefix: &[BorrowOwnerSegment],
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
-    let ViewReturnSource::Fields { fields } = call_view_return_source(program, call.target_symbol)
+    let ViewReturnSource::Fields { fields } =
+        call_view_return_source_at(program, state_symbol, call)
     else {
         return Vec::new();
     };
+    let substitutions = call_view_signature(program, call.target_symbol)
+        .and_then(|(_, _, signature)| signature)
+        .and_then(|signature| call_site_substitutions(program, state_symbol, signature, call))
+        .unwrap_or_default();
     let arguments = program.expression_table.expression_handles(call.arguments);
     let mut carried_arguments = Vec::new();
 
@@ -820,6 +825,7 @@ fn helper_call_aggregate_borrow_loans(
                     &field,
                     owner_path_prefix,
                     loan_trackers,
+                    &substitutions,
                     &mut carried_arguments,
                 );
             }
@@ -948,8 +954,9 @@ pub(crate) fn helper_call_borrow_loan_place(
     // The borrow source (self, a named input, or none) is resolved by the same
     // logic the declaration check uses (`borrow::view_link`), so the loan we
     // track here always matches what the elision check accepted. Elision rules
-    // 1/3 and stage-2 explicit lifetimes all flow through there.
-    match call_view_return_source(program, call.target_symbol) {
+    // 1/3 and stage-2 explicit lifetimes all flow through there; a generic
+    // signature resolves the same relation under the call's closed bindings.
+    match call_view_return_source_at(program, state_symbol, call) {
         ViewReturnSource::NotApplicable
         | ViewReturnSource::Ambiguous(_)
         | ViewReturnSource::Fields { .. } => None,
@@ -988,10 +995,59 @@ fn call_view_return_source(
     program: &typed_trees::TypedTrees,
     target_symbol: SymbolHandle,
 ) -> ViewReturnSource {
-    let Some((parameters, return_type)) = call_view_signature(program, target_symbol) else {
+    let Some((parameters, return_type, _)) = call_view_signature(program, target_symbol) else {
         return ViewReturnSource::NotApplicable;
     };
     resolve_signature_view_return_source(program, parameters, return_type)
+}
+
+/// `call_view_return_source` specialized at one call site: a generic
+/// signature's frontier only closes under the call's own exact selected
+/// callable and argument bindings, which decide which instantiated input
+/// each returned view leaf borrows. Calls without closed bindings — concrete
+/// states and still-open signatures — keep the declaration-level decision.
+fn call_view_return_source_at(
+    program: &typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    call: &checked_trees::expression::TableCallExpression,
+) -> ViewReturnSource {
+    let Some((parameters, return_type, signature)) =
+        call_view_signature(program, call.target_symbol)
+    else {
+        return ViewReturnSource::NotApplicable;
+    };
+    if let Some(signature) = signature
+        && let Some(substitutions) = call_site_substitutions(program, state_symbol, signature, call)
+        && !substitutions.is_empty()
+    {
+        return crate::borrow::view_link::resolve_substituted_view_return_source(
+            program,
+            parameters,
+            return_type,
+            &substitutions,
+        );
+    }
+    resolve_signature_view_return_source(program, parameters, return_type)
+}
+
+/// The exact type-parameter bindings one static-callable call closes the
+/// signature under — the same `closed_static_call_type_bindings` the
+/// call-admission gate proves before the call may produce a returned view.
+fn call_site_substitutions(
+    program: &typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    signature: &typed_trees::signature::StateSignature,
+    call: &checked_trees::expression::TableCallExpression,
+) -> Option<Vec<(SymbolHandle, typed_trees::types::TypeReferenceHandle)>> {
+    let (caller, state) = crate::semantic_calls::find_state_with_machine(program, state_symbol)?;
+    validation::closed_static_call_type_bindings(
+        program,
+        caller,
+        state,
+        signature,
+        &call.machine_arguments,
+        program.expression_table.expression_handles(call.arguments),
+    )
 }
 
 /// True when the call target's own declaration names one exact borrow source
@@ -1015,17 +1071,20 @@ fn call_view_signature(
 ) -> Option<(
     &[typed_trees::signature::StateParameter],
     typed_trees::types::TypeReferenceHandle,
+    Option<&typed_trees::signature::StateSignature>,
 )> {
     if let Some(target_state) = find_state(program, target_symbol) {
         return Some((
             program.state_parameters(target_state),
             target_state.return_type,
+            None,
         ));
     }
     if let Some((_, signature)) = program.machine_parameter_signature(target_symbol) {
         return Some((
             program.state_signature_parameters(signature),
             signature.return_type,
+            Some(signature),
         ));
     }
     for trait_definition in program.traits() {
@@ -1037,6 +1096,7 @@ fn call_view_signature(
             return Some((
                 program.state_signature_parameters(signature),
                 signature.return_type,
+                Some(signature),
             ));
         }
     }
