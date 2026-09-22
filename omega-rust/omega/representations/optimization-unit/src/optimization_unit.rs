@@ -28,29 +28,56 @@ mod rewrite;
 #[cfg(test)]
 mod tests;
 
-pub use attachment::*;
+pub use attachment::{
+    AcceptedObligationFactIndexError, OwnershipFrontierFactIndexError, ProofQuestionIndexError,
+    attach_accepted_obligation_facts, attach_ownership_frontier_facts, attach_proof_questions,
+    canonical_ownership_frontier_snapshot,
+};
 pub use construction::{
     OptimizationUnitBuildError, reconstruct_psi_optimization_unit_seed,
     restamp_psi_function_derived_metadata,
 };
-pub use cycles::*;
-pub use evidence::*;
-pub use graph::*;
+pub use cycles::{
+    CycleComponentEdge, CycleComponentId, OptimizerCycleComponent, OptimizerCycleComponentSnapshot,
+    OptimizerRankingCertificateSnapshot, OptimizerUnsignedCountdownRankingCertificate,
+    OptimizerUnsignedMinusOneDescent, OptimizerUnsignedPositiveGuard,
+};
+pub use evidence::{
+    AbstractOptimizationEvidence, OptimizationRunUsage, PsiOptimizationCommit,
+    PsiValidatedCandidateDeclaration,
+};
+pub use graph::{
+    EffectLink, FuelSettlement, OptimizationBlock, OptimizationEdge, OptimizationFact,
+    OptimizationNode, OwnershipEvent, PsiOptimizationFunction, PsiProvenance, ValueDefinition,
+    ValueDefinitionSite, ValueUse,
+};
 pub use identity::{recompute_psi_optimization_unit_identity, structural_domain_catalog_identity};
 pub use ledger::{
     InvalidPsiTransformationLedger, PrunedMachineCustody, PsiTransformationLedger,
     PsiTransformationLedgerDecodeError, PsiTransformationRecord,
 };
-pub use manifest::*;
+pub use manifest::{
+    OptimizationManifestStage, OptimizationStructuralStatistics, PhysicalOptimizationDataStatus,
+    PrePhysicalOptimizationManifest, PrePhysicalOptimizationManifestDecodeError,
+};
 pub use observation::{
     ObservationEventClass, ObservationKnowledge, PsiClosedRegionBlockObservation,
     PsiClosedRegionObservation, PsiClosedRegionSemantics, PsiNodeObservation, PsiObservableEvent,
     PsiObservationModel, PsiRegionBoundaryEdgeObservation, PsiRegionFrontierObservation,
     reconstruct_psi_closed_region_observation, reconstruct_psi_observation_model,
 };
-pub use ownership::*;
-pub use proof::*;
-pub use range::*;
+pub use ownership::{
+    OwnershipFrontierFact, OwnershipFrontierLiveClaim, OwnershipFrontierOwnedPlace,
+    OwnershipFrontierPartialCustody, OwnershipFrontierSite, OwnershipFrontierSnapshot,
+    ownership_frontier_fact_identity,
+};
+pub use proof::{
+    AcceptedObligationFact, ProofQuestion, ProofQuestionAdmissionKind, ProofQuestionClass,
+    ProofQuestionOwner, accepted_obligation_fact_identity, proof_question_identity,
+};
+pub use range::{
+    ValueRangeFact, ValueRangeRegion, ValueRangeScope, ValueRangeSupport, value_range_fact_identity,
+};
 pub use rewrite::{
     AdjacentBlockMergeRewrite, BlockParameterIncomingBinding, BooleanConstantRewrite,
     CaseMembershipSpecializationRewrite, ConstantConditionalRewrite, DeadScalarNodeRewrite,
