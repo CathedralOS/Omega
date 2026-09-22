@@ -223,10 +223,12 @@ pub(super) fn validate_asm_intrinsic_declarations(
 }
 
 /// The asm intrinsic a statement carries, as (instruction label, contract
-/// service identity, required authority): a statement call on an `asm#...` target
-/// (`asm { hlt }`, `asm { out .. }`) or an assignment whose value is the
+/// service identity, required authority): a statement call on an `asm#...`
+/// target (`asm { hlt }`, `asm { out .. }`) or an assignment whose value is the
 /// `asm#port_in` call (`asm { in dest, port }`). The parser's desugar emits
-/// exactly these two shapes and the names are unnameable from source.
+/// exactly these two shapes and the names are unnameable from source. Every
+/// asm intrinsic answers, including the authority-free hints (`nop`, `pause`,
+/// `wfe`, ...) whose contract admits unconditionally and reaches no service.
 fn statement_asm_intrinsic(
     program: &TypedTrees,
     statement: &StatementNode,
@@ -236,64 +238,23 @@ fn statement_asm_intrinsic(
     language_core::inline_assembly::AsmAuthorityRequirement,
 )> {
     let target = match statement {
-        StatementNode::Call(call) => call.target.as_str().to_owned(),
+        StatementNode::Call(call) => call.target.as_str(),
         StatementNode::Assignment(assignment) => {
             let typed_trees::expression::ExpressionNode::Call(call) =
                 program.expression_table.expression(assignment.value)
             else {
                 return None;
             };
-            call.target.as_str().to_owned()
+            call.target.as_str()
         }
         _ => return None,
     };
 
-    let function = symbols::BuiltinFunction::asm_intrinsics()
-        .into_iter()
-        .find(|function| function.name() == target)?;
+    let function = symbols::BuiltinFunction::from_name(target)
+        .filter(|function| function.is_asm_intrinsic())?;
     let service_name = function.asm_intrinsic_service_name();
     // Label the diagnostic with the SOURCE mnemonic, not the internal name.
-    let instruction = match function {
-        symbols::BuiltinFunction::AsmHlt => "hlt",
-        symbols::BuiltinFunction::AsmPortOut => "out",
-        symbols::BuiltinFunction::AsmPortIn => "in",
-        symbols::BuiltinFunction::AsmLoadFence => "lfence",
-        symbols::BuiltinFunction::AsmStoreFence => "sfence",
-        symbols::BuiltinFunction::AsmFullFence => "mfence",
-        symbols::BuiltinFunction::AsmDisableInterrupts => "cli",
-        symbols::BuiltinFunction::AsmEnableInterrupts => "sti",
-        symbols::BuiltinFunction::AsmSnapshotFlags => "pushfq",
-        symbols::BuiltinFunction::AsmRestoreFlags => "popfq",
-        symbols::BuiltinFunction::AsmReadMsr => "rdmsr",
-        symbols::BuiltinFunction::AsmWriteMsr => "wrmsr",
-        symbols::BuiltinFunction::AsmReadCr0 => "read_cr0",
-        symbols::BuiltinFunction::AsmReadCr2 => "read_cr2",
-        symbols::BuiltinFunction::AsmReadCr3 => "read_cr3",
-        symbols::BuiltinFunction::AsmReadCr4 => "read_cr4",
-        symbols::BuiltinFunction::AsmWriteCr0 => "write_cr0",
-        symbols::BuiltinFunction::AsmWriteCr3 => "write_cr3",
-        symbols::BuiltinFunction::AsmWriteCr4 => "write_cr4",
-        symbols::BuiltinFunction::AsmWriteBackInvalidate => "wbinvd",
-        symbols::BuiltinFunction::AsmInvalidate => "invd",
-        symbols::BuiltinFunction::AsmWriteBackNoInvalidate => "wbnoinvd",
-        symbols::BuiltinFunction::AsmReadSctlrEl1 => "read_sctlr_el1",
-        symbols::BuiltinFunction::AsmReadTcrEl1 => "read_tcr_el1",
-        symbols::BuiltinFunction::AsmReadTtbr0El1 => "read_ttbr0_el1",
-        symbols::BuiltinFunction::AsmReadTtbr1El1 => "read_ttbr1_el1",
-        symbols::BuiltinFunction::AsmReadMairEl1 => "read_mair_el1",
-        symbols::BuiltinFunction::AsmReadVbarEl1 => "read_vbar_el1",
-        symbols::BuiltinFunction::AsmReadTpidrEl1 => "read_tpidr_el1",
-        symbols::BuiltinFunction::AsmReadEsrEl1 => "read_esr_el1",
-        symbols::BuiltinFunction::AsmReadFarEl1 => "read_far_el1",
-        symbols::BuiltinFunction::AsmWriteSctlrEl1 => "write_sctlr_el1",
-        symbols::BuiltinFunction::AsmWriteTcrEl1 => "write_tcr_el1",
-        symbols::BuiltinFunction::AsmWriteTtbr0El1 => "write_ttbr0_el1",
-        symbols::BuiltinFunction::AsmWriteTtbr1El1 => "write_ttbr1_el1",
-        symbols::BuiltinFunction::AsmWriteMairEl1 => "write_mair_el1",
-        symbols::BuiltinFunction::AsmWriteVbarEl1 => "write_vbar_el1",
-        symbols::BuiltinFunction::AsmWriteTpidrEl1 => "write_tpidr_el1",
-        _ => return None,
-    };
+    let instruction = language_core::inline_assembly::asm_intrinsic_mnemonic(function.name())?;
     let language_core::inline_assembly::AsmCatalogEntry::Contract(contract) =
         language_core::inline_assembly::asm_catalog_entry(instruction)?
     else {

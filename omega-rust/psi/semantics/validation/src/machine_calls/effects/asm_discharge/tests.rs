@@ -1,5 +1,8 @@
 use super::{AsmAuthorityAdmission, validate_asm_discharge};
-use language_core::inline_assembly::AsmAuthorityRequirement;
+use language_core::inline_assembly::{
+    AsmAuthorityRequirement, AsmCatalogEntry, asm_catalog_entry, asm_intrinsic_mnemonic,
+};
+use symbols::BuiltinFunction;
 use typed_trees::TypedTrees;
 
 fn typed(source: &str) -> TypedTrees {
@@ -198,4 +201,98 @@ fn grants_compose_on_top_of_machine_owner_admission() {
     assert!(both.admits(AsmAuthorityRequirement::PortIo));
     assert!(both.admits(AsmAuthorityRequirement::IdtControl));
     assert!(!both.admits(AsmAuthorityRequirement::MachineOwner));
+}
+
+/// The instruction labels this module's own table produced before the
+/// mnemonic query moved to `language_core::inline_assembly`. Pinned so the
+/// move changed no diagnostic label.
+const PREVIOUS_STATEMENT_INTRINSIC_LABELS: &[(BuiltinFunction, &str)] = &[
+    (BuiltinFunction::AsmHlt, "hlt"),
+    (BuiltinFunction::AsmPortOut, "out"),
+    (BuiltinFunction::AsmPortIn, "in"),
+    (BuiltinFunction::AsmLoadFence, "lfence"),
+    (BuiltinFunction::AsmStoreFence, "sfence"),
+    (BuiltinFunction::AsmFullFence, "mfence"),
+    (BuiltinFunction::AsmDisableInterrupts, "cli"),
+    (BuiltinFunction::AsmEnableInterrupts, "sti"),
+    (BuiltinFunction::AsmSnapshotFlags, "pushfq"),
+    (BuiltinFunction::AsmRestoreFlags, "popfq"),
+    (BuiltinFunction::AsmReadMsr, "rdmsr"),
+    (BuiltinFunction::AsmWriteMsr, "wrmsr"),
+    (BuiltinFunction::AsmReadCr0, "read_cr0"),
+    (BuiltinFunction::AsmReadCr2, "read_cr2"),
+    (BuiltinFunction::AsmReadCr3, "read_cr3"),
+    (BuiltinFunction::AsmReadCr4, "read_cr4"),
+    (BuiltinFunction::AsmWriteCr0, "write_cr0"),
+    (BuiltinFunction::AsmWriteCr3, "write_cr3"),
+    (BuiltinFunction::AsmWriteCr4, "write_cr4"),
+    (BuiltinFunction::AsmWriteBackInvalidate, "wbinvd"),
+    (BuiltinFunction::AsmInvalidate, "invd"),
+    (BuiltinFunction::AsmWriteBackNoInvalidate, "wbnoinvd"),
+    (BuiltinFunction::AsmReadSctlrEl1, "read_sctlr_el1"),
+    (BuiltinFunction::AsmReadTcrEl1, "read_tcr_el1"),
+    (BuiltinFunction::AsmReadTtbr0El1, "read_ttbr0_el1"),
+    (BuiltinFunction::AsmReadTtbr1El1, "read_ttbr1_el1"),
+    (BuiltinFunction::AsmReadMairEl1, "read_mair_el1"),
+    (BuiltinFunction::AsmReadVbarEl1, "read_vbar_el1"),
+    (BuiltinFunction::AsmReadTpidrEl1, "read_tpidr_el1"),
+    (BuiltinFunction::AsmReadEsrEl1, "read_esr_el1"),
+    (BuiltinFunction::AsmReadFarEl1, "read_far_el1"),
+    (BuiltinFunction::AsmWriteSctlrEl1, "write_sctlr_el1"),
+    (BuiltinFunction::AsmWriteTcrEl1, "write_tcr_el1"),
+    (BuiltinFunction::AsmWriteTtbr0El1, "write_ttbr0_el1"),
+    (BuiltinFunction::AsmWriteTtbr1El1, "write_ttbr1_el1"),
+    (BuiltinFunction::AsmWriteMairEl1, "write_mair_el1"),
+    (BuiltinFunction::AsmWriteVbarEl1, "write_vbar_el1"),
+    (BuiltinFunction::AsmWriteTpidrEl1, "write_tpidr_el1"),
+];
+
+#[test]
+fn every_asm_builtin_has_the_mnemonic_the_discharge_table_used_to_spell() {
+    for (function, label) in PREVIOUS_STATEMENT_INTRINSIC_LABELS {
+        assert_eq!(
+            asm_intrinsic_mnemonic(function.name()),
+            Some(*label),
+            "{function:?} must keep its diagnostic label"
+        );
+    }
+    for function in BuiltinFunction::ALL {
+        let mnemonic = asm_intrinsic_mnemonic(function.name());
+        assert_eq!(
+            mnemonic.is_some(),
+            function.is_asm_intrinsic(),
+            "{function:?}: exactly the asm intrinsics carry a mnemonic"
+        );
+        let Some(mnemonic) = mnemonic else { continue };
+        let in_previous_table = PREVIOUS_STATEMENT_INTRINSIC_LABELS
+            .iter()
+            .any(|(previous, _)| previous == &function);
+        if in_previous_table {
+            continue;
+        }
+        // The intrinsics the retired table skipped now answer too; each is an
+        // authority-free, service-free hint, so the discharge gate and the
+        // declaration check treat it exactly as they treated its absence.
+        let Some(AsmCatalogEntry::Contract(contract)) = asm_catalog_entry(mnemonic) else {
+            panic!("{function:?} must resolve to a catalog contract");
+        };
+        assert_eq!(
+            contract.required_authority,
+            AsmAuthorityRequirement::None,
+            "{function:?} joined the discharge scan and must require no authority"
+        );
+        assert_eq!(
+            function.asm_intrinsic_service_name(),
+            None,
+            "{function:?} joined the declaration scan and must reach no service"
+        );
+    }
+    assert_eq!(
+        BuiltinFunction::ALL
+            .into_iter()
+            .filter(|function| function.is_value_position_asm_intrinsic())
+            .map(|function| asm_intrinsic_mnemonic(function.name()))
+            .collect::<Vec<_>>(),
+        [Some("in"), Some("pushfq"), Some("rdmsr")]
+    );
 }

@@ -820,6 +820,54 @@ const IDT_DESCRIPTOR_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint:
 )];
 const IDT_DESCRIPTOR_CLOBBERS: &[&str] = &["r10"];
 
+/// The source mnemonic an `asm#...` intrinsic call realizes: the key
+/// [`asm_catalog_entry`] reads and the label a diagnostic shows for the
+/// instruction the author wrote. The parser's asm-block desugar names the
+/// intrinsic; the family enums above own each spelling pair, and the seven
+/// instructions whose contract shape is their own (`hlt`, `out`, `in`,
+/// `pushfq`, `popfq`, `rdmsr`, `wrmsr`) are paired here. `None` for any name
+/// that is not an asm intrinsic, so a caller holding a builtin's name can
+/// ask without first classifying it.
+pub fn asm_intrinsic_mnemonic(intrinsic_name: &str) -> Option<&'static str> {
+    if let Some(register) = AsmControlRegister::from_read_intrinsic_name(intrinsic_name) {
+        return Some(register.read_mnemonic());
+    }
+    if let Some(register) = AsmControlRegister::from_write_intrinsic_name(intrinsic_name) {
+        return register.write_mnemonic();
+    }
+    if let Some(register) = AsmSystemRegister::from_read_intrinsic_name(intrinsic_name) {
+        return Some(register.read_mnemonic());
+    }
+    if let Some(register) = AsmSystemRegister::from_write_intrinsic_name(intrinsic_name) {
+        return register.write_mnemonic();
+    }
+    if let Some(kind) = AsmFenceKind::from_intrinsic_name(intrinsic_name) {
+        return Some(kind.mnemonic());
+    }
+    if let Some(kind) = AsmInterruptControlKind::from_intrinsic_name(intrinsic_name) {
+        return Some(kind.mnemonic());
+    }
+    if let Some(kind) = AsmInstructionSerializationKind::from_intrinsic_name(intrinsic_name) {
+        return Some(kind.mnemonic());
+    }
+    if let Some(kind) = AsmSchedulingHintKind::from_intrinsic_name(intrinsic_name) {
+        return Some(kind.mnemonic());
+    }
+    if let Some(kind) = AsmCacheOperationKind::from_intrinsic_name(intrinsic_name) {
+        return Some(kind.mnemonic());
+    }
+    match intrinsic_name {
+        "asm#hlt" => Some("hlt"),
+        "asm#port_out" => Some("out"),
+        "asm#port_in" => Some("in"),
+        "asm#pushfq" => Some("pushfq"),
+        "asm#popfq" => Some("popfq"),
+        "asm#rdmsr" => Some("rdmsr"),
+        "asm#wrmsr" => Some("wrmsr"),
+        _ => None,
+    }
+}
+
 pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
     use AsmAuthorityRequirement::{
         IdtControl as IdtControlAuthority, MachineOwner, None as NoAuthority,
