@@ -198,7 +198,17 @@ the complete product bar; focused successes below do not establish that baseline
   | `windowed_calculator` | Reproduce and locate the checked-compilation stall: at `50559da3ab9` on Linux x86-64 it exceeded 25 minutes of CPU without a diagnostic while the other 146 maintained mains checked. The cause was not established; do not label it a provider-selection or proof-search defect without evidence. Native GUI acceptance remains **MACOS-APPLICATION-PUBLICATION**. |
   | Other text/index/match samples | Close `binary_search_viz`, `maze_flood`, `prime_sieve`, `multiplication_table`, `dice_histogram`, `dungeon_render`, `mandelbrot{,_zoom}`, `wire_protocol` and `dungeon_crawler_cli` through **NOMINAL-FIELD-FLOW**, **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**, **MATCH-SELECTIVE-LOWERING** or **CML4**, not one task per source permutation. Encoding facts use ordinary domains, not recognized function names. |
   | `cli/proofs/math_proofs` | Ordinary multiset data/slice extraction, selected laws and checked proof terms; keep the false twin rejecting. Equal lengths are not equal contents and `core/seq.omg` is not a Bag implementation. |
+  | `calculator_rpn` | Reproduce `Main::add`'s indexed nested-field initialization failure with the actual Console-bearing receiver; the recorded std-free reduction passes. **STATE-LOCAL-VALUE-FRONTIER** owns ordinary indexed reads/local construction. Follow the callee's recorded omission, not just the caller's `UnavailableCallee` label, and preserve the full sample's storage and arithmetic. |
   | Bounded Console input | Finish selected-dispatch/provider/call transport under [bounded input](wiki/spec/resources/bounded_input.md): exact prefix/destination, once-only effects, cleanup, blocking/crash contracts, zero-capacity non-consumption, LF/EOF/Full, untouched tails, alias rejection, caller continuation, failure and invalid-result controls. Keep prefix guards until count-to-extent evidence exists. |
+
+  The [sample reductions](wiki/drafts/checking_contract_exit_fact_cost.md#the-unavailablecallee-chain-and-why-it-misleads)
+  locate the `calculator_rpn` failure at
+  `let a: i32 in Saturating = self.stack.slots[0]`. Reproduce comparisons on
+  one binary with equivalent package/entry inputs; a dependency-review failure
+  does not exercise the root program. The algorithm cohort also reports
+  unresolved operator selection and `render_col`'s default-domain requirement:
+  route those to **OPERATOR-MACHINE-SUPPLY** and **NOMINAL-FIELD-FLOW** after
+  attribution, not one task per phase label. Do not weaken `Utf8` to pass.
 
   Use `mbx nextest run -p compiler --test samples_compile --no-fail-fast --no-tests fail -E 'test(=samples_with_documented_exit_run_correctly)'`.
   PowerShell: `$env:OMEGA_SAMPLE_RUNTIME_FILTER = 'print_squares'`; macOS:
@@ -216,18 +226,20 @@ the complete product bar; focused successes below do not establish that baseline
   oracles to pass on the required hosted matrix. Record unavailable hosts;
   scoped reruns are not a complete baseline.
 
-- **CANARY-PACKAGE-MODE-SIGNAL.** (new-scope) Replace
-  `fixture_declares_ordinary_std` in `compiler/tests/canary_suite.rs`: it
-  selects package mode by two source substrings, then hard-wires the repository's
-  std path instead of resolving the authored dependency.
+- **CANARY-PACKAGE-MODE-SIGNAL.** (new-scope) Let a fixture request package
+  identity with an empty dependency set. In `compiler/tests/canary_suite.rs`,
+  `repository_fixture_package_inputs` still returns `None` when
+  `fixture_path_dependencies` is empty; `quotient_define_managed_compile`
+  therefore retains an unused std edge solely for package provenance.
+  Its named exception remains in
+  `packages/manager/tests/repository_build_declarations.rs`.
 
-  A package-mode fixture must not need an unused std edge. Remove the
-  `quotient_define_managed_compile` exception in
-  `repository_build_declarations.rs` once the harness accepts its actual
-  dependencies. Acceptance: package mode without std works; an invalid authored
-  dependency path rejects rather than resolving to the harness's hard-wired std.
-  Add a wrong-parent-path negative control based on the previously misresolved
-  theorem-equality fixture; its positive fixture now has the corrected path.
+  Acceptance: remove that edge and exception while the managed quotient
+  fixture still checks with package identity. Keep intended standalone-source
+  fixtures standalone; solve harness input selection without a new Build
+  keyword. Preserve parsed dependency/alias projection, rejection of invalid
+  authored dependency paths and the non-std alloc-package consumer; those
+  routes already exist.
 
 - **CANARY-CORPUS.** Bring `tests/omega/{pass,fail,run}` and
   `compiler/tests/canary_suite/` to their promised checked/native stages.
@@ -327,9 +339,6 @@ the complete product bar; focused successes below do not establish that baseline
     never happen. Direct and composed checked-body call initializers already
     preserve entry facts through `call_tree_initializer_preserves_entry`;
     mutable writes to protected premise carriers must continue to reject.
-  - Use **STATE-LOCAL-VALUE-FRONTIER**'s common computation route to retire
-    generated operand-call states, not termination-only provenance for artificial
-    source edges. Independent endpoint/contract work can proceed.
 
   Acceptance: named-state and mutually recursive call components check, lower
   and execute with exact subject/view/range identity, including subordinate calls
@@ -598,21 +607,13 @@ the implementation migration actually lands.
   require removing OS assembly or promise an emulator. Simulation is evidence
   under the selected environment model, not native timing/hardware correctness.
 
-  Before using Cathedral's own canaries as evidence: measured 3 passed / 15
-  failed at `894b3a910a` with a current binary, and **the 15 cannot be
-  repaired by migration.** They assert with `jq` over
-  `$BUILD_DIR/04_typed_trees.json` and `05_machine_contracts.json`, and Omega
-  emits neither -- deliberately, pinned by
-  `default_checked_compilation_does_not_emit_debug_dumps`
-  (`assert!(!build_dir.exists())`). `--report-file` writes three lines and
-  `omega inspect-terminal` reports terminal-PSI structure, neither carrying the
-  statement kinds those assertions walk; the data survives in-process at
-  `typed-trees/.../inspection/snapshot/machine_snapshots.rs`. Either Omega
-  re-exposes a typed-tree introspection surface or Cathedral re-expresses the
-  assertions behaviourally -- engineering, not language design. The five layers
-  of build-API drift beneath that wall are migrated on unpushed Cathedral
-  branch `omega-build-api-migration`; that repo carries the owner's own
-  unpushed commits, so do not push it.
+  Cathedral's `tools/*-canary/run.sh` harnesses still assert over retired
+  `04_typed_trees.json` / `05_machine_contracts.json` dumps. Replace those
+  assumptions with checks of the intended behavior or supported artifact
+  contracts before citing the canaries as evidence. Source/build migration
+  alone cannot repair these assertions; compile-report output is not their
+  semantic oracle. Preserve Omega's no-default-debug-dumps contract rather
+  than restoring mandatory dumps to satisfy a downstream script.
 
 ## Requirement-based tests
 
@@ -1996,15 +1997,10 @@ syntax and other terminal services are not prerequisites.
   Demand-grown tables depend on BUMP-ALLOCATOR-CANARY, placed read-back on
   PLAN-LAID-VIEWS, and fixture range migration on REMOVE-BRACKETED-RANGE-ANNOTATIONS.
 
-  Validate target-correct Cathedral entry encoding and geometry before execution:
-  `cathedral/tables.omg::FRAME_MASK` was `2^52`, not the documented
-  `2^52 - 2^12`, so it discarded every frame-address bit at all three use
-  sites; corrected to `4503599627366400` (`0x000FFFFFFFFFF000`) at
-  `8fa6f340b6`, the value Cathedral's own `source/core/x86_page_table.omg`
-  declares as `X86_MAX_ALIGNED_PHYSICAL_FRAME_ADDRESS`. Note the fixture is
-  checked-only, so NO gate distinguishes this value -- the canary compiles
-  identically either way, and a shift spelling is unavailable because
-  build-time evaluation rejects `<<`. Select authority,
+  Validate Cathedral's entry encoding and geometry with a semantic/execution
+  oracle: `cathedral/tables.omg::FRAME_MASK` must preserve frame bits 12..51
+  (`0x000FFFFFFFFFF000`) without admitting flag bits. The checked-only fixture
+  does not distinguish a correct mask from a wrong one. Select authority,
   hardware and shootdown realizations on a freestanding image through
   UEFI-PHYSICAL-SEMANTIC-ENTRY and UEFI-OS-HANDOFF, with a QEMU harness.
 
@@ -2563,6 +2559,15 @@ syntax and other terminal services are not prerequisites.
     Complete that native realization path without guessing unsupported target,
     path/slice adaptation or host-error mechanisms. General provider planning
     is not the missing implementation for this witness.
+    Also carry the exact toolchain-settled identity through package review:
+    `packages/review/evidence/src/capture/providers/policy/replay.rs::validate`
+    currently reconstructs these plans as authored candidates and rejects
+    their deliberately invalid realization symbols. See the
+    [source-backed diagnosis](wiki/drafts/toolchain_settled_plan_provenance_replay.md).
+    Validate the settled target/schema/rows; do not exempt ordinary
+    `UniqueCoveringCandidate` plans. Require successful review projection of
+    the accepted Linux plan, plus rejection of changed settlement identity,
+    authored-candidate substitutions and unsupported demanded leaves.
   - Drive console-exit-app, Cathedral native smoke, `cli_mvp` and Squalr through
     ordinary package acceptance to native production without receiver-policy
     input. Coordinate their application owners, preserving existing host
@@ -2836,18 +2841,17 @@ syntax and other terminal services are not prerequisites.
 
   Remaining work:
 
-  - Replace synthesized guarded-call states and competing whole-machine
-    plans with ordinary evaluation/control operations. Cover effectful state
-    arguments/returns, dynamic and borrowed/projected storage, mixed
+  - Replace competing whole-machine plans with ordinary evaluation/control
+    operations. Cover effectful state arguments/returns, dynamic and
+    borrowed/projected storage, mixed
     scalar/structural operands and boundary consumers. Selected case edges
     retain the invocation receiver and local ownership. Preserve
     `transition_argument_call_result_derives_the_exact_entry_subject`,
     `jump_operand_mutation_cannot_replay_the_taken_guard` and
     `composed_unit_claims` controls. `machine_lowering/machine_dispatch.rs`
-    still rejects simultaneous scalar/Unit dynamic joins. Resolution no
-    longer synthesizes guarded-arm states: a guarded arm's calls stay at
-    their authored point and `checks/contracts/guard_operands.rs` retires a
-    taken guard's facts after an earlier operand's write.
+    still rejects simultaneous scalar/Unit dynamic joins. Preserve authored
+    guard-operand order and `checks/contracts/guard_operands.rs`'s invalidation
+    after an earlier operand's write; do not reintroduce synthesized arm states.
     Delete superseded shape producers as their operations compose; a failed
     custody rejoin must never fall back to a weaker recognizer.
   - Rejoin composed scalar calls with structural/boundary callees, structural
@@ -3781,61 +3785,12 @@ deliverable host runs, not four implementations of the gate.
   [sample record](wiki/drafts/rc_representative_programs_linux_x86_64.md) and
   [print_number control](wiki/drafts/rc_representative_programs_closure_0f75a0.md)
   preserve entry/provider, lowering and default-domain failure leads.
-  The recorded `brightness_control` Windows authored-entry rejection is a
-  concrete probe for `basics_samples_compile_from_authored_program_entry_bindings`;
-  reproduce it before repair rather than retaining its old failure as current.
-  Recheck them before repair; the recorded `self.out requires [u8; N]::Utf8`
-  failure must not be removed by weakening the field's domain.
+  **SAMPLE-CORPUS** owns current shared sample failures;
+  **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** owns the canonical filesystem plan's
+  package-review replay gap. Attribute failures against current code rather
+  than treating a historical host record as a fresh reproduction.
   Acceptance: actual emitted ELF execution and all required full commands
   pass, not merely a selected ABI cohort.
-
-  Census of `samples_compile` at `894b3a910a` (macOS arm64, checking only;
-  members run 600-2400s each, so this is a partial sweep of 33). **The Windows
-  authored-entry rejection this row names as a probe is repaired and was a
-  HARNESS gap, not a compiler one** (`cef9613f9c`): `windows_x86_64` is the
-  first entry in `HOSTED_SAMPLE_TARGETS`, so every cohort member reached it
-  first, and `sample_native_package_inputs` supplied an accepted entry binding
-  for macos_arm64/linux_x86_64/linux_arm64 while Windows fell to `_ => None`.
-  The harness stamps the standard library with a fixture package identity,
-  which is exactly what disqualifies the bundled-contract branch of physical
-  entry admission, so every target needs its package-owned binding.
-  `support/windows_entry_acceptance.rs` already existed and was already wired
-  into `canary_suite.rs`. Four members went red-to-green on that one arm:
-  proof_samples (15s FAIL -> 414s PASS), caesar_cipher, format_number,
-  print_squares.
-
-  What remains is **not one cause**. Measured red after that fix:
-  `interpreter_samples` 20 failures, every one
-  `unit plan was omitted at an unavailable callee (Main::add)` on EVERY target;
-  `algorithm_samples` 29 failures over at least six causes -- four distinct
-  local-construction phases (`structural field store: record literal field` at
-  states 4 and 0, `statement sequence: local data: scalar local: pure
-  initializer`, `state graph: terminator: conditional successors: guard
-  expression`), plus `authored Operator declaration selection occurrence 108
-  remained unresolved`, plus this row's own `render_col` default-domain
-  failure. A local-construction phase is a breadcrumb, not a cause: it records
-  the LAST phase entered, and 123 distinct phase strings span 23 families.
-  Four phase strings are not evidence of four causes, nor of fewer.
-
-  The `UnavailableCallee` message now names the callee's OWN recorded reason
-  (`d782d2a5ee`), because it previously named the caller's and sent the reader
-  one hop wrong. On a reduction it resolves to
-  `let a: i32 in Saturating = self.stack.slots[0]` -- a ranged scalar local
-  initialised from an indexed read of a nested field. Evidence, reductions and
-  the two traps that cost the most time are in
-  [the checking-cost record](wiki/drafts/checking_contract_exit_fact_cost.md):
-  a CLI reduction that fails inside `omega-language-std` never reaches the
-  program under test and answers nothing, and a bisection long enough to be
-  useful is long enough to straddle a rebase -- pin one binary and re-run every
-  row against it.
-
-  Separately blocking any std-dependent program on this host and NOT owned
-  here: minting the canonical FilesystemHost plan records invalid realization
-  symbols by design while provenance replay demands they resolve, so
-  `omega-language-std` fails its own review projection with 11 diagnostics.
-  Diagnosed with the reason the obvious one-line skip is wrong in
-  [the provenance record](wiki/drafts/toolchain_settled_plan_provenance_replay.md);
-  the repair is a design choice for the provider-settlement lane.
 
 - **RC-NATIVE-MATRIX-LINUX-ARM64.** Supply the same complete gate evidence
   for emitted AArch64 ELF programs. A Linux AArch64 runner or named/versioned
