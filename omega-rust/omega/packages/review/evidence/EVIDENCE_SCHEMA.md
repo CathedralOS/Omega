@@ -397,11 +397,13 @@ visible. Neither row certifies a lock or grants execution.
 
 The non-executable quotient entrance reruns the transactional extractor, checks
 exact batch equality, and selects a nonempty requested-package subset of public
-total direct `define` or position-preserving direct transport-backed `lift`.
-Rows retain complete callable/application identities, positional relations,
-theorem roles/applications/contract positions, eligibility, and direct result
-coordinate. Source custody is the authored public operation, not synthesized
-typed calls. Two-argument lift, adaptation, literal/permuted/repeated arguments,
-generic/private/unselected/wrong-package or drifted batches remain unsupported,
-as do ordinary executable quotient requests. This bounded row is not a claim
-that the mathematical-proof migration is complete.
+total faithful `define` or transport-backed `lift`. Rows retain complete
+callable/application identities, positional relations, theorem
+roles/applications/contract positions, eligibility, the representative-ordered
+runtime argument map, and the complete result flow: the result-statement
+coordinate, immutable-alias depth, and — for a finite forwarding machine — the
+state count, result-state position, and forwarding edges. Source custody is the
+authored public operation, not synthesized typed calls. Congruence-only lift,
+closed literal arguments, generic/private/unselected/wrong-package or drifted
+batches remain unsupported, as do ordinary executable quotient requests. This
+bounded row is not a claim that the mathematical-proof migration is complete.

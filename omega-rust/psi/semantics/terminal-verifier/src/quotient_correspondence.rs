@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use language_semantics::quotient_correspondence::{
     CanonicalQuotientCorrespondence, QuotientContractFactCoordinate, QuotientContractOwner,
-    QuotientCorrespondenceOperationKind, QuotientPositionalRelation,
+    QuotientCorrespondenceOperationKind, QuotientPositionalRelation, QuotientResultFlow,
     QuotientTheoremApplicationSide, QuotientTheoremCorrespondence, QuotientTheoremParameter,
     QuotientTheoremParameterRole, QuotientTheoremRole,
 };
@@ -231,9 +231,7 @@ pub fn replay_non_executable_quotient_correspondence(
     {
         return Err(QuotientCorrespondenceReplayError::TheoremConclusionMismatch);
     }
-    if certificate.result_flow.state_position != 0 {
-        return Err(QuotientCorrespondenceReplayError::InvalidResultFlow);
-    }
+    validate_result_flow(&certificate.result_flow)?;
 
     let expected = independent_identity(certificate);
     if retained.identity != expected {
@@ -241,6 +239,64 @@ pub fn replay_non_executable_quotient_correspondence(
             expected,
             actual: retained.identity.clone(),
         });
+    }
+    Ok(())
+}
+
+/// Re-derive the retained result-flow shape without source. A `Direct` row
+/// asserts a single-state owner, so only `Forwarded` carries a graph: every
+/// non-result state must contribute exactly one edge, and every chain must
+/// converge on the result state without a cycle. `machine_state_count` is
+/// retained precisely so replay can check the coverage claim rather than
+/// trust it.
+fn validate_result_flow(
+    result_flow: &QuotientResultFlow,
+) -> Result<(), QuotientCorrespondenceReplayError> {
+    let QuotientResultFlow::Forwarded {
+        machine_state_count,
+        result_state_position,
+        forwarding,
+        ..
+    } = result_flow
+    else {
+        return Ok(());
+    };
+    let state_count = usize::try_from(*machine_state_count)
+        .map_err(|_| QuotientCorrespondenceReplayError::InvalidResultFlow)?;
+    let result_position = usize::try_from(*result_state_position)
+        .map_err(|_| QuotientCorrespondenceReplayError::InvalidResultFlow)?;
+    if state_count < 2 || result_position >= state_count || forwarding.len() + 1 != state_count {
+        return Err(QuotientCorrespondenceReplayError::InvalidResultFlow);
+    }
+    let mut sources = BTreeSet::new();
+    for edge in forwarding {
+        let source = usize::try_from(edge.source_position)
+            .map_err(|_| QuotientCorrespondenceReplayError::InvalidResultFlow)?;
+        let target = usize::try_from(edge.target_position)
+            .map_err(|_| QuotientCorrespondenceReplayError::InvalidResultFlow)?;
+        if source >= state_count
+            || target >= state_count
+            || source == result_position
+            || !sources.insert(source)
+        {
+            return Err(QuotientCorrespondenceReplayError::InvalidResultFlow);
+        }
+    }
+    // Every non-result position is a unique source, so each chain either
+    // reaches the result state or cycles: follow it to decide.
+    for edge in forwarding {
+        let mut current = edge.source_position;
+        let mut visited = BTreeSet::new();
+        while current != *result_state_position {
+            if !visited.insert(current) {
+                return Err(QuotientCorrespondenceReplayError::InvalidResultFlow);
+            }
+            current = forwarding
+                .iter()
+                .find(|candidate| candidate.source_position == current)
+                .map(|candidate| candidate.target_position)
+                .ok_or(QuotientCorrespondenceReplayError::InvalidResultFlow)?;
+        }
     }
     Ok(())
 }
@@ -403,7 +459,7 @@ fn independent_identity(
     certificate: &CanonicalQuotientCorrespondence,
 ) -> QuotientCorrespondenceIdentity {
     let mut writer = ReplayIdentityWriter::new();
-    writer.string("omega.quotient-correspondence.transport-coordinates.v3");
+    writer.string("omega.quotient-correspondence.transport-coordinates.v4");
     writer.byte(match certificate.operation_kind {
         QuotientCorrespondenceOperationKind::Lift => 1,
         QuotientCorrespondenceOperationKind::Define => 2,
@@ -464,9 +520,39 @@ fn independent_identity(
     }
     writer.byte(1);
     writer.byte(1);
-    writer.u32(certificate.result_flow.state_position);
-    writer.u32(certificate.result_flow.statement_position);
+    write_result_flow_identity(&mut writer, &certificate.result_flow);
     QuotientCorrespondenceIdentity(writer.finish())
+}
+
+fn write_result_flow_identity(writer: &mut ReplayIdentityWriter, result_flow: &QuotientResultFlow) {
+    match result_flow {
+        QuotientResultFlow::Direct {
+            statement_position,
+            immutable_alias_count,
+        } => {
+            writer.byte(1);
+            writer.u32(*statement_position);
+            writer.u32(*immutable_alias_count);
+        }
+        QuotientResultFlow::Forwarded {
+            machine_state_count,
+            result_state_position,
+            statement_position,
+            immutable_alias_count,
+            forwarding,
+        } => {
+            writer.byte(2);
+            writer.u32(*machine_state_count);
+            writer.u32(*result_state_position);
+            writer.u32(*statement_position);
+            writer.u32(*immutable_alias_count);
+            writer.len(forwarding.len());
+            for edge in forwarding {
+                writer.u32(edge.source_position);
+                writer.u32(edge.target_position);
+            }
+        }
+    }
 }
 
 fn write_congruence_identity(
@@ -599,15 +685,14 @@ mod tests {
         CanonicalQuotientCorrespondence, QuotientCallableIdentity,
         QuotientCongruenceCorrespondence, QuotientContractFactCoordinate, QuotientContractOwner,
         QuotientCorrespondenceOperationKind, QuotientCrashCertificate,
-        QuotientDefineRuntimePosition, QuotientDirectResultFlow,
-        QuotientForwardPreconditionTransportCorrespondence,
+        QuotientDefineRuntimePosition, QuotientForwardPreconditionTransportCorrespondence,
         QuotientForwardPreconditionTransportFact, QuotientMachineApplication,
         QuotientPositionalRelation, QuotientPurityCertificate, QuotientRelationIdentity,
-        QuotientRepresentativeApplication, QuotientRepresentativeEligibility,
-        QuotientStaticApplication, QuotientTerminationCertificate, QuotientTheoremApplicationSide,
-        QuotientTheoremConclusion, QuotientTheoremCorrespondence, QuotientTheoremEligibility,
-        QuotientTheoremEvidence, QuotientTheoremParameter, QuotientTheoremParameterRole,
-        QuotientTheoremRelationPremise, QuotientTheoremRole,
+        QuotientRepresentativeApplication, QuotientRepresentativeEligibility, QuotientResultFlow,
+        QuotientStateForwarding, QuotientStaticApplication, QuotientTerminationCertificate,
+        QuotientTheoremApplicationSide, QuotientTheoremConclusion, QuotientTheoremCorrespondence,
+        QuotientTheoremEligibility, QuotientTheoremEvidence, QuotientTheoremParameter,
+        QuotientTheoremParameterRole, QuotientTheoremRelationPremise, QuotientTheoremRole,
     };
     use semantic_vocabulary::{BlockId, ContractId, EdgeId, MachineId};
     use terminal_psi::{
@@ -723,9 +808,9 @@ mod tests {
                 purity: QuotientPurityCertificate::PureClosure,
                 termination: QuotientTerminationCertificate::Unconditional,
             },
-            result_flow: QuotientDirectResultFlow {
-                state_position: 0,
+            result_flow: QuotientResultFlow::Direct {
                 statement_position: 7,
+                immutable_alias_count: 0,
             },
         }
     }
@@ -1226,7 +1311,13 @@ mod tests {
         );
 
         let mut changed = certificate();
-        changed.result_flow.state_position = 1;
+        changed.result_flow = QuotientResultFlow::Forwarded {
+            machine_state_count: 2,
+            result_state_position: 1,
+            statement_position: 0,
+            immutable_alias_count: 0,
+            forwarding: Vec::new(),
+        };
         assert_eq!(
             replayed(changed),
             Err(QuotientCorrespondenceReplayError::InvalidResultFlow)
@@ -1248,6 +1339,174 @@ mod tests {
         shifted.public_operation.overload.remove(0);
         let shifted = retain_non_executable_quotient_correspondence(shifted);
         assert_ne!(first.identity, shifted.identity);
+    }
+
+    #[test]
+    fn forwarded_result_flow_replays_its_converging_graph_independently() {
+        let mut forwarded = certificate();
+        forwarded.result_flow = QuotientResultFlow::Forwarded {
+            machine_state_count: 3,
+            result_state_position: 2,
+            statement_position: 4,
+            immutable_alias_count: 1,
+            forwarding: vec![
+                QuotientStateForwarding {
+                    source_position: 0,
+                    target_position: 1,
+                },
+                QuotientStateForwarding {
+                    source_position: 1,
+                    target_position: 2,
+                },
+            ],
+        };
+        assert_eq!(replayed(forwarded), Ok(()));
+
+        let rejected = [
+            QuotientResultFlow::Forwarded {
+                machine_state_count: 1,
+                result_state_position: 0,
+                statement_position: 4,
+                immutable_alias_count: 0,
+                forwarding: vec![],
+            },
+            QuotientResultFlow::Forwarded {
+                machine_state_count: 3,
+                result_state_position: 3,
+                statement_position: 4,
+                immutable_alias_count: 0,
+                forwarding: vec![
+                    QuotientStateForwarding {
+                        source_position: 0,
+                        target_position: 1,
+                    },
+                    QuotientStateForwarding {
+                        source_position: 1,
+                        target_position: 2,
+                    },
+                ],
+            },
+            QuotientResultFlow::Forwarded {
+                machine_state_count: 3,
+                result_state_position: 2,
+                statement_position: 4,
+                immutable_alias_count: 0,
+                forwarding: vec![QuotientStateForwarding {
+                    source_position: 0,
+                    target_position: 1,
+                }],
+            },
+            QuotientResultFlow::Forwarded {
+                machine_state_count: 3,
+                result_state_position: 2,
+                statement_position: 4,
+                immutable_alias_count: 0,
+                forwarding: vec![
+                    QuotientStateForwarding {
+                        source_position: 0,
+                        target_position: 1,
+                    },
+                    QuotientStateForwarding {
+                        source_position: 0,
+                        target_position: 2,
+                    },
+                ],
+            },
+            QuotientResultFlow::Forwarded {
+                machine_state_count: 3,
+                result_state_position: 2,
+                statement_position: 4,
+                immutable_alias_count: 0,
+                forwarding: vec![
+                    QuotientStateForwarding {
+                        source_position: 0,
+                        target_position: 3,
+                    },
+                    QuotientStateForwarding {
+                        source_position: 1,
+                        target_position: 2,
+                    },
+                ],
+            },
+            QuotientResultFlow::Forwarded {
+                machine_state_count: 3,
+                result_state_position: 2,
+                statement_position: 4,
+                immutable_alias_count: 0,
+                forwarding: vec![
+                    QuotientStateForwarding {
+                        source_position: 0,
+                        target_position: 1,
+                    },
+                    QuotientStateForwarding {
+                        source_position: 2,
+                        target_position: 1,
+                    },
+                ],
+            },
+            QuotientResultFlow::Forwarded {
+                machine_state_count: 3,
+                result_state_position: 0,
+                statement_position: 4,
+                immutable_alias_count: 0,
+                forwarding: vec![
+                    QuotientStateForwarding {
+                        source_position: 0,
+                        target_position: 1,
+                    },
+                    QuotientStateForwarding {
+                        source_position: 1,
+                        target_position: 2,
+                    },
+                ],
+            },
+            QuotientResultFlow::Forwarded {
+                machine_state_count: 3,
+                result_state_position: 1,
+                statement_position: 4,
+                immutable_alias_count: 0,
+                forwarding: vec![
+                    QuotientStateForwarding {
+                        source_position: 0,
+                        target_position: 2,
+                    },
+                    QuotientStateForwarding {
+                        source_position: 1,
+                        target_position: 2,
+                    },
+                ],
+            },
+        ];
+        for result_flow in rejected {
+            let mut changed = certificate();
+            changed.result_flow = result_flow;
+            assert_eq!(
+                replayed(changed),
+                Err(QuotientCorrespondenceReplayError::InvalidResultFlow)
+            );
+        }
+
+        let mut changed = certificate();
+        changed.result_flow = QuotientResultFlow::Forwarded {
+            machine_state_count: 2,
+            result_state_position: 1,
+            statement_position: 4,
+            immutable_alias_count: 0,
+            forwarding: vec![
+                QuotientStateForwarding {
+                    source_position: 0,
+                    target_position: 1,
+                },
+                QuotientStateForwarding {
+                    source_position: 1,
+                    target_position: 0,
+                },
+            ],
+        };
+        assert_eq!(
+            replayed(changed),
+            Err(QuotientCorrespondenceReplayError::InvalidResultFlow)
+        );
     }
 
     #[test]
@@ -1306,7 +1565,13 @@ mod tests {
         );
 
         let mut collision_certificate = certificate();
-        collision_certificate.result_flow.statement_position += 1;
+        let QuotientResultFlow::Direct {
+            statement_position, ..
+        } = &mut collision_certificate.result_flow
+        else {
+            panic!("direct fixture")
+        };
+        *statement_position += 1;
         let collision = retain_non_executable_quotient_correspondence(collision_certificate);
         let mut collided = vec![first, collision];
         collided.sort_by(|left, right| left.identity.cmp(&right.identity));

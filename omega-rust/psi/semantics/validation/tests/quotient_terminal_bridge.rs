@@ -231,7 +231,7 @@ fn extracts_one_source_free_total_direct_define_without_weakening_normal_validat
 }
 
 #[test]
-fn rejects_unchecked_eligibility_and_result_aliases() {
+fn rejects_unchecked_eligibility() {
     let mut program = lower(TOTAL_DIRECT_DEFINE);
     let representative = program
         .machines()
@@ -242,12 +242,118 @@ fn rejects_unchecked_eligibility_and_result_aliases() {
         .termination_plan
         .checked_summary = language_semantics::TerminationGuarantee::NoGuarantee;
     assert!(extract_non_executable_quotient_correspondences(&program).is_err());
+}
 
+#[test]
+fn extracts_an_immutable_result_alias_chain_as_exact_result_flow() {
     let aliased = TOTAL_DIRECT_DEFINE.replace(
         "    Quotient::define<representative, representative_respects>(value)\n",
-        "    let result: EquivalenceClass = Quotient::define<representative, representative_respects>(value);\n    result\n",
+        "    let first: EquivalenceClass = Quotient::define<representative, representative_respects>(value);\n    let result: EquivalenceClass = first;\n    result\n",
     );
-    assert!(extract_non_executable_quotient_correspondences(&lower(&aliased)).is_err());
+    let rows = extract_non_executable_quotient_correspondences(&lower(&aliased))
+        .expect("the immutable alias chain should extract");
+    let [row] = &rows[..] else {
+        panic!("one canonical row")
+    };
+    assert_eq!(
+        row.result_flow,
+        language_semantics::quotient_correspondence::QuotientResultFlow::Direct {
+            statement_position: 2,
+            immutable_alias_count: 2,
+        }
+    );
+
+    let messages = validation_messages(&lower(&aliased));
+    assert_mentions(&messages, "2 exact immutable result aliases");
+    assert_mentions(
+        &messages,
+        "complete transition-free single-state normal-result coverage",
+    );
+}
+
+#[test]
+fn extracts_a_finite_state_forwarded_result_as_exact_result_flow() {
+    let forwarded = TOTAL_DIRECT_DEFINE.replace(
+        "machine admitted(value: EquivalenceClass) -> EquivalenceClass {\n    Quotient::define<representative, representative_respects>(value)\n}",
+        "machine admitted(value: EquivalenceClass) -> EquivalenceClass {\n    transition {\n        _ -> finish(value)\n    }\n\n    state finish(value: EquivalenceClass) {\n        Quotient::define<representative, representative_respects>(value)\n    }\n}",
+    );
+    assert_ne!(forwarded, TOTAL_DIRECT_DEFINE);
+    let rows = extract_non_executable_quotient_correspondences(&lower(&forwarded))
+        .expect("the forwarded define should extract");
+    let [row] = &rows[..] else {
+        panic!("one canonical row")
+    };
+    assert_eq!(
+        row.result_flow,
+        language_semantics::quotient_correspondence::QuotientResultFlow::Forwarded {
+            machine_state_count: 2,
+            result_state_position: 1,
+            statement_position: 0,
+            immutable_alias_count: 0,
+            forwarding: vec![
+                language_semantics::quotient_correspondence::QuotientStateForwarding {
+                    source_position: 0,
+                    target_position: 1,
+                }
+            ],
+        }
+    );
+
+    let messages = validation_messages(&lower(&forwarded));
+    assert_mentions(
+        &messages,
+        "complete finite state-forwarded normal-result coverage",
+    );
+    assert_mentions(
+        &messages,
+        "executable quotient operations are not admitted until executable quotient lowering exists",
+    );
+}
+
+#[test]
+fn extracts_a_forwarded_result_through_an_immutable_alias() {
+    let forwarded = TOTAL_DIRECT_DEFINE.replace(
+        "machine admitted(value: EquivalenceClass) -> EquivalenceClass {\n    Quotient::define<representative, representative_respects>(value)\n}",
+        "machine admitted(value: EquivalenceClass) -> EquivalenceClass {\n    transition {\n        _ -> finish(value)\n    }\n\n    state finish(value: EquivalenceClass) {\n        let result: EquivalenceClass = Quotient::define<representative, representative_respects>(value);\n        result\n    }\n}",
+    );
+    assert_ne!(forwarded, TOTAL_DIRECT_DEFINE);
+    let rows = extract_non_executable_quotient_correspondences(&lower(&forwarded))
+        .expect("the forwarded aliased define should extract");
+    let [row] = &rows[..] else {
+        panic!("one canonical row")
+    };
+    assert_eq!(
+        row.result_flow,
+        language_semantics::quotient_correspondence::QuotientResultFlow::Forwarded {
+            machine_state_count: 2,
+            result_state_position: 1,
+            statement_position: 1,
+            immutable_alias_count: 1,
+            forwarding: vec![
+                language_semantics::quotient_correspondence::QuotientStateForwarding {
+                    source_position: 0,
+                    target_position: 1,
+                }
+            ],
+        }
+    );
+}
+
+#[test]
+fn rejects_guarded_or_cyclic_forwarding_around_a_result() {
+    let guarded = TOTAL_DIRECT_DEFINE.replace(
+        "machine admitted(value: EquivalenceClass) -> EquivalenceClass {\n    Quotient::define<representative, representative_respects>(value)\n}",
+        "machine admitted(value: EquivalenceClass, flag: i32) -> EquivalenceClass {\n    transition flag == flag {\n        true -> finish(value, flag)\n        _ -> finish(value, flag)\n    }\n\n    state finish(value: EquivalenceClass, flag: i32) {\n        Quotient::define<representative, representative_respects>(value)\n    }\n}",
+    );
+    assert_ne!(guarded, TOTAL_DIRECT_DEFINE);
+    assert!(extract_non_executable_quotient_correspondences(&lower(&guarded)).is_err());
+
+    let cyclic = TOTAL_DIRECT_DEFINE.replace(
+        "machine admitted(value: EquivalenceClass) -> EquivalenceClass {\n    Quotient::define<representative, representative_respects>(value)\n}",
+        "machine admitted(value: EquivalenceClass) -> EquivalenceClass {\n    transition {\n        _ -> entry(value)\n    }\n\n    state entry(value: EquivalenceClass) {\n        transition {\n            _ -> spin(value)\n        }\n    }\n\n    state spin(value: EquivalenceClass) {\n        transition {\n            _ -> spin(value)\n        }\n    }\n\n    state done(value: EquivalenceClass) {\n        Quotient::define<representative, representative_respects>(value)\n    }\n}",
+    );
+    assert_ne!(cyclic, TOTAL_DIRECT_DEFINE);
+    assert!(extract_non_executable_quotient_correspondences(&lower(&cyclic)).is_err());
 }
 
 #[test]

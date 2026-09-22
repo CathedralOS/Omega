@@ -8,8 +8,8 @@ use std::sync::Arc;
 use typed_trees::TypedTrees;
 
 use language_semantics::quotient_correspondence::{
-    QuotientForwardPreconditionTransportFact, QuotientPositionalRelation,
-    QuotientTheoremApplicationSide, QuotientTheoremCorrespondence,
+    QuotientForwardPreconditionTransportFact, QuotientPositionalRelation, QuotientResultFlow,
+    QuotientStateForwarding, QuotientTheoremApplicationSide, QuotientTheoremCorrespondence,
 };
 use semantic_vocabulary::PackageKeyIdentity;
 use source::{SourceMap, SourceOrigin};
@@ -588,7 +588,13 @@ fn canonical_rows_bind_every_direct_define_axis_and_reject_duplicate_keys() {
             congruence.conclusion.actual.fact_position += 1;
         }),
         ("result flow", |certificate| {
-            certificate.result_flow.statement_position += 1
+            let QuotientResultFlow::Direct {
+                statement_position, ..
+            } = &mut certificate.result_flow
+            else {
+                panic!("define fixture retains direct result flow")
+            };
+            *statement_position += 1;
         }),
     ];
 
@@ -684,20 +690,104 @@ fn canonical_rows_bind_transport_kind_roles_applications_and_q_p_coordinates() {
 }
 
 #[test]
+fn immutable_result_aliases_project_their_exact_result_flow() {
+    let define = single_program(TOTAL_DIRECT_DEFINE.replace(
+        "    Quotient::define<representative, representative_respects>(value)\n",
+        "    let result: EquivalenceClass = Quotient::define<representative, representative_respects>(value);\n    result\n",
+    ));
+    let review =
+        project_non_executable_quotient_package_review(&define, package(PACKAGE), target())
+            .expect("immutable define alias projects");
+    let [certificate] = review.correspondences() else {
+        panic!("one aliased define row")
+    };
+    assert_eq!(
+        certificate.result_flow,
+        QuotientResultFlow::Direct {
+            statement_position: 1,
+            immutable_alias_count: 1,
+        }
+    );
+
+    let lift = single_program(TRANSPORT_BACKED_LIFT.replace(
+        "    Quotient::lift<\n        representative,\n        representative_respects,\n        representative_transports\n    >(value)\n",
+        "    let result: EquivalenceClass = Quotient::lift<\n        representative,\n        representative_respects,\n        representative_transports\n    >(value);\n    result\n",
+    ));
+    let review = project_non_executable_quotient_package_review(&lift, package(PACKAGE), target())
+        .expect("immutable transport lift alias projects");
+    let [certificate] = review.correspondences() else {
+        panic!("one aliased lift row")
+    };
+    assert_eq!(
+        certificate.result_flow,
+        QuotientResultFlow::Direct {
+            statement_position: 1,
+            immutable_alias_count: 1,
+        }
+    );
+    assert_eq!(
+        certificate.operation_kind,
+        QuotientCorrespondenceOperationKind::LiftWithForwardPreconditionTransport
+    );
+}
+
+#[test]
+fn finite_state_forwarding_projects_its_exact_result_flow() {
+    let forwarded = single_program(TOTAL_DIRECT_DEFINE.replace(
+        "    Quotient::define<representative, representative_respects>(value)\n",
+        "    transition {\n        _ -> finish(value)\n    }\n\n    state finish(value: EquivalenceClass) {\n        Quotient::define<representative, representative_respects>(value)\n    }\n",
+    ));
+    let review =
+        project_non_executable_quotient_package_review(&forwarded, package(PACKAGE), target())
+            .expect("forwarded define projects");
+    let [certificate] = review.correspondences() else {
+        panic!("one forwarded define row")
+    };
+    assert_eq!(
+        certificate.result_flow,
+        QuotientResultFlow::Forwarded {
+            machine_state_count: 2,
+            result_state_position: 1,
+            statement_position: 0,
+            immutable_alias_count: 0,
+            forwarding: vec![QuotientStateForwarding {
+                source_position: 0,
+                target_position: 1,
+            }],
+        }
+    );
+
+    let aliased = single_program(TOTAL_DIRECT_DEFINE.replace(
+        "    Quotient::define<representative, representative_respects>(value)\n",
+        "    transition {\n        _ -> finish(value)\n    }\n\n    state finish(value: EquivalenceClass) {\n        let result: EquivalenceClass = Quotient::define<representative, representative_respects>(value);\n        result\n    }\n",
+    ));
+    let review =
+        project_non_executable_quotient_package_review(&aliased, package(PACKAGE), target())
+            .expect("forwarded aliased define projects");
+    let [certificate] = review.correspondences() else {
+        panic!("one forwarded aliased row")
+    };
+    assert_eq!(
+        certificate.result_flow,
+        QuotientResultFlow::Forwarded {
+            machine_state_count: 2,
+            result_state_position: 1,
+            statement_position: 1,
+            immutable_alias_count: 1,
+            forwarding: vec![QuotientStateForwarding {
+                source_position: 0,
+                target_position: 1,
+            }],
+        }
+    );
+}
+
+#[test]
 fn two_argument_lift_unselected_private_and_wrong_package_forms_remain_fenced() {
     let lift =
         single_program(TOTAL_DIRECT_DEFINE.replacen("Quotient::define", "Quotient::lift", 1));
     assert!(
         project_non_executable_quotient_package_review(&lift, package(PACKAGE), target()).is_err()
-    );
-
-    let adapted = single_program(TOTAL_DIRECT_DEFINE.replace(
-        "    Quotient::define<representative, representative_respects>(value)\n",
-        "    let result: EquivalenceClass = Quotient::define<representative, representative_respects>(value);\n    result\n",
-    ));
-    assert!(
-        project_non_executable_quotient_package_review(&adapted, package(PACKAGE), target())
-            .is_err()
     );
 
     let unselected = single_program(TOTAL_DIRECT_DEFINE.replacen(
@@ -736,10 +826,6 @@ fn adapted_literal_permuted_repeated_generic_and_private_transport_forms_remain_
         );
     };
 
-    rejects(TRANSPORT_BACKED_LIFT.replace(
-        "    Quotient::lift<\n        representative,\n        representative_respects,\n        representative_transports\n    >(value)\n",
-        "    let result: EquivalenceClass = Quotient::lift<\n        representative,\n        representative_respects,\n        representative_transports\n    >(value);\n    result\n",
-    ));
     rejects(TRANSPORT_BACKED_LIFT.replace(
         "        representative_transports\n    >(value)",
         "        0i32\n    >(value)",

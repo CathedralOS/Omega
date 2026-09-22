@@ -1272,7 +1272,10 @@ ordered by claim id.
 | runtime position | `u32` public position + `u32` representative position |
 | theorem evidence | theorem role + selected application + theorem correspondence + quotient eligibility (purity + termination + crash) |
 | representative eligibility | quotient purity + quotient termination |
-| result flow positions | `u32` state position + `u32` statement position |
+| result flow | result flow tag + variant payload |
+| direct result flow | `u32` statement position + `u32` immutable alias count |
+| forwarded result flow | `u32` machine state count + `u32` result state position + `u32` statement position + `u32` immutable alias count + counted forwarding edges |
+| forwarding edge | `u32` source position + `u32` target position |
 | congruence theorem | counted parameters + counted relation premises + counted legality premises + conclusion |
 | theorem parameter | `u32` theorem parameter position + parameter role |
 | relation premise | `u32` expected premise position + coordinate + relation string + `u32` left parameter + `u32` right parameter |
@@ -1349,6 +1352,13 @@ ordered by claim id.
 | --- | --- |
 | 1 | Machine |
 | 2 | State |
+
+<!-- quotient-result-flow-tags -->
+
+| tag | Quotient result flow |
+| --- | --- |
+| 1 | Direct |
+| 2 | Forwarded |
 
 A quotient correspondence's retained identity is derived from the
 certificate: it is a pure function of the encoded row and is not itself

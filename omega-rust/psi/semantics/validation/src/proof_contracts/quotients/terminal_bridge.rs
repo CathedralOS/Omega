@@ -39,16 +39,26 @@ pub(super) fn extract(
     if !errors.is_empty() {
         return Err(errors);
     }
+    let statement_position = |row: &CanonicalQuotientCorrespondence| match &row.result_flow {
+        language_semantics::quotient_correspondence::QuotientResultFlow::Direct {
+            statement_position,
+            ..
+        }
+        | language_semantics::quotient_correspondence::QuotientResultFlow::Forwarded {
+            statement_position,
+            ..
+        } => *statement_position,
+    };
     rows.sort_by(|left, right| {
         (
             &left.public_operation.declaration,
             &left.public_operation.overload,
-            left.result_flow.statement_position,
+            statement_position(left),
         )
             .cmp(&(
                 &right.public_operation.declaration,
                 &right.public_operation.overload,
-                right.result_flow.statement_position,
+                statement_position(right),
             ))
     });
     if rows.windows(2).any(|rows| rows[0] == rows[1]) {
@@ -85,9 +95,6 @@ fn extract_one(
             "a request must be the unique exact terminal result of one owner state".to_owned(),
         );
     };
-    if root.alias_count != 0 {
-        return Err("the proof-only bridge excludes result aliases".to_owned());
-    }
     let ExpressionNode::Call(call) = program.expression_table.expression(request_expression) else {
         return Err("the retained request is not a call".to_owned());
     };
@@ -110,9 +117,10 @@ fn extract_one(
         service_reaches,
     )
     .ok_or_else(|| "representative closure is not exactly pure".to_owned())?;
-    let result_flow =
-        super::relation_plan::complete_single_state_result_flow(program, machine, state, *root)
-            .ok_or_else(|| "result flow is not complete direct single-state flow".to_owned())?;
+    let result_flow = super::relation_plan::complete_result_flow(program, machine, state, *root)
+        .ok_or_else(|| {
+            "result flow is not complete direct single-state or state-forwarded flow".to_owned()
+        })?;
 
     // The composed certificate, not the authored request kind, decides which
     // canonical row the request earns. `derive_direct_terminal_plan` already

@@ -4,9 +4,9 @@ use language_semantics::quotient_correspondence::{
     CanonicalQuotientCorrespondence, QuotientCallableIdentity, QuotientContractFactCoordinate,
     QuotientContractOwner, QuotientCorrespondenceOperationKind, QuotientCrashCertificate,
     QuotientForwardPreconditionTransportFact, QuotientMachineApplication,
-    QuotientPositionalRelation, QuotientPurityCertificate, QuotientTerminationCertificate,
-    QuotientTheoremApplicationSide, QuotientTheoremCorrespondence, QuotientTheoremParameterRole,
-    QuotientTheoremRole,
+    QuotientPositionalRelation, QuotientPurityCertificate, QuotientResultFlow,
+    QuotientTerminationCertificate, QuotientTheoremApplicationSide, QuotientTheoremCorrespondence,
+    QuotientTheoremParameterRole, QuotientTheoremRole,
 };
 
 pub(crate) fn encode_quotient_correspondence_key(
@@ -14,9 +14,30 @@ pub(crate) fn encode_quotient_correspondence_key(
     certificate: &CanonicalQuotientCorrespondence,
 ) -> Result<(), PackageReviewEncodingError> {
     encode_callable(encoder, &certificate.public_operation)?;
-    encoder.u32(certificate.result_flow.state_position);
-    encoder.u32(certificate.result_flow.statement_position);
+    encode_result_flow_key(encoder, &certificate.result_flow);
     Ok(())
+}
+
+/// The key keeps the owner coordinates: the machine plus the result-state and
+/// result-statement positions. A `Direct` row's result state is position 0 of
+/// a single-state machine; a `Forwarded` row carries its own position.
+fn encode_result_flow_key(encoder: &mut Encoder, result_flow: &QuotientResultFlow) {
+    match result_flow {
+        QuotientResultFlow::Direct {
+            statement_position, ..
+        } => {
+            encoder.u32(0);
+            encoder.u32(*statement_position);
+        }
+        QuotientResultFlow::Forwarded {
+            result_state_position,
+            statement_position,
+            ..
+        } => {
+            encoder.u32(*result_state_position);
+            encoder.u32(*statement_position);
+        }
+    }
 }
 
 pub(crate) fn encode_quotient_correspondence(
@@ -138,8 +159,42 @@ pub(crate) fn encode_quotient_correspondence(
     encoder.byte(match certificate.representative_eligibility.termination {
         QuotientTerminationCertificate::Unconditional => 1,
     });
-    encoder.u32(certificate.result_flow.state_position);
-    encoder.u32(certificate.result_flow.statement_position);
+    encode_result_flow(encoder, &certificate.result_flow)?;
+    Ok(())
+}
+
+fn encode_result_flow(
+    encoder: &mut Encoder,
+    result_flow: &QuotientResultFlow,
+) -> Result<(), PackageReviewEncodingError> {
+    match result_flow {
+        QuotientResultFlow::Direct {
+            statement_position,
+            immutable_alias_count,
+        } => {
+            encoder.byte(1);
+            encoder.u32(*statement_position);
+            encoder.u32(*immutable_alias_count);
+        }
+        QuotientResultFlow::Forwarded {
+            machine_state_count,
+            result_state_position,
+            statement_position,
+            immutable_alias_count,
+            forwarding,
+        } => {
+            encoder.byte(2);
+            encoder.u32(*machine_state_count);
+            encoder.u32(*result_state_position);
+            encoder.u32(*statement_position);
+            encoder.u32(*immutable_alias_count);
+            encoder.sequence(forwarding, |encoder, edge| {
+                encoder.u32(edge.source_position);
+                encoder.u32(edge.target_position);
+                Ok(())
+            })?;
+        }
+    }
     Ok(())
 }
 

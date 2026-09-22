@@ -1002,7 +1002,7 @@ fn has_duplicate_parameter_symbols(symbols: impl IntoIterator<Item = SymbolHandl
     false
 }
 
-fn direct_public_parameter_symbol(
+pub(super) fn direct_public_parameter_symbol(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {

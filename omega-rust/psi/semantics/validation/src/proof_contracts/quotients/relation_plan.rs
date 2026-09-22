@@ -68,9 +68,10 @@ use transport_schema::{
 
 #[cfg(test)]
 use result_flow::immutable_alias_fallthrough_root;
+pub(super) use result_flow::{CompleteResultFlow, complete_result_flow, fallthrough_result_root};
+#[cfg(test)]
 pub(super) use result_flow::{
     complete_single_state_result_flow, complete_state_forwarding_result_flow,
-    fallthrough_result_root,
 };
 #[cfg(test)]
 use static_application::{

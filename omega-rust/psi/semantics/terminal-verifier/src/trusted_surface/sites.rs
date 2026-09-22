@@ -684,7 +684,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/quotient_correspondence.rs",
-        sha256: Some("7ab9fa86f1a88ca859c85b8eace51a910c3f02e20d9e340806ab923effb80038"),
+        sha256: Some("8efde6290b40a73898fd883a03a8b54532439b956628b62ce5f323c52cdc0acf"),
         inventory_machinery: false,
     },
     ImplementationSite {

@@ -1744,6 +1744,18 @@ fn quotient_contract_owner_table_matches_codec() {
     );
 }
 
+#[test]
+fn quotient_result_flow_table_matches_codec() {
+    assert_table_matches(
+        "<!-- quotient-result-flow-tags -->",
+        code_tags(
+            &module_wire("quotient_correspondence_wire.rs"),
+            "encode_result_flow",
+            "QuotientResultFlow",
+        ),
+    );
+}
+
 /// `spec envelope name -> codec source` for every byte-framed envelope
 /// terminal-codec emits. The magic and marker literals are then searched in
 /// that source: an envelope whose constants change without a spec row (or a
@@ -3017,6 +3029,12 @@ const DECODE_TAG_PINS: &[(&str, &str, &str, &str)] = &[
         "semantic_module/quotient_correspondence_wire.rs",
         "decode_coordinate",
         "QuotientContractOwner",
+    ),
+    (
+        "quotient-result-flow-tags",
+        "semantic_module/quotient_correspondence_wire.rs",
+        "decode_result_flow",
+        "QuotientResultFlow",
     ),
     (
         "ledger-owner-tags",

@@ -1,14 +1,15 @@
 use language_semantics::quotient_correspondence::{
     CanonicalQuotientCorrespondence, QuotientCallableIdentity, QuotientCongruenceCorrespondence,
     QuotientContractFactCoordinate, QuotientContractOwner, QuotientCorrespondenceOperationKind,
-    QuotientCrashCertificate, QuotientDefineRuntimePosition, QuotientDirectResultFlow,
+    QuotientCrashCertificate, QuotientDefineRuntimePosition,
     QuotientForwardPreconditionTransportCorrespondence, QuotientForwardPreconditionTransportFact,
     QuotientMachineApplication, QuotientPositionalRelation, QuotientPurityCertificate,
     QuotientRelationIdentity, QuotientRepresentativeApplication, QuotientRepresentativeEligibility,
-    QuotientStaticApplication, QuotientTerminationCertificate, QuotientTheoremApplicationSide,
-    QuotientTheoremConclusion, QuotientTheoremCorrespondence, QuotientTheoremEligibility,
-    QuotientTheoremEvidence, QuotientTheoremParameter, QuotientTheoremParameterRole,
-    QuotientTheoremRelationPremise, QuotientTheoremRole,
+    QuotientResultFlow, QuotientStateForwarding, QuotientStaticApplication,
+    QuotientTerminationCertificate, QuotientTheoremApplicationSide, QuotientTheoremConclusion,
+    QuotientTheoremCorrespondence, QuotientTheoremEligibility, QuotientTheoremEvidence,
+    QuotientTheoremParameter, QuotientTheoremParameterRole, QuotientTheoremRelationPremise,
+    QuotientTheoremRole,
 };
 use semantic_vocabulary::{BlockId, ContractId, EdgeId, MachineId};
 use terminal_codec::{CodecError, decode_module, encode_module, semantic_fingerprint};
@@ -104,9 +105,9 @@ fn correspondence(owner: &str) -> RetainedQuotientCorrespondence {
             purity: QuotientPurityCertificate::PureClosure,
             termination: QuotientTerminationCertificate::Unconditional,
         },
-        result_flow: QuotientDirectResultFlow {
-            state_position: 0,
+        result_flow: QuotientResultFlow::Direct {
             statement_position: 0,
+            immutable_alias_count: 0,
         },
     })
 }
@@ -324,6 +325,60 @@ fn adapted_transport_lift_round_trips_the_argument_map() {
     validate_module_representation(&module).expect("adapted correspondence replays");
     let bytes = encode_module(&module).expect("adapted correspondence encodes");
     assert_eq!(decode_module(&bytes), Ok(module));
+}
+
+#[test]
+fn forwarded_result_flow_round_trips_and_replays() {
+    let mut certificate = correspondence("Public::apply").certificate;
+    certificate.result_flow = QuotientResultFlow::Forwarded {
+        machine_state_count: 3,
+        result_state_position: 2,
+        statement_position: 5,
+        immutable_alias_count: 2,
+        forwarding: vec![
+            QuotientStateForwarding {
+                source_position: 0,
+                target_position: 1,
+            },
+            QuotientStateForwarding {
+                source_position: 1,
+                target_position: 2,
+            },
+        ],
+    };
+    let module = module_with(vec![retain_non_executable_quotient_correspondence(
+        certificate,
+    )]);
+    validate_module_representation(&module).expect("forwarded correspondence replays");
+    let bytes = encode_module(&module).expect("forwarded correspondence encodes");
+    assert_eq!(decode_module(&bytes), Ok(module));
+}
+
+#[test]
+fn decoding_rejects_unknown_quotient_result_flow_tag() {
+    let mut certificate = correspondence("Public::apply").certificate;
+    certificate.result_flow = QuotientResultFlow::Direct {
+        statement_position: 0x1122_3344,
+        immutable_alias_count: 0,
+    };
+    let module = module_with(vec![retain_non_executable_quotient_correspondence(
+        certificate,
+    )]);
+    let mut bytes = encode_module(&module).expect("quotient correspondence encodes");
+    // The sentinel direct flow encodes tag 1, the statement position, then
+    // alias depth 0; find that tail inside the row and corrupt the tag.
+    let mut tail = vec![1_u8];
+    tail.extend_from_slice(&0x1122_3344_u32.to_le_bytes());
+    tail.extend_from_slice(&0_u32.to_le_bytes());
+    let tag = bytes
+        .windows(tail.len())
+        .position(|window| window == tail)
+        .expect("canonical payload result flow tail");
+    bytes[tag] = 0xff;
+    assert_eq!(
+        decode_module(&bytes),
+        Err(CodecError::InvalidTag("QuotientResultFlow", 0xff))
+    );
 }
 
 #[test]

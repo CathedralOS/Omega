@@ -32,6 +32,14 @@ pub(in crate::proof_contracts::quotients) struct CompleteStateForwardingResultFl
     pub(in crate::proof_contracts::quotients) root: ImmutableAliasFallthroughRoot,
 }
 
+/// The complete normal-result coverage judgment one request root earned: a
+/// single transition-free state, or a finite convergent forwarding graph.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::proof_contracts::quotients) enum CompleteResultFlow {
+    Single(CompleteSingleStateResultFlow),
+    Forwarded(CompleteStateForwardingResultFlow),
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::proof_contracts::quotients) struct StateForwardingEdge {
     pub(in crate::proof_contracts::quotients) source_state_symbol: SymbolHandle,
@@ -266,6 +274,23 @@ pub(in crate::proof_contracts::quotients) fn complete_state_forwarding_result_fl
         result_state_symbol: result_state.symbol,
         root,
     })
+}
+
+/// Dispatch the two complete normal-result coverage judgments: the two forms
+/// are mutually exclusive because one requires exactly one state and the
+/// other at least two.
+pub(in crate::proof_contracts::quotients) fn complete_result_flow(
+    program: &TypedTrees,
+    machine: &Machine,
+    result_state: &State,
+    root: ImmutableAliasFallthroughRoot,
+) -> Option<CompleteResultFlow> {
+    complete_single_state_result_flow(program, machine, result_state, root)
+        .map(CompleteResultFlow::Single)
+        .or_else(|| {
+            complete_state_forwarding_result_flow(program, machine, result_state, root)
+                .map(CompleteResultFlow::Forwarded)
+        })
 }
 
 fn exact_local_name_symbol(
