@@ -34,8 +34,11 @@ pub use checking::{
     normalize_open_index_identities, specialize_static_machine_calls,
 };
 pub use execution::selected_execution::{
-    SelectedIeeeFloatFmaUnitApplication, SelectedOperatorApplication,
+    ExecutionSettlement, SelectedIeeeFloatFmaUnitApplication, SelectedOperatorApplication,
+    SettledCallSite, SettledFloatIntrinsic, SettledFloatIntrinsicExecution,
+    SettledOperatorAdapterCall, SettledOperatorAdapterSource, SettledRequirementCall,
     rebuild_checked_terminal_plans_with_selected_execution, refresh_settled_state_write_frames,
+    settle_checked_execution,
 };
 
 pub use package_review::{
