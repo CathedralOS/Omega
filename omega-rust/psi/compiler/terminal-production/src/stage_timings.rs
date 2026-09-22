@@ -55,6 +55,16 @@ impl TerminalProductionTimings {
         }
     }
 
+    /// Mirror the request's collection state: enabled measures each leg,
+    /// disabled runs the same instrumented body without clock reads or rows.
+    pub fn enabled_if(enabled: bool) -> Self {
+        if enabled {
+            Self::enabled()
+        } else {
+            Self::default()
+        }
+    }
+
     pub fn rows(&self) -> &[(TerminalProductionStage, u128)] {
         &self.rows
     }

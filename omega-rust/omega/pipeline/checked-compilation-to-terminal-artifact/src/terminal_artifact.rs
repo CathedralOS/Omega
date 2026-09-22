@@ -97,6 +97,14 @@ fn terminal_production_stage_meta(stage: TerminalProductionStage) -> StageMeta {
     StageMeta::new(name, input, output, TimingCategory::Pipeline)
 }
 
+/// The production-row collector inherits the request's own collection state:
+/// a disabled `CompileTimings` produces a disabled collector, so untimed
+/// production runs the same legs without inner clock reads or retained rows.
+/// Both production paths build their collector through this one seam.
+fn production_timings_for(stage_timings: &CompileTimings) -> TerminalProductionTimings {
+    TerminalProductionTimings::enabled_if(stage_timings.is_enabled())
+}
+
 /// Merge the Psi-owned production rows under the boundary row the caller just
 /// recorded. Rows drop silently when the accumulator is disabled.
 fn merge_terminal_production_timings(
@@ -213,7 +221,7 @@ fn produce_retained_terminal_artifact(
     // legs below so each closure may borrow the record while it is timed; it
     // rejoins the record once the product is produced and admitted.
     let mut stage_timings = std::mem::take(checked.timings_mut());
-    let mut production_timings = TerminalProductionTimings::enabled();
+    let mut production_timings = production_timings_for(&stage_timings);
     let produced = stage_timings
         .record_result(TERMINAL_PRODUCTION_STAGE, || {
             terminal_production::TerminalProductionRequest {
@@ -362,7 +370,7 @@ pub fn produce_program_entry_terminal_artifact(
     let psi_optimizations = optimization_selections.project_psi();
     let terminal_trees = checked.terminal_production_trees();
     let mut stage_timings = checked.timings().clone();
-    let mut production_timings = TerminalProductionTimings::enabled();
+    let mut production_timings = production_timings_for(&stage_timings);
     let produced = stage_timings
         .record_result(TERMINAL_PRODUCTION_STAGE, || {
             terminal_production::TerminalProductionRequest {
@@ -458,7 +466,7 @@ pub fn produce_program_entry_terminal_artifact(
 
 #[cfg(test)]
 mod tests {
-    use super::merge_terminal_production_timings;
+    use super::{merge_terminal_production_timings, production_timings_for};
     use artifacts::compile_timings::CompileTimings;
     use terminal_production::{TerminalProductionStage, TerminalProductionTimings};
 
@@ -500,5 +508,23 @@ mod tests {
         merge_terminal_production_timings(&mut stage_timings, &production_timings);
 
         assert!(stage_timings.phases().is_empty());
+    }
+
+    #[test]
+    fn production_collector_follows_the_requests_collection_state() {
+        // Retained and direct production both build their inner collector
+        // through `production_timings_for`, so the request's enabled state —
+        // not merge-time row suppression — decides whether legs are measured.
+        let mut timed = production_timings_for(&CompileTimings::enabled());
+        timed
+            .record_result(TerminalProductionStage::Lowering, || Ok::<_, ()>(()))
+            .unwrap();
+        assert_eq!(timed.rows().len(), 1);
+
+        let mut untimed = production_timings_for(&CompileTimings::default());
+        untimed
+            .record_result(TerminalProductionStage::Lowering, || Ok::<_, ()>(()))
+            .unwrap();
+        assert!(untimed.rows().is_empty());
     }
 }

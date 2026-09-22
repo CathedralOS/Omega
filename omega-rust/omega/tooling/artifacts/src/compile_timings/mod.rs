@@ -94,6 +94,13 @@ impl CompileTimings {
         }
     }
 
+    /// Whether this accumulator retains measurements. Callers propagate this
+    /// into subordinate collectors so a disabled request pays no inner clock
+    /// reads rather than measuring and dropping rows at merge time.
+    pub const fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
     pub fn phases(&self) -> &[PhaseTiming] {
         &self.phases
     }
