@@ -205,12 +205,29 @@ Reductions run, all with `Main::add` as the named callee:
 | the same + `console: Service<Console>` on `Main` | fails, identical diagnostic, 252s |
 | + `reaches Console` on the callee that never uses it | still fails |
 | + callee moved to `Stack` so its receiver carries no service | still fails, names `Stack::add` |
-| service program, helper call REMOVED | `omega-language-std` itself fails: `routed service field 'Filesystem::host' has no exact Fused selected-provider-plan join` |
-| service program, helper body reduced to one assignment | same `Filesystem::host` failure |
+| an ordinary `pad: i32` field before `stack`, no standard library | **compiles, 13s** |
+| service program, helper call REMOVED | `omega-language-std` itself fails |
+| service program, helper body reduced to one assignment | `omega-language-std` itself fails |
+| standard library dependency but NO service field | `omega-language-std` itself fails |
 
-So the machine's shape is not the trigger, and neither is where the service
-carrier sits. The last two rows also show the bisection perturbing the
-standard library's own closure -- the `Filesystem::host` join error is real
-and reproducible, just not on `calculator_rpn`. Treat single-variable
-reasoning here with suspicion: changing the root program changes what std is
-asked to supply.
+Read these carefully, because two of them answer nothing.
+
+**Field position is ruled out**: `pad` before `stack` compiles, so shifting
+`stack` off index 0 is not the trigger.
+
+**The last three rows are uninformative for this question.** They fail INSIDE
+`omega-language-std`, so the root program is never reached — that is a
+separate defect, recorded in
+[toolchain_settled_plan_provenance_replay.md](toolchain_settled_plan_provenance_replay.md).
+They do not tell you anything about `Main::add`.
+
+**The rows were not all taken on one binary, and that invalidated a
+comparison.** One unchanged fixture reported
+`routed service field 'Filesystem::host' has no exact Fused
+selected-provider-plan join` on one run and
+`ProviderPlan ... resolves to 0 exact typed machines` on the next. Not
+nondeterminism: ~23 upstream commits and a rebuild landed in between. Every
+row above was re-run against one binary pinned at `d782d2a5ee` before being
+recorded. Pin a binary (`cp target/debug/omega /tmp/omega-baseline`), note its
+commit, and re-run the whole comparison against it — a bisection long enough
+to be useful is long enough to straddle a rebase.
