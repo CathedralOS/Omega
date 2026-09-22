@@ -110,6 +110,61 @@ fn public_functions(source: &str) -> Vec<String> {
 
 /// Names a crate root exposes: `pub use` re-exports (possibly spanning lines)
 /// plus `pub fn` declarations in `lib.rs` itself.
+/// `pub fn`s declared at column zero: free functions, not `impl` methods.
+fn free_public_functions(source: &str) -> Vec<String> {
+    let free_lines: String = source
+        .lines()
+        .filter(|line| !line.starts_with(char::is_whitespace))
+        .collect::<Vec<_>>()
+        .join("\n");
+    public_functions(&free_lines)
+}
+
+/// Stage crates that re-export `ident`'s whole surface (`pub use
+/// <ident>::*;`), as (ident, crate root): a caller reaching an entrance
+/// through their ident is a caller of `ident`, and their own sources reach
+/// it as `crate::<entrance>` without naming either crate.
+fn glob_reexporting_crates(root: &Path, ident: &str) -> Vec<(String, PathBuf)> {
+    stage_crates(root)
+        .into_iter()
+        .filter(|(_, path)| {
+            std::fs::read_to_string(path.join("src/lib.rs"))
+                .is_ok_and(|library| library.contains(&format!("pub use {ident}::*;")))
+        })
+        .map(|(name, path)| (name.replace('-', "_"), path))
+        .collect()
+}
+
+/// The non-test sources under `crate_src`: the caller shape inside a crate
+/// that glob re-exports an entrance's owner and reaches it as
+/// `crate::<entrance>`.
+fn internal_sources<'a>(sources: &'a [(PathBuf, String)], crate_src: &Path) -> Vec<&'a str> {
+    sources
+        .iter()
+        .filter(|(file, _)| {
+            file.strip_prefix(crate_src).is_ok_and(|relative| {
+                !relative.components().any(|component| {
+                    let component = component.as_os_str().to_string_lossy();
+                    component == "tests"
+                        || component == "test_support"
+                        || component.ends_with("tests.rs")
+                })
+            })
+        })
+        .map(|(_, text)| text.as_str())
+        .collect()
+}
+
+fn has_internal_caller(texts: &[&str], entrance: &str) -> bool {
+    let identifier = |c: Option<char>| c.is_some_and(|c| c.is_alphanumeric() || c == '_');
+    texts.iter().any(|text| {
+        text.match_indices(entrance).any(|(at, _)| {
+            !identifier(text[..at].chars().next_back())
+                && !identifier(text[at + entrance.len()..].chars().next())
+        })
+    })
+}
+
 fn root_exported_names(library: &str) -> BTreeSet<String> {
     let mut exported: BTreeSet<String> = public_functions(library).into_iter().collect();
     let mut rest = library;
@@ -126,43 +181,47 @@ fn root_exported_names(library: &str) -> BTreeSet<String> {
     exported
 }
 
+/// Every `.rs` file under `omega-rust/` and `tests/` with its text, read
+/// once for the caller scans below.
+fn workspace_sources(root: &Path) -> Vec<(PathBuf, String)> {
+    let mut files = Vec::new();
+    for scope in ["omega-rust", "tests"] {
+        rust_files(&root.join(scope), &mut files);
+    }
+    files
+        .into_iter()
+        .filter_map(|path| std::fs::read_to_string(&path).ok().map(|text| (path, text)))
+        .collect()
+}
+
 /// Caller scan: every `.rs` file outside `crate/src/` is a potential external
 /// caller — other crates' sources, integration tests, and the crate's own
-/// `tests/` targets are all outside `src/`. A reference counts when the file
-/// reaches the crate (`use <ident>` or `<ident>::`) and names the entrance.
-/// `pub` re-export chains aliasing deeper paths stay approximate, matching
-/// wiki/drafts/stage_entrance_orphan_audit.md's resolution convention.
-fn has_external_caller(root: &Path, crate_root: &Path, ident: &str, name: &str) -> bool {
+/// `tests/` targets are all outside `src/`. A file reaches the crate when it
+/// names it (`use <ident>` or `<ident>::`); `external_reachers` selects those
+/// files once per crate and `has_external_caller` then asks whether one of
+/// them names the entrance. `pub` re-export chains aliasing deeper paths stay
+/// approximate, matching wiki/drafts/stage_entrance_orphan_audit.md's
+/// resolution convention.
+fn external_reachers<'a>(
+    sources: &'a [(PathBuf, String)],
+    crate_root: &Path,
+    ident: &str,
+) -> Vec<&'a str> {
     let use_crate = format!("use {ident}");
     let qualified = format!("{ident}::");
-    let mut stack: Vec<PathBuf> = ["omega-rust", "tests"]
+    let crate_src = crate_root.join("src");
+    sources
         .iter()
-        .map(|scope| root.join(scope))
-        .collect();
-    while let Some(directory) = stack.pop() {
-        let Ok(entries) = std::fs::read_dir(&directory) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                stack.push(path);
-                continue;
-            }
-            if path.extension().is_none_or(|ext| ext != "rs")
-                || path.starts_with(crate_root.join("src"))
-            {
-                continue;
-            }
-            let Ok(text) = std::fs::read_to_string(&path) else {
-                continue;
-            };
-            if (text.contains(&use_crate) || text.contains(&qualified)) && text.contains(name) {
-                return true;
-            }
-        }
-    }
-    false
+        .filter(|(path, text)| {
+            !path.starts_with(&crate_src)
+                && (text.contains(&use_crate) || text.contains(&qualified))
+        })
+        .map(|(_, text)| text.as_str())
+        .collect()
+}
+
+fn has_external_caller(reachers: &[&str], name: &str) -> bool {
+    reachers.iter().any(|text| text.contains(name))
 }
 
 /// Root-reachable `pub fn`s that are deliberately not stage entrances: internal
@@ -301,6 +360,20 @@ fn pipeline_ownership_document_links_every_stage_crate() {
 /// `pub mod` declarations at a crate root's brace depth zero — the module-level
 /// public surface the function-level entrance scan cannot reach. Declarations
 /// nested inside an inline `mod` block belong to their parent module's surface.
+/// Module names a `mod.rs` declares (`mod x;`, `pub mod x;`, `pub(crate) mod x;`).
+fn declared_modules(source: &str) -> BTreeSet<String> {
+    source
+        .lines()
+        .filter_map(|line| {
+            let line = line.trim();
+            ["mod ", "pub mod ", "pub(crate) mod "]
+                .iter()
+                .find_map(|prefix| line.strip_prefix(prefix)?.strip_suffix(';'))
+                .map(str::to_owned)
+        })
+        .collect()
+}
+
 fn root_public_modules(library: &str) -> Vec<String> {
     let mut modules = Vec::new();
     let mut depth = 0usize;
@@ -377,10 +450,12 @@ fn module_public_names(crate_src: &Path, module: &str) -> BTreeSet<String> {
 #[test]
 fn stage_root_public_modules_have_external_consumers() {
     let root = repository();
+    let sources = workspace_sources(&root);
     for (name, path) in stage_crates(&root) {
         let library = std::fs::read_to_string(path.join("src/lib.rs")).unwrap();
         let exported = root_exported_names(&library);
         let ident = name.replace('-', "_");
+        let reachers = external_reachers(&sources, &path, &ident);
         for module in root_public_modules(&library) {
             if INTERNAL_MODULES
                 .iter()
@@ -389,7 +464,7 @@ fn stage_root_public_modules_have_external_consumers() {
                 continue;
             }
             let qualified = format!("{module}::");
-            let reachable_by_path = has_external_caller(&root, &path, &ident, &qualified);
+            let reachable_by_path = has_external_caller(&reachers, &qualified);
             let reachable_by_reexport = module_public_names(&path.join("src"), &module)
                 .iter()
                 .any(|item| exported.contains(item));
@@ -403,31 +478,449 @@ fn stage_root_public_modules_have_external_consumers() {
     }
 }
 
+/// Rewrite families of `selected-instructions-to-selected-instructions`
+/// that are compiled, tested and exported under `rewrites::unexecuted` but
+/// reached by no production route: each row names the family module and the
+/// `TASKS_OPTIMIZER.md` item that owns giving it a stage-catalog row or
+/// deleting it. The roster must equal the modules
+/// `rewrites/unexecuted/mod.rs` declares (the crate's own disposition
+/// roster), so a family cannot be parked there without a board owner, and
+/// their `pub fn`s are the only root-reachable functions this audit excuses
+/// as a group. A family that gains a production caller must leave both
+/// rosters; a family the board retires must be deleted, not kept here.
+const UNEXECUTED_REWRITE_FAMILIES: [(&str, &str); 38] = [
+    ("address_fold", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("arm_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("boundary_boolean", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("boundary_branch", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("bypass_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("bypass_run_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("commuting_interchange", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    (
+        "commuting_member_run_interchange",
+        "EXACT-MACHINE-SIMPLIFICATIONS",
+    ),
+    ("commuting_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("commuting_run_interchange", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("commuting_run_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("confluence_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("confluence_run_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("constant_boolean", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("constant_branch", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("copy_removal", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("dead_compare", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("dead_store", "ALIAS-AWARE-MEMORY"),
+    ("diamond_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("diamond_run_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("edge_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("edge_run_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("fork_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("fork_run_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("inflow_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("join_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("load_forwarding", "ALIAS-AWARE-MEMORY"),
+    ("local_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("local_schedule", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("member_run_interchange", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("predecessor_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    (
+        "predecessor_run_relocation",
+        "EXACT-MACHINE-SIMPLIFICATIONS",
+    ),
+    ("redundant_extension", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("run_interchange", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("run_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
+    ("store_motion", "ALIAS-AWARE-MEMORY"),
+    ("triangle_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
+];
+
+/// Root-reachable free `pub fn`s that no file outside their own crate calls,
+/// as found when this audit widened from top-level `src/*.rs` to every
+/// non-test file under `src/`: each is exported at its crate root yet reached
+/// only by the crate's own route or by nothing. The roster is a ratchet: the
+/// audit requires it to equal the orphans it finds, so a fix (narrowing the
+/// function to `pub(crate)`, wiring it into the route, or deleting it with its
+/// family) removes the row and a new orphan cannot enter without a row. The
+/// `selected-instructions-to-register-homes` rows are the unsequenced spill
+/// variant identities SPILL-REALIZATION owns; the four `peepholes` fold and
+/// validate pairs in `selected-instructions-to-selected-instructions` are
+/// unexecuted families outside `rewrites/` that EXACT-MACHINE-SIMPLIFICATIONS
+/// owns beside the rostered ones.
+const INTERNALLY_CALLED_REEXPORTS: [(&str, &str); 60] = [
+    (
+        "abstract-operations-to-abstract-operations",
+        "analysis_dependencies",
+    ),
+    (
+        "abstract-operations-to-abstract-operations",
+        "apply_case_membership_specialization",
+    ),
+    (
+        "abstract-operations-to-abstract-operations",
+        "apply_field_value_specialization",
+    ),
+    (
+        "abstract-operations-to-abstract-operations",
+        "apply_state_argument_specialization",
+    ),
+    (
+        "abstract-operations-to-abstract-operations",
+        "built_in_psi_registries",
+    ),
+    (
+        "abstract-operations-to-abstract-operations",
+        "built_in_psi_registries_for_selections",
+    ),
+    (
+        "abstract-operations-to-abstract-operations",
+        "built_in_psi_registry_for_selections",
+    ),
+    (
+        "abstract-operations-to-abstract-operations",
+        "validate_case_membership_specialization",
+    ),
+    (
+        "abstract-operations-to-abstract-operations",
+        "validate_external_decision_recording",
+    ),
+    (
+        "abstract-operations-to-abstract-operations",
+        "validate_field_value_specialization",
+    ),
+    (
+        "checked-trees-to-lowered-psi",
+        "check_entry_requirement_certificate",
+    ),
+    (
+        "checked-trees-to-lowered-psi",
+        "produce_entry_requirement_certificates",
+    ),
+    (
+        "selected-instructions-to-register-homes",
+        "abstract_spill_insertion_identity",
+    ),
+    (
+        "selected-instructions-to-register-homes",
+        "complete_optimized_active_resident_rematerialization",
+    ),
+    (
+        "selected-instructions-to-register-homes",
+        "corrupt_active_resident_rematerialization_pressure_custody_for_test",
+    ),
+    (
+        "selected-instructions-to-register-homes",
+        "generalized_reload_value_home_identity",
+    ),
+    (
+        "selected-instructions-to-register-homes",
+        "generalized_spill_insertion_identity",
+    ),
+    (
+        "selected-instructions-to-register-homes",
+        "generalized_spill_recovery_choice_identity",
+    ),
+    (
+        "selected-instructions-to-register-homes",
+        "generalized_spill_recovery_worklist_identity",
+    ),
+    (
+        "selected-instructions-to-register-homes",
+        "homed_spill_pseudo_instruction_plan_identity",
+    ),
+    (
+        "selected-instructions-to-register-homes",
+        "project_post_allocation_optimization_manifest",
+    ),
+    (
+        "selected-instructions-to-register-homes",
+        "project_post_allocation_optimization_manifest_after_selected_lowering",
+    ),
+    (
+        "selected-instructions-to-register-homes",
+        "recursive_reload_value_home_identity",
+    ),
+    (
+        "selected-instructions-to-register-homes",
+        "recursive_spill_insertion_identity",
+    ),
+    (
+        "selected-instructions-to-register-homes",
+        "reload_value_home_identity",
+    ),
+    (
+        "selected-instructions-to-register-homes",
+        "spill_pseudo_instruction_plan_identity",
+    ),
+    (
+        "selected-instructions-to-register-homes",
+        "spill_recovery_choice_identity",
+    ),
+    (
+        "selected-instructions-to-register-homes",
+        "spill_recovery_worklist_identity",
+    ),
+    (
+        "selected-instructions-to-register-homes",
+        "synthetic_reload_value_plan_identity",
+    ),
+    (
+        "selected-instructions-to-register-homes",
+        "validate_post_allocation_optimization_manifest_after_selected_lowering",
+    ),
+    (
+        "selected-instructions-to-selected-instructions",
+        "analyze_pre_allocation_machine_effects",
+    ),
+    (
+        "selected-instructions-to-selected-instructions",
+        "enabled_pair_rules",
+    ),
+    (
+        "selected-instructions-to-selected-instructions",
+        "fold_selected_condition_materialization",
+    ),
+    (
+        "selected-instructions-to-selected-instructions",
+        "fold_selected_copied_call_operand",
+    ),
+    (
+        "selected-instructions-to-selected-instructions",
+        "fold_selected_incoming_literal",
+    ),
+    (
+        "selected-instructions-to-selected-instructions",
+        "fold_selected_projected_access",
+    ),
+    (
+        "selected-instructions-to-selected-instructions",
+        "fold_selected_terminator_pair",
+    ),
+    (
+        "selected-instructions-to-selected-instructions",
+        "literal_fold_identity",
+    ),
+    (
+        "selected-instructions-to-selected-instructions",
+        "materialize_fixed_view_copies",
+    ),
+    (
+        "selected-instructions-to-selected-instructions",
+        "pressure_rematerialization_identity",
+    ),
+    (
+        "selected-instructions-to-selected-instructions",
+        "selected_stage_catalog_contains",
+    ),
+    (
+        "selected-instructions-to-selected-instructions",
+        "selected_stage_rule_rows",
+    ),
+    (
+        "selected-instructions-to-selected-instructions",
+        "stage_optimized_allocation_legality_for_frameless_leaf",
+    ),
+    (
+        "selected-instructions-to-selected-instructions",
+        "validate_allocator_availability",
+    ),
+    (
+        "selected-instructions-to-selected-instructions",
+        "validate_condition_materialization_fold",
+    ),
+    (
+        "selected-instructions-to-selected-instructions",
+        "validate_copied_call_operand_fold",
+    ),
+    (
+        "selected-instructions-to-selected-instructions",
+        "validate_literal_fold",
+    ),
+    (
+        "selected-instructions-to-selected-instructions",
+        "validate_projected_access_fold",
+    ),
+    (
+        "selected-instructions-to-selected-instructions",
+        "validate_staged_optimized_liveness_custody",
+    ),
+    (
+        "selected-instructions-to-selected-instructions",
+        "validate_terminator_pair_fold",
+    ),
+    (
+        "selected-instructions-to-selected-instructions",
+        "validated_machine_effect_catalog",
+    ),
+    (
+        "target-operations-to-selected-instructions",
+        "legalization_validator_identity",
+    ),
+    (
+        "target-operations-to-selected-instructions",
+        "legalization_validator_identity_v17_legacy",
+    ),
+    (
+        "target-operations-to-selected-instructions",
+        "legalization_validator_identity_v18_legacy",
+    ),
+    (
+        "target-operations-to-selected-instructions",
+        "legalization_validator_identity_v19_legacy",
+    ),
+    (
+        "target-operations-to-selected-instructions",
+        "legalization_validator_identity_v20_legacy",
+    ),
+    (
+        "target-operations-to-selected-instructions",
+        "legalization_validator_identity_v21_legacy",
+    ),
+    (
+        "target-operations-to-selected-instructions",
+        "legalization_validator_identity_v22_legacy",
+    ),
+    (
+        "typed-trees-to-checked-trees",
+        "recompute_machine_specialization_commitment",
+    ),
+    (
+        "typed-trees-to-checked-trees",
+        "refresh_closed_domain_instance_identities",
+    ),
+];
+
 /// The connected-route leg of the ownership audit: a designed stage entrance
-/// is a `pub fn` declared at a crate's top-level `src/` and reachable at its
-/// root. Every designed entrance must have a caller outside its own crate's
-/// `src/` — the executable route, not just the crate-name chain, stays
-/// connected. wiki/drafts/stage_entrance_orphan_audit.md cataloged the live
-/// surface; PLUMBING_REEXPORTS carries its non-entrance dispositions.
+/// is a `pub fn` declared anywhere under a crate's `src/` (test modules
+/// aside) and reachable at its root — named in the root's `pub use` lists or
+/// declared in a module the root exposes as `pub`. Every designed entrance
+/// must have a caller outside its own crate's `src/` — the executable route,
+/// not just the crate-name chain, stays connected — so an unrouted public
+/// rewrite cannot accumulate silently beneath a subdirectory.
+/// wiki/drafts/stage_entrance_orphan_audit.md cataloged the live surface;
+/// PLUMBING_REEXPORTS carries its non-entrance dispositions and
+/// UNEXECUTED_REWRITE_FAMILIES the one catalogued-but-unexecuted area.
 #[test]
 fn stage_entrances_stay_connected_to_external_callers() {
     let root = repository();
+    let sources = workspace_sources(&root);
+    let selected_rewrites = "selected-instructions-to-selected-instructions";
+    let unexecuted_declared: BTreeSet<String> = std::fs::read_to_string(
+        root.join("omega-rust/omega/pipeline")
+            .join(selected_rewrites)
+            .join("src/rewrites/unexecuted/mod.rs"),
+    )
+    .map(|source| declared_modules(&source))
+    .unwrap_or_default();
+    let unexecuted_roster: BTreeSet<String> = UNEXECUTED_REWRITE_FAMILIES
+        .iter()
+        .map(|(module, _)| (*module).to_owned())
+        .collect();
+    let shared_unexecuted_vocabulary: BTreeSet<String> = unexecuted_declared
+        .difference(&unexecuted_roster)
+        .cloned()
+        .collect();
+    assert_eq!(
+        shared_unexecuted_vocabulary
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        [
+            "commuting_accesses",
+            "condition_state",
+            "dead_path",
+            "place_storage"
+        ],
+        "rewrites/unexecuted/mod.rs declares a module that is neither a rostered \
+         family nor its shared vocabulary; add the family to \
+         UNEXECUTED_REWRITE_FAMILIES with its board owner"
+    );
+    assert!(
+        unexecuted_roster.is_subset(&unexecuted_declared),
+        "UNEXECUTED_REWRITE_FAMILIES names families rewrites/unexecuted/mod.rs \
+         no longer declares: {:?}",
+        unexecuted_roster
+            .difference(&unexecuted_declared)
+            .collect::<Vec<_>>()
+    );
+    let board = std::fs::read_to_string(root.join("TASKS_OPTIMIZER.md")).unwrap();
+    for (module, owner) in UNEXECUTED_REWRITE_FAMILIES {
+        assert!(
+            board.contains(&format!("**{owner}.**")),
+            "unexecuted rewrite family {module} names owner {owner}, which is not \
+             a live TASKS_OPTIMIZER.md item"
+        );
+    }
+    let mut violations = Vec::new();
     for (name, path) in stage_crates(&root) {
         let library = std::fs::read_to_string(path.join("src/lib.rs")).unwrap();
         let exported = root_exported_names(&library);
+        let public_modules = root_public_modules(&library);
+        let mut files = Vec::new();
+        rust_files(&path.join("src"), &mut files);
         let mut entrances = Vec::new();
-        for entry in std::fs::read_dir(path.join("src")).unwrap().flatten() {
-            let file = entry.path();
-            if file.extension().is_none_or(|ext| ext != "rs") {
+        for file in files {
+            let relative = file.strip_prefix(path.join("src")).unwrap();
+            let is_test = relative.components().any(|component| {
+                let component = component.as_os_str().to_string_lossy();
+                component == "tests"
+                    || component == "test_support"
+                    || component.ends_with("tests.rs")
+            });
+            if is_test {
                 continue;
             }
+            let top_module = relative
+                .components()
+                .next()
+                .map(|component| {
+                    component
+                        .as_os_str()
+                        .to_string_lossy()
+                        .trim_end_matches(".rs")
+                        .to_owned()
+                })
+                .unwrap_or_default();
+            let under_public_module = public_modules.contains(&top_module)
+                || (name == selected_rewrites
+                    && relative.starts_with("rewrites/unexecuted")
+                    && library.contains("pub use rewrites::unexecuted;"));
+            let unexecuted_family = (name == selected_rewrites
+                && relative.starts_with("rewrites/unexecuted"))
+            .then(|| {
+                relative
+                    .components()
+                    .nth(2)
+                    .map(|component| {
+                        component
+                            .as_os_str()
+                            .to_string_lossy()
+                            .trim_end_matches(".rs")
+                            .to_owned()
+                    })
+                    .unwrap_or_default()
+            });
             let source = std::fs::read_to_string(&file).unwrap();
-            entrances.extend(
-                public_functions(&source)
-                    .into_iter()
-                    .filter(|function| exported.contains(function)),
-            );
+            for function in free_public_functions(&source) {
+                let reachable = exported.contains(&function) || under_public_module;
+                if !reachable {
+                    continue;
+                }
+                if let Some(family) = &unexecuted_family {
+                    assert!(
+                        unexecuted_roster.contains(family)
+                            || shared_unexecuted_vocabulary.contains(family),
+                        "{}::rewrites::unexecuted::{family}::{function} is public but its \
+                         family is not in UNEXECUTED_REWRITE_FAMILIES",
+                        name.replace('-', "_")
+                    );
+                    continue;
+                }
+                entrances.push(function);
+            }
         }
+        entrances.sort();
+        entrances.dedup();
         let ident = name.replace('-', "_");
         if let Some((_, entrance, request)) = SINGLE_LOWERING_ENTRANCES
             .iter()
@@ -479,21 +972,64 @@ fn stage_entrances_stay_connected_to_external_callers() {
                  settled selections are request data, not entrance variants"
             );
         }
-        for entrance in entrances {
-            if PLUMBING_REEXPORTS
-                .iter()
-                .any(|(stage, function)| stage == &name && function == &entrance)
-            {
-                continue;
-            }
-            assert!(
-                has_external_caller(&root, &path, &ident, &entrance),
-                "stage entrance {ident}::{entrance} has no caller outside its \
-                 own crate — wire it into the route or catalog it in \
-                 PLUMBING_REEXPORTS with the audit disposition"
-            );
+        let reachers = external_reachers(&sources, &path, &ident);
+        let reexporters: Vec<(Vec<&str>, Vec<&str>)> = glob_reexporting_crates(&root, &ident)
+            .iter()
+            .map(|(alias, alias_root)| {
+                (
+                    external_reachers(&sources, &path, alias),
+                    internal_sources(&sources, &alias_root.join("src")),
+                )
+            })
+            .collect();
+        let orphans: Vec<&String> = entrances
+            .iter()
+            .filter(|entrance| {
+                !PLUMBING_REEXPORTS
+                    .iter()
+                    .any(|(stage, function)| stage == &name && function == entrance)
+            })
+            .filter(|entrance| {
+                !has_external_caller(&reachers, entrance)
+                    && !reexporters.iter().any(|(alias_reachers, alias_sources)| {
+                        has_external_caller(alias_reachers, entrance)
+                            || has_internal_caller(alias_sources, entrance)
+                    })
+            })
+            .collect();
+        let rostered: BTreeSet<&str> = INTERNALLY_CALLED_REEXPORTS
+            .iter()
+            .filter(|(stage, _)| stage == &name)
+            .map(|(_, function)| *function)
+            .collect();
+        let found: BTreeSet<&str> = orphans.iter().map(|entrance| entrance.as_str()).collect();
+        let new_orphans: Vec<&&str> = found.difference(&rostered).collect();
+        if !new_orphans.is_empty() {
+            violations.push(format!(
+                "{ident}::{{{}}} have no caller outside their own crate — wire them \
+                 into the route, narrow them to pub(crate), or catalog them in \
+                 PLUMBING_REEXPORTS with the audit disposition",
+                new_orphans
+                    .iter()
+                    .map(|entrance| **entrance)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+        let fixed: Vec<&&str> = rostered.difference(&found).collect();
+        if !fixed.is_empty() {
+            violations.push(format!(
+                "{ident}::{{{}}} now have an external caller or no longer exist — \
+                 remove their INTERNALLY_CALLED_REEXPORTS rows",
+                fixed
+                    .iter()
+                    .map(|entrance| **entrance)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
         }
     }
+    assert!(violations.is_empty(), "{}", violations.join("\n"));
 }
 
 fn rust_files(directory: &Path, files: &mut Vec<PathBuf>) {
