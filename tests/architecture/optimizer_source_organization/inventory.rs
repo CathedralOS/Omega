@@ -91,7 +91,7 @@ pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
         coordination_marker: "pub fn built_in_psi_registries",
         catalog_marker: "PSI_PASS_CATALOG",
         next_rungs: &[
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes",
+            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/",
         ],
         output_marker: "built_in_psi_registries",
         consumers: &[

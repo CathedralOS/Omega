@@ -7,15 +7,12 @@ use std::sync::Arc;
 
 use optimization::PsiOptimization;
 
-use crate::{OrderedRuleRegistry, PsiOptimizationRule, RuleRegistryError};
-
-use super::passes::{
-    control_flow_cleanup_rule_registrations, copy_propagation_rule_registrations,
-    dead_scalar_elimination_rule_registrations, global_value_numbering_rule_registrations,
-    proof_check_elision_rule_registrations, representation_specialization_rule_registrations,
-    sparse_conditional_constant_propagation_rule_registrations,
-    state_specialization_rule_registrations,
+use crate::rules::{
+    control_flow_cleanup, copy_propagation, dead_scalar_elimination, global_value_numbering,
+    proof_check_elision, representation_specialization_rule_registrations,
+    sparse_conditional_constant_propagation, state_specialization,
 };
+use crate::{OrderedRuleRegistry, PsiOptimizationRule, RuleRegistryError};
 
 type RuleCatalog = fn() -> Vec<BuiltInRuleRegistration>;
 
@@ -65,31 +62,31 @@ impl PsiPassCatalogEntry {
 pub const PSI_PASS_CATALOG: [PsiPassCatalogEntry; 8] = [
     PsiPassCatalogEntry::new(
         PsiOptimization::SparseConditionalConstantPropagation,
-        sparse_conditional_constant_propagation_rule_registrations,
+        sparse_conditional_constant_propagation::built_in_registrations,
     ),
     PsiPassCatalogEntry::new(
         PsiOptimization::ControlFlowCleanup,
-        control_flow_cleanup_rule_registrations,
+        control_flow_cleanup::built_in_registrations,
     ),
     PsiPassCatalogEntry::new(
         PsiOptimization::CopyPropagation,
-        copy_propagation_rule_registrations,
+        copy_propagation::built_in_registrations,
     ),
     PsiPassCatalogEntry::new(
         PsiOptimization::GlobalValueNumbering,
-        global_value_numbering_rule_registrations,
+        global_value_numbering::built_in_registrations,
     ),
     PsiPassCatalogEntry::new(
         PsiOptimization::ProofCheckElision,
-        proof_check_elision_rule_registrations,
+        proof_check_elision::built_in_registrations,
     ),
     PsiPassCatalogEntry::new(
         PsiOptimization::DeadPureScalarElimination,
-        dead_scalar_elimination_rule_registrations,
+        dead_scalar_elimination::built_in_registrations,
     ),
     PsiPassCatalogEntry::new(
         PsiOptimization::StateSpecialization,
-        state_specialization_rule_registrations,
+        state_specialization::built_in_registrations,
     ),
     PsiPassCatalogEntry::new(
         PsiOptimization::RepresentationSpecialization,
