@@ -166,5 +166,4 @@ fn admit_requested_product(
 }
 
 #[cfg(test)]
-#[path = "compiler/tests.rs"]
 mod tests;
