@@ -507,17 +507,6 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   runtime behavior; source inspection and cross-compilation do not establish it.
   Measure retained state and compare the spec's separate-tool route.
 
-- **TARGET-INFERENCE-AND-PLATFORM-CERTIFICATION.** Enforce canonical target
-  spellings at compiler and CLI request boundaries under
-  [exact target requests](wiki/spec/build/configuration.md#exact-target-requests).
-  `TargetProfile::from_omega_target_name` and `ExplicitTargetSet` still accept
-  `linux_x64`, `windows_x64` and `uefi_x64`; the specification requires
-  canonical names rather than these aliases. Preserve Host convenience,
-  exact-set deduplication/order, independent child outcomes and unsupported
-  profile diagnostics. Acceptance: canonical single/multiple requests work;
-  aliases, empty sets, wildcards and unknown names reject. Target-neutral
-  checking remains distinct from native execution on a matching host.
-
 ## Embedding and interpreted components
 
 Implement the [embedding contract](wiki/spec/build/embedding.md) as an ordinary
