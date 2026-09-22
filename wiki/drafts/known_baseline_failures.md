@@ -387,6 +387,62 @@ admission learned the checker's exact guard complements — builtin `==`/`!=`
 over identical operands and opposite Boolean labels in either authored
 order — so the pair no longer stops at a missing unit plan.
 
+Full-leg refresh at 40007df540 (2026-09-21, macOS arm64, cargo, host
+shared with other sessions so 5936 s): `cargo nextest run -p compiler --test
+canary_suite --no-fail-fast -E
+'test(=entry_and_abi::pass_canary_coverage::pass_canaries_compile)'` fails on
+161 fixtures (176 at 2f60b02020 before the `pass/domains/*` copy-premise
+repair beside this row; 0 new, 0 changed diagnostics between the two runs).
+The 22-fixture reading above was not a whole-leg count: checked-only
+`domains/*` members rejected by `036d60d9c9`'s borrowed-storage transfer
+rule since 2026-09-10 are absent from it. Clustered by exact diagnostic
+(fixture names normalized, position suffix dropped):
+
+- 21 "selected ProgramEntry establishment rejoins 0 Terminal attachment
+  identities; expected one; the machine's unit plan was omitted at local
+  construction at `structural field store: record literal field`" —
+  field stores whose source the Unit builder refuses: the float family (9
+  `float/*` trapping/saturating/to-int members plus
+  `operators/float_operator_identities`, all storing a floating computation,
+  which `structural_scalar_store/mod.rs` fences by design), a
+  payloadless sum case stored into a field
+  (`control_flow/composite_field_guard_dispatch`), a string literal store
+  (`control_flow/runtime_string_literal_dispatch_exit`), indexed byte stores
+  and call-fed computations (`recast/*_mutable_write_exit`,
+  `calls/runtime_contained_call_value`). Owners: CANARY-CORPUS's
+  structural-field-store split, ARITHMETIC-POLICY-REALIZATION for the float
+  family, STATE-LOCAL-VALUE-FRONTIER for sum-case field replacement.
+- 18 the same gate at `statement sequence: local data: structural call
+  binding` — a structural `let` whose initializer is neither a call, a record
+  literal nor a qualified case: `as &T` view recasts (`recast/*`, 11),
+  record-pattern destructures (`data/record_pattern_*`, 3), record literals
+  with string/array members or `let mut` (3), and the bare case spelling
+  `let signal: Light = On;` (`arithmetic/bare_name_scopes`; the resolver
+  leaves the single-member name unbound, so `Light::On` plans and `On` does
+  not). Owners: CANARY-CORPUS's local-data split, the recast byte-view rung.
+- 17 "native-artifact production requires one exact selected program entry"
+  — fixtures with no `build.omg` ProgramEntry binding for the host
+  (`storage/runtime_alias_*`, `calls/runtime_call_enum_*`, argument-taking
+  `Main::main` signatures) or EFI-only builds that the umbrella also compiles
+  for the host (`targets/efi_*`, `ownership/linear_boundary_entry_handoff`).
+  Owner: CANARY-CORPUS ("select no exact program entry").
+- 17 `Lowering(InvalidUnitMachinePlan)` with mixed omissions (unavailable
+  scalar target 4, stopped at signature 3, record literal field 3, trivial
+  affine locals 2, singletons), 15 "requires a selected Fused provider for
+  boundary" (windows/darwin rooted-target hosts and `Gui`/`FilesystemHost`
+  members), 15 at `state graph: state signature: parameter signature:
+  attached data shape`, 10 at `structural field store: record literal
+  field` without a state, 8 `Lowering(Unsupported)`, 6 at `parameter custody
+  shape: borrowed non-view carrier`, then singletons.
+
+Both clusters headed by the ProgramEntry rejoin gate reproduce at crate
+level with no service at all (`lower_typed_trees` leaves `Main::main` with
+the same omission row), and reproduce identically at 942f23e6f4, so they
+are standing Unit-builder frontiers rather than checker regressions; what
+moved them into this leg is `32f5182254` (2026-09-20), which migrated the
+corpus onto `Service<R>` carriers so `service_custody/root.rs` now requires
+the entry's Unit plan for every such fixture.
+
 ## compiler canary suite (fail-canary diagnostic fragments)
 
 `mbx nextest run -p compiler --test canary_suite
