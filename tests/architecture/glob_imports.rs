@@ -27,10 +27,6 @@ const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[
     ("omega-rust/omega/backend/register-environment", 1),
     ("omega-rust/omega/packages/manager", 3),
     (
-        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations",
-        1,
-    ),
-    (
         "omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding",
         2,
     ),

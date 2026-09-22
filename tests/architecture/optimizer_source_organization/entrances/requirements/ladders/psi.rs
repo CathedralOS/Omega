@@ -27,7 +27,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "optimizer ranked-cycle component validation",
         paths: &[
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/mod.rs",
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/model.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/graph.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/components.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/topology.rs",
@@ -44,7 +43,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "optimizer exact countdown induction analysis",
         paths: &[
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_induction/mod.rs",
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_induction/model.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_induction/compute.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_induction/region.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_induction/replay.rs",
@@ -55,7 +53,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "optimizer exact countdown invariant-constant analysis",
         paths: &[
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_invariant_constants/mod.rs",
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_invariant_constants/model.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_invariant_constants/compute.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_invariant_constants/replay.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_invariant_constants/validate.rs",
@@ -65,7 +62,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "optimizer exact countdown invariant-constant placement analysis",
         paths: &[
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_invariant_constant_placement/mod.rs",
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_invariant_constant_placement/model.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_invariant_constant_placement/compute.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_invariant_constant_placement/replay.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_invariant_constant_placement/validate.rs",
@@ -76,7 +72,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         paths: &[
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/mod.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/countdown_invariant_constant_relocation/mod.rs",
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/countdown_invariant_constant_relocation/model.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/countdown_invariant_constant_relocation/propose.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/countdown_invariant_constant_relocation/validate.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/countdown_invariant_constant_relocation/apply.rs",
@@ -87,7 +82,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "optimizer loop-invariant scalar motion boundary",
         paths: &[
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion/mod.rs",
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion/model.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion/propose.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion/validate.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion/apply.rs",
