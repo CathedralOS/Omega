@@ -82,13 +82,11 @@ const GLOB_REEXPORT_CEILINGS: &[(&str, usize)] = &[
         1,
     ),
     ("omega-rust/omega/representations/boundary-applications", 1),
-    ("omega-rust/omega/representations/physical-instructions", 7),
     ("omega-rust/omega/representations/register-model", 3),
     (
         "omega-rust/omega/representations/representation-selections",
         1,
     ),
-    ("omega-rust/omega/representations/selected-instructions", 6),
     ("omega-rust/omega/semantics/optimization-unit-semantics", 50),
     (
         "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees",

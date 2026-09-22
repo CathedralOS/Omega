@@ -13,12 +13,20 @@ pub mod instructions;
 pub mod operands;
 
 pub use codec::PostAllocationMachineDecodeError;
-pub use control_flow::*;
-pub use costs::*;
-pub use evidence::*;
+pub use control_flow::{PostAllocationMachineBlock, PostAllocationMachineFunction};
+pub use costs::{
+    NonAuthoritativeLatencyCost, NonAuthoritativeMachineCost, NonAuthoritativeMachineSizeCost,
+    TargetCostModel, TargetCostModelIdentity, TargetCostModelVersion, target_cost_model,
+};
+pub use evidence::{
+    Aarch64CbnzFusionIdentity, Aarch64MovnMaterializationIdentity,
+    PostAllocationMachineOptimizationCustody,
+};
 pub use identity::{PostAllocationMachineIdentity, post_allocation_machine_identity};
-pub use instructions::*;
-pub use operands::*;
+pub use instructions::{
+    MachineAlternativeChoiceRule, PhysicalAddressOperation, PostAllocationMachineInstruction,
+};
+pub use operands::{PhysicalOperandFootprint, QualifiedPhysicalRead};
 
 use optimization_core::PostAllocationOptimizationManifestIdentity;
 use register_homes::{AllocationLegalityIdentity, RegisterHomeIdentity};

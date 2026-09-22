@@ -6,7 +6,16 @@
 pub mod catalog;
 pub mod program;
 
-pub use catalog::*;
+pub use catalog::{
+    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
+    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
+    MachineEffectCatalog, MachineEffectCatalogIdentity, MachineEffectCatalogValidationError,
+    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
+    MachineTrapBehavior, ValidatedMachineEffectCatalog, machine_effect_catalog_identity,
+    saturating_family_tag, validate_machine_effect_catalog,
+};
 pub use program::{
     BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects,
     PreAllocationMachineEffectDecodeError, PreAllocationMachineEffectIdentity,
