@@ -12,8 +12,9 @@ pub(super) fn all(
     candidate_limit: u64,
 ) -> Result<Vec<LoopInvariantScalarMotionCandidate>, LoopInvariantScalarMotionError> {
     let mut candidates = Vec::new();
+    let effects = crate::validation::invariant_calls::unit_effect_summaries(session.unit());
     for component in session.cycle_components().components() {
-        if let Some(candidate) = component_candidate(session, component)? {
+        if let Some(candidate) = component_candidate(session, component, &effects)? {
             candidates.push(candidate);
         }
     }
@@ -30,11 +31,16 @@ pub(super) fn all(
 
 /// Plan the exact admissible-node relocation for one component, realize the
 /// transformed unit, and bind the observed destinations into the candidate.
+/// `effects` is the transitive per-function effect table computed once over
+/// the session's verified seed unit; call admissions consult it so both the
+/// proposal and the relocation freeze replay derive callee purity from the
+/// seed rather than trusting a plan.
 fn component_candidate(
     session: &VerifiedPsiOptimizationSession,
     component: &optimization_unit::OptimizerCycleComponent,
+    effects: &crate::EffectSummaryAnalysis,
 ) -> Result<Option<LoopInvariantScalarMotionCandidate>, LoopInvariantScalarMotionError> {
-    let Some(plan) = component_plan(session, component)? else {
+    let Some(plan) = component_plan(session, component, effects)? else {
         return Ok(None);
     };
     let output = apply::realize(
@@ -130,10 +136,9 @@ struct MemberAdmission {
 
 /// The component-fixed evidence a member admission consults: the relocation
 /// topology's non-speculative gate, the preheader insertion point the
-/// representable check measures against, and the lazily computed transitive
-/// effect table call admissions share.
+/// representable check measures against, and the transitive effect table
+/// call admissions share, computed once per session by the caller.
 struct PlanEvidence<'a> {
-    session: &'a VerifiedPsiOptimizationSession,
     function: &'a optimization_unit::PsiOptimizationFunction,
     component: &'a optimization_unit::OptimizerCycleComponent,
     preheader_source: BlockId,
@@ -141,23 +146,10 @@ struct PlanEvidence<'a> {
     guaranteed_entry: bool,
     guaranteed: std::collections::BTreeSet<BlockId>,
     sites: std::collections::BTreeMap<ValueId, ValueDefinitionSite>,
-    call_effects: std::cell::RefCell<Option<crate::EffectSummaryAnalysis>>,
+    call_effects: &'a crate::EffectSummaryAnalysis,
 }
 
 impl PlanEvidence<'_> {
-    /// The transitive per-function effect table call admission consults,
-    /// computed once over the session's verified seed unit.
-    fn effects(&self) -> std::cell::Ref<'_, crate::EffectSummaryAnalysis> {
-        if self.call_effects.borrow().is_none() {
-            *self.call_effects.borrow_mut() = Some(
-                crate::validation::invariant_calls::unit_effect_summaries(self.session.unit()),
-            );
-        }
-        std::cell::Ref::map(self.call_effects.borrow(), |slot| {
-            slot.as_ref().expect("effect table just computed")
-        })
-    }
-
     /// Whether every representative `substitution` maps to is already visible
     /// where the relocated run lands: a function parameter, a preheader block
     /// parameter, a preheader node defined ahead of the run, or the result of
@@ -432,9 +424,9 @@ fn admit_member_node(
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
             return None;
         }
-        let effects = evidence.effects();
+        let effects = evidence.call_effects;
         let substitution = crate::validation::invariant_calls::invariant_scalar_call_admission(
-            function, component, node, relocating, &effects,
+            function, component, node, relocating, effects,
         )?;
         if !evidence.representable(&substitution, relocating) {
             return None;
@@ -455,14 +447,14 @@ fn admit_member_node(
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
             return None;
         }
-        let effects = evidence.effects();
+        let effects = evidence.call_effects;
         let (substitution, rewrites) = crate::validation::invariant_calls::invariant_unit_call_admission(
             function,
             component,
             node,
             relocating,
             relocating_roots,
-            &effects,
+            effects,
         )?;
         if !evidence.representable(&substitution, relocating) {
             return None;
@@ -481,7 +473,7 @@ fn admit_member_node(
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
             return None;
         }
-        let effects = evidence.effects();
+        let effects = evidence.call_effects;
         let (substitution, rewrites) =
             crate::validation::invariant_calls::invariant_structural_scalar_call_admission(
                 function,
@@ -489,7 +481,7 @@ fn admit_member_node(
                 node,
                 relocating,
                 relocating_roots,
-                &effects,
+                effects,
             )?;
         if !evidence.representable(&substitution, relocating) {
             return None;
@@ -524,14 +516,14 @@ fn admit_member_node(
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
             return None;
         }
-        let effects = evidence.effects();
+        let effects = evidence.call_effects;
         let (substitution, rewrites) = crate::validation::invariant_calls::invariant_structural_call_admission(
             function,
             component,
             node,
             relocating,
             relocating_roots,
-            &effects,
+            effects,
         )?;
         if !evidence.representable(&substitution, relocating) {
             return None;
@@ -600,6 +592,7 @@ fn mutable_borrowers_relocate(
 pub(super) fn component_plan(
     session: &VerifiedPsiOptimizationSession,
     component: &optimization_unit::OptimizerCycleComponent,
+    effects: &crate::EffectSummaryAnalysis,
 ) -> Result<Option<ComponentPlan>, LoopInvariantScalarMotionError> {
     let machine = component.id.machine;
     let function = session
@@ -678,7 +671,6 @@ pub(super) fn component_plan(
     let mut relocating_roots = std::collections::BTreeSet::new();
     let mut admitted = std::collections::BTreeSet::new();
     let evidence = PlanEvidence {
-        session,
         function,
         component,
         preheader_source,
@@ -686,7 +678,7 @@ pub(super) fn component_plan(
         guaranteed_entry,
         guaranteed,
         sites,
-        call_effects: std::cell::RefCell::new(None),
+        call_effects: effects,
     };
     loop {
         let mut progressed = false;

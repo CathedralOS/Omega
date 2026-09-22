@@ -5,7 +5,7 @@ use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance};
 use semantic_vocabulary::{BlockId, BoundaryMachineId, MachineId, ServiceId};
 
-use super::shared::scalar_operation_successors;
+use super::scalar_operation_successors;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum EffectKnowledge {

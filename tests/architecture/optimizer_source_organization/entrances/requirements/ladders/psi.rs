@@ -310,7 +310,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/dead_scalar_elimination.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/dead_scalar_elimination/dead_scalar_literal_elimination.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/dead_scalar_elimination/dead_unconditionally_total_scalar_elimination.rs",
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/support/dead_scalar_node.rs",
+            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/support.rs",
         ],
     },
     SemanticLadder {
@@ -339,7 +339,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/proof_check_elision/signed_remainder_by_negative_one.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/proof_check_elision/negative_one_shift_right.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/proof_check_elision/identity_rewrite.rs",
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/support/node_elision_accounting.rs",
+            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/support.rs",
         ],
     },
     SemanticLadder {

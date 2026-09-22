@@ -10,7 +10,7 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{BlockId, EdgeId, IntegerValue, MachineId, OperationId, ValueId};
 
-use super::shared::{scalar_operation_successors, scalar_value_definition};
+use super::{scalar_operation_successors, scalar_value_definition};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarConstant {
