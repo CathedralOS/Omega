@@ -336,20 +336,22 @@ fn live_element_subloan_admits_parent_receiver_calls() {
     }
 }
 
-/// A runtime scalar index with a declared range produces
-/// `WriteOnlyIndexedPrimitiveStore` — the path terminates at the array, the
-/// index stays a `u64` operand, and the bounds obligation is retained. Omega
-/// admission carries it into the verified abstract inventory. This pin is
-/// self-flipping at the `PLACED-ACCESS-NATIVE-OPS` boundary: while target
-/// lowering still refuses the operation it pins the named
-/// `UnsupportedWriteOnlyPrimitiveStore` rejection, and once the native leg
-/// lands the same fixture executes on the host and observes the caller
-/// element mutate while its neighbors stay untouched.
+/// A runtime scalar index whose bound arrives as an ordinary machine contract
+/// produces `WriteOnlyIndexedPrimitiveStore` — the path terminates at the
+/// array, the index stays a `u64` operand, and the `index < extent` bounds
+/// obligation is retained. `requires` is the contract-fact spelling that
+/// replaced the revoked `u64 [0..=3]` suffix here; the remaining corpus
+/// migration belongs to `REMOVE-BRACKETED-RANGE-ANNOTATIONS`. Omega admission
+/// carries the operation into the verified abstract inventory and the
+/// ordinary target route now realizes it — a target-lowering refusal fails
+/// inside `published_text` rather than being tolerated.
 #[test]
-fn declared_range_runtime_index_store_reaches_verified_abstract_inventory() {
+fn contract_bound_runtime_index_store_executes_on_host() {
     for access in ["write", "mut"] {
         let source = format!(
-            "machine forward(values: &{access} [u16; 4], index: u64 [0..=3]) {{
+            "machine forward(values: &{access} [u16; 4], index: u64)
+            requires index <= 3
+            {{
                 values[index] = 17;
             }}"
         );
@@ -376,49 +378,32 @@ fn declared_range_runtime_index_store_reaches_verified_abstract_inventory() {
         let _ = obligation;
         // Omega admission + optimization inventory accept the operation.
         let _optimized = super::optimize(&artifact);
-        match native_realization::stage_optimized_verified_physical_pipeline_with_provider_executions(
-            super::optimize(&artifact),
-            NativeTarget::host(),
-            &[],
-        ) {
-            // Target lowering stays fail-closed until the native leg lands.
-            Err(error) => {
-                let rendered = format!("{error:?}");
-                assert!(
-                    rendered.contains("UnsupportedWriteOnlyPrimitiveStore"),
-                    "{access}: target-lowering boundary: {rendered}"
-                );
+        // The realized host function writes through the caller-selected
+        // element and leaves its neighbors untouched.
+        let (bytes, entry) = primitive_stores::published_text(&source, NativeTarget::host());
+        native_function::assert_c_text(
+            &bytes,
+            entry,
+            r#"
+            #include <stdint.h>
+            #include <string.h>
+            extern void omega_entry(uint64_t index, uint16_t *values);
+            int main(void) {
+                struct { uint64_t before; uint16_t values[4]; uint64_t after; } frame;
+                memset(&frame, 0xa5, sizeof frame);
+                frame.values[2] = 17;
+                unsigned char expected[sizeof frame];
+                memcpy(expected, &frame, sizeof frame);
+                frame.values[2] = 0;
+                omega_entry(2, frame.values);
+                return memcmp(expected, &frame, sizeof frame) != 0;
             }
-            // The pin flipped: the realized host function writes through the
-            // caller-selected element and leaves its neighbors untouched.
-            Ok(_) => {
-                let (bytes, entry) =
-                    primitive_stores::published_text(&source, NativeTarget::host());
-                native_function::assert_c_text(
-                    &bytes,
-                    entry,
-                    r#"
-                    #include <stdint.h>
-                    #include <string.h>
-                    extern void omega_entry(uint64_t index, uint16_t *values);
-                    int main(void) {
-                        struct { uint64_t before; uint16_t values[4]; uint64_t after; } frame;
-                        memset(&frame, 0xa5, sizeof frame);
-                        frame.values[2] = 17;
-                        unsigned char expected[sizeof frame];
-                        memcpy(expected, &frame, sizeof frame);
-                        frame.values[2] = 0;
-                        omega_entry(2, frame.values);
-                        return memcmp(expected, &frame, sizeof frame) != 0;
-                    }
-                "#,
-                );
-            }
-        }
+        "#,
+        );
     }
 }
 
-/// A declared-range runtime index lowers to caller storage: the emitted
+/// A contract-bound runtime index lowers to caller storage: the emitted
 /// address is the array base plus index times the element width, so a literal,
 /// a parameter, and a computed operand all land on the caller-selected element
 /// at its exact width while every neighboring byte stays untouched.
@@ -438,7 +423,9 @@ fn runtime_indexed_stores_observe_caller_selected_elements() {
             ("~value", "((uint16_t)~value)"),
         ] {
             let source = format!(
-                "machine forward(values: &{access} [u16; 4], index: u64 [0..=3], value: u16) {{
+                "machine forward(values: &{access} [u16; 4], index: u64, value: u16)
+                requires index <= 3
+                {{
                     values[index] = {expression};
                 }}"
             );
@@ -478,6 +465,204 @@ fn runtime_indexed_stores_observe_caller_selected_elements() {
         all(target_os = "macos", target_arch = "aarch64")
     )))]
     eprintln!("SKIP: runtime-indexed stores require a supported Linux or macOS native host");
+}
+
+/// The runtime index crosses the call boundary: the callee recovers the
+/// borrowed parameter address, scales it by the element width, and the
+/// caller-selected element moves while its neighbors stay untouched.
+#[test]
+fn callee_runtime_indexed_store_writes_through_the_call_boundary() {
+    for access in ["write", "mut"] {
+        let source = format!(
+            "machine stamp(values: &write [u16; 4], index: u64, value: u16)
+            requires index <= 3
+            {{
+                values[index] = value;
+            }}
+            machine forward(values: &{access} [u16; 4], index: u64, value: u16)
+            requires index <= 3
+            {{
+                stamp(&write values, index, value);
+            }}"
+        );
+        let (bytes, entry) = primitive_stores::published_text(&source, NativeTarget::host());
+        native_function::assert_c_text(
+            &bytes,
+            entry,
+            r#"
+            #include <stdint.h>
+            #include <string.h>
+            extern void omega_entry(uint64_t index, uint16_t value, uint16_t *values);
+            int main(void) {
+                for (uint64_t index = 0; index < 4; ++index) {
+                    struct { uint64_t before; uint16_t values[4]; uint64_t after; } frame;
+                    memset(&frame, 0xa5, sizeof frame);
+                    frame.values[index] = (uint16_t)(0xbeef - index);
+                    unsigned char expected[sizeof frame];
+                    memcpy(expected, &frame, sizeof frame);
+                    frame.values[index] = 0;
+                    omega_entry(index, (uint16_t)(0xbeef - index), frame.values);
+                    if (memcmp(expected, &frame, sizeof frame) != 0) return (int)index + 1;
+                }
+                return 0;
+            }
+        "#,
+        );
+    }
+}
+
+/// The runtime-indexed store's write authority and bounds certificate are
+/// pinned through independent verification: a shared-borrow destination or a
+/// mistyped index fails validation outright, while substituting either the
+/// certified index or the bounds obligation leaves the reconstructed
+/// `index < extent` proposition without matching evidence.
+#[test]
+fn runtime_indexed_store_rejects_authority_and_bound_substitution() {
+    let unsigned_64 = semantic_vocabulary::ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+            .unwrap(),
+    );
+    for access in ["write", "mut"] {
+        let source = format!(
+            "machine forward(values: &{access} [u16; 4], index: u64, spare: u64, value: u16)
+            requires index <= 3
+            {{
+                values[index] = value;
+            }}"
+        );
+        let artifact = artifact(&source);
+        let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+        let bundle = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
+        for mutation in 0..4 {
+            let mut changed = module.clone();
+            let machine = changed
+                .machines
+                .iter_mut()
+                .find(|machine| {
+                    machine.blocks.iter().any(|block| {
+                        block.operations.iter().any(|operation| {
+                            matches!(
+                                operation.kind,
+                                terminal_psi::OperationKind::WriteOnlyIndexedPrimitiveStore { .. }
+                            )
+                        })
+                    })
+                })
+                .unwrap();
+            match mutation {
+                // A shared borrow cannot carry the write.
+                0 => {
+                    machine.structural_parameters[0].access =
+                        terminal_psi::StructuralAccess::SharedBorrow
+                }
+                _ => {
+                    let operation = machine
+                        .blocks
+                        .iter_mut()
+                        .flat_map(|block| block.operations.iter_mut())
+                        .find(|operation| {
+                            matches!(
+                                operation.kind,
+                                terminal_psi::OperationKind::WriteOnlyIndexedPrimitiveStore { .. }
+                            )
+                        })
+                        .unwrap();
+                    let terminal_psi::OperationKind::WriteOnlyIndexedPrimitiveStore {
+                        index,
+                        value,
+                        obligation,
+                        ..
+                    } = &mut operation.kind
+                    else {
+                        unreachable!("matched the indexed store above")
+                    };
+                    match mutation {
+                        // The index operand is the exact u64 selector.
+                        1 => *index = *value,
+                        // A defined u64 the certificate never covered: the
+                        // reconstructed `spare < extent` has no evidence.
+                        2 => {
+                            *index = machine
+                                .parameters
+                                .iter()
+                                .find(|declaration| {
+                                    declaration.scalar_type == unsigned_64
+                                        && declaration.id != *index
+                                })
+                                .unwrap()
+                                .id
+                        }
+                        // A bounds obligation no evidence row discharges.
+                        _ => {
+                            *obligation = semantic_vocabulary::ObligationId::new(u64::MAX).unwrap()
+                        }
+                    }
+                }
+            }
+            match mutation {
+                0 | 1 => assert!(
+                    terminal_verifier::validate_module(&changed).is_err(),
+                    "{access}: mutation {mutation}"
+                ),
+                _ => {
+                    assert!(
+                        terminal_verifier::validate_module(&changed).is_ok(),
+                        "{access}: mutation {mutation} stays inside representation rules"
+                    );
+                    assert!(
+                        terminal_verifier::verify_module(
+                            &changed,
+                            &bundle,
+                            &proof_admission::AdmissionProfile::default()
+                        )
+                        .is_err(),
+                        "{access}: mutation {mutation}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// The index bound is checked, never assumed: an index with no in-extent
+/// proof — or one whose contract bound cannot discharge `index < extent` —
+/// rejects during checking before any bounds obligation is emitted.
+#[test]
+fn runtime_indexed_stores_reject_indices_without_checked_bounds() {
+    for source in [
+        "machine forward(values: &write [u16; 4], index: u64) {
+            values[index] = 17;
+        }",
+        "machine forward(values: &mut [u16; 4], index: u64) {
+            values[index] = 17;
+        }",
+        "machine forward(values: &write [u16; 4], index: u64)
+        requires index <= 7
+        {
+            values[index] = 17;
+        }",
+    ] {
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .unwrap();
+        let typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let error = typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .expect_err("an index without a checked bound cannot store");
+        let rendered = format!("{error:?}");
+        assert!(
+            rendered.contains("cannot prove index"),
+            "unexpected diagnostic: {rendered}"
+        );
+    }
 }
 
 #[test]

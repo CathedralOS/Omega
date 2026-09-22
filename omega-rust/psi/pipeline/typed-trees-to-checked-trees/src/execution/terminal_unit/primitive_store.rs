@@ -1,7 +1,7 @@
 //! Checked whole-primitive stores through exact exclusive reference parameters.
 use super::{
-    CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
-    CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
+    CheckFacts, CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,
+    CheckedStructuralAccess, CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape, DataMember, ExpressionNode,
     Multiplicity, PrimitiveType, StatementNode, SymbolHandle, TypeConstraintNode,
@@ -603,20 +603,152 @@ fn proven_runtime_index(
                 .is_some()
         })
         .count();
-    let requirement = facts
+    let contract = &facts
         .contract_plans
         .for_machine(machine.symbol)?
-        .closed_scalar_values
-        .integer_entry_ranges()?
-        .iter()
-        .find(|requirement| {
-            requirement.position == roster_position && requirement.primitive_type == primitive_type
-        })?;
-    // A negative minimum fails `to_u64`, and the normalized inclusive maximum
-    // must fit strictly below the declared extent.
-    requirement.minimum.value_bignum()?.to_u64()?;
-    let maximum = requirement.maximum.value_bignum()?.to_u64()?;
+        .closed_scalar_values;
+    let requirement = contract.integer_entry_ranges()?.iter().find(|requirement| {
+        requirement.position == roster_position && requirement.primitive_type == primitive_type
+    });
+    let maximum = match requirement {
+        Some(requirement) => {
+            // A negative minimum fails `to_u64`, and the normalized inclusive
+            // maximum must fit strictly below the declared extent.
+            requirement.minimum.value_bignum()?.to_u64()?;
+            requirement.maximum.value_bignum()?.to_u64()?
+        }
+        // The declared range suffix rode the retained roster; its contract
+        // replacement is the authored `requires` clause, which the closed
+        // scalar plan carries as predicate conjuncts on the same entry
+        // parameter. An `index <= K` conjunct is the same caller-discharged
+        // entry obligation, so its literal endpoint bounds the selector
+        // exactly like the roster row did.
+        None => requires_entry_bound(contract, position, primitive_type)?,
+    };
     (maximum < u64::try_from(extent).ok()?).then(|| index.clone())
+}
+
+/// The contract-fact replacement for a declared range suffix: authored
+/// `requires` conjuncts on this entry scalar parameter fold into the closed
+/// inclusive interval the retained range roster would carry. The clause was
+/// already lowered into the closed scalar namespace and is caller-discharged
+/// at every call site, so its literal endpoints prove the entry bound with
+/// the same strength as a declared range. An unsigned carrier supplies its
+/// own `0 <=` half; a signed carrier still owes an explicit `>=` conjunct.
+/// Conjuncts this lane cannot read stay outside the interval rather than
+/// declining it; a missing upper half or an empty interval declines.
+fn requires_entry_bound(
+    contract: &checked_trees::ClosedScalarValueContractPlan,
+    position: usize,
+    primitive_type: PrimitiveType,
+) -> Option<u64> {
+    let mut minimum: Option<i128> = (!primitive_type.is_signed_integer()).then_some(0);
+    let mut maximum = None;
+    for clause in contract.authored_requires() {
+        let Some(checked_trees::ClosedScalarContractValue::Predicate(predicate)) = clause else {
+            continue;
+        };
+        fold_requires_bound_conjunct(
+            predicate,
+            position,
+            primitive_type,
+            &mut minimum,
+            &mut maximum,
+        );
+    }
+    let (minimum, maximum) = minimum.zip(maximum)?;
+    if 0 <= minimum && minimum <= maximum {
+        u64::try_from(maximum).ok()
+    } else {
+        None
+    }
+}
+
+/// Meet one `requires` conjunct's literal bound on the selector into the
+/// running interval. Canonical lowering leaves only `Equal`, `LessThan` and
+/// `LessOrEqual` integer comparisons: `p <= k` on the left is the upper half
+/// and `k <= p` the lower. Conjuncts over other parameters, composed terms,
+/// or non-literal endpoints are proof facts this admission does not read,
+/// not a reason to decline.
+fn fold_requires_bound_conjunct(
+    predicate: &CheckedBooleanExpression,
+    position: usize,
+    primitive_type: PrimitiveType,
+    minimum: &mut Option<i128>,
+    maximum: &mut Option<i128>,
+) {
+    match predicate {
+        CheckedBooleanExpression::And { left, right } => {
+            fold_requires_bound_conjunct(left, position, primitive_type, minimum, maximum);
+            fold_requires_bound_conjunct(right, position, primitive_type, minimum, maximum);
+        }
+        CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
+            let (endpoint, subject_is_left) = if conjunct_subject(left, position, primitive_type) {
+                (conjunct_literal(right), true)
+            } else if conjunct_subject(right, position, primitive_type) {
+                (conjunct_literal(left), false)
+            } else {
+                return;
+            };
+            let Some(endpoint) = endpoint else {
+                return;
+            };
+            let (lower, upper) = match (kind, subject_is_left) {
+                (checked_trees::CheckedIntegerComparisonKind::Equal, _) => {
+                    (Some(endpoint), Some(endpoint))
+                }
+                (checked_trees::CheckedIntegerComparisonKind::LessOrEqual, true) => {
+                    (None, Some(endpoint))
+                }
+                (checked_trees::CheckedIntegerComparisonKind::LessThan, true) => {
+                    (None, endpoint.checked_sub(1))
+                }
+                (checked_trees::CheckedIntegerComparisonKind::LessOrEqual, false) => {
+                    (Some(endpoint), None)
+                }
+                (checked_trees::CheckedIntegerComparisonKind::LessThan, false) => {
+                    (endpoint.checked_add(1), None)
+                }
+            };
+            if let Some(lower) = lower {
+                *minimum = Some(minimum.map_or(lower, |bound| bound.max(lower)));
+            }
+            if let Some(upper) = upper {
+                *maximum = Some(maximum.map_or(upper, |bound| bound.min(upper)));
+            }
+        }
+        _ => {}
+    }
+}
+
+/// The conjunct subject is exactly this entry scalar parameter, in the same
+/// dense scalar-parameter namespace the retained `AssignmentIndex` binding
+/// and the closed contract predicates share.
+fn conjunct_subject(
+    expression: &CheckedScalarExpression,
+    position: usize,
+    primitive_type: PrimitiveType,
+) -> bool {
+    matches!(
+        expression,
+        CheckedScalarExpression::Parameter {
+            position: subject,
+            primitive_type: carrier,
+        } if *subject == position && *carrier == primitive_type
+    )
+}
+
+/// A conjunct endpoint lands as a literal only when it carries an exact
+/// integer value; anything wider than both machine carriers stays unread.
+fn conjunct_literal(expression: &CheckedScalarExpression) -> Option<i128> {
+    let CheckedScalarExpression::IntegerLiteral { literal } = expression else {
+        return None;
+    };
+    let value = literal.value_bignum()?;
+    value
+        .to_i64()
+        .map(i128::from)
+        .or_else(|| value.to_u64().map(i128::from))
 }
 
 /// Every selector in this expression chain is a proven literal index or a

@@ -386,6 +386,96 @@ fn declared_range_runtime_index_produces_indexed_write_only_store() {
     }
 }
 
+/// The `requires` contract spelling carries the same caller-discharged entry
+/// bound the declared range roster did: its literal conjuncts fold into the
+/// closed interval that proves `index < extent` for a runtime selector, in
+/// the same dense scalar-parameter namespace the retained index binding
+/// uses.
+#[test]
+fn requires_bound_runtime_index_produces_indexed_write_only_store() {
+    for access in ["&mut", "&write"] {
+        for requires in [
+            "requires index <= 3",
+            "requires index < 4",
+            "requires index >= 0 && index <= 3",
+            "requires index <= 3 && value <= 9",
+        ] {
+            let checked = checked_program(&format!(
+                r#"
+                machine forward(values: {access} [u16; 4], index: u64, value: u16)
+                {requires}
+                {{
+                    values[index] = value;
+                }}
+            "#
+            ));
+            let plan = checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(machine_named(&checked, "forward"))
+                .unwrap_or_else(|| {
+                    panic!("{access} {requires}: contract-bound runtime index store")
+                });
+            let [
+                CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore {
+                    statement_index: 0,
+                    destination:
+                        checked_trees::CheckedPrimitiveStoreDestination::Parameter {
+                            parameter_index: 0,
+                        },
+                    path,
+                    index,
+                    ..
+                },
+                CheckedUnitEffectOperationPlan::Complete { .. },
+            ] = plan.operations.as_slice()
+            else {
+                panic!("{access} {requires}: runtime index keeps one indexed write-only store");
+            };
+            assert!(
+                path.is_empty(),
+                "{access} {requires}: the runtime selector stays an operand"
+            );
+            assert!(
+                matches!(
+                    index,
+                    CheckedScalarExpression::Parameter {
+                        position: 0,
+                        primitive_type: PrimitiveType::U64,
+                    }
+                ),
+                "{access} {requires}: the retained index is the declared scalar parameter"
+            );
+        }
+    }
+}
+
+/// Contract conjuncts this lane cannot read stay outside the interval rather
+/// than declining it — and when no readable conjunct bounds the selector,
+/// checking itself still rejects the unproven index.
+#[test]
+fn requires_conjuncts_other_than_the_selector_bound_do_not_admit_the_store() {
+    for source in [
+        // A bound on a different parameter never proves `index < extent`.
+        "machine forward(values: &mut [u16; 4], index: u64, other: u64)
+        requires other <= 3
+        { values[index] = 17; }",
+        // A disjunction is not a closed interval endpoint.
+        "machine forward(values: &mut [u16; 4], index: u64, flag: bool)
+        requires index <= 3 || flag
+        { values[index] = 17; }",
+        // The mirror spelling `4 > index` does not seed the selector's own
+        // entry bound for the ordinary index proof.
+        "machine forward(values: &mut [u16; 4], index: u64)
+        requires 4 > index
+        { values[index] = 17; }",
+    ] {
+        checked_program_result(&format!("boundary trait PortIo {{}}\n{source}"))
+            .expect_err("unproven runtime index must not produce a store plan");
+    }
+}
+
 #[test]
 fn runtime_index_store_fails_closed_without_a_proven_bound() {
     for source in [
