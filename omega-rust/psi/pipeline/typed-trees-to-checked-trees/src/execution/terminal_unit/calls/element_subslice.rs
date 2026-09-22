@@ -150,9 +150,7 @@ pub(in crate::execution) fn shape(
     expression: ExpressionHandle,
     statement_index: usize,
 ) -> Option<(u32, String)> {
-    if borrowed_slice_view_element(program, target, &[]).is_none() {
-        return None;
-    }
+    borrowed_slice_view_element(program, target, &[])?;
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
         return None;
     };
