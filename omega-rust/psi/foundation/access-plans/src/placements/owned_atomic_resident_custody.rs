@@ -13,7 +13,7 @@ use extents::{
 use crate::access_plan::diagnostic::{access_plan_rejection, into_validated_access};
 use crate::placements::owned_resident_custody::validate_owned_resident_authority;
 use crate::placements::placement_authority::PlacementAuthorityRef;
-use crate::primitive_access::field_projection::project_placed_field;
+use crate::primitive_access::field_projection::project_admission_field;
 use crate::{
     AccessFieldKey, AccessPlanDiagnostic, BorrowPolarity, ObservationModel,
     OwnedPlacementAdmission, PlacedFieldProjection, PlacedOccurrenceId, PlacementAdmissionId,
@@ -202,12 +202,8 @@ impl EstablishedOwnedAtomicPlacement {
         &'view self,
         key: AccessFieldKey,
     ) -> Result<PlacedFieldProjection<'view, 'view>, AccessPlanDiagnostic> {
-        project_placed_field(
-            &self.admission.placement_plan,
-            self.admission.profile_receipt,
-            &self.admission.resources,
-            self.admission.identity,
-            self.admission.extent.base(),
+        project_admission_field(
+            &self.admission,
             key,
             BorrowPolarity::Shared,
             BorrowPolarity::Exclusive,
