@@ -140,12 +140,26 @@ impl<'program> Evaluator<'program> {
         let schema_name = schema.name.as_str().to_owned();
         let era = self.program.wire_schema_current_era(schema);
 
-        let (enc_fields, _has_text) = self.wire_encode_fields(schema).map_err(|halt| {
-            format!(
-                "{schema_name}: encode field collection: {}",
-                halt_text(&halt)
-            )
-        })?;
+        // The generator refuses to synthesize an encode walk for this schema
+        // at all (an unresolvable field type, a proof-only mention, a field
+        // outside the stage 2 encodable set, a doubly-nested or non-scalar
+        // repeated element, a nesting cycle). There is no realization to
+        // check, so this is a coverage gap, never a divergence: the schema's
+        // own defect belongs to semantic wire validation, which names it
+        // exactly. Reporting it here would run FIRST and replace that
+        // diagnostic with a generic classification complaint.
+        let (enc_fields, _has_text) = match self.wire_encode_fields(schema) {
+            Ok(collected) => collected,
+            Err(halt) => {
+                return Ok(WireCodecVerification {
+                    checks: Vec::new(),
+                    gaps: vec![format!(
+                        "no codec realization to verify: encode field collection: {}",
+                        halt_text(&halt)
+                    )],
+                });
+            }
+        };
         let fields: Vec<ReferenceField> = enc_fields
             .iter()
             .map(|(name, number, content)| {

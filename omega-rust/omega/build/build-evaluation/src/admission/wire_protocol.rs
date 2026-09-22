@@ -239,13 +239,18 @@ fn build_wire_protocol_report(
                         authority: "Omega compiler".to_owned(),
                     })
                 };
-                let mut evidence = vec![
-                    plan_evidence,
-                    format!(
+                // A schema the generator cannot realize at all exercises no
+                // check; claiming "independent verification passed" over an
+                // empty list would be evidence the run never produced.
+                let mut evidence = vec![plan_evidence];
+                if verification.checks.is_empty() {
+                    evidence.push("independent verification exercised no check".to_owned());
+                } else {
+                    evidence.push(format!(
                         "independent verification passed: {}",
                         verification.checks.join("; ")
-                    ),
-                ];
+                    ));
+                }
                 if policy_verified {
                     evidence.push(policy_evidence());
                     evidence.push(format!(
