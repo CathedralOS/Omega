@@ -597,7 +597,7 @@ const UNSEQUENCED_SPILL_FAMILIES: [(&str, &str); 16] = [
 /// rosters do not yet attach to the proof bundle, so it has no caller at all
 /// and narrowing it would only make the module dead code; it stays `pub`
 /// until that leg lands or the module is retired.
-const INTERNALLY_CALLED_REEXPORTS: [(&str, &str); 27] = [
+const INTERNALLY_CALLED_REEXPORTS: [(&str, &str); 20] = [
     (
         "checked-trees-to-lowered-psi",
         "check_entry_requirement_certificate",
@@ -677,34 +677,6 @@ const INTERNALLY_CALLED_REEXPORTS: [(&str, &str); 27] = [
     (
         "selected-instructions-to-selected-instructions",
         "validated_machine_effect_catalog",
-    ),
-    (
-        "target-operations-to-selected-instructions",
-        "legalization_validator_identity",
-    ),
-    (
-        "target-operations-to-selected-instructions",
-        "legalization_validator_identity_v17_legacy",
-    ),
-    (
-        "target-operations-to-selected-instructions",
-        "legalization_validator_identity_v18_legacy",
-    ),
-    (
-        "target-operations-to-selected-instructions",
-        "legalization_validator_identity_v19_legacy",
-    ),
-    (
-        "target-operations-to-selected-instructions",
-        "legalization_validator_identity_v20_legacy",
-    ),
-    (
-        "target-operations-to-selected-instructions",
-        "legalization_validator_identity_v21_legacy",
-    ),
-    (
-        "target-operations-to-selected-instructions",
-        "legalization_validator_identity_v22_legacy",
     ),
 ];
 

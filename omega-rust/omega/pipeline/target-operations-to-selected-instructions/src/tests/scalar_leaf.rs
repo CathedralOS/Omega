@@ -287,7 +287,7 @@ fn scalar_leaf_legalization_rejects_changed_literal_abi_and_return_register() {
     let original_identity = legalized.receipt().identity();
     assert_ne!(
         legalized.receipt().validator(),
-        crate::legalization_validator_identity_v21_legacy()
+        crate::legalization::legalization_validator_identity_v21_legacy()
     );
     for corruption in 0..4 {
         let mut proposed = legalized.plan().clone();

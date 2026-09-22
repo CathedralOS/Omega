@@ -58,7 +58,7 @@ fn structural_case_graph_replays_exact_payloads_and_cleanup() {
             }
         );
         assert_ne!(
-            crate::legalization_validator_identity(),
+            crate::legalization::legalization_validator_identity(),
             optimization_core::OptimizationValidatorIdentity::from_canonical_bytes(
                 b"omega.terminal-target-legalization-independent-replay.v37"
             )

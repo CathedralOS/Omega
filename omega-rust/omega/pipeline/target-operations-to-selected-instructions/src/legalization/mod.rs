@@ -10,12 +10,11 @@ mod source;
 mod source_input;
 pub use source_input::LegalizationSource;
 
-pub use model::{
-    LegalizationError, LegalizationValidationReceipt, ValidatedLegalizedOperations,
-    legalization_validator_identity, legalization_validator_identity_v17_legacy,
-    legalization_validator_identity_v18_legacy, legalization_validator_identity_v19_legacy,
-    legalization_validator_identity_v20_legacy, legalization_validator_identity_v21_legacy,
-    legalization_validator_identity_v22_legacy,
+pub(crate) use model::legalization_validator_identity;
+pub use model::{LegalizationError, LegalizationValidationReceipt, ValidatedLegalizedOperations};
+#[cfg(test)]
+pub(crate) use model::{
+    legalization_validator_identity_v21_legacy, legalization_validator_identity_v22_legacy,
 };
 
 use abstract_operations::AbstractOperationPlan;
