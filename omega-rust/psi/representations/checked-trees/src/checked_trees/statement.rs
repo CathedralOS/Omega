@@ -1,4 +1,9 @@
-pub use typed_trees::statement::*;
+pub use typed_trees::statement::{
+    AssemblyFactKind, OutcomeProofSelector, RootBinding, StatementHandle, StatementNode,
+    StatementTable, TableAssemblyFact, TableAssignment, TableCall, TableLocalData, TableNamePath,
+    TableTransition, TransitionExit, TransitionGuardNode, TransitionTargetHandle,
+    TransitionTargetNode,
+};
 
 use arena::HandleSpan;
 use symbols::SymbolHandle;

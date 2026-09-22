@@ -102,7 +102,6 @@ const GLOB_REEXPORT_CEILINGS: &[(&str, usize)] = &[
         "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees",
         15,
     ),
-    ("omega-rust/psi/representations/checked-trees", 51),
     ("omega-rust/psi/representations/facts", 6),
     ("omega-rust/psi/representations/flow-effects", 1),
     ("omega-rust/psi/representations/lowered-psi", 2),
