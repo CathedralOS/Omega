@@ -465,10 +465,13 @@ pub(crate) fn substitute_invariant_scalar_operands(
         // the same invariant-parameter substitution a pure computation uses
         // — every admitted call variant spells its scalar operands in that
         // one field. `callee`, results, `structural_arguments`,
-        // `claim_transfers`, `requirement_obligations`, and
-        // `crash_continuations` are not scalar operand positions — they stay
-        // byte-exact inside the moved operation, while the structural
-        // argument roots rebind through `substitute_invariant_call_roots`.
+        // `claim_transfers`, and `requirement_obligations` are not scalar
+        // operand positions — they stay byte-exact inside the moved
+        // operation, while the structural argument roots rebind through
+        // `substitute_invariant_call_roots`. `crash_continuations` are not
+        // substituted in place either: an admitted crash-custody call
+        // re-derives them from the callee's published routes through
+        // [`call_crash_continuations`].
         O::Call { arguments, .. }
         | O::CallUnit { arguments, .. }
         | O::CallStructuralScalar { arguments, .. }
@@ -610,4 +613,44 @@ pub(crate) fn substitute_invariant_call_roots(
         _ => {}
     }
     rewrites.keys().all(|from| applied.contains(from))
+}
+
+/// The crash continuations a `Call` to `callee` carries once its actual
+/// scalar arguments are `arguments`: the callee's verifier-owned published
+/// crash routes instantiated under the formal→actual substitution — the
+/// same derivation [`terminal_verifier::substitute_crash_routes`] performs
+/// when the terminal verifier checks an invocation's custody roster. A
+/// relocated call re-derives the roster against its substituted arguments
+/// rather than carrying the member-spelled payload byte-exact, so the moved
+/// node's crash evidence is reconstructed, not trusted. `None` when the
+/// callee carries no verifier-owned contract — a bare reconstruction seed
+/// cannot re-derive routes — or when the contract declares erased scalar or
+/// proof formals, whose erased-argument substitution rows this
+/// reconstruction does not track.
+pub(crate) fn call_crash_continuations(
+    callee: &PsiOptimizationFunction,
+    arguments: &[ValueId],
+) -> Option<Vec<terminal_psi::CrashRouteBucket>> {
+    let contract = callee.verified_contract.as_ref()?;
+    if !(contract.erased_scalar_formals.is_empty()
+        && contract.erased_proof_formals.is_empty()
+        && callee.parameters.len() == arguments.len())
+    {
+        return None;
+    }
+    let substitutions = callee
+        .parameters
+        .iter()
+        .zip(arguments)
+        .map(|(parameter, argument)| {
+            (
+                parameter.value,
+                ScalarTerm::value(*argument, parameter.scalar_type),
+            )
+        })
+        .collect();
+    Some(terminal_verifier::substitute_crash_routes(
+        &contract.crash_routes,
+        &substitutions,
+    ))
 }

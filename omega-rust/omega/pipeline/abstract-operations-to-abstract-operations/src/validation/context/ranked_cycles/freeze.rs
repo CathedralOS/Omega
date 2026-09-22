@@ -14,11 +14,22 @@ pub(super) fn validate_frozen_component_blocks(
     if components.is_empty() {
         return Ok(());
     }
-    let expected =
+    let mut expected =
         optimization_unit::reconstruct_psi_optimization_unit_seed(input.plan(), unit.fuel_schedule)
             .map_err(|_| {
                 OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch
             })?;
+    // The crash-custody call lane re-derives each relocated call's
+    // continuations from the callee's verifier-owned contract and the
+    // caller's published crash ceiling: attach the module's verified
+    // metadata to the reconstructed seed so both derive from the input's
+    // authoritative context rather than trusting the transformed unit's
+    // spelling (the transformed unit's own contract custody is checked
+    // separately by the seed-projection validator).
+    super::super::immutable_custody::attach_verified_structural_context(
+        &mut expected,
+        input.context().module(),
+    )?;
     let mut machines = BTreeMap::<MachineId, Vec<&OptimizerCycleComponent>>::new();
     for component in components {
         machines
