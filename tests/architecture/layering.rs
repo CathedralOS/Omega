@@ -2759,7 +2759,7 @@ fn optimization_projection_stops_before_target_realization() {
             .exists(),
         "publication is part of abstract optimization, not a separate stage"
     );
-    let output = std::fs::read_to_string(projection_root.join("src/publication/model.rs")).unwrap();
+    let output = std::fs::read_to_string(projection_root.join("src/publication/mod.rs")).unwrap();
     let fields = output
         .split("pub struct ValidatedOptimizedAbstractPlan {")
         .nth(1)

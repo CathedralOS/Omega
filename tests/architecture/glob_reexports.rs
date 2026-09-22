@@ -30,7 +30,7 @@ const GLOB_REEXPORT_CEILINGS: &[(&str, usize)] = &[
     ("omega-rust/omega/backend/register-environment", 1),
     (
         "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations",
-        11,
+        10,
     ),
     (
         "omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding",

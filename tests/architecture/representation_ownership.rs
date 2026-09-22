@@ -255,7 +255,7 @@ fn optimization_records_and_independent_checks_have_distinct_owners() {
     let stage = root.join(
         "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation",
     );
-    let custody = std::fs::read_to_string(stage.join("context/ranked_cycles/model.rs")).unwrap();
+    let custody = std::fs::read_to_string(stage.join("context/ranked_cycles/mod.rs")).unwrap();
     assert!(custody.contains("pub(in crate::validation::context) const fn new"));
     assert!(!custody.contains("pub(crate) const fn new"));
     let context = std::fs::read_to_string(stage.join("context/mod.rs")).unwrap();
