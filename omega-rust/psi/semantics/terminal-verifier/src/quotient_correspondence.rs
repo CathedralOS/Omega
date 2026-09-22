@@ -23,6 +23,9 @@ pub enum QuotientCorrespondenceReplayError {
     NonCanonicalRuntimePosition {
         expected: u32,
     },
+    InconsistentRuntimePosition {
+        position: u32,
+    },
     TheoremParameterMismatch,
     TheoremRelationPremiseMismatch,
     NonEmptyLegalityPremises,
@@ -113,13 +116,51 @@ pub fn replay_non_executable_quotient_correspondence(
     if certificate.runtime_positions.len() != certificate.input_relations.len() {
         return Err(QuotientCorrespondenceReplayError::RuntimeArityMismatch);
     }
-    for (position, runtime) in certificate.runtime_positions.iter().enumerate() {
-        let expected = u32::try_from(position)
-            .map_err(|_| QuotientCorrespondenceReplayError::RuntimeArityMismatch)?;
-        if runtime.public_position != expected || runtime.representative_position != expected {
-            return Err(
-                QuotientCorrespondenceReplayError::NonCanonicalRuntimePosition { expected },
-            );
+    match certificate.operation_kind {
+        // `define` is faithful and declaration-order preserving.
+        QuotientCorrespondenceOperationKind::Define => {
+            for (position, runtime) in certificate.runtime_positions.iter().enumerate() {
+                let expected = u32::try_from(position)
+                    .map_err(|_| QuotientCorrespondenceReplayError::RuntimeArityMismatch)?;
+                if runtime.public_position != expected
+                    || runtime.representative_position != expected
+                {
+                    return Err(
+                        QuotientCorrespondenceReplayError::NonCanonicalRuntimePosition { expected },
+                    );
+                }
+            }
+        }
+        // `lift` rows are in representative order and may adapt arguments:
+        // `public_position` selects, permutes, repeats, or omits direct
+        // public parameters. Rows that select the same public parameter must
+        // carry the same input relation, or the retained map is inconsistent.
+        QuotientCorrespondenceOperationKind::Lift
+        | QuotientCorrespondenceOperationKind::LiftWithForwardPreconditionTransport => {
+            for (position, runtime) in certificate.runtime_positions.iter().enumerate() {
+                let expected = u32::try_from(position)
+                    .map_err(|_| QuotientCorrespondenceReplayError::RuntimeArityMismatch)?;
+                if runtime.representative_position != expected {
+                    return Err(
+                        QuotientCorrespondenceReplayError::NonCanonicalRuntimePosition { expected },
+                    );
+                }
+                if certificate.runtime_positions[..position]
+                    .iter()
+                    .enumerate()
+                    .any(|(earlier, candidate)| {
+                        candidate.public_position == runtime.public_position
+                            && certificate.input_relations[earlier]
+                                != certificate.input_relations[position]
+                    })
+                {
+                    return Err(
+                        QuotientCorrespondenceReplayError::InconsistentRuntimePosition {
+                            position: expected,
+                        },
+                    );
+                }
+            }
         }
     }
 
@@ -957,6 +998,128 @@ mod tests {
         assert_eq!(
             replayed(changed),
             Err(QuotientCorrespondenceReplayError::TransportFactRosterMismatch)
+        );
+    }
+
+    #[test]
+    fn adapted_lift_runtime_positions_replay_the_retained_map() {
+        // Selection and permutation: representative position 0 reads public
+        // parameter 1 and position 1 reads public parameter 0.
+        let mut permuted = transport_certificate();
+        permuted.runtime_positions = vec![
+            QuotientDefineRuntimePosition {
+                public_position: 1,
+                representative_position: 0,
+            },
+            QuotientDefineRuntimePosition {
+                public_position: 0,
+                representative_position: 1,
+            },
+        ];
+        assert_eq!(replayed(permuted), Ok(()));
+
+        // Repetition: both representative positions read public parameter 0,
+        // so both input relations stay equal.
+        let mut duplicated = transport_certificate();
+        let input = relation("Value");
+        duplicated.input_relations = vec![
+            QuotientPositionalRelation::Quotient(input.clone()),
+            QuotientPositionalRelation::Quotient(input.clone()),
+        ];
+        duplicated.runtime_positions = vec![
+            QuotientDefineRuntimePosition {
+                public_position: 0,
+                representative_position: 0,
+            },
+            QuotientDefineRuntimePosition {
+                public_position: 0,
+                representative_position: 1,
+            },
+        ];
+        let congruence = congruence(&mut duplicated);
+        congruence.parameters = vec![
+            QuotientTheoremParameter {
+                theorem_position: 0,
+                role: QuotientTheoremParameterRole::QuotientLeft { input_position: 0 },
+            },
+            QuotientTheoremParameter {
+                theorem_position: 1,
+                role: QuotientTheoremParameterRole::QuotientRight { input_position: 0 },
+            },
+            QuotientTheoremParameter {
+                theorem_position: 2,
+                role: QuotientTheoremParameterRole::QuotientLeft { input_position: 1 },
+            },
+            QuotientTheoremParameter {
+                theorem_position: 3,
+                role: QuotientTheoremParameterRole::QuotientRight { input_position: 1 },
+            },
+        ];
+        congruence.relation_premises = vec![
+            QuotientTheoremRelationPremise {
+                expected_position: 0,
+                actual: coordinate(0),
+                relation: input.relation.clone(),
+                left_parameter: 0,
+                right_parameter: 1,
+            },
+            QuotientTheoremRelationPremise {
+                expected_position: 1,
+                actual: coordinate(30),
+                relation: input.relation,
+                left_parameter: 2,
+                right_parameter: 3,
+            },
+        ];
+        congruence.conclusion.left.arguments = vec![0, 2];
+        congruence.conclusion.right.arguments = vec![1, 3];
+        assert_eq!(replayed(duplicated), Ok(()));
+    }
+
+    #[test]
+    fn adapted_lift_runtime_positions_reject_incoherent_rows() {
+        // Two representative positions selecting the same public parameter
+        // must carry the same input relation.
+        let mut conflicted = transport_certificate();
+        conflicted.runtime_positions = vec![
+            QuotientDefineRuntimePosition {
+                public_position: 0,
+                representative_position: 0,
+            },
+            QuotientDefineRuntimePosition {
+                public_position: 0,
+                representative_position: 1,
+            },
+        ];
+        assert_eq!(
+            replayed(conflicted),
+            Err(QuotientCorrespondenceReplayError::InconsistentRuntimePosition { position: 1 })
+        );
+
+        // Rows remain in representative order even when the source map is
+        // adapted.
+        let mut drifted = transport_certificate();
+        drifted.runtime_positions[1].representative_position = 7;
+        assert_eq!(
+            replayed(drifted),
+            Err(QuotientCorrespondenceReplayError::NonCanonicalRuntimePosition { expected: 1 })
+        );
+
+        // `define` stays faithful and position preserving.
+        let mut permuted_define = certificate();
+        permuted_define.runtime_positions = vec![
+            QuotientDefineRuntimePosition {
+                public_position: 1,
+                representative_position: 0,
+            },
+            QuotientDefineRuntimePosition {
+                public_position: 0,
+                representative_position: 1,
+            },
+        ];
+        assert_eq!(
+            replayed(permuted_define),
+            Err(QuotientCorrespondenceReplayError::NonCanonicalRuntimePosition { expected: 0 })
         );
     }
 
