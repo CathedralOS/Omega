@@ -40,7 +40,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "optimized semantic program entry",
         paths: &[
             "omega-rust/omega/backend/plans/program-entry-plan/src/optimized_semantic_entry/mod.rs",
-            "omega-rust/omega/backend/plans/program-entry-plan/src/optimized_semantic_entry/model.rs",
             "omega-rust/omega/backend/plans/program-entry-plan/src/optimized_semantic_entry/validation.rs",
             "omega-rust/omega/backend/plans/program-entry-plan/src/optimized_semantic_entry/construction.rs",
         ],
@@ -49,7 +48,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "optimized semantic program wrapper",
         paths: &[
             "omega-rust/omega/backend/plans/program-entry-plan/src/optimized_semantic_wrapper/mod.rs",
-            "omega-rust/omega/backend/plans/program-entry-plan/src/optimized_semantic_wrapper/model.rs",
             "omega-rust/omega/backend/plans/program-entry-plan/src/optimized_semantic_wrapper/recipe.rs",
             "omega-rust/omega/backend/plans/program-entry-plan/src/optimized_semantic_wrapper/validation.rs",
         ],
