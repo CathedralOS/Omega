@@ -1,6 +1,10 @@
 //! The partial affine unit cleanup machine and its residuals.
 
 use crate::execution::terminal_unit::anonymous;
+use crate::execution::terminal_unit::calls::{
+    ExpectedCallValueResult, build_call_operation, entry_claims,
+    partial_affine_structural_signature,
+};
 use crate::execution::terminal_unit::cleanup::cleanup_evidence::{
     has_exact_symbol_affine_discard, machine_has_content_evidence, service_reach_is_empty,
     service_reach_plan_is_empty,
@@ -12,11 +16,10 @@ use crate::execution::terminal_unit::{
     CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans,
     CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, ExpectedCallValueResult, Multiplicity, PermissionAccess,
-    PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, PrimitiveType,
-    ShapeCollector, SignatureContractKind, StatementNode, TypedTrees, build_call_operation,
-    control, entry_claims, is_unit, machine_binders, parameter_root_symbol,
-    partial_affine_structural_signature, state_flow, type_graph_requires_nominal_drop,
+    CheckedUnitStructuralTypePlan, Multiplicity, PermissionAccess, PermissionClaimIdentity,
+    PermissionEventKind, PermissionEventSource, PrimitiveType, ShapeCollector,
+    SignatureContractKind, StatementNode, TypedTrees, control, is_unit, machine_binders,
+    parameter_root_symbol, state_flow, type_graph_requires_nominal_drop,
 };
 
 pub(crate) fn build_partial_affine_unit_cleanup_machine(

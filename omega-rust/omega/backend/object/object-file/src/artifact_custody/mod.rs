@@ -4,6 +4,9 @@
 //! manifest contracts live in `model`, semantic reconstruction in
 //! `reconstruction`, and canonical bytes in `codec`.
 
+use crate::artifact_custody::reconstruction::{
+    construct_artifact, construct_manifest, receipt, replay_artifact, validate_terminal_join,
+};
 use optimization_core::{
     FunctionFragmentEmissionManifestIdentity, FunctionFragmentObjectContainerManifestIdentity,
     FunctionFragmentTextSectionManifestIdentity,
@@ -39,8 +42,6 @@ pub use model::{
     OptimizedObjectArtifactUnavailableData, StagedValidatedOptimizedObjectArtifact,
     ValidatedOptimizedObjectArtifactManifest,
 };
-
-use reconstruction::*;
 
 pub fn stage_validated_optimized_object_artifact(
     terminal: terminal_codec::CanonicalTerminalArtifact,

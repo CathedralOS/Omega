@@ -1,7 +1,8 @@
 //! Canonical field shapes shared by scalar operation variants.
 
-use super::super::{IntegerType, encode_integer_type, encode_optional};
+use super::super::IntegerType;
 use super::CanonicalBytes;
+use crate::optimization_unit::identity::carrier_encoding::{encode_integer_type, encode_optional};
 pub(super) fn encode_untyped_unary(
     bytes: &mut CanonicalBytes,
     tag: u8,

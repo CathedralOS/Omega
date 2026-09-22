@@ -4,6 +4,7 @@
 //! substitutions and pending instances are private working state. Durable
 //! instance declarations remain in SyntaxTrees, not a second program schema.
 
+use crate::preparation::generic_data::uses::concrete_machine_expression_handles;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstValue;
@@ -47,11 +48,9 @@ mod sum_constructor_tests;
 pub(crate) use arguments::*;
 pub(crate) use const_evaluation::*;
 pub(crate) use discovery::*;
-use eligibility::*;
 pub(crate) use substitution::*;
 use synthesis::desugar_generic_data_instances;
 pub(super) use synthesis::desugar_generic_data_instances_with_selection;
-use uses::*;
 
 /// Authored constant arguments in concrete data fields and constant declarations.
 /// Open templates and machine lexical scopes cannot borrow a standalone probe.

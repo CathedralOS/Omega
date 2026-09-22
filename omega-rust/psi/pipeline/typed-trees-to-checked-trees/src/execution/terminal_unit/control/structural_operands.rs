@@ -8,10 +8,11 @@ use super::{
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, ExpressionNode,
     MachineSupplyMode, Multiplicity, SymbolHandle, TypedTrees,
 };
-use crate::execution::terminal_unit::ExpectedCallValueResult;
+use crate::execution::terminal_unit::calls::{ExpectedCallValueResult, build_call_operation};
+
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::ShapeCollector;
-use crate::execution::terminal_unit::build_call_operation;
+
 use crate::execution::terminal_unit::control::boundary_machine::boundary_result_plan;
 use crate::execution::terminal_unit::control::call_results::bind_structural_call_result;
 use crate::execution::terminal_unit::control::call_results::checked_structural_result_type;

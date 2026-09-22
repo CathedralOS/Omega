@@ -1,6 +1,7 @@
 //! Byte observation and view operations for common graph lowering.
-use super::{KnownInteger, KnownScalar, insert_value};
+use super::{KnownInteger, KnownScalar};
 use crate::LoweringError;
+use crate::lowering::scalar::expressions::insert_value;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;

@@ -3,8 +3,9 @@
 use super::super::{
     CanonicalBytes, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
     EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity, MachineContract,
-    OutcomeSpecificCallEvidence, encode_ids, encode_optional,
+    OutcomeSpecificCallEvidence,
 };
+use crate::optimization_unit::identity::carrier_encoding::{encode_ids, encode_optional};
 
 use crate::optimization_unit::identity::proposition_encoding::encode_proposition;
 

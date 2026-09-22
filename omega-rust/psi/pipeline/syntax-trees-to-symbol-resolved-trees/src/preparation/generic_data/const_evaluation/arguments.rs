@@ -4,12 +4,13 @@ use super::super::{
     ExpressionNode, Handle, HashMap, HashSet, Identifier, Item, SyntaxTrees, TypeParameterKind,
     TypeReferenceHandle, TypeReferenceNode,
 };
+use crate::preparation::generic_data::eligibility::base_is_fully_monomorphizable;
 
 use crate::preparation::generic_data::ConstScalarSpelling;
 use crate::preparation::generic_data::GenericData;
 use crate::preparation::generic_data::Instantiation;
 use crate::preparation::generic_data::PendingRewrite;
-use crate::preparation::generic_data::base_is_fully_monomorphizable;
+
 use crate::preparation::generic_data::canonicalize_const_definition;
 use crate::preparation::generic_data::canonicalize_monomorphizable_argument_handles;
 use crate::preparation::generic_data::canonicalize_selected_const_definition;

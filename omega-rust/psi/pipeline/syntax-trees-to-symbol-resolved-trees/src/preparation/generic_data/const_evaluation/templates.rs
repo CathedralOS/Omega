@@ -3,12 +3,13 @@ use super::super::{
     DataMember, Diagnostic, ExpressionNode, HashMap, HashSet, Identifier, Item, StatementNode,
     SyntaxTrees, TypeConstraintNode, TypeParameterKind, TypeReferenceHandle, TypeReferenceNode,
 };
+use crate::preparation::generic_data::uses::{
+    ConstructorFrontier, collect_expression_handles, collect_statement_expression_handles,
+    concrete_machine_expression_handles,
+};
 
-use crate::preparation::generic_data::ConstructorFrontier;
 use crate::preparation::generic_data::EvaluatedConst;
-use crate::preparation::generic_data::collect_expression_handles;
-use crate::preparation::generic_data::collect_statement_expression_handles;
-use crate::preparation::generic_data::concrete_machine_expression_handles;
+
 use crate::preparation::generic_data::evaluate_const_argument_expression;
 use crate::preparation::generic_data::generic_const_integer_types;
 use arena::HandleSpan;

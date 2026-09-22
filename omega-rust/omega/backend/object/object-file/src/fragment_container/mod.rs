@@ -1,5 +1,6 @@
 //! Optimizer module role: executable entrance. Object publication and source custody.
 //! Object-format construction and independent correspondence live in the backend.
+use crate::fragment_container::reconstruction::{construct_manifest, receipt};
 use crate::{
     FunctionFragmentObjectContainerManifest, FunctionFragmentObjectContainerStage,
     FunctionFragmentObjectContainerUnavailableData, RelocationFreeObjectContainer,
@@ -24,7 +25,6 @@ pub use model::{
     StagedRelocationFreeObjectContainerCustodyReceipt,
     ValidatedFunctionFragmentObjectContainerManifest,
 };
-use reconstruction::*;
 pub use validation::validate_optimized_relocation_free_object_container;
 
 pub fn stage_optimized_relocation_free_object_container(

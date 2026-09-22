@@ -3,12 +3,13 @@ use super::super::{
     CheckedStructuralControlSuccessorPlan, CheckedStructuralScalarParameterPlan, PrimitiveType,
     StatementNode, SymbolHandle, TransitionExit, TransitionGuardNode, TypedTrees,
 };
+use crate::execution::terminal_unit::calls::structural_scalar_signature;
 
 use crate::execution::terminal_unit::ShapeCollector;
 use crate::execution::terminal_unit::composed_control::guards;
 use crate::execution::terminal_unit::is_unit;
 use crate::execution::terminal_unit::machine_binders;
-use crate::execution::terminal_unit::structural_scalar_signature;
+
 use crate::execution::terminal_unit::topology;
 
 pub(in crate::execution::terminal_unit) struct DynamicJoinControlTopology {

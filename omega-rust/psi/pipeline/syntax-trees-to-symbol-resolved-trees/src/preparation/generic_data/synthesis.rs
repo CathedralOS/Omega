@@ -7,7 +7,13 @@ use crate::preparation::generic_data::Instantiation;
 use crate::preparation::generic_data::PendingRewrite;
 use crate::preparation::generic_data::canonicalize_closed_domain_indices;
 use crate::preparation::generic_data::capture_machine_runtime_template_names;
-use crate::preparation::generic_data::closed_constructor_carrier;
+use crate::preparation::generic_data::uses::{
+    closed_constructor_carrier, relabel_closed_data_uses_in_constants,
+    relabel_closed_data_uses_in_exact_assignments,
+    relabel_closed_data_uses_in_exact_calls_and_returns,
+    relabel_closed_sum_memberships_from_local_types, relabel_unique_closed_sum_paths,
+};
+
 use crate::preparation::generic_data::collect_type_reference_positions;
 use crate::preparation::generic_data::consider_generic_spelling;
 use crate::preparation::generic_data::evaluate_const_fact_expression;
@@ -15,11 +21,7 @@ use crate::preparation::generic_data::evaluate_const_membership_fact;
 use crate::preparation::generic_data::normalize_domain_head_positions;
 use crate::preparation::generic_data::normalize_generic_template_const_expressions;
 use crate::preparation::generic_data::qualified_const_name;
-use crate::preparation::generic_data::relabel_closed_data_uses_in_constants;
-use crate::preparation::generic_data::relabel_closed_data_uses_in_exact_assignments;
-use crate::preparation::generic_data::relabel_closed_data_uses_in_exact_calls_and_returns;
-use crate::preparation::generic_data::relabel_closed_sum_memberships_from_local_types;
-use crate::preparation::generic_data::relabel_unique_closed_sum_paths;
+
 use crate::preparation::generic_data::replace_const_expression_names_from;
 use crate::preparation::generic_data::replace_machine_const_expression_names_from;
 use crate::preparation::generic_data::selected_data_item;

@@ -2,7 +2,8 @@
 //! to produce.
 
 use crate::execution::terminal_unit::ScalarCalleePlans;
-use crate::execution::terminal_unit::byte_subslice;
+use crate::execution::terminal_unit::calls::byte_subslice;
+
 use crate::execution::terminal_unit::calls::argument_paths::{
     byte_sequence_literal_argument, checked_call_erased_proof_arguments,
     checked_call_erased_scalar_arguments, checked_call_scalar_arguments,

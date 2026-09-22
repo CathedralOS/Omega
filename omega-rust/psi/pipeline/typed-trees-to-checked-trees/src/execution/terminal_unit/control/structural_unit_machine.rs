@@ -1,5 +1,6 @@
 //! Building the control machine of one structural unit.
 
+use crate::execution::terminal_unit::calls::structural_scalar_signature;
 use crate::execution::terminal_unit::{
     BTreeSet, CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole,
     CheckedStructuralAccess, CheckedStructuralControlSuccessorPlan,
@@ -9,7 +10,6 @@ use crate::execution::terminal_unit::{
     PermissionEventKind, PermissionEventSource, PrimitiveType, ShapeCollector, StatementNode,
     TransitionExit, TransitionGuardNode, TransitionTargetNode, TypedTrees,
     checked_no_code_affine_discard_positions, is_unit, machine_binders, state_flow,
-    structural_scalar_signature,
 };
 use checked_trees::{
     CheckedStructuralRankedArgumentPlan, CheckedStructuralRankedGuardPlan,

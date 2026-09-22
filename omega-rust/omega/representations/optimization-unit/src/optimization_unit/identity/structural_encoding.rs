@@ -10,9 +10,15 @@ use super::{
     StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
     StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
     StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeShape,
-    TerminalAffineCleanupAction, encode_access, encode_content_term, encode_float_format,
-    encode_ids, encode_integer_type, encode_integer_value, encode_multiplicity, encode_optional,
-    encode_scalar_type, encode_structural_parameter, encode_structural_path_segment,
+    TerminalAffineCleanupAction,
+};
+use crate::optimization_unit::identity::carrier_encoding::{
+    encode_access, encode_ids, encode_integer_type, encode_integer_value, encode_multiplicity,
+    encode_optional, encode_scalar_type, encode_structural_parameter,
+    encode_structural_path_segment,
+};
+use crate::optimization_unit::identity::proposition_encoding::{
+    encode_content_term, encode_float_format,
 };
 use terminal_psi::BoundaryMachineResult;
 

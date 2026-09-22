@@ -4,6 +4,7 @@
 //! batches in reverse order, including operand/type graphs, then restores only
 //! the nodes that owner replaced. Unrelated source edits remain visible.
 
+use crate::source_edits::records::Batch;
 mod builder;
 mod guard;
 mod records;
@@ -11,7 +12,6 @@ mod records;
 mod tests;
 
 pub(super) use builder::SourceEditBuilder;
-use records::*;
 
 use arena::HandleSpan;
 use diagnostics::Diagnostic;

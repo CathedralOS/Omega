@@ -3,12 +3,14 @@ use super::super::{
     DataMember, ExpressionHandle, ExpressionNode, HandleSpan, HashMap, HashSet, Identifier, Item,
     StatementNode, SyntaxTrees, TypeReferenceHandle, TypeReferenceNode,
 };
-use crate::preparation::generic_data::ConstructorFrontier;
+use crate::preparation::generic_data::uses::{
+    ConstructorFrontier, collect_statement_expression_handles, named_type_name,
+    relabel_data_literal_for_expected_type,
+};
+
 use crate::preparation::generic_data::Instantiation;
-use crate::preparation::generic_data::collect_statement_expression_handles;
+
 use crate::preparation::generic_data::constant_selection;
-use crate::preparation::generic_data::named_type_name;
-use crate::preparation::generic_data::relabel_data_literal_for_expected_type;
 
 /// Closed callable signatures provide exact contextual types without inferring
 /// from literal fields. Free-machine overloads and concrete attached-machine

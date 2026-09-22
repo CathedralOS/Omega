@@ -20,18 +20,20 @@ use super::{
     CheckedTrees, LoweredPsi, LoweringError, Multiplicity, PrimitiveType, ScalarType,
     StructuralPlaceDeclaration, StructuralPlaceKind, TerminalAffineCleanupAction,
     TerminalMachineResult, Terminator, ValueDeclaration, allocate_dense, block_id,
-    boolean_decision_block_count, boolean_local_reference_count, edge_id, emit_direct_expression,
-    emit_inlined_boolean_value_blocks, finalize_operation_proofs,
-    is_branch_free_structural_boolean_expression, is_branch_free_structural_scalar_expression,
-    is_structural_short_circuit_boolean_decision, lower_boolean_value_decision,
-    lower_checked_scalar_expression_at, lower_unit_parameters, source_distribute_boolean_local,
-    terminal_scalar_type, unsupported, validate_boolean_decision_parameter_types,
+    boolean_decision_block_count, edge_id, emit_direct_expression,
+    emit_inlined_boolean_value_blocks, finalize_operation_proofs, lower_boolean_value_decision,
+    lower_checked_scalar_expression_at, lower_unit_parameters, terminal_scalar_type, unsupported,
     validate_boolean_parameter_types, validate_direct_parameter_types, value_id,
 };
 use crate::emission::boolean_control::LoweredBooleanDecisionExit;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::returns::structural_scalar_return::expressions::{
+    boolean_local_reference_count, is_branch_free_structural_boolean_expression,
+    is_branch_free_structural_scalar_expression, is_structural_short_circuit_boolean_decision,
+    source_distribute_boolean_local, validate_boolean_decision_parameter_types,
+};
 
 /// Reuse the already ratified bounded nominal-Unit closure construction, then
 /// replace only its synthetic entry body with the checked scalar computation.
