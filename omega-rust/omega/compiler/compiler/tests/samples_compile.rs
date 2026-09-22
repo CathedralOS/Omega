@@ -68,13 +68,14 @@
 //!    that text — exit code alone passes even when a RENDERER silently draws
 //!    nothing (a broken carrier render), so the renderers assert a glyph they draw.
 
-use build_declarations::{BuildDeclaration, extract_build_declaration};
 use compiler::CheckedCompileRequest;
 use compiler::{CompileOptions, compile_to_checked};
-use package_compilation::{
-    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+use fixture_package_inputs::{
+    bundled_standard_library_root, candidate_program_entry_binding, console_acceptance,
+    dependency_free_fixture_package_inputs, fixture_package_identity, repo_root,
+    repository_fixture_package_inputs,
 };
-use semantic_vocabulary::PackageKeyIdentity;
+use package_compilation::PackageCompilationInputs;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -82,68 +83,21 @@ use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
 
-#[path = "support/console_acceptance.rs"]
-mod console_acceptance;
-#[path = "support/linux_entry_acceptance.rs"]
-mod linux_entry_acceptance;
-#[path = "support/macos_entry_acceptance.rs"]
-mod macos_entry_acceptance;
+#[path = "support/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
 #[path = "samples_compile/native_acceptance.rs"]
 mod native_acceptance;
 #[path = "samples_compile/unit_closure.rs"]
 mod unit_closure;
-#[path = "support/windows_entry_acceptance.rs"]
-mod windows_entry_acceptance;
 
-fn sample_package_identity(marker: u8) -> PackageKeyIdentity {
-    PackageKeyIdentity::from_digest([marker; 32]).expect("sample package identity is nonzero")
-}
-
+/// Every sample compiles in package mode: the dependencies it authored in
+/// its `build.omg`, or only its own root when it authored none (the
+/// freestanding UEFI package and the dependency-free measurable subjects use
+/// only compiler-owned core vocabulary; repository_build_declarations checks
+/// each std edge independently).
 fn sample_package_inputs(root_path: &Path) -> PackageCompilationInputs {
-    let project_root = root_path
-        .parent()
-        .expect("sample main source should have a project root");
-    let declaration = extract_build_declaration(project_root)
-        .unwrap_or_else(|error| panic!("project {}: {error}", project_root.display()));
-    let root_role = declaration.kind();
-    let root_name = match declaration {
-        BuildDeclaration::Application(application) => application.name,
-        BuildDeclaration::Package(package) => package.name,
-        BuildDeclaration::Workspace(_) => {
-            panic!(
-                "sample {} cannot be a workspace root",
-                project_root.display()
-            )
-        }
-    };
-    let root_identity = sample_package_identity(1);
-    let standard_library_identity = sample_package_identity(2);
-    let mut packages = vec![PackageSourceBinding::new(
-        root_identity,
-        root_name.into_string(),
-        project_root.to_path_buf(),
-    )];
-    let mut dependencies = Vec::new();
-
-    // The freestanding UEFI package uses only compiler-owned core vocabulary.
-    // Every std-consuming package declares the ordinary dependency in its
-    // build.omg; repository_build_declarations checks that edge independently.
-    let dependency_free = project_root.ends_with("samples/uefi/uefi_hello");
-    if !dependency_free {
-        packages.push(PackageSourceBinding::new(
-            standard_library_identity,
-            "omega-language-std",
-            repo_root().join("source/library/std"),
-        ));
-        dependencies.push(PackageDependencyBinding::new(
-            root_identity,
-            "omega_language_std",
-            standard_library_identity,
-        ));
-    }
-
-    PackageCompilationInputs::new(root_identity, root_role, packages, dependencies)
-        .unwrap_or_else(|errors| panic!("project {}: {errors:#?}", project_root.display()))
+    repository_fixture_package_inputs(root_path)
+        .unwrap_or_else(|| dependency_free_fixture_package_inputs(root_path))
 }
 
 fn compile_sample_to_checked(
@@ -209,7 +163,7 @@ fn sample_native_package_inputs(
     target_name: Option<&str>,
 ) -> Result<PackageCompilationInputs, Vec<diagnostics::Diagnostic>> {
     let mut package_inputs = sample_package_inputs(root_path);
-    let standard_library = sample_package_identity(2);
+    let standard_library = fixture_package_identity(2);
     if package_inputs.package_root(standard_library).is_none() {
         return Ok(package_inputs);
     }
@@ -217,33 +171,15 @@ fn sample_native_package_inputs(
     // decisions. Accept the checked dependency entry before selecting the
     // application, then retain it when adding the exact Console plan below.
     let mut bindings = Vec::new();
-    let entry_binding = match target_name.unwrap_or(host_target_name()) {
-        "macos_arm64" => Some(macos_entry_acceptance::candidate_macos_entry_binding(
-            &repo_root().join("source/library/std"),
-            standard_library,
-        )?),
-        "linux_x86_64" => Some(
-            linux_entry_acceptance::candidate_linux_x86_64_entry_binding(
-                &repo_root().join("source/library/std"),
-                standard_library,
-            )?,
-        ),
-        "linux_arm64" => Some(linux_entry_acceptance::candidate_linux_arm64_entry_binding(
-            &repo_root().join("source/library/std"),
-            standard_library,
-        )?),
-        // The harness gives the standard library a fixture package identity,
-        // so the bundled-contract branch of physical entry admission never
-        // applies here: every target this harness compiles needs its accepted
-        // package-owned entry binding, Windows included.
-        "windows_x86_64" => Some(
-            windows_entry_acceptance::candidate_windows_x86_64_entry_binding(
-                &repo_root().join("source/library/std"),
-                standard_library,
-            )?,
-        ),
-        _ => None,
-    };
+    // The harness gives the standard library a fixture package identity, so
+    // the bundled-contract branch of physical entry admission never applies
+    // here: every target this harness compiles needs its accepted
+    // package-owned entry binding, Windows included.
+    let entry_binding = candidate_program_entry_binding(
+        target_name.unwrap_or(host_target_name()),
+        &bundled_standard_library_root(),
+        standard_library,
+    )?;
     if let Some(entry_binding) = entry_binding {
         bindings.push(entry_binding);
         package_inputs = package_inputs
@@ -588,14 +524,6 @@ fn sample_name(main_path: &Path) -> String {
     } else {
         components.join("__")
     }
-}
-
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .expect("compiler crate should live under omega-rust/omega/compiler/compiler")
-        .to_path_buf()
 }
 
 fn authored_program_entry(main_path: &Path, root_owner: Option<&str>) -> bool {

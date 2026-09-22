@@ -1,10 +1,6 @@
 //! Module paths retain distinct nominal provider and requirement identities.
 
-use super::{TempProject, application_build};
-#[path = "../support/macos_entry_acceptance.rs"]
-mod macos_entry_acceptance;
-#[path = "../support/windows_entry_acceptance.rs"]
-mod windows_entry_acceptance;
+use super::{TempProject, application_build, macos_entry_acceptance, windows_entry_acceptance};
 use compiler::{
     CheckedCompileRequest, CompileOptions, CompileRequest, RequestedCompileProduct, compile,
     compile_to_checked,
@@ -402,9 +398,8 @@ machine Provider::check() satisfies Reader::check reaches Console invokes Consol
             )
             .expect("module fixture");
         }
-        let inputs =
-            super::package_inputs_with_standard_library(&project.main(), "target-activation");
-        let standard_library = super::package_identity(2);
+        let inputs = super::package_inputs_with_standard_library(&project.main());
+        let standard_library = super::fixture_package_identity(2);
         let library_root = inputs
             .package_root(standard_library)
             .expect("standard library");

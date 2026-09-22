@@ -2,32 +2,23 @@
 //!
 //! These live outside the monolithic canary suite so each new view rung can
 //! carry its own end-to-end oracle without making that shared file responsible
-//! for another subsystem.
+//! for another subsystem. Package mode, entry acceptance and dangerous-service
+//! acceptance are the shared fixture harness's, not this file's.
 
-use build_declarations::{BuildDeclaration, extract_build_declaration};
 use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
-#[path = "support/console_acceptance.rs"]
-mod console_acceptance;
+#[path = "support/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
 #[path = "fixture_rosters/recast_views.rs"]
 mod fixture_roster;
-#[path = "support/linux_entry_acceptance.rs"]
-mod linux_entry_acceptance;
-#[path = "support/macos_entry_acceptance.rs"]
-mod macos_entry_acceptance;
-#[path = "support/windows_entry_acceptance.rs"]
-mod windows_entry_acceptance;
 
 use checked_interpreter::{InterpretOutcome, interpret_entry};
 use compiler::CheckedCompileRequest;
 use compiler::{CheckedCompilation, CompileOptions, compile_to_checked};
-use diagnostics::Diagnostic;
-use package_compilation::{
-    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+use fixture_package_inputs::{
+    cross_target_program_entry_build, repo_root, reviewed_repository_fixture_package_inputs,
 };
-use semantic_vocabulary::PackageKeyIdentity;
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
@@ -43,170 +34,14 @@ fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
     )
 }
 
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .expect("compiler lives under omega-rust/omega/compiler/compiler")
-        .to_path_buf()
-}
-
-fn fixture_package_identity(marker: u8) -> PackageKeyIdentity {
-    PackageKeyIdentity::from_digest([marker; 32])
-        .expect("recast fixture package identity is nonzero")
-}
-
-fn fixture_declares_ordinary_std(project_root: &Path) -> bool {
-    fs::read_to_string(project_root.join("build.omg")).is_ok_and(|build| {
-        build.contains("builder.depend(Source::Path") && build.contains("source/library/std")
-    })
-}
-
-/// Package inputs for a recast fixture that declares the ordinary std
-/// dependency in its `build.omg`; `None` for self-contained fixtures.
-///
-/// The package-aware source route never reads the `Source::Path` row: it
-/// consumes the reconciled graph supplied here, which binds the root package
-/// to the fixture's project directory and std to the repository path
-/// directly. This matters for `compile_for_cross_targets`, which copies
-/// `main.omg`/`build.omg` into a temporary directory where the checked-in
-/// relative dependency location would dangle.
-fn fixture_package_inputs(root_path: &Path) -> Option<PackageCompilationInputs> {
-    let project_root = root_path
-        .parent()
-        .expect("recast fixture source has a project root");
-    if !fixture_declares_ordinary_std(project_root) {
-        return None;
-    }
-
-    let declaration = extract_build_declaration(project_root)
-        .unwrap_or_else(|error| panic!("recast fixture {}: {error}", project_root.display()));
-    let root_role = declaration.kind();
-    let root_name = match declaration {
-        BuildDeclaration::Application(application) => application.name,
-        BuildDeclaration::Package(package) => package.name,
-        BuildDeclaration::Workspace(_) => {
-            panic!(
-                "recast fixture {} cannot be a workspace root",
-                project_root.display()
-            )
-        }
-    };
-    let root_identity = fixture_package_identity(1);
-    let standard_library_identity = fixture_package_identity(2);
-    let packages = vec![
-        PackageSourceBinding::new(
-            root_identity,
-            root_name.into_string(),
-            project_root.to_path_buf(),
-        ),
-        PackageSourceBinding::new(
-            standard_library_identity,
-            "omega-language-std",
-            repo_root().join("source/library/std"),
-        ),
-    ];
-    let dependencies = vec![PackageDependencyBinding::new(
-        root_identity,
-        "omega_language_std",
-        standard_library_identity,
-    )];
-
-    Some(
-        PackageCompilationInputs::new(root_identity, root_role, packages, dependencies)
-            .unwrap_or_else(|errors| {
-                panic!("recast fixture {}: {errors:#?}", project_root.display())
-            }),
-    )
-}
-
-fn fixture_accepts_console_exit(root_path: &Path) -> bool {
-    fs::read_to_string(root_path).is_ok_and(|source| {
-        source.contains("omega_language_std::console") && source.contains(".exit_process(")
-    })
-}
-
-/// The package graph plus this harness's test acceptance of the exact
-/// standard-library entry schema and Console provider the fixture selects.
-/// Source spelling selects only this repository's test policy; every admitted
-/// row is derived from and replayed against the preliminary checked graph.
-/// This is test-owned acceptance, not evidence that an audit occurred.
-fn reviewed_fixture_package_inputs(
-    root_path: &Path,
-    target_name: Option<&str>,
-) -> Result<Option<PackageCompilationInputs>, Vec<Diagnostic>> {
-    let Some(mut package_inputs) = fixture_package_inputs(root_path) else {
-        return Ok(None);
-    };
-    let standard_library_root = repo_root().join("source/library/std");
-    let standard_library = fixture_package_identity(2);
-    let mut bindings = Vec::new();
-    match target_name {
-        Some("macos_arm64") => {
-            bindings.push(macos_entry_acceptance::candidate_macos_entry_binding(
-                &standard_library_root,
-                standard_library,
-            )?)
-        }
-        Some("linux_x86_64") => bindings.push(
-            linux_entry_acceptance::candidate_linux_x86_64_entry_binding(
-                &standard_library_root,
-                standard_library,
-            )?,
-        ),
-        Some("linux_arm64") => {
-            bindings.push(linux_entry_acceptance::candidate_linux_arm64_entry_binding(
-                &standard_library_root,
-                standard_library,
-            )?)
-        }
-        Some("windows_x86_64") => bindings.push(
-            windows_entry_acceptance::candidate_windows_x86_64_entry_binding(
-                &standard_library_root,
-                standard_library,
-            )?,
-        ),
-        _ => {}
-    }
-    if !bindings.is_empty() {
-        package_inputs = package_inputs
-            .with_accepted_semantic_bindings(bindings.clone())
-            .map_err(|errors| {
-                vec![Diagnostic::error(format!(
-                    "recast fixture entry acceptance: {errors:?}"
-                ))]
-            })?;
-    }
-    if !fixture_accepts_console_exit(root_path) {
-        return Ok(Some(package_inputs));
-    }
-    let preliminary = compile_to_checked(CheckedCompileRequest {
-        package_inputs: Some(package_inputs.clone()),
-        ..CheckedCompileRequest::new(root_path, target_name)
-    })?;
-    bindings.push(console_acceptance::candidate_console_exit_binding(
-        &preliminary,
-        standard_library,
-        false,
-        false,
-    )?);
-    package_inputs
-        .with_accepted_semantic_bindings(bindings)
-        .map(Some)
-        .map_err(|errors| {
-            vec![Diagnostic::error(format!(
-                "cannot admit recast fixture semantic binding: {errors:?}"
-            ))]
-        })
-}
-
 fn compile_pass_to_checked(main: &Path) -> CheckedCompilation {
     let profile = target::TargetProfile::host();
     let mut request = CheckedCompileRequest::new(main, Some(profile.target_name()));
-    request.package_inputs = reviewed_fixture_package_inputs(main, Some(profile.target_name()))
-        .unwrap_or_else(|diagnostics| {
-            panic!("recast pass fixture package inputs:\n{diagnostics:#?}")
-        });
+    request.package_inputs =
+        reviewed_repository_fixture_package_inputs(main, Some(profile.target_name()))
+            .unwrap_or_else(|diagnostics| {
+                panic!("recast pass fixture package inputs:\n{diagnostics:#?}")
+            });
     compile_to_checked(request).expect("recast pass fixture should reach checked trees")
 }
 
@@ -217,8 +52,9 @@ fn compile_and_run(canary_rel: &str, tag: &str) -> std::process::Output {
     let build_dir = std::env::temp_dir().join(format!("omega-{tag}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
 
-    let package_inputs = reviewed_fixture_package_inputs(&root_path, Some(profile.target_name()))
-        .unwrap_or_else(|diagnostics| panic!("{canary_rel} package inputs:\n{diagnostics:#?}"));
+    let package_inputs =
+        reviewed_repository_fixture_package_inputs(&root_path, Some(profile.target_name()))
+            .unwrap_or_else(|diagnostics| panic!("{canary_rel} package inputs:\n{diagnostics:#?}"));
     let mut request = compiler::CompileRequest::new(CompileOptions {
         root_path,
         build_dir: Some(build_dir.clone()),
@@ -269,11 +105,17 @@ fn compile_for_cross_targets(canary_rel: &str, tag: &str) {
         std::fs::create_dir_all(&source_dir).expect("create cross-target source directory");
         std::fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
             .expect("copy recast canary");
-        std::fs::copy(canary.join("build.omg"), source_dir.join("build.omg"))
-            .expect("copy exact recast root matrix");
+        // The copy restates the fixture's authored dependencies through
+        // absolute paths and binds the compiled target's ProgramEntry; the
+        // checked-in relative location would dangle from here.
+        std::fs::write(
+            source_dir.join("build.omg"),
+            cross_target_program_entry_build(&canary, target),
+        )
+        .expect("write cross-target recast build");
 
         let staged_root = source_dir.join("main.omg");
-        let package_inputs = reviewed_fixture_package_inputs(&staged_root, Some(target))
+        let package_inputs = reviewed_repository_fixture_package_inputs(&staged_root, Some(target))
             .unwrap_or_else(|diagnostics| {
                 panic!("{canary_rel} package inputs for {target}:\n{diagnostics:#?}")
             });

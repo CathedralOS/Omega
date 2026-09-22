@@ -1,6 +1,8 @@
 use super::{
-    PROJECT_SEQUENCE, compile_check, compile_native_and_publish, native_evidence_standard_library,
-    package_identity, project, replay_native_artifact_parts,
+    PROJECT_SEQUENCE, bundled_standard_library_dependency_declaration,
+    bundled_standard_library_root, compile_check, compile_native_and_publish,
+    fixture_package_identity, project, replay_native_artifact_parts,
+    repository_fixture_package_inputs,
 };
 use crate::{console_acceptance, linux_entry_acceptance};
 use compiler::{
@@ -8,9 +10,7 @@ use compiler::{
     RequestedCompileProduct, compile_to_checked,
 };
 use optimization_core::Optimization;
-use package_compilation::{
-    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
-};
+use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
 use std::sync::atomic::Ordering;
 
 #[test]
@@ -27,17 +27,17 @@ fn selected_lowering_replays_one_physical_child_per_surviving_occurrence_role() 
     ));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).expect("create selected-lowering package root");
-    let standard_library = native_evidence_standard_library();
+    let standard_library = bundled_standard_library_root();
     std::fs::write(
         root.join("build.omg"),
         format!(
             "machine build(builder: &mut Build) {{\n\
              \x20   builder.application(\"optimizer-selected-lowering-boundary-settlement\");\n\
-             \x20   builder.depend(Source::Path {{ location: \"{}\" }});\n\
+             {}\
              \x20   builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n\
              \x20   builder.optimizations.enable(Optimization::SelectedIncomingU12CompareImmediate);\n\
              }}\n",
-            standard_library.display()
+            bundled_standard_library_dependency_declaration()
         ),
     )
     .expect("write selected-lowering package build");
@@ -70,26 +70,9 @@ fn selected_lowering_replays_one_physical_child_per_surviving_occurrence_role() 
     )
     .expect("write selected-lowering boundary-settlement program");
 
-    let application = package_identity(1);
-    let standard = package_identity(2);
-    let inputs = PackageCompilationInputs::new(
-        application,
-        package_compilation::BuildDeclarationKind::Application,
-        vec![
-            PackageSourceBinding::new(
-                application,
-                "optimizer-selected-lowering-boundary-settlement",
-                root.clone(),
-            ),
-            PackageSourceBinding::new(standard, "omega-language-std", standard_library.clone()),
-        ],
-        vec![PackageDependencyBinding::new(
-            application,
-            "omega_language_std",
-            standard,
-        )],
-    )
-    .expect("selected-lowering package inputs should validate");
+    let standard = fixture_package_identity(2);
+    let inputs = repository_fixture_package_inputs(&root.join("main.omg"))
+        .expect("the selected-lowering package authors its std dependency");
     let entry_binding =
         linux_entry_acceptance::candidate_linux_x86_64_entry_binding(&standard_library, standard)
             .expect("the fixture explicitly accepts the checked Linux entry schema");
@@ -308,7 +291,7 @@ machine Main::main(&mut self) {
 "#,
     )
     .expect("write exact-add physical-child build");
-    let root_identity = package_identity(44);
+    let root_identity = fixture_package_identity(44);
     let inputs = PackageCompilationInputs::new_package(
         root_identity,
         vec![PackageSourceBinding::new(
@@ -530,7 +513,7 @@ machine Main::main(&mut self) {
 "#,
     )
     .expect("write exact-subtract physical-child build");
-    let root_identity = package_identity(45);
+    let root_identity = fixture_package_identity(45);
     let inputs = PackageCompilationInputs::new_package(
         root_identity,
         vec![PackageSourceBinding::new(
@@ -753,7 +736,7 @@ machine Main::main(&mut self) {
 "#,
     )
     .expect("write exact-divide physical-child build");
-    let root_identity = package_identity(46);
+    let root_identity = fixture_package_identity(46);
     let inputs = PackageCompilationInputs::new_package(
         root_identity,
         vec![PackageSourceBinding::new(
@@ -1000,7 +983,7 @@ machine Main::main() {
 "#,
     )
     .expect("write eliminated-occurrence build");
-    let root_identity = package_identity(43);
+    let root_identity = fixture_package_identity(43);
     let inputs = PackageCompilationInputs::new_package(
         root_identity,
         vec![PackageSourceBinding::new(

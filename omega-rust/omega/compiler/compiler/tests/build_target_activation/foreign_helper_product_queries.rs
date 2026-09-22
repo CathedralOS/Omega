@@ -13,16 +13,16 @@ fn helper_entry_inputs(
     // Executing configure and selecting launch need separate checked frontiers.
     // A build edge alone does not put the helper's entry into the product.
     package_compilation::PackageCompilationInputs::new(
-        super::package_identity(1),
+        super::fixture_package_identity(1),
         package_compilation::BuildDeclarationKind::Application,
         vec![
             package_compilation::PackageSourceBinding::new(
-                super::package_identity(1),
+                super::fixture_package_identity(1),
                 "root-binding-owner",
                 project.0.clone(),
             ),
             package_compilation::PackageSourceBinding::new(
-                super::package_identity(2),
+                super::fixture_package_identity(2),
                 "root-binding-helper",
                 helper.0.clone(),
             ),
@@ -34,9 +34,9 @@ fn helper_entry_inputs(
         .into_iter()
         .map(|purpose| {
             package_compilation::PackageDependencyBinding::for_purpose(
-                super::package_identity(1),
+                super::fixture_package_identity(1),
                 "support",
-                super::package_identity(2),
+                super::fixture_package_identity(2),
                 purpose,
             )
         })
@@ -82,16 +82,16 @@ fn dual_context_product_query(
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
     request.package_inputs = Some(
         package_compilation::PackageCompilationInputs::new(
-            super::package_identity(1),
+            super::fixture_package_identity(1),
             package_compilation::BuildDeclarationKind::Application,
             vec![
                 package_compilation::PackageSourceBinding::new(
-                    super::package_identity(1),
+                    super::fixture_package_identity(1),
                     "dual-context-owner",
                     project.0.clone(),
                 ),
                 package_compilation::PackageSourceBinding::new(
-                    super::package_identity(2),
+                    super::fixture_package_identity(2),
                     "dual-context-helper",
                     helper.0.clone(),
                 ),
@@ -103,9 +103,9 @@ fn dual_context_product_query(
             .into_iter()
             .map(|purpose| {
                 package_compilation::PackageDependencyBinding::for_purpose(
-                    super::package_identity(1),
+                    super::fixture_package_identity(1),
                     "support",
-                    super::package_identity(2),
+                    super::fixture_package_identity(2),
                     purpose,
                 )
             })
@@ -335,7 +335,7 @@ fn foreign_helper_binds_its_own_package_entry_through_borrowed_root_build() {
         .machine_symbol();
     assert_eq!(
         checked.symbols.symbol_product_package_identity(selected),
-        Some(super::package_identity(2))
+        Some(super::fixture_package_identity(2))
     );
 }
 
@@ -369,7 +369,7 @@ fn same_named_entry_in_another_package_rejoins_production_and_settlement_by_symb
         checked
             .symbols
             .symbol_product_package_identity(entry.source_signature().machine_symbol()),
-        Some(super::package_identity(2))
+        Some(super::fixture_package_identity(2))
     );
     let native_target = checked
         .selected_native_target()
@@ -1581,6 +1581,6 @@ fn product_entry_query_resolves_an_own_package_module_path() {
         .machine_symbol();
     assert_eq!(
         checked.symbols.symbol_product_package_identity(selected),
-        Some(super::package_identity(2))
+        Some(super::fixture_package_identity(2))
     );
 }

@@ -1,6 +1,6 @@
 //! Dependency-qualified product queries name complete declaration paths.
 
-use super::{TempProject, foreign_product_inputs, package_identity};
+use super::{TempProject, fixture_package_identity, foreign_product_inputs};
 use compiler::{CheckedCompileRequest, compile_to_checked};
 use std::fs;
 
@@ -51,7 +51,7 @@ fn dependency_entry_query_does_not_confuse_an_attached_name_with_an_exact_path()
         .machine_symbol();
     assert_eq!(
         checked.symbols.symbol_product_package_identity(selected),
-        Some(package_identity(2))
+        Some(fixture_package_identity(2))
     );
     assert_eq!(
         checked.symbols.display_path(selected, "::"),

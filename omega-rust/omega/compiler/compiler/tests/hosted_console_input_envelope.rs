@@ -9,15 +9,19 @@
 //! explicitly, so this coverage runs on development hosts that have no native
 //! target profile of their own.
 
-use build_declarations::{BuildDeclaration, extract_build_declaration};
 use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::{InterpretOptions, interpret_entry};
 use compiler::{CheckedCompilation, CheckedCompileRequest, compile_to_checked};
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
+use fixture_package_inputs::{
+    bundled_standard_library_dependency_declaration, bundled_standard_library_root,
+    console_acceptance, fixture_package_identity, fixture_path_dependencies, repo_root,
+    standard_library_package_inputs,
+};
 use package_compilation::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, PackageCompilationInputs,
-    PackageDependencyBinding, PackageSourceBinding,
+    PackageSourceBinding,
 };
 use semantic_vocabulary::PackageKeyIdentity;
 use std::fs;
@@ -25,22 +29,10 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use target::TargetProfile;
 
-#[path = "support/console_acceptance.rs"]
-mod console_acceptance;
+#[path = "support/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
 
 const TARGET: &str = "linux_x86_64";
-
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .expect("compiler crate should live under omega-rust/omega/compiler/compiler")
-        .to_path_buf()
-}
-
-fn fixture_package_identity(marker: u8) -> PackageKeyIdentity {
-    PackageKeyIdentity::from_digest([marker; 32]).expect("fixture package identity is nonzero")
-}
 
 /// The product target doubles as the build execution profile so the check
 /// never consults the compiler host's own profile.
@@ -88,45 +80,6 @@ fn linux_x86_64_entry_binding(
         .map_err(|diagnostic| vec![diagnostic])
 }
 
-/// Root + bundled-std package routing for one fixture whose `build.omg`
-/// declares the ordinary `Source::Path` std dependency. `standard_library_root`
-/// is a parameter so negative fixtures can point at a mutated copy.
-fn fixture_package_inputs(
-    project_root: &Path,
-    standard_library_root: &Path,
-) -> PackageCompilationInputs {
-    let declaration = extract_build_declaration(project_root)
-        .unwrap_or_else(|error| panic!("fixture {}: {error}", project_root.display()));
-    let root_role = declaration.kind();
-    let BuildDeclaration::Application(application) = declaration else {
-        panic!(
-            "fixture {} is not an application root",
-            project_root.display()
-        );
-    };
-    let root_identity = fixture_package_identity(1);
-    let standard_library_identity = fixture_package_identity(2);
-    let packages = vec![
-        PackageSourceBinding::new(
-            root_identity,
-            application.name.into_string(),
-            project_root.to_path_buf(),
-        ),
-        PackageSourceBinding::new(
-            standard_library_identity,
-            "omega-language-std",
-            standard_library_root.to_path_buf(),
-        ),
-    ];
-    let dependencies = vec![PackageDependencyBinding::new(
-        root_identity,
-        "omega_language_std",
-        standard_library_identity,
-    )];
-    PackageCompilationInputs::new(root_identity, root_role, packages, dependencies)
-        .unwrap_or_else(|errors| panic!("fixture {}: {errors:#?}", project_root.display()))
-}
-
 /// Compile the bounded-line fixture to checked semantics with the entry and
 /// console service bindings the test policy accepts.
 fn compile_bounded_line_fixture(
@@ -134,7 +87,10 @@ fn compile_bounded_line_fixture(
     standard_library_root: &Path,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let root_path = project_root.join("main.omg");
-    let package_inputs = fixture_package_inputs(project_root, standard_library_root);
+    // `standard_library_root` is a parameter so negative fixtures can point
+    // at a mutated copy, which is why the graph is stated here rather than
+    // projected from the fixture's authored row.
+    let package_inputs = standard_library_package_inputs(project_root, standard_library_root);
     let standard_library_identity = fixture_package_identity(2);
     let entry_binding =
         linux_x86_64_entry_binding(standard_library_root, standard_library_identity)?;
@@ -176,14 +132,13 @@ fn console_plan(checked: &CheckedCompilation) -> &ProviderPlan {
 #[test]
 fn byte_input_keeps_its_compiler_intrinsic_row_under_the_honest_envelope() {
     let project_root = repo_root().join("tests/omega/pass/host/runtime_console_bounded_line_exit");
-    let checked =
-        compile_bounded_line_fixture(&project_root, &repo_root().join("source/library/std"))
-            .unwrap_or_else(|diagnostics| {
-                panic!(
-                    "the bounded-line fixture must still reach checked semantics under the \
+    let checked = compile_bounded_line_fixture(&project_root, &bundled_standard_library_root())
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "the bounded-line fixture must still reach checked semantics under the \
                  honest blocking/crash envelope: {diagnostics:#?}"
-                )
-            });
+            )
+        });
     let plan = console_plan(&checked);
     let read_byte = plan
         .rows
@@ -249,11 +204,11 @@ fn a_published_caller_carries_the_envelope_it_invokes() {
     let scratch = ScratchTree::new();
     let project = scratch.0.join("project");
     fs::create_dir_all(&project).expect("create synthetic project");
-    let standard_library = repo_root().join("source/library/std");
+    let standard_library = bundled_standard_library_root();
     let main_source = |signature_tail: &str| {
         format!(
-            "use omega_language_std::console;\nuse omega::language::core::service;\n\npub data Main {{\n    console: Service<Console>;\n}}\n\npub machine Main::main(&mut self)\nreaches Console\ninvokes Console;{signature_tail}\n{{\n    let observed: ByteRead = block self.console.read_byte();\n}}\n\nmachine build(builder: &mut Build) {{\n    builder.application(\"console-input-envelope-probe\");\n    builder.depend(Source::Path {{ location: \"{}\" }});\n    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n}}\n",
-            standard_library.to_string_lossy().replace('\\', "/")
+            "use omega_language_std::console;\nuse omega::language::core::service;\n\npub data Main {{\n    console: Service<Console>;\n}}\n\npub machine Main::main(&mut self)\nreaches Console\ninvokes Console;{signature_tail}\n{{\n    let observed: ByteRead = block self.console.read_byte();\n}}\n\nmachine build(builder: &mut Build) {{\n    builder.application(\"console-input-envelope-probe\");\n{}    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n}}\n",
+            bundled_standard_library_dependency_declaration()
         )
     };
     let write_fixture = |signature_tail: &str| {
@@ -348,20 +303,24 @@ impl Drop for ScratchTree {
 #[test]
 fn a_realization_dropping_blocks_loses_its_intrinsic_row() {
     let scratch = ScratchTree::new();
-    let standard_library = scratch.copy_sources(&repo_root().join("source/library/std"), "std");
-    let project = scratch.copy_sources(
-        &repo_root().join("tests/omega/pass/host/runtime_console_bounded_line_exit"),
-        "project",
-    );
+    let standard_library = scratch.copy_sources(&bundled_standard_library_root(), "std");
+    let authored_project =
+        repo_root().join("tests/omega/pass/host/runtime_console_bounded_line_exit");
+    let project = scratch.copy_sources(&authored_project, "project");
 
-    // Point the copied build at the copied std and strip the realization's
-    // published blocking clause.
+    // Point the copied build at the copied std — restating the location the
+    // fixture authored, read through its dependency row — and strip the
+    // realization's published blocking clause.
+    let authored_dependencies = fixture_path_dependencies(&authored_project);
+    let [authored_dependency] = authored_dependencies.as_slice() else {
+        panic!("the bounded-line fixture authors exactly its std dependency")
+    };
     let build_path = project.join("build.omg");
     let build = fs::read_to_string(&build_path).expect("read copied build");
     fs::write(
         &build_path,
         build.replace(
-            "../../../../../source/library/std",
+            &authored_dependency.authored_location,
             &standard_library.to_string_lossy().replace('\\', "/"),
         ),
     )

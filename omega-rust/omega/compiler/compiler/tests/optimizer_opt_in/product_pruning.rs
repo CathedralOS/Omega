@@ -1,4 +1,4 @@
-use super::{checked_tree_pruning_project, diagnostic_messages, package_identity, project};
+use super::{checked_tree_pruning_project, diagnostic_messages, fixture_package_identity, project};
 use compiler::{
     CheckedCompileRequest, CompileOptions, CompileRequest, OptimizationRollback,
     RequestedCompileProduct, compile_to_checked,
@@ -362,8 +362,8 @@ fn dependency_build_selection_cannot_enable_root_package_optimization() {
 "#,
     )
     .expect("write dependency optimizer build");
-    let root_identity = package_identity(1);
-    let dependency_identity = package_identity(2);
+    let root_identity = fixture_package_identity(1);
+    let dependency_identity = fixture_package_identity(2);
     let inputs = PackageCompilationInputs::new_package(
         root_identity,
         vec![
@@ -402,7 +402,7 @@ fn package_aware_root_build_retains_its_exact_selection() {
 "#,
         ),
     );
-    let root_identity = package_identity(3);
+    let root_identity = fixture_package_identity(3);
     let inputs = PackageCompilationInputs::new_package(
         root_identity,
         vec![PackageSourceBinding::new(

@@ -1,6 +1,6 @@
 //! Evaluate the target's authored arrival policy, not a Rust reconstruction.
 
-use super::standard_library_root;
+use super::bundled_standard_library_root;
 use calling_conventions::{
     CallSignature, CallingPolicy, EntryStack, MachineRegime, Preemption, ValueShape,
     evaluate_ordinary_boundary_entry_plan,
@@ -21,7 +21,7 @@ use std::path::{Path, PathBuf};
 /// `MacosPhysicalEntry`, `MacosApplication` and every `MacosArm64::*` policy
 /// machine.
 fn checked_contract(_name: &str) -> compiler::CheckedCompilation {
-    let standard_library_root = standard_library_root();
+    let standard_library_root = bundled_standard_library_root();
     let package =
         PackageKeyIdentity::from_digest([76; 32]).expect("nonzero entry fixture package identity");
     let inputs = PackageCompilationInputs::new_package(
@@ -219,7 +219,7 @@ fn standard_library_copy_with_entry_declarations(name: &str, declarations: &str)
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&root);
-    copy_source_tree(&standard_library_root(), &root);
+    copy_source_tree(&bundled_standard_library_root(), &root);
     let contract = root.join("targets/macos_arm64/entry.omg");
     let authored = fs::read_to_string(&contract).expect("copied macOS entry contract");
     fs::write(&contract, format!("{authored}\n{declarations}"))

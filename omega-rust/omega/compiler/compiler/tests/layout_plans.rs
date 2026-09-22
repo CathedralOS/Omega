@@ -13,6 +13,8 @@
 mod callback_slots;
 #[path = "layout_plans/field_reflection_and_materialization.rs"]
 mod field_reflection_and_materialization;
+#[path = "support/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
 #[path = "fixture_rosters/layout_plans.rs"]
 mod fixture_roster;
 #[path = "layout_plans/interrupt_descriptor_tables.rs"]
@@ -25,12 +27,10 @@ mod plan_validation_and_bit_placements;
 #[path = "layout_plans/writer_lowering.rs"]
 mod writer_lowering;
 
-use build_declarations::{BuildDeclaration, extract_build_declaration};
 use calling_conventions::MachineRegister;
+use fixture_package_inputs::repository_fixture_package_inputs;
 use layout_plans::{PostHandoffWriterPlan, RelocationTarget};
-use package_compilation::{
-    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
-};
+use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
 use semantic_vocabulary::PackageKeyIdentity;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -62,42 +62,12 @@ fn package_inputs_for_source(source: &Path, digest_byte: u8) -> PackageCompilati
     .expect("test package inputs should validate")
 }
 
-/// The three hosted layout canaries declare this ordinary std dependency.
-/// Supply the explicit graph just as the repository canary harness does; the
+/// The three hosted layout canaries author the ordinary std dependency in
+/// their `build.omg`; the shared fixture harness projects that graph. The
 /// checked/layout-only tests do not issue provider acceptance or native code.
 fn package_inputs_with_standard_library(source: &Path) -> PackageCompilationInputs {
-    let root = source.parent().expect("canary project root");
-    let declaration = extract_build_declaration(root).expect("authored canary declaration");
-    let role = declaration.kind();
-    let name = match declaration {
-        BuildDeclaration::Application(application) => application.name,
-        BuildDeclaration::Package(package) => package.name,
-        BuildDeclaration::Workspace(_) => panic!("a layout canary is not a workspace root"),
-    };
-    let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .expect("repository root");
-    let package = PackageKeyIdentity::from_digest([1; 32]).expect("canary identity");
-    let standard_library = PackageKeyIdentity::from_digest([2; 32]).expect("std identity");
-    PackageCompilationInputs::new(
-        package,
-        role,
-        vec![
-            PackageSourceBinding::new(package, name.into_string(), root.to_owned()),
-            PackageSourceBinding::new(
-                standard_library,
-                "omega-language-std",
-                repository.join("source/library/std"),
-            ),
-        ],
-        vec![PackageDependencyBinding::new(
-            package,
-            "omega_language_std",
-            standard_library,
-        )],
-    )
-    .expect("ordinary std dependency graph")
+    repository_fixture_package_inputs(source)
+        .expect("a hosted layout canary authors its std dependency")
 }
 
 /// The vocabulary (mirrors source/library/core/layout.omg) + the CLayout

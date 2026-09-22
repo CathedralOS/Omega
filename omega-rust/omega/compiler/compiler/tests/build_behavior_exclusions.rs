@@ -13,10 +13,12 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-#[path = "support/console_acceptance.rs"]
-mod console_acceptance;
-#[path = "support/macos_entry_acceptance.rs"]
-mod macos_entry_acceptance;
+#[path = "support/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
+use fixture_package_inputs::{
+    bundled_standard_library_dependency_declaration, bundled_standard_library_root,
+    console_acceptance, fixture_package_identity, macos_entry_acceptance,
+};
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
@@ -359,20 +361,14 @@ fn authored_physical_exclusion_publishes_and_runs_on_the_host() {
 /// the exact `alias::decl` spelling cross-package operands require, bound to
 /// the macOS ARM64 entry with `extra` carrying the authored exclusions.
 fn console_output_build(name: &str, extra: &str) -> String {
-    let standard_library = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .expect("repository root")
-        .join("source/library/std");
     format!(
         r#"machine build(builder: &mut Build) {{
     builder.application("{name}");
-    builder.depend(Source::Path {{ location: "{}" }});
-    builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();
+{}    builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 {extra}}}
 "#,
-        standard_library.to_string_lossy().replace('\\', "/")
+        bundled_standard_library_dependency_declaration()
     )
 }
 
@@ -385,13 +381,9 @@ fn console_package_inputs(
     name: &str,
     native_console_provider: bool,
 ) -> package_compilation::PackageCompilationInputs {
-    let standard_library = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .expect("repository root")
-        .join("source/library/std");
-    let root_identity = semantic_vocabulary::PackageKeyIdentity::from_digest([81; 32]).unwrap();
-    let library_identity = semantic_vocabulary::PackageKeyIdentity::from_digest([82; 32]).unwrap();
+    let standard_library = bundled_standard_library_root();
+    let root_identity = fixture_package_identity(81);
+    let library_identity = fixture_package_identity(82);
     let entry_binding =
         macos_entry_acceptance::candidate_macos_entry_binding(&standard_library, library_identity)
             .expect("accept checked package entry");
@@ -676,19 +668,12 @@ fn replacing_a_silent_console_provider_with_excluded_behavior_rejects() {
         format!(
             r#"machine build(builder: &mut Build) {{
     builder.application("silent-console-substitution");
-    builder.depend(Source::Path {{ location: "{}" }});
-    builder.select_provider<omega_language_std::Console, {}>();
+{}    builder.select_provider<omega_language_std::Console, {}>();
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
     builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessOutput);
 }}
 "#,
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .ancestors()
-                .nth(4)
-                .expect("repository root")
-                .join("source/library/std")
-                .to_string_lossy()
-                .replace('\\', "/"),
+            bundled_standard_library_dependency_declaration(),
             provider
         )
     };
@@ -1395,8 +1380,8 @@ fn sink_composition_native_report(
 "#
         ),
     );
-    let root_identity = semantic_vocabulary::PackageKeyIdentity::from_digest([91; 32]).unwrap();
-    let library_identity = semantic_vocabulary::PackageKeyIdentity::from_digest([92; 32]).unwrap();
+    let root_identity = fixture_package_identity(91);
+    let library_identity = fixture_package_identity(92);
     let inputs = package_compilation::PackageCompilationInputs::new_package(
         root_identity,
         vec![

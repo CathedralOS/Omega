@@ -217,7 +217,7 @@ fn product_dependency_selection_retains_its_exact_package() {
             .typed
             .symbols
             .symbol_product_package_identity(provider),
-        Some(super::package_identity(2))
+        Some(super::fixture_package_identity(2))
     );
 }
 
@@ -235,36 +235,36 @@ fn shared_alias_selects_product_instance_not_build_instance() {
         ),
     );
     let inputs = package_compilation::PackageCompilationInputs::new(
-        super::package_identity(1),
+        super::fixture_package_identity(1),
         package_compilation::BuildDeclarationKind::Application,
         vec![
             package_compilation::PackageSourceBinding::new(
-                super::package_identity(1),
+                super::fixture_package_identity(1),
                 "owner",
                 project.0.clone(),
             ),
             package_compilation::PackageSourceBinding::new(
-                super::package_identity(2),
+                super::fixture_package_identity(2),
                 "host",
                 host.0.clone(),
             ),
             package_compilation::PackageSourceBinding::new(
-                super::package_identity(3),
+                super::fixture_package_identity(3),
                 "product",
                 product.0.clone(),
             ),
         ],
         vec![
             package_compilation::PackageDependencyBinding::for_purpose(
-                super::package_identity(1),
+                super::fixture_package_identity(1),
                 "support",
-                super::package_identity(2),
+                super::fixture_package_identity(2),
                 build_declarations::DependencyPurpose::Build,
             ),
             package_compilation::PackageDependencyBinding::new(
-                super::package_identity(1),
+                super::fixture_package_identity(1),
                 "support",
-                super::package_identity(3),
+                super::fixture_package_identity(3),
             ),
         ],
     )
@@ -287,7 +287,7 @@ fn shared_alias_selects_product_instance_not_build_instance() {
             .typed
             .symbols
             .symbol_product_package_identity(provider),
-        Some(super::package_identity(3))
+        Some(super::fixture_package_identity(3))
     );
 }
 
