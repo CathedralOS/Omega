@@ -28,8 +28,8 @@ pub(super) fn published_image(target: NativeTarget) -> (image_emission::Executab
     let object = image_emission::build_function_fragment_object_artifact(source.clone()).unwrap();
     image_emission::validate_function_fragment_object_artifact(&source, &object).unwrap();
     let entry_offset = object.entry_function().text_offset;
-    let image = image_emission::emit_executable_image(&object, 3).unwrap();
-    image_emission::validate_executable_image(&object, &image).unwrap();
+    let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
+    image_emission::validate_direct_executable_image(&object, &image).unwrap();
     let record = image_emission::build_installation_record(
         &image,
         semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),
@@ -82,8 +82,8 @@ fn derived_view_unit_output_publishes_objects_images_and_installation() {
             argument.source_location,
             machine_code::StructuralSourceLocation::Stack { .. }
         ));
-        let image = image_emission::emit_executable_image(&object, 3).unwrap();
-        image_emission::validate_executable_image(&object, &image).unwrap();
+        let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
+        image_emission::validate_direct_executable_image(&object, &image).unwrap();
         let record = image_emission::build_installation_record(
             &image,
             semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),
@@ -142,7 +142,7 @@ fn derived_view_unit_output_publication_rejects_descriptor_substitution() {
         let object =
             image_emission::build_function_fragment_object_artifact(source.clone()).unwrap();
         image_emission::validate_function_fragment_object_artifact(&source, &object).unwrap();
-        let image = image_emission::emit_executable_image(&object, 3).unwrap();
+        let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
         let record = image_emission::build_installation_record(
             &image,
             semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),
@@ -176,7 +176,7 @@ fn derived_view_unit_output_publication_rejects_descriptor_substitution() {
                 "{mutation} on {target:?}"
             );
             assert!(
-                image_emission::emit_executable_image(&changed, 3).is_err(),
+                image_emission::emit_direct_executable_image(&changed, 3).is_err(),
                 "{mutation} on {target:?}"
             );
 
@@ -206,13 +206,13 @@ fn derived_view_unit_output_publication_rejects_descriptor_substitution() {
         missing_replay.clear_fragment_replay_for_test();
         image_emission::validate_function_fragment_object_artifact(&source, &missing_replay)
             .unwrap();
-        assert!(image_emission::emit_executable_image(&missing_replay, 3).is_err());
+        assert!(image_emission::emit_direct_executable_image(&missing_replay, 3).is_err());
         let mut corrupt_text = object.clone();
         corrupt_text.text_bytes_mut_for_test()[object.entry_function().text_offset] ^= 1;
         assert!(
             image_emission::validate_function_fragment_object_artifact(&source, &corrupt_text)
                 .is_err()
         );
-        assert!(image_emission::emit_executable_image(&corrupt_text, 3).is_err());
+        assert!(image_emission::emit_direct_executable_image(&corrupt_text, 3).is_err());
     }
 }

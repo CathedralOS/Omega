@@ -119,8 +119,8 @@ fn publish(target: NativeTarget) -> (image_emission::ExecutableImage, usize) {
     image_emission::validate_function_fragment_object_artifact(&source, &object).unwrap();
     assert_eq!(object.text_bytes(), source.source().text_section().bytes);
     let entry_offset = object.entry_function().text_offset;
-    let image = image_emission::emit_executable_image(&object, 3).unwrap();
-    image_emission::validate_executable_image(&object, &image).unwrap();
+    let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
+    image_emission::validate_direct_executable_image(&object, &image).unwrap();
     let record = image_emission::build_installation_record(
         &image,
         semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),

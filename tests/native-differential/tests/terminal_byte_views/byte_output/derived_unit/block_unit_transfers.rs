@@ -147,8 +147,8 @@ fn byte_view_block_unit_transfers_publish_exact_descriptor_custody() {
                 .checked_add(16)
                 .is_some_and(|end| end <= call.arguments[0].call_stack_bytes)
         );
-        let image = image_emission::emit_executable_image(&object, 3).unwrap();
-        image_emission::validate_executable_image(&object, &image).unwrap();
+        let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
+        image_emission::validate_direct_executable_image(&object, &image).unwrap();
         let record = image_emission::build_installation_record(
             &image,
             semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),
@@ -185,7 +185,7 @@ fn byte_view_block_unit_transfers_publish_exact_descriptor_custody() {
                 "{mutation} on {target:?}"
             );
             assert!(
-                image_emission::emit_executable_image(&changed, 3).is_err(),
+                image_emission::emit_direct_executable_image(&changed, 3).is_err(),
                 "{mutation} on {target:?}"
             );
             let mut changed = record.clone();

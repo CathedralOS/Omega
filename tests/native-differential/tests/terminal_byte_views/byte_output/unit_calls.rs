@@ -101,8 +101,8 @@ fn scalar_only_unit_byte_calls_publish_on_supported_hosted_targets() {
                 ValueId::new(source_value).unwrap()
             );
         }
-        let image = image_emission::emit_executable_image(&object, 3).unwrap();
-        image_emission::validate_executable_image(&object, &image).unwrap();
+        let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
+        image_emission::validate_direct_executable_image(&object, &image).unwrap();
         let record = image_emission::build_installation_record(
             &image,
             semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),
@@ -163,7 +163,7 @@ fn scalar_only_unit_byte_calls_reject_changed_publication_custody() {
                 "{mutation} on {target:?}"
             );
             assert!(
-                image_emission::emit_executable_image(&changed, 3).is_err(),
+                image_emission::emit_direct_executable_image(&changed, 3).is_err(),
                 "{mutation} on {target:?}"
             );
         }
@@ -172,7 +172,7 @@ fn scalar_only_unit_byte_calls_reject_changed_publication_custody() {
         // Isolate selected-call replay: the earlier selected-boundary guard
         // must not be what rejects this artifact.
         missing_replay.boundary_settlements_mut_for_test().clear();
-        let error = image_emission::emit_executable_image(&missing_replay, 3).unwrap_err();
+        let error = image_emission::emit_direct_executable_image(&missing_replay, 3).unwrap_err();
         assert!(
             error
                 .to_string()
@@ -227,7 +227,7 @@ fn scalar_only_unit_byte_calls_installation_requires_the_admitted_image() {
             .unwrap(),
         );
         let object = image_emission::build_function_fragment_object_artifact(source).unwrap();
-        let image = image_emission::emit_executable_image(&object, 3).unwrap();
+        let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
         let record = image_emission::build_installation_record(
             &image,
             semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),

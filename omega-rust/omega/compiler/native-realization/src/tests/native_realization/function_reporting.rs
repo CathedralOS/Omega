@@ -85,8 +85,9 @@ fn current_function_reports_cover_selected_spans_and_inserted_frames_on_every_ho
         NativeTarget::windows_x64(),
     ] {
         let (source, object) = publish(CALL_SOURCE, target);
-        let image = image_emission::emit_executable_image(&object, 3).expect("final image");
-        image_emission::validate_executable_image(&object, &image).expect("independent replay");
+        let image = image_emission::emit_direct_executable_image(&object, 3).expect("final image");
+        image_emission::validate_direct_executable_image(&object, &image)
+            .expect("independent replay");
         let report = image
             .output()
             .compiler_function_validation
@@ -142,15 +143,15 @@ fn current_function_reports_cover_selected_spans_and_inserted_frames_on_every_ho
 #[test]
 fn current_function_report_requires_source_replay_and_rejects_reauthenticated_summary_changes() {
     let (_, object) = publish(CALL_SOURCE, NativeTarget::linux_x64());
-    let image = image_emission::emit_executable_image(&object, 3).unwrap();
+    let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
     let original = image.output().compiler_function_validation.unwrap();
     let mut missing = object.clone();
     missing.clear_fragment_replay_for_test();
-    assert!(image_emission::validate_executable_image(&missing, &image).is_err());
+    assert!(image_emission::validate_direct_executable_image(&missing, &image).is_err());
     // A mechanical image without compiler source must not recover its report
     // from otherwise matching functions or machine-code bytes.
     assert!(
-        image_emission::emit_executable_image(&missing, 3)
+        image_emission::emit_direct_executable_image(&missing, 3)
             .unwrap()
             .output()
             .compiler_function_validation
@@ -184,14 +185,14 @@ fn current_function_report_requires_source_replay_and_rejects_reauthenticated_su
             let _ = report.evidence_report_fingerprint();
         }
         assert!(
-            image_emission::validate_executable_image(&object, &changed).is_err(),
+            image_emission::validate_direct_executable_image(&object, &changed).is_err(),
             "field {field} must be independently rederived"
         );
     }
     let mut changed = object.clone();
     changed.text_bytes_mut_for_test()[0] ^= 1;
-    assert!(image_emission::validate_executable_image(&changed, &image).is_err());
+    assert!(image_emission::validate_direct_executable_image(&changed, &image).is_err());
     let mut changed = object.clone();
     changed.functions_mut_for_test()[0].byte_count += 1;
-    assert!(image_emission::validate_executable_image(&changed, &image).is_err());
+    assert!(image_emission::validate_direct_executable_image(&changed, &image).is_err());
 }

@@ -92,10 +92,10 @@ fn publish(
     image_emission::validate_function_fragment_object_artifact(&source, &object).unwrap();
     let mut stripped = object.clone();
     stripped.clear_fragment_replay_for_test();
-    assert!(image_emission::emit_executable_image(&stripped, 3).is_err());
+    assert!(image_emission::emit_direct_executable_image(&stripped, 3).is_err());
     let entry_offset = object.entry_function().text_offset;
-    let image = image_emission::emit_executable_image(&object, 3).unwrap();
-    image_emission::validate_executable_image(&object, &image).unwrap();
+    let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
+    image_emission::validate_direct_executable_image(&object, &image).unwrap();
     (image, entry_offset)
 }
 

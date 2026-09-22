@@ -81,7 +81,7 @@ fn structural_extent_unit_leaf_reaches_canonical_object_artifact() {
         .expect("the shared structural leaf must publish without invented stack homes");
     image_emission::validate_function_fragment_object_artifact(&object, &published)
         .expect("structural object publication must independently replay");
-    let image = image_emission::emit_executable_image(&published, 10)
+    let image = image_emission::emit_direct_executable_image(&published, 10)
         .expect("the structural object must retain its ABI through image publication");
     let installation = image_emission::build_installation_record(
         &image,

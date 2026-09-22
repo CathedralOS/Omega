@@ -126,7 +126,7 @@ fn owned_field_publication_rejects_substituted_projection_and_backing() {
     assert!(caller.unit_parameter_homes.iter().any(|home| {
         home.place == argument.place && home.access == terminal_psi::StructuralAccess::Owned
     }));
-    let image = image_emission::emit_executable_image(&object, 3).unwrap();
+    let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
     let record = image_emission::build_installation_record(
         &image,
         semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),
@@ -160,7 +160,7 @@ fn owned_field_publication_rejects_substituted_projection_and_backing() {
             "object mutation {mutation}"
         );
         assert!(
-            image_emission::emit_executable_image(&changed, 3).is_err(),
+            image_emission::emit_direct_executable_image(&changed, 3).is_err(),
             "image mutation {mutation}"
         );
 

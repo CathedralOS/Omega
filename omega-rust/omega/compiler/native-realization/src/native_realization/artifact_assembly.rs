@@ -28,7 +28,7 @@ pub(crate) fn assemble_requested_native_artifact(
     image_request: image_emission::ExecutableImageEmissionRequest,
     request: &NativeRealizationRequest<'_>,
 ) -> Result<RequestedNativeArtifact, Vec<Diagnostic>> {
-    let image = image_emission::emit_requested_executable_image(&object, image_request)
+    let image = image_emission::emit_executable_image(&object, image_request)
         .map_err(|error| vec![error.diagnostic().clone()])?;
 
     let mut selected_provider_plans = request

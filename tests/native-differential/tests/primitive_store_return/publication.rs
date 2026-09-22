@@ -135,7 +135,7 @@ fn publish(
     let mut stripped = object.clone();
     stripped.clear_fragment_replay_for_test();
     assert!(
-        image_emission::emit_executable_image(&stripped, 3).is_err(),
+        image_emission::emit_direct_executable_image(&stripped, 3).is_err(),
         "mixed incoming borrow requires fragment replay on {target:?}"
     );
     let mut erased = object.clone();
@@ -148,12 +148,12 @@ fn publish(
         "retained replay rejects coherently erased ABI on {target:?}"
     );
     assert!(
-        image_emission::emit_executable_image(&erased, 3).is_err(),
+        image_emission::emit_direct_executable_image(&erased, 3).is_err(),
         "erasing ABI cannot bypass exact source on {target:?}"
     );
     let entry_offset = object.entry_function().text_offset;
-    let image = image_emission::emit_executable_image(&object, 3).unwrap();
-    image_emission::validate_executable_image(&object, &image).unwrap();
+    let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
+    image_emission::validate_direct_executable_image(&object, &image).unwrap();
     let record = image_emission::build_installation_record(
         &image,
         semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),

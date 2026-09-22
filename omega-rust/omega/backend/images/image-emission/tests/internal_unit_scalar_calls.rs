@@ -22,7 +22,7 @@ use calling_conventions::{
 use image_emission::{
     InstallationError, InstalledFunction, InstalledInternalUnitScalarCall,
     build_installation_record, build_object_artifact, decode_installation_record,
-    emit_executable_image, encode_installation_record, installation_fingerprint,
+    emit_direct_executable_image, encode_installation_record, installation_fingerprint,
     validate_installation_record,
 };
 use machine_code::{
@@ -45,7 +45,7 @@ use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 fn installation_internal_unit_scalar_call_row_rejects_every_one_field_substitution() {
     let plan = attached_unit_scalar_call_plan();
     let artifact = build_object_artifact(&plan).expect("scalar-call artifact");
-    let image = emit_executable_image(&artifact, 3).expect("scalar-call image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("scalar-call image");
     let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
         .expect("scalar-call installation");
     validate_installation_record(&record, &image).expect("exact image binding");
@@ -670,7 +670,7 @@ fn installation_internal_unit_scalar_call_row_rejects_every_one_field_substituti
 fn installation_function_scalar_abi_row_rejects_every_one_field_substitution() {
     let plan = attached_unit_scalar_call_plan();
     let artifact = build_object_artifact(&plan).expect("scalar-call artifact");
-    let image = emit_executable_image(&artifact, 3).expect("scalar-call image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("scalar-call image");
     let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
         .expect("scalar-call installation");
     validate_installation_record(&record, &image).expect("exact image binding");
@@ -1044,7 +1044,7 @@ fn installation_function_integer_constant_rows_reject_every_one_field_substituti
             operation_ordinal: 4,
         });
     let artifact = build_object_artifact(&plan).expect("two-constant artifact");
-    let image = emit_executable_image(&artifact, 3).expect("two-constant image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("two-constant image");
     let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
         .expect("two-constant installation");
     validate_installation_record(&record, &image).expect("exact image binding");
@@ -1299,7 +1299,7 @@ fn installation_function_integer_constant_rows_reject_every_one_field_substituti
 fn installation_record_reader_rejects_every_injected_fault() {
     let plan = attached_unit_scalar_call_plan();
     let artifact = build_object_artifact(&plan).expect("scalar-call artifact");
-    let image = emit_executable_image(&artifact, 3).expect("scalar-call image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("scalar-call image");
     let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
         .expect("scalar-call installation");
     validate_installation_record(&record, &image).expect("exact image binding");

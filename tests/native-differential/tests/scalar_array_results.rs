@@ -152,10 +152,10 @@ fn publish_target_with_replay_expectation(
     if matches!(replay_expectation, ReplayExpectation::Required) {
         let mut stripped = object.clone();
         stripped.clear_fragment_replay_for_test();
-        assert!(image_emission::emit_executable_image(&stripped, 3).is_err());
+        assert!(image_emission::emit_direct_executable_image(&stripped, 3).is_err());
     }
-    let image = image_emission::emit_executable_image(&object, 3).unwrap();
-    image_emission::validate_executable_image(&object, &image).unwrap();
+    let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
+    image_emission::validate_direct_executable_image(&object, &image).unwrap();
     let record = image_emission::build_installation_record(
         &image,
         semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),

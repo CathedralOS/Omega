@@ -15,10 +15,11 @@
 //!   [`object_artifact`]: the sealed [`ObjectArtifact`] carrier, its builder
 //!   entry points, and the evidence replay passes beneath
 //!   `object_artifact/replay/` that re-decode every retained record from final
-//!   bytes. Executable-image output over a sealed object is dispatched by
-//!   [`image_output`] (direct writers), [`dynamic_elf`] (admitted dynamic ELF
-//!   custody), and [`final_image_validation`]; [`function_fragments`] projects
-//!   admitted current fragments into that same object.
+//!   bytes. Executable-image output over a sealed object starts at
+//!   [`image_output`]'s `emit_executable_image`, which selects the direct
+//!   writers it owns or the dynamic ELF lane in [`dynamic_elf`], with
+//!   [`final_image_validation`] replaying either; [`function_fragments`]
+//!   projects admitted current fragments into that same object.
 //! - **The canonical installation record wire format** lives in
 //!   [`installation_record`]: manifest metadata over the resulting sealed
 //!   image, its bytes under `installation_record/codec/` with one codec per
@@ -60,16 +61,16 @@ pub use function_fragments::{
 
 pub use dynamic_elf::{
     DynamicElfImageEmission, DynamicElfImageEmissionError, DynamicElfOrchestrationError,
-    ExecutableImageEmissionRequest, RequestedDynamicElfImage, RequestedExecutableImage,
-    RequestedExecutableImageError, emit_admitted_dynamic_elf_image, emit_dynamic_elf_image,
-    emit_requested_executable_image, validate_dynamic_elf_image_emission,
-    validate_requested_dynamic_elf_image, validate_requested_executable_image,
+    RequestedDynamicElfImage, emit_admitted_dynamic_elf_image, emit_dynamic_elf_image,
+    validate_dynamic_elf_image_emission, validate_requested_dynamic_elf_image,
 };
 pub use hosted_receiver::{HostedReceiverBinding, HostedReceiverPartitions, bind_hosted_receiver};
 pub use hosted_unit_entry::LinuxX86ScalarExitShim;
 pub use image_output::{
-    ExecutableImage, ObjectContainer, ScalarCallReferenceImage, can_emit_executable_image,
-    emit_executable_image, emit_object_container, emit_scalar_call_reference_linux_x86_64_image,
+    ExecutableImage, ExecutableImageEmissionRequest, ObjectContainer, RequestedExecutableImage,
+    RequestedExecutableImageError, ScalarCallReferenceImage, can_emit_executable_image,
+    emit_direct_executable_image, emit_executable_image, emit_object_container,
+    emit_scalar_call_reference_linux_x86_64_image, validate_direct_executable_image,
     validate_executable_image,
 };
 

@@ -886,8 +886,8 @@ fn assert_native_result_after_source_removal(
         let object =
             image_emission::build_function_fragment_object_artifact(source.clone()).unwrap();
         image_emission::validate_function_fragment_object_artifact(&source, &object).unwrap();
-        let image = image_emission::emit_executable_image(&object, 0).unwrap();
-        image_emission::validate_executable_image(&object, &image).unwrap();
+        let image = image_emission::emit_direct_executable_image(&object, 0).unwrap();
+        image_emission::validate_direct_executable_image(&object, &image).unwrap();
         #[cfg(any(
             all(
                 target_os = "linux",

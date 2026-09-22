@@ -29,8 +29,8 @@ use super::{
 };
 use image_emission::{
     build_installation_record, build_installation_record_with_provider_executions,
-    build_object_artifact, build_object_artifact_with_private_functions, emit_executable_image,
-    validate_installation_record,
+    build_object_artifact, build_object_artifact_with_private_functions,
+    emit_direct_executable_image, validate_installation_record,
 };
 use machine_code::{SemanticCodeAttribution, SemanticCodeSite};
 use optimization_core::{OneFieldSubstitutionMatrix, run_one_field_substitution_matrix};
@@ -44,7 +44,7 @@ fn installation_semantic_code_attribution_rejects_every_one_field_substitution()
     let provider = WriteExitProvider(970);
     let artifact = build_object_artifact(&linux_write_line_exit_plan(&provider))
         .expect("attribution artifact");
-    let image = emit_executable_image(&artifact, 3).expect("attribution image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("attribution image");
     let record = build_installation_record_with_provider_executions(
         &image,
         ProfileDecisionId::new(97).expect("profile"),
@@ -125,7 +125,7 @@ fn installation_semantic_code_attribution_rejects_every_one_field_substitution()
 fn installation_private_function_row_rejects_every_one_field_substitution() {
     let artifact = build_object_artifact_with_private_functions(&callback_private_plan())
         .expect("callback private artifact");
-    let image = emit_executable_image(&artifact, 3).expect("callback private image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("callback private image");
     let record = build_installation_record(&image, ProfileDecisionId::new(53).expect("profile"))
         .expect("callback private installation");
     validate_installation_record(&record, &image).expect("exact image binding");
@@ -173,7 +173,7 @@ fn installation_dynamic_conformance_table_rejects_every_one_field_substitution()
         artifact.dynamic_conformance_tables()[0].slots[1].target,
         None
     );
-    let image = emit_executable_image(&artifact, 3).expect("dynamic-table image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("dynamic-table image");
     let record = build_installation_record(&image, ProfileDecisionId::new(1).expect("profile"))
         .expect("dynamic-table installation");
     validate_installation_record(&record, &image).expect("authentic binding");
@@ -202,7 +202,7 @@ fn installation_dynamic_conformance_table_rejects_every_one_field_substitution()
 fn installation_dynamic_parameter_call_rejects_every_one_field_substitution() {
     let artifact = build_object_artifact(&dynamic_parameter_call_plan())
         .expect("dynamic-parameter object artifact");
-    let image = emit_executable_image(&artifact, 3).expect("dynamic-parameter image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("dynamic-parameter image");
     let record = build_installation_record(&image, ProfileDecisionId::new(1).expect("profile"))
         .expect("dynamic-parameter installation");
     validate_installation_record(&record, &image).expect("authentic binding");
@@ -244,7 +244,7 @@ fn installation_stored_dynamic_call_rejects_every_one_field_substitution() {
         build_object_artifact(&stored_dynamic_call_plan()).expect("stored dynamic object artifact");
     assert_eq!(artifact.dynamic_conformance_tables().len(), 1);
     assert_eq!(artifact.dynamic_conformance_tables()[0].slots.len(), 2);
-    let image = emit_executable_image(&artifact, 3).expect("stored dynamic image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("stored dynamic image");
     let record = build_installation_record(&image, ProfileDecisionId::new(1).expect("profile"))
         .expect("stored dynamic installation");
     validate_installation_record(&record, &image).expect("authentic binding");
@@ -291,7 +291,8 @@ fn installation_stored_dynamic_call_rejects_every_one_field_substitution() {
 fn installation_forwarded_dynamic_parameter_call_rejects_every_one_field_substitution() {
     let artifact = build_object_artifact(&forwarded_dynamic_parameter_call_plan())
         .expect("forwarded dynamic-parameter object artifact");
-    let image = emit_executable_image(&artifact, 3).expect("forwarded dynamic-parameter image");
+    let image =
+        emit_direct_executable_image(&artifact, 3).expect("forwarded dynamic-parameter image");
     let record = build_installation_record(&image, ProfileDecisionId::new(1).expect("profile"))
         .expect("forwarded dynamic-parameter installation");
     validate_installation_record(&record, &image).expect("authentic binding");
@@ -344,7 +345,8 @@ fn installation_forwarded_dynamic_parameter_call_rejects_every_one_field_substit
 fn installation_forwarded_dynamic_descriptor_rejects_every_one_field_substitution() {
     let artifact = build_object_artifact(&forwarded_dynamic_descriptor_call_plan())
         .expect("forwarded dynamic-descriptor object artifact");
-    let image = emit_executable_image(&artifact, 3).expect("forwarded dynamic-descriptor image");
+    let image =
+        emit_direct_executable_image(&artifact, 3).expect("forwarded dynamic-descriptor image");
     let record = build_installation_record(&image, ProfileDecisionId::new(1).expect("profile"))
         .expect("forwarded dynamic-descriptor installation");
     validate_installation_record(&record, &image).expect("authentic binding");
@@ -418,7 +420,7 @@ fn installation_port_effect_rejects_every_one_field_substitution() {
     let provider = WriteExitProvider(7);
     let artifact =
         build_object_artifact(&port_effect_plan(&provider)).expect("port-effect artifact");
-    let image = emit_executable_image(&artifact, 3).expect("port-effect image");
+    let image = emit_direct_executable_image(&artifact, 3).expect("port-effect image");
     let record = build_installation_record_with_provider_executions(
         &image,
         ProfileDecisionId::new(17).expect("profile"),

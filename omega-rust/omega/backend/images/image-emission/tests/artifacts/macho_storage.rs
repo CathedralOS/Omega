@@ -14,8 +14,10 @@ fn ordinary_macho_image() -> (
             .collect();
     }
     let object = image_emission::build_object_artifact(&plan).expect("ordinary Mach-O object");
-    let original = image_emission::emit_executable_image(&object, 3).expect("ordinary image");
-    image_emission::validate_executable_image(&object, &original).expect("valid image replays");
+    let original =
+        image_emission::emit_direct_executable_image(&object, 3).expect("ordinary image");
+    image_emission::validate_direct_executable_image(&object, &original)
+        .expect("valid image replays");
     (object, original)
 }
 
@@ -38,7 +40,7 @@ fn macho_replay_rejects_replaced_pagezero_mapping() {
     pagezero[56..60].copy_from_slice(&3u32.to_le_bytes());
     pagezero[60..64].copy_from_slice(&3u32.to_le_bytes());
     assert!(
-        image_emission::validate_executable_image(&object, &substituted).is_err(),
+        image_emission::validate_direct_executable_image(&object, &substituted).is_err(),
         "replaying function bytes cannot excuse a substituted loader mapping"
     );
 }
@@ -63,7 +65,7 @@ fn macho_replay_rejects_loader_header_and_payload_drift() {
         changed.output_mut_for_test().bytes[byte_offset..byte_offset + replacement.len()]
             .copy_from_slice(&replacement);
         assert!(
-            image_emission::validate_executable_image(&object, &changed).is_err(),
+            image_emission::validate_direct_executable_image(&object, &changed).is_err(),
             "ordinary native replay must reject changed {name}"
         );
     }

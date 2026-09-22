@@ -272,7 +272,7 @@ pub(crate) fn emit_receiver_image_unchecked(
     artifact: &image_emission::ObjectArtifact,
     profile: target::TargetProfile,
 ) -> Result<image_emission::ExecutableImage, diagnostics::Diagnostic> {
-    image_emission::emit_executable_image(artifact, writer_subsystem(profile))
+    image_emission::emit_direct_executable_image(artifact, writer_subsystem(profile))
 }
 
 /// Emit and independently replay the bound image for `profile`.
@@ -281,7 +281,7 @@ pub(crate) fn emit_receiver_image(
     profile: target::TargetProfile,
 ) -> image_emission::ExecutableImage {
     let image = emit_receiver_image_unchecked(artifact, profile).expect("receiver image emits");
-    image_emission::validate_executable_image(artifact, &image)
+    image_emission::validate_direct_executable_image(artifact, &image)
         .expect("the emitted bridge replays its exact custody");
     image
 }

@@ -104,8 +104,8 @@ fn source_ordered_calls_reach_executable_publication() {
             .unwrap();
             assert_eq!(object.entry_function().unit_call_stacks.len(), 3);
             assert!(object.entry_function().unit_scalar_homes.is_empty());
-            let image = image_emission::emit_executable_image(&object, 3).unwrap();
-            image_emission::validate_executable_image(&object, &image).unwrap();
+            let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
+            image_emission::validate_direct_executable_image(&object, &image).unwrap();
             let demand = image_emission::derive_stack_demand(&object, object.entry()).unwrap();
             assert!(demand.ceiling_bytes() > 0);
         }
@@ -199,8 +199,8 @@ fn terminal_scalar_returning_calls_reach_coordinated_native_artifact() {
             .unwrap();
             assert!(!object.entry_function().unit_call_stacks.is_empty());
             assert!(object.entry_function().unit_scalar_homes.is_empty());
-            let image = image_emission::emit_executable_image(&object, 3).unwrap();
-            image_emission::validate_executable_image(&object, &image).unwrap();
+            let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
+            image_emission::validate_direct_executable_image(&object, &image).unwrap();
             let demand = image_emission::derive_stack_demand(&object, object.entry()).unwrap();
             assert!(demand.ceiling_bytes() > 0);
             let complete_request = crate::NativeRealizationRequest {

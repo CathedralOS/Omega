@@ -193,8 +193,8 @@ fn widened_byte_output_cross_lowers_and_publishes_on_linux_targets() {
         let object =
             image_emission::build_function_fragment_object_artifact(source.clone()).unwrap();
         image_emission::validate_function_fragment_object_artifact(&source, &object).unwrap();
-        let image = image_emission::emit_executable_image(&object, 3).unwrap();
-        image_emission::validate_executable_image(&object, &image).unwrap();
+        let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
+        image_emission::validate_direct_executable_image(&object, &image).unwrap();
         let record = image_emission::build_installation_record(
             &image,
             semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),
@@ -230,7 +230,7 @@ fn widened_byte_output_cross_lowers_and_publishes_on_linux_targets() {
                     .is_err(),
                 "widened input substitution {mutation}"
             );
-            assert!(image_emission::emit_executable_image(&changed, 3).is_err());
+            assert!(image_emission::emit_direct_executable_image(&changed, 3).is_err());
         }
     }
 }

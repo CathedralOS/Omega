@@ -10,7 +10,8 @@ use image_emission::{
     ExecutableImage, InstallationError, InstalledArtifactMemoryImages, ObjectArtifact,
     bind_installed_artifact, bind_installed_compiler_private_function_entry,
     build_installation_record, build_object_artifact, build_object_artifact_with_private_functions,
-    emit_executable_image, project_installed_artifact_memory_images, validate_installation_record,
+    emit_direct_executable_image, project_installed_artifact_memory_images,
+    validate_installation_record,
 };
 use object_file::{ObjectSymbolHandle, RelocationKind, SectionKind};
 use semantic_vocabulary::ProfileDecisionId;
@@ -366,7 +367,7 @@ fn resolver(
 fn installed_artifact_join_requires_complete_placed_custody() {
     let object =
         build_object_artifact(&dynamic_conformance_table_plan()).expect("dynamic-table object");
-    let image = emit_executable_image(&object, 3).expect("ELF image");
+    let image = emit_direct_executable_image(&object, 3).expect("ELF image");
     assert!(
         !image.output().final_data_bytes.is_empty(),
         "the fixture must exercise the data-inventory leg"
@@ -592,7 +593,7 @@ fn claimed_custody() -> &'static boundary_applications::BoundaryOpaqueRepresenta
 fn installed_artifact_join_replays_typed_relocation_over_complete_macho_image() {
     let object = build_object_artifact(&internal_call_plan(NativeTarget::macos_arm64()))
         .expect("Mach-O object");
-    let image = emit_executable_image(&object, 3).expect("Mach-O image");
+    let image = emit_direct_executable_image(&object, 3).expect("Mach-O image");
     assert_eq!(image.output().final_image_imports, 0);
     let memory = project_installed_artifact_memory_images(&object, &image)
         .expect("complete custody projects the installed memory images");
@@ -715,7 +716,7 @@ fn installed_private_function_entry_binds_exact_row_and_occurrence() {
     };
     let private_identity = private.identity;
     let private_symbol = private.function.symbol;
-    let image = emit_executable_image(&object, 3).expect("callback private image");
+    let image = emit_direct_executable_image(&object, 3).expect("callback private image");
     let memory = project_installed_artifact_memory_images(&object, &image)
         .expect("complete custody projects the installed memory images");
     assert_complete_projection(&memory, &image);

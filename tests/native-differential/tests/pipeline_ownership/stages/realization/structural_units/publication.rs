@@ -254,9 +254,9 @@ fn publish(
         .expect("shared structural object publication");
     image_emission::validate_function_fragment_object_artifact(source, &object)
         .expect("independent structural object replay");
-    let image = image_emission::emit_executable_image(&object, 10)
+    let image = image_emission::emit_direct_executable_image(&object, 10)
         .expect("structural PE image construction, not callable-entry admission");
-    image_emission::validate_executable_image(&object, &image).expect("image replay");
+    image_emission::validate_direct_executable_image(&object, &image).expect("image replay");
     let installation = image_emission::build_installation_record_with_provider_executions(
         &image,
         semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),

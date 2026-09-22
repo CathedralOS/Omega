@@ -1016,7 +1016,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
     );
     assert!(
-        image_emission::validate_executable_image(&substituted, candidate.image()).is_err(),
+        image_emission::validate_direct_executable_image(&substituted, candidate.image()).is_err(),
         "identical physical bytes cannot replace admitted provider custody with builtin identity"
     );
     // This returning output provider is entirely inside compiler-authored text:

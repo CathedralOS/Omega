@@ -137,8 +137,8 @@ fn register_call_arity_reaches_image_and_installation_with_empty_and_selected_ph
                     .unwrap();
                 assert_eq!(object.entry_function().unit_call_stacks.len(), 1);
                 let demand = image_emission::derive_stack_demand(&object, object.entry()).unwrap();
-                let image = image_emission::emit_executable_image(&object, 3).unwrap();
-                image_emission::validate_executable_image(&object, &image).unwrap();
+                let image = image_emission::emit_direct_executable_image(&object, 3).unwrap();
+                image_emission::validate_direct_executable_image(&object, &image).unwrap();
                 let record = image_emission::build_installation_record(
                     &image,
                     semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),
