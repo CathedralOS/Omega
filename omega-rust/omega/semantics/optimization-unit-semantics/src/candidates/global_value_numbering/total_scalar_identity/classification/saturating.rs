@@ -3,9 +3,7 @@
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::TotalScalarIdentityKind;
 
-use super::model::{
-    IndependentTotalScalarIdentity, left_law_row, right_law_row, row, typed_integer,
-};
+use super::{IndependentTotalScalarIdentity, left_law_row, right_law_row, row, typed_integer};
 
 pub(super) fn classify(
     operation: &O,

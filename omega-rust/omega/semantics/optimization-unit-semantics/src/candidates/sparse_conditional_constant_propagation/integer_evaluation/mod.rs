@@ -9,7 +9,6 @@
 mod binary_operation_shape;
 mod binary_semantics;
 mod literal_facts;
-mod model;
 mod rule_identity;
 mod unary_operations;
 
@@ -20,7 +19,8 @@ use crate::OptimizationUnitValidationError;
 pub(crate) use literal_facts::{
     direct_literal_integer_fact, literal_boolean_fact, literal_integer_fact, unary_integer_operand,
 };
-use model::IntegerEvaluation;
+use optimization_core::OptimizationSafetyClass;
+use semantic_vocabulary::{IntegerType, IntegerValue, OperationId, ValueId};
 
 pub(crate) fn evaluate_integer_operation(
     function: &PsiOptimizationFunction,
@@ -51,4 +51,48 @@ pub(crate) fn evaluate_integer_operation(
         evaluated,
         safety_class,
     ))
+}
+
+type IntegerEvaluation = (
+    OperationId,
+    ValueId,
+    IntegerType,
+    IntegerValue,
+    OptimizationSafetyClass,
+);
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum BinaryIntegerOperation {
+    ExactAdd,
+    ExactSubtract,
+    ExactMultiply,
+    WrappingAdd,
+    WrappingSubtract,
+    WrappingMultiply,
+    SaturatingAdd,
+    SaturatingSubtract,
+    SaturatingMultiply,
+    ExactDivide,
+    ExactRemainder,
+    WrappingDivide,
+    WrappingRemainder,
+    SaturatingDivide,
+    SaturatingRemainder,
+    ExactShiftLeft(IntegerType),
+    ExactShiftRight(IntegerType),
+    WrappingShiftLeft(IntegerType),
+    WrappingShiftRight(IntegerType),
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct BinaryOperationShape {
+    kind: BinaryIntegerOperation,
+    source: OperationId,
+    result: ValueId,
+    scalar_type: IntegerType,
+    left: ValueId,
+    right: ValueId,
 }

@@ -3,7 +3,7 @@
 use optimization_core::OptimizationSafetyClass;
 use semantic_vocabulary::{IntegerType, IntegerValue};
 
-use super::model::BinaryIntegerOperation;
+use super::BinaryIntegerOperation;
 
 pub(super) fn evaluate(
     kind: BinaryIntegerOperation,

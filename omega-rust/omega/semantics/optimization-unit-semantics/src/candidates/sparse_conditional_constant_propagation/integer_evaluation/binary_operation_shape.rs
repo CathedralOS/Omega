@@ -4,7 +4,7 @@ use abstract_operations::AbstractOperation as O;
 
 use crate::OptimizationUnitValidationError;
 
-use super::model::{BinaryIntegerOperation as K, BinaryOperationShape};
+use super::{BinaryIntegerOperation as K, BinaryOperationShape};
 
 pub(super) fn recognize(
     operation: &O,
