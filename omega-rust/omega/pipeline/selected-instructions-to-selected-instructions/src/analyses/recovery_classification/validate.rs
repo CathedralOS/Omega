@@ -6,13 +6,16 @@ use selected_instructions::{
 use semantic_vocabulary::{IntegerSign, ScalarType};
 
 use crate::{
-    FunctionRecoveryClassification, NoAdmittedRecoveryReason, PressureRecoveryClassification,
-    RecoveryClassification, RecoveryClassificationError, RecoveryClassificationPlan,
-    RecoveryClassificationPolicy, RecoveryClassificationValidationReceipt, RecoveryFutureUse,
-    RecoveryVictimRole, ValidatedAllocationLegality, ValidatedLiveRanges,
-    ValidatedRecoveryClassifications, ValidatedSelectedAnalysis, ValidatedSpillChoices,
-    VirtualFixedConstraintSite, recovery_classification_identity,
+    RecoveryClassificationError, RecoveryClassificationValidationReceipt,
+    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedRecoveryClassifications,
+    ValidatedSelectedAnalysis, ValidatedSpillChoices,
 };
+use register_homes::{
+    FunctionRecoveryClassification, NoAdmittedRecoveryReason, PressureRecoveryClassification,
+    RecoveryClassification, RecoveryClassificationPlan, RecoveryClassificationPolicy,
+    RecoveryFutureUse, RecoveryVictimRole, recovery_classification_identity,
+};
+use selected_instructions::VirtualFixedConstraintSite;
 
 pub fn validate_recovery_classifications<S: ValidatedSelectedAnalysis>(
     selected: &S,
@@ -111,9 +114,9 @@ pub fn validate_recovery_classifications<S: ValidatedSelectedAnalysis>(
 fn replay_function(
     function: usize,
     selected: &selected_instructions::SelectedFunction,
-    ranges: &crate::FunctionLiveRanges,
-    legality: &crate::FunctionAllocationLegality,
-    choices: &crate::FunctionSpillChoices,
+    ranges: &selected_instructions::FunctionLiveRanges,
+    legality: &register_homes::FunctionAllocationLegality,
+    choices: &register_homes::FunctionSpillChoices,
 ) -> Result<FunctionRecoveryClassification, RecoveryClassificationError> {
     if selected.machine != ranges.machine
         || selected.machine != legality.machine
@@ -181,16 +184,16 @@ fn replay_function(
 pub(crate) fn replay_function_for_test(
     function: usize,
     selected: &selected_instructions::SelectedFunction,
-    ranges: &crate::FunctionLiveRanges,
-    legality: &crate::FunctionAllocationLegality,
-    choices: &crate::FunctionSpillChoices,
+    ranges: &selected_instructions::FunctionLiveRanges,
+    legality: &register_homes::FunctionAllocationLegality,
+    choices: &register_homes::FunctionSpillChoices,
 ) -> Result<FunctionRecoveryClassification, RecoveryClassificationError> {
     replay_function(function, selected, ranges, legality, choices)
 }
 
 fn replay_role(
     function: usize,
-    choice: &crate::SpillChoice,
+    choice: &register_homes::SpillChoice,
 ) -> Result<RecoveryVictimRole, RecoveryClassificationError> {
     let selected_rows = choice
         .contenders
@@ -226,10 +229,10 @@ fn replay_role(
 fn replay_classification(
     function: usize,
     selected: &selected_instructions::SelectedFunction,
-    ranges: &crate::FunctionLiveRanges,
-    choice: &crate::SpillChoice,
+    ranges: &selected_instructions::FunctionLiveRanges,
+    choice: &register_homes::SpillChoice,
     victim: &selected_instructions::VirtualRegister,
-    range: &crate::VirtualLiveRange,
+    range: &selected_instructions::VirtualLiveRange,
 ) -> Result<RecoveryClassification, RecoveryClassificationError> {
     let ScalarType::Integer(integer) = victim.scalar_type else {
         return replay_no(NoAdmittedRecoveryReason::UnsupportedScalarType);
@@ -257,7 +260,7 @@ fn replay_classification(
     };
     if crate::analyses::liveness::edge_values::has_edge_use(selected, victim.id)
         || range.fragments.as_slice()
-            != [crate::LiveRangeFragment {
+            != [selected_instructions::LiveRangeFragment {
                 block: choice.block,
                 start: range
                     .fragments

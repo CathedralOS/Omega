@@ -2,15 +2,16 @@
 
 use std::collections::BTreeSet;
 
-use crate::{
-    BlockPointDomain, LiveRangeEdgeConnector, LiveRangeError, LiveRangeFragment, LiveRangePoint,
-};
+use crate::LiveRangeError;
 use register_model::RegisterOperandAccess;
 use selected_instructions::SelectedBlockId;
+use selected_instructions::{
+    BlockPointDomain, LiveRangeEdgeConnector, LiveRangeFragment, LiveRangePoint,
+};
 
 pub(super) fn block_domains(
     function: usize,
-    live: &crate::FunctionLiveness,
+    live: &selected_instructions::FunctionLiveness,
 ) -> Result<Vec<BlockPointDomain>, LiveRangeError> {
     live.blocks
         .iter()
@@ -43,7 +44,7 @@ pub(super) fn block_domains(
 
 pub(super) fn operand_point(
     function: usize,
-    operand: &crate::OperandPosition,
+    operand: &selected_instructions::OperandPosition,
 ) -> Result<LiveRangePoint, LiveRangeError> {
     match operand.access {
         RegisterOperandAccess::Use => checked_before(function, operand.position.0),
@@ -108,7 +109,7 @@ pub(super) fn append_maximal(
 
 pub(super) fn edge_row(
     source: SelectedBlockId,
-    edge: &crate::SuccessorLiveness,
+    edge: &selected_instructions::SuccessorLiveness,
 ) -> LiveRangeEdgeConnector {
     LiveRangeEdgeConnector {
         source,

@@ -6,15 +6,16 @@ use semantic_vocabulary::IntegerValue;
 
 use crate::{
     LiteralFoldAction, LiteralFoldError, PairLiteralPosition, PairOperandShape,
-    PairResultDisposition, RecoveryClassification, RecoveryVictimRole,
+    PairResultDisposition,
 };
+use register_homes::{RecoveryClassification, RecoveryVictimRole};
 
 use super::constraints::{AdmittedPairs, effect_declaration};
 
 pub(super) fn derive_action(
     function_index: usize,
     function: &SelectedFunction,
-    candidate: &crate::PressureRecoveryClassification,
+    candidate: &register_homes::PressureRecoveryClassification,
     rows: &AdmittedPairs<'_>,
 ) -> Result<LiteralFoldAction, LiteralFoldError> {
     if candidate.role != RecoveryVictimRole::Incoming {

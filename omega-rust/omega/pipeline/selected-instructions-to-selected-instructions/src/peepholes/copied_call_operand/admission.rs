@@ -23,7 +23,7 @@ use selected_instructions::{
 use super::CopiedCallOperandError;
 use super::pair::{copied_call_operand_for, declared_consumer};
 use crate::ValidatedSelectedAnalysis;
-use crate::machine_semantic_kind;
+use crate::analyses::machine_effects::machine_semantic_kind;
 
 /// One admitted copied-call-operand pair: everything `rewrite` needs to
 /// rebuild the consumer instruction and everything `replay` needs to

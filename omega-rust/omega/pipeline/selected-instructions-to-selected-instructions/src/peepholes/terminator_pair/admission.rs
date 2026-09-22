@@ -27,7 +27,7 @@ use super::pair::{
     terminator_pair_for,
 };
 use crate::ValidatedSelectedAnalysis;
-use crate::machine_semantic_kind;
+use crate::analyses::machine_effects::machine_semantic_kind;
 use crate::peepholes::condition_flow;
 
 /// One admitted terminator pair: everything `rewrite` needs to rebuild the

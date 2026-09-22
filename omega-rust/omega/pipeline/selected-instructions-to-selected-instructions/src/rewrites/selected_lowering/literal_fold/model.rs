@@ -8,10 +8,11 @@ use selected_instructions::{
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 
 use crate::rewrites::selected_lowering::literal_fold::identity::encode_terminal_literal_fold_content;
-use crate::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LiveRangeIdentity, LiveRangePoint,
-    RecoveryClassificationIdentity, SpillChoiceIdentity,
+use register_homes::{
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RecoveryClassificationIdentity,
+    SpillChoiceIdentity,
 };
+use selected_instructions::{LiveRangeIdentity, LiveRangePoint};
 
 const LITERAL_FOLD_MAGIC: &[u8; 8] = b"OMGLFD\0\0";
 const LITERAL_FOLD_VERSION: u32 = 12;

@@ -4,13 +4,14 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use register_model::RegisterViewId;
 
-use crate::{
+use crate::FixedPrecoloredSplitRequirementError;
+use register_homes::{
     FixedPrecoloredInterval, FixedPrecoloredRegisterSplitRequirements,
     FixedPrecoloredSourceFragmentRequirements, FixedPrecoloredSourceSegment,
-    FixedPrecoloredSourceSegmentId, FixedPrecoloredSourceSegmentOpening,
-    FixedPrecoloredSplitRequirementError, LiveRangeFragment, LiveRangePoint, VirtualLiveRange,
-    VirtualPointLegality, VirtualRegisterAllocationLegality,
+    FixedPrecoloredSourceSegmentId, FixedPrecoloredSourceSegmentOpening, VirtualPointLegality,
+    VirtualRegisterAllocationLegality,
 };
+use selected_instructions::{LiveRangeFragment, LiveRangePoint, VirtualLiveRange};
 
 use super::{cuts::CutIndex, topology, work::Work};
 

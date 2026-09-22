@@ -1,13 +1,5 @@
 //! Staged extension, copy, indexed load and byte view address inputs.
 
-use super::super::super::super::super::{
-    AllocationLegalityIdentity, AllocationLegalityPlan, AllocatorAvailabilityIdentity,
-    AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, FunctionAllocationLegality,
-    FunctionRecoveryClassification, FunctionSpillChoices, LiveRangeIdentity, LivenessIdentity,
-    PressureRecoveryClassification, RecoveryClassification, RecoveryClassificationIdentity,
-    RecoveryClassificationPlan, RecoveryClassificationPolicy, RecoveryFutureUse,
-    RecoveryVictimRole, SpillChoice, SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy,
-};
 use super::{Inputs, budget, successor, usage};
 use crate::{
     AllocationLegalityValidationReceipt, AllocatorAvailabilityValidationReceipt,
@@ -21,6 +13,14 @@ use crate::{
 use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
 use register_environment::baseline_target_register_environment;
+use register_homes::{
+    AllocationLegalityIdentity, AllocationLegalityPlan, AllocatorAvailabilityIdentity,
+    AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, FunctionAllocationLegality,
+    FunctionRecoveryClassification, FunctionSpillChoices, PressureRecoveryClassification,
+    RecoveryClassification, RecoveryClassificationIdentity, RecoveryClassificationPlan,
+    RecoveryClassificationPolicy, RecoveryFutureUse, RecoveryVictimRole, SpillChoice,
+    SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy,
+};
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
     BlockPointDomain, FunctionLiveRanges, LiveRangeFragment, LiveRangePlan, LiveRangePoint,
@@ -29,6 +29,7 @@ use selected_instructions::{
     SelectedInstructionProvenance, SelectedOperand, SelectedTerminator, VirtualLiveRange,
     VirtualOccurrence, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
+use selected_instructions::{LiveRangeIdentity, LivenessIdentity};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
     OperationId, ScalarType, ValueId,

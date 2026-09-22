@@ -85,7 +85,7 @@ impl StagedOptimizedAllocationLegality {
             }
             OptimizedAllocationLegalityCustodyFieldForTest::AllocatorAvailability => {
                 self.custody.allocator_availability =
-                    crate::AllocatorAvailabilityIdentity::from_bytes([0xb0; 32]);
+                    register_homes::AllocatorAvailabilityIdentity::from_bytes([0xb0; 32]);
             }
             OptimizedAllocationLegalityCustodyFieldForTest::Selected => {
                 self.custody.selected =
@@ -100,7 +100,8 @@ impl StagedOptimizedAllocationLegality {
                     selected_instructions::LiveRangeIdentity::from_bytes([0xab; 32]);
             }
             OptimizedAllocationLegalityCustodyFieldForTest::Legality => {
-                self.custody.legality = crate::AllocationLegalityIdentity::from_bytes([0xb1; 32]);
+                self.custody.legality =
+                    register_homes::AllocationLegalityIdentity::from_bytes([0xb1; 32]);
             }
             OptimizedAllocationLegalityCustodyFieldForTest::FunctionCount => {
                 self.custody.function_count += 1;

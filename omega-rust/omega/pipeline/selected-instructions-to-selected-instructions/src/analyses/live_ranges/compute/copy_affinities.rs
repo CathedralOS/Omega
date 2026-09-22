@@ -1,7 +1,8 @@
 //! Copy affinities observe existing register-to-register copies; they record a
 //! same-home preference for placement and never impose a constraint.
 
-use crate::{CopyAffinity, LiveRangeError};
+use crate::LiveRangeError;
+use selected_instructions::CopyAffinity;
 use selected_instructions::{SelectedFunction, SelectedInstructionKind};
 
 pub(super) fn derive(

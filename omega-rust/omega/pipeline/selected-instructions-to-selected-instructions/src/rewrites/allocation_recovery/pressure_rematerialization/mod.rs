@@ -3,11 +3,12 @@ use crate::ValidatedAllocationLegality;
 use crate::ValidatedAllocatorAvailability;
 use crate::ValidatedLiveRanges;
 use crate::ValidatedRecoveryClassifications;
+use crate::ValidatedSelectedAnalysis;
 use crate::ValidatedSpillChoices;
-use crate::{
+use register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
-    ValidatedRegisterReservationProfile, ValidatedSelectedAnalysis,
+    ValidatedRegisterReservationProfile,
 };
 
 pub(crate) mod compute;

@@ -1,11 +1,11 @@
-use crate::{
+use optimization_core::{OptimizationUnitIdentity, OptimizationWorkUsage};
+use register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedPrecoloredIntervalPlanIdentity,
     FixedPrecoloredSegmentHomePlan, FixedPrecoloredSegmentHomePlanIdentity,
     FixedPrecoloredSegmentHomePolicy, FixedPrecoloredSplitRequirementPlanIdentity,
-    LiveRangeIdentity,
 };
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkUsage};
 use register_model::TargetRegisterEnvironmentIdentity;
+use selected_instructions::LiveRangeIdentity;
 use semantic_vocabulary::FuelScheduleIdentity;
 use target::NativeTarget;
 

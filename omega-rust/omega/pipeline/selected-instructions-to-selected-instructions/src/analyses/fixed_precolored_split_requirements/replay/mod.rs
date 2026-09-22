@@ -10,11 +10,14 @@ mod work;
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
 use crate::{
-    FixedPrecoloredSplitRequirementError, FixedPrecoloredSplitRequirementPolicy,
-    FunctionAllocationLegality, FunctionFixedPrecoloredIntervals,
-    FunctionFixedPrecoloredSplitRequirements, FunctionLiveRanges, ValidatedAllocationLegality,
+    FixedPrecoloredSplitRequirementError, ValidatedAllocationLegality,
     ValidatedFixedPrecoloredIntervals, ValidatedLiveRanges,
 };
+use register_homes::{
+    FixedPrecoloredSplitRequirementPolicy, FunctionAllocationLegality,
+    FunctionFixedPrecoloredIntervals, FunctionFixedPrecoloredSplitRequirements,
+};
+use selected_instructions::FunctionLiveRanges;
 
 pub(super) struct ReplayedSplitRequirements {
     pub(super) functions: Vec<FunctionFixedPrecoloredSplitRequirements>,

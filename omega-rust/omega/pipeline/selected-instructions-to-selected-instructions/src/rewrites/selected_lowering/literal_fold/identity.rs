@@ -83,11 +83,14 @@ mod tests {
     use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 
     use crate::{
-        AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FunctionLiteralFold,
-        LiteralFoldAction, LiteralFoldDecodeError, LiteralFoldPlan, LiteralFoldPolicy,
-        LiveRangeIdentity, LiveRangePoint, RecoveryClassificationIdentity, SpillChoiceIdentity,
-        literal_fold_identity,
+        FunctionLiteralFold, LiteralFoldAction, LiteralFoldDecodeError, LiteralFoldPlan,
+        LiteralFoldPolicy, literal_fold_identity,
     };
+    use register_homes::{
+        AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RecoveryClassificationIdentity,
+        SpillChoiceIdentity,
+    };
+    use selected_instructions::{LiveRangeIdentity, LiveRangePoint};
 
     fn plan() -> LiteralFoldPlan {
         LiteralFoldPlan {

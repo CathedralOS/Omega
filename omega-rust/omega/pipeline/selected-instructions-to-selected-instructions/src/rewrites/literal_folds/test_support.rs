@@ -59,7 +59,7 @@ impl StagedOptimizedLiteralFolds {
             }
             OptimizedLiteralFoldCustodyFieldForTest::FinalLegality => {
                 self.custody.final_legality =
-                    crate::AllocationLegalityIdentity::from_bytes([0xb1; 32]);
+                    register_homes::AllocationLegalityIdentity::from_bytes([0xb1; 32]);
             }
             OptimizedLiteralFoldCustodyFieldForTest::FinalVirtualRegisterCount => {
                 self.custody.final_virtual_register_count += 1;
@@ -161,7 +161,9 @@ impl StagedSelectedLoweringOptimizationRun {
                     transformed_selected: attempt.transformed_selected,
                     fresh_liveness: selected_instructions::LivenessIdentity::from_bytes([0xaa; 32]),
                     fresh_ranges: selected_instructions::LiveRangeIdentity::from_bytes([0xab; 32]),
-                    fresh_legality: crate::AllocationLegalityIdentity::from_bytes([0xb1; 32]),
+                    fresh_legality: register_homes::AllocationLegalityIdentity::from_bytes(
+                        [0xb1; 32],
+                    ),
                 }];
             }
             SelectedLoweringOptimizationCustodyFieldForTest::Attempt => {
@@ -181,7 +183,7 @@ impl StagedSelectedLoweringOptimizationRun {
             }
             SelectedLoweringOptimizationCustodyFieldForTest::FinalLegality => {
                 self.custody.final_legality =
-                    crate::AllocationLegalityIdentity::from_bytes([0xb1; 32]);
+                    register_homes::AllocationLegalityIdentity::from_bytes([0xb1; 32]);
             }
             SelectedLoweringOptimizationCustodyFieldForTest::FinalVirtualRegisterCount => {
                 self.custody.final_virtual_register_count += 1;

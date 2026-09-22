@@ -2,10 +2,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use register_model::{RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel};
 
-use crate::{
-    FixedPrecoloredHomeDomainId, FixedPrecoloredSegmentHomeError, FunctionLiveRanges,
-    VirtualInterference,
-};
+use crate::FixedPrecoloredSegmentHomeError;
+use register_homes::FixedPrecoloredHomeDomainId;
+use selected_instructions::{FunctionLiveRanges, VirtualInterference};
 
 use super::{domains::Domain, work::Work};
 

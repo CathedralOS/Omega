@@ -9,12 +9,15 @@ mod work;
 use optimization_core::OptimizationWorkBudget;
 
 use crate::{
-    FixedPrecoloredIntervalPolicy, FixedPrecoloredSplitRequirementError,
-    FixedPrecoloredSplitRequirementPlan, FixedPrecoloredSplitRequirementPolicy,
-    FunctionAllocationLegality, FunctionFixedPrecoloredIntervals,
-    FunctionFixedPrecoloredSplitRequirements, FunctionLiveRanges, ValidatedAllocationLegality,
+    FixedPrecoloredSplitRequirementError, ValidatedAllocationLegality,
     ValidatedFixedPrecoloredIntervals, ValidatedLiveRanges,
 };
+use register_homes::{
+    FixedPrecoloredIntervalPolicy, FixedPrecoloredSplitRequirementPlan,
+    FixedPrecoloredSplitRequirementPolicy, FunctionAllocationLegality,
+    FunctionFixedPrecoloredIntervals, FunctionFixedPrecoloredSplitRequirements,
+};
+use selected_instructions::FunctionLiveRanges;
 
 pub(super) fn compute(
     ranges: &ValidatedLiveRanges,

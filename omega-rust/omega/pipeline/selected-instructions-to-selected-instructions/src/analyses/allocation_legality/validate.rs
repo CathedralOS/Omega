@@ -11,12 +11,14 @@ use register_model::{
 };
 
 use crate::{
-    AllocationLegalityError, AllocationLegalityPlan, AllocationLegalityValidationReceipt,
-    EntryFixedViewTransition, LiveRangePoint, ValidatedAllocationLegality,
-    ValidatedAllocatorAvailability, ValidatedLiveRanges, VirtualEarlyClobberPointLegality,
-    VirtualFixedConstraintSite, VirtualLiveRange, VirtualPointLegality,
-    VirtualRegisterAllocationLegality, allocation_legality_identity,
+    AllocationLegalityError, AllocationLegalityValidationReceipt, ValidatedAllocationLegality,
+    ValidatedAllocatorAvailability, ValidatedLiveRanges,
 };
+use register_homes::{
+    AllocationLegalityPlan, EntryFixedViewTransition, VirtualEarlyClobberPointLegality,
+    VirtualPointLegality, VirtualRegisterAllocationLegality, allocation_legality_identity,
+};
+use selected_instructions::{LiveRangePoint, VirtualFixedConstraintSite, VirtualLiveRange};
 
 #[allow(clippy::too_many_arguments)]
 pub fn validate_allocation_legality(
@@ -147,7 +149,7 @@ pub fn validate_allocation_legality(
 
 fn replay_register(
     function_index: usize,
-    function: &crate::FunctionLiveRanges,
+    function: &selected_instructions::FunctionLiveRanges,
     register: &VirtualLiveRange,
     availability: &ValidatedAllocatorAvailability,
     physical: &ValidatedPhysicalRegisterModel,
@@ -375,7 +377,7 @@ fn replay_register(
 #[cfg(test)]
 pub(crate) fn replay_register_for_test(
     function_index: usize,
-    function: &crate::FunctionLiveRanges,
+    function: &selected_instructions::FunctionLiveRanges,
     register: &VirtualLiveRange,
     availability: &ValidatedAllocatorAvailability,
     physical: &ValidatedPhysicalRegisterModel,
@@ -395,11 +397,11 @@ pub(crate) fn replay_register_for_test(
 #[cfg(test)]
 pub(crate) fn replay_function_for_test(
     function_index: usize,
-    function: &crate::FunctionLiveRanges,
+    function: &selected_instructions::FunctionLiveRanges,
     availability: &ValidatedAllocatorAvailability,
     physical: &ValidatedPhysicalRegisterModel,
     reservations: &ValidatedRegisterReservationProfile,
-) -> Result<crate::FunctionAllocationLegality, AllocationLegalityError> {
+) -> Result<register_homes::FunctionAllocationLegality, AllocationLegalityError> {
     let mut candidates = ReplayCandidates::new(function, physical, reservations);
     let virtual_registers = function
         .virtual_registers
@@ -415,7 +417,7 @@ pub(crate) fn replay_function_for_test(
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(crate::FunctionAllocationLegality {
+    Ok(register_homes::FunctionAllocationLegality {
         machine: function.machine,
         virtual_registers,
     })

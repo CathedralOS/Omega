@@ -1,14 +1,7 @@
 //! Staged add, subtract, divide and remainder inputs.
 
-use super::super::super::super::super::{
-    AllocationLegalityIdentity, AllocationLegalityPlan, AllocatorAvailabilityIdentity,
-    AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, FunctionAllocationLegality,
-    FunctionRecoveryClassification, FunctionSpillChoices, LiveRangeIdentity, LivenessIdentity,
-    PressureRecoveryClassification, RecoveryClassification, RecoveryClassificationIdentity,
-    RecoveryClassificationPlan, RecoveryClassificationPolicy, RecoveryFutureUse,
-    RecoveryVictimRole, SpillChoice, SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy,
-};
 use super::{Inputs, budget, successor, usage};
+use crate::analyses::machine_effects::machine_semantic_kind;
 use crate::{
     AllocationLegalityValidationReceipt, AllocatorAvailabilityValidationReceipt,
     FunctionLiteralFold, LiteralFoldIdentity, LiteralFoldPlan, LiteralFoldPolicy,
@@ -16,11 +9,19 @@ use crate::{
     RecoveryClassificationValidationReceipt, SpillChoiceValidationReceipt,
     ValidatedAllocationLegality, ValidatedAllocatorAvailability, ValidatedLiteralFold,
     ValidatedLiveRanges, ValidatedRecoveryClassifications, ValidatedSpillChoices,
-    machine_semantic_kind, validated_machine_effect_catalog,
+    validated_machine_effect_catalog,
 };
 use optimization_core::{AcceptedObligationFactIdentity, OptimizationUnitIdentity};
 use optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
 use register_environment::baseline_target_register_environment;
+use register_homes::{
+    AllocationLegalityIdentity, AllocationLegalityPlan, AllocatorAvailabilityIdentity,
+    AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, FunctionAllocationLegality,
+    FunctionRecoveryClassification, FunctionSpillChoices, PressureRecoveryClassification,
+    RecoveryClassification, RecoveryClassificationIdentity, RecoveryClassificationPlan,
+    RecoveryClassificationPolicy, RecoveryFutureUse, RecoveryVictimRole, SpillChoice,
+    SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy,
+};
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
     BlockPointDomain, FunctionLiveRanges, LiveRangeFragment, LiveRangePlan, LiveRangePoint,
@@ -29,6 +30,7 @@ use selected_instructions::{
     SelectedInstructionPlan, SelectedInstructionProvenance, SelectedOperand, SelectedTerminator,
     VirtualLiveRange, VirtualOccurrence, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
+use selected_instructions::{LiveRangeIdentity, LivenessIdentity};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
     ObligationId, OperationId, ScalarType, ValueId,

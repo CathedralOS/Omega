@@ -46,7 +46,7 @@ use selected_instructions::{
     MachineSemanticKind, MachineTrapBehavior, SelectedInstruction, SelectedInstructionKind,
 };
 
-use crate::machine_semantic_kind;
+use crate::analyses::machine_effects::machine_semantic_kind;
 
 /// The operand relationship the rewrite asserts: how the producer's
 /// projected register reaches the consumer's pointer operand and what the

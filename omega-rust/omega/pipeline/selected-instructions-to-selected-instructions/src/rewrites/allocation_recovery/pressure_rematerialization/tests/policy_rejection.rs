@@ -1,4 +1,4 @@
-use super::super::super::super::super::{PressureRecoveryClassification, RecoveryClassification};
+use register_homes::{PressureRecoveryClassification, RecoveryClassification};
 
 use optimization_core::OptimizationWorkBudget;
 use register_model::RegisterViewId;

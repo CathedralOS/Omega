@@ -8,7 +8,7 @@ use super::{
     block_domain, build_unit, compute_function, derive_early_clobbers, derive_tied_pairs,
     fragments_overlap, virtual_fragments,
 };
-use crate::{
+use selected_instructions::{
     BlockLiveness, FunctionLiveness, InstructionLiveness, LiveRangeFragment, LiveRangePoint,
     LivenessPosition, OperandPosition,
 };
@@ -227,10 +227,14 @@ fn parallel_early_definitions_keep_use_hazards_and_dead_definition_interference(
             end: LiveRangePoint(2),
         }]
     );
-    assert!(ranges.interference.contains(&crate::VirtualInterference {
-        lower: VirtualRegisterId(1),
-        higher: VirtualRegisterId(2)
-    }));
+    assert!(
+        ranges
+            .interference
+            .contains(&selected_instructions::VirtualInterference {
+                lower: VirtualRegisterId(1),
+                higher: VirtualRegisterId(2)
+            })
+    );
     assert!(ranges.tied_pairs.is_empty());
 }
 

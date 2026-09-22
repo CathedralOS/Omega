@@ -1,9 +1,10 @@
-use crate::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedPrecoloredIntervalPlan,
-    FixedPrecoloredIntervalPlanIdentity, FixedPrecoloredIntervalPolicy, LiveRangeIdentity,
-};
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
+use register_homes::{
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedPrecoloredIntervalPlan,
+    FixedPrecoloredIntervalPlanIdentity, FixedPrecoloredIntervalPolicy,
+};
 use register_model::TargetRegisterEnvironmentIdentity;
+use selected_instructions::LiveRangeIdentity;
 use semantic_vocabulary::FuelScheduleIdentity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,6 +1,6 @@
 //! Optimizer module role: executable entrance. Explicit allocator-view availability policy entrance.
 
-use crate::{
+use register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile,

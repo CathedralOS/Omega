@@ -77,20 +77,20 @@ fn replay_retains_the_explicit_duplicate_copy_transport() {
     assert!(replay_function(0, &selected).is_err());
 }
 
-fn ordinary_liveness(machine: MachineId) -> crate::FunctionLiveness {
-    crate::FunctionLiveness {
+fn ordinary_liveness(machine: MachineId) -> selected_instructions::FunctionLiveness {
+    selected_instructions::FunctionLiveness {
         machine,
         entry_definitions: Vec::new(),
         operand_positions: Vec::new(),
-        blocks: vec![crate::BlockLiveness {
+        blocks: vec![selected_instructions::BlockLiveness {
             block: SelectedBlockId(0),
             source_block: BlockId::new(machine.get()).unwrap(),
             virtual_live_in: Vec::new(),
             virtual_live_out: Vec::new(),
             unit_live_in: vec![RegisterUnitId(1)],
             unit_live_out: Vec::new(),
-            instructions: vec![crate::InstructionLiveness {
-                position: crate::LivenessPosition(0),
+            instructions: vec![selected_instructions::InstructionLiveness {
+                position: selected_instructions::LivenessPosition(0),
                 instruction: SelectedInstructionId(0),
                 virtual_uses: Vec::new(),
                 virtual_defs: Vec::new(),

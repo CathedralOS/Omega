@@ -1,8 +1,9 @@
 //! Optimizer module role: executable entrance. Deterministic bounded pressure-victim selection entrance.
 use crate::ValidatedAllocationLegality;
 use crate::ValidatedLiveRanges;
-use crate::{
-    SpillChoicePolicy, TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
+use register_homes::SpillChoicePolicy;
+use register_model::{
+    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile,
 };

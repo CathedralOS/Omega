@@ -2,17 +2,17 @@
 
 use std::collections::BTreeSet;
 
-use crate::{
-    ArchitecturalUnitAction, ArchitecturalUnitActionKind, ArchitecturalUnitLiveRange,
-    LiveRangeError,
-};
+use crate::LiveRangeError;
 use register_model::RegisterUnitId;
+use selected_instructions::{
+    ArchitecturalUnitAction, ArchitecturalUnitActionKind, ArchitecturalUnitLiveRange,
+};
 
 use super::fragments::{append_maximal, checked_after, checked_before, edge_row};
 
 pub(super) fn replay_all(
     function: usize,
-    live: &crate::FunctionLiveness,
+    live: &selected_instructions::FunctionLiveness,
 ) -> Result<Vec<ArchitecturalUnitLiveRange>, LiveRangeError> {
     let mut discovered_units = BTreeSet::new();
     for block in &live.blocks {
@@ -37,7 +37,7 @@ pub(super) fn replay_all(
 
 fn replay_unit(
     function: usize,
-    live: &crate::FunctionLiveness,
+    live: &selected_instructions::FunctionLiveness,
     unit: RegisterUnitId,
 ) -> Result<ArchitecturalUnitLiveRange, LiveRangeError> {
     let mut actions = Vec::new();

@@ -7,11 +7,14 @@ use register_model::{
 };
 
 use crate::{
-    FixedPrecoloredIntervalPolicy, FixedPrecoloredSegmentHomeError, FixedPrecoloredSegmentHomePlan,
-    FixedPrecoloredSegmentHomeValidationReceipt, FixedPrecoloredSplitRequirementPolicy,
+    FixedPrecoloredSegmentHomeError, FixedPrecoloredSegmentHomeValidationReceipt,
     ValidatedAllocationLegality, ValidatedFixedPrecoloredIntervals,
     ValidatedFixedPrecoloredSegmentHomes, ValidatedFixedPrecoloredSplitRequirements,
-    ValidatedLiveRanges, fixed_precolored_segment_home_plan_identity,
+    ValidatedLiveRanges,
+};
+use register_homes::{
+    FixedPrecoloredIntervalPolicy, FixedPrecoloredSegmentHomePlan,
+    FixedPrecoloredSplitRequirementPolicy, fixed_precolored_segment_home_plan_identity,
 };
 
 #[allow(clippy::too_many_arguments)]

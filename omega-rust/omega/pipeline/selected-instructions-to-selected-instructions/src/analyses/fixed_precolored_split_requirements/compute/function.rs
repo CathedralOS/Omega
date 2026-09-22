@@ -4,10 +4,12 @@ use std::collections::BTreeSet;
 
 use selected_instructions::VirtualRegisterId;
 
-use crate::{
-    FixedPrecoloredSplitRequirementError, FunctionAllocationLegality,
-    FunctionFixedPrecoloredIntervals, FunctionFixedPrecoloredSplitRequirements, FunctionLiveRanges,
+use crate::FixedPrecoloredSplitRequirementError;
+use register_homes::{
+    FunctionAllocationLegality, FunctionFixedPrecoloredIntervals,
+    FunctionFixedPrecoloredSplitRequirements,
 };
+use selected_instructions::FunctionLiveRanges;
 
 use super::{partition, work::Work};
 

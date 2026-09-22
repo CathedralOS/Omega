@@ -8,7 +8,8 @@ use register_model::{
 };
 use selected_instructions::SelectedBlockId;
 
-use crate::{AllocationLegalityError, FunctionLiveRanges, LiveRangePoint, VirtualLiveRange};
+use crate::AllocationLegalityError;
+use selected_instructions::{FunctionLiveRanges, LiveRangePoint, VirtualLiveRange};
 
 /// General candidates depend on the physical location and class, not the value
 /// visiting it. Keep only requested combinations while the function/environment

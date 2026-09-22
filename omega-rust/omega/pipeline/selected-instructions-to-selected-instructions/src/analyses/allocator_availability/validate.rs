@@ -6,9 +6,11 @@ use register_model::{
 use target::NativeTarget;
 
 use crate::{
-    AllocatorAvailabilityError, AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy,
-    AllocatorAvailabilityValidationReceipt, ValidatedAllocatorAvailability,
-    allocator_availability_identity,
+    AllocatorAvailabilityError, AllocatorAvailabilityValidationReceipt,
+    ValidatedAllocatorAvailability,
+};
+use register_homes::{
+    AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, allocator_availability_identity,
 };
 
 pub fn validate_allocator_availability(

@@ -3,9 +3,9 @@ use super::{
     policy_without, policy_without_all, restage_literal, staged_saturating_add_carrier_inputs,
     staged_saturating_add_inputs, staged_wrapping_add_inputs, staged_xor_inputs, validate,
 };
-use crate::RecoveryClassification;
 use crate::{LiteralFoldError, LiteralFoldPolicy, validated_machine_effect_catalog};
 use register_environment::baseline_target_register_environment;
+use register_homes::RecoveryClassification;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
     MachineEffectCatalogIdentity, SaturatingCarrier, SelectedInstruction, SelectedInstructionId,

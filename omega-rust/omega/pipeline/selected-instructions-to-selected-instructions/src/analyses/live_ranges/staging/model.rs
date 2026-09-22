@@ -1,10 +1,11 @@
-use crate::{LiveRangeError, LiveRangeIdentity, ValidatedLiveRanges, ValidatedLiveness};
+use crate::{LiveRangeError, ValidatedLiveRanges, ValidatedLiveness};
 use optimization_core::{
     OptimizationIdentityBundleIdentity, OptimizationSelections, OptimizationUnitIdentity,
     OptimizationWorkBudget, OptimizedAbstractPlanProjectionIdentity,
     PrePhysicalOptimizationManifestIdentity,
 };
 use register_environment::ValidatedTargetRegisterEnvironment;
+use selected_instructions::LiveRangeIdentity;
 use selected_instructions::SelectedInstructionPlanIdentity;
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
@@ -75,7 +76,7 @@ pub struct StagedOptimizedLiveRangeCustodyReceipt {
     pub(super) fuel_schedule: FuelScheduleIdentity,
     pub(super) register_environment: register_model::TargetRegisterEnvironmentIdentity,
     pub(super) selected: SelectedInstructionPlanIdentity,
-    pub(super) liveness: crate::LivenessIdentity,
+    pub(super) liveness: selected_instructions::LivenessIdentity,
     pub(super) ranges: LiveRangeIdentity,
     pub(super) function_count: usize,
     pub(super) block_count: usize,
@@ -132,7 +133,7 @@ impl StagedOptimizedLiveRangeCustodyReceipt {
         self.register_environment
     }
 
-    pub const fn liveness(self) -> crate::LivenessIdentity {
+    pub const fn liveness(self) -> selected_instructions::LivenessIdentity {
         self.liveness
     }
 

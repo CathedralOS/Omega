@@ -7,12 +7,13 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
 
+use crate::analyses::machine_effects::machine_semantic_kind;
 use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
 use crate::{
-    FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, RecoveryClassification,
-    RecoveryVictimRole, ValidatedRecoveryClassifications, ValidatedSelectedAnalysis,
-    machine_semantic_kind,
+    FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, ValidatedRecoveryClassifications,
+    ValidatedSelectedAnalysis,
 };
+use register_homes::{RecoveryClassification, RecoveryVictimRole};
 
 use super::constraints::{
     ValidationImmediateRows, dead_unit_defs_fold_admission, effect_declaration,
@@ -69,7 +70,7 @@ pub(super) fn reconstruct_literal_fold(
 fn reconstruct_action(
     function_index: usize,
     function: &SelectedFunction,
-    candidate: &crate::PressureRecoveryClassification,
+    candidate: &register_homes::PressureRecoveryClassification,
     rows: &ValidationImmediateRows<'_>,
 ) -> Result<LiteralFoldAction, LiteralFoldError> {
     if candidate.role != RecoveryVictimRole::Incoming {

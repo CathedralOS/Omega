@@ -7,10 +7,11 @@ use selected_instructions::{
 use semantic_vocabulary::{FuelScheduleIdentity, IntegerValue, MachineId, ValueId};
 
 use crate::rewrites::allocation_recovery::pressure_rematerialization::identity::encode_terminal_pressure_rematerialization_content;
-use crate::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LiveRangeIdentity, LiveRangePoint,
-    RecoveryClassificationIdentity, SpillChoiceIdentity,
+use register_homes::{
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RecoveryClassificationIdentity,
+    SpillChoiceIdentity,
 };
+use selected_instructions::{LiveRangeIdentity, LiveRangePoint};
 
 const MAGIC: &[u8; 8] = b"OMGREM\0\0";
 const VERSION: u32 = 2;

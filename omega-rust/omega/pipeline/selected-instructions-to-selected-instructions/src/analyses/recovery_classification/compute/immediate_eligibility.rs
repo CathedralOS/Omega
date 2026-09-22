@@ -7,18 +7,17 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{IntegerSign, ScalarType};
 
-use crate::{
-    NoAdmittedRecoveryReason, RecoveryClassification, RecoveryClassificationError,
-    RecoveryFutureUse, VirtualFixedConstraintSite,
-};
+use crate::RecoveryClassificationError;
+use register_homes::{NoAdmittedRecoveryReason, RecoveryClassification, RecoveryFutureUse};
+use selected_instructions::VirtualFixedConstraintSite;
 
 pub(super) fn classify(
     function: usize,
     selected: &selected_instructions::SelectedFunction,
-    ranges: &crate::FunctionLiveRanges,
-    choice: &crate::SpillChoice,
+    ranges: &selected_instructions::FunctionLiveRanges,
+    choice: &register_homes::SpillChoice,
     victim: &selected_instructions::VirtualRegister,
-    range: &crate::VirtualLiveRange,
+    range: &selected_instructions::VirtualLiveRange,
 ) -> Result<RecoveryClassification, RecoveryClassificationError> {
     if !is_fixed_unsigned_u64(victim.scalar_type) {
         return no_recovery(NoAdmittedRecoveryReason::UnsupportedScalarType);
@@ -140,10 +139,10 @@ fn unique_definition(
 fn future_uses(
     function: usize,
     selected: &selected_instructions::SelectedFunction,
-    ranges: &crate::FunctionLiveRanges,
-    choice: &crate::SpillChoice,
+    ranges: &selected_instructions::FunctionLiveRanges,
+    choice: &register_homes::SpillChoice,
     victim: VirtualRegisterId,
-    range: &crate::VirtualLiveRange,
+    range: &selected_instructions::VirtualLiveRange,
 ) -> Result<Vec<RecoveryFutureUse>, RecoveryClassificationError> {
     let mut uses = Vec::new();
     for occurrence in &range.occurrences {

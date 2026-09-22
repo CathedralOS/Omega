@@ -1,7 +1,8 @@
 //! The current allocator realizes live successor arguments by checked
 //! same-home assignment. This records the relation; it does not assume it.
 
-use crate::{EdgeRegisterTransfer, FunctionLiveness, LiveRangeError};
+use crate::LiveRangeError;
+use selected_instructions::{EdgeRegisterTransfer, FunctionLiveness};
 use selected_instructions::{SelectedFunction, SelectedTerminator, VirtualRegisterOrigin};
 
 pub(super) fn derive(

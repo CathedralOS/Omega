@@ -23,7 +23,7 @@ use selected_instructions::{
 use super::ProjectedAccessError;
 use super::pair::{ProjectedAccessRule, access_width, declared_consumer, projected_access_for};
 use crate::ValidatedSelectedAnalysis;
-use crate::machine_semantic_kind;
+use crate::analyses::machine_effects::machine_semantic_kind;
 
 /// One admitted projected-access pair: everything `rewrite` needs to
 /// rebuild the consumer instruction and everything `replay` needs to

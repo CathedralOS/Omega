@@ -3,10 +3,12 @@ use std::collections::BTreeMap;
 use register_model::{RegisterClassId, RegisterViewId};
 use selected_instructions::{SelectedBlockId, VirtualRegisterId};
 
-use crate::{
-    FixedPrecoloredHomeDomainId, FixedPrecoloredSegmentHomeError, FixedPrecoloredSourceSegmentId,
-    FixedPrecoloredSourceSegmentOpening, FunctionFixedPrecoloredSplitRequirements, LiveRangePoint,
+use crate::FixedPrecoloredSegmentHomeError;
+use register_homes::{
+    FixedPrecoloredHomeDomainId, FixedPrecoloredSourceSegmentId,
+    FixedPrecoloredSourceSegmentOpening, FunctionFixedPrecoloredSplitRequirements,
 };
+use selected_instructions::LiveRangePoint;
 
 use super::work::Work;
 

@@ -6,19 +6,20 @@ use super::{
     allocator_availability_identity, range, validate_physical_register_model,
     validate_register_reservation_profile,
 };
+use crate::AllocationLegalityError;
 use crate::ValidatedAllocatorAvailability;
-use crate::allocation_legality::compute::tests::availability;
-use crate::allocation_legality::compute::tests::early;
-use crate::allocation_legality::compute::tests::physical;
+use crate::analyses::allocation_legality::compute::tests::availability;
+use crate::analyses::allocation_legality::compute::tests::early;
+use crate::analyses::allocation_legality::compute::tests::physical;
 use crate::analyses::allocation_legality::validate::{
     replay_function_for_test, replay_register_for_test,
 };
-use crate::{
-    AllocationLegalityError, ArchitecturalUnitAction, ArchitecturalUnitActionKind,
-    ArchitecturalUnitLiveRange, FunctionAllocationLegality, VirtualFixedConstraint,
-    VirtualFixedConstraintSite,
-};
+use register_homes::FunctionAllocationLegality;
 use register_model::{RegisterReservationOverlay, ReservationReason};
+use selected_instructions::{
+    ArchitecturalUnitAction, ArchitecturalUnitActionKind, ArchitecturalUnitLiveRange,
+    VirtualFixedConstraint, VirtualFixedConstraintSite,
+};
 
 fn environment() -> register_model::ValidatedPhysicalRegisterModel {
     let mut model = physical().model().clone();

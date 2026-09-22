@@ -7,7 +7,7 @@ use super::{LiveRangeError, after_point, before_point, connector, fragments_from
 
 pub(super) fn architectural_units(
     function_index: usize,
-    liveness: &crate::FunctionLiveness,
+    liveness: &selected_instructions::FunctionLiveness,
 ) -> Result<Vec<ArchitecturalUnitLiveRange>, LiveRangeError> {
     let mut units = BTreeSet::new();
     for block in &liveness.blocks {
@@ -32,7 +32,7 @@ pub(super) fn architectural_units(
 
 pub(super) fn build_unit(
     function: usize,
-    liveness: &crate::FunctionLiveness,
+    liveness: &selected_instructions::FunctionLiveness,
     unit: RegisterUnitId,
 ) -> Result<ArchitecturalUnitLiveRange, LiveRangeError> {
     let mut actions = Vec::new();

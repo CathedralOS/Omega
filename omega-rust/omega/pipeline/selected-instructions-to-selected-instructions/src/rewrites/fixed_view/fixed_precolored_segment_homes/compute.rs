@@ -1,11 +1,13 @@
 use crate::{
-    FixedPrecoloredIntervalPolicy, FixedPrecoloredSegmentHomePolicy,
-    FixedPrecoloredSplitRequirementPolicy, ValidatedFixedPrecoloredIntervals,
-    ValidatedFixedPrecoloredSegmentHomes, ValidatedFixedPrecoloredSplitRequirements,
-    analyze_fixed_precolored_intervals, analyze_fixed_precolored_split_requirements,
-    assign_fixed_precolored_segment_homes,
+    ValidatedFixedPrecoloredIntervals, ValidatedFixedPrecoloredSegmentHomes,
+    ValidatedFixedPrecoloredSplitRequirements, analyze_fixed_precolored_intervals,
+    analyze_fixed_precolored_split_requirements, assign_fixed_precolored_segment_homes,
 };
 use optimization_core::OptimizationWorkBudget;
+use register_homes::{
+    FixedPrecoloredIntervalPolicy, FixedPrecoloredSegmentHomePolicy,
+    FixedPrecoloredSplitRequirementPolicy,
+};
 
 use crate::StagedOptimizedAllocationLegality;
 

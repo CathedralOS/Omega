@@ -3,9 +3,9 @@
 use register_model::{RegisterClass, RegisterViewId};
 
 use super::{fixed_views, view_candidates::CandidateViews};
-use crate::{
-    AllocationLegalityError, FunctionLiveRanges, VirtualEarlyClobberPointLegality, VirtualLiveRange,
-};
+use crate::AllocationLegalityError;
+use register_homes::VirtualEarlyClobberPointLegality;
+use selected_instructions::{FunctionLiveRanges, VirtualLiveRange};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn compute(

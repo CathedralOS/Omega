@@ -52,7 +52,7 @@ use selected_instructions::{
     SelectedOperand,
 };
 
-use crate::machine_semantic_kind;
+use crate::analyses::machine_effects::machine_semantic_kind;
 
 /// The operand relationship the rewrite asserts: which operand positions of
 /// the call may rebind to the copy's source register and what the rewritten

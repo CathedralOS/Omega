@@ -39,14 +39,6 @@ use staged_memory_inputs::{
     staged_extension_inputs, staged_load8_indexed_inputs,
 };
 
-use super::super::super::super::{
-    AllocationLegalityIdentity, AllocationLegalityPlan, AllocatorAvailabilityIdentity,
-    AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, FunctionAllocationLegality,
-    FunctionRecoveryClassification, FunctionSpillChoices, LiveRangeIdentity, LivenessIdentity,
-    PressureRecoveryClassification, RecoveryClassification, RecoveryClassificationIdentity,
-    RecoveryClassificationPlan, RecoveryClassificationPolicy, RecoveryFutureUse,
-    RecoveryVictimRole, SpillChoice, SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy,
-};
 use crate::{
     AllocationLegalityValidationReceipt, AllocatorAvailabilityValidationReceipt,
     FunctionLiteralFold, LiteralFoldError, LiteralFoldIdentity, LiteralFoldPlan, LiteralFoldPolicy,
@@ -63,6 +55,14 @@ use optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
 use register_environment::{
     ValidatedTargetRegisterEnvironment, baseline_target_register_environment,
 };
+use register_homes::{
+    AllocationLegalityIdentity, AllocationLegalityPlan, AllocatorAvailabilityIdentity,
+    AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, FunctionAllocationLegality,
+    FunctionRecoveryClassification, FunctionSpillChoices, PressureRecoveryClassification,
+    RecoveryClassification, RecoveryClassificationIdentity, RecoveryClassificationPlan,
+    RecoveryClassificationPolicy, RecoveryFutureUse, RecoveryVictimRole, SpillChoice,
+    SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy,
+};
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
     BlockPointDomain, FunctionLiveRanges, LiveRangeFragment, LiveRangePlan, LiveRangePoint,
@@ -72,6 +72,7 @@ use selected_instructions::{
     SelectedTerminator, VirtualLiveRange, VirtualOccurrence, VirtualRegister, VirtualRegisterId,
     VirtualRegisterOrigin,
 };
+use selected_instructions::{LiveRangeIdentity, LivenessIdentity};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
     OperationId, ScalarType, ValueId,

@@ -1,6 +1,7 @@
 //! Canonical ordering and maximality checks for retained replay rows.
 
-use crate::{FunctionLiveRanges, LiveRangeEdgeConnector, LiveRangeError, LiveRangeFragment};
+use crate::LiveRangeError;
+use selected_instructions::{FunctionLiveRanges, LiveRangeEdgeConnector, LiveRangeFragment};
 
 pub(super) fn validate(function: usize, actual: &FunctionLiveRanges) -> Result<(), LiveRangeError> {
     if actual
