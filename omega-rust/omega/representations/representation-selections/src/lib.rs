@@ -7,4 +7,8 @@
 //! Start at [`representation_selections::OpaqueRepresentationSelection`].
 
 pub mod representation_selections;
-pub use representation_selections::*;
+pub use representation_selections::{
+    OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION, OpaqueRepresentationApplicationOrigin,
+    OpaqueRepresentationCopyDisposition, OpaqueRepresentationLifecycleDisposition,
+    OpaqueRepresentationSelection, selected_application_commitment, selection_for_opaque,
+};
