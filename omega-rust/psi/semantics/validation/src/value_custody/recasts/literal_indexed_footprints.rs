@@ -66,6 +66,10 @@ pub fn validate_literal_indexed_recast_footprint(
     else {
         return None;
     };
+    let spelled_borrow_exclusive = match program.expression_table.expression(local.initial_value) {
+        ExpressionNode::Borrow(borrow) => Some(borrow.access.is_exclusive()),
+        _ => None,
+    };
     let initializer = strip_mutable(program, local.initial_value);
     let ExpressionNode::Cast(cast) = program.expression_table.expression(initializer) else {
         return None;
@@ -83,6 +87,7 @@ pub fn validate_literal_indexed_recast_footprint(
         initializer,
         *referee,
         access.is_exclusive(),
+        spelled_borrow_exclusive,
         &mut diagnostics,
     );
     if !diagnostics.is_empty() {

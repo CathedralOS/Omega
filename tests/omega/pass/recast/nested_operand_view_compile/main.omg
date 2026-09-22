@@ -1,0 +1,11 @@
+// PASS CANARY (checked route): representation recasts compose as nested
+// operands inside an ordinary binary expression, in both shared (`as &`)
+// and mutable (`as &mut`) spellings. A mutable view read through an
+// expression position re-reads the same backing place; no reference-typed
+// `let` binding is required.
+data Bits { x: i32; y: u32; }
+
+machine Bits::go(&mut self) {
+    self.y = (self.x & 0xffff) & (&self.x as &u32);
+    self.y = self.y & (&mut self.x as &mut u32);
+}

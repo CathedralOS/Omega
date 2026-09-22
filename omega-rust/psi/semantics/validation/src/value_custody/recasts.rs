@@ -25,12 +25,16 @@
 //!   Lowering is address identity:
 //!   native reads/writes the place through the stated type; the interpreter
 //!   bit-reinterprets both sides of the alias or assembles/writes the complete
-//!   little-endian byte-region footprint.
+//!   little-endian byte-region footprint. The judgment is position-free:
+//!   statement-reachable casts in guard operands, call arguments, and nested
+//!   expressions receive the same relation in place.
 //! - **Fenced (deeper byte-view rung, L4/L5):** remaining dynamically-sized
 //!   shapes beyond complete-source and proven interior unsized slices
-//!   (byte-granular tiling over plan-laid layouts), and recasts in non-let
-//!   positions. A runtime interior byte offset cannot establish multi-byte
-//!   element tiling until its congruence is proved; an exact offset can.
+//!   (byte-granular tiling over plan-laid layouts), and recasts in proof-only
+//!   ground (`requires`/`ensures` facts and contract expressions produce no
+//!   runtime borrow). A runtime interior byte offset cannot establish
+//!   multi-byte element tiling until its congruence is proved; an exact
+//!   offset can.
 //! - **Refused absolutely:** targets that would ESTABLISH a fact the bytes
 //!   don't prove (`bool`'s 0/1, text encodings) -- establishing facts is a
 //!   MINT's job (fallible, case-returning), never a recast's.
@@ -143,7 +147,14 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
                     // The `&mut x as &mut T` spelling parses as
                     // Mutable(Cast(..)): the unary `&mut` wraps the postfix
                     // chain. Look through it so the blessed root is the CAST
-                    // node the sweep checks.
+                    // node the sweep checks. The outermost Borrow still
+                    // spells the authored source access: `&x as &mut T`
+                    // would mint an exclusive view from a shared borrow.
+                    let spelled_borrow_exclusive =
+                        match program.expression_table.expression(local.initial_value) {
+                            ExpressionNode::Borrow(borrow) => Some(borrow.access.is_exclusive()),
+                            _ => None,
+                        };
                     let initializer = strip_mutable(program, local.initial_value);
                     match program.expression_table.expression(initializer) {
                         ExpressionNode::Cast(cast) if cast.form.is_recast() => {
@@ -162,6 +173,7 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
                                     initializer,
                                     *referee,
                                     access.is_exclusive(),
+                                    spelled_borrow_exclusive,
                                     diagnostics,
                                 );
                             }
@@ -190,9 +202,18 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
                 // excluded: they do not produce runtime borrows.
                 let mut roots: Vec<ExpressionHandle> = Vec::new();
                 statement_expression_roots(program, statement, &mut roots);
-                let mut pending = roots;
-                while let Some(handle) = pending.pop() {
+                // Each entry carries the access of its nearest enclosing
+                // Borrow: the authored `&`/`&mut` source spelling of a recast
+                // operand must agree with the view polarity the `as` form
+                // claims (`&x as &mut T` is escalation, not a shared view).
+                let mut pending: Vec<(ExpressionHandle, Option<bool>)> =
+                    roots.iter().map(|root| (*root, None)).collect();
+                while let Some((handle, enclosing_borrow)) = pending.pop() {
                     let node = program.expression_table.expression(handle);
+                    let enclosing_borrow = match node {
+                        ExpressionNode::Borrow(borrow) => Some(borrow.access.is_exclusive()),
+                        _ => enclosing_borrow,
+                    };
                     if let ExpressionNode::Cast(cast) = node
                         && cast.form.is_recast()
                         && !blessed.contains(&handle)
@@ -212,8 +233,8 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
                                 cast,
                                 handle,
                                 cast.target_type,
-                                cast.form
-                                    == language_core::cast_form::CastForm::RecastMutable,
+                                cast.form == language_core::cast_form::CastForm::RecastMutable,
+                                enclosing_borrow,
                                 diagnostics,
                             );
                         }
@@ -221,7 +242,7 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
                     crate::value_custody::literals::expression_children::children(
                         program,
                         node,
-                        |child| pending.push(child),
+                        |child| pending.push((child, enclosing_borrow)),
                     );
                 }
             }
@@ -241,8 +262,9 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
         {
             diagnostics.push(
                 Diagnostic::error(
-                    "a recast binds to a reference-typed let (`let v: &T = &x as &T;`) in this \
-                     rung; inline re-views land with the byte-view rung"
+                    "a recast re-views storage at an executable position (`let v: &T = &x as &T`, \
+                     a guard operand, a call argument, a nested expression); proof-only fact \
+                     positions (`requires`/`ensures`) produce no runtime borrow and stay fenced"
                         .to_string(),
                 )
                 .with_source_span(program.expression_table.source_span(handle)),

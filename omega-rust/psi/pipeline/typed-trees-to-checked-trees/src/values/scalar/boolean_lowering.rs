@@ -70,6 +70,22 @@ pub(crate) fn lower_boolean_expression(
     ) {
         return Some(*read);
     }
+    // A `&place as &bool` operand re-views its source place under the bool
+    // carrier (§5b address identity): the checked form is the source place's
+    // own read retagged to bool. Validation already proved the
+    // representation relation.
+    if let Some(read) = crate::values::scalar::scalar_lowering::lower_recast_boolean_operand(
+        program,
+        operators,
+        expression,
+        parameters,
+        authored_parameters,
+        parameter_types,
+        locals,
+        exact_integer_casts,
+    ) {
+        return Some(read);
+    }
     if let Some(membership) = case_membership::lower(program, authored_parameters, expression) {
         return Some(membership);
     }
