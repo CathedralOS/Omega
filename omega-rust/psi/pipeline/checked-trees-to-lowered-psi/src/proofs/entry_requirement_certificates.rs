@@ -20,7 +20,7 @@ use proof_admission::{
     CheckedPredicateDenotations, PredicateDenotationError, PrimitiveJudgment, ProofNode, ProofRule,
     check_predicate_denotations, check_predicate_denotations_with_value_equalities,
 };
-use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ScalarType};
+use semantic_vocabulary::{Proposition, PropositionContext};
 
 const MAXIMUM_SEARCH_STEPS: usize = 4096;
 const MAXIMUM_PROOF_DEPTH: usize = 64;
@@ -353,44 +353,6 @@ fn common_consequence(
         }
         _ => None,
     }
-}
-
-// The crash predicate vocabulary has no general negation constructor. Form
-// the exact complement of supported scalar propositions; Boolean comparisons
-// retain their operands and use the proof owner's checked denotation rules.
-// No float, opaque, content or case law is inferred here.
-fn opposite(proposition: &Proposition, remaining: &mut usize, depth: usize) -> Option<Proposition> {
-    step(remaining, depth)?;
-    Some(match proposition {
-        Proposition::Truth => Proposition::Falsehood,
-        Proposition::Falsehood => Proposition::Truth,
-        Proposition::LessThan(left, right) => Proposition::LessOrEqual(right.clone(), left.clone()),
-        Proposition::LessOrEqual(left, right) => Proposition::LessThan(right.clone(), left.clone()),
-        Proposition::Equal(left, right) => {
-            let comparison = match left.scalar_type() {
-                ScalarType::Boolean => {
-                    ScalarTerm::boolean_equal(left.clone(), right.clone()).ok()?
-                }
-                ScalarType::Integer(integer_type) => {
-                    ScalarTerm::integer_equal(integer_type, left.clone(), right.clone()).ok()?
-                }
-                _ => return None,
-            };
-            Proposition::Equal(comparison, ScalarTerm::boolean(false))
-        }
-        Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
-            let alternatives = children
-                .iter()
-                .map(|child| opposite(child, remaining, depth + 1))
-                .collect::<Option<Vec<_>>>()?;
-            if matches!(proposition, Proposition::Conjunction(_)) {
-                Proposition::Disjunction(alternatives)
-            } else {
-                Proposition::Conjunction(alternatives)
-            }
-        }
-        _ => return None,
-    })
 }
 
 fn step(remaining: &mut usize, depth: usize) -> Option<()> {
