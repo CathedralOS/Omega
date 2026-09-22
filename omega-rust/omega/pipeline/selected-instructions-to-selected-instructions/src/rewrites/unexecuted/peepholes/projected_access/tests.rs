@@ -1,10 +1,10 @@
 use crate::ValidatedSelectedAnalysis;
+use crate::analyses::validated_machine_effect_catalog;
 use crate::rewrites::unexecuted::peepholes::ProjectedAccessError;
 use crate::rewrites::unexecuted::peepholes::ProjectedAccessReceipt;
 use crate::rewrites::unexecuted::peepholes::ValidatedProjectedAccess;
 use crate::rewrites::unexecuted::peepholes::fold_selected_projected_access;
 use crate::rewrites::unexecuted::peepholes::validate_projected_access_fold;
-use crate::validated_machine_effect_catalog;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::ValueDefinitionSite;
 use register_environment::{

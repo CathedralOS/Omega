@@ -1,6 +1,6 @@
+use crate::analyses::validate_allocator_availability;
 use crate::{
     ValidatedAllocationLegality, ValidatedAllocatorAvailability, validate_allocation_legality,
-    validate_allocator_availability,
 };
 
 use crate::{StagedOptimizedLiveRanges, validate_optimized_live_range_custody};

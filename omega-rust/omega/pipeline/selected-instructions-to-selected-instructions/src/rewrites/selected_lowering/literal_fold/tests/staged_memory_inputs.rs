@@ -1,6 +1,7 @@
 //! Staged extension, copy, indexed load and byte view address inputs.
 
 use super::{Inputs, budget, successor, usage};
+use crate::analyses::validated_machine_effect_catalog;
 use crate::{
     AllocationLegalityValidationReceipt, AllocatorAvailabilityValidationReceipt,
     FunctionLiteralFold, LiteralFoldIdentity, LiteralFoldPlan, LiteralFoldPolicy,
@@ -8,7 +9,6 @@ use crate::{
     RecoveryClassificationValidationReceipt, SpillChoiceValidationReceipt,
     ValidatedAllocationLegality, ValidatedAllocatorAvailability, ValidatedLiteralFold,
     ValidatedLiveRanges, ValidatedRecoveryClassifications, ValidatedSpillChoices,
-    validated_machine_effect_catalog,
 };
 use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};

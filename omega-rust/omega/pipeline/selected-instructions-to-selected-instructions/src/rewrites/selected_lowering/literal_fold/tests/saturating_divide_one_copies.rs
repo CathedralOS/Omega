@@ -4,7 +4,8 @@ use super::{
     staged_saturating_divide_inputs, staged_saturating_subtract_inputs, staged_wrapping_add_inputs,
     validate,
 };
-use crate::{LiteralFoldError, LiteralFoldPolicy, validated_machine_effect_catalog};
+use crate::analyses::validated_machine_effect_catalog;
+use crate::{LiteralFoldError, LiteralFoldPolicy};
 use optimization_core::AcceptedObligationFactIdentity;
 use register_environment::baseline_target_register_environment;
 use register_homes::RecoveryClassification;

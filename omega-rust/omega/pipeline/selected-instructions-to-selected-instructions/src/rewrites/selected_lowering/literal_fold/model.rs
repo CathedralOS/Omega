@@ -534,7 +534,7 @@ pub struct LiteralFoldPlan {
 impl LiteralFoldPlan {
     pub fn encode(&self) -> Vec<u8> {
         let content = encode_terminal_literal_fold_content(self);
-        let identity = crate::literal_fold_identity(self);
+        let identity = crate::rewrites::literal_fold_identity(self);
         let mut encoded = Vec::with_capacity(44 + content.len());
         encoded.extend_from_slice(LITERAL_FOLD_MAGIC);
         encoded.extend_from_slice(&LITERAL_FOLD_VERSION.to_le_bytes());
@@ -622,7 +622,7 @@ impl LiteralFoldPlan {
             functions,
             transformed_selected,
         };
-        if crate::literal_fold_identity(&plan) != identity {
+        if crate::rewrites::literal_fold_identity(&plan) != identity {
             return Err(LiteralFoldDecodeError::IdentityMismatch);
         }
         Ok(plan)

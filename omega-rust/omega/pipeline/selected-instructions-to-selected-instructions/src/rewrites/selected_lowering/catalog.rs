@@ -228,7 +228,7 @@ pub const SELECTED_LOWERING_RULE_CATALOG: [SelectedLoweringRuleCatalogEntry; 23]
 ];
 
 /// Descriptors of every catalog row enabled by `policy`, in catalog order.
-pub fn enabled_pair_rules(
+pub(crate) fn enabled_pair_rules(
     policy: LiteralFoldPolicy,
 ) -> impl Iterator<Item = SelectedInstructionPairRule> {
     SELECTED_LOWERING_RULE_CATALOG

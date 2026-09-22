@@ -1,6 +1,7 @@
 use crate::{ValidatedLiveRanges, validate_live_ranges};
 
-use crate::{StagedOptimizedLiveness, validate_staged_optimized_liveness_custody};
+use crate::StagedOptimizedLiveness;
+use crate::analyses::validate_staged_optimized_liveness_custody;
 
 use super::custody::live_range_custody_receipt;
 use super::model::{OptimizedLiveRangeCustodyError, StagedOptimizedLiveRangeCustodyReceipt};

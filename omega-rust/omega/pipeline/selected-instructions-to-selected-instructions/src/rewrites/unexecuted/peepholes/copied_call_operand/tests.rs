@@ -1,10 +1,10 @@
 use crate::ValidatedSelectedAnalysis;
+use crate::analyses::validated_machine_effect_catalog;
 use crate::rewrites::unexecuted::peepholes::CopiedCallOperandError;
 use crate::rewrites::unexecuted::peepholes::CopiedCallOperandReceipt;
 use crate::rewrites::unexecuted::peepholes::ValidatedCopiedCallOperand;
 use crate::rewrites::unexecuted::peepholes::fold_selected_copied_call_operand;
 use crate::rewrites::unexecuted::peepholes::validate_copied_call_operand_fold;
-use crate::validated_machine_effect_catalog;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::ValueDefinitionSite;
 use register_environment::{

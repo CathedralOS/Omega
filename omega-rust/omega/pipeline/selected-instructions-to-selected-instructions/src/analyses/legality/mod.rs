@@ -30,7 +30,7 @@ pub fn stage_optimized_allocation_legality(
 
 /// Restrict unconstrained allocation to the selected convention's caller-saved
 /// units while preserving authoritative fixed ABI and operand views.
-pub fn stage_optimized_allocation_legality_for_frameless_leaf(
+pub(crate) fn stage_optimized_allocation_legality_for_frameless_leaf(
     ranges: StagedOptimizedLiveRanges,
 ) -> Result<StagedOptimizedAllocationLegality, OptimizedAllocationLegalityCustodyError> {
     let availability = policies::frameless_leaf_caller_saved_views(&ranges)?;

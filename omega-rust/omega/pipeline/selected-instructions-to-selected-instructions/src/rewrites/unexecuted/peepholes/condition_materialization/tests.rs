@@ -1,10 +1,10 @@
 use crate::ValidatedSelectedAnalysis;
+use crate::analyses::validated_machine_effect_catalog;
 use crate::rewrites::unexecuted::peepholes::ConditionMaterializationError;
 use crate::rewrites::unexecuted::peepholes::ConditionMaterializationReceipt;
 use crate::rewrites::unexecuted::peepholes::ValidatedConditionMaterialization;
 use crate::rewrites::unexecuted::peepholes::fold_selected_condition_materialization;
 use crate::rewrites::unexecuted::peepholes::validate_condition_materialization_fold;
-use crate::validated_machine_effect_catalog;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::ValueDefinitionSite;
 use register_environment::{

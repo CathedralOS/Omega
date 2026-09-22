@@ -39,6 +39,8 @@ use staged_memory_inputs::{
     staged_extension_inputs, staged_load8_indexed_inputs,
 };
 
+use crate::analyses::validated_machine_effect_catalog;
+use crate::rewrites::{fold_selected_incoming_literal, validate_literal_fold};
 use crate::{
     AllocationLegalityValidationReceipt, AllocatorAvailabilityValidationReceipt,
     FunctionLiteralFold, LiteralFoldError, LiteralFoldIdentity, LiteralFoldPlan, LiteralFoldPolicy,
@@ -47,8 +49,7 @@ use crate::{
     ValidatedAllocationLegality, ValidatedAllocatorAvailability, ValidatedLiteralFold,
     ValidatedLiveRanges, ValidatedRecoveryClassifications, ValidatedSpillChoices,
     analyze_allocation_legality, analyze_live_ranges, analyze_liveness, choose_spill_victims,
-    classify_pressure_recovery, fold_selected_incoming_literal, materialize_allocator_availability,
-    validate_literal_fold, validated_machine_effect_catalog,
+    classify_pressure_recovery, materialize_allocator_availability,
 };
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};

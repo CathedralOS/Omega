@@ -13,7 +13,8 @@ use super::{
     PairOperandShape, PairResultDisposition, PairUnitEffects, SELECTED_LOWERING_RULE_CATALOG,
     SelectedInstructionPairRule, enabled_pair_rules, resolve_selected_lowering_rules,
 };
-use crate::{RegisterAllocationRuleTargetApplicability, validated_machine_effect_catalog};
+use crate::RegisterAllocationRuleTargetApplicability;
+use crate::analyses::validated_machine_effect_catalog;
 
 #[test]
 fn catalog_exactly_matches_the_selected_lowering_vocabulary() {

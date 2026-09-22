@@ -9,9 +9,10 @@ use selected_instructions::{
     ValidatedMachineEffectCatalog,
 };
 
+use crate::rewrites::enabled_pair_rules;
 use crate::{
     LiteralFoldError, LiteralFoldPolicy, PairOperandShape, PairResultDisposition,
-    SelectedInstructionPairRule, enabled_pair_rules,
+    SelectedInstructionPairRule,
 };
 
 /// One policy-enabled catalog row bound to its constraint-catalog row and to

@@ -1244,7 +1244,7 @@ fn machine_construction_precedes_and_does_not_depend_on_optimization() {
     for (owner, entry) in [
         (
             "selected-instructions-to-selected-instructions",
-            "pub fn analyze_pre_allocation_machine_effects",
+            "pub(crate) fn analyze_pre_allocation_machine_effects",
         ),
         (
             "register-homes-to-post-allocation-machine",

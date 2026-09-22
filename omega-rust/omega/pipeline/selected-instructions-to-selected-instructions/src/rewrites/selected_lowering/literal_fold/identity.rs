@@ -2,7 +2,7 @@ use selected_instructions::LiteralFoldIdentity;
 
 use crate::LiteralFoldPlan;
 
-pub fn literal_fold_identity(plan: &LiteralFoldPlan) -> LiteralFoldIdentity {
+pub(crate) fn literal_fold_identity(plan: &LiteralFoldPlan) -> LiteralFoldIdentity {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(b"omega.terminal-literal-fold.v7\0");
     bytes.extend_from_slice(&encode_terminal_literal_fold_content(plan));
@@ -82,9 +82,10 @@ mod tests {
     };
     use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 
+    use crate::rewrites::literal_fold_identity;
     use crate::{
         FunctionLiteralFold, LiteralFoldAction, LiteralFoldDecodeError, LiteralFoldPlan,
-        LiteralFoldPolicy, literal_fold_identity,
+        LiteralFoldPolicy,
     };
     use register_homes::{
         AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RecoveryClassificationIdentity,

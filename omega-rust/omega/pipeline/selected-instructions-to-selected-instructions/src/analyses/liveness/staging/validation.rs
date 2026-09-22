@@ -30,7 +30,7 @@ pub fn validate_optimized_liveness_custody(
 
 /// Re-verify one admitted liveness staging against the retained producer
 /// evidence it carries.
-pub fn validate_staged_optimized_liveness_custody(
+pub(crate) fn validate_staged_optimized_liveness_custody(
     liveness: &StagedOptimizedLiveness,
 ) -> Result<StagedOptimizedLivenessCustodyReceipt, OptimizedLivenessCustodyError> {
     validate_optimized_liveness_custody(liveness.selected_stage(), liveness.liveness())

@@ -3,10 +3,9 @@ use super::{
     staged_byte_view_address_backing_inputs, staged_byte_view_address_inputs, staged_divide_inputs,
     staged_inputs, staged_load8_indexed_inputs, validate,
 };
-use crate::{
-    LiteralFoldError, LiteralFoldPolicy, fold_selected_incoming_literal, validate_literal_fold,
-    validated_machine_effect_catalog,
-};
+use crate::analyses::validated_machine_effect_catalog;
+use crate::rewrites::{fold_selected_incoming_literal, validate_literal_fold};
+use crate::{LiteralFoldError, LiteralFoldPolicy};
 use register_environment::baseline_target_register_environment;
 use register_homes::{RecoveryClassification, RecoveryVictimRole};
 use register_model::RegisterOperandAccess;

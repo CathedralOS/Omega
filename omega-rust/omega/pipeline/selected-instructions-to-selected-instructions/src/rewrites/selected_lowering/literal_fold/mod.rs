@@ -20,10 +20,10 @@ pub(crate) mod validate;
 #[cfg(test)]
 mod tests;
 
-pub use identity::literal_fold_identity;
+pub(crate) use identity::literal_fold_identity;
 pub use model::*;
 pub use pair_rule::*;
-pub use validate::validate_literal_fold;
+pub(crate) use validate::validate_literal_fold;
 
 /// Fold one classified incoming literal into its immediately following enabled
 /// consumer: an unsigned-12-bit literal at either operand of the commutative
@@ -125,7 +125,7 @@ pub use validate::validate_literal_fold;
 /// position-disjoint from the zero-minuend sibling at operand 0, and
 /// admits no signed carrier, where `x -| MAX` is `x - MAX` clamped to
 /// the carrier's lower bound for every negative `x`, not a constant.
-pub fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
+pub(crate) fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
     selected: &S,
     ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,

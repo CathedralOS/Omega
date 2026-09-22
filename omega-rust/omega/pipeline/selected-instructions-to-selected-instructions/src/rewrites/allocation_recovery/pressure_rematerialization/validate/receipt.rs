@@ -1,7 +1,5 @@
-use crate::{
-    PressureRematerializationPlan, PressureRematerializationValidationReceipt,
-    pressure_rematerialization_identity,
-};
+use crate::rewrites::pressure_rematerialization_identity;
+use crate::{PressureRematerializationPlan, PressureRematerializationValidationReceipt};
 
 pub(super) fn bind(
     plan: &PressureRematerializationPlan,
