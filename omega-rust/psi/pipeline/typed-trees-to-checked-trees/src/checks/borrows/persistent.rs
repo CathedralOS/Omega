@@ -10,6 +10,7 @@
 //! a persistent owner's loan through every outgoing transition.
 
 use diagnostics::Diagnostic;
+use language_core::receiver_place_label;
 use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
@@ -780,10 +781,9 @@ fn static_path_frame_aliases(
             StaticPersistentSegment::Case(_) => break,
         }
     }
-    vec![
-        format!("{root_name}{suffix}"),
-        format!("self.{root_name}{suffix}"),
-    ]
+    let field_path = format!("{root_name}{suffix}");
+    let receiver_path = receiver_place_label(&field_path);
+    vec![field_path, receiver_path]
 }
 
 fn data_field_name(program: &typed_trees::TypedTrees, symbol: SymbolHandle) -> Option<&str> {

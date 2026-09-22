@@ -11,6 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 arena = { path = "../../foundation/arena" }
 diagnostics = { path = "../../foundation/diagnostics" }
+language-core = { path = "../../foundation/language-core" }
 language-semantics = { path = "../../foundation/language-semantics" }
 numerics = { path = "../../foundation/numerics" }
 proof-admission = { path = "../proof-admission" }

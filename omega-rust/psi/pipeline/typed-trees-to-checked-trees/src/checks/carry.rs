@@ -1,5 +1,6 @@
 use diagnostics::Diagnostic;
 use facts::{FactPayload, FactPlace, QualificationEvidence};
+use language_core::receiver_place_label;
 use language_semantics::{CarryPolicy, CarrySuspension};
 
 mod activation;
@@ -582,7 +583,7 @@ fn append_persistent_field_if_live(
     ) {
         return;
     }
-    let display_name = format!("self.{field_name}");
+    let display_name = receiver_place_label(field_name);
     append_if_suspension_forbidden(
         program,
         machine,

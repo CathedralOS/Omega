@@ -1,3 +1,4 @@
+use language_core::receiver_place_field;
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -735,16 +736,20 @@ fn parse_counter_relational_upper(
         == Some(CollectionMeasure::Length)
     {
         let collection = program.expression_table.display_name(member.receiver);
-        return collection.starts_with("self.").then_some(RelationalUpper {
-            term: UpperTerm::CollectionLength(collection),
-            strict,
-        });
+        return receiver_place_field(&collection)
+            .is_some()
+            .then_some(RelationalUpper {
+                term: UpperTerm::CollectionLength(collection),
+                strict,
+            });
     }
     let bound = program.expression_table.display_name(possible_length);
-    bound.starts_with("self.").then_some(RelationalUpper {
-        term: UpperTerm::Place(bound),
-        strict,
-    })
+    receiver_place_field(&bound)
+        .is_some()
+        .then_some(RelationalUpper {
+            term: UpperTerm::Place(bound),
+            strict,
+        })
 }
 
 /// Finite upper-bound chains named by authored machine-arrival requirements,
@@ -851,7 +856,7 @@ fn collect_authored_upper_relations(
                 _ => return,
             };
             let lower = program.expression_table.display_name(possible_lower);
-            if !lower.starts_with("self.") {
+            if receiver_place_field(&lower).is_none() {
                 return;
             }
             let upper = authored_upper_term(program, possible_upper);
@@ -879,13 +884,13 @@ fn authored_upper_term(
         == Some(CollectionMeasure::Length)
     {
         let collection = program.expression_table.display_name(member.receiver);
-        return collection
-            .starts_with("self.")
+        return receiver_place_field(&collection)
+            .is_some()
             .then_some(UpperTerm::CollectionLength(collection));
     }
     let place = program.expression_table.display_name(expression);
-    place
-        .starts_with("self.")
+    receiver_place_field(&place)
+        .is_some()
         .then_some(UpperTerm::Place(place))
 }
 

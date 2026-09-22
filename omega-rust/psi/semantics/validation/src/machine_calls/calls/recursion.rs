@@ -5,6 +5,7 @@
 //! validator controls traversal and diagnostic ordering.
 
 use diagnostics::Diagnostic;
+use language_core::receiver_place_label;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
@@ -145,7 +146,8 @@ fn whole_expression_self_call(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return None;
     };
-    is_self_entry_call(program, entry_name, call).then(|| format!("self.{entry_name}(..)"))
+    is_self_entry_call(program, entry_name, call)
+        .then(|| format!("{}(..)", receiver_place_label(entry_name)))
 }
 
 fn is_self_entry_call(program: &TypedTrees, entry_name: &str, call: &TableCallExpression) -> bool {

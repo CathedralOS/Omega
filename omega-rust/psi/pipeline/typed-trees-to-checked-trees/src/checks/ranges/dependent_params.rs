@@ -12,6 +12,7 @@
 //! (types.rs) independently carries the tight bound either way.
 
 use super::facts::RangeFacts;
+use language_core::receiver_place_label;
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -56,7 +57,7 @@ pub(in crate::checks::ranges) fn seed_dependent_param_orderings(
         }
         facts.prove_at_most(
             parameter.name.as_str().to_owned(),
-            format!("self.{}", field.as_str()),
+            receiver_place_label(field.as_str()),
         );
     }
 }

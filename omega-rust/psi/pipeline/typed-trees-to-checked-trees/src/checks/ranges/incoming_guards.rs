@@ -1,3 +1,4 @@
+use language_core::receiver_place_field;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -859,7 +860,7 @@ fn state_writes(
 
         if let StatementNode::Assignment(assignment) = statement {
             let target = program.expression_table.display_name(assignment.target);
-            if target.starts_with("self.") && !paths.contains(&target) {
+            if receiver_place_field(&target).is_some() && !paths.contains(&target) {
                 paths.push(target);
             }
         }
@@ -895,7 +896,7 @@ fn collect_member_paths(
     match program.expression_table.expression(expression) {
         ExpressionNode::Member(member) => {
             let path = program.expression_table.display_name(expression);
-            if path.starts_with("self.") && !paths.contains(&path) {
+            if receiver_place_field(&path).is_some() && !paths.contains(&path) {
                 paths.push(path);
             }
             collect_member_paths(program, member.receiver, paths)

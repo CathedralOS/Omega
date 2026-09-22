@@ -4,6 +4,7 @@ use crate::checker::diagnostics::expression_display_name;
 use crate::obligations::{
     BoundedCallArgumentObligation, BoundedTransitionArgumentObligation, ProofConstraint, ProofPlan,
 };
+use language_core::{receiver_place_field, receiver_place_label};
 use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::name::Identifier;
@@ -143,7 +144,7 @@ pub(crate) fn incoming_guard_proves_dependent_call_upper(
         return false;
     };
     let argument_label = expression_display_name(proof_plan, obligation.argument);
-    let Some(argument_field) = argument_label.strip_prefix("self.").filter(|field| {
+    let Some(argument_field) = receiver_place_field(&argument_label).filter(|field| {
         !field.is_empty()
             && field
                 .chars()
@@ -169,12 +170,12 @@ pub(crate) fn incoming_guard_proves_dependent_call_upper(
     if !place_preserved_in_statements(
         proof_plan,
         machine,
-        &format!("self.{argument_field}"),
+        &receiver_place_label(argument_field),
         &statements[..call_index],
     ) || !place_preserved_in_statements(
         proof_plan,
         machine,
-        &format!("self.{}", max_field.as_str()),
+        &receiver_place_label(max_field.as_str()),
         &statements[..call_index],
     ) {
         return false;
@@ -391,7 +392,7 @@ pub(crate) fn state_preserves_field(
         proof_plan,
         machine,
         state,
-        &format!("self.{}", field.as_str()),
+        &receiver_place_label(field.as_str()),
     )
 }
 
@@ -428,8 +429,7 @@ fn place_preserved_in_statements(
     let program = &proof_plan.program;
     let call_frames = validation::CallFrameResolver::new(program);
     let field = &Identifier::generated(
-        field_path
-            .strip_prefix("self.")
+        receiver_place_field(field_path)
             .unwrap_or(field_path)
             .to_owned(),
     );

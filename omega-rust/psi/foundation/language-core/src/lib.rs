@@ -19,7 +19,10 @@ mod source_semantics;
 pub use atomic::{AtomicOrderingPlan, MemoryOrdering};
 pub use cast_form::CastForm;
 pub use operator_spelling::OperatorSpelling;
-pub use source_semantics::receiver_binding::{self, SELF_RECEIVER, is_self_receiver};
+pub use source_semantics::receiver_binding::{
+    self, SELF_RECEIVER, is_receiver_rooted, is_self_receiver, receiver_place_field,
+    receiver_place_label,
+};
 pub use source_semantics::{
     BindingRelevance, CallOperationalAcknowledgement, CallOperationalAcknowledgementOrigin,
     CarryAddress, CarryCpu, CarryHostThread, CarryPermission, CarryPolicy, CarrySuspension,
