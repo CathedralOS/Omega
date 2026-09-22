@@ -908,3 +908,63 @@ fn projected_result_guarantee_certifies_disjoint_window_write() {
     crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
         .expect("retained projected-result certificate replays its exact tokens");
 }
+
+/// A call nested inside a statement mints establishments the same statement
+/// consumes: `choose(seed)` in the window bound supplies `result >= 2` to
+/// the very bound it heads — the held window is provably disjoint from the
+/// element before it. Without intra-statement fact contexts the nested
+/// call's guarantee never reaches the bound.
+const NESTED_CALL_WINDOW: &str = r#"
+    data Main { items: [i32; 4]; }
+    machine choose(value: u64 [2..=4]) -> u64 [0..=4]
+        ensures result >= 2;
+    { value }
+    machine Main::main(&mut self, seed: u64 [2..=4]) -> u64 {
+        let held: &mut [i32] = self.items[choose(seed)..4];
+        self.items[0] = 3;
+        held.len
+    }
+"#;
+
+#[test]
+fn nested_call_establishment_certifies_disjoint_window_write() {
+    let mut checked = checked_program(NESTED_CALL_WINDOW);
+    let certificate = checked
+        .facts
+        .borrow
+        .mutation_certificates
+        .iter()
+        .map(|(_, certificate)| certificate)
+        .next()
+        .expect("one mutation certificate");
+    assert_eq!(
+        certificate.derivation,
+        checked_trees::BorrowCompatibilityDerivation::Premised
+    );
+    crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+        .expect("nested-call-established certificate replays its exact tokens");
+}
+
+#[test]
+fn nested_call_establishment_rejects_weakened_or_wrapped_results() {
+    for predicate in [
+        "",
+        "ensures result >= 0;",
+        "ensures result >= 2 || result == 0;",
+    ] {
+        assert_conflict(&NESTED_CALL_WINDOW.replace("ensures result >= 2;", predicate));
+    }
+    // A computed expression of the result is not the call's established
+    // result: the bound vocabulary names the call identity, not `result + 0`.
+    assert_conflict(&NESTED_CALL_WINDOW.replace("choose(seed)..4", "(choose(seed) + 0)..4"));
+    // A call wrapping the establishing call carries only its own guarantees:
+    // `forget` promises nothing about its result.
+    assert_conflict(
+        &NESTED_CALL_WINDOW
+            .replace(
+                "machine Main::main",
+                "machine forget(value: u64 [0..=4]) -> u64 [0..=4] { value } machine Main::main",
+            )
+            .replace("choose(seed)..4", "forget(choose(seed))..4"),
+    );
+}
