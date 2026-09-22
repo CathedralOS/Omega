@@ -26,6 +26,7 @@ pub struct HostedReceiverBinding {
     demand: crate::StackDemand,
     receiver_byte_count: u64,
     receiver_alignment: u64,
+    cleanup_occupancy: bool,
 }
 
 #[cfg(any(test, feature = "test-support"))]
@@ -49,6 +50,12 @@ impl crate::ObjectArtifact {
             .as_mut()
             .map(|binding| &mut binding.demand.ceiling_bytes)
     }
+
+    pub fn hosted_receiver_cleanup_occupancy_mut_for_test(&mut self) -> Option<&mut bool> {
+        self.hosted_receiver
+            .as_mut()
+            .map(|binding| &mut binding.cleanup_occupancy)
+    }
 }
 
 impl HostedReceiverBinding {
@@ -66,6 +73,13 @@ impl HostedReceiverBinding {
     }
     pub const fn receiver_alignment(&self) -> u64 {
         self.receiver_alignment
+    }
+    /// Whether the receiver's nominal cleanup must occupy its hosted extent
+    /// through completion. The receiver partition then counts as a
+    /// cleanup-occupied extent for ledger tracking; the flag is minted only
+    /// from the checked eligibility, never derived from emitted bytes.
+    pub const fn cleanup_occupancy(&self) -> bool {
+        self.cleanup_occupancy
     }
 }
 
@@ -663,6 +677,7 @@ pub fn bind_hosted_receiver(
     physical: &ProgramEntryPhysicalContractPlan,
     services: &[ProgramEntryFusedServiceEstablishment],
     demand: &crate::StackDemand,
+    cleanup_occupancy: bool,
 ) -> Result<(), Diagnostic> {
     if artifact.hosted_receiver.is_some() {
         return Err(invalid(artifact.target));
@@ -676,6 +691,7 @@ pub fn bind_hosted_receiver(
         demand: demand.clone(),
         receiver_byte_count,
         receiver_alignment,
+        cleanup_occupancy,
     };
     validate_binding(artifact, &binding)?;
     artifact.hosted_receiver = Some(binding);
