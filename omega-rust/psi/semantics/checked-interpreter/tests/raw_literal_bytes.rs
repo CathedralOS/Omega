@@ -1,3 +1,4 @@
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
 use source_files_to_tokens::Lexer;
@@ -29,7 +30,12 @@ fn interpreter_writes_non_utf8_literal_bytes_exactly() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("type raw bytes");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check raw bytes");
 
-    let outcome = interpret_entry(&checked, "Main::main", &[], InterpretOptions::default());
+    let outcome = interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("Main::main"),
+        &[],
+        InterpretOptions::default(),
+    );
 
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.stdout, [0x80, b'A', b'\n']);

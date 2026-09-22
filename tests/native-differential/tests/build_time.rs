@@ -5,6 +5,7 @@
 //! struct and returning a plan-like struct -- the exact call shape the Layout
 //! machinery makes (wiki/spec/layouts/plans.md).
 
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::{
     BuildMachineEvaluationRequest, BuildTimeValue, CURRENT_EVALUATION_STEP_SCHEDULE,
     CURRENT_EVALUATION_USAGE_SCHEMA, evaluate_build_time_machine, interpret_entry,
@@ -40,11 +41,21 @@ machine Main::main(&mut self) -> i32 { 1 }
         .expect("entry probe should compile");
     assert_eq!(checked.build_evaluation_usage(), None);
 
-    let selected = interpret_entry(&checked, "Probe::start", &[], InterpretOptions::default());
+    let selected = interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("Probe::start"),
+        &[],
+        InterpretOptions::default(),
+    );
     assert_eq!(selected.error, None);
     assert_eq!(selected.exit_code, 70);
 
-    let missing = interpret_entry(&checked, "probe::start", &[], InterpretOptions::default());
+    let missing = interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("probe::start"),
+        &[],
+        InterpretOptions::default(),
+    );
     assert_eq!(missing.exit_code, 0);
     assert_eq!(
         missing.error.as_deref(),
@@ -84,7 +95,12 @@ machine Main::main(&mut self) { }
 
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("pilot program should compile");
-    let interpreted = interpret_entry(&checked, "Main::main", &[], InterpretOptions::default());
+    let interpreted = interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("Main::main"),
+        &[],
+        InterpretOptions::default(),
+    );
     assert!(interpreted.error.is_none());
     assert_eq!(interpreted.usage.schedule().marker(), 1);
     assert!(interpreted.usage.fuel_units() > 0);

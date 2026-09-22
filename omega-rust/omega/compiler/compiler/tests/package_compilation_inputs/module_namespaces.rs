@@ -2,6 +2,7 @@ use super::{
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding, Path, TempTree,
     compile_to_checked, identity,
 };
+use checked_interpreter::BuildMachineEntry;
 use compiler::CheckedCompileRequest;
 use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
@@ -727,9 +728,9 @@ fn selected_program_entry_dispatches_by_exact_symbol_not_spelling() {
         same_named[0].symbol, bound_symbol,
         "spelling dispatch must not reach the same machine the binding selected"
     );
-    let outcome = checked_interpreter::interpret_entry_symbol(
+    let outcome = checked_interpreter::interpret_entry(
         &checked,
-        bound_symbol,
+        BuildMachineEntry::Symbol(bound_symbol),
         &[],
         checked_interpreter::InterpretOptions::default(),
     );

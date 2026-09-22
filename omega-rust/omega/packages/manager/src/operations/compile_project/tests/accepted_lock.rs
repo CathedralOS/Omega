@@ -10,6 +10,7 @@ use crate::review::{
     FreshPackageRootPolicyError, PackagePolicyDecision, PackagePolicyDecisionSubject,
     resolve_package_policy_decisions,
 };
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 
 pub(super) fn accept_project(
@@ -164,7 +165,7 @@ machine build(builder: &mut Build) {
             observations += 1;
             let generated = checked_interpreter::interpret_entry(
                 checked,
-                "observed_value",
+                BuildMachineEntry::Name("observed_value"),
                 &[],
                 InterpretOptions::default(),
             );
@@ -173,7 +174,7 @@ machine build(builder: &mut Build) {
             let entry = checked.selected_program_entry_machine().unwrap();
             let outcome = checked_interpreter::interpret_entry(
                 checked,
-                entry,
+                BuildMachineEntry::Name(entry),
                 &[],
                 InterpretOptions::default(),
             );

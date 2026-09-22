@@ -1,3 +1,4 @@
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
 use source_files_to_tokens::Lexer;
@@ -54,7 +55,12 @@ fn interpreter_dispatches_fixed_token_through_selected_conformance_row() {
         }
         "#,
     );
-    let outcome = interpret_entry(&checked, "Main::main", &[], InterpretOptions::default());
+    let outcome = interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("Main::main"),
+        &[],
+        InterpretOptions::default(),
+    );
 
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 70);
@@ -90,7 +96,12 @@ fn interpreter_resolves_crowned_token_to_concrete_declaration() {
         }
         "#,
     );
-    let outcome = interpret_entry(&checked, "Main::main", &[], InterpretOptions::default());
+    let outcome = interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("Main::main"),
+        &[],
+        InterpretOptions::default(),
+    );
 
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 70);

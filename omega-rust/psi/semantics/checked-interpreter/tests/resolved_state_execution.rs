@@ -1,3 +1,4 @@
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
 
@@ -38,7 +39,12 @@ fn resolved_calls_keep_exact_states_when_debug_spellings_collide() {
     for machine in &mut checked.typed.machines_mut()[..2] {
         machine.name = "shared".into();
     }
-    let outcome = interpret_entry(&checked, "main", &[], InterpretOptions::default());
+    let outcome = interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("main"),
+        &[],
+        InterpretOptions::default(),
+    );
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 7);
 }
@@ -61,7 +67,12 @@ fn sibling_transitions_preserve_receiver_and_arguments() {
              transition result == 7 && counter.value == 7 { true -> 7 false -> 0 }
          }",
     );
-    let outcome = interpret_entry(&checked, "main", &[], InterpretOptions::default());
+    let outcome = interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("main"),
+        &[],
+        InterpretOptions::default(),
+    );
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 7);
 }
@@ -79,7 +90,12 @@ fn resolved_calls_evaluate_arguments_once_in_source_order() {
              transition result == 12 && count == 2 { true -> 7 false -> 0 }
          }",
     );
-    let outcome = interpret_entry(&checked, "main", &[], InterpretOptions::default());
+    let outcome = interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("main"),
+        &[],
+        InterpretOptions::default(),
+    );
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 7);
 }
@@ -92,7 +108,12 @@ fn self_recursive_tail_transition_does_not_consume_call_depth() {
          }
          machine main() -> i32 { countdown(1024) }",
     );
-    let outcome = interpret_entry(&checked, "main", &[], InterpretOptions::default());
+    let outcome = interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("main"),
+        &[],
+        InterpretOptions::default(),
+    );
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 7);
 }

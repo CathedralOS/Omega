@@ -1,3 +1,4 @@
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
 use compiler::CheckedCompileRequest;
@@ -45,7 +46,12 @@ fn source_acceptance_diagnostics_and_interpreter_are_stable_on_every_target() {
             checked.optimization_selections().identity()
         );
 
-        let interpreted = interpret_entry(&checked, "Main::main", &[], InterpretOptions::default());
+        let interpreted = interpret_entry(
+            &checked,
+            BuildMachineEntry::Name("Main::main"),
+            &[],
+            InterpretOptions::default(),
+        );
         assert_eq!(interpreted.exit_code, 70, "{target}");
         assert_eq!(interpreted.stdout, b"ABC\n", "{target}");
         assert!(interpreted.stderr.is_empty(), "{target}");

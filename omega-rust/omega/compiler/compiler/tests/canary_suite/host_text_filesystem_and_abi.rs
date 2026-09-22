@@ -7,6 +7,7 @@ use super::{
 };
 #[cfg(windows)]
 use crate::compile_rooted_canary_for_target;
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::{
     FilesystemAccess, FilesystemGrantRoot, FilesystemGrantRootIdentity, FsGrants,
 };
@@ -167,7 +168,12 @@ fn native_wrapper_write_all_result_interpreter_oracle() {
         filesystem_service_binding: binding,
         ..InterpretOptions::default()
     };
-    let outcome = interpret_entry(&checked, "Main::main", &[], options);
+    let outcome = interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("Main::main"),
+        &[],
+        options,
+    );
     assert_eq!(outcome.error, None);
     assert_eq!(
         outcome.stdout,
@@ -1200,7 +1206,7 @@ fn windows_canonicalize_failed_open_neither_queries_nor_closes() {
     .expect("fixture filesystem binding resolves");
     let outcome = interpret_entry(
         &checked,
-        "FailedOpen::main",
+        BuildMachineEntry::Name("FailedOpen::main"),
         &[],
         InterpretOptions::default().with_filesystem_service_binding(binding),
     );

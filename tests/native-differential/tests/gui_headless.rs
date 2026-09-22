@@ -16,6 +16,7 @@
 //! `omega_language_std/` module below the sample root.
 
 use build_declarations::{BuildDeclaration, extract_build_declaration};
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
 use compiler::{CheckedCompilation, compile_to_checked};
@@ -140,7 +141,7 @@ fn window_demo_runs_headless_to_native_exit() {
     });
     let outcome = checked_interpreter::interpret_entry(
         &checked,
-        "Main::main",
+        BuildMachineEntry::Name("Main::main"),
         &[],
         InterpretOptions::default(),
     );

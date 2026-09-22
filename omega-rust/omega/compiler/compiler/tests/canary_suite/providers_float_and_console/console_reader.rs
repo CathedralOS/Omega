@@ -2,6 +2,7 @@
 use super::super::{interpret_entry, repo_root, sample_project};
 use super::{checked_adapter_identity, fixture_roster};
 use crate::{compile_reviewed_repository_fixture, interpret, pass_canary};
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
 
@@ -322,7 +323,7 @@ fn selected_console_line_reader_preserves_raw_prefix_count_and_unread_suffix() {
         }
         let repeated = interpret_entry(
             &checked,
-            "Main::repeat",
+            BuildMachineEntry::Name("Main::repeat"),
             b"ab\nc",
             InterpretOptions::default(),
         );

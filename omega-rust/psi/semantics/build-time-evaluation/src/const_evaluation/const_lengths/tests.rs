@@ -4,6 +4,7 @@ use super::{
 };
 use crate::SelectedBuildTimeOperators;
 use crate::{SelectedBuildTimeBinaryOperator, SelectedBuildTimeProviderBody};
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::{
     BuildMachineEvaluationRequest, BuildTimeOperationEvaluation, InterpretOptions,
 };
@@ -109,7 +110,7 @@ fn selected_operator_crash_fences_cover_admission_and_direct_execution() {
         assert!(
             checked_interpreter::interpret_entry(
                 &checked,
-                "length",
+                BuildMachineEntry::Name("length"),
                 &[],
                 InterpretOptions::default()
             )

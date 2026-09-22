@@ -1,3 +1,4 @@
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
 use source_files_to_tokens::Lexer;
@@ -38,7 +39,12 @@ fn check_countdown(countdown: &str, arguments: &str) {
     let typed = lower_symbol_resolved_trees(&resolved).expect("countdown types");
     let checked =
         lower_typed_trees(typed, &CheckingRequest::settled()).expect("checked field arrivals");
-    let outcome = interpret_entry(&checked, "main", &[], InterpretOptions::default());
+    let outcome = interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("main"),
+        &[],
+        InterpretOptions::default(),
+    );
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 7);
 }

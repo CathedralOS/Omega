@@ -20,6 +20,7 @@
 //!   only devirtualizes single-impl traits; as of this writing it emits a crashing binary
 //!   for the two-impl program below).
 
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use checked_interpreter::{InterpretOutcome, interpret_entry};
 use compiler::CheckedCompileRequest;
@@ -28,7 +29,12 @@ use std::fs;
 use std::path::PathBuf;
 
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
-    interpret_entry(checked, "Main::main", stdin, InterpretOptions::default())
+    interpret_entry(
+        checked,
+        BuildMachineEntry::Name("Main::main"),
+        stdin,
+        InterpretOptions::default(),
+    )
 }
 
 /// Write `source` to a fresh temp dir as `main.omg` and return the path. The dir is keyed

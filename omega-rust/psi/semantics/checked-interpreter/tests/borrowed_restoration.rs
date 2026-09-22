@@ -1,3 +1,4 @@
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
 
@@ -45,7 +46,12 @@ fn borrowed_storage_evaluation_order_retains_the_read_before_extraction() {
              }
          }",
     );
-    let outcome = interpret_entry(&checked, "main", &[], InterpretOptions::default());
+    let outcome = interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("main"),
+        &[],
+        InterpretOptions::default(),
+    );
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 7);
 }
@@ -68,7 +74,12 @@ fn borrowed_storage_replacement_round_trips_the_exact_place() {
              transition owner.inventory.slots == 41 { true -> 7 false -> 0 }
          }",
     );
-    let outcome = interpret_entry(&checked, "main", &[], InterpretOptions::default());
+    let outcome = interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("main"),
+        &[],
+        InterpretOptions::default(),
+    );
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 7);
 }
@@ -94,7 +105,12 @@ fn borrowed_storage_replacement_publishes_the_caller_visible_update() {
              transition owner.inventory.slots == 42 { true -> 7 false -> 0 }
          }",
     );
-    let outcome = interpret_entry(&checked, "main", &[], InterpretOptions::default());
+    let outcome = interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("main"),
+        &[],
+        InterpretOptions::default(),
+    );
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 7);
 }
@@ -126,7 +142,12 @@ fn quiet_checked_body_with_operational_ceiling_can_transform_detached_contents()
              }
          }",
     );
-    let outcome = interpret_entry(&checked, "main", &[], InterpretOptions::default());
+    let outcome = interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("main"),
+        &[],
+        InterpretOptions::default(),
+    );
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 7);
 }

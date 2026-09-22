@@ -4,8 +4,7 @@
 //! package root, including generated inputs; rechecking the authored file would
 //! lose those inputs and could repeat build effects or acquire different sources.
 
-use checked_interpreter::InterpretOptions;
-use checked_interpreter::InterpretOutcome;
+use checked_interpreter::{BuildMachineEntry, InterpretOptions, InterpretOutcome};
 use compiler::CheckedCompileRequest;
 use compiler::{CompileOptions, CompileReport, CompileRequest};
 use diagnostics::Diagnostic;
@@ -79,9 +78,9 @@ fn interpret_checked(
     // module or package may declare a same-named machine.
     // Default interpretation captures output and uses virtual host state. Do not
     // print or grant live host effects before native admission and publication.
-    Ok(checked_interpreter::interpret_entry_symbol(
+    Ok(checked_interpreter::interpret_entry(
         checked,
-        entry.source_signature().machine_symbol(),
+        BuildMachineEntry::Symbol(entry.source_signature().machine_symbol()),
         &[],
         InterpretOptions::default(),
     ))

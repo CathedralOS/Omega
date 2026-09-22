@@ -4,6 +4,7 @@ use crate::{
     compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host, executable_name,
     fail_canary, fs, interpret, pass_canary, repo_root,
 };
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
 
@@ -170,7 +171,7 @@ fn runtime_generic_enum_payload_exit_canary_runs() {
     .expect("generic enum payload canary should reach checked semantics");
     let interpreted = checked_interpreter::interpret_entry(
         &checked,
-        "Main::main",
+        BuildMachineEntry::Name("Main::main"),
         &[],
         InterpretOptions::default(),
     );

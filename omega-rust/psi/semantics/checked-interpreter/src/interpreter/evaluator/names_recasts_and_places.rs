@@ -1013,6 +1013,7 @@ impl<'program> Evaluator<'program> {
 
 #[cfg(test)]
 mod tests {
+    use crate::BuildMachineEntry;
     fn checked_program(source: &str) -> checked_trees::CheckedTrees {
         let tokens = source_files_to_tokens::Lexer::new(source)
             .tokenize()
@@ -1033,8 +1034,12 @@ mod tests {
 
     fn assert_exit_seven(source: &str) {
         let checked = checked_program(source);
-        let outcome =
-            crate::interpret_entry(&checked, "main", &[], crate::InterpretOptions::default());
+        let outcome = crate::interpret_entry(
+            &checked,
+            BuildMachineEntry::Name("main"),
+            &[],
+            crate::InterpretOptions::default(),
+        );
         assert_eq!(outcome.error, None, "{source}");
         assert_eq!(outcome.exit_code, 7, "{source}");
     }
@@ -1143,8 +1148,12 @@ machine main() -> i32 {
 }
 "#,
         );
-        let outcome =
-            crate::interpret_entry(&checked, "main", &[], crate::InterpretOptions::default());
+        let outcome = crate::interpret_entry(
+            &checked,
+            BuildMachineEntry::Name("main"),
+            &[],
+            crate::InterpretOptions::default(),
+        );
         let error = outcome.error.expect("unsupported borrow target");
         assert!(error.contains("place expression not supported"), "{error}");
     }

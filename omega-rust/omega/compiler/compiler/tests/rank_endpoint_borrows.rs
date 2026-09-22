@@ -1,5 +1,6 @@
 //! A preserved readable loan can supply an invocation-fixed ranking endpoint.
 
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::{InterpretOptions, interpret_entry};
 
 const SOURCE: &str = r#"
@@ -37,7 +38,12 @@ fn ranked_countdown_with_stored_exclusive_endpoint_checks_and_interprets() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("rank checks");
-    let outcome = interpret_entry(&checked, "main", &[], InterpretOptions::default());
+    let outcome = interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("main"),
+        &[],
+        InterpretOptions::default(),
+    );
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 0);
 }

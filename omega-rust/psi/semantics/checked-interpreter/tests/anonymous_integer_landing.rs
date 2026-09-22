@@ -1,3 +1,4 @@
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
 use source_files_to_tokens::Lexer;
@@ -14,7 +15,12 @@ fn execute(source: &str) -> checked_interpreter::InterpretOutcome {
     let typed = lower_symbol_resolved_trees(&resolved).expect("numeric types");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
-    interpret_entry(&checked, "main", &[], InterpretOptions::default())
+    interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("main"),
+        &[],
+        InterpretOptions::default(),
+    )
 }
 
 #[test]

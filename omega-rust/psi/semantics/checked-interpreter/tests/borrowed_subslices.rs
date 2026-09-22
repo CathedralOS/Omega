@@ -1,3 +1,4 @@
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use checked_interpreter::{InterpretOutcome, interpret_entry};
 use source_files_to_tokens::Lexer;
@@ -21,7 +22,12 @@ fn try_checked(source: &str) -> Result<checked_trees::CheckedTrees, String> {
 }
 
 fn execute(source: &str) -> InterpretOutcome {
-    interpret_entry(&checked(source), "main", &[], InterpretOptions::default())
+    interpret_entry(
+        &checked(source),
+        BuildMachineEntry::Name("main"),
+        &[],
+        InterpretOptions::default(),
+    )
 }
 
 fn assert_seven(source: &str) {
@@ -143,7 +149,12 @@ fn borrowed_window_execution_rejects_stale_range_proofs() {
             let mut changed = program.clone();
             *changed.typed.expression_table.expression_mut(end) =
                 ExpressionNode::Integer(numerics::literals::IntegerLiteral::from_value(end_value));
-            let outcome = interpret_entry(&changed, "main", &[], InterpretOptions::default());
+            let outcome = interpret_entry(
+                &changed,
+                BuildMachineEntry::Name("main"),
+                &[],
+                InterpretOptions::default(),
+            );
             assert!(
                 outcome
                     .error

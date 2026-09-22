@@ -1,3 +1,4 @@
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
 use source_files_to_tokens::Lexer;
@@ -17,7 +18,12 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
 }
 
 fn execute(source: &str) -> checked_interpreter::InterpretOutcome {
-    interpret_entry(&checked(source), "main", &[], InterpretOptions::default())
+    interpret_entry(
+        &checked(source),
+        BuildMachineEntry::Name("main"),
+        &[],
+        InterpretOptions::default(),
+    )
 }
 
 #[test]
@@ -119,7 +125,12 @@ fn window_execution_rejects_stale_bounds_instead_of_clamping() {
         let mut changed = program.clone();
         *changed.typed.expression_table.expression_mut(end) =
             ExpressionNode::Integer(numerics::literals::IntegerLiteral::from_value(value));
-        let outcome = interpret_entry(&changed, "main", &[], InterpretOptions::default());
+        let outcome = interpret_entry(
+            &changed,
+            BuildMachineEntry::Name("main"),
+            &[],
+            InterpretOptions::default(),
+        );
         assert!(
             outcome
                 .error

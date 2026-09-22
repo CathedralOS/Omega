@@ -5,6 +5,7 @@ use build_time_evaluation::{
     BuildTimeValue, compute_layout_plan, evaluate_and_materialize_typed_owned_layout_into,
     materialize_typed_owned_layout_into,
 };
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
 use compiler::{CompileOptions, compile_to_checked};
@@ -77,9 +78,11 @@ fn assert_runtime_canary(canary_name: &str, tag: &str) {
     .expect("gapped outer-array canary should reach checked trees");
     let interpreted = interpret_entry(
         &checked,
-        checked
-            .selected_program_entry_machine()
-            .expect("gapped outer-array canary selects an exact ProgramEntry"),
+        BuildMachineEntry::Name(
+            checked
+                .selected_program_entry_machine()
+                .expect("gapped outer-array canary selects an exact ProgramEntry"),
+        ),
         &[],
         InterpretOptions::default(),
     );

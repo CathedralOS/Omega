@@ -1,5 +1,6 @@
 //! Invocation-fixed remainder endpoints preserve both operands at state arrivals.
 
+use checked_interpreter::BuildMachineEntry;
 use compiler::{CheckedCompilation, CheckedCompileRequest, compile_to_checked};
 use diagnostics::Diagnostic;
 use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
@@ -83,7 +84,7 @@ fn named_state_remainder_endpoint_checks_and_interprets() {
         .expect("variable-divisor endpoint forms and survives each arrival");
     let outcome = checked_interpreter::interpret_entry(
         &checked,
-        "recovered",
+        BuildMachineEntry::Name("recovered"),
         &[],
         checked_interpreter::InterpretOptions::default(),
     );

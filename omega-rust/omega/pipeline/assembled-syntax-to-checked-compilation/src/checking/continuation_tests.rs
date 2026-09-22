@@ -1,4 +1,5 @@
 use super::{CheckedChildExecution, PreparedCheckedSource};
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use std::fs;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -144,7 +145,7 @@ machine Main::query(&mut self) -> i32 reaches Sink { self.sink.echo(35) }
         assert!(matches!(source, std::borrow::Cow::Borrowed(_)));
         let outcome = checked_interpreter::interpret_entry(
             &checked,
-            "Main::query",
+            BuildMachineEntry::Name("Main::query"),
             &[],
             InterpretOptions::default(),
         );
@@ -152,7 +153,7 @@ machine Main::query(&mut self) -> i32 reaches Sink { self.sink.echo(35) }
         assert_eq!(outcome.exit_code, 35);
         let statement_outcome = checked_interpreter::interpret_entry(
             &checked,
-            "Main::main",
+            BuildMachineEntry::Name("Main::main"),
             &[],
             InterpretOptions::default(),
         );
@@ -204,7 +205,7 @@ self.arithmetic.max(7, 35)
     .expect("named boundary source checks");
     let outcome = checked_interpreter::interpret_entry(
         &checked,
-        "Main::main",
+        BuildMachineEntry::Name("Main::main"),
         &[],
         InterpretOptions::default(),
     );
@@ -242,7 +243,7 @@ transition self.switch.flip(&mut self.flag) {
     .expect("guard adapter source checks");
     let outcome = checked_interpreter::interpret_entry(
         &checked,
-        "Main::main",
+        BuildMachineEntry::Name("Main::main"),
         &[],
         InterpretOptions::default(),
     );
