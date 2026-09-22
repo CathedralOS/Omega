@@ -13,8 +13,10 @@ use super::place_observations::{
 };
 use super::relocation_rewrites::scalar_case_result_contained;
 use abstract_operations::AbstractOperation as O;
-use optimization_unit::*;
-use semantic_vocabulary::*;
+use optimization_unit::{
+    OptimizationNode, OptimizerCycleComponent, PsiOptimizationFunction, PsiProvenance,
+};
+use semantic_vocabulary::{PlaceId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Scalar-constant leaf nodes are one operation class admitted for

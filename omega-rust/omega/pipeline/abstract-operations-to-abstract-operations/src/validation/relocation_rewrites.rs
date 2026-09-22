@@ -5,8 +5,10 @@
 
 use super::place_observations::member_place_references;
 use abstract_operations::AbstractOperation as O;
-use optimization_unit::*;
-use semantic_vocabulary::*;
+use optimization_unit::{
+    OptimizationNode, OptimizerCycleComponent, OwnershipEvent, PsiOptimizationFunction,
+};
+use semantic_vocabulary::{BlockId, PlaceId, ScalarTerm, StructuralPlaceKind, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Whether the affine scalar-case, empty-record, or structural-call result

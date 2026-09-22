@@ -1,9 +1,9 @@
 //! Optimizer module role: reconstruction leaf. Current-IR countdown evidence inference.
 
-use super::super::super::super::{
-    BlockId, IntegerCarrier, IntegerSign, IntegerValue, O, PsiOptimizationFunction, ScalarType,
-    ValueId,
-};
+use super::super::super::super::O;
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::{BlockId, ValueId};
+use semantic_vocabulary::{IntegerCarrier, IntegerSign, IntegerValue, ScalarType};
 
 use super::super::{
     OptimizerCycleComponent, OptimizerUnsignedCountdownRankingCertificate,

@@ -15,9 +15,6 @@
 //! invariant) and `relocation_rewrites` (the rewrites a relocation performs).
 
 use abstract_operations::AbstractOperation as O;
-use optimization_unit::*;
-use optimization_unit_semantics::*;
-use semantic_vocabulary::*;
 use std::collections::{BTreeMap, BTreeSet};
 
 mod context;

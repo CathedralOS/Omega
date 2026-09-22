@@ -22,9 +22,9 @@ use terminal_psi::TerminalPsiIdentity;
 use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput;
 
 use crate::validation::{
-    OptimizationUnitValidationError, validate_transformed_psi_optimization_unit,
-    validate_verified_psi_optimization_unit,
+    validate_transformed_psi_optimization_unit, validate_verified_psi_optimization_unit,
 };
+use optimization_unit_semantics::OptimizationUnitValidationError;
 
 mod custody;
 mod error;

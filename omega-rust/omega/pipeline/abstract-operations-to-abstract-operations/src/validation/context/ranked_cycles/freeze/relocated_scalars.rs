@@ -102,10 +102,13 @@
 //! comparison below retains every source-owned field rather than the
 //! refreshed coordinates.
 
-use super::super::super::super::{
-    BTreeSet, BlockId, OperationId, OptimizationBlock, OptimizationNode, PlaceId,
-    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ScalarType, ValueId,
+use super::super::super::super::BTreeSet;
+use optimization_unit::{
+    OptimizationBlock, OptimizationNode, PsiOptimizationFunction, PsiOptimizationUnit,
+    PsiProvenance,
 };
+use semantic_vocabulary::{BlockId, PlaceId, ValueId};
+use semantic_vocabulary::{OperationId, ScalarType};
 
 use super::super::CycleComponentId;
 use super::{BTreeMap, MachineId, OptimizationUnitValidationError, OptimizerCycleComponent};

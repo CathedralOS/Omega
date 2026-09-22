@@ -1,6 +1,9 @@
 //! Optimizer module role: executable entrance. Verified-cycle topology, identity, and immutable-body coordination.
 
-use super::super::{MachineId, OptimizationUnitValidationError, PsiOptimizationUnit};
+use optimization_unit::PsiOptimizationUnit;
+use optimization_unit_semantics::OptimizationUnitValidationError;
+use semantic_vocabulary::MachineId;
+
 mod components;
 mod countdown_ranking;
 mod freeze;

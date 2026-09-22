@@ -1,6 +1,7 @@
 //! Optimizer module role: semantic leaf. Canonical members, edge identity, entries, and exits for each SCC.
 
-use super::super::super::{BTreeSet, BlockId};
+use super::super::super::BTreeSet;
+use semantic_vocabulary::BlockId;
 
 use super::{
     CycleComponentId, OptimizationUnitValidationError, OptimizerCycleComponent, components, graph,
