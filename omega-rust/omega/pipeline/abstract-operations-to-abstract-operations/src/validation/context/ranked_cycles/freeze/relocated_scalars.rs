@@ -48,7 +48,12 @@
 //! an admissible scalar-signature call (its callee's transitive effect
 //! summary proves no observable effect, crash, or suspension, and every node
 //! inside the member roster is unobservable, so hoisting the call's possible
-//! divergence reorders nothing anyone could see), an admissible
+//! divergence reorders nothing anyone could see — the crash-custody lane
+//! additionally proves the carried `crash_continuations` are exactly what
+//! the callee's verifier-owned contract derives at the seed arguments and
+//! that the caller's published ceiling covers the roster the substituted
+//! arguments produce, then the comparison re-derives the moved roster
+//! itself), an admissible
 //! borrow unit or scalar-result structural call (the same effect and
 //! observability bars plus the whole-component place-custody bound and each
 //! borrowed root's preheader landing — a shared borrow's root must be
@@ -423,6 +428,35 @@ pub(super) fn validate(
                 Some(substitution) => (substitution, None, BTreeMap::new()),
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
+        } else if crate::validation::invariant_calls::admissible_invariant_crash_continuation_call(
+            relocation.expected,
+        )
+        .is_some()
+        {
+            // A crash-custody scalar call replays the pure call's whole
+            // admission plus the crash halves from the seed: the pure
+            // transitive callee (the published routes stay a contract
+            // ceiling the body never exercises), the unobservable member
+            // roster, the carried roster re-derived from the callee's
+            // verifier-owned contract at the seed arguments, and the
+            // caller's published ceiling covering the substituted roster.
+            // `same_relocated_node` re-derives the moved roster the same
+            // way, so a forged continuation spelling rejects byte-exact.
+            let effects = call_effects
+                .get_or_insert_with(|| crate::validation::invariant_calls::unit_effect_summaries(expected_unit));
+            match crate::validation::invariant_calls::invariant_crash_continuation_call_admission(
+                &expected_unit.functions,
+                expected,
+                component,
+                relocation.expected,
+                relocated_results
+                    .get(&component.id)
+                    .unwrap_or(&no_relocated_results),
+                effects,
+            ) {
+                Some(substitution) => (substitution, None, BTreeMap::new()),
+                None => return Err(mismatch(machine, relocation.expected_block)),
+            }
         } else if crate::validation::invariant_calls::admissible_invariant_unit_call(relocation.expected).is_some() {
             // A unit-result call replays the scalar call's whole admission
             // plus its structural halves from the seed: the pure callee,
@@ -669,6 +703,7 @@ pub(super) fn validate(
             }
         };
         if !same_relocated_node(
+            &expected_unit.functions,
             relocation.expected,
             relocation.current,
             &substitution,
@@ -807,6 +842,7 @@ fn retained_nodes<'block>(
 }
 
 fn same_relocated_node(
+    functions: &[PsiOptimizationFunction],
     expected: &OptimizationNode,
     current: &OptimizationNode,
     substitution: &BTreeMap<ValueId, ValueId>,
@@ -818,6 +854,39 @@ fn same_relocated_node(
         &mut operation,
         substitution,
     );
+    // A relocated call's crash continuations re-derive rather than move:
+    // the callee's verifier-owned published routes instantiated at the
+    // substituted actuals — the same reconstruction the realization
+    // performs — so a forged or stale roster in the transformed spelling
+    // rejects byte-exact in the comparison below.
+    if let abstract_operations::AbstractOperation::Call {
+        callee,
+        crash_continuations,
+        ..
+    } = &operation
+        && !crash_continuations.is_empty()
+    {
+        let callee = *callee;
+        let Some(callee_function) = functions.iter().find(|function| function.machine == callee)
+        else {
+            return false;
+        };
+        let abstract_operations::AbstractOperation::Call {
+            arguments,
+            crash_continuations,
+            ..
+        } = &mut operation
+        else {
+            return false;
+        };
+        let Some(recomputed) = crate::validation::relocation_rewrites::call_crash_continuations(
+            callee_function,
+            arguments,
+        ) else {
+            return false;
+        };
+        *crash_continuations = recomputed;
+    }
     if let Some(root) = root {
         // Admission proved the expected root is either already `root` or the
         // member structural parameter that resolves to it, so rebinding from

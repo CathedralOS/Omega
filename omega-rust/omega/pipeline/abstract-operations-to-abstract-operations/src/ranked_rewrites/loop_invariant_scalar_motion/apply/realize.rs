@@ -91,6 +91,42 @@ pub(crate) fn realize(
                     value_use.value = *representative;
                 }
             }
+            // A relocated call's crash continuations are not carried
+            // byte-exact: they are the callee's published crash routes
+            // instantiated at the invocation's actual scalar arguments, so
+            // the moved node re-derives the roster from the callee's
+            // verifier-owned contract against its just-substituted
+            // `arguments`. An admitted pure call carries an empty roster —
+            // nothing to re-derive.
+            let crash_custody = match &node.operation {
+                O::Call {
+                    callee,
+                    crash_continuations,
+                    ..
+                } if !crash_continuations.is_empty() => Some(*callee),
+                _ => None,
+            };
+            if let Some(callee) = crash_custody {
+                let callee_function = unit
+                    .functions
+                    .iter()
+                    .find(|function| function.machine == callee)
+                    .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?;
+                let O::Call {
+                    arguments,
+                    crash_continuations,
+                    ..
+                } = &mut node.operation
+                else {
+                    return Err(LoopInvariantScalarMotionError::CandidateMismatch);
+                };
+                *crash_continuations =
+                    crate::validation::relocation_rewrites::call_crash_continuations(
+                        callee_function,
+                        arguments,
+                    )
+                    .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?;
+            }
             if let Some((parameter, representative)) = planned.root_rewrite
                 && !crate::validation::relocation_rewrites::substitute_invariant_place_root(
                     &mut node.operation,

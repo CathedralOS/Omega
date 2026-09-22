@@ -104,7 +104,10 @@ fn component_candidate(
 /// its discharged obligation byte-exact inside the moved operation), an
 /// invariant scalar-signature call whose callee's transitive effect summary
 /// proves no observable effect, crash, or suspension and whose member roster
-/// is unobservable throughout, an invariant unit-result call —
+/// is unobservable throughout — including the crash-custody lane, where the
+/// moved call's `crash_continuations` are re-derived from the callee's
+/// verifier-owned published routes under the substituted arguments and the
+/// caller's own crash ceiling must cover them — an invariant unit-result call —
 /// `CallUnit` — scalar-result structural call — `CallStructuralScalar` — or
 /// affine structural-result call — `CallStructural` —
 /// whose callee passes the same effect bar, whose member roster
@@ -136,9 +139,12 @@ struct MemberAdmission {
 
 /// The component-fixed evidence a member admission consults: the relocation
 /// topology's non-speculative gate, the preheader insertion point the
-/// representable check measures against, and the transitive effect table
-/// call admissions share, computed once per session by the caller.
+/// representable check measures against, the whole-unit function roster
+/// crash-custody admission re-derives a moved call's continuations from,
+/// and the transitive effect table call admissions share, computed once per
+/// session by the caller.
 struct PlanEvidence<'a> {
+    functions: &'a [optimization_unit::PsiOptimizationFunction],
     function: &'a optimization_unit::PsiOptimizationFunction,
     component: &'a optimization_unit::OptimizerCycleComponent,
     preheader_source: BlockId,
@@ -432,6 +438,33 @@ fn admit_member_node(
             return None;
         }
         substitution.into_iter().collect()
+    } else if crate::validation::invariant_calls::admissible_invariant_crash_continuation_call(node).is_some() {
+        // A scalar call carrying crash-route custody keeps the pure scalar
+        // call's whole evidence surface — the non-speculative gate, the pure
+        // transitive callee (so the published routes are a contract ceiling
+        // the callee never actually crashes through), and the unobservable
+        // member roster — then adds the crash halves: the callee's
+        // verifier-owned contract must re-derive the roster the moved node
+        // will spell under its substituted arguments, and the caller's
+        // published crash ceiling must still cover it. The realization
+        // rewrites the roster itself, so the candidate records only the
+        // shared operand substitution.
+        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
+            return None;
+        }
+        let effects = evidence.call_effects;
+        let substitution = crate::validation::invariant_calls::invariant_crash_continuation_call_admission(
+            evidence.functions,
+            function,
+            component,
+            node,
+            relocating,
+            effects,
+        )?;
+        if !evidence.representable(&substitution, relocating) {
+            return None;
+        }
+        substitution.into_iter().collect()
     } else if crate::validation::invariant_calls::admissible_invariant_unit_call(node).is_some() {
         // A unit-result call keeps the scalar call's full evidence surface —
         // the non-speculative gate, the pure transitive callee, and the
@@ -671,6 +704,7 @@ pub(super) fn component_plan(
     let mut relocating_roots = std::collections::BTreeSet::new();
     let mut admitted = std::collections::BTreeSet::new();
     let evidence = PlanEvidence {
+        functions: &session.unit().functions,
         function,
         component,
         preheader_source,

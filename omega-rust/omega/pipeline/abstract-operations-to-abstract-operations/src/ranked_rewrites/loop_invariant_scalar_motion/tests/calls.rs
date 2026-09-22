@@ -4133,3 +4133,636 @@ fn forged_unrestricted_result_multiplicity_is_rejected_by_the_freeze_fence() {
         ) if rejected_machine == machine && block == member
     ));
 }
+
+/// A two-state cycle whose member invokes a pure callee whose published
+/// contract declares a crash route its body never exercises: `Root::bump`'s
+/// transitive effect summary proves no observable effect, crash, or
+/// suspension even though `crashes Abort` publishes a conditional route, so
+/// the member call carries crash-route custody — and the relocation
+/// re-derives the moved node's `crash_continuations` from the callee's
+/// verifier-owned routes instantiated at the substituted `scale` anchor
+/// rather than carrying the member-spelled roster byte-exact.
+const CRASH_CONTINUATION_CALL_SOURCE: &str = r#"
+    data Root {}
+    machine Root::scan(scale: u64 in Wrapping, remaining: u64 [0..=5])
+    crashes Abort
+    {
+        transition { _ -> step(scale, remaining) }
+        state step(s: u64 in Wrapping, pending: u64 [0..=5]) {
+            let bumped: u64 in Wrapping = Root::bump(s);
+            let doubled: u64 in Wrapping = bumped + s;
+            transition pending > 0 {
+                true -> scan(s, pending - 1)
+                _ -> finish(doubled)
+            }
+        }
+        state finish(r: u64 in Wrapping) {}
+    }
+    machine Root::bump(v: u64 in Wrapping) -> u64 in Wrapping
+    crashes Abort
+        v == 0
+    { v + 1 }
+"#;
+
+/// The same crash-custody call, but its argument is the loop-carried
+/// countdown: the member parameter never resolves to a preheader
+/// representative, so the call stays inside even though its callee is pure
+/// and both crash rosters are derivable.
+const CARRIED_CRASH_CALL_SOURCE: &str = r#"
+    data Root {}
+    machine Root::scan(scale: u64 in Wrapping, remaining: u64 [0..=5])
+    crashes Abort
+    {
+        transition { _ -> step(scale, remaining) }
+        state step(s: u64 in Wrapping, pending: u64 [0..=5]) {
+            let bumped: u64 in Wrapping = Root::bump(pending);
+            let doubled: u64 in Wrapping = bumped + s;
+            transition pending > 0 {
+                true -> scan(s, pending - 1)
+                _ -> finish(doubled)
+            }
+        }
+        state finish(r: u64 in Wrapping) {}
+    }
+    machine Root::bump(v: u64 in Wrapping) -> u64 in Wrapping
+    crashes Abort
+        v == 0
+    { v + 1 }
+"#;
+
+/// The same crash-custody call, but the entry state's `done` arm can leave
+/// the component before `step` ever runs: the non-speculative gate keeps the
+/// call inside — relocating it would perform callee work a bypassed
+/// traversal never performs.
+const BYPASSED_CRASH_CALL_SOURCE: &str = r#"
+    data Root {}
+    machine Root::scan(scale: u64 in Wrapping, remaining: u64 [0..=5])
+    crashes Abort
+    {
+        transition remaining > 0 {
+            true -> step(scale, remaining - 1)
+            _ -> done()
+        }
+        state step(s: u64 in Wrapping, pending: u64 [0..=5]) {
+            let bumped: u64 in Wrapping = Root::bump(s);
+            let doubled: u64 in Wrapping = bumped + s;
+            transition pending > 0 {
+                true -> scan(s, pending - 1)
+                _ -> finish(doubled)
+            }
+        }
+        state done() {}
+        state finish(r: u64 in Wrapping) {}
+    }
+    machine Root::bump(v: u64 in Wrapping) -> u64 in Wrapping
+    crashes Abort
+        v == 0
+    { v + 1 }
+"#;
+
+/// Every value identity a crash-continuation roster's predicates read.
+fn crash_roster_references(
+    continuations: &[terminal_psi::CrashRouteBucket],
+) -> std::collections::BTreeSet<semantic_vocabulary::ValueId> {
+    let mut references = std::collections::BTreeSet::new();
+    for continuation in continuations {
+        for guard in &continuation.alternatives {
+            let terminal_psi::CrashRouteGuard::Predicate(term) = guard else {
+                continue;
+            };
+            assert!(
+                term.proposition().visit_value_ids(|value| {
+                    references.insert(value);
+                }),
+                "the roster's predicates read only scalar value identities"
+            );
+        }
+    }
+    references
+}
+
+#[test]
+fn crash_continuation_call_relocates_rederiving_its_roster() {
+    let session = lowered_session(CRASH_CONTINUATION_CALL_SOURCE, "crash custody call loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one two-state component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (call_block, call) = member_call(function, component);
+    let member = call_block.id;
+    let (call_operation, argument, callee, seed_continuations) = match &call.operation {
+        AbstractOperation::Call {
+            psi_operation,
+            callee,
+            arguments,
+            crash_continuations,
+            ..
+        } => {
+            assert!(
+                !crash_continuations.is_empty(),
+                "the member call carries crash-route custody"
+            );
+            (
+                *psi_operation,
+                arguments[0],
+                *callee,
+                crash_continuations.as_slice(),
+            )
+        }
+        operation => panic!("the member node is a scalar call: {operation:?}"),
+    };
+    assert_eq!(
+        crash_roster_references(seed_continuations),
+        std::collections::BTreeSet::from([argument]),
+        "the seed roster predicates read the member-parameter argument"
+    );
+    let anchor = crate::validation::member_blocks::invariant_member_parameters(function, component)
+        [&argument];
+
+    // The lane split is exact: the pure scalar-call lane refuses the
+    // custody-carrying node, and the crash lane admits it under the shared
+    // substitution — callee purity and member observability are intact.
+    let effects = crate::validation::invariant_calls::unit_effect_summaries(session.unit());
+    assert!(
+        crate::validation::invariant_calls::invariant_scalar_call_admission(
+            function,
+            component,
+            call,
+            &std::collections::BTreeSet::new(),
+            &effects,
+        )
+        .is_none(),
+        "the pure lane keeps refusing the crash-custody call"
+    );
+    let substitution =
+        crate::validation::invariant_calls::invariant_crash_continuation_call_admission(
+            &session.unit().functions,
+            function,
+            component,
+            call,
+            &std::collections::BTreeSet::new(),
+            &effects,
+        )
+        .expect("the crash-custody lane admits the invariant call");
+    assert_eq!(substitution.get(&argument), Some(&anchor));
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the crash-custody call is a planned relocation");
+    assert_eq!(
+        relocation.node().operand_rewrites(),
+        &[(argument, anchor)],
+        "the call's member-parameter argument rebinds to its preheader anchor"
+    );
+    assert_eq!(relocation.node().location().block, member);
+    assert_eq!(relocation.destination().block, entry.source);
+
+    // The `bumped + s` computation consumes the call's preserved result, so
+    // it relocates behind the call in the same run.
+    assert!(
+        candidate.relocations().iter().any(|relocation| {
+            let source = function
+                .blocks
+                .iter()
+                .find(|block| block.id == relocation.node().location().block)
+                .expect("source block exists");
+            matches!(
+                source.nodes[usize::try_from(relocation.node().location().node).unwrap()].operation,
+                AbstractOperation::WrappingIntegerAdd { .. }
+            )
+        }),
+        "the computation chained on the call result relocates in the same run"
+    );
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let destination = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .find(|block| block.id == relocation.destination().block)
+        .expect("destination block exists");
+    let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
+    let moved_continuations = match &moved.operation {
+        AbstractOperation::Call {
+            callee: moved_callee,
+            arguments,
+            crash_continuations,
+            ..
+        } => {
+            assert_eq!(arguments.as_slice(), &[anchor]);
+            assert_eq!(*moved_callee, callee, "callee identity is byte-exact");
+            crash_continuations
+        }
+        operation => panic!("relocated node keeps its call operation: {operation:?}"),
+    };
+    // The roster is re-derived, not moved: every predicate reads the
+    // preheader anchor — never the member parameter the seed roster spelled.
+    assert_eq!(
+        crash_roster_references(moved_continuations),
+        std::collections::BTreeSet::from([anchor]),
+        "the moved roster's predicates read the substituted anchor"
+    );
+    let callee_function = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == callee)
+        .expect("callee function exists");
+    assert_eq!(
+        moved_continuations.as_slice(),
+        crate::validation::relocation_rewrites::call_crash_continuations(
+            callee_function,
+            &[anchor],
+        )
+        .expect("the callee contract re-derives the roster")
+        .as_slice(),
+        "the moved roster is the callee contract instantiated at the anchor"
+    );
+    assert_eq!(moved.provenance, relocation.node().provenance());
+    assert_eq!(moved.fuel, relocation.node().fuel());
+    let member_block = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .find(|block| block.id == member)
+        .expect("member block exists");
+    assert!(
+        member_block
+            .nodes
+            .iter()
+            .all(|node| !matches!(node.operation, AbstractOperation::Call { .. })),
+        "the call exists once, at the destination"
+    );
+    let [record] = applied.ledger().records() else {
+        panic!("one atomic relocation has one ledger record")
+    };
+    let row = record
+        .provenance
+        .iter()
+        .find(|row| row.input == PsiRealizationSite::Node(relocation.node().location()))
+        .expect("the relocated call has exact ledger custody");
+    assert_eq!(
+        row.disposition,
+        ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(relocation.destination()))
+    );
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 8)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
+}
+
+#[test]
+fn carried_argument_crash_call_stays_inside() {
+    let session = lowered_session(CARRIED_CRASH_CALL_SOURCE, "carried crash custody call loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one two-state component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (_, call) = member_call(function, component);
+    let (call_operation, argument) = match &call.operation {
+        AbstractOperation::Call {
+            psi_operation,
+            arguments,
+            ..
+        } => (*psi_operation, arguments[0]),
+        operation => panic!("the member node is a scalar call: {operation:?}"),
+    };
+    assert!(
+        !crate::validation::member_blocks::invariant_member_parameters(function, component)
+            .contains_key(&argument),
+        "the back edge advances the call's argument, so it stays loop-carried"
+    );
+    let effects = crate::validation::invariant_calls::unit_effect_summaries(session.unit());
+    assert!(
+        crate::validation::invariant_calls::invariant_crash_continuation_call_admission(
+            &session.unit().functions,
+            function,
+            component,
+            call,
+            &std::collections::BTreeSet::new(),
+            &effects,
+        )
+        .is_none(),
+        "the carried-argument call fails admission at the substitution half"
+    );
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    assert!(
+        candidates
+            .iter()
+            .flat_map(|candidate| candidate.relocations().iter())
+            .all(|relocation| relocation.node().psi_operation() != call_operation),
+        "the carried-argument crash call is not a planned relocation"
+    );
+}
+
+#[test]
+fn bypassed_crash_continuation_call_stays_inside() {
+    let session = lowered_session(
+        BYPASSED_CRASH_CALL_SOURCE,
+        "bypassed crash custody call loop",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one two-state component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (call_block, call) = member_call(function, component);
+    let call_operation = operation_of(call);
+    // Crash-lane admission itself is intact — the refusal is the
+    // non-speculative gate alone: the call's member block does not dominate
+    // the entry state's own `done` exit.
+    let effects = crate::validation::invariant_calls::unit_effect_summaries(session.unit());
+    assert!(
+        crate::validation::invariant_calls::invariant_crash_continuation_call_admission(
+            &session.unit().functions,
+            function,
+            component,
+            call,
+            &std::collections::BTreeSet::new(),
+            &effects,
+        )
+        .is_some(),
+        "crash-custody admission is intact; the member gate is the only refusal"
+    );
+    assert!(
+        !crate::validation::member_blocks::guaranteed_executed_member_blocks(component)
+            .contains(&call_block.id),
+        "the bypassed member block is outside the non-speculative gate"
+    );
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    assert!(
+        candidates
+            .iter()
+            .flat_map(|candidate| candidate.relocations().iter())
+            .all(|relocation| relocation.node().psi_operation() != call_operation),
+        "the speculated crash-custody call is not a planned relocation"
+    );
+}
+
+#[test]
+fn impure_crash_callee_fails_crash_continuation_admission() {
+    let session = lowered_session(CRASH_CONTINUATION_CALL_SOURCE, "impure crash callee loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one two-state component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (_, call) = member_call(function, component);
+    let callee = match &call.operation {
+        AbstractOperation::Call { callee, .. } => *callee,
+        operation => panic!("the member node is a scalar call: {operation:?}"),
+    };
+    let effects = crate::validation::invariant_calls::unit_effect_summaries(session.unit());
+    assert!(
+        crate::validation::invariant_calls::invariant_crash_continuation_call_admission(
+            &session.unit().functions,
+            function,
+            component,
+            call,
+            &std::collections::BTreeSet::new(),
+            &effects,
+        )
+        .is_some(),
+        "the verified summary admits the crash-custody call"
+    );
+    // Forge each impure axis on the callee's transitive summary in turn: a
+    // callee that could actually crash — rather than publishing a ceiling its
+    // body never exercises — is `observable`-`May` too, and each forged axis
+    // independently refuses the relocation.
+    for axis in 0..3 {
+        let mut forged = effects.clone();
+        let summary = forged
+            .functions
+            .iter_mut()
+            .find(|summary| summary.machine == callee)
+            .expect("the callee has a transitive effect summary");
+        match axis {
+            0 => summary.observable = crate::EffectKnowledge::May,
+            1 => summary.crash = crate::EffectKnowledge::May,
+            _ => summary.suspension = crate::EffectKnowledge::May,
+        }
+        assert!(
+            crate::validation::invariant_calls::invariant_crash_continuation_call_admission(
+                &session.unit().functions,
+                function,
+                component,
+                call,
+                &std::collections::BTreeSet::new(),
+                &forged,
+            )
+            .is_none(),
+            "callee effect axis {axis} refuses the crash-custody relocation"
+        );
+    }
+}
+
+#[test]
+fn observable_member_keeps_the_crash_continuation_call_inside() {
+    let session = lowered_session(
+        CRASH_CONTINUATION_CALL_SOURCE,
+        "observable member crash custody loop",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one two-state component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (_, call) = member_call(function, component);
+    let effects = crate::validation::invariant_calls::unit_effect_summaries(session.unit());
+    // Forge one non-call member node's summary to observable work: hoisting
+    // the call's possible non-return ahead of member work reorders an
+    // observable boundary, so the member roster gate refuses.
+    let (observable_block, observable_index) = component
+        .members
+        .iter()
+        .flat_map(|member| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == *member)
+                .expect("member block exists")
+                .nodes
+                .iter()
+                .enumerate()
+                .map(|(index, node)| (*member, index, node))
+        })
+        .find(|(_, _, node)| !matches!(node.operation, AbstractOperation::Call { .. }))
+        .map(|(block, index, _)| (block, u32::try_from(index).expect("node index is u32")))
+        .expect("a non-call member node exists");
+    let mut forged = effects.clone();
+    forged
+        .nodes
+        .iter_mut()
+        .find(|summary| {
+            summary.machine == function.machine
+                && summary.block == observable_block
+                && summary.node == observable_index
+        })
+        .expect("the member node has a summary row")
+        .observable = crate::EffectKnowledge::May;
+    assert!(
+        crate::validation::invariant_calls::invariant_crash_continuation_call_admission(
+            &session.unit().functions,
+            function,
+            component,
+            call,
+            &std::collections::BTreeSet::new(),
+            &forged,
+        )
+        .is_none(),
+        "an observable member node refuses the crash-custody relocation"
+    );
+}
+
+#[test]
+fn drifted_crash_roster_stays_inside() {
+    let session = lowered_session(CRASH_CONTINUATION_CALL_SOURCE, "drifted crash roster loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one two-state component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (_, call) = member_call(function, component);
+    // Forge the carried roster into the unconditional form: it no longer
+    // equals what the callee's contract derives at the seed arguments, so
+    // the crash-custody lane refuses — the moved node never inherits a
+    // roster the contract did not produce.
+    let mut drifted = call.clone();
+    let AbstractOperation::Call {
+        crash_continuations,
+        ..
+    } = &mut drifted.operation
+    else {
+        panic!("the member node is a scalar call")
+    };
+    crash_continuations[0].alternatives = vec![terminal_psi::CrashRouteGuard::Truth];
+    let effects = crate::validation::invariant_calls::unit_effect_summaries(session.unit());
+    assert!(
+        crate::validation::invariant_calls::admissible_invariant_crash_continuation_call(&drifted)
+            .is_some(),
+        "the drifted node still spells the crash-custody call shape"
+    );
+    assert!(
+        crate::validation::invariant_calls::invariant_crash_continuation_call_admission(
+            &session.unit().functions,
+            function,
+            component,
+            &drifted,
+            &std::collections::BTreeSet::new(),
+            &effects,
+        )
+        .is_none(),
+        "a roster the contract does not derive refuses the relocation"
+    );
+}
+
+#[test]
+fn forged_moved_crash_roster_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session(CRASH_CONTINUATION_CALL_SOURCE, "crash roster forge loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one two-state component")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (_, call) = member_call(function, component);
+    let call_operation = operation_of(call);
+    let candidate = propose_loop_invariant_scalar_motion(&session, 8)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the crash-custody call is a planned relocation");
+    let member = relocation.node().location().block;
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // Forge the moved roster's predicates so they no longer spell what the
+    // callee's contract derives at the substituted anchor — the freeze
+    // replay re-derives the roster and compares byte-exact, so the drifted
+    // custody payload rejects.
+    let forged = find_operation_mut(&mut unit, call_operation);
+    if let AbstractOperation::Call {
+        crash_continuations,
+        ..
+    } = &mut forged.operation
+    {
+        for continuation in crash_continuations.iter_mut() {
+            for guard in continuation.alternatives.iter_mut() {
+                let terminal_psi::CrashRouteGuard::Predicate(term) = guard else {
+                    continue;
+                };
+                let proposition = term.proposition().clone();
+                *term = terminal_psi::CrashPredicateTerm::new(
+                    semantic_vocabulary::Proposition::Conjunction(vec![proposition]),
+                );
+            }
+        }
+    }
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}

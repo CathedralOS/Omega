@@ -15,21 +15,16 @@ use optimization_unit::*;
 use semantic_vocabulary::*;
 use std::collections::{BTreeMap, BTreeSet};
 
-/// Scalar-signature machine calls — `Call` — are the call family admitted for
-/// loop-invariant motion: an exact internal callee invocation whose runtime
-/// arguments are all scalars and whose single result is a scalar. The node
-/// must keep its own operation identity as the first provenance row, define
-/// exactly its spelled `result`/`scalar_type`, use exactly its `arguments` in
-/// operand order, and carry no successors or ownership events. A call
-/// carrying `crash_continuations` retains crash-route custody this family
-/// does not yet re-express, so it stays inside; discharged
-/// `requirement_obligations` instead move byte-exact inside the operation,
-/// exactly like an obligated scalar computation's — they were proven against
-/// the argument values, and operand substitution only rebinds a member
-/// parameter to the representative every reaching edge proves equal. Callee
-/// purity and member observability are decided separately by
-/// [`invariant_scalar_call_admission`].
-pub(crate) fn admissible_invariant_scalar_call(node: &OptimizationNode) -> Option<MachineId> {
+/// The source-owned node shape both scalar-call lanes share: an exact
+/// `Call` provenance whose node keeps its own operation identity as the
+/// first provenance row, defines exactly its spelled `result`/`scalar_type`,
+/// uses exactly its `arguments` in operand order, and carries no successors
+/// or ownership events. Returns the callee, the argument operands, and the
+/// carried crash-continuation roster; each lane then decides which
+/// continuations it can re-express.
+fn scalar_call_shape(
+    node: &OptimizationNode,
+) -> Option<(MachineId, &[ValueId], &[terminal_psi::CrashRouteBucket])> {
     let O::Call {
         psi_operation,
         result,
@@ -53,9 +48,50 @@ pub(crate) fn admissible_invariant_scalar_call(node: &OptimizationNode) -> Optio
             .zip(arguments.iter())
             .all(|(value_use, argument)| value_use.value == *argument)
         && node.successors.is_empty()
-        && node.ownership.is_empty()
-        && crash_continuations.is_empty())
-    .then_some(*callee)
+        && node.ownership.is_empty())
+    .then_some((
+        *callee,
+        arguments.as_slice(),
+        crash_continuations.as_slice(),
+    ))
+}
+
+/// Scalar-signature machine calls — `Call` — are the call family admitted for
+/// loop-invariant motion: an exact internal callee invocation whose runtime
+/// arguments are all scalars and whose single result is a scalar. The node
+/// must keep its own operation identity as the first provenance row, define
+/// exactly its spelled `result`/`scalar_type`, use exactly its `arguments` in
+/// operand order, and carry no successors or ownership events. A call
+/// carrying `crash_continuations` takes the crash-custody lane
+/// ([`admissible_invariant_crash_continuation_call`]) instead, which
+/// re-derives the roster rather than carrying it byte-exact; discharged
+/// `requirement_obligations` instead move byte-exact inside the operation,
+/// exactly like an obligated scalar computation's — they were proven against
+/// the argument values, and operand substitution only rebinds a member
+/// parameter to the representative every reaching edge proves equal. Callee
+/// purity and member observability are decided separately by
+/// [`invariant_scalar_call_admission`].
+pub(crate) fn admissible_invariant_scalar_call(node: &OptimizationNode) -> Option<MachineId> {
+    let (callee, _, crash_continuations) = scalar_call_shape(node)?;
+    crash_continuations.is_empty().then_some(callee)
+}
+
+/// Scalar-signature machine calls carrying crash-route custody — a `Call`
+/// whose `crash_continuations` roster is non-empty — are the call family's
+/// crash-evidence lane: the same source-owned `Call` shape
+/// ([`scalar_call_shape`]) with a roster to re-express. The roster is
+/// evidence the relocation re-derives rather than moves:
+/// [`invariant_crash_continuation_call_admission`] requires the callee's
+/// transitive effect summary to stay pure — so the published routes are a
+/// contract ceiling the callee's body never actually exercises — proves the
+/// carried roster is exactly what the callee's verifier-owned contract
+/// derives at these arguments, and the realization recomputes the moved
+/// call's continuations under the substituted arguments.
+pub(crate) fn admissible_invariant_crash_continuation_call(
+    node: &OptimizationNode,
+) -> Option<MachineId> {
+    let (callee, _, crash_continuations) = scalar_call_shape(node)?;
+    (!crash_continuations.is_empty()).then_some(callee)
 }
 
 /// Unit-result machine calls — `CallUnit` — are the structural-signature
@@ -657,6 +693,101 @@ pub(crate) fn invariant_scalar_call_admission(
         return None;
     }
     member_scalar_operand_substitution(function, component, node, relocating)
+}
+
+/// The complete crash-custody scalar-call admission shared by the proposal
+/// and the relocation freeze replay: `node` must carry the source-owned
+/// crash-continuation call shape
+/// ([`admissible_invariant_crash_continuation_call`]) — which yields the
+/// exact internal callee — and then replays the pure scalar call's whole
+/// evidence surface unchanged: the callee's transitive effect summary must
+/// prove no observable effect, no crash, and no suspension, every node
+/// inside the component's member roster must be unobservable under the same
+/// summaries, and each scalar argument obeys the shared use-site invariance
+/// rule ([`member_scalar_operand_substitution`]). The unchanged purity
+/// gates are deliberate: this lane admits only calls whose published crash
+/// routes are a contract ceiling the callee's body never exercises — a
+/// callee that could actually crash is `observable`-`May` and stays inside.
+/// The continuations are therefore evidence the moved node must spell
+/// correctly rather than a crash it could reach, so admission adds the
+/// halves that re-derive them: the callee's verifier-owned contract must
+/// reconstruct the carried roster exactly at the current actuals — a
+/// drifted or producer-invented roster refuses — and must re-derive it
+/// again under the substituted actuals ([`call_crash_continuations`] —
+/// `None` when no contract survives or erased formals would substitute
+/// terms this lane does not track); the caller's own published crash
+/// ceiling must still cover the recomputed roster ([`crash_routes_cover`])
+/// — the same canonical coverage the terminal verifier replays, minus the
+/// entry-requirement discharge a producer-only proof could have relied on.
+pub(crate) fn invariant_crash_continuation_call_admission(
+    functions: &[PsiOptimizationFunction],
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    node: &OptimizationNode,
+    relocating: &BTreeSet<ValueId>,
+    effects: &crate::EffectSummaryAnalysis,
+) -> Option<BTreeMap<ValueId, ValueId>> {
+    let callee = admissible_invariant_crash_continuation_call(node)?;
+    if !scalar_call_callee_pure(effects, callee) {
+        return None;
+    }
+    if !component_members_unobservable(function, component, effects) {
+        return None;
+    }
+    let O::Call {
+        arguments,
+        crash_continuations,
+        ..
+    } = &node.operation
+    else {
+        return None;
+    };
+    let callee_function = functions
+        .iter()
+        .find(|candidate| candidate.machine == callee)?;
+    if crate::validation::relocation_rewrites::call_crash_continuations(callee_function, arguments)?
+        != *crash_continuations
+    {
+        // The carried roster must be exactly what the callee's contract
+        // derives at the current arguments — evidence drift refuses, so the
+        // moved node never inherits a roster the contract did not produce.
+        return None;
+    }
+    let substitution = member_scalar_operand_substitution(function, component, node, relocating)?;
+    let moved_arguments = arguments
+        .iter()
+        .map(|argument| substitution.get(argument).copied().unwrap_or(*argument))
+        .collect::<Vec<_>>();
+    let continuations = crate::validation::relocation_rewrites::call_crash_continuations(
+        callee_function,
+        &moved_arguments,
+    )?;
+    let caller_contract = function.verified_contract.as_ref()?;
+    crash_routes_cover(&caller_contract.crash_routes, &continuations).then_some(substitution)
+}
+
+/// Whether `published` — a caller's verifier-owned crash ceiling in
+/// canonical order — covers every recomputed continuation bucket: the same
+/// cause with either the unconditional `Truth` alternative or a superset of
+/// the continuation's alternatives. This is the direct-coverage half of the
+/// terminal verifier's call-crash check, replayed on the moved roster; the
+/// verifier's entry-requirement discharge is producer-side evidence this
+/// lane does not reconstruct, so a continuation covered only that way
+/// stays refused.
+fn crash_routes_cover(
+    published: &[terminal_psi::CrashRouteBucket],
+    continuations: &[terminal_psi::CrashRouteBucket],
+) -> bool {
+    continuations.iter().all(|continuation| {
+        published.iter().any(|route| {
+            route.cause == continuation.cause
+                && (route.alternatives == [terminal_psi::CrashRouteGuard::Truth]
+                    || continuation
+                        .alternatives
+                        .iter()
+                        .all(|alternative| route.alternatives.contains(alternative)))
+        })
+    })
 }
 
 /// The effect-summary product computed over `unit`: the whole-unit
