@@ -1,8 +1,10 @@
 //! Optimizer module role: executable entrance. Projects ordered scalar blocks and explicit transfers.
 use crate::legalization::scalar_graph_input;
 use crate::{LegalizationError, LegalizationError as Error};
-use ::legalized_operations::*;
 use abstract_operations::AbstractOperationPlan;
+use legalized_operations::{
+    LegalizedScalarBlock, LegalizedScalarFunction, LegalizedScalarParameter,
+};
 use optimization_unit::PsiOptimizationUnit;
 use target_operations::TargetOperationPlan;
 mod instruction;

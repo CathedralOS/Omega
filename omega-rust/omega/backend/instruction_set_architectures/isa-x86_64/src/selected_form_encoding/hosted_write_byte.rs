@@ -4,8 +4,15 @@ use super::{
     X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint,
 };
 use crate::selected_form_encoding::request_validation::resolve_registers;
-use ::selected_instructions::*;
 use register_model::RegisterConstraintKey;
+use selected_instructions::{
+    LocalStorageSlotId, MachineAlternative, MachineAlternativeApplicability,
+    MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineCallEffect,
+    MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedControlEffect,
+    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
+    MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
+    MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
+};
 
 pub(crate) fn effects() -> MachineEncodedEffects {
     let physical = crate::x86_64_physical_register_model();
@@ -192,10 +199,12 @@ pub fn decode_x86_64_selected_hosted_write_byte_i32(
 #[cfg(test)]
 mod tests {
     use super::{
-        LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey,
-        MachineEncodedStackEffect, SelectedInstructionKind, effects,
-        encode_x86_64_selected_hosted_write_byte_form,
+        effects, encode_x86_64_selected_hosted_write_byte_form,
         validate_x86_64_selected_hosted_write_byte_form,
+    };
+    use selected_instructions::{
+        LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey,
+        MachineEncodedStackEffect, SelectedInstructionKind,
     };
     use semantic_vocabulary::{OperationId, PlaceId};
 

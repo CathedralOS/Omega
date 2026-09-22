@@ -4,8 +4,15 @@ use super::{
     X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint,
 };
 use crate::selected_form_encoding::request_validation::resolve_registers;
-use ::selected_instructions::*;
 use register_model::RegisterConstraintKey;
+use selected_instructions::{
+    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
+    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
+    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
+    MachineTrapBehavior, SelectedInstructionKind,
+};
 use target::NativeTarget;
 
 pub(crate) fn effects(
@@ -176,10 +183,12 @@ pub fn decode_x86_64_selected_hosted_exit_process_i32(
 #[cfg(test)]
 mod tests {
     use super::{
-        MachineAlternativeFamily, MachineAlternativeKey, NativeTarget, SelectedInstructionKind,
-        decode_x86_64_selected_hosted_exit_process_i32, effects,
+        NativeTarget, decode_x86_64_selected_hosted_exit_process_i32, effects,
         encode_x86_64_selected_hosted_exit_process_form,
         validate_x86_64_selected_hosted_exit_process_form,
+    };
+    use selected_instructions::{
+        MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind,
     };
     #[test]
     fn hosted_exit_replays_target_input_and_every_encoded_bit() {

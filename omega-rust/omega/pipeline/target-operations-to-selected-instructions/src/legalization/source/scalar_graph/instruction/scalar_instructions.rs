@@ -1,13 +1,13 @@
 //! Scalar arithmetic, logic, comparison and cast operations projected to
 //! the legalized instruction kind that realizes each.
 
-use super::super::{
-    Error, LegalizedExactIntegerOperator, LegalizedScalarComparison,
-    LegalizedScalarInstructionKind, PsiOptimizationUnit,
-};
+use super::super::{Error, PsiOptimizationUnit};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
 use abstract_operations::AbstractOperation;
+use legalized_operations::{
+    LegalizedExactIntegerOperator, LegalizedScalarComparison, LegalizedScalarInstructionKind,
+};
 use semantic_vocabulary::ScalarType;
 
 pub(super) fn project_integer_exact_cast(

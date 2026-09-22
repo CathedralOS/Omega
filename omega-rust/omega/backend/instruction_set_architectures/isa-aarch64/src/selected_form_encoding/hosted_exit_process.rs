@@ -4,10 +4,17 @@ use super::{
     ValidatedAarch64SelectedFormEncoding,
 };
 use crate::selected_form_encoding::selected_forms::resolve_registers;
-use ::selected_instructions::*;
 use register_model::RegisterConstraintKey;
 use register_model::RegisterViewId;
 use register_model::ValidatedPhysicalRegisterModel;
+use selected_instructions::{
+    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
+    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
+    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
+    MachineTrapBehavior, SelectedInstructionKind,
+};
 use target::NativeTarget;
 
 pub(crate) fn effects(
@@ -199,10 +206,12 @@ pub fn decode_aarch64_selected_hosted_exit_process_i32(
 #[cfg(test)]
 mod tests {
     use super::{
-        MachineAlternativeFamily, MachineAlternativeKey, NativeTarget, SelectedInstructionKind,
-        decode_aarch64_selected_hosted_exit_process_i32, effects,
+        NativeTarget, decode_aarch64_selected_hosted_exit_process_i32, effects,
         encode_aarch64_selected_hosted_exit_process_form,
         validate_aarch64_selected_hosted_exit_process_form,
+    };
+    use selected_instructions::{
+        MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind,
     };
     #[test]
     fn hosted_exit_replays_target_input_and_every_encoded_bit() {

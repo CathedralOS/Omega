@@ -3,14 +3,14 @@
 //! ones to `scalar_instructions`, `storage_instructions` and
 //! `call_instructions`.
 
-use super::{
-    AbstractOperationPlan, Error, LegalizedOperationPlan, LegalizedScalarArgument,
-    LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedValueDefinition,
-    NativeCallOrigin, PsiOptimizationUnit, TargetOperationPlan,
-};
+use super::{AbstractOperationPlan, Error, PsiOptimizationUnit, TargetOperationPlan};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
 use abstract_operations::AbstractOperation;
+use legalized_operations::{
+    LegalizedOperationPlan, LegalizedScalarArgument, LegalizedScalarInstruction,
+    LegalizedScalarInstructionKind, LegalizedValueDefinition, NativeCallOrigin,
+};
 use semantic_vocabulary::{IntegerValue, ScalarType};
 mod aggregate_results;
 mod call_instructions;

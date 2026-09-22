@@ -4,10 +4,17 @@ use super::{
     ValidatedAarch64SelectedFormEncoding,
 };
 use crate::selected_form_encoding::selected_forms::resolve_registers;
-use ::selected_instructions::*;
 use register_model::RegisterConstraintKey;
 use register_model::RegisterViewId;
 use register_model::ValidatedPhysicalRegisterModel;
+use selected_instructions::{
+    LocalStorageSlotId, MachineAlternative, MachineAlternativeApplicability,
+    MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineCallEffect,
+    MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedControlEffect,
+    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
+    MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
+    MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
+};
 use target::NativeTarget;
 
 pub(crate) fn effects(target: NativeTarget) -> MachineEncodedEffects {
@@ -249,10 +256,12 @@ pub fn decode_aarch64_selected_hosted_write_byte_i32(
 #[cfg(test)]
 mod tests {
     use super::{
-        LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey,
-        MachineEncodedStackEffect, NativeTarget, SelectedInstructionKind, decode, effects,
-        encode_aarch64_selected_hosted_write_byte_form,
+        NativeTarget, decode, effects, encode_aarch64_selected_hosted_write_byte_form,
         validate_aarch64_selected_hosted_write_byte_form,
+    };
+    use selected_instructions::{
+        LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey,
+        MachineEncodedStackEffect, SelectedInstructionKind,
     };
     use semantic_vocabulary::{OperationId, PlaceId};
 
