@@ -12,6 +12,7 @@ use target_operations::{
 mod aggregate_results;
 mod direct_calls;
 mod ieee_float;
+mod indexed_primitive_store;
 mod indirect_calls;
 mod primitive_store;
 /// Replay one ordered Unit operation with only the SSA sources available here.
@@ -379,6 +380,14 @@ pub(super) fn validate_operation(
             AbstractOperation::WriteOnlyPrimitiveStore { .. },
         ) => {
             primitive_store::validate(target, abstracted, parameters, sources, optimized, unit)?;
+        }
+        (
+            TargetUnitOperation::WriteOnlyIndexedPrimitiveStore { .. },
+            AbstractOperation::WriteOnlyIndexedPrimitiveStore { .. },
+        ) => {
+            indexed_primitive_store::validate(
+                target, abstracted, parameters, sources, optimized, unit,
+            )?;
         }
         (
             TargetUnitOperation::ScalarDefinition { result_home, .. },

@@ -11,4 +11,5 @@ mod structural_scalar;
 pub(super) use structural_scalar::{
     lower_dynamic_argument_scalar_call, lower_dynamic_argument_unit_call, lower_field_store,
 };
+pub(super) mod write_only_indexed_primitive_store;
 pub(super) mod write_only_primitive_store;

@@ -69,6 +69,11 @@ pub(super) fn folded_literal<'a>(
                 | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { value, .. } => {
                     value.value == definition.value
                 }
+                LegalizedScalarInstructionKind::WriteOnlyIndexedPrimitiveStore {
+                    index,
+                    value,
+                    ..
+                } => index.value == definition.value || value.value == definition.value,
                 LegalizedScalarInstructionKind::ByteSequenceSubslice {
                     start, end, length, ..
                 } => {

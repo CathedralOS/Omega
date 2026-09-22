@@ -83,6 +83,11 @@ impl LegalizedScalarInstruction {
                     | LegalizedScalarInstructionKind::EstablishPrimitiveLocal { value: stored, .. }
                     | LegalizedScalarInstructionKind::PrimitiveLocalStore { value: stored, .. }
                     | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { value: stored, .. } => stored.value == value,
+                    LegalizedScalarInstructionKind::WriteOnlyIndexedPrimitiveStore {
+                        index,
+                        value: stored,
+                        ..
+                    } => index.value == value || stored.value == value,
                     LegalizedScalarInstructionKind::ByteSequenceSubslice { start, end, length, .. } => *start == value || *end == value || *length == value,
                     LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { length, .. } => *length == value,
                     LegalizedScalarInstructionKind::ByteSequenceWrite { index, value: stored, length, .. }
@@ -252,6 +257,22 @@ pub enum LegalizedScalarInstructionKind {
         value: abstract_operations::AbstractResult,
         byte_offset: u32,
         byte_size: u8,
+    },
+    /// Non-observing element replacement at a proven in-extent runtime index.
+    /// `path` resolves to the fixed array; `byte_offset` is the array's base
+    /// within the referent and `byte_size` is both the element width and the
+    /// addressing stride. `obligation`/`accepted_fact` carry the verifier's
+    /// `index < extent` certificate.
+    WriteOnlyIndexedPrimitiveStore {
+        destination: terminal_psi::StructuralParameterDeclaration,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        index: abstract_operations::AbstractResult,
+        value: abstract_operations::AbstractResult,
+        byte_offset: u32,
+        byte_size: u8,
+        extent: u64,
+        obligation: semantic_vocabulary::ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
     /// Exact admitted hosted byte-output boundary, with its original i32 SSA input.
     /// The receiving target catalog owns syscall realization and failure behavior.

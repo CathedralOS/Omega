@@ -418,6 +418,68 @@ fn declared_range_runtime_index_store_reaches_verified_abstract_inventory() {
     }
 }
 
+/// A declared-range runtime index lowers to caller storage: the emitted
+/// address is the array base plus index times the element width, so a literal,
+/// a parameter, and a computed operand all land on the caller-selected element
+/// at its exact width while every neighboring byte stays untouched.
+#[test]
+fn runtime_indexed_stores_observe_caller_selected_elements() {
+    #[cfg(any(
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ),
+        all(target_os = "macos", target_arch = "aarch64")
+    ))]
+    for access in ["write", "mut"] {
+        for (expression, rendered) in [
+            ("17", "17"),
+            ("value", "value"),
+            ("~value", "((uint16_t)~value)"),
+        ] {
+            let source = format!(
+                "machine forward(values: &{access} [u16; 4], index: u64 [0..=3], value: u16) {{
+                    values[index] = {expression};
+                }}"
+            );
+            let (bytes, entry) = primitive_stores::published_text(&source, NativeTarget::host());
+            native_function::assert_c_text(
+                &bytes,
+                entry,
+                &format!(
+                    r#"
+                    #include <stdint.h>
+                    #include <string.h>
+                    extern void omega_entry(uint64_t index, uint16_t value, uint16_t *values);
+                    int main(void) {{
+                        for (uint64_t index = 0; index < 4; ++index) {{
+                            struct {{ uint64_t before; uint16_t values[4]; uint64_t after; }} frame;
+                            memset(&frame, 0xa5, sizeof frame);
+                            uint16_t value = (uint16_t)(0xbeef - index);
+                            frame.values[index] = (uint16_t)({rendered});
+                            unsigned char expected[sizeof frame];
+                            memcpy(expected, &frame, sizeof frame);
+                            frame.values[index] = 0;
+                            omega_entry(index, value, frame.values);
+                            if (memcmp(expected, &frame, sizeof frame) != 0) return (int)index + 1;
+                        }}
+                        return 0;
+                    }}
+                "#
+                ),
+            );
+        }
+    }
+    #[cfg(not(any(
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ),
+        all(target_os = "macos", target_arch = "aarch64")
+    )))]
+    eprintln!("SKIP: runtime-indexed stores require a supported Linux or macOS native host");
+}
+
 #[test]
 fn indexed_store_contracts_reject_access_and_index_substitution() {
     for (source, indexed_field_store) in [

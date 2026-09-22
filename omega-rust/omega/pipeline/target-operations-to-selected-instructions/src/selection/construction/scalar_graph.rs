@@ -1143,6 +1143,7 @@ pub(super) fn build_with_environment(
                     | LegalizedScalarInstructionKind::EstablishPrimitiveLocal { .. }
                     | LegalizedScalarInstructionKind::PrimitiveLocalStore { .. }
                     | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
+                    | LegalizedScalarInstructionKind::WriteOnlyIndexedPrimitiveStore { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceWrite { .. }
                     | LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore {
                         ..

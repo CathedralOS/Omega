@@ -34,6 +34,9 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                 | Instruction::EstablishPrimitiveLocal { value, .. }
                 | Instruction::PrimitiveLocalStore { value, .. }
                 | Instruction::WriteOnlyPrimitiveStore { value, .. } => pending.push(value.value),
+                Instruction::WriteOnlyIndexedPrimitiveStore { index, value, .. } => {
+                    pending.extend([index.value, value.value])
+                }
                 Instruction::ByteSequenceSubslice {
                     start, end, length, ..
                 } => pending.extend([*start, *end, *length]),

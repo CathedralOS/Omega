@@ -390,6 +390,12 @@ pub(super) fn validate(
             AbstractOperation::WriteOnlyPrimitiveStore { .. },
         ) => storage_instructions::validate_write_only_primitive_store(actual, node, unit)?,
         (
+            LegalizedScalarInstructionKind::WriteOnlyIndexedPrimitiveStore { .. },
+            AbstractOperation::WriteOnlyIndexedPrimitiveStore { .. },
+        ) => storage_instructions::validate_write_only_indexed_primitive_store(
+            actual, node, optimized, unit, operation,
+        )?,
+        (
             LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. },
             AbstractOperation::StructuralScalarFieldStore { .. },
         ) => storage_instructions::validate_structural_scalar_field_store(actual, node, unit)?,

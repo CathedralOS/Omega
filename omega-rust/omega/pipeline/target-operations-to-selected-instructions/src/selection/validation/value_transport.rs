@@ -98,6 +98,9 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
         | Instruction::EstablishPrimitiveLocal { value: stored, .. }
         | Instruction::PrimitiveLocalStore { value: stored, .. }
         | Instruction::WriteOnlyPrimitiveStore { value: stored, .. } => stored.value == value,
+        Instruction::WriteOnlyIndexedPrimitiveStore { index, value: stored, .. } => {
+            index.value == value || stored.value == value
+        }
         Instruction::ByteSequenceSubslice {
             start, end, length, ..
         } => [*start, *end, *length].contains(&value),
