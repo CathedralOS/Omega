@@ -10,6 +10,7 @@
 //! target profile of their own.
 
 use build_declarations::{BuildDeclaration, extract_build_declaration};
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::{InterpretOptions, interpret_entry};
 use compiler::{CheckedCompilation, CheckedCompileRequest, compile_to_checked};
 use diagnostics::Diagnostic;
@@ -219,14 +220,19 @@ fn byte_input_keeps_its_compiler_intrinsic_row_under_the_honest_envelope() {
         (b"\xc3\xa9\xff\0X", 34, b"\xc3\xa9\xff\0X"),
     ];
     for &(input, expected_exit, expected_output) in cases {
-        let outcome = interpret_entry(&checked, "Main::main", input, InterpretOptions::default());
+        let outcome = interpret_entry(
+            &checked,
+            BuildMachineEntry::Name("Main::main"),
+            input,
+            InterpretOptions::default(),
+        );
         assert_eq!(outcome.error, None, "input {input:?}");
         assert_eq!(outcome.exit_code, expected_exit, "input {input:?}");
         assert_eq!(outcome.stdout, expected_output, "input {input:?}");
     }
     let repeated = interpret_entry(
         &checked,
-        "Main::repeat",
+        BuildMachineEntry::Name("Main::repeat"),
         b"ab\nc",
         InterpretOptions::default(),
     );

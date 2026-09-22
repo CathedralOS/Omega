@@ -11,6 +11,7 @@ use crate::{
     hosted_main_program_entry_build_for, interpret, pass_canary,
     reviewed_repository_fixture_package_inputs,
 };
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;
@@ -134,8 +135,12 @@ fn float_match_checked_interpreter_executes_selected_arm_comparisons() {
         Some("macos_arm64"),
     ))
     .expect("float match selects its ordinary core provider");
-    let outcome =
-        checked_interpreter::interpret_entry(&checked, "launch", &[], InterpretOptions::default());
+    let outcome = checked_interpreter::interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("launch"),
+        &[],
+        InterpretOptions::default(),
+    );
     assert_eq!(outcome.error, None, "selected Match equality must execute");
     assert_eq!(outcome.exit_code, 0);
 }

@@ -1,4 +1,5 @@
 use crate::{compile_reviewed_repository_fixture, pass_canary};
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
 
@@ -24,7 +25,7 @@ fn selected_float_match_interpreter_preserves_ieee_values_and_effect_order() {
             let machine = format!("{case}{format}");
             let outcome = checked_interpreter::interpret_entry(
                 &checked,
-                &machine,
+                BuildMachineEntry::Name(&machine),
                 &[],
                 InterpretOptions::default(),
             );
@@ -45,7 +46,7 @@ fn selected_float_match_interpreter_rejects_integer_runtime_substitution() {
     for machine in ["projection32", "projection64"] {
         let positive = checked_interpreter::interpret_entry(
             &checked,
-            machine,
+            BuildMachineEntry::Name(machine),
             &[],
             InterpretOptions::default(),
         );
@@ -85,7 +86,7 @@ fn selected_float_match_interpreter_rejects_integer_runtime_substitution() {
     for machine in ["projection32", "projection64"] {
         let outcome = checked_interpreter::interpret_entry(
             &changed,
-            machine,
+            BuildMachineEntry::Name(machine),
             &[],
             InterpretOptions::default(),
         );
@@ -104,8 +105,12 @@ fn selected_float_match_interpreter_rejects_stale_or_substituted_execution_custo
         Some("macos_arm64"),
     ))
     .expect("float match customer checks");
-    let positive =
-        checked_interpreter::interpret_entry(&checked, "launch", &[], InterpretOptions::default());
+    let positive = checked_interpreter::interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("launch"),
+        &[],
+        InterpretOptions::default(),
+    );
     assert_eq!(
         positive.error, None,
         "negative controls need working execution"
@@ -246,7 +251,7 @@ fn selected_float_match_interpreter_rejects_stale_or_substituted_execution_custo
         );
         let outcome = checked_interpreter::interpret_entry(
             &changed,
-            "launch",
+            BuildMachineEntry::Name("launch"),
             &[],
             InterpretOptions::default(),
         );

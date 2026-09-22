@@ -1,5 +1,6 @@
 //! Specification applications retain selected callees and substituted operands.
 
+use checked_interpreter::BuildMachineEntry;
 use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct};
 use std::{
     fs,
@@ -201,7 +202,7 @@ fn runtime_body_calls_execute_with_checked_premises() {
     for (entry, expected) in [("run_false", 7), ("run_true", 11)] {
         let outcome = checked_interpreter::interpret_entry(
             &checked,
-            entry,
+            BuildMachineEntry::Name(entry),
             &[],
             checked_interpreter::InterpretOptions::default(),
         );

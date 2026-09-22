@@ -1,3 +1,4 @@
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use checked_interpreter::evaluate_const_machine;
 
@@ -130,7 +131,7 @@ fn checked_stored_reference_argument_mutates_the_original_referent() {
         .unwrap_or_else(|diagnostics| panic!("{argument}: {diagnostics:#?}"));
         let outcome = checked_interpreter::interpret_entry(
             &checked,
-            "main",
+            BuildMachineEntry::Name("main"),
             &[],
             InterpretOptions::default(),
         );
@@ -173,7 +174,7 @@ fn checked_stored_reference_argument_requires_builtin_indexing() {
                 result.unwrap_or_else(|diagnostics| panic!("{declaration}: {diagnostics:#?}"));
             let outcome = checked_interpreter::interpret_entry(
                 &checked,
-                "main",
+                BuildMachineEntry::Name("main"),
                 &[],
                 InterpretOptions::default(),
             );
@@ -207,8 +208,12 @@ fn checked_stored_reference_argument_composes_with_a_value_call() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
-    let outcome =
-        checked_interpreter::interpret_entry(&checked, "main", &[], InterpretOptions::default());
+    let outcome = checked_interpreter::interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("main"),
+        &[],
+        InterpretOptions::default(),
+    );
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 29);
 }
@@ -373,8 +378,12 @@ fn checked_projected_argument_evaluates_its_selector_once() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
-    let outcome =
-        checked_interpreter::interpret_entry(&checked, "main", &[], InterpretOptions::default());
+    let outcome = checked_interpreter::interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("main"),
+        &[],
+        InterpretOptions::default(),
+    );
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 7);
 }

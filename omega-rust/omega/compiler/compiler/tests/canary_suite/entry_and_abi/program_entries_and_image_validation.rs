@@ -4,6 +4,7 @@ use crate::{
     entry_free_fixture_build, fail_canary, fs, pass_canary, production_compile,
     unique_no_output_build_dir,
 };
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
 use terminal_production::{
@@ -91,9 +92,11 @@ fn checked_compilation_retains_the_exact_selected_program_entry() {
     .expect("native settlement must replay the actual authored two-surface applications");
     let outcome = checked_interpreter::interpret_entry(
         &checked,
-        checked
-            .selected_program_entry_machine()
-            .expect("target build selected an exact entry"),
+        BuildMachineEntry::Name(
+            checked
+                .selected_program_entry_machine()
+                .expect("target build selected an exact entry"),
+        ),
         &[],
         InterpretOptions::default(),
     );
@@ -505,7 +508,7 @@ fn checked_compilation_does_not_infer_an_entry_for_legacy_semantic_corpus() {
     assert_eq!(checked.selected_program_entry_machine(), None);
     let outcome = checked_interpreter::interpret_entry(
         &checked,
-        "Main::main",
+        BuildMachineEntry::Name("Main::main"),
         &[],
         InterpretOptions::default(),
     );

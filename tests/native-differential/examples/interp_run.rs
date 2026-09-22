@@ -2,6 +2,7 @@
 //! selects the host target's authored `ProgramEntry`, interprets it, forwards its
 //! stdout/stderr, and exits with its exit code.
 
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
 use std::io::{Read, Write};
@@ -32,7 +33,12 @@ fn main() {
         eprintln!("build has no exact target-owned ProgramEntry binding");
         std::process::exit(103);
     });
-    let outcome = interpret_entry(&checked, entry, &stdin, InterpretOptions::default());
+    let outcome = interpret_entry(
+        &checked,
+        BuildMachineEntry::Name(entry),
+        &stdin,
+        InterpretOptions::default(),
+    );
     std::io::stdout()
         .write_all(&outcome.stdout)
         .expect("stdout");

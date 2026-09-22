@@ -1,6 +1,7 @@
 //! Focused interpreter parity for programmable-layout recast views.
 
 use build_declarations::{BuildDeclaration, extract_build_declaration};
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 #[path = "../fixture_rosters/recast_views.rs"]
 mod fixture_roster;
@@ -21,7 +22,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
-    interpret_entry(checked, "Main::main", stdin, InterpretOptions::default())
+    interpret_entry(
+        checked,
+        BuildMachineEntry::Name("Main::main"),
+        stdin,
+        InterpretOptions::default(),
+    )
 }
 
 fn repo_root() -> PathBuf {

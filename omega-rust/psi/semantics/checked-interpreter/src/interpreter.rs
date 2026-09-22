@@ -1,6 +1,7 @@
 //! Checked execution lifecycle: choose authority, run a scoped worker, retain outcomes.
 //!
-//! Full-program execution starts at `interpret_entry`. Pure returned
+//! Full-program execution starts at `interpret_entry`, keyed by
+//! [`BuildMachineEntry`]. Pure returned
 //! values, observed final arguments, and filesystem-granted arguments keep separate
 //! execution paths because their authority and failure evidence differ.
 
@@ -19,15 +20,6 @@ use evaluator::{
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
-/// Interpret a checked program from one exact machine identity.
-///
-/// Build/target selection owns this identity. The interpreter neither discovers
-/// an entry from source spelling nor retries alternate names. `stdin` provides
-/// the bytes a `read_line` host call would consume.
-/// A `roots.bind` selection already resolved its machine to a symbol under the
-/// binding occurrence's lexical package; [`interpret_entry_symbol`] consumes
-/// that identity directly so a same-named declaration elsewhere in the program
-/// cannot be picked up instead.
 /// Options for [`interpret_entry`]. `Default` selects the hermetic
 /// virtual filesystem and the compiler host's checked standard metadata
 /// carrier. Cross-target and package-build callers supply the selected checked
@@ -47,39 +39,17 @@ impl InterpretOptions {
     }
 }
 
-/// [`interpret_entry`] with explicit [`InterpretOptions`].
+/// Interpret a checked program from one exact machine identity.
+///
+/// Build/target selection owns this identity. The interpreter neither discovers
+/// an entry from source spelling nor retries alternate names. A `roots.bind`
+/// selection already resolved its machine to a symbol under the binding
+/// occurrence's lexical package; [`BuildMachineEntry::Symbol`] consumes that
+/// identity directly so a same-named declaration elsewhere in the program
+/// cannot be picked up instead, while [`BuildMachineEntry::Name`] is the
+/// authored-name lookup for ad hoc callers. `stdin` provides the bytes a
+/// `read_line` host call would consume.
 pub fn interpret_entry(
-    checked: &CheckedTrees,
-    entry_machine_name: &str,
-    stdin: &[u8],
-    options: InterpretOptions,
-) -> InterpretOutcome {
-    interpret_scoped(
-        checked,
-        BuildMachineEntry::Name(entry_machine_name),
-        stdin,
-        options,
-    )
-}
-
-/// [`interpret_entry`] with the selected entry's exact machine symbol.
-/// Symbol identity cannot drift to a same-named machine declared in another
-/// module or package of the same program.
-pub fn interpret_entry_symbol(
-    checked: &CheckedTrees,
-    entry_machine_symbol: SymbolHandle,
-    stdin: &[u8],
-    options: InterpretOptions,
-) -> InterpretOutcome {
-    interpret_scoped(
-        checked,
-        BuildMachineEntry::Symbol(entry_machine_symbol),
-        stdin,
-        options,
-    )
-}
-
-fn interpret_scoped(
     checked: &CheckedTrees,
     entry: BuildMachineEntry<'_>,
     stdin: &[u8],

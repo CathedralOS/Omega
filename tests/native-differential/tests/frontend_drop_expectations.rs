@@ -31,6 +31,7 @@
 //!   hook-body effects as observable outcomes, so these probes pin compile-time
 //!   behavior plus ordinary interpretation only.
 
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use checked_interpreter::{InterpretOutcome, interpret_entry};
 use compiler::CheckedCompileRequest;
@@ -39,7 +40,12 @@ use std::fs;
 use std::path::PathBuf;
 
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
-    interpret_entry(checked, "Main::main", stdin, InterpretOptions::default())
+    interpret_entry(
+        checked,
+        BuildMachineEntry::Name("Main::main"),
+        stdin,
+        InterpretOptions::default(),
+    )
 }
 
 /// Write `source` to a fresh temp dir as `main.omg` and return the path. The dir is

@@ -5,6 +5,7 @@
 //! for another subsystem.
 
 use build_declarations::{BuildDeclaration, extract_build_declaration};
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 #[path = "support/console_acceptance.rs"]
 mod console_acceptance;
@@ -32,9 +33,11 @@ use std::process::Command;
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
     interpret_entry(
         checked,
-        checked
-            .selected_program_entry_machine()
-            .expect("recast fixture selects an exact ProgramEntry"),
+        BuildMachineEntry::Name(
+            checked
+                .selected_program_entry_machine()
+                .expect("recast fixture selects an exact ProgramEntry"),
+        ),
         stdin,
         InterpretOptions::default(),
     )

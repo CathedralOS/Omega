@@ -7,6 +7,7 @@ use crate::{
     compile_rooted_canary_for_native_host, compile_rooted_canary_for_target, fs,
     hosted_main_program_entry_build_for, interpret, pass_canary,
 };
+use checked_interpreter::BuildMachineEntry;
 use compiler::CheckedCompileRequest;
 use std::io::Write;
 
@@ -1206,7 +1207,7 @@ fn declared_operator_match_result_canary_interprets_both_arms() {
     for (entry, expected) in [("select_true", 260), ("select_false", 1), ("by_name", 260)] {
         let outcome = checked_interpreter::interpret_entry(
             &checked,
-            entry,
+            BuildMachineEntry::Name(entry),
             &[],
             checked_interpreter::InterpretOptions::default(),
         );

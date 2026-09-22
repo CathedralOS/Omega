@@ -1,3 +1,4 @@
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
 
@@ -21,7 +22,12 @@ fn execute_entry(source: &str, entry: &str) -> checked_interpreter::InterpretOut
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
-    interpret_entry(&checked, entry, &[], InterpretOptions::default())
+    interpret_entry(
+        &checked,
+        BuildMachineEntry::Name(entry),
+        &[],
+        InterpretOptions::default(),
+    )
 }
 
 #[test]

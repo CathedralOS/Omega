@@ -1,5 +1,6 @@
 use super::{TempTree, identity};
 use crate::fixtures;
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::{
@@ -1058,7 +1059,7 @@ invokes filesystem;
     );
     let unbound = checked_interpreter::interpret_entry(
         &accepted_compilation,
-        "Main::main",
+        BuildMachineEntry::Name("Main::main"),
         &[],
         InterpretOptions::default(),
     );
@@ -1078,7 +1079,7 @@ invokes filesystem;
         .expect("compiler-resolved declaration is one exact checked boundary");
     let bound = checked_interpreter::interpret_entry(
         &accepted_compilation,
-        "Main::main",
+        BuildMachineEntry::Name("Main::main"),
         &[],
         checked_interpreter::InterpretOptions::default()
             .with_filesystem_service_binding(interpreter_binding),
@@ -1103,7 +1104,7 @@ invokes filesystem;
     .expect("the identical source compiles into a second checked program");
     let substituted = checked_interpreter::interpret_entry(
         &substituted_program,
-        "Main::main",
+        BuildMachineEntry::Name("Main::main"),
         &[],
         checked_interpreter::InterpretOptions::default()
             .with_filesystem_service_binding(interpreter_binding),

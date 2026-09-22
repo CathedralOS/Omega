@@ -17,6 +17,7 @@
 //! EACCES reading outside every root -- with the denied files verifiably
 //! absent from real disk afterwards.
 
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::{
     BuildMachineEvaluationFailureKind, BuildMachineEvaluationRequest, BuildTimeValue,
     FilesystemAccess, FilesystemEvaluationHaltKind, FilesystemGrantRoot,
@@ -40,7 +41,12 @@ fn grant_root(identity: u32, path: impl Into<std::path::PathBuf>) -> FilesystemG
 }
 
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
-    interpret_entry(checked, "Main::main", stdin, InterpretOptions::default())
+    interpret_entry(
+        checked,
+        BuildMachineEntry::Name("Main::main"),
+        stdin,
+        InterpretOptions::default(),
+    )
 }
 
 fn interpret_with_options(
@@ -48,7 +54,12 @@ fn interpret_with_options(
     stdin: &[u8],
     options: InterpretOptions,
 ) -> InterpretOutcome {
-    interpret_entry(checked, "Main::main", stdin, options)
+    interpret_entry(
+        checked,
+        BuildMachineEntry::Name("Main::main"),
+        stdin,
+        options,
+    )
 }
 
 /// Render a host path for embedding in generated omega source: forward

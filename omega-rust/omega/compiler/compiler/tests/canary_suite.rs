@@ -2,6 +2,7 @@ use build_declarations::{
     BuildDeclaration, DependencyPurpose, extract_build_declaration, is_dependency_call_name,
     project_build_entry_syntax, project_dependency_rows,
 };
+use checked_interpreter::BuildMachineEntry;
 use compiler::CheckedCompileRequest;
 use compiler::{
     CheckedCompilation, CompileOptions as CompilerOptions, CompileReport, CompileRequest,
@@ -127,7 +128,12 @@ fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
     let Some(filesystem) =
         checked.resolved_semantic_binding(AcceptedSemanticBindingRole::FilesystemHostService)
     else {
-        return interpret_entry(checked, "Main::main", stdin, InterpretOptions::default());
+        return interpret_entry(
+            checked,
+            BuildMachineEntry::Name("Main::main"),
+            stdin,
+            InterpretOptions::default(),
+        );
     };
     let binding = FilesystemServiceBinding::from_compiler_resolved_declaration(
         checked,
@@ -136,7 +142,7 @@ fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
     .expect("accepted filesystem fixture binding resolves one exact declaration");
     interpret_entry(
         checked,
-        "Main::main",
+        BuildMachineEntry::Name("Main::main"),
         stdin,
         InterpretOptions::default().with_filesystem_service_binding(binding),
     )

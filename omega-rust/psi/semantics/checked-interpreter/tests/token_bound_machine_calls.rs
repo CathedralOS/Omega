@@ -2,6 +2,7 @@
 //! checked body: the checked stage binds the selected `+` use to an ordinary
 //! call, so the interpreter runs the declaration like any named call.
 
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 
 fn interpret_main(source: &str) -> checked_interpreter::InterpretOutcome {
@@ -20,7 +21,12 @@ fn interpret_main(source: &str) -> checked_interpreter::InterpretOutcome {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
-    checked_interpreter::interpret_entry(&checked, "main", &[], InterpretOptions::default())
+    checked_interpreter::interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("main"),
+        &[],
+        InterpretOptions::default(),
+    )
 }
 
 #[test]

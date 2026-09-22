@@ -1,5 +1,6 @@
 use super::super::TypedTrees;
 use super::{BinaryOperator, Evaluator, ExpressionHandle, ExpressionNode, Halt};
+use crate::BuildMachineEntry;
 use crate::InterpretOptions;
 fn program(source: &str) -> TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
@@ -178,7 +179,12 @@ fn case_membership_executes_checked_nested_structural_equality_synthesis() {
             &typed_trees_to_checked_trees::CheckingRequest::settled(),
         )
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
-        let outcome = crate::interpret_entry(&checked, "main", &[], InterpretOptions::default());
+        let outcome = crate::interpret_entry(
+            &checked,
+            BuildMachineEntry::Name("main"),
+            &[],
+            InterpretOptions::default(),
+        );
         assert_eq!(outcome.error, None, "{source}");
         assert_eq!(outcome.exit_code, expected, "{source}");
     }

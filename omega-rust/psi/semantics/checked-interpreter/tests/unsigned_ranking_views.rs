@@ -1,3 +1,4 @@
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
 use source_files_to_tokens::Lexer;
@@ -27,7 +28,12 @@ fn unsigned_identity_views_check_and_execute_each_countdown() {
         let typed = lower_symbol_resolved_trees(&resolved).expect("countdown types");
         let checked = lower_typed_trees(typed, &CheckingRequest::settled())
             .expect("checked unsigned identity view");
-        let outcome = interpret_entry(&checked, "main", &[], InterpretOptions::default());
+        let outcome = interpret_entry(
+            &checked,
+            BuildMachineEntry::Name("main"),
+            &[],
+            InterpretOptions::default(),
+        );
         assert_eq!(outcome.error, None, "{source}");
         assert_eq!(outcome.exit_code, 7, "{source}");
     }

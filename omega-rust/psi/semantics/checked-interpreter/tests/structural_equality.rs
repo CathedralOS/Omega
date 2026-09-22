@@ -1,5 +1,6 @@
 //! Generated tag observations guard active payload reads during ordinary execution.
 
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 #[test]
 fn nested_sum_equality_executes_only_the_active_payload_comparison() {
@@ -48,7 +49,7 @@ fn nested_sum_equality_executes_only_the_active_payload_comparison() {
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
         let outcome = checked_interpreter::interpret_entry(
             &checked,
-            "main",
+            BuildMachineEntry::Name("main"),
             &[],
             InterpretOptions::default(),
         );

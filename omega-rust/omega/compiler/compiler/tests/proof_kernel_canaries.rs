@@ -13,6 +13,7 @@
 //! The false twin stays refused before any kernel judgment.
 
 use build_declarations::{BuildDeclaration, extract_build_declaration};
+use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
 use compiler::CheckedCompileRequest;
@@ -241,9 +242,11 @@ fn theorem_equality_certificates_interpret_run_natively_and_cross_compile() {
         .expect("theorem certificate canary should reach checked trees");
     let interpreted = interpret_entry(
         &checked,
-        checked
-            .selected_program_entry_machine()
-            .expect("theorem certificate canary selects an exact ProgramEntry"),
+        BuildMachineEntry::Name(
+            checked
+                .selected_program_entry_machine()
+                .expect("theorem certificate canary selects an exact ProgramEntry"),
+        ),
         &[],
         InterpretOptions::default(),
     );
