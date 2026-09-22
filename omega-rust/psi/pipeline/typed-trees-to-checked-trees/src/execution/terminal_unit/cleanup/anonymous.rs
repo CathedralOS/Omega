@@ -359,13 +359,10 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
         if argument.path.is_empty() {
             continue;
         }
-        let Some((position, (result, root))) = temporaries
+        let (position, (result, root)) = temporaries
             .iter()
             .enumerate()
-            .find(|(_, (result, _))| result.binding_ordinal == binding_ordinal)
-        else {
-            return None;
-        };
+            .find(|(_, (result, _))| result.binding_ordinal == binding_ordinal)?;
         if residual_rows[position].is_some()
             || coordinate.statement_index != result.statement_index
             || !matches!(root, facts::PlaceRoot::Expression(_))

@@ -66,15 +66,13 @@ pub(super) fn check_call_result_qualifications(
             else {
                 return None;
             };
-            let Some(site) = crate::semantic_calls::find_call_site(
+            let site = crate::semantic_calls::find_call_site(
                 program,
                 machine_symbol,
                 state_symbol,
                 statement_index,
                 call_ordinal,
-            ) else {
-                return None;
-            };
+            )?;
             let is_result_place = matches!(
                 (place.root, site),
                 (
