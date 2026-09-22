@@ -1,0 +1,73 @@
+{
+ "wave": "linw3",
+ "drained_at": "2026-09-22T22:10Z",
+ "drain_reason": "user-requested drain + re-partition under revised local-swarm skill",
+ "tank_model": "6 concurrent local subagents + coordinator slot, paced resume-based refill via tools/swarm/fill.py ledger",
+ "slots": [
+  {
+   "slot": "alias-aware-memory",
+   "agent_id": "ec852027",
+   "result": "landed x2",
+   "commits": ["88f539e14b", "3df7aeb6cd"],
+   "item_closed": false,
+   "notes": "byte-view storage-root premise binding + store-motion reconvergent forks; remaining: fact-identity binding beyond storage roots, non-reconvergent fork/join motion, receipt audit"
+  },
+  {
+   "slot": "proof-kernel-core",
+   "agent_id": "89031c57",
+   "result": "landed x2",
+   "commits": ["fb59ce436a", "73dcd8a00b"],
+   "item_closed": false,
+   "notes": "correlated multiply bounds + forbidden roots denote compositionally; remaining: cast bounds, nested canonical identity reversal, Boolean case analysis"
+  },
+  {
+   "slot": "spill-realization",
+   "agent_id": "a6d9fa29",
+   "result": "landed",
+   "commits": ["c49f5236fa"],
+   "item_closed": false,
+   "notes": "logical-to-physical join leg resolved by removal (plan provably redundant, 0/43 invocations); remaining: victim/use admission, slot assignment"
+  },
+  {
+   "slot": "structural-borrow-identity",
+   "agent_id": "17265e38",
+   "result": "landed + parked WIP",
+   "commits": ["c6c43812ae"],
+   "unpublished": ["53ce1f70ff on swarm/linw3-structural-borrow-identity — scalar_window_probe diagnosis for unread borrowed-receiver scalar-graph leg"],
+   "item_closed": false,
+   "notes": "RuntimeIndex segment end-to-end; died twice on rate limiter, WIP preserved via fill.py recover"
+  },
+  {
+   "slot": "termination-ranking-checks",
+   "agent_id": "72145d5f",
+   "result": "landed x2",
+   "commits": ["24d256130e", "7413ba272b"],
+   "item_closed": false,
+   "notes": "division-term substitution at all scalar call-actual consumers + signature-only callee contract framing; remaining: rank-role arrival correspondence, native scalar plans (gated on STATE-LOCAL-VALUE-FRONTIER)"
+  },
+  {
+   "slot": "top-level-boundary-requirements",
+   "agent_id": "0f5a3da7",
+   "result": "landed",
+   "commits": ["483fe3708a"],
+   "item_closed": false,
+   "notes": "lifetime-parameterized direct requirements settle through dispatch + canary fixture + Linux canary_suite import repair; landed by coordinator after agent finished uncommitted"
+  },
+  {
+   "slot": "translation-validation",
+   "agent_id": "coordinator",
+   "result": "investigated, parked WIP",
+   "commits": [],
+   "unpublished": ["9b0bf63f90 on swarm/linw3-translation-validation — linw3_translation_probe.rs scratch probe harness"],
+   "item_closed": false,
+   "notes": "UnsupportedOperatorSpan fall-through surface identified statically (non-FMA/compare ExactCompilerIntrinsic, non-static-callee BoundaryCall under checked-body realizations); no end-to-end gap witnessed — corpus fixtures omit unit plans upstream at ProgramEntry establishment (pre-existing on base). Parallel session landed rebound dynamic-call occurrences 21f55a3411 on the same item."
+  }
+ ],
+ "friction": [
+  "rate-limiter kills mid-implementation leave dirty worktrees with no completion notification; fill.py recover + resume worked but one resume was user-interrupted",
+  "fill.py wip_commit dropped kwargs to coordination.git (fixed: forward *args/**kwargs)",
+  "landing.py publish requires full lowercase object IDs — abbreviated hashes rejected",
+  "plain `omega` CLI lacks the canary harness's provider-selection/package-review wiring; CLI failures on provider fixtures are not evidence of fixture invalidity",
+  "corpus ProgramEntry establishment omissions (structural field store, transition scalar args) reproduce on clean base — blocks end-to-end physical-evidence witnessing"
+ ]
+}

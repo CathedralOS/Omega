@@ -345,7 +345,12 @@ the complete product bar; focused successes below do not establish that baseline
   `machine_calls/call_cycles/runtime_ranking/`.
 
   - Extend non-polynomial actual-argument substitution beyond supported
-    quotient/remainder endpoints. Recheck constituent operations at each exact
+    quotient/remainder endpoints. Integer-division terms now install on
+    actuals at every scalar call-actual consumer
+    (`prove_ranking_range_call`, `endpoint_pins::argument_sources`,
+    `requirements.rs::prove`, `saved_arguments::install`); saved let-locals
+    remain inadmissible as call-component actuals (a separate feature).
+    Recheck constituent operations at each exact
     arrival; cancellation, equal intervals and unoriented disequality do not
     establish divisor validity, absence of overflow or subject identity.
     The independent interval-only fallback still requires one state.
@@ -363,8 +368,11 @@ the complete product bar; focused successes below do not establish that baseline
     loop headers distinct from entry remain dependencies on
     **STATE-LOCAL-VALUE-FRONTIER**.
   - Complete rank-preserving boundary/requirement call handling using selected
-    execution/write contracts, not a signature-only claim that exclusive writes
-    never happen. Direct and composed checked-body call initializers already
+    execution/write contracts. Signature-only callees (boundary/requirement/
+    admitted/external) now frame caller-visible writes from their selected
+    signature contract rather than an empty body summary, and rank-prefix bars
+    admit callees whose complete frame is disjoint from protected carriers.
+    Direct and composed checked-body call initializers already
     preserve entry facts through `call_tree_initializer_preserves_entry`;
     mutable writes to protected premise carriers must continue to reject.
 
@@ -1408,8 +1416,10 @@ syntax and other terminal services are not prerequisites.
 
   - Replace bounded denotation's per-instance `rule_axiom` fallbacks with
     checked derivations or explicitly justified checked rules, driven by real
-    source obligations. Remaining cases include cast bounds, correlated
-    forbidden roots/multiply bounds, nested canonical identity reversal and
+    source obligations. Correlated multiply bounds and correlated forbidden
+    roots now denote compositionally (checked affine-chain solving plus
+    dependent `Two` case split); remaining cases include cast bounds, nested
+    canonical identity reversal and
     Boolean identities needing case analysis. Preserve numeric policy and
     exact operands. Unsupported arithmetic or construction-budget fallback
     must not be reported as independently proved merely because the kernel
@@ -1760,14 +1770,17 @@ syntax and other terminal services are not prerequisites.
   `structural_call_arguments` and image `argument_custody`.
 
   Static `Field`/`FixedIndex` shared receivers and explicit shared scalar-call
-  arguments are supported. Remaining `src/tests/borrow/receiver_access.rs`
-  pins cover local-rooted indexed receivers and runtime-indexed parameter
-  receivers/explicit shared arguments. `CheckedUnitStructuralPathSegment`
-  has no runtime-index variant: retain a checked selector/value and bounds
-  relationship, not a widened path predicate or trusted byte offset. Coordinate
-  those fixtures' bracketed-range migration with
+  arguments are supported, and a bounded `RuntimeIndex` structural-path
+  segment now runs end-to-end (checked trees → lowering → Terminal Psi →
+  verifier replay → codecs → identity/hash → spec tag 5). Remaining
+  `src/tests/borrow/receiver_access.rs` pins cover local-rooted indexed
+  receivers and runtime-indexed parameter receivers/explicit shared arguments.
+  Coordinate those fixtures' bracketed-range migration with
   REMOVE-BRACKETED-RANGE-ANNOTATIONS. Owned-root and construction-local admission
   remain separate obligations; reuse `terminal-semantics::static_path`.
+  Parked WIP: branch `swarm/linw3-structural-borrow-identity` @ `53ce1f70ff`
+  holds a `scalar_window_probe` diagnosis for the unread borrowed-receiver
+  scalar-graph leg below.
 
   Acceptance: repair the omission pins and execute caller-visible
   projected/forwarded writes, owned-field mutable/write-only subloans, legal
@@ -3320,8 +3333,13 @@ syntax and other terminal services are not prerequisites.
   Reuse them without treating that result as native coverage of every shape.
 
   Extend the selected-call mechanism to type/lifetime-parameterized
-  requirements and borrowed receivers. `selected-dispatch/boundary_dispatch.rs`
-  still restricts direct requirements to nongeneric, receiver-free signatures;
+  requirements and borrowed receivers. Lifetime-parameterized direct
+  requirements (erased-lifetime telescopes such as `Bytes::head<'a>`) now
+  settle through provider-plan requirement views and selected-dispatch
+  adaptation, witnessed by the
+  `providers/lifetime_boundary_requirement_dispatch_exit` canary;
+  `selected-dispatch/boundary_dispatch.rs` still restricts direct requirements
+  to nongeneric, receiver-free signatures otherwise, and
   `selected_dispatch/requirement_adapter.rs` separately rejects family rows.
   Compose external satisfiers with structural arguments and interpreter
   provider execution. Preserve the mixed borrowed-record external customer,
