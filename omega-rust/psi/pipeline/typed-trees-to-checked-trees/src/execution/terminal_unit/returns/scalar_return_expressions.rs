@@ -147,10 +147,13 @@ pub(crate) fn is_branch_free_structural_integer_expression(
 ) -> bool {
     match expression {
         CheckedScalarExpression::StorageRead { .. }
-        | CheckedScalarExpression::StructuralParameterByteLength { .. }
         | CheckedScalarExpression::IntegerTrappingCast { .. }
         | CheckedScalarExpression::IntegerWrappingCast { .. }
         | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => false,
+        // A whole-view `source.len` observes the exact borrowed view the
+        // structural parameter itself carries; a field-path byte length is a
+        // nested view projection outside this lane.
+        CheckedScalarExpression::StructuralParameterByteLength { path, .. } => path.is_empty(),
         CheckedScalarExpression::IntegerLiteral { .. } => true,
         CheckedScalarExpression::IntegerBinary { left, right, .. } => {
             is_branch_free_structural_integer_expression(left, scalar_parameters, available_locals)

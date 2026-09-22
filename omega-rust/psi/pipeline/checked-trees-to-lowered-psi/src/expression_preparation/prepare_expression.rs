@@ -41,6 +41,35 @@ pub(crate) fn lower_checked_scalar_expression(
     lower_checked_scalar_expression_with_parameters(expression, &[], &[], &[], &[])
 }
 
+/// `lower_checked_scalar_expression_at` carrying the callee's authored
+/// structural parameter namespace, so a whole byte-view length observation
+/// resolves its exact retained source place instead of failing closed.
+pub(crate) fn lower_checked_scalar_expression_at_with_parameters(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    statement_ordinal: u32,
+    role: CheckedScalarExpressionRole,
+    structural_parameters: &[(u32, StructuralParameterDeclaration)],
+) -> Result<LoweredDirectExpression, LoweringError> {
+    let (binding, expression) = checked
+        .facts
+        .values
+        .scalar_expressions
+        .bound_expression_at(state, statement_ordinal, role)
+        .ok_or(LoweringError::Unsupported(
+            "scalar expression has no unique source-bound checked value plan",
+        ))?;
+    let expression = lower_checked_scalar_expression_with_parameters(
+        expression,
+        structural_parameters,
+        &[],
+        &[],
+        &[],
+    )?;
+    source_custody::validate_pure(checked, binding, expression.scalar_type())?;
+    Ok(expression)
+}
+
 fn byte_observation_parameter(
     position: u32,
     parameters: &[(u32, StructuralParameterDeclaration)],

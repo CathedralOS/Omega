@@ -50,7 +50,9 @@ use crate::emission::expression_validation::{
 use crate::emission::operation_emission::emit_direct_expression;
 use crate::emission::scalar_types::{integer_value, terminal_scalar_type};
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
-use crate::expression_preparation::prepare_expression::lower_checked_scalar_expression_at;
+use crate::expression_preparation::prepare_expression::{
+    lower_checked_scalar_expression_at, lower_checked_scalar_expression_at_with_parameters,
+};
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::proofs::content_conservation;
 use crate::proofs::content_conservation::{

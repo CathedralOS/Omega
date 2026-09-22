@@ -71,6 +71,57 @@ fn pure_primitive_reference_returns_enter_the_independent_callee_catalog() {
 }
 
 #[test]
+fn borrowed_byte_view_returns_enter_the_independent_callee_catalog() {
+    for access in ["&", "&mut"] {
+        let checked = checked(&format!(
+            "data Helper {{}}\n\
+             machine Helper::measure(source: {access} [u8], seed: u64) -> u64 {{ source.len }}"
+        ));
+        let plans =
+            build_checked_primitive_store_scalar_return_plans(&checked.typed, &checked.facts);
+        let [plan] = plans.machines.as_slice() else {
+            panic!("independent byte-view callee: {access}");
+        };
+        assert!(plan.attachment_type_identity.is_some());
+        assert!(plan.effects.is_empty());
+        assert!(plan.cleanup_actions.is_empty());
+        assert!(plan.bindings.is_empty());
+        assert_eq!(plan.return_statement_ordinal, 0);
+        assert_eq!(
+            plan.structural_parameters
+                .iter()
+                .map(|parameter| parameter.position)
+                .collect::<Vec<_>>(),
+            [0]
+        );
+        assert_eq!(plan.scalar_parameters[0].source_position, 1);
+        assert!(is_primitive_reference_plan(plan));
+        assert_eq!(
+            checked
+                .facts
+                .flow
+                .terminal_structural_scalar_returns
+                .for_machine(plan.machine),
+            Some(plan)
+        );
+        assert!(
+            super::super::super::scalar_targets::registered_primitive_store_target(
+                &checked.typed,
+                &checked.facts,
+                Some(crate::execution::terminal_unit::ScalarCalleePlans {
+                    boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+                    structural_returns: &checked.facts.flow.terminal_structural_scalar_returns
+                }),
+                plan.machine,
+                plan.state,
+                plan.result_type,
+            )
+            .is_some()
+        );
+    }
+}
+
+#[test]
 fn pure_primitive_reference_returns_keep_restrictions_on_contracts_and_ranges() {
     for source in [
         "machine hold(value: &u64) -> u64 requires true; { 0 }",

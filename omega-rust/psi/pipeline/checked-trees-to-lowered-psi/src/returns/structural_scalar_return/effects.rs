@@ -206,19 +206,53 @@ pub(super) fn validate(
                     checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
                 }
             };
-            if !matches!(
+            // A borrowed byte view rides the same unrestricted observation
+            // lane as a plain `&primitive` referent: the retained parameter's
+            // identity and shape name the peeled slice carrier exactly. The
+            // checked carrier peels constraint shells before reading the
+            // slice, so this replay does the same.
+            let (identity, expected_shape) = if matches!(
                 checked.type_reference_table.type_reference(*referee),
                 checked_trees::types::TypeReferenceNode::Named { .. }
             ) {
-                return unsupported("primitive reference return needs a plain primitive referent");
-            }
-            let primitive =
-                checked
-                    .primitive_type_reference(*referee)
-                    .ok_or(LoweringError::Unsupported(
+                let primitive = checked.primitive_type_reference(*referee).ok_or(
+                    LoweringError::Unsupported(
                         "primitive reference return has no primitive referent",
-                    ))?;
-            let identity = checked.normalized_type_identity(*referee).into_string();
+                    ),
+                )?;
+                (
+                    checked.normalized_type_identity(*referee).into_string(),
+                    checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive),
+                )
+            } else {
+                let mut view = *referee;
+                while let checked_trees::types::TypeReferenceNode::Constrained {
+                    base_type, ..
+                } = checked.type_reference_table.type_reference(view)
+                {
+                    view = *base_type;
+                }
+                let checked_trees::types::TypeReferenceNode::Slice { element_type } =
+                    checked.type_reference_table.type_reference(view)
+                else {
+                    return unsupported(
+                        "primitive reference return needs a plain primitive referent",
+                    );
+                };
+                if checked.primitive_type_reference(*element_type)
+                    != Some(checked_trees::types::PrimitiveType::U8)
+                {
+                    return unsupported(
+                        "primitive reference return needs a plain primitive referent",
+                    );
+                }
+                (
+                    checked.normalized_type_identity(view).into_string(),
+                    checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
+                        checked_trees::CheckedByteSequenceCarrier::BorrowedView,
+                    ),
+                )
+            };
             let shape = types
                 .find(&retained.type_identity)
                 .ok_or(LoweringError::Unsupported(
@@ -230,8 +264,7 @@ pub(super) fn validate(
                 || retained.multiplicity != Multiplicity::Unrestricted
                 || !retained.qualifications.is_empty()
                 || retained.type_identity != identity
-                || shape.shape
-                    != checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive)
+                || shape.shape != expected_shape
             {
                 return unsupported(
                     "primitive reference return signature lost its authored referent custody",
