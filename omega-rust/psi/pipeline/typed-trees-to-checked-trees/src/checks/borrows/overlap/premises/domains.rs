@@ -49,7 +49,9 @@ pub(super) fn append_membership_premises(
     {
         return;
     }
-    let Some(subject) = super::normalized_bound(program, membership.value) else {
+    let Some(subject) = super::normalized_bound(program, membership.value)
+        .or_else(|| super::projected_immutable_bound(program, membership.value))
+    else {
         return;
     };
     for offset in 0..domain.facts.count() {

@@ -22,28 +22,46 @@ pub fn has_exact_integer_domain_subject(
     domain: &DomainDefinition,
     expression: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return false;
-    };
-    if !has_exact_domain_definition(program, domain)
-        || !path.symbol.is_valid()
-        || path.head_symbol != path.symbol
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
-        || program
-            .expression_table
-            .name_path_member_symbols(path.member_symbols)
-            != [path.symbol]
-    {
+    if !has_exact_domain_definition(program, domain) {
         return false;
     }
-    let Some(subject_type) =
-        crate::value_custody::places::bound_symbol_declared_type(program, path.symbol)
-    else {
-        return false;
+    let subject_type = match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => {
+            if !path.symbol.is_valid()
+                || path.head_symbol != path.symbol
+                || program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .len()
+                    != 1
+                || program
+                    .expression_table
+                    .name_path_member_symbols(path.member_symbols)
+                    != [path.symbol]
+            {
+                return false;
+            }
+            let Some(subject_type) =
+                crate::value_custody::places::bound_symbol_declared_type(program, path.symbol)
+            else {
+                return false;
+            };
+            subject_type
+        }
+        // A projected subject's carrier is the member field's own declared
+        // type; the receiver's display spelling cannot widen it.
+        ExpressionNode::Member(_) => {
+            let Some(subject_type) =
+                crate::proof_contracts::immutable_integer_bounds::projected_integer_bound_subject_type(
+                    program,
+                    expression,
+                )
+            else {
+                return false;
+            };
+            subject_type
+        }
+        _ => return false,
     };
     matches!(integer_carrier(program, domain.target_type), Some(carrier)
         if integer_carrier(program, subject_type) == Some(carrier))

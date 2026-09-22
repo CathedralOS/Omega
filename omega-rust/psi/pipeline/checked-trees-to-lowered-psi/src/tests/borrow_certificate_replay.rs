@@ -66,6 +66,22 @@ const STATEMENT_CALL_PREMISED_WRITE: &str = r#"
     }
 "#;
 
+// A domain-membership premise on a projected (member) subject — a segmented
+// premise bound — must replay post-publication like the bare-Name spelling.
+const PROJECTED_DOMAIN_PREMISED_WRITE: &str = r#"
+    domain u64::Upper requires self >= 2;
+    data Pair { first: u64 [0..=4]; second: u64; }
+    data Main { items: [i32; 4]; }
+
+    machine Main::main(&mut self, pair: Pair) -> u64
+        requires pair.first in u64::Upper;
+    {
+        let held: &mut [i32] = self.items[pair.first..4];
+        self.items[0] = 3;
+        held.len
+    }
+"#;
+
 #[test]
 fn published_borrow_certificates_replay_at_the_lowering_boundary() {
     for source in [
@@ -73,6 +89,7 @@ fn published_borrow_certificates_replay_at_the_lowering_boundary() {
         MUTABLE_RESULT_PREMISED_WRITE,
         PROJECTED_PREMISED_WRITE,
         STATEMENT_CALL_PREMISED_WRITE,
+        PROJECTED_DOMAIN_PREMISED_WRITE,
     ] {
         let checked = checked_source(source);
         assert!(
