@@ -38,16 +38,27 @@ use crate::unit::dynamic_composed_unit::structural_types::{
 };
 pub(super) fn lower(
     checked: &CheckedTrees,
-    plan: &checked_trees::CheckedJoinedDynamicScalarCallPlan,
+    control: &checked_trees::CheckedDynamicJoinControlPlan,
+    when_true: &checked_trees::CheckedDynamicJoinBranchPlan<CheckedDynamicScalarCallPlan>,
+    when_false: &checked_trees::CheckedDynamicJoinBranchPlan<CheckedDynamicScalarCallPlan>,
 ) -> Result<LoweredPsi, LoweringError> {
-    validate_join_plan(checked, plan)?;
-    let branches = [&plan.when_true.call, &plan.when_false.call];
+    validate_join_control_plan(
+        checked,
+        control,
+        &when_true.successor,
+        when_true.call.caller_machine,
+        when_true.call.caller_state,
+        &when_false.successor,
+        when_false.call.caller_machine,
+        when_false.call.caller_state,
+    )?;
+    let branches = [&when_true.call, &when_false.call];
     let first = branches[0];
     let second = branches[1];
     let first_shape = validate_exact_direct_plan(checked, first)?;
     let second_shape = validate_exact_direct_plan(checked, second)?;
     if first_shape.attachment_type_identity != second_shape.attachment_type_identity
-        || first_shape.attachment_type_identity != plan.caller_attachment_type_identity
+        || first_shape.attachment_type_identity != control.caller_attachment_type_identity
         || first.source_type_identity != second.source_type_identity
         || first.source_access != second.source_access
         || first.caller_parameter_access != second.caller_parameter_access
@@ -287,7 +298,8 @@ pub(super) fn lower(
         }],
     };
     extend_parameter_forwarding_catalog(&mut dynamic_dispatch, &helper_ids)?;
-    let mut source_call_occurrences = joined_source_call_occurrences(plan, &helper_ids)?;
+    let mut source_call_occurrences =
+        joined_source_call_occurrences(when_true, when_false, &helper_ids)?;
     let helpers = materialize_forwarded_helper_chain(
         checked,
         first,
@@ -458,55 +470,22 @@ fn joined_helper_chain_ids(
         .collect()
 }
 
-fn validate_join_plan(
-    checked: &CheckedTrees,
-    plan: &checked_trees::CheckedJoinedDynamicScalarCallPlan,
-) -> Result<(), LoweringError> {
-    if checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .dynamic_dispatch
-        .joined_scalar_calls
-        .iter()
-        .filter(|candidate| *candidate == plan)
-        .count()
-        != 1
-    {
-        return unsupported("joined dynamic control plan drifted from checked custody");
-    }
-    validate_join_control_plan(
-        checked,
-        plan.caller_machine,
-        plan.entry_state,
-        &plan.scalar_parameters,
-        &plan.guard,
-        &plan.when_true.successor,
-        plan.when_true.call.caller_machine,
-        plan.when_true.call.caller_state,
-        &plan.when_false.successor,
-        plan.when_false.call.caller_machine,
-        plan.when_false.call.caller_state,
-    )
-}
-
+/// The joined caller is the `when_true` branch's caller; both branches must
+/// name it, and the control plan's split must enter exactly those states.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_join_control_plan(
     checked: &CheckedTrees,
-    caller_machine: symbols::SymbolHandle,
-    entry_state: symbols::SymbolHandle,
-    scalar_parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
-    guard: &CheckedScalarExpression,
+    control: &checked_trees::CheckedDynamicJoinControlPlan,
     when_true: &checked_trees::CheckedStructuralControlSuccessorPlan,
-    when_true_machine: symbols::SymbolHandle,
+    caller_machine: symbols::SymbolHandle,
     when_true_state: symbols::SymbolHandle,
     when_false: &checked_trees::CheckedStructuralControlSuccessorPlan,
     when_false_machine: symbols::SymbolHandle,
     when_false_state: symbols::SymbolHandle,
 ) -> Result<(), LoweringError> {
+    let entry_state = control.entry_state;
     if when_true.target_state != when_true_state
         || when_false.target_state != when_false_state
-        || when_true_machine != caller_machine
         || when_false_machine != caller_machine
         || when_true.statement_ordinal != 0
         || when_false.statement_ordinal != 1
@@ -523,13 +502,13 @@ pub(super) fn validate_join_control_plan(
     {
         return unsupported("joined dynamic control plan drifted from checked custody");
     }
-    let [parameter] = scalar_parameters else {
+    let [parameter] = control.scalar_parameters.as_slice() else {
         return unsupported("joined dynamic control requires one Boolean parameter");
     };
     if parameter.source_position != 1
         || parameter.primitive_type != PrimitiveType::Bool
         || !matches!(
-            guard,
+            &control.guard,
             CheckedScalarExpression::Boolean(boolean)
                 if matches!(boolean.as_ref(), CheckedBooleanExpression::Parameter { position: 0 })
         )
@@ -660,24 +639,24 @@ fn branch_block(
 }
 
 fn joined_source_call_occurrences(
-    plan: &checked_trees::CheckedJoinedDynamicScalarCallPlan,
+    when_true: &checked_trees::CheckedDynamicJoinBranchPlan<CheckedDynamicScalarCallPlan>,
+    when_false: &checked_trees::CheckedDynamicJoinBranchPlan<CheckedDynamicScalarCallPlan>,
     helpers: &[ForwardedHelperIds],
 ) -> Result<Vec<LoweredSourceCallOccurrence>, LoweringError> {
-    if helpers.len() != plan.when_true.call.forwarding_transfers.len() + 1
-        || plan.when_true.call.forwarding_transfers != plan.when_false.call.forwarding_transfers
-        || plan.when_true.call.forwarding_helpers != plan.when_false.call.forwarding_helpers
+    if helpers.len() != when_true.call.forwarding_transfers.len() + 1
+        || when_true.call.forwarding_transfers != when_false.call.forwarding_transfers
+        || when_true.call.forwarding_helpers != when_false.call.forwarding_helpers
     {
         return unsupported("joined source-call helper chain drifted from checked custody");
     }
-    let join_state = plan
-        .when_true
+    let join_state = when_true
         .call
         .forwarding_transfers
         .first()
         .map(|transfer| transfer.caller_state);
     let branches = [
-        (&plan.when_true.call, operation_id(1)),
-        (&plan.when_false.call, operation_id(2)),
+        (&when_true.call, operation_id(1)),
+        (&when_false.call, operation_id(2)),
     ];
     let mut occurrences = branches
         .into_iter()
@@ -701,7 +680,7 @@ fn joined_source_call_occurrences(
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    for (transfer, helper) in plan.when_true.call.forwarding_transfers.iter().zip(helpers) {
+    for (transfer, helper) in when_true.call.forwarding_transfers.iter().zip(helpers) {
         occurrences.push(LoweredSourceCallOccurrence {
             source_site: None,
             source_state: transfer.caller_state,
@@ -718,7 +697,7 @@ fn joined_source_call_occurrences(
     }
     let checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
         state, coordinate, ..
-    } = plan.when_true.call.origin
+    } = when_true.call.origin
     else {
         return unsupported("joined dispatch lost its forwarded source coordinate");
     };
@@ -735,7 +714,7 @@ fn joined_source_call_occurrences(
                 "joined source-call chain has no final helper",
             ))?
             .operation,
-        source_target: plan.when_true.call.requirement,
+        source_target: when_true.call.requirement,
         source_values_before_call: Vec::new(),
     });
     Ok(occurrences)

@@ -5,6 +5,8 @@ use super::{
     sole_direct_dynamic_plan, sole_rebound_dynamic_plan,
 };
 use crate::tests::front_end::{checked_program, checked_program_result};
+use checked_trees::CheckedDynamicBinding::{Direct, Stored};
+use checked_trees::CheckedDynamicDispatchPlan::Scalar;
 use typed_trees::statement::StatementNode;
 
 #[test]
@@ -89,9 +91,8 @@ fn dynamic_binding_facts_select_latest_preceding_reassignment_for_call_receiver(
         .expect("latest preceding selection for dynamic call receiver");
     assert_eq!(selected, *reassignment);
 
-    let rebound = sole_rebound_dynamic_plan(&checked);
-    assert_eq!(rebound.initial.fact, **initializer);
-    let plan = &rebound.latest;
+    let (initial, plan) = sole_rebound_dynamic_plan(&checked);
+    assert_eq!(initial.fact, **initializer);
     assert!(plan.caller_structural_scalar_field_store.is_none());
     assert_eq!(plan.selection, **reassignment);
     assert_eq!(
@@ -184,23 +185,18 @@ fn dynamic_storage_fact_retains_selection_and_exact_record_field_custody() {
     assert!(result.symbol.is_valid());
 
     let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
-    assert!(dynamic.direct_scalar_calls.is_empty());
-    assert!(dynamic.rebound_scalar_calls.is_empty());
-    let [stored_plan] = dynamic.stored_scalar_calls.as_slice() else {
+    let [Scalar(Stored { descriptor, call })] = dynamic.calls.as_slice() else {
         panic!("one stored dynamic scalar call plan expected, got {dynamic:#?}")
     };
-    assert_eq!(stored_plan.storage, *storage);
-    assert!(stored_plan.destination_type_identity.contains("Holder"));
-    assert_eq!(stored_plan.destination_field_identity, "handler");
-    assert_eq!(stored_plan.call.coordinate.statement_index, 2);
-    assert_eq!(stored_plan.call.receiver_binding, erased.symbol);
-    assert_eq!(stored_plan.call.result_binding, result.symbol);
-    assert_eq!(stored_plan.call.selection, storage.selection);
-    assert_eq!(
-        stored_plan.call.source_field,
-        storage.selection.source_symbol
-    );
-    assert_eq!(stored_plan.call.realization_callables.len(), 1);
+    assert_eq!(descriptor.storage, *storage);
+    assert!(descriptor.destination_type_identity.contains("Holder"));
+    assert_eq!(descriptor.destination_field_identity, "handler");
+    assert_eq!(call.coordinate.statement_index, 2);
+    assert_eq!(call.receiver_binding, erased.symbol);
+    assert_eq!(call.result_binding, result.symbol);
+    assert_eq!(call.selection, storage.selection);
+    assert_eq!(call.source_field, storage.selection.source_symbol);
+    assert_eq!(call.realization_callables.len(), 1);
 }
 
 #[test]
@@ -240,8 +236,8 @@ fn direct_dynamic_plan_retains_the_selected_realization_despite_an_ambient_looka
         .flow
         .terminal_unit_effects
         .dynamic_dispatch
-        .direct_scalar_calls;
-    let [plan] = plans.as_slice() else {
+        .calls;
+    let [Scalar(Direct(plan))] = plans.as_slice() else {
         panic!("one direct dynamic scalar plan expected, got {plans:#?}")
     };
     assert!(plan.caller_structural_scalar_field_store.is_none());
@@ -434,8 +430,9 @@ fn dynamic_plan_fences_repeated_and_fourth_realization_stores() {
             .flow
             .terminal_unit_effects
             .dynamic_dispatch
-            .direct_scalar_calls
-            .is_empty()
+            .calls
+            .iter()
+            .all(|plan| !matches!(plan, Scalar(Direct(_))))
     );
 
     let fourth = MUTATING_REALIZATION_SOURCE
@@ -451,8 +448,9 @@ fn dynamic_plan_fences_repeated_and_fourth_realization_stores() {
             .flow
             .terminal_unit_effects
             .dynamic_dispatch
-            .direct_scalar_calls
-            .is_empty()
+            .calls
+            .iter()
+            .all(|plan| !matches!(plan, Scalar(Direct(_))))
     );
 }
 
@@ -532,9 +530,7 @@ fn direct_dynamic_result_leaves_retain_nested_scalar_operands() {
 #[test]
 fn rebound_dynamic_plan_retains_both_exact_selection_versions() {
     let checked = check_dynamic_source(REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE);
-    let plan = sole_rebound_dynamic_plan(&checked);
-    let initial = &plan.initial;
-    let latest = &plan.latest;
+    let (initial, latest) = sole_rebound_dynamic_plan(&checked);
     assert_eq!(initial.fact.statement_index, 0);
     assert_eq!(latest.selection.statement_index, 1);
     assert_eq!(latest.coordinate.statement_index, 2);
@@ -622,8 +618,10 @@ fn dynamic_dispatch_to_an_erased_formal_free_requirement_still_lowers() {
             .flow
             .terminal_unit_effects
             .dynamic_dispatch
-            .direct_scalar_calls
-            .len(),
+            .calls
+            .iter()
+            .filter(|plan| matches!(plan, Scalar(Direct(_))))
+            .count(),
         1,
         "the self-only requirement keeps its checked dynamic plan"
     );

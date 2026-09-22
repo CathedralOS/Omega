@@ -77,17 +77,16 @@ pub use control::{
     FlowStatementFact, RetiredFlowCall,
 };
 pub use dynamic_scalar_calls::{
-    CheckedDynamicDescriptorTransferEdge, CheckedDynamicDescriptorTransferPath,
-    CheckedDynamicDescriptorTransferPlan, CheckedDynamicDescriptorTransferSource,
-    CheckedDynamicDispatchPlans, CheckedDynamicRealizationBodyPlan,
-    CheckedDynamicRealizationCallablePlan, CheckedDynamicScalarCallOrigin,
-    CheckedDynamicScalarCallPlan, CheckedDynamicScalarHelperPlan, CheckedDynamicSelectionPlan,
-    CheckedDynamicUnitCallOrigin, CheckedDynamicUnitCallPlan, CheckedDynamicUnitContinuationPlan,
-    CheckedJoinedDynamicScalarCallBranchPlan, CheckedJoinedDynamicScalarCallPlan,
-    CheckedJoinedDynamicUnitCallBranchPlan, CheckedJoinedDynamicUnitCallPlan,
-    CheckedReboundDynamicScalarCallPlan, CheckedReboundDynamicUnitCallPlan,
-    CheckedStoredDynamicScalarCallPlan, CheckedStructuralScalarFieldStoreDestination,
-    CheckedStructuralScalarFieldStorePlan, CheckedStructuralScalarFieldStoreValue,
+    CheckedDynamicBinding, CheckedDynamicBindingKind, CheckedDynamicDescriptorTransferEdge,
+    CheckedDynamicDescriptorTransferPath, CheckedDynamicDescriptorTransferPlan,
+    CheckedDynamicDescriptorTransferSource, CheckedDynamicDispatchPlan,
+    CheckedDynamicDispatchPlans, CheckedDynamicJoinBranchPlan, CheckedDynamicJoinControlPlan,
+    CheckedDynamicRealizationBodyPlan, CheckedDynamicRealizationCallablePlan,
+    CheckedDynamicScalarCallOrigin, CheckedDynamicScalarCallPlan, CheckedDynamicScalarHelperPlan,
+    CheckedDynamicSelectionPlan, CheckedDynamicStoredDescriptorPlan, CheckedDynamicUnitCallOrigin,
+    CheckedDynamicUnitCallPlan, CheckedDynamicUnitContinuationPlan,
+    CheckedStructuralScalarFieldStoreDestination, CheckedStructuralScalarFieldStorePlan,
+    CheckedStructuralScalarFieldStoreValue,
 };
 pub use invalidations::{FlowInvalidationFact, FlowInvalidationSource};
 pub use operator_operand::{FlowOperandReferent, FlowOperatorOperandFact};

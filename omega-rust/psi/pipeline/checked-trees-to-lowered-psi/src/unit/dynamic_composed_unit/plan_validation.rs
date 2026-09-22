@@ -77,9 +77,9 @@ pub(crate) fn validate_exact_rebound_plan(
 
 pub(crate) fn validate_exact_stored_plan(
     checked: &CheckedTrees,
-    stored: &checked_trees::CheckedStoredDynamicScalarCallPlan,
+    stored: &checked_trees::CheckedDynamicStoredDescriptorPlan,
+    plan: &CheckedDynamicScalarCallPlan,
 ) -> Result<DynamicCallerShape, LoweringError> {
-    let plan = &stored.call;
     let machines = checked
         .typed
         .machines()
@@ -147,17 +147,7 @@ pub(crate) fn validate_exact_stored_plan(
         .iter()
         .filter(|candidate| *candidate == &stored.storage)
         .count();
-    let exact_plans = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .dynamic_dispatch
-        .stored_scalar_calls
-        .iter()
-        .filter(|candidate| *candidate == stored)
-        .count();
     if exact_storages != 1
-        || exact_plans != 1
         || stored.storage.selection != plan.selection
         || stored.storage.machine != plan.caller_machine
         || stored.storage.state != plan.caller_state

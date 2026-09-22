@@ -76,8 +76,17 @@ fn assert_forwarded_dynamic_result_canary(
                 .flow
                 .terminal_unit_effects
                 .dynamic_dispatch
-                .rebound_scalar_calls
-                .len(),
+                .calls
+                .iter()
+                .filter(|plan| {
+                    matches!(
+                        plan,
+                        checked_trees::CheckedDynamicDispatchPlan::Scalar(
+                            checked_trees::CheckedDynamicBinding::Rebound { .. }
+                        )
+                    )
+                })
+                .count(),
             1
         );
         let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(

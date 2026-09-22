@@ -5,6 +5,8 @@
 
 use super::{check_dynamic_source, sole_direct_dynamic_plan, sole_direct_dynamic_unit_plan};
 use crate::tests::front_end::{checked_program_result, typed_program};
+use checked_trees::CheckedDynamicBinding::Direct;
+use checked_trees::CheckedDynamicDispatchPlan::Scalar;
 
 /// One `Value`-binder requirement declared as a finite two-tuple family,
 /// realized by a generic provider inside the selected conformance. No static
@@ -566,10 +568,9 @@ fn forwarded_family_call_joins_the_parameter_side_tuple() {
     let [transfer] = dynamic.transfers.as_slice() else {
         panic!("one descriptor transfer expected, got {dynamic:#?}")
     };
-    let [plan] = dynamic.direct_scalar_calls.as_slice() else {
+    let [Scalar(Direct(plan))] = dynamic.calls.as_slice() else {
         panic!("the callee-side family call plans in the callee context")
     };
-    assert!(dynamic.rebound_scalar_calls.is_empty());
 
     assert_eq!(
         transfer.target_trait, plan.target_trait,

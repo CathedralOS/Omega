@@ -1,6 +1,5 @@
 //! Forwarded dynamic scalar calls and their exact transfer paths.
 
-use crate::execution::terminal_unit::dynamic_scalar_calls::receivers::CheckedDynamicScalarCall;
 use crate::execution::terminal_unit::dynamic_scalar_calls::scalar_call_plans::build_checked_dynamic_scalar_call;
 use crate::execution::terminal_unit::types::{ShapeCollector, state_flow};
 use crate::execution::terminal_unit::{
@@ -84,7 +83,7 @@ pub(crate) fn build_checked_forwarded_dynamic_scalar_calls(
                 ) else {
                     continue;
                 };
-                let Some(plan) = build_checked_dynamic_scalar_call(
+                let Some(binding) = build_checked_dynamic_scalar_call(
                     program,
                     facts,
                     binding_facts,
@@ -99,17 +98,9 @@ pub(crate) fn build_checked_forwarded_dynamic_scalar_calls(
                 ) else {
                     continue;
                 };
-                match plan {
-                    CheckedDynamicScalarCall::Direct(plan) => {
-                        plans.direct_scalar_calls.push(plan);
-                    }
-                    CheckedDynamicScalarCall::Rebound(plan) => {
-                        plans.rebound_scalar_calls.push(plan);
-                    }
-                    CheckedDynamicScalarCall::Stored(plan) => {
-                        plans.stored_scalar_calls.push(plan);
-                    }
-                }
+                plans
+                    .calls
+                    .push(checked_trees::CheckedDynamicDispatchPlan::Scalar(binding));
             }
         }
     }

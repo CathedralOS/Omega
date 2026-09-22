@@ -7,6 +7,7 @@ use super::{
     SymbolHandle, TypedTrees,
 };
 use crate::execution::terminal_unit::types::ShapeCollector;
+use checked_trees::{CheckedDynamicBinding, CheckedDynamicDispatchPlan};
 
 use crate::execution::terminal_unit::dynamic_scalar_calls::descriptor_transfers::inbound_call_site_counts;
 
@@ -16,77 +17,17 @@ pub(super) fn promote_two_predecessor_dynamic_scalar_joins(
     shapes: &mut ShapeCollector<'_>,
     plans: &mut checked_trees::CheckedDynamicDispatchPlans,
 ) {
-    let inbound_counts = inbound_call_site_counts(program, facts);
-    let mut consumed = Vec::new();
-    let mut joined = Vec::new();
-    for machine in program.machines() {
-        let Some(control) = super::super::composed_control::admit_dynamic_join_control_topology(
-            program, facts, shapes, machine,
-        ) else {
-            continue;
-        };
-        let branch_calls = control
-            .successors
-            .iter()
-            .map(|successor| {
-                let candidates = plans
-                    .direct_scalar_calls
-                    .iter()
-                    .filter(|plan| {
-                        plan.caller_machine == machine.symbol
-                            && plan.caller_state == successor.target_state
-                    })
-                    .collect::<Vec<_>>();
-                let [candidate] = candidates.as_slice() else {
-                    return None;
-                };
-                Some((*candidate).clone())
-            })
-            .collect::<Option<Vec<_>>>();
-        let Some(branch_calls) = branch_calls else {
-            continue;
-        };
-        let [when_true_call, when_false_call] = branch_calls.as_slice() else {
-            continue;
-        };
-        if !joined_scalar_branches_match(
-            &control,
-            when_true_call,
-            when_false_call,
-            &plans.transfers,
-            &inbound_counts,
-        ) {
-            continue;
-        }
-        consumed.extend(branch_calls.iter().cloned());
-        joined.push(checked_trees::CheckedJoinedDynamicScalarCallPlan {
-            caller_machine: machine.symbol,
-            entry_state: control.entry_state,
-            caller_attachment_type_identity: control.attachment_type_identity,
-            scalar_parameters: control.scalar_parameters,
-            guard: control.guard,
-            when_true: checked_trees::CheckedJoinedDynamicScalarCallBranchPlan {
-                successor: control.successors[0].clone(),
-                call: when_true_call.clone(),
-            },
-            when_false: checked_trees::CheckedJoinedDynamicScalarCallBranchPlan {
-                successor: control.successors[1].clone(),
-                call: when_false_call.clone(),
-            },
-        });
-    }
-    plans
-        .direct_scalar_calls
-        .retain(|plan| !consumed.contains(plan));
-    joined.sort_by_key(|plan| {
-        (
-            plan.caller_machine.arena_index(),
-            plan.caller_machine.generation(),
-            plan.entry_state.arena_index(),
-            plan.entry_state.generation(),
-        )
-    });
-    plans.joined_scalar_calls = joined;
+    promote_two_predecessor_dynamic_joins(
+        program,
+        facts,
+        shapes,
+        plans,
+        |plan| match plan {
+            CheckedDynamicDispatchPlan::Scalar(CheckedDynamicBinding::Direct(call)) => Some(call),
+            _ => None,
+        },
+        CheckedDynamicDispatchPlan::Scalar,
+    );
 }
 
 pub(super) fn promote_two_predecessor_dynamic_unit_joins(
@@ -94,6 +35,31 @@ pub(super) fn promote_two_predecessor_dynamic_unit_joins(
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     plans: &mut checked_trees::CheckedDynamicDispatchPlans,
+) {
+    promote_two_predecessor_dynamic_joins(
+        program,
+        facts,
+        shapes,
+        plans,
+        |plan| match plan {
+            CheckedDynamicDispatchPlan::Unit(CheckedDynamicBinding::Direct(call)) => Some(call),
+            _ => None,
+        },
+        CheckedDynamicDispatchPlan::Unit,
+    );
+}
+
+/// Promote every pair of same-shape direct branch calls whose caller admits
+/// the join control topology into one joined binding, removing the consumed
+/// direct rows. `direct_call` selects this shape's direct rows and `publish`
+/// wraps the joined binding in that shape.
+fn promote_two_predecessor_dynamic_joins<Call: JoinBranch>(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    plans: &mut checked_trees::CheckedDynamicDispatchPlans,
+    direct_call: impl Fn(&CheckedDynamicDispatchPlan) -> Option<&Call>,
+    publish: impl Fn(CheckedDynamicBinding<Call>) -> CheckedDynamicDispatchPlan,
 ) {
     let inbound_counts = inbound_call_site_counts(program, facts);
     let mut consumed = Vec::new();
@@ -109,11 +75,13 @@ pub(super) fn promote_two_predecessor_dynamic_unit_joins(
             .iter()
             .map(|successor| {
                 let candidates = plans
-                    .direct_unit_calls
+                    .calls
                     .iter()
-                    .filter(|plan| {
-                        plan.caller_machine == machine.symbol
-                            && plan.caller_state == successor.target_state
+                    .filter_map(&direct_call)
+                    .filter(|call| {
+                        let call = call.view();
+                        call.caller_machine == machine.symbol
+                            && call.caller_state == successor.target_state
                     })
                     .collect::<Vec<_>>();
                 let [candidate] = candidates.as_slice() else {
@@ -128,84 +96,57 @@ pub(super) fn promote_two_predecessor_dynamic_unit_joins(
         let [when_true_call, when_false_call] = branch_calls.as_slice() else {
             continue;
         };
-        if !joined_unit_branches_match(
-            &control,
-            when_true_call,
-            when_false_call,
-            &plans.transfers,
-            &inbound_counts,
-        ) {
+        if !when_true_call.results_match(when_false_call)
+            || !joined_branches_match(
+                &control,
+                when_true_call.view(),
+                when_false_call.view(),
+                &plans.transfers,
+                &inbound_counts,
+            )
+        {
             continue;
         }
         consumed.extend(branch_calls.iter().cloned());
-        joined.push(checked_trees::CheckedJoinedDynamicUnitCallPlan {
-            caller_machine: machine.symbol,
-            entry_state: control.entry_state,
-            caller_attachment_type_identity: control.attachment_type_identity,
-            scalar_parameters: control.scalar_parameters,
-            guard: control.guard,
-            when_true: checked_trees::CheckedJoinedDynamicUnitCallBranchPlan {
-                successor: control.successors[0].clone(),
-                call: when_true_call.clone(),
+        joined.push((
+            (
+                machine.symbol.arena_index(),
+                machine.symbol.generation(),
+                control.entry_state.arena_index(),
+                control.entry_state.generation(),
+            ),
+            CheckedDynamicBinding::Joined {
+                control: checked_trees::CheckedDynamicJoinControlPlan {
+                    entry_state: control.entry_state,
+                    caller_attachment_type_identity: control.attachment_type_identity,
+                    scalar_parameters: control.scalar_parameters,
+                    guard: control.guard,
+                },
+                when_true: checked_trees::CheckedDynamicJoinBranchPlan {
+                    successor: control.successors[0].clone(),
+                    call: when_true_call.clone(),
+                },
+                when_false: checked_trees::CheckedDynamicJoinBranchPlan {
+                    successor: control.successors[1].clone(),
+                    call: when_false_call.clone(),
+                },
             },
-            when_false: checked_trees::CheckedJoinedDynamicUnitCallBranchPlan {
-                successor: control.successors[1].clone(),
-                call: when_false_call.clone(),
-            },
-        });
+        ));
     }
     plans
-        .direct_unit_calls
-        .retain(|plan| !consumed.contains(plan));
-    joined.sort_by_key(|plan| {
-        (
-            plan.caller_machine.arena_index(),
-            plan.caller_machine.generation(),
-            plan.entry_state.arena_index(),
-            plan.entry_state.generation(),
-        )
-    });
-    plans.joined_unit_calls = joined;
+        .calls
+        .retain(|plan| !direct_call(plan).is_some_and(|call| consumed.contains(call)));
+    joined.sort_by_key(|(key, _)| *key);
+    plans
+        .calls
+        .extend(joined.into_iter().map(|(_, binding)| publish(binding)));
 }
 
-fn joined_scalar_branches_match(
-    control: &super::super::composed_control::DynamicJoinControlTopology,
-    when_true: &checked_trees::CheckedDynamicScalarCallPlan,
-    when_false: &checked_trees::CheckedDynamicScalarCallPlan,
-    transfers: &[checked_trees::CheckedDynamicDescriptorTransferPlan],
-    inbound_counts: &BTreeMap<(u32, u32), usize>,
-) -> bool {
-    if when_true.result.primitive_type != when_false.result.primitive_type
-        || when_true.caller_structural_scalar_field_store.is_some()
-        || when_false.caller_structural_scalar_field_store.is_some()
-        || when_true.unit_continuation.is_some()
-        || when_false.unit_continuation.is_some()
-    {
-        return false;
-    }
-    joined_branches_match(
-        control,
-        JoinBranchView::scalar(when_true),
-        JoinBranchView::scalar(when_false),
-        transfers,
-        inbound_counts,
-    )
-}
-
-fn joined_unit_branches_match(
-    control: &super::super::composed_control::DynamicJoinControlTopology,
-    when_true: &checked_trees::CheckedDynamicUnitCallPlan,
-    when_false: &checked_trees::CheckedDynamicUnitCallPlan,
-    transfers: &[checked_trees::CheckedDynamicDescriptorTransferPlan],
-    inbound_counts: &BTreeMap<(u32, u32), usize>,
-) -> bool {
-    joined_branches_match(
-        control,
-        JoinBranchView::unit(when_true),
-        JoinBranchView::unit(when_false),
-        transfers,
-        inbound_counts,
-    )
+/// One branch call's shared join coordinates, independent of its result.
+trait JoinBranch: Clone + PartialEq {
+    fn view(&self) -> JoinBranchView<'_>;
+    /// Shape-specific agreement the shared coordinates do not cover.
+    fn results_match(&self, other: &Self) -> bool;
 }
 
 struct JoinBranchView<'a> {
@@ -229,8 +170,17 @@ struct JoinBranchView<'a> {
     forwarding_transfers: &'a [checked_trees::CheckedDynamicDescriptorTransferPlan],
 }
 
-impl<'a> JoinBranchView<'a> {
-    fn scalar(plan: &'a checked_trees::CheckedDynamicScalarCallPlan) -> Self {
+impl JoinBranch for checked_trees::CheckedDynamicScalarCallPlan {
+    fn results_match(&self, other: &Self) -> bool {
+        self.result.primitive_type == other.result.primitive_type
+            && self.caller_structural_scalar_field_store.is_none()
+            && other.caller_structural_scalar_field_store.is_none()
+            && self.unit_continuation.is_none()
+            && other.unit_continuation.is_none()
+    }
+
+    fn view(&self) -> JoinBranchView<'_> {
+        let plan = self;
         let forwarded_origin = match plan.origin {
             checked_trees::CheckedDynamicScalarCallOrigin::Local => None,
             checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
@@ -240,7 +190,7 @@ impl<'a> JoinBranchView<'a> {
                 ..
             } => Some((machine, state, parameter)),
         };
-        Self {
+        JoinBranchView {
             caller_machine: plan.caller_machine,
             caller_state: plan.caller_state,
             caller_attachment_type_identity: &plan.caller_attachment_type_identity,
@@ -261,8 +211,15 @@ impl<'a> JoinBranchView<'a> {
             forwarding_transfers: &plan.forwarding_transfers,
         }
     }
+}
 
-    fn unit(plan: &'a checked_trees::CheckedDynamicUnitCallPlan) -> Self {
+impl JoinBranch for checked_trees::CheckedDynamicUnitCallPlan {
+    fn results_match(&self, _: &Self) -> bool {
+        true
+    }
+
+    fn view(&self) -> JoinBranchView<'_> {
+        let plan = self;
         let forwarded_origin = match plan.origin {
             checked_trees::CheckedDynamicUnitCallOrigin::Local => None,
             checked_trees::CheckedDynamicUnitCallOrigin::Forwarded {
@@ -272,7 +229,7 @@ impl<'a> JoinBranchView<'a> {
                 ..
             } => Some((machine, state, parameter)),
         };
-        Self {
+        JoinBranchView {
             caller_machine: plan.caller_machine,
             caller_state: plan.caller_state,
             caller_attachment_type_identity: &plan.caller_attachment_type_identity,

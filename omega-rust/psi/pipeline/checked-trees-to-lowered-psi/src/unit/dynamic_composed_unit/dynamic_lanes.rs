@@ -77,7 +77,7 @@ pub(crate) struct ForwardedHelperIds {
 pub(crate) enum DynamicLoweringLane<'a> {
     Direct,
     Rebound(&'a CheckedDynamicSelectionPlan),
-    Stored(&'a checked_trees::CheckedStoredDynamicScalarCallPlan),
+    Stored(&'a checked_trees::CheckedDynamicStoredDescriptorPlan),
 }
 
 pub(crate) fn lower_dynamic_composed_unit_machine(
@@ -90,7 +90,7 @@ pub(crate) fn lower_dynamic_composed_unit_machine(
         DynamicLoweringLane::Rebound(initial) => {
             validate_exact_rebound_plan(checked, plan, initial)?
         }
-        DynamicLoweringLane::Stored(stored) => validate_exact_stored_plan(checked, stored)?,
+        DynamicLoweringLane::Stored(stored) => validate_exact_stored_plan(checked, stored, plan)?,
     };
     if let Some(unit_continuation) = &plan.unit_continuation {
         return continuation::lower(checked, plan, unit_continuation, caller, lane);

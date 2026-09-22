@@ -761,70 +761,10 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         }))
         .chain(
             dynamic_dispatch
-                .direct_scalar_calls
+                .calls
                 .iter()
-                .flat_map(|plan| {
-                    [
-                        plan.caller_attachment_type_identity.as_str(),
-                        plan.source_type_identity.as_str(),
-                    ]
-                }),
+                .flat_map(checked_trees::CheckedDynamicDispatchPlan::type_identities),
         )
-        .chain(
-            dynamic_dispatch
-                .rebound_scalar_calls
-                .iter()
-                .flat_map(|plan| {
-                    [
-                        plan.latest.caller_attachment_type_identity.as_str(),
-                        plan.initial.type_identity.as_str(),
-                        plan.latest.source_type_identity.as_str(),
-                    ]
-                }),
-        )
-        .chain(
-            dynamic_dispatch
-                .joined_scalar_calls
-                .iter()
-                .flat_map(|plan| {
-                    [
-                        plan.caller_attachment_type_identity.as_str(),
-                        plan.when_true.call.source_type_identity.as_str(),
-                        plan.when_false.call.source_type_identity.as_str(),
-                    ]
-                }),
-        )
-        .chain(
-            dynamic_dispatch
-                .stored_scalar_calls
-                .iter()
-                .flat_map(|plan| {
-                    [
-                        plan.call.caller_attachment_type_identity.as_str(),
-                        plan.call.source_type_identity.as_str(),
-                    ]
-                }),
-        )
-        .chain(dynamic_dispatch.direct_unit_calls.iter().flat_map(|plan| {
-            [
-                plan.caller_attachment_type_identity.as_str(),
-                plan.source_type_identity.as_str(),
-            ]
-        }))
-        .chain(dynamic_dispatch.rebound_unit_calls.iter().flat_map(|plan| {
-            [
-                plan.latest.caller_attachment_type_identity.as_str(),
-                plan.initial.type_identity.as_str(),
-                plan.latest.source_type_identity.as_str(),
-            ]
-        }))
-        .chain(dynamic_dispatch.joined_unit_calls.iter().flat_map(|plan| {
-            [
-                plan.caller_attachment_type_identity.as_str(),
-                plan.when_true.call.source_type_identity.as_str(),
-                plan.when_false.call.source_type_identity.as_str(),
-            ]
-        }))
         .collect::<BTreeSet<_>>();
     for operation in candidates
         .iter()

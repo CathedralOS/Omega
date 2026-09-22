@@ -415,18 +415,12 @@ fn dynamic_caller_erased_proof_roster(
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
 ) -> Option<&[CheckedErasedProofParameterPlan]> {
-    let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
-    dynamic
-        .direct_scalar_calls
-        .iter()
-        .chain(dynamic.rebound_scalar_calls.iter().map(|plan| &plan.latest))
-        .chain(
-            dynamic
-                .joined_scalar_calls
-                .iter()
-                .flat_map(|plan| [&plan.when_true.call, &plan.when_false.call]),
-        )
-        .chain(dynamic.stored_scalar_calls.iter().map(|plan| &plan.call))
+    checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .dynamic_dispatch
+        .scalar_calls()
         .filter(|plan| plan.caller_machine == machine)
         .filter_map(|plan| plan.unit_continuation.as_ref())
         .flat_map(|continuation| continuation.leaves.iter())

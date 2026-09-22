@@ -10,6 +10,8 @@ mod plan_isolation;
 mod rebound_dynamic_custody;
 
 use crate::tests::{LoweringError, checked_source_with_core_service, lower_machine};
+use checked_trees::CheckedDynamicBinding::Direct;
+use checked_trees::CheckedDynamicDispatchPlan::Scalar;
 use terminal_psi::OperationKind;
 
 const DIRECT_DYNAMIC_SOURCE: &str = r#"
@@ -911,23 +913,13 @@ fn direct_dynamic_checked() -> checked_trees::CheckedTrees {
 fn direct_plan(
     checked: &checked_trees::CheckedTrees,
 ) -> &checked_trees::CheckedDynamicScalarCallPlan {
-    assert!(
-        checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .dynamic_dispatch
-            .rebound_scalar_calls
-            .is_empty(),
-        "direct dynamic call must not enter the rebound catalog"
-    );
     let plans = &checked
         .facts
         .flow
         .terminal_unit_effects
         .dynamic_dispatch
-        .direct_scalar_calls;
-    let [plan] = plans.as_slice() else {
+        .calls;
+    let [Scalar(Direct(plan))] = plans.as_slice() else {
         panic!("one direct dynamic plan expected, got {plans:#?}")
     };
     plan
@@ -1056,8 +1048,8 @@ fn direct_plan_mut(
         .flow
         .terminal_unit_effects
         .dynamic_dispatch
-        .direct_scalar_calls;
-    let [plan] = plans.as_mut_slice() else {
+        .calls;
+    let [Scalar(Direct(plan))] = plans.as_mut_slice() else {
         panic!("one direct dynamic plan expected")
     };
     plan

@@ -1,6 +1,8 @@
 //! Operand helpers coexist with dynamic realizations and closed-sum payloads.
 use super::{CheckedTrees, checked_source_with_core_service, lower_machine};
 use crate::TerminalMachineSelection;
+use checked_trees::CheckedDynamicBinding::Direct;
+use checked_trees::CheckedDynamicDispatchPlan::Scalar;
 use lowered_psi::LoweredPsi;
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, Terminator};
@@ -210,12 +212,12 @@ fn dynamic_continuation_operands_preserve_forwarding_and_helper_identities() {
             ),
     ] {
         let checked = checked_source_with_core_service(&source);
-        let [plan] = checked
+        let [Scalar(Direct(plan))] = checked
             .facts
             .flow
             .terminal_unit_effects
             .dynamic_dispatch
-            .direct_scalar_calls
+            .calls
             .as_slice()
         else {
             panic!("one authored dynamic scalar continuation");

@@ -38,9 +38,7 @@ use crate::unit::dynamic_composed_unit::store_operations::empty_terminal_contrac
 use crate::unit::dynamic_composed_unit::structural_types::{
     lower_dynamic_structural_types_for_source, terminal_structural_multiplicity,
 };
-use checked_trees::{
-    CheckedDynamicUnitCallOrigin, CheckedDynamicUnitCallPlan, CheckedReboundDynamicUnitCallPlan,
-};
+use checked_trees::{CheckedDynamicUnitCallOrigin, CheckedDynamicUnitCallPlan};
 
 #[derive(Clone, Copy)]
 pub(super) struct ForwardedUnitHelperIds {
@@ -50,25 +48,7 @@ pub(super) struct ForwardedUnitHelperIds {
     pub(super) edge: semantic_vocabulary::EdgeId,
 }
 
-pub(super) fn lower_direct_dynamic_unit_machine(
-    checked: &CheckedTrees,
-    plan: &CheckedDynamicUnitCallPlan,
-) -> Result<LoweredPsi, LoweringError> {
-    lower_dynamic_unit_machine(checked, plan, DynamicLoweringLane::Direct)
-}
-
-pub(super) fn lower_rebound_dynamic_unit_machine(
-    checked: &CheckedTrees,
-    plan: &CheckedReboundDynamicUnitCallPlan,
-) -> Result<LoweredPsi, LoweringError> {
-    lower_dynamic_unit_machine(
-        checked,
-        &plan.latest,
-        DynamicLoweringLane::Rebound(&plan.initial),
-    )
-}
-
-fn lower_dynamic_unit_machine(
+pub(super) fn lower_dynamic_unit_machine(
     checked: &CheckedTrees,
     plan: &CheckedDynamicUnitCallPlan,
     lane: DynamicLoweringLane<'_>,

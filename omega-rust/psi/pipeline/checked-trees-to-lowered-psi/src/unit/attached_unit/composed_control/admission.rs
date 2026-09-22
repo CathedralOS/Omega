@@ -15,7 +15,7 @@ pub(crate) fn admit_dynamic_continuation<'a>(
     checked: &'a CheckedTrees,
     plan: &checked_trees::CheckedDynamicScalarCallPlan,
     continuation: &'a checked_trees::CheckedDynamicUnitContinuationPlan,
-    stored: Option<&checked_trees::CheckedStoredDynamicScalarCallPlan>,
+    stored: Option<&checked_trees::CheckedDynamicStoredDescriptorPlan>,
 ) -> Result<
     (
         Vec<(&'a CheckedBoundaryMachinePlan, String)>,

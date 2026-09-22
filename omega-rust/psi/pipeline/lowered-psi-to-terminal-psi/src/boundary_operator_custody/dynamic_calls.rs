@@ -12,9 +12,10 @@
 
 use super::{CheckedDynamicCallLane, CheckedDynamicCallOccurrence, unsupported};
 use checked_trees::{
-    CheckedDynamicScalarCallOrigin, CheckedDynamicSelectionPlan, CheckedDynamicUnitCallOrigin,
-    CheckedStructuralAccess, CheckedTrees, CheckedUnitCallCoordinate,
-    CheckedUnitStructuralPathSegment, DynamicConformanceRowFact,
+    CheckedDynamicBinding, CheckedDynamicDispatchPlan, CheckedDynamicScalarCallOrigin,
+    CheckedDynamicSelectionPlan, CheckedDynamicUnitCallOrigin, CheckedStructuralAccess,
+    CheckedTrees, CheckedUnitCallCoordinate, CheckedUnitStructuralPathSegment,
+    DynamicConformanceRowFact,
 };
 use lowered_psi::{LoweredPsi, LoweredSourceCallOccurrence};
 use semantic_vocabulary::MachineId;
@@ -51,67 +52,75 @@ pub(super) fn replay(
     let plans = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
     let module = &lowered.semantic_module;
     let mut occurrences = Vec::new();
-    for (plan_index, rebound) in plans.rebound_scalar_calls.iter().enumerate() {
-        let plan = &rebound.latest;
-        if !matches!(plan.origin, CheckedDynamicScalarCallOrigin::Local) {
-            continue;
-        }
-        if let Some(occurrence) = replay_rebound(
-            checked,
-            module,
-            &lowered.source_call_occurrences,
-            ReboundDispatchView {
-                caller_state: plan.caller_state,
-                coordinate: plan.coordinate,
-                requirement: plan.requirement,
-                requirement_identity: &plan.requirement_identity,
-                declaring_trait: plan.declaring_trait,
-                realization_state: plan.realization_state,
-                target_trait: plan.target_trait,
-                selected_conformance: plan.selected_conformance,
-                family_tuple: &plan.family_tuple,
-                selection: &plan.selection,
-                source_path: &plan.source_path,
-                source_type_identity: &plan.source_type_identity,
-                source_parameter_position: plan.source_parameter_position,
-                source_access: plan.source_access,
-            },
-            &rebound.initial,
-            plan_index,
-            CheckedDynamicCallLane::ReboundScalar,
-        )? {
-            occurrences.push(occurrence);
-        }
-    }
-    for (plan_index, rebound) in plans.rebound_unit_calls.iter().enumerate() {
-        let plan = &rebound.latest;
-        if !matches!(plan.origin, CheckedDynamicUnitCallOrigin::Local) {
-            continue;
-        }
-        if let Some(occurrence) = replay_rebound(
-            checked,
-            module,
-            &lowered.source_call_occurrences,
-            ReboundDispatchView {
-                caller_state: plan.caller_state,
-                coordinate: plan.coordinate,
-                requirement: plan.requirement,
-                requirement_identity: &plan.requirement_identity,
-                declaring_trait: plan.declaring_trait,
-                realization_state: plan.realization_state,
-                target_trait: plan.target_trait,
-                selected_conformance: plan.selected_conformance,
-                family_tuple: &plan.family_tuple,
-                selection: &plan.selection,
-                source_path: &plan.source_path,
-                source_type_identity: &plan.source_type_identity,
-                source_parameter_position: plan.source_parameter_position,
-                source_access: plan.source_access,
-            },
-            &rebound.initial,
-            plan_index,
-            CheckedDynamicCallLane::ReboundUnit,
-        )? {
+    for (plan_index, plan) in plans.calls.iter().enumerate() {
+        let occurrence = match plan {
+            CheckedDynamicDispatchPlan::Scalar(CheckedDynamicBinding::Rebound {
+                initial,
+                latest,
+            }) => {
+                if !matches!(latest.origin, CheckedDynamicScalarCallOrigin::Local) {
+                    continue;
+                }
+                replay_rebound(
+                    checked,
+                    module,
+                    &lowered.source_call_occurrences,
+                    ReboundDispatchView {
+                        caller_state: latest.caller_state,
+                        coordinate: latest.coordinate,
+                        requirement: latest.requirement,
+                        requirement_identity: &latest.requirement_identity,
+                        declaring_trait: latest.declaring_trait,
+                        realization_state: latest.realization_state,
+                        target_trait: latest.target_trait,
+                        selected_conformance: latest.selected_conformance,
+                        family_tuple: &latest.family_tuple,
+                        selection: &latest.selection,
+                        source_path: &latest.source_path,
+                        source_type_identity: &latest.source_type_identity,
+                        source_parameter_position: latest.source_parameter_position,
+                        source_access: latest.source_access,
+                    },
+                    initial,
+                    plan_index,
+                    CheckedDynamicCallLane::ReboundScalar,
+                )?
+            }
+            CheckedDynamicDispatchPlan::Unit(CheckedDynamicBinding::Rebound {
+                initial,
+                latest,
+            }) => {
+                if !matches!(latest.origin, CheckedDynamicUnitCallOrigin::Local) {
+                    continue;
+                }
+                replay_rebound(
+                    checked,
+                    module,
+                    &lowered.source_call_occurrences,
+                    ReboundDispatchView {
+                        caller_state: latest.caller_state,
+                        coordinate: latest.coordinate,
+                        requirement: latest.requirement,
+                        requirement_identity: &latest.requirement_identity,
+                        declaring_trait: latest.declaring_trait,
+                        realization_state: latest.realization_state,
+                        target_trait: latest.target_trait,
+                        selected_conformance: latest.selected_conformance,
+                        family_tuple: &latest.family_tuple,
+                        selection: &latest.selection,
+                        source_path: &latest.source_path,
+                        source_type_identity: &latest.source_type_identity,
+                        source_parameter_position: latest.source_parameter_position,
+                        source_access: latest.source_access,
+                    },
+                    initial,
+                    plan_index,
+                    CheckedDynamicCallLane::ReboundUnit,
+                )?
+            }
+            _ => continue,
+        };
+        if let Some(occurrence) = occurrence {
             occurrences.push(occurrence);
         }
     }
