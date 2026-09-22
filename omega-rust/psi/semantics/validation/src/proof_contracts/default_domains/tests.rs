@@ -1,27 +1,15 @@
 use super::{
-    Diagnostic, TypedTrees, build_open_invariant_crash_sites, canonicalize_valuations,
-    meet_valuations, validate_default_domain_writes,
+    Diagnostic, build_open_invariant_crash_sites, canonicalize_valuations, meet_valuations,
+    validate_default_domain_writes,
 };
 const CYCLE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../../tests/omega/pass/dependent/valuation_order_cycle/main.omg"
 ));
 
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
-}
-
 fn diagnostics(source: &str) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
-    validate_default_domain_writes(&typed(source), &mut diagnostics);
+    validate_default_domain_writes(&crate::front_end::typed_program(source), &mut diagnostics);
     diagnostics
 }
 
@@ -35,7 +23,9 @@ fn newly_reached_cycle_preserves_equal_literals_in_either_field_order() {
     ] {
         let diagnostics = diagnostics(&source);
         assert!(diagnostics.is_empty(), "{diagnostics:#?}");
-        assert!(build_open_invariant_crash_sites(&typed(&source)).is_empty());
+        assert!(
+            build_open_invariant_crash_sites(&crate::front_end::typed_program(&source)).is_empty()
+        );
     }
 }
 
@@ -68,7 +58,7 @@ fn transported_open_windows_still_require_closure_or_crash_evidence() {
             state done(&mut self) { crash Trap; }
         }
     "#;
-    let program = typed(source);
+    let program = crate::front_end::typed_program(source);
     let mut diagnostics = Vec::new();
     validate_default_domain_writes(&program, &mut diagnostics);
     assert!(diagnostics.is_empty(), "{diagnostics:#?}");
@@ -88,7 +78,10 @@ fn transported_open_windows_still_require_closure_or_crash_evidence() {
     assert_eq!(sites[0].state(), done.symbol);
 
     let mut diagnostics = Vec::new();
-    validate_default_domain_writes(&typed(&source.replace("crash Trap;", "")), &mut diagnostics);
+    validate_default_domain_writes(
+        &crate::front_end::typed_program(&source.replace("crash Trap;", "")),
+        &mut diagnostics,
+    );
     assert!(
         diagnostics
             .iter()
@@ -96,7 +89,7 @@ fn transported_open_windows_still_require_closure_or_crash_evidence() {
         "{diagnostics:#?}"
     );
     assert!(
-        build_open_invariant_crash_sites(&typed(
+        build_open_invariant_crash_sites(&crate::front_end::typed_program(
             &source.replace("crash Trap;", "self.pair.left = 2; crash Trap;")
         ))
         .is_empty()

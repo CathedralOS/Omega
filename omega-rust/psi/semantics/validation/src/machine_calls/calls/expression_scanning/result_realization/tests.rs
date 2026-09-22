@@ -1,7 +1,7 @@
 use super::{
-    Identifier, StatementNode, TypedTrees, free_scalar_machine,
-    report_nested_call_in_local_initializer, result_initializer_call_is_supported,
-    scalar_computation_call, unit_result_initializer_call_is_supported,
+    Identifier, StatementNode, free_scalar_machine, report_nested_call_in_local_initializer,
+    result_initializer_call_is_supported, scalar_computation_call,
+    unit_result_initializer_call_is_supported,
 };
 const ORDERED: &str = r#"
 data Flags [copy] { value: bool; spare: bool; }
@@ -24,24 +24,12 @@ machine enter(left: Flags, marker: bool, right: Flags, other: bool) -> bool {
 }
 "#;
 
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
-}
-
 #[test]
 fn linear_result_initializers_share_operand_admission_without_losing_fences() {
     use typed_trees::types::{DomainConstraint, TypeConstraintNode, TypeReferenceNode};
 
     for prefix in ["", "let marker: u64 = 1;"] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "data Region [linear] {{}} domain Region::Owned; data Main {{}}
              machine marker(value: u64) -> u64 {{ value }}
              machine forward(before: u64, region: Region in Owned, after: u64) -> Region in Owned {{ region }}
@@ -159,7 +147,7 @@ fn linear_result_initializers_share_operand_admission_without_losing_fences() {
 fn static_scalar_local_calls_use_the_shared_computation_destination() {
     for owner in ["", "Scalar::"] {
         for prefix in ["", "Host::finish(false);"] {
-            let program = typed(&format!(
+            let program = crate::front_end::typed_program(&format!(
                 "boundary trait Host {{ machine finish(value: bool) reaches Host; }}
                  data Scalar {{}}
                  machine identity(input: bool) -> bool {{ input }}
@@ -220,7 +208,7 @@ fn static_scalar_local_destination_keeps_unserved_signature_and_mutation_fences(
         ("measure(&self)", "let saved: bool"),
         ("measure(value: bool)", "let mut saved: bool"),
     ] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "data Scalar {{}}
              machine identity(input: bool) -> bool {{ input }}
              machine Scalar::{signature} -> bool {{
@@ -262,7 +250,7 @@ fn static_scalar_local_destination_keeps_unserved_signature_and_mutation_fences(
 
 #[test]
 fn owned_scalar_nested_borrows_admit_unchanged_ordered_fixture() {
-    let program = typed(ORDERED);
+    let program = crate::front_end::typed_program(ORDERED);
     crate::validate_program(&program).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
     let machine = program
         .machines()
@@ -296,7 +284,7 @@ fn owned_scalar_nested_borrows_admit_unchanged_ordered_fixture() {
 
 #[test]
 fn owned_scalar_nested_borrow_admits_affine_read_before_transfer() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Flags { value: bool; }
         machine stamp(value: &mut bool, number: bool) -> bool { value = number; number }
         machine consume(marker: bool, flags: Flags) -> bool { marker }
@@ -311,7 +299,7 @@ fn owned_scalar_nested_borrow_admits_affine_read_before_transfer() {
 
 #[test]
 fn owned_scalar_nested_call_admission_keeps_parameter_restrictions() {
-    let original = typed(ORDERED);
+    let original = crate::front_end::typed_program(ORDERED);
     let caller = original
         .machines()
         .iter()

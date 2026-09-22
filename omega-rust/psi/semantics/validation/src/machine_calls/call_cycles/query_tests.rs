@@ -3,32 +3,17 @@ use crate::declarations::symbols::TopLevelSymbols;
 use crate::validated_runtime_recursive_components;
 use diagnostics::Diagnostic;
 use source::SourceMap;
-use source_files_to_tokens::Lexer;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
 fn typed_source(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize query fixture");
     let mut sources = SourceMap::default();
     let source_id = sources
         .add("runtime_component_query.omg".into(), source.to_owned())
         .source_id;
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
-        .expect("parse query fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &syntax,
-            sources: Some(std::sync::Arc::new(sources)),
-            top_level_bindings: Vec::new(),
-        },
-    )
-    .expect("resolve query fixture");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type query fixture")
+    crate::front_end::typed_program_from_source_map(sources, &[(source_id, source)])
 }
 
 fn typed_pair(body: &str, extra: &str) -> TypedTrees {

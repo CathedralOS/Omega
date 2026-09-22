@@ -524,20 +524,17 @@ fn domain_definition_by_symbol(
 #[cfg(test)]
 mod unmanaged_root_tests {
     use std::path::PathBuf;
-    use std::sync::Arc;
 
     use diagnostics::Diagnostic;
     use source::SourceMap;
-    use source_files_to_tokens::Lexer;
-    use syntax_trees_to_symbol_resolved_trees::ResolutionRequest;
-    use tokens_to_syntax_trees::parse_syntax_trees_with_id;
+
     use typed_trees::TypedTrees;
 
     use super::validate_repeated_normalized_domain_identities;
 
     fn packaged(entries: &[(&str, &str)]) -> TypedTrees {
         let mut map = SourceMap::default();
-        let mut forests = Vec::new();
+        let mut texts = Vec::new();
         for &(package_root, text) in entries {
             let source_id = map
                 .add_with_metadata(
@@ -548,21 +545,9 @@ mod unmanaged_root_tests {
                     source::SourceOrigin::User,
                 )
                 .source_id;
-            let tokens = Lexer::new(text).tokenize().expect("tokenize source");
-            forests.push(parse_syntax_trees_with_id(source_id, &tokens).expect("parse source"));
+            texts.push((source_id, text));
         }
-        let mut syntax = forests.remove(0);
-        for forest in &forests {
-            syntax.extend_from(forest);
-        }
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(ResolutionRequest {
-            syntax: &syntax,
-            sources: Some(Arc::new(map)),
-            top_level_bindings: Vec::new(),
-        })
-        .expect("resolve unmanaged packaged sources");
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("type unmanaged packaged sources")
+        crate::front_end::typed_program_from_merged_source_map(map, &texts)
     }
 
     fn identity_diagnostics(program: &TypedTrees) -> Vec<Diagnostic> {

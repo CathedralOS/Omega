@@ -1,23 +1,12 @@
 //! Ordinary proof-library names do not introduce compiler-owned term forms.
-use super::{Engine, ExpressionNode, Judgment, ProofFact, TypedTrees};
+use super::{Engine, ExpressionNode, Judgment, ProofFact};
 use crate::proven_machine_contract_expressions;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
-
-fn parse(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
 
 #[test]
 fn undeclared_proof_view_names_cannot_publish_reflexive_or_numeric_proofs() {
     for name in ["Bag", "Seq", "Range"] {
         for operator in ["==", ">=", "<="] {
-            let program = parse(&format!(
+            let program = crate::front_end::typed_program(&format!(
                 "machine theorem(items: &[u64]) ensures {name}(items) {operator} {name}(items) {{}}"
             ));
             assert_eq!(program.machines().len(), 1, "no authored view declaration");
@@ -57,7 +46,7 @@ fn undeclared_proof_view_names_cannot_publish_reflexive_or_numeric_proofs() {
 #[test]
 fn undeclared_proof_view_names_cannot_publish_transported_hypotheses() {
     for name in ["Bag", "Seq", "Range"] {
-        let program = parse(&format!(
+        let program = crate::front_end::typed_program(&format!(
             r#"
             machine theorem(items: &[u64], before: &[u64])
             requires {name}(items) == {name}(before)
@@ -76,7 +65,7 @@ fn undeclared_proof_view_names_cannot_publish_transported_hypotheses() {
 fn ordinary_declared_machines_with_proof_view_names_use_their_actual_bodies() {
     for name in ["Bag", "Seq", "Range"] {
         for (right, expected) in [("value", true), ("other", false)] {
-            let program = parse(&format!(
+            let program = crate::front_end::typed_program(&format!(
                 r#"
                 data ProofNat {{ case Zero; case Successor(previous: ProofNat); }}
                 machine {name}(value: ProofNat) -> ProofNat {{ transition {{ _ -> value }} }}

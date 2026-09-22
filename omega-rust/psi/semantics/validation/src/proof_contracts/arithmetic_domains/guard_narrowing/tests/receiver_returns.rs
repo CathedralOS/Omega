@@ -1,8 +1,6 @@
-use super::arrival_program;
-
 #[test]
 fn declared_receiver_return_ranges_compose_through_locals_and_fields() {
-    let program = arrival_program(
+    let program = crate::front_end::typed_program(
         "data Alignment [copy] { case One; case Eight; }
          data Holder { alignment: Alignment; width: u64 [0..=8]; }
          machine Alignment::size(&self) -> u64 [1..=8] { 1 }
@@ -24,7 +22,7 @@ fn declared_receiver_return_ranges_compose_through_locals_and_fields() {
 #[test]
 fn receiver_return_ranges_follow_selected_owner_not_method_spelling() {
     for (receiver, accepted) in [("small", true), ("large", false)] {
-        let program = arrival_program(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "data Small [copy] {{}}
              data Large [copy] {{}}
              machine Small::size(&self) -> u64 [1..=8] {{ 1 }}
@@ -60,7 +58,7 @@ fn receiver_results_require_declared_and_valid_bounds() {
             "returns a value not provably within its declared range",
         ),
     ] {
-        let program = arrival_program(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "data Alignment [copy] {{}}
              machine Alignment::size(&self) -> {return_type} {{ {body} }}
              machine consume(alignment: &Alignment) -> u64 {{
@@ -78,7 +76,7 @@ fn receiver_results_require_declared_and_valid_bounds() {
 
 #[test]
 fn selected_receiver_result_preserves_scalar_kind() {
-    let program = arrival_program(
+    let program = crate::front_end::typed_program(
         "data Value [copy] {}
          machine Value::read(&self) -> u64 { 1 }
          machine consume(value: &Value) -> bool { value.read() }",

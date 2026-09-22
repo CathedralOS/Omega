@@ -1,19 +1,8 @@
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees::{TypedTrees, types::PrimitiveType};
-
-fn typed(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokens");
-    let syntax = parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolved source");
-    lower_symbol_resolved_trees(&resolved).expect("typed source")
-}
+use typed_trees::types::PrimitiveType;
 
 #[test]
 fn free_call_remainder_retains_exact_narrowing_evidence() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "machine identity(input: u16) -> u16 { input }
          machine value(selected: bool, input: u16) -> bool {
              transition selected {
@@ -48,7 +37,7 @@ fn free_call_carrier_does_not_license_unproved_narrowing_or_overflow() {
         ("identity(input) as u8", "not provably representable"),
         ("(identity(input) + 1u16) as u8", "overflow"),
     ] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "machine identity(input: u16) -> u16 {{ input }}
              machine value(input: u16) -> u8 {{ {expression} }}"
         ));
@@ -65,13 +54,13 @@ fn free_call_carrier_does_not_license_unproved_narrowing_or_overflow() {
 #[test]
 fn free_call_arithmetic_uses_the_declared_result_policy() {
     for policy in ["Wrapping", "Saturating"] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "machine identity(input: u8 in {policy}) -> u8 in {policy} {{ input }}
              machine value(input: u8 in {policy}) -> u8 in {policy} {{ identity(input) + 1u8 }}"
         ));
         validation::validate_program(&program).expect("qualified overflow has declared semantics");
     }
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "machine wrapped(input: u8 in Wrapping) -> u8 in Wrapping { input }
          machine value(input: u8 in Wrapping, other: u8 in Saturating) -> u8 in Wrapping {
              wrapped(input) + other
@@ -88,7 +77,7 @@ fn free_call_arithmetic_uses_the_declared_result_policy() {
 
 #[test]
 fn free_call_result_carrier_does_not_follow_the_destination() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "machine small(input: u8) -> u8 { input }
          machine identity(input: u16) -> u16 { input }
          machine value(input: u16) -> u8 { identity(input) as u8 }",
@@ -104,7 +93,7 @@ fn free_call_result_carrier_does_not_follow_the_destination() {
 
 #[test]
 fn free_call_declared_range_remains_available_to_exact_arithmetic() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "machine bounded(input: u16 [0..=254]) -> u16 [0..=254] { input }
          machine value(input: u16 [0..=254]) -> u8 { (bounded(input) + 1u16) as u8 }",
     );

@@ -2,35 +2,8 @@ use super::validate_repeated_normalized_domain_identities;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use facts::{Fact, FactOrigin, FactPayload, FactPlan, FactRef};
-use source::SourceId;
-use source_files_to_tokens::Lexer;
 use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
-
-fn typed(sources: &[&str]) -> TypedTrees {
-    let tokens = Lexer::new(sources[0])
-        .tokenize()
-        .expect("tokenize first source");
-    let mut syntax =
-        tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse first source");
-    for (source_ordinal, source) in sources.iter().enumerate().skip(1) {
-        let tokens = Lexer::new(source)
-            .tokenize()
-            .expect("tokenize domain source");
-        tokens_to_syntax_trees::parse_syntax_trees_into_with_id(
-            &mut syntax,
-            SourceId(source_ordinal),
-            &tokens,
-        )
-        .expect("parse domain source");
-    }
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve domain declarations");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type domain declarations")
-}
 
 fn diagnostics(program: &TypedTrees) -> Vec<Diagnostic> {
     let mut facts = FactPlan::default();
@@ -57,7 +30,7 @@ fn diagnostics(program: &TypedTrees) -> Vec<Diagnostic> {
 }
 
 fn repeated_capacity_domains(second_fact: &str) -> TypedTrees {
-    typed(&[&format!(
+    crate::front_end::typed_program_from_texts(&[&format!(
         "domain [u8; 8]::Utf8 requires true;
          domain [u8; 16]::Utf8 requires {second_fact};"
     )])
@@ -84,7 +57,7 @@ fn domain_predicate_places_use_the_carrier_type_under_logical_operators() {
         ("i32", "", "self", false),
         ("bool", "", "self", true),
     ] {
-        let program = typed(&[&format!(
+        let program = crate::front_end::typed_program_from_texts(&[&format!(
             "data Player {{ {fields} }} domain {carrier}::Selected requires {predicate};"
         )]);
         let fact_plan = crate::build_definition_fact_plan(&program);
@@ -131,7 +104,7 @@ fn repeated_capacity_specializations_reject_different_normalized_facts() {
 
 #[test]
 fn sibling_sources_in_one_module_keep_the_same_consistency_group() {
-    let program = typed(&[
+    let program = crate::front_end::typed_program_from_texts(&[
         "module codecs; domain [u8; 8]::Utf8 requires true;",
         "module codecs; domain [u8; 16]::Utf8 requires false;",
     ]);
@@ -179,7 +152,7 @@ fn same_owner_identity_corruption_does_not_split_the_validation_group() {
 
 #[test]
 fn different_module_owners_cannot_share_a_tampered_semantic_identity() {
-    let mut program = typed(&[
+    let mut program = crate::front_end::typed_program_from_texts(&[
         "module first; domain<const N: u64> u64::Gate<N> requires true;",
         "module second; domain<const N: u64> u64::Gate<N> requires true;",
     ]);

@@ -5,18 +5,6 @@ use super::{
 };
 use crate::CallFrameResolver;
 
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("symbols");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("types")
-}
-
 // The former demand route deliberately recovered the prefix separately for
 // the direct target and closure. Keep it as a result/work comparison, not a
 // second production query path.
@@ -65,7 +53,7 @@ fn replayed_assignment_paths(
 }
 
 fn compare_assignments(source: &str) {
-    let program = typed(source);
+    let program = crate::front_end::typed_program(source);
     let machine = program
         .machines()
         .iter()
@@ -97,7 +85,7 @@ fn compare_assignments(source: &str) {
 
 #[test]
 fn assignment_query_reuses_one_prefix_for_target_and_closure() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Pair { left: u64; right: u64; } machine exercise(pair: &mut Pair) { let selected: &mut u64 = &mut pair.left; selected = 7; }",
     );
     let machine = &program.machines()[0];

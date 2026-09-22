@@ -1,9 +1,5 @@
 use super::{domain_expression_result_type_reference, expression_result_type_reference};
 use numerics::arithmetic::ArithmeticDomain;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
@@ -11,14 +7,7 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceN
 
 fn typed(arms: &str) -> TypedTrees {
     let source = format!("machine run(flag: bool) -> u64 {{ (match flag {{ {arms} }}) as u64 }}");
-    typed_source(&source)
-}
-
-fn typed_source(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokens");
-    let syntax = parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution");
-    lower_symbol_resolved_trees(&resolved).expect("typing")
+    crate::front_end::typed_program(&source)
 }
 
 #[test]
@@ -41,7 +30,7 @@ fn semantic_cast_results_retain_declared_qualification_identity() {
                 (match flag {{ true -> left as i64 in {cast_domain}, false -> right as i64 in {expected_domain} }}) as i64
             }}"
         );
-        let program = typed_source(&source);
+        let program = crate::front_end::typed_program(&source);
         let machine = &program.machines()[0];
         let state = &program.machine_states(machine)[0];
         let expected = program.state_parameters(state)[3].type_reference;
@@ -85,7 +74,7 @@ fn incompatible_semantic_cast_results_have_no_common_match_type() {
         let source = format!(
             "{declarations} machine run(flag: bool, left: i64, right: i64) -> i64 {{ (match flag {{ true -> left as i64 in {first}, false -> right as i64 in {second} }}) as i64 }}"
         );
-        let program = typed_source(&source);
+        let program = crate::front_end::typed_program(&source);
         let machine = &program.machines()[0];
         let state = &program.machine_states(machine)[0];
         let root = dispatch_handle(&program);
@@ -122,7 +111,7 @@ fn declared_binary_arm(program: &TypedTrees) -> ExpressionHandle {
 }
 
 fn operator_program(declarations: &str) -> TypedTrees {
-    typed_source(&format!(
+    crate::front_end::typed_program(&format!(
         "{declarations}
          machine run(flag: bool, left: u8, right: u8) -> u64 {{
              (match flag {{ true -> left + right, false -> 1 }}) as u64
@@ -152,7 +141,7 @@ fn selected_operator_result_retains_exact_declaration_reference() {
 #[test]
 fn domain_membership_subject_retains_selected_operator_result() {
     for result in ["u64", "u64 in Wrapping"] {
-        let program = typed_source(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "operator + u8::sum(left: u8, right: u8) -> {result};
              domain u64::Allowed;
              domain u8::Gate requires (self + 1u8) in u64::Allowed;"
@@ -176,7 +165,7 @@ fn domain_membership_subject_retains_selected_operator_result() {
 
 #[test]
 fn domain_membership_subject_instantiates_generic_operator_result() {
-    let program = typed_source(
+    let program = crate::front_end::typed_program(
         "operator + Math::sum<T>(left: T, right: T) -> T;
          domain u8::Counted;
          domain u8::Gate requires (self + self) in u8::Counted;",
@@ -246,7 +235,7 @@ fn bound_type_parameter_operator_results_instantiate_from_operands() {
     }
 
     // A named call to the same operator instantiates identically.
-    let program = typed_source(
+    let program = crate::front_end::typed_program(
         "operator + Math::sum<T>(left: T, right: T) -> T;
          machine run(flag: bool, left: u8, right: u8) -> u64 {
              (match flag { true -> Math::sum(left, right), false -> 1 }) as u64
@@ -450,7 +439,7 @@ fn shared_exact_result_reference_preserves_its_predicates_at_join() {
 
 #[test]
 fn machine_width_integer_arithmetic_keeps_its_carrier() {
-    let program = typed_source(
+    let program = crate::front_end::typed_program(
         "machine run(flag: bool, count: UInt) -> u64 {
             (match flag { true -> count + 1, false -> 2 }) as u64
         }",

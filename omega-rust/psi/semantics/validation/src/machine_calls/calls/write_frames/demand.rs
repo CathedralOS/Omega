@@ -1135,18 +1135,6 @@ mod tests {
     use typed_trees::expression::ExpressionNode;
     use typed_trees::statement::StatementNode;
 
-    fn typed(source: &str) -> TypedTrees {
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .expect("tokens");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("symbols");
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("types")
-    }
-
     /// Settle the `min` initializer call into a receiver-free float builtin
     /// the way selected execution does after checking: same node, new target.
     fn retarget_initializer_call(
@@ -1190,7 +1178,7 @@ mod tests {
             symbols::BuiltinFunction::FloatAddTowardZeroF32,
             symbols::BuiltinFunction::Min,
         ] {
-            let mut program = typed(SOURCE);
+            let mut program = crate::front_end::typed_program(SOURCE);
             retarget_initializer_call(&mut program, function, None);
             let machine = &program.machines()[0];
             let state = &program.machine_states(machine)[0];
@@ -1207,7 +1195,7 @@ mod tests {
 
     #[test]
     fn receiver_bearing_builtin_calls_still_write_their_receiver() {
-        let mut program = typed(SOURCE);
+        let mut program = crate::front_end::typed_program(SOURCE);
         let machine = &program.machines()[0];
         let state = &program.machine_states(machine)[0];
         let output = program
@@ -1244,7 +1232,7 @@ mod tests {
         // A signature-only callee has no body to summarize: the declared
         // signature's exclusive reach is the complete write contract, so the
         // `&mut slot` actual -- not an empty body summary -- names the frame.
-        let program = typed(
+        let program = crate::front_end::typed_program(
             "machine caller(slot: u64) { poke(&mut slot); }
              boundary machine poke(value: &mut u64) -> u64;",
         );
@@ -1273,7 +1261,7 @@ mod tests {
     fn boundary_machine_calls_with_value_parameters_write_nothing() {
         // A boundary declaration whose signature carries no exclusive reach
         // frames to the empty set: the call cannot write caller storage.
-        let program = typed(
+        let program = crate::front_end::typed_program(
             "machine caller(slot: u64) { note(slot); }
              boundary machine note(value: u64) -> u64;",
         );

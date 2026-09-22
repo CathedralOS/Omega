@@ -1,22 +1,9 @@
 use super::{parameter_may_carry_write, type_may_carry_write};
-use typed_trees::TypedTrees;
-
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("symbols");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("types")
-}
 
 /// Every parameter of `probe`'s entry state, by declared name, with whether
 /// the capability law lets it carry a caller-visible write.
 fn probe_parameters(source: &str) -> Vec<(String, bool)> {
-    let program = typed(source);
+    let program = crate::front_end::typed_program(source);
     let machine = program
         .machines()
         .iter()
@@ -50,7 +37,7 @@ fn boundary_result_ignores_reference_free_value_arguments_but_keeps_referent_wri
         ("data Box<T> { value: T; }", "Box<u64>"),
         ("data Box<T> { value: T; }", "Box<Box<u64>>"),
     ] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "{declaration}
              data Main {{ value: u64; untouched: u64; }}
              boundary trait Device {{
@@ -84,7 +71,7 @@ fn call_substitution_applies_inside_reference_free_containers() {
     use super::type_may_carry_write_in;
     use typed_trees::types::TypeReferenceNode;
 
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Box<T> { value: T; }
          data View { value: &mut u64; }
          boundary data Handle;
@@ -129,7 +116,7 @@ fn boundary_result_keeps_opaque_and_reference_bearing_value_arguments_conservati
         ("data Token { value: &mut u64; }", "[Token; 2]"),
         ("data Token { value: &u64; }", "Token"),
     ] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "{declaration}
              data Main {{ value: u64; }}
              boundary trait Device {{
@@ -163,7 +150,7 @@ fn generic_boundary_result_keeps_only_proven_exclusive_origins() {
         ),
         ("metadata: Box<T>", "metadata", None),
     ] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "data Box<T> {{ value: T; }}
              data Main {{ value: u64; }}
              boundary trait Device {{

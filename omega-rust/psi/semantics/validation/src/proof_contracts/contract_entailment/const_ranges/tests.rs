@@ -4,20 +4,10 @@ use typed_trees::name::Identifier;
 use typed_trees::statement::{StatementNode, TableCall};
 
 fn fixture() -> (TypedTrees, SymbolHandle, TableCall) {
-    let tokens = source_files_to_tokens::Lexer::new(
+    let program = crate::front_end::typed_program(
         "machine consume<T, const Enabled: bool, const N: u64>(value: u64[0..=N]) {}
          machine forward(value: u64[0..=2]) { consume<u8, true, 2>(value); }",
-    )
-    .tokenize()
-    .expect("mixed static slots tokenize");
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("mixed static slots parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("mixed static slots resolve");
-    let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("mixed static slots type");
+    );
     let caller = program
         .machines()
         .iter()

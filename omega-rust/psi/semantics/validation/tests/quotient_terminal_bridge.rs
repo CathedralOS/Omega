@@ -1,12 +1,7 @@
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use semantic_vocabulary::PackageKeyIdentity;
 use source::{SourceMap, SourceOrigin};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
 use typed_trees::TypedTrees;
 use validation::{
     admit_checked_quotient_requests, extract_non_executable_quotient_correspondences,
@@ -143,18 +138,11 @@ fn lower_typed_trees(
             SourceOrigin::User,
         )
         .source_id;
-    let core_tokens = Lexer::new(CORE_RELATION).tokenize().expect("tokenize core");
-    let mut syntax =
-        parse_syntax_trees_with_id(core_source_id, &core_tokens).expect("parse core relation");
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens).expect("parse fixture");
-    let resolved = resolve(ResolutionRequest {
-        syntax: &syntax,
-        sources: Some(Arc::new(sources)),
-        top_level_bindings: Vec::new(),
-    })
-    .expect("package-aware resolution");
-    lower_symbol_resolved_trees(&resolved).map_err(|diagnostic| diagnostic.message)
+    crate::front_end::typed_program_from_source_map_typing_result(
+        sources,
+        &[(core_source_id, CORE_RELATION), (source_id, source)],
+    )
+    .map_err(|diagnostic| diagnostic.message)
 }
 
 fn validation_messages(program: &TypedTrees) -> Vec<String> {

@@ -1,17 +1,6 @@
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 use validation::validate_program;
-
-fn typed(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
 
 fn assert_scope_rejected(program: &TypedTrees) {
     let diagnostics =
@@ -36,7 +25,7 @@ fn assembly_assertions_reject_entry_parameters_and_locals() {
             let source = format!(
                 "data Packet {{ value: u64; }} machine run({parameters}) {{ {setup} transition {{ _ -> next() }} state next() {{ asm where {kind} ({expression}) {{ lfence }} }} }}"
             );
-            assert_scope_rejected(&typed(&source));
+            assert_scope_rejected(&crate::front_end::typed_program(&source));
         }
     }
 }
@@ -55,7 +44,7 @@ fn assembly_assertions_accept_current_parameters_prior_locals_and_self() {
                 "data Owner {{ value: u64; }} machine Owner::run(&self) {{ transition {{ _ -> next() }} state next(&self) {{ asm where {kind} (self.value == self.value) {{ lfence }} }} }}"
             ),
         ] {
-            let result = validate_program(&typed(&source));
+            let result = validate_program(&crate::front_end::typed_program(&source));
             assert!(result.is_ok(), "{result:?}\n{source}");
         }
     }
@@ -72,14 +61,14 @@ fn assembly_assertions_reject_absent_self_and_later_local() {
                 "machine run() {{ asm where {kind} (later == later) {{ lfence }} let later: u64 = 7; }}"
             ),
         ] {
-            assert_scope_rejected(&typed(&source));
+            assert_scope_rejected(&crate::front_end::typed_program(&source));
         }
     }
 }
 
 #[test]
 fn assembly_assertions_reject_same_spelling_foreign_parameter_identity() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "machine run(value: u64) { transition { _ -> next(value) } state next(value: u64) { asm where requires (value == value) ensures (value == value) { lfence } } }",
     );
     validate_program(&program).expect("current-state operands are valid");

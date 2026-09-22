@@ -4,31 +4,17 @@
 //! checked and lowering stages replay each admitted arm's exact root and path
 //! independently, and a shape this gate rejects never reaches them.
 
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 
 const CUSTODY_JOIN_REJECTION: &str =
     "match result requires a reference or non-plain-owned branch custody join";
-
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolved source");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("typed source")
-}
 
 /// Every dispatch authored in the source, validated in the one machine state
 /// that owns it. Each source below declares exactly one machine, so its entry
 /// state is the only scope any of these dispatches can belong to; validating
 /// an arm under a foreign scope would report unrelated diagnostics.
 fn choose_dispatch_diagnostics(source: &str) -> Vec<String> {
-    let program = typed(source);
+    let program = crate::front_end::typed_program(source);
     let [machine] = program.machines() else {
         panic!("these fixtures declare exactly one machine");
     };

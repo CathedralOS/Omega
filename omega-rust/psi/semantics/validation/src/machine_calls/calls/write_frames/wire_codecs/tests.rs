@@ -1,25 +1,13 @@
 use super::{TableCall, TypedTrees, is_wire_codec_call, known_wire_codec_call_written_paths};
 use typed_trees::statement::StatementNode;
 
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("symbols");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("types")
-}
-
 const SCHEMA_PRELUDE: &str = "data PointMsg { #0 x: u32; #1 y: u32; } \
     data PointSample { x: u32; y: u32; } \
     data WireVerdict { case Invalid; case Sound; } \
     data Main { buffer: [u8; 32]; written: u64; read: u64; verdict: WireVerdict; }";
 
 fn main_state_frame(body: &str) -> Option<Vec<String>> {
-    let program = typed(&format!(
+    let program = crate::front_end::typed_program(&format!(
         "{SCHEMA_PRELUDE} machine Main::main(&mut self) {{ {body} }}"
     ));
     let machine = program
@@ -112,7 +100,7 @@ fn all_shared_argument_codec_call_contributes_nothing() {
 
 #[test]
 fn codec_call_with_an_unborrowed_argument_stays_opaque() {
-    let program = typed(&format!(
+    let program = crate::front_end::typed_program(&format!(
         "{SCHEMA_PRELUDE} machine Main::main(&mut self) {{ \
          let q: PointSample; q.x = 3; q.y = 4; \
          PointMsg::encode(q, &mut self.buffer, &mut self.written); }}"
@@ -132,7 +120,7 @@ fn codec_call_with_an_unborrowed_argument_stays_opaque() {
 
 #[test]
 fn a_user_machine_call_is_not_a_wire_codec_call() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Main { count: u64; } \
          machine Main::main(&mut self) { self.bump(); } \
          machine Main::bump(&mut self) { self.count = 1; }",

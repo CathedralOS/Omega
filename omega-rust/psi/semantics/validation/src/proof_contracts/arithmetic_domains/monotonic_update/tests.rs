@@ -13,24 +13,11 @@ fn bounds(
         data Counter {{ value: {carrier}; }}
         machine Counter::update(&mut self) {{ self.value = {update}; }}"
     );
-    let tokens = source_files_to_tokens::Lexer::new(&source)
-        .tokenize()
-        .unwrap();
     let mut sources = source::SourceMap::default();
     let source_id = sources
         .add("monotonic_counter.omg".into(), source.clone())
         .source_id;
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &syntax,
-            sources: Some(std::sync::Arc::new(sources)),
-            top_level_bindings: Vec::new(),
-        },
-    )
-    .unwrap();
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let program = crate::front_end::typed_program_from_source_map(sources, &[(source_id, &source)]);
     let [machine] = program.machines() else {
         panic!("one attached update machine");
     };

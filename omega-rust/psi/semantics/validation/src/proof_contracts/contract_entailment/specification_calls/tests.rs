@@ -7,30 +7,16 @@
 //! that owner: the same-subject citation discharges, and citing the
 //! requirement at an operand the caller never established rejects.
 
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::signature::SignatureContractKind;
 
 const WRONG_SUBJECT_REJECTION: &str =
     "cannot prove requires contract for specification call `take_empty`";
 
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolved source");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("typed source")
-}
-
 /// The driver's contract walk in miniature: requires facts accumulate into
 /// `prior_facts`, then every ensures fact is checked against them.
 fn machine_contract_diagnostics(source: &str, machine_name: &str) -> Vec<String> {
-    let program = typed(source);
+    let program = crate::front_end::typed_program(source);
     let machine = program
         .machines()
         .iter()

@@ -257,6 +257,12 @@ mod machine_calls;
 mod program_validation;
 mod proof_contracts;
 mod value_custody;
+
+// The front-end pipeline the tests run, shared with the `suite` integration
+// target that includes the same file; see its module documentation.
+#[cfg(test)]
+#[path = "../tests/support/front_end.rs"]
+mod front_end;
 pub use machine_calls::reference_result_custody;
 pub use program_validation::{
     ContractEntailmentStandDown, ContractEntailmentStandDownReason, ExactIntegerCastFact,

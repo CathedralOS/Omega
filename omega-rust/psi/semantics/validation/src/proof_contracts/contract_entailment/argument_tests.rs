@@ -223,16 +223,7 @@ fn retained_disequality_follows_later_equations_without_equating_scoped_atoms() 
 #[test]
 fn exact_argument_widening_does_not_change_other_strict_reader_languages() {
     let source = "machine caller(input: u8) -> u64 { input as u64 }";
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let program = crate::front_end::typed_program(source);
     let machine = &program.machines()[0];
     let parameter = &program.state_parameters(&program.machine_states(machine)[0])[0];
     let cast = program

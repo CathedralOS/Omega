@@ -96,18 +96,6 @@ mod tests {
     use super::has_builtin_parameter_bound_expression_meaning;
     use typed_trees::expression::{BinaryOperator, ExpressionNode};
 
-    fn typed(source: &str) -> typed_trees::TypedTrees {
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .expect("tokens");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("resolved");
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("typed")
-    }
-
     #[test]
     fn requirement_arithmetic_preserves_selected_operator_meaning() {
         for (declaration, builtin) in [
@@ -117,7 +105,7 @@ mod tests {
                 false,
             ),
         ] {
-            let program = typed(&format!(
+            let program = crate::front_end::typed_program(&format!(
                 "{declaration}
                 boundary trait Counter {{ machine increase(input: u64) -> u64
                     ensures result == input + 1; }}"
@@ -142,7 +130,7 @@ mod tests {
 
     #[test]
     fn requirement_parameter_types_reject_foreign_telescope_and_keep_policy() {
-        let program = typed(
+        let program = crate::front_end::typed_program(
             "data Count { remaining: u64 in Wrapping; }
             boundary trait Counter {
                 machine first(input: Count) -> u64 ensures result == input.remaining + 1;

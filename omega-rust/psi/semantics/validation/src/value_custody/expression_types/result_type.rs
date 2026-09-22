@@ -26,21 +26,11 @@ mod tests;
 #[cfg(test)]
 mod domain_carrier_subjects {
     use super::domain_expression_result_type_reference;
-    use source_files_to_tokens::Lexer;
-    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-    use tokens_to_syntax_trees::parse_syntax_trees;
+
     use typed_trees::TypedTrees;
     use typed_trees::domain::ProofFact;
     use typed_trees::expression::ExpressionHandle;
     use typed_trees::types::PrimitiveType;
-
-    fn typed_source(source: &str) -> TypedTrees {
-        let tokens = Lexer::new(source).tokenize().expect("tokens");
-        let syntax = parse_syntax_trees(&tokens).expect("syntax");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution");
-        lower_symbol_resolved_trees(&resolved).expect("typing")
-    }
 
     fn membership_subject<'program>(
         program: &'program TypedTrees,
@@ -62,7 +52,7 @@ mod domain_carrier_subjects {
 
     #[test]
     fn member_subject_reads_declared_field_type() {
-        let program = typed_source(
+        let program = crate::front_end::typed_program(
             "data Inner { pos: u8; neg: u8; }
              data Rat { num: Inner; tail: u64; }
              domain u8::NonZero;
@@ -86,7 +76,7 @@ mod domain_carrier_subjects {
 
     #[test]
     fn indexed_subject_reads_declared_element_type() {
-        let program = typed_source(
+        let program = crate::front_end::typed_program(
             "domain u8::NonZero;
              domain [u8; 8]::Full requires self[0] in u8::NonZero;",
         );
@@ -102,19 +92,9 @@ mod domain_carrier_subjects {
 #[cfg(test)]
 mod named_call_result_fabrication {
     use super::{ExpressionHandle, PrimitiveType, TypedTrees, expression_result_type_reference};
-    use source_files_to_tokens::Lexer;
-    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-    use tokens_to_syntax_trees::parse_syntax_trees;
+
     use typed_trees::expression::ExpressionNode;
     use typed_trees::statement::StatementNode;
-
-    fn typed_source(source: &str) -> TypedTrees {
-        let tokens = Lexer::new(source).tokenize().expect("tokens");
-        let syntax = parse_syntax_trees(&tokens).expect("syntax");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution");
-        lower_symbol_resolved_trees(&resolved).expect("typing")
-    }
 
     fn match_arm_value(program: &TypedTrees, arm: usize) -> ExpressionHandle {
         let machine = &program.machines()[0];
@@ -140,7 +120,7 @@ mod named_call_result_fabrication {
 
     #[test]
     fn named_call_composite_parameter_results_remain_unresolved() {
-        let program = typed_source(
+        let program = crate::front_end::typed_program(
             "data Pair<T> { first: T; second: T; }
              operator + Math::pair<T>(left: T, right: T) -> Pair<T>;
              machine run(left: u8, right: u8) -> Pair<u8> {
@@ -163,7 +143,7 @@ mod named_call_result_fabrication {
 
     #[test]
     fn named_call_constrained_parameter_results_remain_unresolved() {
-        let program = typed_source(
+        let program = crate::front_end::typed_program(
             "domain<T> T::NonZero;
              operator + Math::clamp<T>(input: T, bound: T) -> T in NonZero;
              machine run(left: u8, right: u8) -> u8 {
@@ -186,7 +166,7 @@ mod named_call_result_fabrication {
 
     #[test]
     fn named_call_bound_and_concrete_results_still_resolve() {
-        let program = typed_source(
+        let program = crate::front_end::typed_program(
             "operator + Math::sum<T>(left: T, right: T) -> T;
              operator + Math::double(input: u8) -> u8;
              machine run(flag: bool, left: u8, right: u8) -> u64 {

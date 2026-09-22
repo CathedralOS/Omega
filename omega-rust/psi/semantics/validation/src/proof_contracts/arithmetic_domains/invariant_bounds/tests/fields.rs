@@ -1,5 +1,5 @@
 use super::super::OperatorSpelling;
-use super::{ExpressionNode, TypeReferenceNode, immutable_integer_expression_bounds, query, typed};
+use super::{ExpressionNode, TypeReferenceNode, immutable_integer_expression_bounds, query};
 use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
 use typed_trees::name::Identifier;
@@ -238,7 +238,7 @@ fn field_queries_do_not_infer_ranges_from_entry_flow_premises() {
 
 #[test]
 fn same_spelled_foreign_state_parameters_cannot_supply_field_bounds() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Input { value: u16 [0..=5]; }
          machine first(input: Input) -> u16 { input.value + 1 }
          machine second(input: Input) -> u16 { input.value + 1 }",
@@ -276,7 +276,7 @@ fn field_bounds_require_the_exact_nominal_owner_and_field_selector() {
         "case",
         "owner",
     ] {
-        let mut program = typed(
+        let mut program = crate::front_end::typed_program(
             "data Input { value: u16 [0..=5]; spare: u16 [20..=30]; }
              data Foreign { value: u16 [100..=120]; }
              machine value(input: Input) -> u16 { input.value + 1 }",
@@ -348,7 +348,7 @@ fn field_receiver_handles_cannot_be_repaired_by_parameter_spelling() {
         "foreign_head",
         "spoofed_parameter",
     ] {
-        let mut program = typed(
+        let mut program = crate::front_end::typed_program(
             "data Input { value: u16 [0..=5]; }
              machine value(input: Input, other: Input) -> u16 { input.value + 1 }
              machine foreign(input: Input) -> u16 { input.value }",
@@ -398,7 +398,7 @@ fn field_receiver_handles_cannot_be_repaired_by_parameter_spelling() {
 
 #[test]
 fn same_spelled_nominal_field_carrier_is_not_a_builtin_integer() {
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "data Input { value: u16 [0..=5]; }
          data Impostor {}
          machine value(input: Input) -> u16 { input.value + 1 }",
@@ -455,7 +455,7 @@ fn computed_field_bounds_retain_selected_conformance_operator_meaning() {
         ClosedConformanceApplication, ClosedConformanceRowIdentity, MachineSpecialization,
     };
 
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "trait SelectedArithmetic { operator + add(left: Self, right: Self) -> Self; }
          Chosen: u64 satisfies SelectedArithmetic {
              machine add(left: u64, right: u64) -> u64 { 100u64 }

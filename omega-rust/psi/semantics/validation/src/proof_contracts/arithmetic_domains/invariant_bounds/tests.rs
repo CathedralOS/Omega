@@ -9,22 +9,10 @@ use typed_trees::statement::StatementNode;
 mod fields;
 mod selected_meaning;
 
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
-}
-
 #[test]
 fn qualified_record_projection_retains_type_but_does_not_erase_arithmetic_policy() {
     for (field_type, accepted) in [("u64 in Tag", true), ("u64 in Wrapping", false)] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "domain u64::Tag;
              data Config [copy] {{ size: {field_type}; }}
              const CONFIG: Config = Config {{ size: 7 }};
@@ -56,7 +44,7 @@ fn qualified_record_projection_retains_type_but_does_not_erase_arithmetic_policy
 
 #[test]
 fn closed_record_fields_share_exact_bounds_and_keep_projection_custody() {
-    let original = typed(
+    let original = crate::front_end::typed_program(
         "data Config [copy] { size: u64; enabled: bool; }
         data Foreign [copy] { size: u64; enabled: bool; }
         const CONFIG: Config = Config { size: 14, enabled: true };
@@ -167,7 +155,7 @@ fn closed_record_fields_share_exact_bounds_and_keep_projection_custody() {
 
 #[test]
 fn projected_integer_landing_keeps_node_overflow_and_full_width_points() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Config [copy] { size: u8; }
         const CONFIG: Config = Config { size: 255 };
         machine read() -> u8 { CONFIG.size + 1 }",
@@ -201,7 +189,7 @@ fn projected_integer_landing_keeps_node_overflow_and_full_width_points() {
             .any(|diagnostic| diagnostic.message.contains("overflow"))
     );
 
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Config [copy] { size: u64; }
         const CONFIG: Config = Config { size: 18446744073709551615u64 };
         machine read() -> u64 { CONFIG.size }",
@@ -256,7 +244,8 @@ fn closed_integer_points_retain_width_and_each_typed_operation() {
         ("1u64 + 1i64", None),
         ("0u64 + 1 / 2", None),
     ] {
-        let program = typed(&format!("machine value() -> u64 {{ {expression} }}"));
+        let program =
+            crate::front_end::typed_program(&format!("machine value() -> u64 {{ {expression} }}"));
         let machine = &program.machines()[0];
         let state = &program.machine_states(machine)[0];
         let typed_trees::statement::StatementNode::Expression(root) =
@@ -291,7 +280,8 @@ fn wide_points_do_not_grant_landing_or_static_identity_to_variable_operands() {
             "{expression}"
         );
     }
-    let program = typed("machine value(input: u64[2..=2]) -> u64 { input + 1 }");
+    let program =
+        crate::front_end::typed_program("machine value(input: u64[2..=2]) -> u64 { input + 1 }");
     let machine = &program.machines()[0];
     let state = &program.machine_states(machine)[0];
     let typed_trees::statement::StatementNode::Expression(root) =
@@ -326,7 +316,9 @@ fn enforced_type_bounds_require_exact_owned_bounded_integer_carriers() {
         ("f64", None),
         ("bool", None),
     ] {
-        let program = typed(&format!("data Counter {{ remaining: {field_type}; }}"));
+        let program = crate::front_end::typed_program(&format!(
+            "data Counter {{ remaining: {field_type}; }}"
+        ));
         let data = &program.data_definitions()[0];
         let typed_trees::data::DataMember::Field(field) = &program.data_members(data)[0] else {
             panic!("declared field");
@@ -341,7 +333,7 @@ fn enforced_type_bounds_require_exact_owned_bounded_integer_carriers() {
 
 #[test]
 fn enforced_type_bounds_reject_a_same_spelled_nominal_impostor() {
-    let mut program = typed("data Impostor {}");
+    let mut program = crate::front_end::typed_program("data Impostor {}");
     let symbol = program.data_definitions()[0].symbol;
     let handle = program
         .type_reference_table
@@ -357,7 +349,7 @@ fn enforced_type_bounds_reject_a_same_spelled_nominal_impostor() {
 }
 
 fn query(source: &str) -> Option<(i64, i64)> {
-    let program = typed(source);
+    let program = crate::front_end::typed_program(source);
     let machine = program.machines().first().unwrap();
     let state = program.machine_states(machine).first().unwrap();
     let typed_trees::statement::StatementNode::Expression(expression) = program
@@ -373,7 +365,7 @@ fn query(source: &str) -> Option<(i64, i64)> {
 
 #[test]
 fn immutable_bounds_do_not_select_carrier_width_by_spelling() {
-    let mut program = typed("machine read(input: u64) -> u64 { input }");
+    let mut program = crate::front_end::typed_program("machine read(input: u64) -> u64 { input }");
     let machine = program.machines()[0].clone();
     let state = program.machine_states(&machine)[0].clone();
     let reference = program.state_parameters(&state)[0].type_reference;
@@ -463,7 +455,8 @@ fn unsigned_literal_formation_uses_the_actual_carrier_ceiling() {
 
 #[test]
 fn computed_bounds_retain_carrier_identity_without_input_refinements() {
-    let program = typed("machine value(input: u64 [20..=30]) -> u64 { input % 5 }");
+    let program =
+        crate::front_end::typed_program("machine value(input: u64 [20..=30]) -> u64 { input % 5 }");
     let machine = &program.machines()[0];
     let state = &program.machine_states(machine)[0];
     let typed_trees::statement::StatementNode::Expression(expression) =
@@ -533,7 +526,7 @@ fn mutable_values_initializers_policies_and_oversize_divisors_stay_unknown() {
 
 #[test]
 fn another_states_same_spelled_parameter_has_no_bound() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "machine first(input: u16) -> u16 { input % 256u16 } machine second(input: u16) -> u16 { input }",
     );
     let first = &program.machines()[0];
@@ -554,7 +547,9 @@ fn another_states_same_spelled_parameter_has_no_bound() {
 
 #[test]
 fn comparison_bounds_keep_unsigned_floors_without_representable_ceilings() {
-    let program = typed("machine compare(left: u64, right: u64) -> bool { left > right }");
+    let program = crate::front_end::typed_program(
+        "machine compare(left: u64, right: u64) -> bool { left > right }",
+    );
     let machine = &program.machines()[0];
     let state = &program.machine_states(machine)[0];
     let typed_trees::statement::StatementNode::Expression(expression) =
@@ -576,7 +571,7 @@ fn comparison_bounds_keep_unsigned_floors_without_representable_ceilings() {
 
 #[test]
 fn comparison_bounds_do_not_rebind_a_foreign_parameter_by_spelling() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "machine first(left: u64, right: u64) -> bool { left > right }
         machine second(left: u64, right: u64) -> bool { left > right }",
     );

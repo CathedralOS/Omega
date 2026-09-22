@@ -11,20 +11,6 @@
 //! arg has no symbolic lower bound at the next entry and the recast must
 //! refuse rather than inherit the stale floor.
 
-use typed_trees::TypedTrees;
-
-fn program(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
-}
-
 const STRIDE_WALK_STABLE_WITNESS: &str = "
 data Desc { kind: u64; pages: u64; }
 data Main {
@@ -89,7 +75,7 @@ machine Main::main(&mut self) {
 
 #[test]
 fn a_stable_stride_witness_bounds_the_dependent_view() {
-    let typed = program(STRIDE_WALK_STABLE_WITNESS);
+    let typed = crate::front_end::typed_program(STRIDE_WALK_STABLE_WITNESS);
     let result = crate::validate_program(&typed);
     assert!(
         result.is_ok(),
@@ -99,7 +85,7 @@ fn a_stable_stride_witness_bounds_the_dependent_view() {
 
 #[test]
 fn a_drifted_stride_witness_refuses_the_dependent_view() {
-    let typed = program(STRIDE_WALK_DRIFTED_WITNESS);
+    let typed = crate::front_end::typed_program(STRIDE_WALK_DRIFTED_WITNESS);
     let diagnostics = crate::validate_program(&typed)
         .expect_err("a drifted desc_size cannot carry its entry floor to the next iteration");
     let rendered = diagnostics
@@ -138,7 +124,7 @@ machine Main::main(&mut self) {
 
 #[test]
 fn a_congruent_runtime_offset_tiles_the_slice_view() {
-    let typed = program(CONGRUENT_STRIDE_OFFSET);
+    let typed = crate::front_end::typed_program(CONGRUENT_STRIDE_OFFSET);
     let result = crate::validate_program(&typed);
     assert!(
         result.is_ok(),
@@ -148,7 +134,7 @@ fn a_congruent_runtime_offset_tiles_the_slice_view() {
 
 #[test]
 fn a_non_congruent_runtime_offset_refuses_the_slice_view() {
-    let typed = program(NON_CONGRUENT_STRIDE_OFFSET);
+    let typed = crate::front_end::typed_program(NON_CONGRUENT_STRIDE_OFFSET);
     let diagnostics = crate::validate_program(&typed)
         .expect_err("an odd landing offset cannot tile u16 elements");
     let rendered = diagnostics

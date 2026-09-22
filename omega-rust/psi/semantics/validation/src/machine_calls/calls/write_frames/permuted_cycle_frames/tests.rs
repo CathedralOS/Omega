@@ -2,23 +2,10 @@ use crate::CallFrameResolver;
 use crate::machine_calls::calls::write_frames::CYCLE_EQUATIONS;
 use crate::machine_calls::calls::write_frames::PREFIX_WALKS;
 use crate::machine_calls::calls::write_frames::transition_topology::reachable_cycle_edges_can_permute_write_parameters;
-use typed_trees::TypedTrees;
-
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("symbols");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("types")
-}
 
 #[test]
 fn cycle_statement_calls_reuse_complete_callee_frames() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         r#"
         data Output { count: u64; untouched: u64; }
         machine write(output: &mut Output) { output.count = 1; }
@@ -58,7 +45,7 @@ fn cycle_statement_calls_reuse_complete_callee_frames() {
 #[test]
 fn callback_through_named_transition_never_caches_a_truncated_call_frame() {
     for backedge in ["", "transition { _ -> cycle(output) }"] {
-        let program = typed(
+        let program = crate::front_end::typed_program(
             &r#"
         data Output { count: u64; }
         data Carrier { output: &mut Output; }
@@ -147,7 +134,7 @@ machine classify(output: &mut Output) {
 
 #[test]
 fn count_mismatched_cycle_declines_before_building_equations() {
-    let program = typed(REFERENCE_CYCLE);
+    let program = crate::front_end::typed_program(REFERENCE_CYCLE);
     let machine = &program.machines()[0];
     let resolver = CallFrameResolver::new(&program).expect("resolver");
     CYCLE_EQUATIONS.with(|equations| equations.set(0));
@@ -170,7 +157,7 @@ fn count_mismatched_cycle_declines_before_building_equations() {
 
 #[test]
 fn topology_precheck_ignores_mismatched_edges_outside_cycles() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         r#"
         data Kind [copy] { case Next; case Stop; }
         machine swap(left: &mut u64, right: &mut u64, kind: Kind) {
@@ -199,7 +186,7 @@ fn topology_precheck_ignores_mismatched_edges_outside_cycles() {
         "the swapped cycle still solves to both roots"
     );
 
-    let program = typed(REFERENCE_CYCLE);
+    let program = crate::front_end::typed_program(REFERENCE_CYCLE);
     let machine = &program.machines()[0];
     for state in program.machine_states(machine).iter().take(3) {
         assert!(
@@ -217,7 +204,7 @@ fn topology_precheck_ignores_mismatched_edges_outside_cycles() {
 
 #[test]
 fn copy_value_cycle_edges_permute_and_solve_to_complete_frames() {
-    let program = typed(KIND_CYCLE);
+    let program = crate::front_end::typed_program(KIND_CYCLE);
     let machine = &program.machines()[0];
     for state in program.machine_states(machine) {
         assert!(

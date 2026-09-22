@@ -1,29 +1,17 @@
 use numerics::literals::FloatFormat;
 use source::SourceMap;
-use source_files_to_tokens::Lexer;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 use validation::{land_float_literal_destinations, validate_program};
 
 fn typed(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize literals");
     let mut sources = SourceMap::default();
     let source_id = sources
         .add("literal_destinations.omg".into(), source.to_owned())
         .source_id;
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
-        .expect("parse literals");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &syntax,
-            sources: Some(std::sync::Arc::new(sources)),
-            top_level_bindings: Vec::new(),
-        },
-    )
-    .expect("resolve literal destinations");
-    let mut program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type literal destinations");
+    let mut program =
+        crate::front_end::typed_program_from_source_map(sources, &[(source_id, source)]);
     land_float_literal_destinations(&mut program);
     program
 }

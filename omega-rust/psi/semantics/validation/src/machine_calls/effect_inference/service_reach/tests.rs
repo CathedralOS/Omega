@@ -3,18 +3,6 @@ use super::{
     TypedTrees, direct_service_reach_for_call, fixed_installation_boundary_service_reach,
     infer_service_reaches,
 };
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolution");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("typing")
-}
-
 fn dependency<'a>(
     program: &TypedTrees,
     plan: &'a ServiceReachInferencePlan,
@@ -53,7 +41,7 @@ const CONTRACT: &str = "boundary trait Console {}\ntrait Task { machine run() re
 
 #[test]
 fn top_level_invocations_keep_fixed_services_and_exact_machine_bound() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         r#"
         boundary trait Audit {}
         boundary trait Console: Audit {}
@@ -142,7 +130,7 @@ fn top_level_invocations_keep_fixed_services_and_exact_machine_bound() {
 
 #[test]
 fn fixed_boundary_basis_uses_exact_requirement_and_keeps_overlapping_services() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         r#"
         boundary trait Audit {}
         boundary trait Console {}
@@ -194,7 +182,7 @@ fn fixed_boundary_basis_uses_exact_requirement_and_keeps_overlapping_services() 
 
 #[test]
 fn nominal_dependencies_substitute_per_call_and_preserve_structural_rows() {
-    let program = typed(&format!("{CONTRACT}
+    let program = crate::front_end::typed_program(&format!("{CONTRACT}
         machine relay<Element, machine Forward>() where machine Forward satisfies Task::run; {{ Forward(); }}
         machine both<machine First, machine Second>()
         where machine First satisfies Task::run;
@@ -222,7 +210,7 @@ fn nominal_dependencies_substitute_per_call_and_preserve_structural_rows() {
 
 #[test]
 fn dependency_fixed_point_composes_recursive_generic_components() {
-    let program = typed(&format!(
+    let program = crate::front_end::typed_program(&format!(
         "{CONTRACT}
         machine note() reaches Console {{}}
         machine first<machine Step>() where machine Step satisfies Task::run;
@@ -248,7 +236,7 @@ fn dependency_fixed_point_composes_recursive_generic_components() {
 
 #[test]
 fn closed_dependency_uses_the_selected_contract_not_its_empty_body() {
-    let program = typed(&format!(
+    let program = crate::front_end::typed_program(&format!(
         "{CONTRACT}
         machine quiet() satisfies Task::run {{}}
         machine conservative() satisfies Task::run reaches Console {{}}
@@ -267,7 +255,7 @@ fn closed_dependency_uses_the_selected_contract_not_its_empty_body() {
 
 #[test]
 fn nested_static_applications_substitute_their_own_nominal_arguments() {
-    let program = typed(&format!(
+    let program = crate::front_end::typed_program(&format!(
         "{CONTRACT}
         machine relay<machine Forward>() where machine Forward satisfies Task::run; {{ Forward(); }}
         machine traverse<machine Work>() where machine Work satisfies Task::run; {{ Work(); }}
