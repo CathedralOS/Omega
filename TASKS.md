@@ -3590,6 +3590,16 @@ syntax and other terminal services are not prerequisites.
   evaluator; the binary-operator match alone does not establish which calls
   are unsupported.
 
+  Scouting (macw4, no code): named float calls in const-initializer position
+  fail earlier than any evaluator boundary —
+  `initializer_dependencies.rs::Collector::call` requires a Machine or
+  machine-parented State target, so boundary Operators die at dependency
+  collection. `machine_execution/admission.rs::closure_needs_operator_selection`
+  already detects resolved boundary-operator uses; the checked-interpreter
+  named-operation dispatch (policy domain from operand domains, FloatMeaning,
+  FloatClass classify, full directed-op table) is the shape to mirror keyed on
+  recovered authored identity. Full notes: devin summary history_b22e0e43edd349cb.
+
   Acceptance: those source-authored constant customers evaluate and replay
   with exact selected custody; determined runtime results publish stable bits,
   while undetermined representations and forged receipts reject. A
