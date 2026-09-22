@@ -47,7 +47,7 @@ const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[
         1,
     ),
     ("omega-rust/omega/representations/register-model", 1),
-    ("omega-rust/omega/semantics/optimization-unit-semantics", 16),
+    ("omega-rust/omega/semantics/optimization-unit-semantics", 15),
 ];
 
 fn workspace_root() -> PathBuf {

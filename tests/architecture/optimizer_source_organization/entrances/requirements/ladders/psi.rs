@@ -105,7 +105,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/sparse_conditional_constant_propagation/integer_evaluation/binary_operation_shape.rs",
             "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/sparse_conditional_constant_propagation/integer_evaluation/binary_semantics.rs",
             "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/sparse_conditional_constant_propagation/integer_evaluation/literal_facts.rs",
-            "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/sparse_conditional_constant_propagation/integer_evaluation/model.rs",
         ],
     },
     SemanticLadder {
@@ -165,7 +164,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "independent GVN expression keys",
         paths: &[
             "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/global_value_numbering/expression_keys/mod.rs",
-            "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/global_value_numbering/expression_keys/model.rs",
             "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/global_value_numbering/expression_keys/total.rs",
             "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/global_value_numbering/expression_keys/proof_certified.rs",
             "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/global_value_numbering/expression_keys/compatible_policy.rs",

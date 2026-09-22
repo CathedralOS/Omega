@@ -6,7 +6,7 @@ use optimization_unit::{OptimizationNode, PsiOptimizationFunction, PsiRewriteCan
 
 use crate::OptimizationUnitValidationError;
 
-use super::{model::IntegerEvaluation, unary_integer_operand};
+use super::{IntegerEvaluation, unary_integer_operand};
 
 pub(super) fn evaluate(
     function: &PsiOptimizationFunction,
