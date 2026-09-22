@@ -1,6 +1,9 @@
-use crate::optimized_semantic_wrapper_object::error::*;
+use crate::optimized_semantic_wrapper_object::error::OptimizedProgramStorageSemanticWrapperObjectError;
 use crate::optimized_semantic_wrapper_object::model::WRAPPER_SYMBOL_NAME;
-use crate::optimized_semantic_wrapper_object::model::*;
+use crate::optimized_semantic_wrapper_object::model::{
+    OptimizedProgramStorageSemanticWrapperObjectPlan,
+    OptimizedProgramStorageSemanticWrapperObjectSymbolRole,
+};
 use isa_x86_64::ValidatedX86_64SemanticUnitWrapperTemplate;
 use object_file::{SectionKind, canonical_private_machine_symbol_name, section_name};
 use std::collections::BTreeSet;

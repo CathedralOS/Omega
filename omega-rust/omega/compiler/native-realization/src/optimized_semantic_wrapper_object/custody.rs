@@ -1,4 +1,9 @@
-use crate::optimized_semantic_wrapper_object::model::*;
+use crate::optimized_semantic_wrapper_object::model::{
+    OptimizedProgramStorageSemanticWrapperObjectContainer,
+    OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt,
+    OptimizedProgramStorageSemanticWrapperObjectManifest,
+    OptimizedProgramStorageSemanticWrapperObjectPlan,
+};
 
 pub(crate) fn custody(
     object: &OptimizedProgramStorageSemanticWrapperObjectPlan,

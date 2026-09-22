@@ -1,7 +1,13 @@
 use crate::StagedOptimizedProgramStorageSemanticWrapperEncoding;
-use crate::optimized_semantic_wrapper_object::error::*;
+use crate::optimized_semantic_wrapper_object::error::OptimizedProgramStorageSemanticWrapperObjectError;
 use crate::optimized_semantic_wrapper_object::model::WRAPPER_SYMBOL_NAME;
-use crate::optimized_semantic_wrapper_object::model::*;
+use crate::optimized_semantic_wrapper_object::model::{
+    OptimizedProgramStorageSemanticWrapperCallResolution,
+    OptimizedProgramStorageSemanticWrapperCallResolutionState,
+    OptimizedProgramStorageSemanticWrapperObjectPlan,
+    OptimizedProgramStorageSemanticWrapperObjectSymbol,
+    OptimizedProgramStorageSemanticWrapperObjectSymbolRole,
+};
 use isa_x86_64::resolve_x86_64_semantic_unit_wrapper_private_continuation;
 use object_file::{ObjectLocalSymbolId, RelocationFreeObjectPlan, RelocationFreeObjectSymbolRole};
 use optimization_core::{
