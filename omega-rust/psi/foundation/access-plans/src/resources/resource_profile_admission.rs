@@ -3,28 +3,16 @@ use extents::{
     ExtentRootOrigin, MappingEraId,
 };
 
+use crate::placements::schema_correspondence::normalized_identity;
 use crate::{
     AccessPlanDiagnostic, BoundaryReach, ResourceProfile, ValidatedResourceProfile,
     validate_resource_profile,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ResourceProfileReceiptId(u64);
-
-impl ResourceProfileReceiptId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, AccessPlanDiagnostic> {
-        if identity == 0 {
-            return Err(AccessPlanDiagnostic(
-                "resource-profile receipt identity cannot be zero".into(),
-            ));
-        }
-        Ok(Self(identity))
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
-}
+normalized_identity!(
+    ResourceProfileReceiptId,
+    "resource-profile receipt identity"
+);
 
 /// Provider-only authority to bind one normalized profile to one exact range
 /// and provenance tuple.

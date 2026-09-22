@@ -1,6 +1,7 @@
 use extents::{Extent, ExtentLoan};
 
 use crate::ResourceProfileReceiptId;
+use crate::placements::schema_correspondence::normalized_identity;
 use crate::{
     AccessPlanDiagnostic, AdmittedResourceProfile, OwnedPlacementAdmission,
     OwnedPlacementRejection, PlacedView, PlacementResourceCompatibility, ValidatedPlacementPlan,
@@ -10,8 +11,7 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PlacementAdmissionId(pub(crate) u64);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PlacedOccurrenceId(u64);
+normalized_identity!(PlacedOccurrenceId, "placed-occurrence identity");
 
 /// One accepted placement that owns the exact extent loan checked by the
 /// provider. It cannot be reused to admit another range or another loan.
@@ -44,21 +44,6 @@ impl PlacementAdmissionId {
         if identity == 0 {
             return Err(AccessPlanDiagnostic(
                 "placement-admission identity cannot be zero".into(),
-            ));
-        }
-        Ok(Self(identity))
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
-}
-
-impl PlacedOccurrenceId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, AccessPlanDiagnostic> {
-        if identity == 0 {
-            return Err(AccessPlanDiagnostic(
-                "placed-occurrence identity cannot be zero".into(),
             ));
         }
         Ok(Self(identity))

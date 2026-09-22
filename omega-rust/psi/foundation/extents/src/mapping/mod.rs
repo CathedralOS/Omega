@@ -20,10 +20,7 @@ pub enum MappingSourceMode {
     BorrowedExclusive,
 }
 
-normalized_extent_identity!(
-    TranslationActivationFactId,
-    "translation-activation-fact"
-);
+normalized_extent_identity!(TranslationActivationFactId, "translation-activation-fact");
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TranslationInstallObligations(BTreeSet<TranslationActivationFactId>);
@@ -40,10 +37,7 @@ impl TranslationInstallObligations {
     }
 }
 
-normalized_extent_identity!(
-    TranslationCompletionFactId,
-    "translation-completion-fact"
-);
+normalized_extent_identity!(TranslationCompletionFactId, "translation-completion-fact");
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TranslationReleaseObligations(BTreeSet<TranslationCompletionFactId>);
@@ -60,10 +54,7 @@ impl TranslationReleaseObligations {
     }
 }
 
-normalized_extent_identity!(
-    PeerWriteRevocationFactId,
-    "peer-write-revocation-fact"
-);
+normalized_extent_identity!(PeerWriteRevocationFactId, "peer-write-revocation-fact");
 
 /// The provider-established facts a shared-custody mapping's revocation
 /// receipt must show before its payload may be read zero-copy: the hostile
