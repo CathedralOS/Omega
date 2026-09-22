@@ -165,13 +165,14 @@ pub(super) fn semantic_bindings_by_consumer(
 /// propagate into one root policy, where an identical row accepted twice
 /// would be a duplicate rather than a grant.
 ///
-/// A discovered `FilesystemHost` service binding at the root likewise carries
-/// the toolchain-settled cohort permission table for its exact checked schema:
-/// every method row the canonical boundary declares resolves its own settled
-/// disposition, so the proposal remains exact per requirement and the accepted
-/// policy projected for realization covers the demanded leaves. The table
-/// refuses to fabricate rows for requirements outside the settled cohorts, and
-/// the accepted binding still rejoins each row to its exact schema digest.
+/// A discovered `FilesystemHost` or `TimeHost` service binding at the root
+/// likewise carries the toolchain-settled cohort permission table for its
+/// exact checked schema: every method row the canonical boundary declares
+/// resolves its own settled disposition, so the proposal remains exact per
+/// requirement and the accepted policy projected for realization covers the
+/// demanded leaves. The table refuses to fabricate rows for requirements
+/// outside the settled cohorts, and the accepted binding still rejoins each
+/// row to its exact schema digest.
 pub(super) fn candidate_semantic_binding_inputs(
     preliminary: &CompilerIssuedPackageReviewSet,
     root: &PackageKey,
@@ -180,28 +181,43 @@ pub(super) fn candidate_semantic_binding_inputs(
     for review in preliminary.reviews() {
         for candidate in &review.semantic_binding_candidates {
             let mut binding = candidate.binding().clone();
+            let role = binding.role();
             if review.key() == root
                 && review.checked_context().purpose() == DependencyPurpose::Product
-                && binding.role() == AcceptedSemanticBindingRole::FilesystemHostService
             {
-                binding = binding
-                    .with_terminal_authority_permissions(
+                let settled_permission_rows = match role {
+                    AcceptedSemanticBindingRole::FilesystemHostService => {
                         native_realization::filesystem_host_permission_rows(
                             candidate.service_schema(),
                         )
+                        .ok()
+                    }
+                    AcceptedSemanticBindingRole::TimeHostService => {
+                        native_realization::time_host_permission_rows(candidate.service_schema())
+                            .ok()
+                    }
+                    _ => None,
+                };
+                if matches!(
+                    role,
+                    AcceptedSemanticBindingRole::FilesystemHostService
+                        | AcceptedSemanticBindingRole::TimeHostService
+                ) {
+                    let permissions = settled_permission_rows.ok_or_else(|| {
+                        CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
+                            consumer: review.key().clone(),
+                            role,
+                        }
+                    })?;
+                    binding = binding
+                        .with_terminal_authority_permissions(permissions)
                         .map_err(|_| {
                             CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
                                 consumer: review.key().clone(),
-                                role: AcceptedSemanticBindingRole::FilesystemHostService,
+                                role,
                             }
-                        })?,
-                    )
-                    .map_err(|_| {
-                        CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
-                            consumer: review.key().clone(),
-                            role: AcceptedSemanticBindingRole::FilesystemHostService,
-                        }
-                    })?;
+                        })?;
+                }
             }
             inputs.push(ConsumerScopedSemanticBindingReviewInput::new(
                 review.key().clone(),
@@ -311,99 +327,104 @@ fn candidate_console_permissions(
 /// checked API actually reaches. Readable names guide this confined candidate
 /// pass only; the returned row binds exact package ownership, nominal path, and
 /// normalized schema and must be consumed by the compiler on the final pass.
+///
+/// Each canonical host boundary path has its own semantic role; every
+/// referenced path may nominate at most one (package, path) candidate.
 pub(super) fn candidate_service_bindings(
     checked: &CheckedCompilation,
     projection: &CheckedPackageReviewProjection,
     consumer: &PackageKey,
 ) -> Result<Vec<SemanticBindingReviewCandidate>, CompileResolvedPackageReviewsError> {
-    let referenced = projection
-        .callables()
-        .iter()
-        .flat_map(callable_service_references)
-        .filter(|service| {
-            service.path() == "FilesystemHost"
-                && matches!(service.owner(), PackageReviewNominalOwner::Package(_))
-        })
-        .cloned()
-        .collect::<BTreeSet<_>>();
-    let candidates = referenced
-        .iter()
-        .filter_map(|service| match service.owner() {
-            PackageReviewNominalOwner::Package(package) => {
-                Some((package, service.path().to_owned()))
-            }
-            _ => None,
-        })
-        .collect::<BTreeSet<_>>();
-    let candidates = candidates.iter().collect::<Vec<_>>();
-    let [(package, path)] = candidates.as_slice() else {
-        if candidates.is_empty() {
-            return Ok(Vec::new());
-        }
-        return Err(
-            CompileResolvedPackageReviewsError::AmbiguousCandidateSemanticBinding {
-                consumer: consumer.clone(),
-                role: AcceptedSemanticBindingRole::FilesystemHostService,
-                candidate_count: candidates.len(),
-            },
-        );
-    };
-    let binding = checked
-        .candidate_service_binding(
+    const HOST_SERVICE_PATHS: &[(&str, AcceptedSemanticBindingRole)] = &[
+        (
+            "FilesystemHost",
             AcceptedSemanticBindingRole::FilesystemHostService,
-            *package,
-            path,
-        )
-        .map_err(
-            |_| CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
-                consumer: consumer.clone(),
-                role: AcceptedSemanticBindingRole::FilesystemHostService,
-            },
-        )?;
-    let definitions = checked
-        .traits()
-        .iter()
-        .filter(|definition| {
-            checked
-                .typed
-                .symbols
-                .symbol_package_identity(definition.symbol)
-                == Some(*package)
-                && checked.typed.symbols.display_path(definition.symbol, "::") == *path
-        })
-        .collect::<Vec<_>>();
-    let [definition] = definitions.as_slice() else {
-        return Err(
-            CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
-                consumer: consumer.clone(),
-                role: AcceptedSemanticBindingRole::FilesystemHostService,
-            },
-        );
-    };
-    let Some(service_schema) =
-        provider_planning::service_schema::from_typed(&checked.typed, definition)
-    else {
-        return Err(
-            CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
-                consumer: consumer.clone(),
-                role: AcceptedSemanticBindingRole::FilesystemHostService,
-            },
-        );
-    };
-    if package_compilation::accepted_service_schema_digest(binding.role(), &service_schema)
-        != binding.normalized_schema_digest()
-    {
-        return Err(
-            CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
-                consumer: consumer.clone(),
-                role: AcceptedSemanticBindingRole::FilesystemHostService,
-            },
-        );
+        ),
+        ("TimeHost", AcceptedSemanticBindingRole::TimeHostService),
+    ];
+    let mut bindings = Vec::new();
+    for (path, role) in HOST_SERVICE_PATHS {
+        let referenced = projection
+            .callables()
+            .iter()
+            .flat_map(callable_service_references)
+            .filter(|service| {
+                service.path() == *path
+                    && matches!(service.owner(), PackageReviewNominalOwner::Package(_))
+            })
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        let candidates = referenced
+            .iter()
+            .filter_map(|service| match service.owner() {
+                PackageReviewNominalOwner::Package(package) => Some(package),
+                _ => None,
+            })
+            .collect::<BTreeSet<_>>();
+        let candidates = candidates.iter().collect::<Vec<_>>();
+        let [package] = candidates.as_slice() else {
+            if candidates.is_empty() {
+                continue;
+            }
+            return Err(
+                CompileResolvedPackageReviewsError::AmbiguousCandidateSemanticBinding {
+                    consumer: consumer.clone(),
+                    role: *role,
+                    candidate_count: candidates.len(),
+                },
+            );
+        };
+        let binding = checked
+            .candidate_service_binding(*role, **package, *path)
+            .map_err(
+                |_| CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
+                    consumer: consumer.clone(),
+                    role: *role,
+                },
+            )?;
+        let definitions = checked
+            .traits()
+            .iter()
+            .filter(|definition| {
+                checked
+                    .typed
+                    .symbols
+                    .symbol_package_identity(definition.symbol)
+                    == Some(**package)
+                    && checked.typed.symbols.display_path(definition.symbol, "::") == *path
+            })
+            .collect::<Vec<_>>();
+        let [definition] = definitions.as_slice() else {
+            return Err(
+                CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
+                    consumer: consumer.clone(),
+                    role: *role,
+                },
+            );
+        };
+        let Some(service_schema) =
+            provider_planning::service_schema::from_typed(&checked.typed, definition)
+        else {
+            return Err(
+                CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
+                    consumer: consumer.clone(),
+                    role: *role,
+                },
+            );
+        };
+        if package_compilation::accepted_service_schema_digest(binding.role(), &service_schema)
+            != binding.normalized_schema_digest()
+        {
+            return Err(
+                CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
+                    consumer: consumer.clone(),
+                    role: *role,
+                },
+            );
+        }
+        bindings.push(SemanticBindingReviewCandidate::new(binding, service_schema));
     }
-    Ok(vec![SemanticBindingReviewCandidate::new(
-        binding,
-        service_schema,
-    )])
+    Ok(bindings)
 }
 
 /// A checked dependency can nominate its target entry schema before an

@@ -47,9 +47,9 @@ pub(super) fn validate_source_evaluated_import_coverage(
     )?;
     let mut required_imports = BTreeSet::new();
     let mut admitted_mechanisms = Vec::new();
-    // Toolchain-settled `FilesystemHost` cohort rows emitted for demanded
-    // leaves: they classify beside the supplied receiving policy rather than
-    // requiring the receiver to spell them.
+    // Toolchain-settled host cohort rows emitted for demanded leaves: they
+    // classify beside the supplied receiving policy rather than requiring
+    // the receiver to spell them.
     let mut cohort_rows: Vec<TerminalAuthorityPolicyRow> = Vec::new();
     for (requirement, rows) in demanded {
         let Some((provider_plan, row)) = rows.selected_external else {
@@ -117,7 +117,7 @@ pub(super) fn validate_source_evaluated_import_coverage(
                         "demanded syscall `{requirement}` has no exact checked argument contract: {error}"
                     ))]
                 })?;
-                let cohort_row = settled_filesystem_cohort_row(provider_plan, row, mechanism);
+                let cohort_row = settled_host_cohort_row(provider_plan, row, mechanism);
                 let mechanism = match classify_terminal_mechanism(policy, mechanism) {
                     Ok(mechanism) => mechanism,
                     Err(unclassified) if cohort_row.is_some() => {
@@ -194,7 +194,7 @@ pub(super) fn validate_source_evaluated_import_coverage(
                         "demanded normalized import `{requirement}` has an invalid admitted implementation contract: {error}"
                     ))]
                 })?;
-                let cohort_row = settled_filesystem_cohort_row(provider_plan, row, mechanism);
+                let cohort_row = settled_host_cohort_row(provider_plan, row, mechanism);
                 let mechanism = match classify_terminal_mechanism(policy, mechanism) {
                     Ok(mechanism) => mechanism,
                     Err(unclassified) if cohort_row.is_some() => unclassified.mechanism(),
@@ -261,15 +261,15 @@ pub(super) fn validate_source_evaluated_import_coverage(
     Ok((admitted_mechanisms, cohort_rows))
 }
 
-/// The toolchain-settled `FilesystemHost` facet cohort supplies one exact
-/// mechanism row for a demanded leaf, so classification does not require the
-/// receiving policy to spell it. Name-keyed like [`ordinary_release_cohort`]:
-/// the schema method selects the cohort, and the row binds the exact mechanism
-/// this leaf computed. Ordinary-release cohorts mint nothing here — an
-/// unconstrained generic key cannot inherit the occurrence-specific release
-/// proof — and unrecognized names mint nothing, so both still demand a
-/// receiving row or release-contract bound key.
-fn settled_filesystem_cohort_row(
+/// A toolchain-settled host cohort supplies one exact mechanism row for a
+/// demanded leaf, so classification does not require the receiving policy to
+/// spell it. Name-keyed like [`ordinary_release_cohort`]: the schema method
+/// selects the cohort, and the row binds the exact mechanism this leaf
+/// computed. Ordinary-release cohorts mint nothing here — an unconstrained
+/// generic key cannot inherit the occurrence-specific release proof — and
+/// unrecognized names mint nothing, so both still demand a receiving row or
+/// release-contract bound key.
+fn settled_host_cohort_row(
     provider_plan: &ProviderPlan,
     row: &ProviderPlanRow,
     mechanism: effects::TerminalMechanismIdentity,
@@ -283,6 +283,12 @@ fn settled_filesystem_cohort_row(
         mechanism, method,
     )
     .ok()
+    .or_else(|| {
+        crate::native_realization::terminal_authority_policy::time_host_mechanism_row(
+            mechanism, method,
+        )
+        .ok()
+    })
 }
 
 /// Classify one demanded mechanism under the receiving policy's own keys.

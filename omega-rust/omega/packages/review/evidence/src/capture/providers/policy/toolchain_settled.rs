@@ -10,9 +10,9 @@ use provider_planning::{
 };
 use target::TargetProfile;
 
-/// The canonical `FilesystemHost` mint is the only toolchain-settled slot
-/// today: replaying the mint against the consumed `FilesystemHostService`
-/// binding, the candidate typed program, the selected target, and the
+/// The canonical `FilesystemHost` and `TimeHost` mints are the only
+/// toolchain-settled slots today: replaying each mint against the consumed
+/// service binding, the candidate typed program, the selected target, and the
 /// retained authored plans reproduces the exact settled identity — schema,
 /// rows, and syscall bindings — that custody claims. The retained provenance
 /// must then carry the settlement shape: requirement symbols bound to the
@@ -24,25 +24,42 @@ pub(super) fn validate(
     retained: &SelectedProviderReviewProvenance,
     authored_plans: &[ProviderPlan],
 ) -> Result<(), Vec<Diagnostic>> {
-    let binding = compilation
-        .custody
-        .resolved_semantic_bindings()
-        .find(|binding| {
-            binding.role()
-                == package_compilation::AcceptedSemanticBindingRole::FilesystemHostService
-        });
-    let Some(minted) = build_evaluation::mint_canonical_filesystem_host_plan(
-        &compilation.typed,
-        binding,
-        Some(target.target_name()),
-        authored_plans,
-    )?
+    let mut minted = Vec::new();
+    for binding in compilation.custody.resolved_semantic_bindings() {
+        let mint = match binding.role() {
+            package_compilation::AcceptedSemanticBindingRole::FilesystemHostService => {
+                build_evaluation::mint_canonical_filesystem_host_plan(
+                    &compilation.typed,
+                    Some(binding),
+                    Some(target.target_name()),
+                    authored_plans,
+                )?
+                .map(|mint| (mint.plan, mint.trait_symbol, mint.requirement_symbols))
+            }
+            package_compilation::AcceptedSemanticBindingRole::TimeHostService => {
+                build_evaluation::mint_canonical_time_host_plan(
+                    &compilation.typed,
+                    Some(binding),
+                    Some(target.target_name()),
+                    authored_plans,
+                )?
+                .map(|mint| (mint.plan, mint.trait_symbol, mint.requirement_symbols))
+            }
+            _ => None,
+        };
+        if let Some(mint) = mint {
+            minted.push(mint);
+        }
+    }
+    let Some((minted_plan, minted_trait_symbol, minted_requirement_symbols)) = minted
+        .into_iter()
+        .find(|(plan, _, _)| *plan == retained.plan)
     else {
         return Err(rejected(
             "a retained toolchain-settled plan does not re-mint under this binding, target, or authored coverage",
         ));
     };
-    if minted.plan != retained.plan {
+    if minted_plan != retained.plan {
         return Err(rejected(
             "a toolchain-settled plan differs from its exact minted identity",
         ));
@@ -53,9 +70,9 @@ pub(super) fn validate(
         && retained.row_compiler_intrinsic_executions.len() == retained.plan.rows.len();
     let settlement_shape = matches!(
         retained.provider.schema,
-        ProviderSchemaDeclaration::BoundaryTrait(symbol) if symbol == minted.trait_symbol
+        ProviderSchemaDeclaration::BoundaryTrait(symbol) if symbol == minted_trait_symbol
     ) && retained.provider.provider_type.is_none()
-        && retained.provider.row_requirements == minted.requirement_symbols
+        && retained.provider.row_requirements == minted_requirement_symbols
         && retained
             .provider
             .row_realizations

@@ -117,6 +117,7 @@ pub use evidence::observations::{
 };
 pub use execution::execute_admitted_build_program;
 pub use provider_settlement::{
-    CheckedProviderSelection, MintedFilesystemHostPlan, mint_canonical_filesystem_host_plan,
-    settle_checked_providers, verify_independent_component_descriptions,
+    CheckedProviderSelection, MintedFilesystemHostPlan, MintedTimeHostPlan,
+    mint_canonical_filesystem_host_plan, mint_canonical_time_host_plan, settle_checked_providers,
+    verify_independent_component_descriptions,
 };

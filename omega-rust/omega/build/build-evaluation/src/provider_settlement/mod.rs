@@ -7,11 +7,13 @@
 //! package inputs attached before provider planning joins them.
 
 mod canonical_filesystem_host;
+mod canonical_time_host;
 mod independent_components;
 
 pub use canonical_filesystem_host::{
     MintedFilesystemHostPlan, mint_canonical_filesystem_host_plan,
 };
+pub use canonical_time_host::{MintedTimeHostPlan, mint_canonical_time_host_plan};
 pub use independent_components::verify_independent_component_descriptions;
 
 use crate::admission::target_machines::SelectedTargetMachineDeclarations;
@@ -25,6 +27,14 @@ use provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
 use provider_planning::derive_satisfies_plans;
 use provider_planning::evaluated_via_bindings::EvaluatedViaBindingTable;
 use typed_trees::TypedTrees;
+
+/// The toolchain-settled mint output shared by the canonical host plans:
+/// the plan plus the exact symbols the provenance and erasure joins need.
+struct ToolchainSettledMint {
+    plan: ProviderPlan,
+    trait_symbol: symbols::SymbolHandle,
+    requirement_symbols: Vec<symbols::SymbolHandle>,
+}
 
 /// Final typed provider choices and their evidence, retained for checking and
 /// selected execution. Candidate plans stay separate from selected plan facts.
@@ -105,11 +115,45 @@ pub fn settle_checked_providers(
             .map(|selected| selected.derived.plan.clone())
             .collect::<Vec<_>>(),
     )?;
+    // The canonical `TimeHost` slot settles the same way: no authored
+    // conformance or selection row can resolve it, so the toolchain mints
+    // its per-target realization plan from the reviewed leaf table.
+    let toolchain_time_host_plan = canonical_time_host::mint_canonical_time_host_plan(
+        typed,
+        package_inputs.and_then(|inputs| {
+            inputs.accepted_semantic_binding(AcceptedSemanticBindingRole::TimeHostService)
+        }),
+        target_name,
+        &selected_provider_plans
+            .iter()
+            .map(|selected| selected.derived.plan.clone())
+            .collect::<Vec<_>>(),
+    )?;
     let mut fused_service_erasures = Vec::new();
-    if let Some(minted) = &toolchain_filesystem_plan {
+    let toolchain_trait_symbols = [
+        toolchain_filesystem_plan
+            .as_ref()
+            .map(|minted| minted.trait_symbol),
+        toolchain_time_host_plan
+            .as_ref()
+            .map(|minted| minted.trait_symbol),
+    ];
+    let toolchain_plan_digests = [
+        toolchain_filesystem_plan
+            .as_ref()
+            .map(|minted| *minted.plan.identity_digest().as_bytes()),
+        toolchain_time_host_plan
+            .as_ref()
+            .map(|minted| *minted.plan.identity_digest().as_bytes()),
+    ];
+    for (requirement, provider_plan_digest) in toolchain_trait_symbols
+        .into_iter()
+        .zip(toolchain_plan_digests)
+        .filter_map(|(requirement, digest)| Some((requirement?, digest?)))
+    {
         fused_service_erasures.push(typed_trees::typed_trees::FusedServiceErasureAuthorization {
-            requirement: minted.trait_symbol,
-            provider_plan_digest: *minted.plan.identity_digest().as_bytes(),
+            requirement,
+            provider_plan_digest,
         });
     }
     for selected in &selected_provider_plans {
@@ -153,6 +197,9 @@ pub fn settle_checked_providers(
     if let Some(minted) = &toolchain_filesystem_plan {
         selected_semantic_plans.push(minted.plan.clone());
     }
+    if let Some(minted) = &toolchain_time_host_plan {
+        selected_semantic_plans.push(minted.plan.clone());
+    }
     let external_binding_rows = provider_planning::extract_native_external_binding_rows(
         target_name,
         provider_selection_target,
@@ -178,7 +225,21 @@ pub fn settle_checked_providers(
             selected_provider_plans,
             &independent_components,
         )?;
-    if let Some(minted) = toolchain_filesystem_plan {
+    for minted in [
+        toolchain_filesystem_plan.map(|minted| ToolchainSettledMint {
+            plan: minted.plan,
+            trait_symbol: minted.trait_symbol,
+            requirement_symbols: minted.requirement_symbols,
+        }),
+        toolchain_time_host_plan.map(|minted| ToolchainSettledMint {
+            plan: minted.plan,
+            trait_symbol: minted.trait_symbol,
+            requirement_symbols: minted.requirement_symbols,
+        }),
+    ]
+    .into_iter()
+    .flatten()
+    {
         selected_provider_plan_facts = selected_provider_plan_facts
             .with_toolchain_settled_plan(minted.plan.clone())
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
@@ -193,7 +254,7 @@ pub fn settle_checked_providers(
             .position(|plan| *plan == minted.plan)
             .ok_or_else(|| {
                 vec![Diagnostic::error(
-                    "toolchain-settled `FilesystemHost` plan missing from selected facts after join",
+                    "toolchain-settled canonical-host plan missing from selected facts after join",
                 )]
             })?;
         selected_provider_provenance.insert(

@@ -271,6 +271,11 @@ pub(super) fn check_selected_execution(
                     package_compilation::AcceptedSemanticBindingRole::FilesystemHostService,
                 )
             }),
+            accepted_time_host_binding: package_inputs.and_then(|inputs| {
+                inputs.accepted_semantic_binding(
+                    package_compilation::AcceptedSemanticBindingRole::TimeHostService,
+                )
+            }),
             accepted_entry_binding: package_inputs.and_then(|inputs| {
                 program_entry_binding_role.and_then(|role| inputs.accepted_semantic_binding(role))
             }),
