@@ -50,9 +50,24 @@ pub(crate) fn validate_integer_embedding_calls(
                 call.target,
             )));
         };
+        // Static conformance dispatch rewrote `target_symbol` to the
+        // satisfier's private closed realization, which resolves exactly and
+        // would otherwise be admitted below. The public requirement is the
+        // contract the embedding denotes, and a bodiless requirement is not a
+        // checked denotational source, so the dispatched call rejects by name.
+        if let Some(dispatch) = &call.static_requirement_dispatch {
+            reject(
+                &format!(
+                    "static conformance dispatch selected a private realization `{}`; the public requirement `{}` is the contract, not a direct checked value call",
+                    program.symbols.name(dispatch.realization_state),
+                    program.symbols.name(dispatch.requirement),
+                ),
+                diagnostics,
+            );
+            continue;
+        }
         if call.receiver.is_valid()
-            || call.quotient_operation.is_some()
-            || call.private_layout_operation.is_some()
+            || !call.selects_only_nominal_route()
             || !call.carries_only_positional_arguments()
         {
             reject(
@@ -170,6 +185,108 @@ fn argument_has_exact_type(
 #[cfg(test)]
 mod tests {
     use super::{ExpressionNode, validate_integer_embedding_calls};
+    use typed_trees::typed_trees::StaticRequirementDispatch;
+
+    fn typed(source: &str) -> typed_trees::TypedTrees {
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .unwrap();
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
+    }
+
+    /// Static conformance dispatch rewrites a requirement call's
+    /// `target_symbol` to the satisfier's private realization and retains the
+    /// public requirement on `static_requirement_dispatch`. The realization is
+    /// a checked body that resolves exactly, so without the route check the
+    /// site would admit it as the denotational source and the embedding would
+    /// denote the private strengthening rather than the public requirement.
+    #[test]
+    fn static_requirement_dispatch_is_not_a_direct_denotational_source() {
+        let source = r#"
+            trait Producer {
+                machine Self::compute() -> u8;
+            }
+            data Token {}
+            TokenProducer: Token satisfies Producer {
+                machine compute() -> u8 terminates; { 7 }
+            }
+            machine law<Element, Order: Element satisfies Producer>(value: u8) -> u8
+            requires embed(Order::compute()) >= 0
+            { value }
+        "#;
+        let mut program = typed(source);
+        let row = program
+            .conformances()
+            .iter()
+            .filter_map(|conformance| program.closed_conformance_rows(conformance))
+            .flatten()
+            .find(|row| row.requirement_name.as_str() == "compute")
+            .expect("one closed realization row")
+            .clone();
+        // The template spells the call through the binder's placeholder
+        // requirement, which is neither the trait requirement nor the
+        // realization state.
+        let call_expression = program
+            .expression_table
+            .iter_expressions()
+            .find_map(|(handle, expression)| {
+                matches!(expression, ExpressionNode::Call(call)
+                    if call.target.as_str() == "compute"
+                        && call.target_symbol != row.realization_state)
+                .then_some(handle)
+            })
+            .expect("the requirement call below `embed`");
+        // Replay the specialization rewrite: the executable target becomes
+        // the private realization state and the receiver binder disappears.
+        let rewrite = |program: &mut typed_trees::TypedTrees,
+                       dispatch: Option<StaticRequirementDispatch>| {
+            let ExpressionNode::Call(call) =
+                program.expression_table.expression_mut(call_expression)
+            else {
+                unreachable!();
+            };
+            call.target_symbol = row.realization_state;
+            call.receiver = typed_trees::expression::ExpressionHandle::invalid();
+            call.static_requirement_dispatch = dispatch;
+        };
+
+        rewrite(&mut program, None);
+        let mut nominal_diagnostics = Vec::new();
+        let nominal = validate_integer_embedding_calls(&program, &mut nominal_diagnostics);
+        assert!(nominal_diagnostics.is_empty(), "{nominal_diagnostics:?}");
+        assert_eq!(nominal.len(), 1);
+        assert_eq!(nominal[0].target_state, row.realization_state);
+
+        rewrite(
+            &mut program,
+            Some(StaticRequirementDispatch {
+                declaring_trait: row.declaring_trait,
+                requirement: row.requirement,
+                realization_machine: row.realization_machine,
+                realization_state: row.realization_state,
+                ..Default::default()
+            }),
+        );
+        let mut diagnostics = Vec::new();
+        let admitted = validate_integer_embedding_calls(&program, &mut diagnostics);
+        assert!(
+            admitted.is_empty(),
+            "a dispatched realization was admitted as the embedding source: {admitted:?}"
+        );
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic
+                    .message
+                    .contains("static conformance dispatch selected a private realization")
+            }),
+            "{diagnostics:?}"
+        );
+    }
 
     #[test]
     fn nested_state_substitution_cannot_reuse_the_machine_entry_totality_candidate() {

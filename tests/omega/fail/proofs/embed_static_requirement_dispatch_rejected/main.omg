@@ -1,0 +1,28 @@
+// Static conformance dispatch rewrites `Order::compute()` in the selected
+// `law<Token, TokenProducer>` instance to the satisfier's private realization.
+// The realization is a checked total body, but the caller spelled the public
+// requirement, which is the contract the embedding denotes; the dispatched
+// call is not a direct checked value call and rejects by name.
+
+trait Producer {
+    machine Self::compute() -> u8;
+}
+
+data Token {}
+
+TokenProducer: Token satisfies Producer {
+    machine compute() -> u8 terminates; { 7 }
+}
+
+machine law<Element, Order: Element satisfies Producer>(value: u8) -> u8
+requires embed(Order::compute()) >= 0
+{
+    value
+}
+
+machine caller() -> u8 {
+    law<Token, TokenProducer>(3)
+}
+
+data Main {}
+machine Main::main(&mut self) {}

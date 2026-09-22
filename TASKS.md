@@ -2088,33 +2088,6 @@ syntax and other terminal services are not prerequisites.
 
 ## Parallel language and compiler lanes
 
-- **DISPATCHED-CALL-RECOGNIZER-GAP.** (new-scope) Preserve public requirement
-  identity/contracts when selected private realizations reach guarded value-call
-  returns, integer-embedding source admission and quotient theorem-schema matching.
-  Audit `execution/unit/returns/guarded_call_returns.rs`,
-  `proof_contracts/proof_embeddings/calls.rs` and
-  `proof_contracts/quotients/relation_plan/theorem_schema_verification.rs`:
-  each excludes quotient/private-layout requests without excluding static
-  requirement dispatch, then consumes the rewritten target. This establishes
-  missing route discrimination, not that every dispatched source passes all
-  later gates.
-
-  Retain exact requirement/application/realization correspondence on supported
-  routes; otherwise reject the unsupported route explicitly. Do not import
-  private strengthening, lose guarded-result evidence, or equate a selected
-  realization with the theorem's representative application. Preserve theorem
-  static-argument matching under the
-  [public/private contract rule](wiki/spec/proofs/contracts.md#identity-availability-and-erasure).
-
-  Acceptance: dispatched-call regressions at each site distinguish public
-  guarantees from private strengthening and reject mismatched requirement,
-  application and realization evidence. Admitted guarded returns retain exact
-  result-case evidence through checked planning and Terminal verification;
-  embedding preserves denotational purity/totality without a runtime call;
-  quotient checking retains the exact representative telescope and arguments.
-  Keep nominal positive and invalid controls. Comments or recognizer counts
-  are not behavioral acceptance.
-
 - **BORROWED-STORAGE-RESTORATION.** (split-of:OMEGA-PRODUCT-COMPILER-SOURCE)
   Complete consuming-transform/replacement execution under
   [borrowed-storage invariant windows](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows)

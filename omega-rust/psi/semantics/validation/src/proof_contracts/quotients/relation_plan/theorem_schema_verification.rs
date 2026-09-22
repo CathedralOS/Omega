@@ -342,11 +342,15 @@ fn representative_application_matches(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return false;
     };
+    // The theorem's application must be the representative reached through
+    // its ordinary nominal route: a quotient request, a private layout
+    // request, or static conformance dispatch (whose rewritten target may
+    // equal the representative state while the spelled operation is a public
+    // requirement) is a redirected call and rejects.
     if expected.machine_symbol != representative.machine_symbol
         || expected.state_symbol != representative.state_symbol
         || call.target_symbol != expected.state_symbol
-        || call.quotient_operation.is_some()
-        || call.private_layout_operation.is_some()
+        || !call.selects_only_nominal_route()
         || !call.evidence_arguments.is_empty()
         || call.machine_arguments.len() != representative.static_application.bindings.len()
         || !call

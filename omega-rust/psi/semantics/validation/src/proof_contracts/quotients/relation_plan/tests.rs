@@ -42,6 +42,7 @@ use typed_trees::name::Identifier;
 use typed_trees::proposition::{PropositionApplication, PropositionDefinition};
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
 use typed_trees::state::State;
+use typed_trees::typed_trees::StaticRequirementDispatch;
 use typed_trees::types::{
     DomainConstraint, FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
@@ -762,6 +763,7 @@ enum TheoremSchemaMutation {
     WrongRelation,
     WrongLegality,
     RedirectedOperation,
+    DispatchedOperation,
     DuplicatedLeftApplication,
     OmittedRightApplication,
     ReboundSharedArgument,
@@ -901,38 +903,58 @@ fn selected_theorem_schema_fixture(
     }
     let requires = program.proof_facts.insert_many(requires);
 
-    let representative_call = |program: &mut TypedTrees,
-                               first: ExpressionHandle,
-                               shared: ExpressionHandle,
-                               redirected: bool| {
-        let arguments = program
-            .expression_table
-            .insert_expression_handles([first, shared]);
-        program
-            .expression_table
-            .insert(ExpressionNode::Call(TableCallExpression {
-                receiver: ExpressionHandle::invalid(),
-                target_symbol: if redirected {
-                    symbol(860)
-                } else {
-                    representative.state_symbol
-                },
-                target: Identifier::generated_static("representative"),
-                static_machine_parameter: symbols::SymbolHandle::invalid(),
-                static_requirement_dispatch: None,
-                machine_arguments: vec![selected_carrier.clone()].into_boxed_slice(),
-                quotient_operation: None,
-                private_layout_operation: None,
-                arguments,
-                evidence_arguments: Box::default(),
-                operational_acknowledgement: Default::default(),
-            }))
-    };
+    let representative_call =
+        |program: &mut TypedTrees,
+         first: ExpressionHandle,
+         shared: ExpressionHandle,
+         mutation: Option<TheoremSchemaMutation>| {
+            let arguments = program
+                .expression_table
+                .insert_expression_handles([first, shared]);
+            program
+                .expression_table
+                .insert(ExpressionNode::Call(TableCallExpression {
+                    receiver: ExpressionHandle::invalid(),
+                    target_symbol: if matches!(
+                        mutation,
+                        Some(TheoremSchemaMutation::RedirectedOperation)
+                    ) {
+                        symbol(860)
+                    } else {
+                        representative.state_symbol
+                    },
+                    target: Identifier::generated_static("representative"),
+                    static_machine_parameter: symbols::SymbolHandle::invalid(),
+                    // A dispatched application keeps the representative as its
+                    // executable target while the public requirement it spelled
+                    // lives on the dispatch: the call is redirected even though
+                    // the target symbol matches.
+                    static_requirement_dispatch: matches!(
+                        mutation,
+                        Some(TheoremSchemaMutation::DispatchedOperation)
+                    )
+                    .then(|| StaticRequirementDispatch {
+                        requirement: symbol(863),
+                        realization_state: representative.state_symbol,
+                        ..Default::default()
+                    }),
+                    machine_arguments: vec![selected_carrier.clone()].into_boxed_slice(),
+                    quotient_operation: None,
+                    private_layout_operation: None,
+                    arguments,
+                    evidence_arguments: Box::default(),
+                    operational_acknowledgement: Default::default(),
+                }))
+        };
     let left_call = representative_call(
         &mut program,
         left,
         shared,
-        matches!(mutation, TheoremSchemaMutation::RedirectedOperation),
+        matches!(
+            mutation,
+            TheoremSchemaMutation::RedirectedOperation | TheoremSchemaMutation::DispatchedOperation
+        )
+        .then_some(mutation),
     );
     let right_first = if matches!(mutation, TheoremSchemaMutation::DuplicatedLeftApplication) {
         left
@@ -944,7 +966,7 @@ fn selected_theorem_schema_fixture(
     } else {
         shared
     };
-    let right_call = representative_call(&mut program, right_first, right_shared, false);
+    let right_call = representative_call(&mut program, right_first, right_shared, None);
     let conclusion_arguments = program.expression_table.insert_expression_handles([
         left_call,
         if matches!(mutation, TheoremSchemaMutation::OmittedRightApplication) {

@@ -183,6 +183,86 @@ fn guarded_payloadless_identity_call_rejects_foreign_attachment() {
     );
 }
 
+/// A static-requirement-dispatched call names the satisfier's private
+/// realization as its `target_symbol`; the specialized caller spelled the
+/// public requirement. The guarded plan would otherwise bind the private
+/// realization as the callee the caller runs.
+#[test]
+fn guarded_payloadless_identity_call_rejects_static_requirement_dispatch() {
+    let checked = checked(
+        r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+        data Outcome [copy] { case Success; case Failure; }
+        trait Producer {
+            machine Self::produce(&self) -> Outcome;
+        }
+        data Token {}
+        TokenProducer: Token satisfies Producer {
+            machine produce(&self) -> Outcome
+            ensures Outcome::Success -> { selected: ready(); }
+            { selected = ConcreteEvidence; Outcome::Success }
+        }
+        machine invoke<Element, Order: Element satisfies Producer>(item: &Element) -> Outcome {
+            let saved: Outcome = Order::produce(item);
+            transition saved {
+                Outcome::Success { } -> saved
+                Outcome::Failure { } -> saved
+            }
+        }
+        machine caller(token: &Token) -> Outcome { invoke<Token, TokenProducer>(token) }
+        "#,
+    );
+    let template = machine_named(&checked, "invoke");
+    let instance = checked
+        .machine_specializations
+        .iter()
+        .find(|specialization| specialization.template == template)
+        .expect("one selected `invoke<Token, TokenProducer>` instance")
+        .instance;
+    let producer = machine_named(&checked, "produce");
+    let dispatched = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == instance)
+        .into_iter()
+        .flat_map(|machine| checked.machine_states(machine))
+        .flat_map(|state| checked.statement_table.statements(state.statement_nodes))
+        .filter_map(|statement| match statement {
+            typed_trees::statement::StatementNode::LocalData(local) => Some(local.initial_value),
+            _ => None,
+        })
+        .filter_map(
+            |expression| match checked.expression_table.expression(expression) {
+                typed_trees::expression::ExpressionNode::Call(call) => Some(call),
+                _ => None,
+            },
+        )
+        .find(|call| call.static_requirement_dispatch.is_some())
+        .expect("the specialized body retains the dispatched requirement call");
+    assert!(
+        checked
+            .machines()
+            .iter()
+            .any(|machine| machine.symbol == producer
+                && checked
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == dispatched.target_symbol)),
+        "the rewritten target names the private realization"
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_structural_call_returns
+            .payloadless_guarded_for_machine(instance)
+            .is_none(),
+        "a dispatched requirement call is not an ordinary guarded value-call return"
+    );
+}
+
 #[test]
 fn retains_exact_payloadless_case_return_as_a_separate_checked_plan() {
     let checked = checked(
