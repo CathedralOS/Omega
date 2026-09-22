@@ -1103,7 +1103,15 @@ pub(crate) fn call_claim_transfers(
                         call_ordinal: call.call_ordinal,
                         target_symbol: call.target_symbol,
                     }
-                && event.kind == kind
+                // A checked-body callee receives the claim either as an
+                // ordinary transfer or, when its by-value `self` is the
+                // language's terminal consumer, as the consumption the
+                // checker judged; both leave the caller through this call's
+                // argument position, and the callee's entry roster owns
+                // whatever happens to the claim afterwards.
+                && (event.kind == kind
+                    || (kind == PermissionEventKind::Transfer
+                        && event.kind == PermissionEventKind::Consume))
                 && event.access == PermissionAccess::Owned
                 && event.multiplicity == Multiplicity::Linear
                 && event.obligation_live
@@ -1111,6 +1119,7 @@ pub(crate) fn call_claim_transfers(
         .map(|(_, event)| event)
         .collect::<Vec<_>>();
     let mut output = Vec::new();
+    let mut accounted = 0usize;
     for (argument_index, argument) in arguments.iter().enumerate() {
         if matches!(
             argument.source,
@@ -1194,10 +1203,16 @@ pub(crate) fn call_claim_transfers(
                         return None;
                     }
                     claims.push(event.claim_identity);
-                }
-                for claim_identity in claims {
+                    // A result consumed by a by-value `self` callee carries
+                    // its claim on the completed result itself; the lowering
+                    // joins that claim to the callee's entry roster, so the
+                    // plan names no separate transfer row for it.
+                    if event.kind == PermissionEventKind::Consume {
+                        accounted = accounted.checked_add(1)?;
+                        continue;
+                    }
                     output.push(CheckedUnitClaimTransferPlan {
-                        claim_identity,
+                        claim_identity: event.claim_identity,
                         argument_index: u32::try_from(argument_index).ok()?,
                     });
                 }
@@ -1236,7 +1251,7 @@ pub(crate) fn call_claim_transfers(
             });
         }
     }
-    if output.len() != events.len() {
+    if output.len().checked_add(accounted)? != events.len() {
         return None;
     }
     Some(output)
