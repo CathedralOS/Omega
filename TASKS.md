@@ -323,7 +323,8 @@ the complete product bar; focused successes below do not establish that baseline
   Route other failures to **STATE-LOCAL-VALUE-FRONTIER**,
   **MATCH-SELECTIVE-LOWERING**, **GENERAL-CYCLIC-EXECUTION**,
   **NOMINAL-FIELD-FLOW**, **BORROW-PROOF-CONVERGENCE**,
-  **OPERATOR-MACHINE-SUPPLY**, or **ARITHMETIC-POLICY-REALIZATION** as appropriate.
+  **OPERATOR-MACHINE-SUPPLY**, **MODULE-NAMESPACE-RESOLUTION**, or
+  **ARITHMETIC-POLICY-REALIZATION** as appropriate.
   Audit fixtures against the spec before weakening checks:
   `proof_inductive_climbing_sum` and its unbounded-accumulator negative still
   owe [exact intermediate arithmetic](wiki/spec/language/numeric_values.md)
@@ -1384,8 +1385,10 @@ syntax and other terminal services are not prerequisites.
   policy-correct success/failure and independent crash-site replay.
   Advance `checked-trees-to-lowered-psi/tests/integer_policy_realization.rs`
   controls beside valid neighbors differing in one relevant coordinate.
-  Reproduce `float/float_trapping_*` and
-  `expressions/arithmetic_domain_trapping_*` before attributing their failures;
+  Reproduce `float/float_trapping_*`,
+  `expressions/arithmetic_domain_trapping_*` and
+  `arithmetic/constant_trapping_shift_value_overflow_traps` before attributing
+  their failures;
   a generic missing-plan diagnostic does not identify arithmetic policy.
   Never silently weaken one policy into another.
 
@@ -2284,6 +2287,14 @@ syntax and other terminal services are not prerequisites.
     equal module/domain paths across them. Keep `domains.rs`'s independent
     collision rejection until then; host paths and source-order numbers are
     not portable identity.
+    `control_flow/guarded_leaf_branch_expansion` is the corpus witness: its
+    unmanaged `pub domain [u8; 8]::Utf8` and the toolchain-injected
+    `source/library/std/calling.omg` `[u8; 256]::Utf8` both carry
+    `package_identity: None`, so `lowering/domain.rs` mints the legacy key
+    `[u8; N]::Utf8` for both and `domains.rs` rejects the cross-owner share.
+    It is the only `ACTIVE_PASS_CANARIES` member that declares its own
+    `[u8; N]::Utf8` and is compiled directly rather than elided by an exact
+    native owner, so the collision has one corpus symptom, not none.
   - Complete declaration evaluation, including unused initializers:
     specialized provider/target applications, authored NaN identity bits, and
     constrained constants beyond scalar-decodable record/array/case leaves.
