@@ -29,7 +29,7 @@ fn writes(operand_access: RegisterOperandAccess) -> bool {
     )
 }
 
-pub(super) fn register_reads(
+pub(in crate::rewrites) fn register_reads(
     instruction: &SelectedInstruction,
 ) -> impl Iterator<Item = VirtualRegisterId> + '_ {
     instruction
@@ -39,7 +39,7 @@ pub(super) fn register_reads(
         .map(|operand| operand.virtual_register)
 }
 
-pub(super) fn register_writes(
+pub(in crate::rewrites) fn register_writes(
     instruction: &SelectedInstruction,
 ) -> impl Iterator<Item = VirtualRegisterId> + '_ {
     instruction
@@ -69,7 +69,10 @@ fn writes_meet_reads(writer: &SelectedInstruction, reader: &SelectedInstruction)
 /// reading a location `later` writes (WAR) would hand it the new value, and
 /// a shared written location (WAW) would change which definition later
 /// positions observe. Units and registers participate identically.
-pub(super) fn coupled(earlier: &SelectedInstruction, later: &SelectedInstruction) -> bool {
+pub(in crate::rewrites) fn coupled(
+    earlier: &SelectedInstruction,
+    later: &SelectedInstruction,
+) -> bool {
     writes_meet_reads(earlier, later)
         || writes_meet_reads(later, earlier)
         || register_writes(earlier)
@@ -85,7 +88,7 @@ pub(super) fn coupled(earlier: &SelectedInstruction, later: &SelectedInstruction
 /// can observe or expose reachable state regardless of roster rows, and a
 /// terminator kind never belongs in a block body. Same boundary the
 /// memory-motion rules enforce.
-pub(super) fn is_barrier(instruction: &SelectedInstruction) -> bool {
+pub(in crate::rewrites) fn is_barrier(instruction: &SelectedInstruction) -> bool {
     use SelectedInstructionKind::*;
     matches!(
         instruction.kind,
@@ -188,7 +191,7 @@ fn unaccounted_kind(instruction: &SelectedInstruction) -> bool {
 /// this audit runs at the selected level where the encoded trap behavior
 /// is the honest bound — an execution that could fault must still run
 /// only on the paths that ran it before.
-pub(super) fn speculatable(instruction: &SelectedInstruction) -> bool {
+pub(in crate::rewrites) fn speculatable(instruction: &SelectedInstruction) -> bool {
     use SelectedInstructionKind::*;
     !matches!(
         instruction.kind,
@@ -213,7 +216,7 @@ pub(super) fn speculatable(instruction: &SelectedInstruction) -> bool {
 /// Whether the roster accounts for the instruction's memory reach. Rows
 /// name the instruction by identity, so the relocation retains them
 /// unchanged.
-pub(super) fn has_memory_rows(
+pub(in crate::rewrites) fn has_memory_rows(
     function: &SelectedFunction,
     instruction: SelectedInstructionId,
 ) -> bool {
@@ -225,7 +228,7 @@ pub(super) fn has_memory_rows(
 
 /// A call contract row makes the instruction an effect barrier even when
 /// its kind survived the kind check.
-pub(super) fn has_call_contract(
+pub(in crate::rewrites) fn has_call_contract(
     function: &SelectedFunction,
     instruction: SelectedInstructionId,
 ) -> bool {
@@ -240,7 +243,7 @@ pub(super) fn has_call_contract(
 /// different executed prefix once the member lands on the other side of
 /// the crossed run, while positions at or outside the window's span see
 /// the same executed set on either order.
-pub(super) fn interior_settlement(
+pub(in crate::rewrites) fn interior_settlement(
     function: &SelectedFunction,
     block: SelectedBlockId,
     window: std::ops::RangeInclusive<usize>,
@@ -255,7 +258,7 @@ pub(super) fn interior_settlement(
 /// roster-accounted or unable to reach storage the roster covers.
 /// `None` when the instruction can never trade order; otherwise whether the
 /// roster accounts for its memory reach.
-pub(super) fn schedulable(
+pub(in crate::rewrites) fn schedulable(
     function: &SelectedFunction,
     instruction: &SelectedInstruction,
 ) -> Option<bool> {
@@ -271,7 +274,7 @@ pub(super) fn schedulable(
 
 /// One instruction's hazard-audit surface: the operand, implicit-use,
 /// implicit-definition, and clobber rows `coupled` walks.
-pub(super) fn surface(instruction: &SelectedInstruction) -> usize {
+pub(in crate::rewrites) fn surface(instruction: &SelectedInstruction) -> usize {
     instruction.operands.len()
         + instruction.implicit_uses.len()
         + instruction.implicit_defs.len()
@@ -316,7 +319,7 @@ pub(super) enum RunRelocationRejection {
 /// and no boundary settlement inside the moved span or a crossed block.
 /// Hazards between the run's own members are not re-checked: the members
 /// keep their relative order.
-pub(super) fn admit_run_relocation(
+pub(in crate::rewrites) fn admit_run_relocation(
     function: &SelectedFunction,
     members: &[&SelectedInstruction],
     crossing: &RelocationCrossing<'_>,

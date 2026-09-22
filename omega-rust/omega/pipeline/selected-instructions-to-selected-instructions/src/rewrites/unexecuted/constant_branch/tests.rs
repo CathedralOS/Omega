@@ -1,22 +1,19 @@
-use crate::TerminatorPairError;
-use crate::TerminatorPairReceipt;
 use crate::ValidatedSelectedAnalysis;
-use crate::ValidatedTerminatorPair;
-use crate::fold_selected_terminator_pair;
-use crate::validate_terminator_pair_fold;
-use crate::validated_machine_effect_catalog;
+use crate::rewrites::test_support::{instruction, measured_step_budget};
+use crate::rewrites::unexecuted::ConstantBranchError;
+use crate::rewrites::unexecuted::ConstantBranchReceipt;
+use crate::rewrites::unexecuted::ValidatedConstantBranch;
+use crate::rewrites::unexecuted::fold_selected_constant_branch;
+use crate::rewrites::unexecuted::validate_constant_branch_fold;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
-use register_environment::{
-    ValidatedTargetRegisterEnvironment, baseline_target_register_environment,
-};
+use register_environment::baseline_target_register_environment;
 use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedOperand,
     SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding,
-    SelectedValueTransport, ValidatedMachineEffectCatalog, VirtualRegister, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    SelectedValueTransport, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
@@ -28,37 +25,6 @@ use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(100, 100, 100_000, 100, 100).unwrap()
-}
-
-fn instruction(
-    id: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    row: &RegisterInstructionConstraint,
-    registers: &[VirtualRegisterId],
-) -> SelectedInstruction {
-    SelectedInstruction {
-        id,
-        kind,
-        constraint: row.key,
-        operands: row
-            .operands
-            .iter()
-            .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
-    }
 }
 
 const MATERIALIZE_A: SelectedInstructionId = SelectedInstructionId(2);
@@ -169,7 +135,7 @@ fn fixture(
     left_value: IntegerValue,
     right_value: IntegerValue,
     shape: BranchShape,
-) -> ValidatedTerminatorPair {
+) -> ValidatedConstantBranch {
     let environment = baseline_target_register_environment(target).unwrap();
     let keys = environment.selected_keys();
     let materialize = environment.constraint(keys.materialize_i64).unwrap();
@@ -306,8 +272,8 @@ fn fixture(
         .into(),
     };
     let identity = selected_instruction_plan_identity(&plan);
-    ValidatedTerminatorPair {
-        receipt: TerminatorPairReceipt {
+    ValidatedConstantBranch {
+        receipt: ConstantBranchReceipt {
             source_selected: identity,
             transformed_selected: identity,
             optimization_unit: OptimizationUnitIdentity::from_bytes([2; 32]),
@@ -318,27 +284,17 @@ fn fixture(
 }
 
 fn keys(
-    environment: &ValidatedTargetRegisterEnvironment,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> selected_instructions::SelectedConstraintKeys {
     environment.selected_keys()
-}
-
-/// The machine-effect catalog bound to `environment` for the plan's target —
-/// the catalog the pair declarations resolve their control surface in.
-fn catalog(
-    source: &ValidatedTerminatorPair,
-    environment: &ValidatedTargetRegisterEnvironment,
-) -> ValidatedMachineEffectCatalog {
-    validated_machine_effect_catalog(source.transformed().target, environment.constraints())
-        .unwrap()
 }
 
 /// Edit the single fixture function, then refresh the receipt identities so
 /// the mutated plan is a well-formed analysis source.
 fn mutated(
     target: NativeTarget,
-    edit: impl FnOnce(&mut SelectedFunction, &ValidatedTargetRegisterEnvironment),
-) -> ValidatedTerminatorPair {
+    edit: impl FnOnce(&mut SelectedFunction, &register_environment::ValidatedTargetRegisterEnvironment),
+) -> ValidatedConstantBranch {
     let environment = baseline_target_register_environment(target).unwrap();
     let mut source = fixture(
         target,
@@ -357,34 +313,16 @@ fn mutated(
 }
 
 fn fold(
-    source: &ValidatedTerminatorPair,
-    environment: &ValidatedTargetRegisterEnvironment,
-) -> Result<ValidatedTerminatorPair, TerminatorPairError> {
-    let effect_catalog = catalog(source, environment);
-    fold_selected_terminator_pair(source, 0, BRANCH, environment, &effect_catalog, budget())
-}
-
-fn replay(
-    source: &ValidatedTerminatorPair,
-    environment: &ValidatedTargetRegisterEnvironment,
-    proposed: SelectedInstructionPlan,
-) -> Result<ValidatedTerminatorPair, TerminatorPairError> {
-    let effect_catalog = catalog(source, environment);
-    validate_terminator_pair_fold(
-        source,
-        0,
-        BRANCH,
-        environment,
-        &effect_catalog,
-        budget(),
-        proposed,
-    )
+    source: &ValidatedConstantBranch,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+) -> Result<ValidatedConstantBranch, ConstantBranchError> {
+    fold_selected_constant_branch(source, 0, BRANCH, environment, budget())
 }
 
 /// A jump terminator on `block_index` targeting `arm`, rebuilt from the
 /// fixture's own jump row.
 fn jump_terminator(
-    environment: &ValidatedTargetRegisterEnvironment,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
     instruction_id: u32,
     arm_block: u32,
     edge: u64,
@@ -406,7 +344,7 @@ fn jump_terminator(
 /// The terminator a successful fold publishes: `Jump` on the branch's own
 /// instruction identity to `block`.
 fn jumped_to(
-    result: &ValidatedTerminatorPair,
+    result: &ValidatedConstantBranch,
     block_index: usize,
     block: u32,
 ) -> &SelectedTerminator {
@@ -463,10 +401,9 @@ fn expected_arm(terminator: &SelectedTerminator, left: u64, right: u64) -> &Sele
     }
 }
 
-/// Every declared (producer, consumer) pair folds on every target, moving
-/// the decided successor record — bindings and fuel included — onto the
-/// `Jump` verbatim while the untaken edge leaves the plan, and the
-/// independent replay re-derives all of it without the descriptor table.
+/// Every branch kind folds on every target, moving the decided successor
+/// record — bindings and fuel included — onto the `Jump` verbatim while
+/// the untaken edge leaves the plan.
 #[test]
 fn predicate_table_folds_on_all_targets() {
     for target in [
@@ -507,7 +444,8 @@ fn predicate_table_folds_on_all_targets() {
             assert_eq!(jumped_instruction.constraint, keys(&environment).jump);
             assert!(jumped_instruction.operands.is_empty());
             // The jump row's implicit surface replaces the branch's: the
-            // decided flag uses retire, the program-counter traffic stays.
+            // decided flag uses are dropped, the program-counter traffic
+            // stays.
             let jump_row = environment.constraint(keys(&environment).jump).unwrap();
             assert_eq!(jumped_instruction.implicit_uses, jump_row.implicit_uses);
             assert_eq!(jumped_instruction.implicit_defs, jump_row.implicit_defs);
@@ -541,16 +479,25 @@ fn predicate_table_folds_on_all_targets() {
                 result.receipt().transformed_selected(),
                 selected_instruction_plan_identity(result.transformed())
             );
-            replay(&source, &environment, result.transformed().clone()).unwrap();
+            validate_constant_branch_fold(
+                &source,
+                0,
+                BRANCH,
+                &environment,
+                budget(),
+                result.transformed().clone(),
+            )
+            .unwrap();
             // A detached, separately allocated proposal replays by content.
             let mut detached = result.transformed().clone();
             detached.functions = detached.functions.iter().cloned().collect();
-            replay(&source, &environment, detached).unwrap();
+            validate_constant_branch_fold(&source, 0, BRANCH, &environment, budget(), detached)
+                .unwrap();
         }
     }
 }
 
-/// The declared `CompareI64Immediate` producer pairs fold the same grammar:
+/// The immediate compare form on a materialized register is constant:
 /// `literal - immediate` needs no second producer.
 #[test]
 fn immediate_compare_folds() {
@@ -574,10 +521,9 @@ fn immediate_compare_folds() {
     // LITA is materialized 3; `3 - 9` is nonzero, so the nonzero arm wins.
     let result = fold(&source, &environment).unwrap();
     jumped_to(&result, 0, 1);
-    replay(&source, &environment, result.transformed().clone()).unwrap();
 }
 
-/// The declared `CompareI64Zero` producer pairs fold the same grammar:
+/// The zero compare form on a materialized register is constant:
 /// `literal - 0` decides equality by the literal alone.
 #[test]
 fn zero_compare_folds() {
@@ -682,7 +628,15 @@ fn cross_block_flag_reaching_folds() {
     let result = fold(&source, &environment).unwrap();
     // `3 - 5` is nonzero: the nonzero arm is decided.
     jumped_to(&result, 3, 1);
-    replay(&source, &environment, result.transformed().clone()).unwrap();
+    validate_constant_branch_fold(
+        &source,
+        0,
+        BRANCH,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
 }
 
 /// A join carries the same constant flag state: both event-free
@@ -844,7 +798,7 @@ fn cross_block_divergent_reaching_refuses() {
     });
     assert_eq!(
         fold(&source, &environment).unwrap_err(),
-        TerminatorPairError::UnsupportedUse
+        ConstantBranchError::UnsupportedUse
     );
 }
 
@@ -861,7 +815,7 @@ fn cross_block_entry_reaching_refuses() {
     });
     assert_eq!(
         fold(&source, &environment).unwrap_err(),
-        TerminatorPairError::UnsupportedUse
+        ConstantBranchError::UnsupportedUse
     );
 }
 
@@ -903,7 +857,7 @@ fn cross_block_terminator_event_refuses() {
     });
     assert_eq!(
         fold(&source, &environment).unwrap_err(),
-        TerminatorPairError::UnsupportedUse
+        ConstantBranchError::UnsupportedUse
     );
 }
 
@@ -915,8 +869,7 @@ fn intervening_flag_events_reject() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     // A second compare on a non-materialized operand is the reaching
-    // producer; its right side has no literal producer, so the declared
-    // operand grammar cannot decide the state.
+    // definition; its right side has no literal producer.
     let second_compare = mutated(target, |function, environment| {
         let compare = environment
             .constraint(environment.selected_keys().compare_i64)
@@ -930,7 +883,7 @@ fn intervening_flag_events_reject() {
     });
     assert_eq!(
         fold(&second_compare, &environment).unwrap_err(),
-        TerminatorPairError::UndecidedOperands
+        ConstantBranchError::UnsupportedProducer
     );
     // A clobber of the flag unit between compare and branch leaves the
     // observed state unknown.
@@ -950,13 +903,13 @@ fn intervening_flag_events_reject() {
     });
     assert_eq!(
         fold(&clobbered, &environment).unwrap_err(),
-        TerminatorPairError::UnsupportedUse
+        ConstantBranchError::UnsupportedUse
     );
 }
 
 /// A used unit outside the flag universe must lie in the jump row's
 /// implicit surface: a foreign non-flag observation the jump cannot carry
-/// refuses under the declared unit-flow axis.
+/// refuses.
 #[test]
 fn non_flag_use_outside_jump_surface_refuses() {
     let target = NativeTarget::linux_x64();
@@ -973,7 +926,7 @@ fn non_flag_use_outside_jump_surface_refuses() {
     });
     assert_eq!(
         fold(&foreign, &environment).unwrap_err(),
-        TerminatorPairError::UnsupportedUse
+        ConstantBranchError::UnsupportedUse
     );
 }
 
@@ -996,7 +949,7 @@ fn unpublishable_unit_traffic_refuses() {
     });
     assert_eq!(
         fold(&extra_def, &environment).unwrap_err(),
-        TerminatorPairError::UnsupportedUse
+        ConstantBranchError::ConstraintMismatch
     );
     // A clobber the jump row lacks would lose the event entirely.
     let clobbering = mutated(target, |function, _| {
@@ -1008,13 +961,12 @@ fn unpublishable_unit_traffic_refuses() {
     });
     assert_eq!(
         fold(&clobbering, &environment).unwrap_err(),
-        TerminatorPairError::UnsupportedUse
+        ConstantBranchError::ConstraintMismatch
     );
 }
 
-/// Only the declared conditional-branch pairs fold; anything else — a
-/// non-terminator id, a flag-free or operandful record, a variant/kind
-/// mismatch, or a non-branch terminator — refuses.
+/// Only the three conditional-branch terminators fold; anything else — or
+/// a malformed branch shape — refuses.
 #[test]
 fn non_branch_terminators_reject() {
     let target = NativeTarget::linux_x64();
@@ -1025,38 +977,28 @@ fn non_branch_terminators_reject() {
         IntegerValue::Unsigned(5),
         BranchShape::NonZero,
     );
-    let effect_catalog = catalog(&source, &environment);
     // The compare itself is not a terminator-carried branch.
     assert_eq!(
-        fold_selected_terminator_pair(&source, 0, COMPARE, &environment, &effect_catalog, budget())
-            .unwrap_err(),
-        TerminatorPairError::UnsupportedTerminator
+        fold_selected_constant_branch(&source, 0, COMPARE, &environment, budget()).unwrap_err(),
+        ConstantBranchError::SourceMismatch
     );
     // Neither is a body materialization.
     assert_eq!(
-        fold_selected_terminator_pair(
-            &source,
-            0,
-            MATERIALIZE_A,
-            &environment,
-            &effect_catalog,
-            budget()
-        )
-        .unwrap_err(),
-        TerminatorPairError::UnsupportedTerminator
+        fold_selected_constant_branch(&source, 0, MATERIALIZE_A, &environment, budget())
+            .unwrap_err(),
+        ConstantBranchError::SourceMismatch
     );
     // An absent instruction id cannot be located.
     assert_eq!(
-        fold_selected_terminator_pair(
+        fold_selected_constant_branch(
             &source,
             0,
             SelectedInstructionId(99),
             &environment,
-            &effect_catalog,
             budget()
         )
         .unwrap_err(),
-        TerminatorPairError::UnsupportedTerminator
+        ConstantBranchError::SourceMismatch
     );
     // A flag-free branch shape has no condition to evaluate.
     let flag_free = mutated(target, |function, _| {
@@ -1068,7 +1010,7 @@ fn non_branch_terminators_reject() {
     });
     assert_eq!(
         fold(&flag_free, &environment).unwrap_err(),
-        TerminatorPairError::UnsupportedUse
+        ConstantBranchError::UnsupportedInstruction
     );
     // A use roster of only non-flag units — the program-counter read alone
     // — still has no condition to evaluate.
@@ -1084,9 +1026,9 @@ fn non_branch_terminators_reject() {
     });
     assert_eq!(
         fold(&non_flag_only, &environment).unwrap_err(),
-        TerminatorPairError::UnsupportedUse
+        ConstantBranchError::UnsupportedInstruction
     );
-    // An explicit operand is not the declared branch shape.
+    // An explicit operand is not the emitted branch shape.
     let operandful = mutated(target, |function, _| {
         let class = function.blocks[0].instructions[2].operands[0].class;
         let instruction = match &mut function.blocks[0].terminator {
@@ -1105,9 +1047,9 @@ fn non_branch_terminators_reject() {
     });
     assert_eq!(
         fold(&operandful, &environment).unwrap_err(),
-        TerminatorPairError::UnsupportedTerminator
+        ConstantBranchError::UnsupportedInstruction
     );
-    // A variant/kind pairing no declared rule emits refuses.
+    // A variant/kind pairing selection never emits refuses.
     let mismatched = mutated(target, |function, _| {
         if let SelectedTerminator::ConditionalBranch { instruction, .. } =
             &mut function.blocks[0].terminator
@@ -1117,10 +1059,10 @@ fn non_branch_terminators_reject() {
     });
     assert_eq!(
         fold(&mismatched, &environment).unwrap_err(),
-        TerminatorPairError::UnsupportedTerminator
+        ConstantBranchError::UnsupportedInstruction
     );
     // A return terminator is not a branch.
-    let returning_source = mutated(target, |function, environment| {
+    let returning = mutated(target, |function, environment| {
         let terminal_row = environment
             .constraint(environment.selected_keys().return_unit)
             .unwrap()
@@ -1136,8 +1078,8 @@ fn non_branch_terminators_reject() {
         };
     });
     assert_eq!(
-        fold(&returning_source, &environment).unwrap_err(),
-        TerminatorPairError::UnsupportedTerminator
+        fold(&returning, &environment).unwrap_err(),
+        ConstantBranchError::UnsupportedInstruction
     );
 }
 
@@ -1153,7 +1095,7 @@ fn operand_producers_refuse() {
     });
     assert_eq!(
         fold(&parameter, &environment).unwrap_err(),
-        TerminatorPairError::UndecidedOperands
+        ConstantBranchError::UnsupportedProducer
     );
     // A copy producer is not the literal materialization.
     let copy_producer = mutated(target, |function, environment| {
@@ -1169,7 +1111,7 @@ fn operand_producers_refuse() {
     });
     assert_eq!(
         fold(&copy_producer, &environment).unwrap_err(),
-        TerminatorPairError::UndecidedOperands
+        ConstantBranchError::UnsupportedProducer
     );
     // A second definition anywhere in the function — including a
     // terminator-carried one — breaks the unique-producer guarantee.
@@ -1196,7 +1138,7 @@ fn operand_producers_refuse() {
     });
     assert_eq!(
         fold(&second_definition, &environment).unwrap_err(),
-        TerminatorPairError::UndecidedOperands
+        ConstantBranchError::UnsupportedProducer
     );
 }
 
@@ -1219,92 +1161,14 @@ fn out_of_range_literals_reject() {
         );
         assert_eq!(
             fold(&source, &environment).unwrap_err(),
-            TerminatorPairError::UndecidedOperands,
+            ConstantBranchError::UnsupportedLiteral,
             "{value:?}"
         );
     }
 }
 
-/// The bound catalog must describe the plan's target and the environment's
-/// constraint inventory: a catalog built for another target — or a record
-/// whose constraint key no declaration binds to its semantic — cannot
-/// attest the control-flow relationship.
-#[test]
-fn effect_surface_mismatches_reject() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = fixture(
-        target,
-        IntegerValue::Unsigned(3),
-        IntegerValue::Unsigned(5),
-        BranchShape::NonZero,
-    );
-    // A catalog bound to a different target and constraint inventory.
-    let foreign_environment =
-        baseline_target_register_environment(NativeTarget::linux_arm64()).unwrap();
-    let foreign_catalog = validated_machine_effect_catalog(
-        NativeTarget::linux_arm64(),
-        foreign_environment.constraints(),
-    )
-    .unwrap();
-    assert_eq!(
-        fold_selected_terminator_pair(&source, 0, BRANCH, &environment, &foreign_catalog, budget())
-            .unwrap_err(),
-        TerminatorPairError::EffectSurfaceMismatch
-    );
-    // A record bound to the jump row's constraint key has no catalog
-    // declaration pairing it with the conditional-branch semantic.
-    let wrong_row = mutated(target, |function, environment| {
-        let jump_row = environment
-            .constraint(environment.selected_keys().jump)
-            .unwrap();
-        let instruction = match &mut function.blocks[0].terminator {
-            SelectedTerminator::ConditionalBranch { instruction, .. } => instruction,
-            _ => unreachable!(),
-        };
-        instruction.constraint = jump_row.key;
-    });
-    assert_eq!(
-        fold(&wrong_row, &environment).unwrap_err(),
-        TerminatorPairError::EffectSurfaceMismatch
-    );
-    // The same defects refuse on the replay path: the proposed jump cannot
-    // carry the fold the bound catalog never declared.
-    let result = fold(&source, &environment).unwrap();
-    assert_eq!(
-        validate_terminator_pair_fold(
-            &source,
-            0,
-            BRANCH,
-            &environment,
-            &foreign_catalog,
-            budget(),
-            result.transformed().clone()
-        )
-        .unwrap_err(),
-        TerminatorPairError::EffectSurfaceMismatch
-    );
-    let mut detached = result.transformed().clone();
-    detached.functions = detached.functions.iter().cloned().collect();
-    let effect_catalog = catalog(&wrong_row, &environment);
-    assert_eq!(
-        validate_terminator_pair_fold(
-            &wrong_row,
-            0,
-            BRANCH,
-            &environment,
-            &effect_catalog,
-            budget(),
-            detached
-        )
-        .unwrap_err(),
-        TerminatorPairError::EffectSurfaceMismatch
-    );
-}
-
 /// A boolean materialization on the decided arm and the branch fold
-/// compose: each consumes the same published compare independently, and
-/// the terminator pair accepts the prior rewrite's validated output.
+/// compose: each consumes the same published compare independently.
 #[test]
 fn validated_results_compose_with_constant_boolean() {
     let target = NativeTarget::linux_x64();
@@ -1333,16 +1197,8 @@ fn validated_results_compose_with_constant_boolean() {
         budget(),
     )
     .unwrap();
-    let effect_catalog = catalog(&source, &environment);
-    let result = fold_selected_terminator_pair(
-        &boolean_fold,
-        0,
-        BRANCH,
-        &environment,
-        &effect_catalog,
-        budget(),
-    )
-    .unwrap();
+    let result =
+        fold_selected_constant_branch(&boolean_fold, 0, BRANCH, &environment, budget()).unwrap();
     jumped_to(&result, 0, 1);
     assert_eq!(
         result.receipt().source_selected(),
@@ -1351,7 +1207,7 @@ fn validated_results_compose_with_constant_boolean() {
 }
 
 /// A proposal that does not match the reconstructed `Jump` — or that
-/// retains the source terminator — fails the independent replay.
+/// retains the source terminator — fails replay.
 #[test]
 fn replay_mismatches_reject() {
     let target = NativeTarget::linux_x64();
@@ -1364,8 +1220,16 @@ fn replay_mismatches_reject() {
     );
     // The unchanged source is not a rewritten proposal.
     assert_eq!(
-        replay(&source, &environment, source.transformed().clone()).unwrap_err(),
-        TerminatorPairError::ReplayMismatch
+        validate_constant_branch_fold(
+            &source,
+            0,
+            BRANCH,
+            &environment,
+            budget(),
+            source.transformed().clone()
+        )
+        .unwrap_err(),
+        ConstantBranchError::ReplayMismatch
     );
     // The wrong surviving successor is not the decided record.
     let mut wrong = source.transformed().clone();
@@ -1390,8 +1254,9 @@ fn replay_mismatches_reject() {
         successor: arm(SelectedBlockId(1), 2, 2),
     };
     assert_eq!(
-        replay(&source, &environment, wrong).unwrap_err(),
-        TerminatorPairError::ReplayMismatch
+        validate_constant_branch_fold(&source, 0, BRANCH, &environment, budget(), wrong)
+            .unwrap_err(),
+        ConstantBranchError::ReplayMismatch
     );
 }
 
@@ -1405,27 +1270,18 @@ fn source_identity_mismatches_reject() {
         IntegerValue::Unsigned(5),
         BranchShape::NonZero,
     );
-    let effect_catalog = catalog(&source, &environment);
     // A function index outside the plan.
     assert_eq!(
-        fold_selected_terminator_pair(&source, 1, BRANCH, &environment, &effect_catalog, budget())
-            .unwrap_err(),
-        TerminatorPairError::SourceMismatch
+        fold_selected_constant_branch(&source, 1, BRANCH, &environment, budget()).unwrap_err(),
+        ConstantBranchError::SourceMismatch
     );
     // An environment for a different target than the plan's.
     let wrong_environment =
         baseline_target_register_environment(NativeTarget::macos_arm64()).unwrap();
     assert_eq!(
-        fold_selected_terminator_pair(
-            &source,
-            0,
-            BRANCH,
-            &wrong_environment,
-            &effect_catalog,
-            budget()
-        )
-        .unwrap_err(),
-        TerminatorPairError::SourceMismatch
+        fold_selected_constant_branch(&source, 0, BRANCH, &wrong_environment, budget())
+            .unwrap_err(),
+        ConstantBranchError::SourceMismatch
     );
 }
 
@@ -1440,11 +1296,9 @@ fn validation_budget_covers_the_flag_scan() {
         BranchShape::NonZero,
     );
     let tiny = OptimizationWorkBudget::new(100, 100, 4, 100, 100).unwrap();
-    let effect_catalog = catalog(&source, &environment);
     assert_eq!(
-        fold_selected_terminator_pair(&source, 0, BRANCH, &environment, &effect_catalog, tiny)
-            .unwrap_err(),
-        TerminatorPairError::WorkBudgetExceeded
+        fold_selected_constant_branch(&source, 0, BRANCH, &environment, tiny).unwrap_err(),
+        ConstantBranchError::WorkBudgetExceeded
     );
 }
 
@@ -1462,7 +1316,9 @@ fn measured_validation_step_boundary_admits_and_rejects() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     // A seventh element extends the plan-wide and producer scans and every
-    // term the flag walk derives from the function scan.
+    // term the flag walk derives from the function scan: (3 blocks + 4
+    // instructions) once for the plan, twice for the producers, and the
+    // walk bound of setup 15 plus a per-unit 472 — 980 steps.
     let wider = mutated(target, |function, environment| {
         let copy = environment
             .constraint(environment.selected_keys().copy_i64)
@@ -1487,46 +1343,34 @@ fn measured_validation_step_boundary_admits_and_rejects() {
         ),
         (wider, 980u64),
     ] {
-        let effect_catalog = catalog(&source, &environment);
-        let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
+        let exact = measured_step_budget(exact_steps);
         let result =
-            fold_selected_terminator_pair(&source, 0, BRANCH, &environment, &effect_catalog, exact)
-                .unwrap();
-        validate_terminator_pair_fold(
+            fold_selected_constant_branch(&source, 0, BRANCH, &environment, exact).unwrap();
+        validate_constant_branch_fold(
             &source,
             0,
             BRANCH,
             &environment,
-            &effect_catalog,
             exact,
             result.transformed().clone(),
         )
         .unwrap();
-        let starved = OptimizationWorkBudget::new(1, 1, exact_steps - 1, 1, 1).unwrap();
+        let starved = measured_step_budget(exact_steps - 1);
         assert_eq!(
-            fold_selected_terminator_pair(
-                &source,
-                0,
-                BRANCH,
-                &environment,
-                &effect_catalog,
-                starved
-            )
-            .unwrap_err(),
-            TerminatorPairError::WorkBudgetExceeded
+            fold_selected_constant_branch(&source, 0, BRANCH, &environment, starved).unwrap_err(),
+            ConstantBranchError::WorkBudgetExceeded
         );
         assert_eq!(
-            validate_terminator_pair_fold(
+            validate_constant_branch_fold(
                 &source,
                 0,
                 BRANCH,
                 &environment,
-                &effect_catalog,
                 starved,
                 result.transformed().clone(),
             )
             .unwrap_err(),
-            TerminatorPairError::WorkBudgetExceeded
+            ConstantBranchError::WorkBudgetExceeded
         );
     }
 }
@@ -1560,11 +1404,9 @@ fn fold_is_deterministic_and_terminal() {
     )
     .unwrap();
     assert_eq!(first, second);
-    let effect_catalog = catalog(&first, &environment);
     assert_eq!(
-        fold_selected_terminator_pair(&first, 0, BRANCH, &environment, &effect_catalog, budget())
-            .unwrap_err(),
-        TerminatorPairError::UnsupportedTerminator
+        fold_selected_constant_branch(&first, 0, BRANCH, &environment, budget()).unwrap_err(),
+        ConstantBranchError::UnsupportedInstruction
     );
 }
 
@@ -1669,7 +1511,8 @@ fn replay_rejects_anything_but_the_exact_form() {
             _ => unreachable!(),
         }
         assert!(
-            replay(&source, &environment, proposed).is_err(),
+            validate_constant_branch_fold(&source, 0, BRANCH, &environment, budget(), proposed)
+                .is_err(),
             "mutation {mutation}"
         );
     }
@@ -1704,14 +1547,33 @@ fn replay_rejects_drift_outside_the_rewritten_block() {
             &[PARAM, OUTPUT],
         ));
     assert_eq!(
-        replay(&source, &environment, proposed).unwrap_err(),
-        TerminatorPairError::ReplayMismatch
+        validate_constant_branch_fold(&source, 0, BRANCH, &environment, budget(), proposed)
+            .unwrap_err(),
+        ConstantBranchError::ReplayMismatch
     );
-    // A missing arm block likewise rejects.
+    // A phantom trailing block rejects.
     let mut proposed = result.transformed().clone();
-    proposed.functions[0].blocks.pop();
+    let return_row = environment
+        .constraint(keys(&environment).return_unit)
+        .unwrap()
+        .clone();
+    proposed.functions[0].blocks.push(SelectedBlock {
+        id: SelectedBlockId(3),
+        origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
+        instructions: Vec::new(),
+        terminator: SelectedTerminator::Return {
+            instruction: instruction(
+                SelectedInstructionId(13),
+                SelectedInstructionKind::ReturnUnit,
+                &return_row,
+                &[],
+            ),
+            psi_return_edge: EdgeId::new(3).unwrap(),
+        },
+    });
     assert_eq!(
-        replay(&source, &environment, proposed).unwrap_err(),
-        TerminatorPairError::ReplayMismatch
+        validate_constant_branch_fold(&source, 0, BRANCH, &environment, budget(), proposed)
+            .unwrap_err(),
+        ConstantBranchError::ReplayMismatch
     );
 }
