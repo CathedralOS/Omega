@@ -74,7 +74,7 @@ runtime-index legs, not this slice.
 **What the slice must carry** (from the row's bullet): a source-selected
 floating operation, its result transport, and an ordinary store, retaining
 format, selected occurrence, and result evidence through Psi's
-`execution/unit/selected_ieee_float.rs` and Omega's shared graph/provider
+`execution/terminal_unit/selected_ieee_float.rs` and Omega's shared graph/provider
 route. Widening store admission is not the repair.
 
 **Current producer state.** `typed-trees-to-checked-trees/src/execution/
@@ -100,7 +100,7 @@ only in checking or a copied frame home.
 
 Surfaces this leg touches that were live-claimed when this record was
 written — treat as coordination points, not permanent fences:
-`execution/unit/*` neighbors under CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP
+`execution/terminal_unit/*` neighbors under CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP
 (~08:46Z), PROVIDER-ATTACHMENT-MACHINE-PLAN (~09:49Z), and
 GENERAL-CYCLIC-EXECUTION-OPTIMIZER (~state_graph/composed_control); the
 native lowering lane under FLOAT-PROVIDERS family claims. Re-check
@@ -133,7 +133,7 @@ this record was written:
   guarded_index_and_computed_stores_still_miss_the_checked_control_plan`
   still asserts the computed-store shape rejects with "no
   source-independent checked scalar control plan".
-- The producer gap stands: `execution/unit/selected_ieee_float.rs` still
+- The producer gap stands: `execution/terminal_unit/selected_ieee_float.rs` still
   emits `SelectedIeeeFloatFusedMultiplyAdd` only for `LocalInitializer`
   locals with literal operands — nothing carries a computed floating result
   into a write-only/mutable place.
@@ -158,7 +158,7 @@ Contract facts re-verified unchanged at `4b8d3f36b725` (linux x86-64):
   `frontier_pins.rs::guarded_index_and_computed_stores_still_miss_the_checked_control_plan`
   still asserts the `values[2] = left + right` computed-store shape rejects
   with "no source-independent checked scalar control plan".
-- The producer gap stands: `execution/unit/selected_ieee_float.rs` still
+- The producer gap stands: `execution/terminal_unit/selected_ieee_float.rs` still
   emits `SelectedIeeeFloatFusedMultiplyAdd` only for `LocalInitializer`
   locals whose operands are `IeeeFloatLiteral`s.
 

@@ -336,7 +336,7 @@ pub(super) fn scalar_graph_record_shapes(
 /// projected-transition cleanup rung. Keeping this next to `ShapeCollector`
 /// makes the result use the same normalized field/type identities as the
 /// established partial-return residual walker.
-pub(super) fn exact_two_field_record_projection(
+pub(crate) fn exact_two_field_record_projection(
     program: &TypedTrees,
     root_type: TypeReferenceHandle,
     moved_field: SymbolHandle,

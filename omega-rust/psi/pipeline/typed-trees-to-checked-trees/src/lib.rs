@@ -18,33 +18,7 @@ mod authored_selections;
 mod checking;
 mod checks;
 mod conformance;
-mod execution {
-    #[path = "control_cleanup.rs"]
-    pub(crate) mod terminal_cleanup;
-    #[path = "debug_metadata.rs"]
-    pub(crate) mod terminal_debug;
-    #[path = "scalar/mod.rs"]
-    pub(crate) mod terminal_scalar;
-    #[path = "unit/mod.rs"]
-    pub(crate) mod terminal_unit;
-    #[cfg(test)]
-    pub(crate) fn exact_two_field_record_projection_for_test(
-        program: &typed_trees::TypedTrees,
-        root_type: typed_trees::types::TypeReferenceHandle,
-        moved_field: symbols::SymbolHandle,
-        target_type: typed_trees::types::TypeReferenceHandle,
-    ) -> Option<(String, String, String, String)> {
-        terminal_unit::exact_two_field_record_projection(
-            program,
-            root_type,
-            moved_field,
-            target_type,
-        )
-    }
-    pub(crate) mod execution_plans;
-    pub(crate) mod finalize_execution;
-    pub(crate) mod selected_execution;
-}
+mod execution;
 mod facts;
 mod labels;
 mod lookup;

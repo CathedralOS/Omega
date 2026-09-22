@@ -23,7 +23,7 @@ Unchanged from the row's two prior verifications (`0db54f596a`,
 the same moved-failure family as CANARY-RUNTIME-LITERAL-DISPATCH-EXIT — the
 unit-effects plan emits no `attachment_type_identity` for the bound
 (`Main::main`, entry state) once the entry machine calls a generated codec.
-Producing surfaces (`typed-trees-to-checked-trees/src/execution/unit/*`,
+Producing surfaces (`typed-trees-to-checked-trees/src/execution/terminal_unit/*`,
 terminal-production receiver eligibility) sit in GENERAL-CYCLIC-EXECUTION's
 unit-plan lane / ENTRY-CONTENT-ROOTS' claims — no in-fence slice exists.
 No code change; ledger only.

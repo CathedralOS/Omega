@@ -42,7 +42,7 @@ preexisting main drift (crates observed before build stop):
 (`unnecessary_to_owned` in `checks/contracts/writes.rs`,
 `needless_borrows_for_generic_args` and `question_mark` in
 `checks/termination/progress/origins.rs`, `question_mark` in
-`execution/unit/calls/structural_arguments.rs` and
+`execution/terminal_unit/calls/structural_arguments.rs` and
 `proof/mathematical_signature.rs`). All are `-D warnings` style lints in
 other lanes' in-flight surfaces; none affect this leg's claimed path.
 

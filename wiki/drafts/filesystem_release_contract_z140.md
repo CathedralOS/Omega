@@ -74,7 +74,7 @@ ProgramEntry-attachment legs closed first — both fenced by sibling claims
 
 The customer's recorded stop is real but masked: `structural_scalar_store`
 admits only scalar-typed field stores (`structural field store: scalar field
-type` at `execution/unit/structural_scalar_store/mod.rs:1182` — destination
+type` at `execution/terminal_unit/structural_scalar_store/mod.rs:1182` — destination
 fields must resolve to `PrimitiveType::{Bool,F32,F64}` or
 integer-literal-accepting types). `self.unit_result =
 self.fs.write_all(..)` stores a structural `UnitResult` sum.
@@ -106,9 +106,9 @@ planning, preserving recursive layout and referent identity. Plan:
    nominal payload; layout plans must nest rather than flatten, and identity
    keys stay the stored field's — never a synthesized flat scalar id.
 5. **Where it lands.** The store legs live in
-   `execution/unit/structural_scalar_store/` (state/value planning input);
+   `execution/terminal_unit/structural_scalar_store/` (state/value planning input);
    observation lives in the transition/case machinery under
-   `execution/unit/composed_control` + `state_graph`; lowering consumes the new
+   `execution/terminal_unit/composed_control` + `state_graph`; lowering consumes the new
    plan kind in `checked-trees-to-lowered-psi` machine lowering. Per the board,
    the frontier is owned by STATE-LOCAL-VALUE-FRONTIER with CORPUS-RED-FAMILY
    coordination on `structural_scalar_store`/`primitive_store.rs`.
@@ -120,7 +120,7 @@ planning, preserving recursive layout and referent identity. Plan:
 - `structural_scalar_store` + `primitive_store.rs` — CORPUS-RED-FAMILY-TRAPSTORE
   per PSI-NATIVE-FIELD-STORES's recorded fence set; STATE-LOCAL-VALUE-FRONTIER
   owns the closure.
-- `execution/unit/{control,state_graph,composed_control}` — rotating
+- `execution/terminal_unit/{control,state_graph,composed_control}` — rotating
   GENERAL-CYCLIC-EXECUTION claims.
 - The checked-flow occurrence-evidence producer (leg 1 of the item) has no
   landed substrate at all — it is new machinery in checked flow plus a new
