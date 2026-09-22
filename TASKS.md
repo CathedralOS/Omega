@@ -3562,6 +3562,9 @@ Platform/cross-host (structurally gated — document host limits):
   Exercise the shared-memory customer using an explicit atomic/coherence lease
   or copy-and-validate/revoke-and-validate route as the peer contract requires.
   Hostile writable peers cannot supply Stable access merely by asserting release.
+  Preserve exact-mapping revocation/invalidation checks and retry custody.
+  Remapping must reject retained foreign pins, changed geometry or widened
+  rights, and establish a fresh mapping era before replacement backing is used.
   Protocols, queues, isolation and translation policy remain provider/OS code;
   do not add compiler-owned drivers or treat a CPU barrier as device completion.
 - **EXTERNAL-DATA-SCHEMA-CONVERSION.** Finish and verify the authored
@@ -3638,29 +3641,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   establish fidelity for unmodeled halt/register/cache effects. Unsupported
   effects must reject, while genuinely elidable hints retain their catalog
   meaning; do not silently turn all asm into successful no-ops.
-- **BACKEND-VOCABULARY-REJECTION-AUDIT.** Mined candidate; scope verified at
-  cb01abfa42 — audit that every vocabulary operation reaching the backend is
-  either legalized+selected or cleanly refused, never silently miscompiled or
-  panicked on. The classification point is
-  `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/nodes.rs`:
-  `admit()` covers 83 `AbstractOperation` variants, falling through to
-  `Err(NodeRejection::UnsupportedFamily)` → `LegalizationError::UnsupportedScalarOperation`
-  (model.rs:120); `control::validate` classifies terminators with the same
-  `_ => SourceCustodyMismatch` refusal. Ordering is the audit's core fact:
-  `nodes::validate` runs per-block inside `legalize_target_operations` BEFORE
-  `validate_target` and before `source/scalar_graph`'s `instruction()` calls —
-  so the `admit(..).ok()`/`filter_map` sites downstream can only ever see
-  admitted nodes, never a suppressed UnsupportedFamily. Open audit questions
-  for the implementing leg: (a) whether every *admitted* family has selection
-  coverage on every ISA (admitted-but-unencodable is the remaining hole class
-  — e.g. `NearestIeeeFloatFusedMultiplyAdd` is ingest-refused today, tracked
-  by X86-FMA-PROVIDER-TRANSPORT); (b) whether `UnsupportedScalarOperation`
-  surfaces as a compile diagnostic end-to-end rather than aborting; (c)
-  whether any `match` on `node.operation` outside nodes.rs/control.rs is
-  reachable before `nodes::validate` (none found at verify time — all are
-  provenance replays under validate_target or per-node dispatch under
-  validate). Territory: `target-operations-to-selected-instructions/src/{legalization,selection}`
-  + `representations/abstract-operations` (read-only enumeration).
+- **BACKEND-VOCABULARY-REJECTION-AUDIT.** Finish the bounded
+  legalization-to-selection refusal audit in `target-operations-to-selected-instructions`.
+  Existing admission tests classify unsupported families and preserve operation
+  identity in `UnsupportedScalarOperation`; they do not establish that every
+  admitted family either selects on each applicable ISA or returns a structured
+  refusal through the public compiler. Trace admission ordering and downstream
+  filtering, exercise representative admitted-but-unrealizable and unsupported
+  operations through compilation, and retain exact operation/target diagnostics
+  without panics or silent omission. Attribute missing implementations to
+  existing capability owners, including **X86-FMA-PROVIDER-TRANSPORT**; do not
+  expand the accepted vocabulary or build another generic audit framework.
 
 
 
@@ -4029,121 +4020,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   corpus migration executes against.
 - **NEW-RBRA-STD-LIBRARY-MIGRATION.** Inserted row, scope verified at `891194236afa` (planner-scoped to `source/library/std/{console,time,calling}.omg` + `source/library/std/targets/{linux_x86_64,linux_arm64,windows_x86_64,macos_x86_64}`) — no migration is pending on the scoped surface: every assigned path is byte-identical between this worktree and `origin/main` (empty `git diff --stat` per file/dir), and the std library already spells the current `Service<R>` carrier vocabulary (`time.omg:951` `host: Service<TimeHost>`; bare boundary-trait value spellings reject under `32f5182254`). The `RBRA` token occurs nowhere in the tree or boards; the only sibling in the series is NEW-RBRA-PASS-RECAST-GENERICS, which holds `tests/omega/pass/{recast,generics}` (15:22Z) — the corpus side of whatever migration the series names. Nothing to implement under this name until a concrete contract or failing customer identifies the delta.
 - **NEW-TLBR-PARAMETERIZED-REQUIREMENT-ADMISSION.** Inserted row, scope verified at `c3dd8016a74d` (planner-scoped to `psi/semantics/validation/src/machine_calls/calls/generic_bounds.rs`, byte-identical to origin/main) — the parameterized-requirement admission frontier is `is_directly_callable_top_level_requirement`: a top-level `boundary requirement` may be body-called only when public, nongeneric (`lifetime_parameters.is_empty()` AND `machine_type_parameters(callee).is_empty()`), single-state, and self-free or owned-self; generic/lifetime-parameterized requirements deliberately keep the symbol fence ("receiver custody and obligation transfer are a separate settlement shape"). Widening the predicate is not a slice inside this file: it decides which bodyless symbols may execute, which requires the selected-provider settlement to answer a generic instantiation plus the lifetime-linked return frontier — machinery in selected-dispatch/provider-planning, not validation. The instantiation-bound machinery that an admitted parameterized call would need (`validate_type_parameter_instantiation_bounds` positional pinning + `type_satisfies_declared_property`) already exists and is exercised through the resolved-target rung. No bounded slice remains under the assigned file; the cross-file leg needs a dispatch that includes selected-dispatch's provider resolution.
-- **HOSTED-BUILTIN-SETTLEMENT-EXPANSION** — mined candidate; verify scope then implement.
-- **HOSTED-RECEIVER-SERVICE-CARRIER** — mined candidate; verify scope then implement.
-- **HOSTILE-SHARED-MEMORY-PLACEMENT** — mined candidate; verify scope then implement.
-- **HOSTILE-SHARED-MEMORY-REMAPPING** — mined candidate; verify scope then implement.
-- **LEGACY-COMPATIBILITY-WRAPPER-PRUNING** — mined candidate; verify scope then implement.
-- **MODEL-FREE-CANDIDATE-SEARCH** — mined candidate; verify scope then implement.
 - **MODULE-CONSTANT-BUILTIN-CARRIER** — mined candidate; verify scope then implement.
-- **MULTI-TARGET-BATCH-MANIFEST** — mined candidate; verify scope then implement.
 - **NATIVE-DIFF-HOSTED-RECEIVER-HARNESS-MIGRATION** — mined candidate; verify scope then implement.
-- **NATIVE-I32-REMAINDER-LEGALIZATION** — mined candidate; verify scope then implement.
 - **OBLIGATION-NORMALIZED-IDENTITY** — mined candidate; verify scope then implement.
 
-- **PHYSICAL-ACCESS-PROFILES.** Resolved — scope verified, already landed. The
-  stub names the physical-lane access-profile surface covered at `9ced81e046`
-  ("backend: cover every access profile through the mixed structural rejoin"):
-  `native-artifact/src/native_artifact/mixed_structural_scalar.rs` pins
-  `every_access_profile_rejoins_terminal` (all four `StructuralAccess` profiles —
-  Owned, SharedBorrow, MutableBorrow, WriteOnlyBorrow — rejoin the terminal
-  machine) and `mismatched_access_profiles_reject`, while
-  `physical/derivation/tests.rs` rejects access substitution inside the
-  normalized foreign structural lane (`normalized_foreign_structural_signature_requires_the_exact_admitted_lane`)
-  and argument-access mutation. Re-verified green at `cdee121ee9`:
-  `cargo nextest run -p native-artifact -E 'test(/access_profile/) or test(/mismatched_access/)'`
-  — 2/2 pass on linux x86-64. The remaining physical-evidence legs (dynamic-call
-  and call-occurrence spans) belong to TRANSLATION-VALIDATION in
-  TASKS_OPTIMIZER.md, not to access profiles.
-  Re-verified at `758e8ad9e2` on linux x86-64: both access-profile pins
-  intact at `mixed_structural_scalar.rs:184`/`:199` and the foreign-lane
-  rejection pin at `physical/derivation/tests.rs:645`; the settled
-  verdict stands (dispatcher re-dispatched the resolved name).
-- **PHYSICAL-ENTRY-BRIDGES** — mined candidate; scope verified, covered — the resolved sibling PHYSICAL-ENTRY-END-TO-END row names this stub as a re-mine of the "end-to-end physical entry" note in `wiki/language_guide/chapter_3_machines.md` ("selecting and checking an entry does not claim that its native bridge has been installed"), which the note itself assigns to ENTRY-CONTENT-ROOTS. The physical-entry-bridge acceptance leg already passes natively on linux x86-64 at `cdee121ee9` (`samples_with_documented_exit_run_correctly` under `OMEGA_SAMPLE_RUNTIME_FILTER==cli__basics__number_guess`: published process with `Service<Console>` receiver compiles to a native artifact and runs to exit 70); the intrinsic `Service<R>` carrier cut landed at `f705cbdb5`. The epic's remaining bridge legs (receiver nominal-cleanup/completion occupancy, per-host legs) stay with ENTRY-CONTENT-ROOTS and are live-fenced this wave (program-entry-plan, external-roots `ProgramLocalRootInstallationLedger`, image-emission hosted_receiver). No independent slice exists here.
-- **PHYSICAL-ENTRY-END-TO-END.** Mined candidate — resolved: the name
-  re-mines the "end-to-end physical entry" note in
-  `wiki/language_guide/chapter_3_machines.md` ("selecting and checking an
-  entry does not claim that its native bridge has been installed"), which
-  the note itself assigns to ENTRY-CONTENT-ROOTS. Its acceptance leg now
-  passes natively on linux x86-64 at `cdee121ee9`, re-verified `9ff8673b31`:
-  `samples_with_documented_exit_run_correctly`
-  (`OMEGA_SAMPLE_RUNTIME_FILTER==cli__basics__number_guess`) compiles
-  number_guess — a published process with a `Service<Console>` receiver and
-  no test-supplied `self` — to a native artifact and runs it to its
-  documented exit 70. The intrinsic `Service<R>` cut also landed
-  (`f705cbdb5` admits carriers by exact closed identity; `Bound` is gone
-  from `core/service.omg`). The epic's remaining bullets — receiver
-  nominal-cleanup/completion occupancy and the per-host legs — stay with
-  ENTRY-CONTENT-ROOTS and are live-fenced this wave (program-entry-plan,
-  external-roots `ProgramLocalRootInstallationLedger`, image-emission
-  hosted_receiver). Sibling re-mine names on this surface:
-  PHYSICAL-ENTRY-BRIDGES, PHYSICAL-ACCESS-PROFILES.
 
-- **PLACE-ACCESS-GEOMETRY.** Resolved — scope verified, already landed. The stub
-  names the geometric half of placed access ([placed access](wiki/spec/resources/placed_access.md#establishment-and-retirement)):
-  the referent geometry is the declared-carrier join plus path resolution and
-  range/qualification rejoin, landed as
-  `terminal-semantics/src/placed_view_referent.rs::validate_placed_view_referent`
-  (declared structural carrier, path resolves through the shape graph to a real
-  place, qualifications must be declared over that carrier; stale/substituted
-  ranges and forged carriers reject) consumed by both execution boundaries,
-  with the plan-side geometry in
-  `build-time-evaluation/src/layouts/placed_views/` (policy/schema/view exact
-  rejoin after typing) and `access-plans/src/placements/` (admission, custody,
-  correspondence, resident/borrowed views). Re-verified green at `797e99ead7`:
-  `cargo nextest run -p access-plans -p terminal-semantics -E 'test(/placed/) or test(/placement/) or test(/referent/)'`
-  — 24/24 pass on linux x86-64. The unlanded placed-access legs are not the
-  geometry: `bind_hosted_receiver` lending through the emitted entry shim and
-  the `PlacedField` accessor realization are PLAN-LAID-VIEWS' named remaining
-  work (native surfaces fenced by PLACED-ACCESS-NATIVE-OPS); the geometric
-  request bound for partition routes belongs to CONSERVATION-CONTRACT /
-  TERMINAL-CONTENT-CLAIMS under BUMP-ALLOCATOR-CANARY's routing.
-- **PLACE-ALIAS-ANALYSIS-PRODUCER.** Landed; re-verified at `baad84f97f` —
-  `analyses/semantic/place_aliases.rs:88` still exports `relation`. `AnalysisKind::PlaceAliases` now
-  has a producer in `abstract-operations-to-abstract-operations`' analysis
-  catalog: `PlaceAliasesAnalysis` carries each machine's complete
-  declared-root roster and deduplicated verifier live-claim views (root plus
-  projection path, sites as evidence), and `PlaceAliasFunction::relation`
-  proves disjoint / overlapping / unknown — distinct roots are disjoint
-  absent a `Referent` crossing, which along with unplaceable evidence roots
-  returns `Unknown`. Consumer binding in the selected-instructions rewrites
-  stays under ALIAS-AWARE-MEMORY.
-- **PLACE-STORAGE-EXTENT-OWNER.** Mined candidate; scope verified at
-  `0a0662ad27ad` (restamped from `797e99ead7`): names the storage-extent
-  ownership surface — `Extent` (linear `base`/`length`,
-  `source/library/core/extent.omg`) qualified `Extent in Granted` only
-  through an owner-authorized route (`established by
-  ExtentRootProvider::grant, ProgramStorageEntry::enter,
-  DeviceLoanProvider::complete` — "the domain owner authorizes exactly this
-  admitted root crossing"), and resident ownership `Extent::Resident<P,T>`
-  over an exact placement per
-  `066d3b3472` (re-verified from `797e99ead7`): names the
-  storage-extent ownership surface — `Extent` (linear `base`/`length`,
-  `source/library/core/extent.omg`) qualified `Extent in Granted` only
-  through an owner-authorized route (`established by
-  ExtentRootProvider::grant, ProgramStorageEntry::enter,
-  DeviceLoanProvider::complete` — "the domain owner authorizes exactly
-  this admitted root crossing"), and resident ownership
-  `Extent::Resident<P,T>` over an exact placement per
-  [placed_access](wiki/spec/resources/placed_access.md) /
-  [chapter_20](wiki/language_guide/chapter_20_memory_layout_abi.md#admission-and-placement).
-  Still unworkable — re-verified at `3a8203932783` with the live-claim
-  map: most fences named in the previous audit have drained
-  (PLACED-ACCESS-NATIVE-OPS, UEFI-PHYSICAL-SEMANTIC-ENTRY,
-  RUNTIME-SIZED-ACTIVATION-STORAGE, HOSTILE-SHARED-MEMORY-REMAPPING,
-  BORROWED-STORAGE-RESTORATION, ENTRY-CONTENT-ROOTS and
-  PLACE-ALIAS-ANALYSIS-PRODUCER all lapsed), but the implementing
-  surfaces are still co-held: the placed-access route's
-  `placed_view_referent` leg stays under PLAN-LAID-VIEWS (~09:25Z
-  Sep 21), `psi/foundation/extents` is re-fenced under
-  DEVICE-EXTENT-ACCESS (`lib.rs` + `ordering_events`, ~11:04Z Sep 21)
-  and NEW-ATC-PROVIDER-CONFORMANCE-STANDIN (`mapping`, ~16:35Z Sep 21),
-  and native-realization is partially held by
-  BUILD-EXCLUSION-REALIZATION (~15:52Z Sep 21). `extent.omg`,
-  terminal-psi ownership/placement, and access-plans
-  `owned_placement_lifecycle` are unfenced, but no end-to-end slice
-  escapes the held files. Sibling re-mines on this family: PLACE-ACCESS-GEOMETRY,
-  PLACED-ACCESS-NATIVE-OPS (claim lapsed), plus the entered-extent siblings
 - **PLACED-ACCESS-NATIVE-OPS.** Realize the native indexed primitive store
   handed off by **WRITE-ONLY-BORROW**. The checked producer, Terminal verifier,
   codec/interpreter and verified abstract inventory already carry the runtime
@@ -4331,22 +4212,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   remains under this name.
   covered — alias of settled SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL; ancestry_contract 2/2
 
-- **SHARED-MAPPING-REVOCATION.** Mined candidate — resolved on
-  `origin/main`: re-mines the shared-custody mapping revocation surface in
-  `psi/foundation/extents/src/mapping/mod.rs`, landed at `12e35ef7fdc`
-  ("gate zero-copy access on shared-custody mappings behind peer-write
-  revocation"). Shared-custody mappings cannot expose mutable access
-  (:657) and cannot produce a stable view until a peer-write-revocation
-  receipt completes (:680); `begin_peer_write_revocation` (:696) consumes
-  the mapping into a linear `PendingPeerWriteRevocation` whose completing
-  receipt must bind the exact active mapping, establish the revoked write
-  permission, and carry required invalidation facts (:739-761). Pinned by
-  `mapping/tests.rs`:
-  `shared_mapping_stable_loan_requires_completed_peer_write_revocation`
-  and `peer_write_revocation_receipt_binds_the_exact_mapping`. Per spec,
-  forced revocation is deliberately out of scope — `extents.md:125`
-  requires an explicit fallible provider quiescence/lifecycle protocol,
-  not an implicit mapping property. No independent slice exists.
 - **SERVICE-CARRIER-FIXTURE-MIGRATION** — recorded at revision 6d00135b89:
   `tests/native-differential/tests/terminal_psi_runnable.rs` migrates its two
   embedded fixtures to `pub boundary trait Console` + `Service<Console>`
@@ -4370,24 +4235,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Re-verified at `2dbfecd98e49` (z133, linux x86-64): the battery re-runs
   11/11 green and `signature_free_requirements.rs` is unchanged since the
   stamp above (zero upstream edits to the crate since `bb192d7ea9e`).
-- **SINGLE-PROGRAM-ENTRY-SELECTION.** Mined candidate; scope verified at
-  `9f48bb2a594` — the mechanism exists; the residuals are owned elsewhere.
-  Single-entry selection is enforced today by
-  `selected-dispatch/src/service_custody/root.rs::derive_fused_program_entry_establishments`:
-  the selected ProgramEntry must rejoin exactly one Terminal attachment
-  identity and one Terminal structural type (`root.rs:145`, `:152`), and the
-  receiver must be one exact record — ambiguity or absence rejects, not a
-  silently picked entry. The currently-red legs recorded on the RC gate rows
-  are NOT selection-gate gaps: (a) `windows_x86_64` entry.omg rejected by
-  the `named-callable(WindowsProcessEntry::enter)` schema — package-binding
-  leg; (b) `Service<R>`-fielded ProgramEntry receivers rejoin 0 attachment
-  identities — the checked-side establishment leg owned by
-  ENTRY-CONTENT-ROOTS (`derive_fused_program_entry_establishments` rejects
-  `Service<R>` receivers upstream of selection); (c) the
-  `program_entry_binding_outside_build` diagnostic drift is assigned to
-  CANARY-CORPUS by the PROGRAM-ENTRY-SELECTION-DIVISION lane.
-  No independent slice exists; selection work
-  resumes inside the owning lanes.
 
 
 
