@@ -717,7 +717,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
     ),
     (
         "omega/backend/register-environment",
-        &["abi_preservation", "catalog", "model", "validation"],
+        &["abi_preservation", "catalog", "validation"],
     ),
     (
         "omega/backend/runtime/component-publication",
