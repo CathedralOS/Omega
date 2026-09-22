@@ -18,7 +18,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(crate) fn lower_decoded_verified_module",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/lowering/machine/lower_machine.rs",
+        path: "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/lowering/machine.rs",
         coordination_marker: "pub(super) fn lower_machine",
     },
     RequiredCoordinationEntrance {

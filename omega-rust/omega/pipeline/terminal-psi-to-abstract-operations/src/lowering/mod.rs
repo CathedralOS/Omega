@@ -7,7 +7,6 @@ use terminal_codec::terminal_psi_identity;
 use terminal_verifier::VerifiedTerminalModule;
 mod block_bindings;
 mod error;
-#[path = "machine/lower_machine.rs"]
 mod machine;
 #[cfg(test)]
 mod rejection_audit;

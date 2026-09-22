@@ -1,9 +1,7 @@
 //! Ordinary-machine roster construction, block traversal, and final assembly.
 use crate::lowering::LoweringError;
 use semantic_vocabulary::OperationId;
-#[path = "operation/mod.rs"]
 mod operation;
-#[path = "terminator.rs"]
 mod terminator;
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
