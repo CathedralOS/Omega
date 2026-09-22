@@ -106,6 +106,15 @@ pub(super) fn create(
     )?;
     builder.transport.views.push(ByteViewHomes {
         place: result.place,
+        source: *source,
+        // The child's root is the parent's retained root; a first-level view
+        // cut from a block-parameter view keeps a dynamic backing that edge
+        // bindings resolve at access time.
+        root: if let Some(parent) = parent {
+            parent.root
+        } else {
+            crate::selection::byte_view_homes::own_view_root(function, *source)
+        },
         backing_pointer: backing,
         byte_offset,
         byte_length,

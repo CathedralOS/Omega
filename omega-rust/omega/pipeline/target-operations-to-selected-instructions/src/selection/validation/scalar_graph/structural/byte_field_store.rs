@@ -111,18 +111,43 @@ pub(super) fn replace(
     )?;
     let cursor = scratch(replay, 3)?;
     let byte = scratch(replay, 4)?;
-    memory(
-        replay,
-        row,
+    // The copy's source bytes live in the view's storage root, not the view's
+    // own identity; a block-parameter view reaches each bound root.
+    match crate::selection::byte_view_homes::view_backing_roots(
+        function,
+        &replay.transport.views,
         *source,
-        0,
-        0,
-        SelectedMemoryAccessRole::ReadByteSpan {
-            length: *length,
-            obligation: *obligation,
-            accepted_fact: *accepted_fact,
-        },
-    )?;
+        *length,
+    )? {
+        Some(roots) => {
+            for (root, extent) in roots {
+                memory(
+                    replay,
+                    row,
+                    root,
+                    0,
+                    0,
+                    SelectedMemoryAccessRole::ReadByteSpan {
+                        length: extent,
+                        obligation: *obligation,
+                        accepted_fact: *accepted_fact,
+                    },
+                )?;
+            }
+        }
+        None => memory(
+            replay,
+            row,
+            *source,
+            0,
+            0,
+            SelectedMemoryAccessRole::ReadByteSpan {
+                length: *length,
+                obligation: *obligation,
+                accepted_fact: *accepted_fact,
+            },
+        )?,
+    }
     memory(
         replay,
         row,

@@ -113,6 +113,14 @@ pub(super) fn create(
     )?;
     replay.transport.views.push(ByteViewHomes {
         place: view.place,
+        source: *source,
+        // The child's root is the parent's retained root; a first-level view
+        // cut from a block-parameter view keeps a dynamic backing that edge
+        // bindings resolve at access time.
+        root: match parent {
+            Some(parent) => parent.root,
+            None => crate::selection::byte_view_homes::own_view_root(function, *source),
+        },
         backing_pointer: backing,
         byte_offset,
         byte_length,
