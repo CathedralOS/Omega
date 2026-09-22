@@ -1302,6 +1302,14 @@ syntax and other terminal services are not prerequisites.
     arguments, not predicate/function terms.
     Calls and recursive citations still owe exact preconditions and descent;
     OPERATOR-MACHINE-SUPPLY owns the shared call repair and Nat migration.
+  - Connect source-established sequence/range predicates to element proof
+    use through selected mathematical evidence. The isolated
+    `ForAllInRangeFact` / `QuantifiedRangeFact` helpers have no source
+    producer or entailment consumer. Preserve exact collection, predicate,
+    range and subject identity through mutation and serialization. In-range
+    element use must check independently; wrong collection/predicate,
+    out-of-range and invalidated facts must reject. Do not introduce a second
+    calculus or quantifier keywords to wire these helpers.
   - Enforce [executable demand](wiki/spec/proofs/mathematical_bindings.md#assumptions-and-executable-demand)
     at source use, evaluation and lowering: an axiom is not a missing provider,
     and choice-dependent control cannot execute just because its branches
@@ -3815,33 +3823,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (`typed-trees-to-checked-trees/src/execution/unit/*`, terminal-production
   receiver eligibility) sit in GENERAL-CYCLIC-EXECUTION's unit-plan lane and
   ENTRY-CONTENT-ROOTS' live claim — outside this item's fence.
-- **CHECKED-CALL-SELECTION-OCCURRENCE-MATH-PROOFS.** Resolved — sibling
-  stub of PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's resolved row (the
-  resolved verdict is recorded at `1fc01bb690`):
-  `validation/src/proof_contracts/contract_entailment/specification_calls.rs`
-  checks selected concrete calls before fact intake and attributes the
-  callee's selected precondition to the call's exact subject;
-  `proofs/case_call_wrong_subject` rejects `empty_only(other)` when only
-  `known in Tree::Empty` is established, `case_citation_wrong_result`
-  pins the result side, pass twin `case_call_premises` compiles
-  (re-verified green at `f1675418b1`). Remaining owners are the parent's
-  own list (abstract signatures, domain predicates, postcondition
-  transport of case membership, induction). No independent slice exists here. Re-verified at `fff3918dc42` (linux
-  x86-64) (z153): `OMEGA_FAIL_CANARY_FILTER=proofs/case_call_wrong_subject,proofs/case_citation_wrong_result`
-  rejects with the recorded fragments and
-  `OMEGA_PASS_CANARY_FILTER=proofs/case_call_premises` compiles — 2/2
-  green; still no independent slice.
-  OCREQ-REQUEST-BINDING. Re-witnessed at `4e716c7844` on linux x86-64
-  (CHAIN-OCREQ-ENTRY-BINDING dispatch): `sh
-  tests/bootstrap/omega-request/run.sh --identity` PASS — all bound
-  identities verified (622,933-byte receipt request, 565,909-byte
-  customer, 45-byte expected observation).
-  OCREQ-REQUEST-BINDING. Re-witnessed at `832c55e69b` on linux x86-64
-  (OCREQ-ENTRY-BINDING dispatch): `sh
-  tests/bootstrap/omega-request/run.sh --identity` PASS — identical bound
-  identities (622,933-byte receipt request, 565,909-byte customer, 45-byte
-  expected observation); executing half stays seed-host-gated.
-  covered — sibling stub of PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's resolved verdict (1fc01bb690)
 - **COMPILER-PASS-PROFILE-TIMINGS.** Preserve timing opt-in through retained
   and direct Terminal production. Both paths in
   `checked-compilation-to-terminal-artifact/src/terminal_artifact.rs`
@@ -3858,8 +3839,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   tests prove row suppression, not absence of inner measurement; cover the
   actual collection choice on both production paths.
 
-- **CONST-GENERIC-EXTENT-RANGE-DISCHARGE.** — mined candidate; verify scope then implement.
-- **CONST-GENERIC-INFERRED-EXTENT-RANGE** — mined candidate; verify scope then implement.
 - **CONSTRUCTIVE-REAL-FOUNDATIONS.** Mined candidate — resolved:
   scope verified, owned elsewhere. The name re-mines the constructive
   Real foundation — replacing `source/library/core/real.omg` (N5's
@@ -4233,213 +4212,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   decision sharing found, residual closed at the recorded enumeration depth.
 - **PRODUCER-CHECKER-DECISION-SHARING-AUDIT** — mined candidate; bounded audit at `8734480a01`, re-verified at `f44a1177ed` (all four mechanisms unchanged), no decision sharing found on the named reuse surfaces. `proof/src/checker/derivation_cache.rs` retains only kernel-accepted certificates and every consult re-runs `candidate.verify()` through the admission kernel — a hit is a re-checked reuse, not a trusted verdict (hits rejected by the kernel fall through to fresh derivation). `component-description`'s `verify` re-derives subject/schema/entries/custody/assumptions from bytes with the expected subject caller-supplied (substitution tests prove independent replay). `build-evaluation/src/provider_settlement/independent_components.rs::verify_independent_component_descriptions` re-verifies every attached description under the build's own admission profile, never the producer's accept. PCC admission replays normalized rows against closed target specs per `machine_state_evidence.md`. Residual: an exhaustive whole-tree audit of every verifier callsite is open, but the four decision-adjacent reuse mechanisms are each independently checked.
 - **PRODUCER-HISTORY-CUSTODY** — mined candidate; verify scope then implement.
-- **PROOF-AUTOMATION-WIDENING.** Verified `ac4e4eee9b`, re-verified
-  `1edade1a480`: this names widening
-  the bounded source-automation fragment in `validation/src/proof_contracts/
-  contract_entailment.rs` (canonical integer polynomials, substitutions,
-  difference-bound closure, congruence, correlated intervals, signed
-  remainder bounds, accumulator self-induction, the N3 structural judge).
-  Every documented next rung is live-claimed or upstream-gated: the
-  inductive-gate leg is under PROOF-CERTIFICATION-BRIDGE's claim
-  (`contract_entailment/inductive_judgment.rs`, exp 00:51Z), call-attribution
-  widening under PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION
-  (`specification_calls`/`refuted_requires`/`call_requirements`; its lease
-  has since lapsed — the surfaces are unfenced at `1edade1a480` but the leg
-  stays the canonical item's, and the CheckedCall selection regression it
-  names is still live in the corpus),
-  arithmetic/call-bounds under SIGNED-CALL-PREMISES (`arithmetic_judgment.rs`
-  + `argument_tests.rs`, 22:11Z), quantifiers under
-  PROOF-QUANTIFIER-AUTOMATION, and the corpus pinning dirs
-  (`tests/omega/{pass,fail}/proofs`) are held by the same certification
-  owner; the recorded structural next rung — injectivity decomposition of
-  payload-carrying constructors — is grammar-gated upstream (struct
-  literals still do not parse in contract position, and the pipeline
-  grammar surfaces are fenced by DOMAIN-REFINEMENT-CHAINS and friends). No
-  unmanned widening lane exists; unspec'd judgment surgery in a fail-closed
-  proof engine is exactly what this board must not carry. Row consumed —
-  residual is the canonical items'. Re-stamped at `a4d396d0de4` (swarm-w9-ffival): the entailment surface keeps landing under the canonical items — `c431bc813` (residue binders/conjunct guards), `e479fcbc9` (Boolean contract facts as constant arithmetic verdicts), `f491aacba` (runtime-division actuals in rank-range substitution), `874f3ab0e` (open-index operator normalization conformance).
-- **CHECKED-CALL-SUBJECT-ENTAILMENT-WIDENING.** (split-of:PROOF-AUTOMATION-WIDENING)
-  Own the call-attribution leg that PROOF-AUTOMATION-WIDENING,
-  PROOF-QUANTIFIER-AUTOMATION and PROOFS-SUBJECT-CHECKED-CALL-SELECTION all
-  route to a retired PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION row, each of them
-  then concluding "no independent slice exists". The landed half attributes a
-  concretely selected call's precondition to the call's exact subject
-  (validation `proof_contracts/contract_entailment/specification_calls.rs`,
-  beside `refuted_requires.rs` and `call_requirements.rs`). The residual is the rest of that row's own list —
-  abstract signatures, domain predicates, postcondition transport of case
-  membership, and induction — together with the CheckedCall selection
-  regression PROOF-AUTOMATION-WIDENING records as still live in the corpus.
-  Exact-subject substitution across calls is required by
-  [state contracts](wiki/spec/language/state_contracts.md#mutation-and-subject-identity) and
-  [dependent values](wiki/spec/language/dependent_values.md); widen only to
-  what those state — this is a fail-closed judgment.
-
-  Acceptance: a `tests/omega/pass/proofs/` case cites a callee precondition
-  through an abstract signature and compiles, its `tests/omega/fail/proofs/`
-  twin still rejects when the cited subject is not the call's exact subject
-  (as `fail/proofs/case_call_wrong_subject` does for the concrete case), and
-  `cargo nextest run -p validation` stays green.
-
-  Re-assigned stub PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION verified at
-  `138ed79a677`: the retired row's residual still routes here verbatim —
-  landed half stands (`specification_calls.rs` exact-subject attribution at
-  `1fc01bb690`), and the residual list is still upstream-gated: abstract
-  signatures need contract-position grammar (struct literals do not parse
-  there), induction sits under PROOF-CERTIFICATION-BRIDGE's live claim
-  (`checks/contracts/exits` + `scalar_block_invariants`, ~10:52Z), and
-  `contract_entailment/ranking_range` is under TERMINATION-RANKING-CHECKS
-  (~10:50Z). The `specification_calls`/`refuted_requires`/`call_requirements`
-  surfaces are unfenced but carry no authorized leg. No independent slice.
-- **PROOF-QUANTIFIER-AUTOMATION.** Mined candidate; scope verified at `2e1db3ba3e` — the quantifier-automation substrate is landed and was widened today (`a3ab15b7611`): `proof/src/lemmas.rs` carries the `for all i in start..end, P(i)` shape (`ForAllInRangeFact`) with element discharge (`proves_element`/`contains_index`, covering literal, witnessed-literal, and full-extent symbolic indices), the reusable `ProofLemma`/`LemmaFact` registry (`discharging` finds the named lemma whose premises discharge a goal), and `checked-trees/proof/lemmas.rs` holds the durable representation mirror (`LemmaFacts` arena root, `QuantifiedRangeFact`). What is missing is not more vocabulary but the wiring: no check site produces a quantified fact and no entailment surface consults one — both halves are upstream-gated on the entailment surfaces delegated live this wave (`specification_calls`/`refuted_requires`/`call_requirements` under PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION, `arithmetic_judgment` under SIGNED-CALL-PREMISES, `inductive_judgment` under PROOF-CERTIFICATION-BRIDGE), and a producer of "every element satisfies the domain" facts needs the guarded-domain establishment route the same cluster owns. Per the PROOF-CERTIFICATION row's own note, unspec'd judgment surgery in a fail-closed proof engine is off-limits — no unmanned widening lane exists. No independent slice to claim here.
-  Re-verified at `c267df86acb`: the substrate is unchanged in substance —
-  `ForAllInRangeFact`/`proves_element`/`contains_index` and the `ProofLemma`
-  registry still sit in `proof/src/lemmas.rs` (:146/:179/:190/:22), and the
-  durable mirror moved to `checked-trees/src/checked_trees/proof/lemmas.rs`
-  (`QuantifiedRangeFact` :40, `LemmaFacts` :66 — the row's cited path has
-  drifted by one directory). A repo-wide reference scan confirms neither
-  type is named outside the two lemmas modules: no check site produces a
-  quantified fact and no entailment surface consults one, so the
-  no-independent-slice verdict holds.
-  Re-verified at `2e5d4a732471` on Linux x86-64: both lemmas carriers still
-  landed (`semantics/proof/src/lemmas.rs`, `checked_trees/proof/lemmas.rs`),
-  still no quantified-fact producer or entailment consumer, and every
-  upstream surface remains live-fenced — `specification_calls`/
-  `call_requirements` under PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION (~04:00Z)
-  and PROOF-SUBJECT-CALL-SELECTION (~05:39Z), `arithmetic_judgment` under
-  the SIGNED-CALL-PREMISES family (~22:38Z).
-  Fence-rotation re-audit at `90df29812c` (z161, 08:18Z): the cited
-  entailment claims have drained — `specification_calls`,
-  `arithmetic_judgment`, and `inductive_judgment` under
-  `proof_contracts/contract_entailment/` are now unfenced (only the
-  `ranking_range` sibling stays claimed, by TERMINATION-RANKING-CHECKS to
-  ~10:50Z), and PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION /
-  PROOF-SUBJECT-CALL-SELECTION / SIGNED-CALL-PREMISES are no longer live.
-  PROOF-CERTIFICATION-BRIDGE still holds `checks/contracts/exits` and
-  `proofs/scalar_block_invariants` to ~10:52Z. The substrate is still
-  unwired — no `proves_element`/`contains_index`/`LemmaFacts` caller in
-  `validation/` or `typed-trees-to-checked-trees/` — so the surviving
-  blocker is the row's substantive gate, not a fence: producing and
-  consulting quantified facts is unspec'd surgery on the fail-closed
-  proof engine, which the delegated PROOF-CERTIFICATION cluster owns.
-  No independent slice exists under this name.
-  covered — substrate landed (`a3ab15b7611`); remaining gate owned by the PROOF-CERTIFICATION cluster
-- **PROOF-SUBJECT-CALL-SELECTION.** Scope verified, covered — named
-  sibling stub of PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's resolved row,
-  same surface as the resolved PROOFS-SUBJECT-CHECKED-CALL-SELECTION
-  (this file, adjacent row): a checked/specification call cited as a
-  proof subject must
-  attribute the callee's selected precondition to the call's exact
-  subject. Implemented on `origin/main` at `1fc01bb690`
-  (`validation/src/proof_contracts/contract_entailment/specification_calls.rs`
-  checks selected concrete calls before fact intake; caller-terms
-  attribution diagnostic in `typed-trees-to-checked-trees/src/checks/operators/requires.rs`);
-  fail twins reject (`proofs/case_call_wrong_subject`,
-  `case_citation_wrong_result`), pass twin `proofs/case_call_premises`
-  compiles — filtered corpus re-verified green at `4927883cf353`.
-  Remaining owners stay the parent item's own list (abstract signatures,
-  domain predicates, postcondition transport, induction). No
-  independent slice exists here.
-  covered — sibling stub of resolved PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION
-- **PROOFS-SUBJECT-CHECKED-CALL-SELECTION.** Scope verified, covered — named sibling stub of PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's resolved row (re-verified at `4927883cf353`: filtered corpus still green — `proofs/case_call_*` fail twins reject with expected fragments, `proofs/case_call_premises` compiles), which owns this surface: a checked/specification call cited as a proof subject must attribute the callee's selected precondition to the call's exact subject. Implemented on `origin/main` at `1fc01bb690` (`validation/src/proof_contracts/contract_entailment/specification_calls.rs` checks selected concrete calls before fact intake; caller-terms attribution diagnostic in `typed-trees-to-checked-trees/src/checks/operators/requires.rs`); re-verified green at `f1675418b1` on the singular-variant row (`proofs/case_call_wrong_subject` rejects `empty_only(other)` when only `known in Tree::Empty` is established, `case_citation_wrong_result` pins the result side, pass twin `proofs/case_call_premises` compiles). Remaining owners stay the parent item's own list (abstract signatures, domain predicates, postcondition transport of case membership, induction). No independent slice exists here.
 - **PROVIDER-ATTACHMENT-MACHINE-PLAN** — mined candidate; scope verified, no bounded slice this wave (z175, `500878c473f4c`). The namesake surface — `typed-trees-to-checked-trees/src/execution/unit/providers.rs` — already produces the exact `CheckedProviderAttachmentRequirementPlan` roster (`checked_provider_attachment_requirements` + the composed-leaf variant), pinned across `tests/flow/terminal_unit` and rejoined to authored call sites by c2l `unit/attached_unit/provider_attachments/source.rs`. The residual the name carries is BOUNDARY-ISSUANCE's open frontier — the provider-planning/native-settlement join to the installed occurrence. Plan-side work left for this item is join design across crates, not a file-local patch. providers.rs itself is unclaimed this wave.
   covered — roster already produced in `execution/unit/providers.rs`; residue is cross-crate join design, not a bounded slice
-- **PSI-FRESH-CONSTRUCTOR-CUSTODY-JOIN.** Resolved — the custody join for
-  fresh (per-edge constructed) selection results is already implemented and
-  pinned (re-verified at `5fdd41efd879`). `checks/multiplicity/claim_outcomes.rs`
-  `claim_outcomes_for_owned_selection` mints the fresh product's claim inside
-  the selection as `Established{claim_identity: Unknown, provenance:
-  Unknown}` — its origin intentionally untracked — while parameter sources
-  bind the caller's claim at the exact input path and local sources publish
-  the established roster identity. `checks/multiplicity/owned_selection.rs`
-  completes the join rules: a linear join whose edges all move the same
-  consumed claim hands that claim (identity + provenance) to the
-  destination; a fresh per-edge product, a distinct source on any arm, or a
-  claimless leaf leaves the claim edge-dependent — no identity is minted
-  implicitly. Pinned by `claim_outcomes/joins/tests.rs`:
-  `conditional_result_join_binds_constructed_argument_fields` (typed
-  constructor paths retain actual source claims) and the
-  "forwarding and fresh construction remain distinct origins" control.
-  Related but separate surfaces: premise origins for constructed results are
-  TPR6's progress surface, and static constructor matching is
-  PROOF-CONTRACT-MIGRATION's remaining work — neither is this row's
-  seam.
-- **PROOFS-SUBJECT-CHECKED-CALL-SELECTION.** — mined candidate; scope verified, covered — named sibling stub of PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's resolved row, which owns this surface: a checked/specification call cited as a proof subject must attribute the callee's selected precondition to the call's exact subject. Implemented on `origin/main` at `1fc01bb690` (`validation/src/proof_contracts/contract_entailment/specification_calls.rs` checks selected concrete calls before fact intake; caller-terms attribution diagnostic in `typed-trees-to-checked-trees/src/checks/operators/requires.rs`); re-verified green at `f1675418b1` on the singular-variant row (`proofs/case_call_wrong_subject` rejects `empty_only(other)` when only `known in Tree::Empty` is established, `case_citation_wrong_result` pins the result side, pass twin `proofs/case_call_premises` compiles). Remaining owners stay the parent item's own list (abstract signatures, domain predicates, postcondition transport of case membership, induction). No independent slice exists here. Re-verified at `d74f2145b9` (linux x86-64): `OMEGA_PASS_CANARY_FILTER=proofs/case_call_premises` pass_canaries_compile 1/1 green; `OMEGA_FAIL_CANARY_FILTER=proofs/case_call_wrong_subject,proofs/case_citation_wrong_result` fail_canaries_reject 1/1 green. Re-verified at `ff2f489bbff` (linux x86-64): pass_canaries_compile + fail_canaries_reject under the same filters both green. Re-verified at `832c55e69b` (linux x86-64): same filtered pair still 2/2 green — no independent slice exists here. Re-verified at `836bb681a26` (linux x86-64) (z153): same filtered pair still 2/2 green — `OMEGA_FAIL_CANARY_FILTER=proofs/case_call_wrong_subject,proofs/case_citation_wrong_result` rejects with the recorded fragments and `OMEGA_PASS_CANARY_FILTER=proofs/case_call_premises` compiles; no independent slice exists here.
 - **PROVIDER-ATTACHMENT-MACHINE-PLAN.** — mined candidate; verify scope then implement.
   covered — roster already produced in `execution/unit/providers.rs`; residue is cross-crate join design, not a bounded slice
-- **PSI-PARAMETER-ORIGIN-LOCAL-CUSTODY.** Scope verified, resolved —
-  the stub re-mines the parameter-origin vs fresh-local-origin custody
-  split already landed on `origin/main` at `2091d8659302` ("psi:
-  preparation and producer results have independent owners"):
-  `checked-trees-to-lowered-psi/src/expression_preparation/source_custody/
-  parameters/owned.rs` keeps the two lifetimes separate — affine
-  parameter roots must appear verbatim in the expected no-code disposal
-  roster (`"owned scalar graph disposal eligibility differs from source
-  parameters"` on any drift), while each retained local producer is
-  rejoined through `local_roots` (each `EstablishStructuralValue`
-  result resolved back to its authored `LocalData` declaration) and
-  excluded from the parameter-shaped eligibility comparison. Fresh
-  local claim rows still must carry no identity/provenance/obligations,
-  matching PSI-FRESH-CONSTRUCTOR-CUSTODY-JOIN's resolved row (minted
-  `Established{claim_identity: Unknown, provenance: Unknown}`). Verified
-  at `eab5496b9224` (linux x86-64): `cargo nextest run -p
-  checked-trees-to-lowered-psi -E 'test(/owned/)'` — 157/162 pass;
-  every parameter/local custody pin green (`owned_parameters` 10/10,
-  `owned_scalar_graphs::{record_locals,record_stores}`,
-  `owned_results` incl. `duplicate_prior_receipts_cannot_launder_a_
-  fresh_origin_as_unknown` and
-  `projected_parameter_roots_move_the_selected_child_with_exact_
-  identity`). The 5 failures reproduce identically at pre-branch base
-  `735f1774617` — preexisting wave drift in `owned_record_return_source`
-  x4 (`composed Unit scalar call requires structural call custody`,
-  discarded-call structural retention) + `unit_plan_omissions` x1, a
-  different custody seam owned elsewhere. No independent slice exists
-  under this name.
 
-- **RECAST-SOURCE-POSITIONS.** — mined candidate; scope verified, resolved — landed at `92db61544e3` ("recast diagnostics carry the offending cast's source position"): every recast-path diagnostic attaches the authored span of the offending `as` expression via `with_source_span(program.expression_table.source_span(handle))` in `value_custody/recasts.rs` — the stray cast for the positional sweep (pinned by `fail/recast/recast_position_fenced`), the let's initializer for the unspelled reference pun, and the cast for every scalar/slice/byte-region judgment; recorded in `validation/recasts.md`. The distinct remaining leg — admitting recasts in non-`let` positions (guard operands, call arguments, nested expressions) — is the deliberately fenced deeper byte-view rung (L4/L5) in the module header, an authorizing-brief item rather than this stub's bounded scope.
-  REGRESSION NOT CLOSED BY THAT LANDING (measured 2026-09-20 at `00ed2cec7c3`,
-  reconfirmed at `1f7301b71020`): `92db61544e3` left nine `omega-architecture-test`
-  cases red, and they are still red — `symbolic_walk_{weak_guard_spelling_refuses,
-- **RECAST-SOURCE-POSITIONS** — mined candidate; scope verified, resolved — landed at `92db61544e3` ("recast diagnostics carry the offending cast's source position"): every recast-path diagnostic attaches the authored span of the offending `as` expression via `with_source_span(program.expression_table.source_span(handle))` in `value_custody/recasts.rs` — the stray cast for the positional sweep (pinned by `fail/recast/recast_position_fenced`), the let's initializer for the unspelled reference pun, and the cast for every scalar/slice/byte-region judgment; recorded in `validation/recasts.md`. The distinct remaining leg — admitting recasts in non-`let` positions (guard operands, call arguments, nested expressions) — is the deliberately fenced deeper byte-view rung (L4/L5) in the module header, an authorizing-brief item rather than this stub's bounded scope.
-  REGRESSION NOT CLOSED BY THAT LANDING (measured 2026-09-20 at `00ed2cec7c3`,
-  reconfirmed at `1f7301b71020`): `92db61544e3` left nine `omega-architecture-test`
-  cases red, and they are still red — `symbolic_walk_{weak_guard_spelling_refuses,
-- **RECAST-SOURCE-POSITIONS** — mined candidate; scope verified, resolved — landed at `92db61544e3` ("recast diagnostics carry the offending cast's source position"): every recast-path diagnostic attaches the authored span of the offending `as` expression via `with_source_span(program.expression_table.source_span(handle))` in `value_custody/recasts.rs` — the stray cast for the positional sweep (pinned by `fail/recast/recast_position_fenced`), the let's initializer for the unspelled reference pun, and the cast for every scalar/slice/byte-region judgment; recorded in `validation/recasts.md`. Re-witnessed at `00f36e8cfa` (linux x86-64): `OMEGA_FAIL_CANARY_FILTER=recast_position_fenced` under `fail_canaries_reject_with_expected_diagnostic_fragment` passes. The distinct remaining leg — admitting recasts in non-`let` positions (guard operands, call arguments, nested expressions) — is the deliberately fenced deeper byte-view rung (L4/L5) in the module header, an authorizing-brief item rather than this stub's bounded scope.
-  REGRESSION CLOSED — measured red 2026-09-20 at `00ed2cec7c3`, reconfirmed
-  red at `1f7301b71020`, then verified green again on linux x86-64 at
-  `00f36e8cfa` (`cargo nextest run -p omega-architecture-test -E
-  'test(/symbolic_walk/) | test(/boundary_ensures/) | test(/boundary_witness_)'`
-  → 12/12 PASS, every named case included): `92db61544e3` had left nine
-  `omega-architecture-test` cases red —
-  `symbolic_walk_{weak_guard_spelling_refuses,
-
-  recast_footprint_discharges,recast_wide_witness_refuses}`,
-  `boundary_ensures_{witness_discharges_recast_footprint,
-  witness_too_wide_refuses_recast_footprint,witness_survives_unrelated_internal_call,
-  witness_survives_unrelated_intervening_call,equalities_couple_symbolic_recast_witnesses}`
-  and `boundary_witness_survives_transitive_disjoint_boundary_frame`. The programs are
-  still REFUSED, so this is a precision loss rather than an admission hole: the refusal
-  now reads "cannot bound the recast offset `offset` -- the region holds 64 bytes, but no
-  declared range, dominating incoming guard, or boundary-ensures witness" instead of the
-  footprint refusal "would read past the buffer" the tests assert. The boundary-ensures
-  witness transport stopped being found, so the offset never gets bounded and the precise
-  tail-overrun diagnosis never forms. Verified pre-existing, not test drift: the same
-  nine fail at clean `origin/main` with no local commits. Their assertions are correct as
-  written and were deliberately left unrelaxed — relaxing them would mask the regression.
-  Regression CLOSED upstream: re-verified green at `faf902cea487` on linux x86-64 —
-  `cargo nextest run -p omega-architecture-test -E 'test(~symbolic_walk) or
-  test(~boundary_ensures) or test(~boundary_witness)'` → 13/13 PASS (the full
-  recast-witness family plus the transitive-frame and equality-coupling cases);
-  the witness transport is intact at current tip and the assertions were never
-  relaxed.
-  and `boundary_witness_survives_transitive_disjoint_boundary_frame`. The programs are
-  still REFUSED, so this is a precision loss rather than an admission hole: the refusal
-  now reads "cannot bound the recast offset `offset` -- the region holds 64 bytes, but no
-  declared range, dominating incoming guard, or boundary-ensures witness" instead of the
-  footprint refusal "would read past the buffer" the tests assert. The boundary-ensures
-  witness transport stopped being found, so the offset never gets bounded and the precise
-  tail-overrun diagnosis never forms. Verified pre-existing, not test drift: the same
-  nine fail at clean `origin/main` with no local commits. Their assertions are correct as
-  written and were deliberately left unrelaxed — relaxing them would mask the regression.
+- **RECAST-SOURCE-POSITIONS.** Compose admitted representation recasts in
+  guard operands, call arguments and nested expressions without requiring a
+  reference-typed `let`. `validation/src/value_custody/recasts.rs` still
+  admits selected initializer roots and rejects remaining recasts in its
+  positional sweep; diagnostic source spans already exist. The
+  [recast contract](wiki/spec/layouts/recasts.md) requires representation
+  compatibility, not this source-position restriction.
+  Carry checked layout/validity, backing identity, lifetime and access through
+  ordinary expression sequencing and temporary loans rather than bypassing
+  the recast check. Acceptance: valid inline equivalents of supported shared
+  and mutable recasts check and execute; incompatible geometry/validity,
+  access escalation and conflicting backing use reject at the offending
+  location. Preserve precise symbolic/boundary-witness footprint refusals.
+  Migrate stale imports in `recast_position_fenced` and coordinate its carrier
+  spelling with **BINDING-CARRIER-NAME** before using it as fresh evidence.
 
 - **REVIEW-RESEAL-ELIMINATION.** Remove repeated identity serialization of the
   same unchanged in-memory UEFI semantic-wrapper object across construction,
@@ -4657,24 +4449,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   substitution checks, or pin the intended refusal and remove this task.
   AArch64 hosted execution remains with the native matrix owners.
 
-- **T2C-RANK-RANGE-FIELD-ENDPOINTS.** Mined candidate — resolved:
-  rank-range endpoints expressed as field chains are landed and green.
-  `typed-trees-to-checked-trees/src/checks/termination/ranking/ranges/endpoints.rs`
-  resolves `ExpressionNode::Member` chains root-to-leaf through declared
-  field types (`EndpointInput`), reads the leaf's store-enforced field
-  bounds, and re-checks preservation on every self edge
-  (`preserved_by`, `prefix_preserves_path`). Re-verified on linux x86-64
-  at `e8bbe9fcc0`: `cargo nextest run -p typed-trees-to-checked-trees
-  --lib -E 'test(/field_endpoint/)'` — 49/49 pass across
-  field_coordinates / field_endpoint_arithmetic / field_endpoint_pins /
-  field_arrivals / computed_field_limits. Sibling stub
-  TERMINATION-RANK-RANGE-FIELDS names the same surface. Re-verified at
-  `771d0469a1`: `e8bbe9fcc0` is an ancestor of base and the endpoint
-  machinery now lives under
-  `omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/ranking/ranges/endpoints.rs`
-  — `EndpointInput` resolution, per-self-edge `preserved_by` re-checks and
-  `prefix_preserves_path` all intact.
-  covered — field-chain rank-range endpoints landed in checks/termination/ranking/ranges/endpoints.rs; 49/49 green
 - **TARGET-INFERENCE-AND-PLATFORM-CERTIFICATION.** Enforce canonical target
   spellings at compiler and CLI request boundaries under
   [exact target requests](wiki/spec/build/configuration.md#exact-target-requests).
@@ -4685,41 +4459,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   profile diagnostics. Acceptance: canonical single/multiple requests work;
   aliases, empty sets, wildcards and unknown names reject. Target-neutral
   checking remains distinct from native execution on a matching host.
-- **TERMINATION-FIELD-ENDPOINT-TRIO.** Mined candidate — resolved: the name
-  names the three `rank_ranges` field-endpoint failures recorded in
-  `wiki/drafts/known_baseline_failures.md` at `660f5af762`
-  (`computed_field_limits::field_endpoint_formation_never_uses_final_cancellation_to_excuse_overflow`,
-  `field_coordinates::field_endpoints_require_defined_intermediates_and_exact_owned_carriers`,
-  `field_endpoint_arithmetic::constant_rank_endpoints_preserve_landing_and_rational_meaning`),
-  which that row already assigned to the live TERMINATION-RANKING-CHECKS
-  lane. All three pass on linux x86-64 at `54984323b2`
-  (`cargo nextest run -p typed-trees-to-checked-trees --lib`, filtered to
-  the trio). No independent slice exists; refreshing the stale draft row
-  belongs to the RC-REPOSITORY-CLOSURE items.
-  Re-witnessed at `b868b9ee8f` (linux x86-64, z161): `cargo nextest run
-  -p typed-trees-to-checked-trees --lib -E 'test(~field_endpoint_formation_never_uses_final_cancellation)
-  | test(~field_endpoints_require_defined_intermediates) |
-  test(~constant_rank_endpoints_preserve_landing)'` — 3/3 pass; the
-  trio still stands resolved and the draft row still awaits its refresh
-  item.
-  Re-witnessed at `8f58b6676b0` (linux x86-64): the same filtered trio run
-  passes 3/3 — no drift since the `b868b9ee8f` re-witness; adjudication
-  unchanged (TERMINATION-RANKING-CHECKS lane owns the family).
-- **TERMINATION-RANK-RANGE-FIELDS.** Resolved — alias of the landed
-  T2C-RANK-RANGE-FIELD-ENDPOINTS surface, which already names this stub as
-  covering the same work: rank-range endpoints expressed as field chains.
-  `typed-trees-to-checked-trees/src/checks/termination/ranking/ranges/endpoints.rs`
-  resolves `ExpressionNode::Member` chains root-to-leaf through declared
-  field types (`EndpointInput`), reads the leaf's store-enforced field
-  bounds, and re-checks preservation on every self edge. Re-verified green
-  on linux x86-64 at `0f5ae41e7d` (same command, same 49/49; earlier stamp
-  `a4ffd1aff8`):
-  `cargo nextest run -p typed-trees-to-checked-trees --lib -E
-  'test(/field_endpoint/)'` — 49/49 pass across field_coordinates,
-  field_endpoint_arithmetic, field_endpoint_pins, field_arrivals and
-  computed_field_limits. Re-verified green at `bbffdafe0498` (z116,
-  linux x86-64): same command, same 49/49. No independent slice remains.
-  covered — alias of landed T2C-RANK-RANGE-FIELD-ENDPOINTS
 - **TRANSPARENT-TRAIT-REFINEMENTS.** Complete refinement application and exact
   requirement selection under
   [transparent refinements](wiki/spec/language/conformances.md#transparent-refinements).
