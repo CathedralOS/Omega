@@ -15,9 +15,10 @@ use super::{
     ScalarType, ServiceReachInterface, ServiceReachPlan, ServiceReachSummary, StructuralFieldType,
     StructuralMultiplicity, StructuralTypeId, StructuralTypeShape, TerminalMachine,
     TerminalMachineResult, Terminator, checked_unit_call_closure_including, dense_identity,
-    lookup_machine_id, lookup_type_id, lower_nominal_cleanup_closure, machine_id, obligation_id,
-    place_id, unique_unit_machine, unsupported,
+    lookup_machine_id, lookup_type_id, lower_unit_closure, machine_id, obligation_id, place_id,
+    unique_unit_machine, unsupported,
 };
+use crate::unit::attached_unit::{RuntimeRequirementOwner, UnitClosureRequest};
 use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralParameterPlan};
 use symbols::SymbolHandle;
 use terminal_psi::{StructuralAccess, StructuralParameterDeclaration};
@@ -258,8 +259,14 @@ pub(crate) fn lower_nominal_affine_unit_cleanup_machine(
             "nominal cleanup target is absent from its checked closure",
         ))?;
     let cleanup_terminal_id = machine_id(dense_identity(cleanup_machine_index)?);
-    let mut lowered =
-        lower_nominal_cleanup_closure(&staged, plan.machine, &[cleanup.cleanup_machine])?;
+    let mut lowered = lower_unit_closure(
+        &staged,
+        &UnitClosureRequest {
+            requirements_owner: RuntimeRequirementOwner::NominalCleanup,
+            ..UnitClosureRequest::unit(plan.machine, &[plan.machine, cleanup.cleanup_machine])
+        },
+    )?
+    .lowered;
     let type_ids = lowered
         .semantic_module
         .structural_types

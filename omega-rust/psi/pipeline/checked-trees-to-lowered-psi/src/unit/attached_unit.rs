@@ -204,81 +204,86 @@ pub(crate) fn retain_exact_unit_boundary<'plans>(
     Ok(())
 }
 
+/// Which runtime-requirement roster a closure's machines answer to.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RuntimeRequirementOwner {
+    UnitClosure,
+    /// Nominal cleanup assembles the final caller and cleanup contracts
+    /// itself, after restoring their full scalar and structural namespaces.
+    NominalCleanup,
+}
+
+/// The one closure assembly request. `entry` is the exact machine the
+/// closure begins at; `unit_roots` are its explicit Unit roots (the entry
+/// first for an ordinary closure, empty for a scalar entry); `external` names
+/// the boundary, type, service and scalar roots a composed caller supplies;
+/// `scalar_entry` marks a scalar machine that borrows the same real callee
+/// catalog without a synthetic Unit caller.
+#[derive(Clone, Copy)]
+pub(crate) struct UnitClosureRequest<'a> {
+    pub(crate) entry: symbols::SymbolHandle,
+    pub(crate) unit_roots: &'a [symbols::SymbolHandle],
+    pub(crate) external: Option<shared_closure::ExternalUnitRoots<'a>>,
+    pub(crate) requirements_owner: RuntimeRequirementOwner,
+    pub(crate) scalar_entry: bool,
+}
+
+impl<'a> UnitClosureRequest<'a> {
+    /// An ordinary Unit closure rooted at `entry` alone.
+    pub(crate) fn unit(entry: symbols::SymbolHandle, roots: &'a [symbols::SymbolHandle]) -> Self {
+        Self {
+            entry,
+            unit_roots: roots,
+            external: None,
+            requirements_owner: RuntimeRequirementOwner::UnitClosure,
+            scalar_entry: false,
+        }
+    }
+}
+
+/// The dispatch-facing product of an ordinary Unit closure: the lowered
+/// program with its machine source map. `machine_lowering` selects this for
+/// attached and free Unit-effect machines.
 pub(crate) fn lower_unit_effect_closure(
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
-    let closure = lower_shared_unit_closure(checked, entry, &[entry], None)?;
+    let closure = lower_unit_closure(checked, &UnitClosureRequest::unit(entry, &[entry]))?;
     crate::producer_result::SourceMappedLowered::new(closure.lowered, closure.machine_ids)
 }
 
-/// Nominal cleanup assembles the final caller and cleanup contracts itself,
-/// after restoring their full scalar and structural namespaces.
-pub(crate) fn lower_nominal_cleanup_closure(
-    checked: &CheckedTrees,
-    entry: symbols::SymbolHandle,
-    additional_roots: &[symbols::SymbolHandle],
-) -> Result<LoweredPsi, LoweringError> {
-    let mut roots = vec![entry];
-    roots.extend_from_slice(additional_roots);
-    assemble_unit_closure(
-        checked,
-        entry,
-        &roots,
-        None,
-        RuntimeRequirementOwner::NominalCleanup,
-        false,
-    )
-    .map(|closure| closure.lowered)
-}
-
-pub(crate) fn lower_shared_unit_closure(
-    checked: &CheckedTrees,
-    entry: symbols::SymbolHandle,
-    unit_roots: &[symbols::SymbolHandle],
-    external: Option<shared_closure::ExternalUnitRoots<'_>>,
-) -> Result<shared_closure::SharedUnitClosure, LoweringError> {
-    assemble_unit_closure(
-        checked,
-        entry,
-        unit_roots,
-        external,
-        RuntimeRequirementOwner::UnitClosure,
-        false,
-    )
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum RuntimeRequirementOwner {
-    UnitClosure,
-    NominalCleanup,
-}
-
-/// A scalar entry uses the same real callee catalog without a synthetic Unit caller.
+/// The dispatch-facing product of a scalar entry that needs the shared
+/// callee catalog; operation proofs are finalized here because no Unit
+/// caller completes them later.
 pub(crate) fn lower_scalar_effect_closure(
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
-    let mut closure = assemble_unit_closure(
+    let mut closure = lower_unit_closure(
         checked,
-        entry,
-        &[],
-        None,
-        RuntimeRequirementOwner::UnitClosure,
-        true,
+        &UnitClosureRequest {
+            scalar_entry: true,
+            ..UnitClosureRequest::unit(entry, &[])
+        },
     )?;
     finalize_operation_proofs(&mut closure.lowered)?;
     crate::producer_result::SourceMappedLowered::new(closure.lowered, closure.machine_ids)
 }
 
-fn assemble_unit_closure(
+/// Assemble one attached Unit closure: discover the transitive call catalog,
+/// admit and validate every body, allocate the shared type/domain/service
+/// namespaces, then emit each machine into one module.
+pub(crate) fn lower_unit_closure(
     checked: &CheckedTrees,
-    entry: symbols::SymbolHandle,
-    unit_roots: &[symbols::SymbolHandle],
-    external: Option<shared_closure::ExternalUnitRoots<'_>>,
-    requirements_owner: RuntimeRequirementOwner,
-    scalar_entry: bool,
+    request: &UnitClosureRequest<'_>,
 ) -> Result<shared_closure::SharedUnitClosure, LoweringError> {
+    let UnitClosureRequest {
+        entry,
+        unit_roots,
+        external,
+        requirements_owner,
+        scalar_entry,
+    } = *request;
     let plans = &checked.facts.flow.terminal_unit_effects;
     let reserved_prefix = usize::from(external.is_some());
     let ordinary_entry = unit_roots.first().copied();

@@ -8,8 +8,8 @@ use super::super::super::{
 use super::super::{CheckedTrees, LoweringError};
 
 use crate::unit::attached_unit::bodies::UnitBody;
-use crate::unit::attached_unit::lower_shared_unit_closure;
 use crate::unit::attached_unit::shared_closure::ExternalUnitRoots;
+use crate::unit::attached_unit::{UnitClosureRequest, lower_unit_closure};
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::unit::attached_unit::composed_control) fn lower(
@@ -89,16 +89,17 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
         .map(|(boundary, _)| boundary.machine)
         .collect::<Vec<_>>();
     let scalar_roots = super::super::scalar_calls::selected_targets(checked, machine, states)?;
-    let shared = lower_shared_unit_closure(
+    let shared = lower_unit_closure(
         checked,
-        machine,
-        &unit_roots,
-        Some(ExternalUnitRoots {
-            boundary_roots: &boundary_roots,
-            structural_type_roots: &type_roots,
-            service_roots: &services,
-            scalar_roots: &scalar_roots,
-        }),
+        &UnitClosureRequest {
+            external: Some(ExternalUnitRoots {
+                boundary_roots: &boundary_roots,
+                structural_type_roots: &type_roots,
+                service_roots: &services,
+                scalar_roots: &scalar_roots,
+            }),
+            ..UnitClosureRequest::unit(machine, &unit_roots)
+        },
     )?;
     let lowered_boundaries = shared
         .boundary_parameters

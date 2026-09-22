@@ -6,6 +6,7 @@ use super::super::{
 use super::{LoweredPsi, ScalarType, SemanticDomainId, StructuralDomainId, StructuralTypeId};
 /// Additional roots already selected from the external caller's authored body.
 /// They join ordinary body discovery before any semantic identity is assigned.
+#[derive(Clone, Copy)]
 pub(crate) struct ExternalUnitRoots<'a> {
     pub(crate) boundary_roots: &'a [symbols::SymbolHandle],
     pub(crate) structural_type_roots: &'a [String],

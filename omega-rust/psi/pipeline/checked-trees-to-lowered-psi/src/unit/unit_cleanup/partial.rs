@@ -2,13 +2,14 @@
 use super::super::{
     CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralPathSegment,
     CheckedUnitStructuralTypePlan, StructuralAffineDiscard, lower_structural_path,
-    lower_unit_effect_closure,
 };
 use super::{
     CheckedPartialAffineUnitCleanupMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralFieldType, LoweringError, Multiplicity, PrimitiveType, Terminator,
     lookup_type_id, unique_unit_machine, unsupported,
 };
+use crate::producer_result::SourceMappedLowered;
+use crate::unit::attached_unit::{UnitClosureRequest, lower_unit_closure};
 use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
 
 mod anonymous;
@@ -249,7 +250,11 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
         }
     }
     staged_unit.machines.push(plan.clone());
-    let mut source_mapped = lower_unit_effect_closure(&staged, plan.machine)?;
+    let closure = lower_unit_closure(
+        &staged,
+        &UnitClosureRequest::unit(plan.machine, &[plan.machine]),
+    )?;
+    let mut source_mapped = SourceMappedLowered::new(closure.lowered, closure.machine_ids)?;
     let lowered = &mut source_mapped.terminal;
     let entry = lowered
         .semantic_module
