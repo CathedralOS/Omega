@@ -4,7 +4,10 @@ mod codec;
 mod model;
 mod rendering;
 
-pub use model::*;
+pub use model::{
+    OptimizationManifestStage, OptimizationStructuralStatistics, PhysicalOptimizationDataStatus,
+    PrePhysicalOptimizationManifest, PrePhysicalOptimizationManifestDecodeError,
+};
 
 use crate::{
     ProvenanceDisposition, ProvenanceRewrite, PsiProvenance, PsiRealizationSite,
