@@ -3,7 +3,9 @@
 use crate::preparation::generic_data::checked_fact_integer;
 use crate::preparation::generic_data::const_integer_in_envelope;
 
-use super::super::{BinaryOperator, Diagnostic, ExpressionHandle, SyntaxTrees};
+use super::super::{
+    BinaryOperator, CanonicalConstValue, Diagnostic, ExpressionHandle, SyntaxTrees,
+};
 use super::anonymous::AnonymousNumericValue;
 use super::arguments::{ConstIntegerType, evaluate_declared_width_operation};
 use std::cmp::Ordering;
@@ -68,6 +70,35 @@ impl ConstScalarValue {
 impl From<i128> for ConstScalarValue {
     fn from(value: i128) -> Self {
         Self::Integer(value)
+    }
+}
+
+/// A bare generic-argument name that spells a const scalar value rather than
+/// naming a declaration: an already-canonical const atom, an integer literal,
+/// or a boolean literal. Recognition stops at the spelling. The canonical atom
+/// is handed back undecoded because each site keeps its own required-type
+/// check and decoding rule (a non-scalar or out-of-range atom must still be
+/// reported against the parameter type, not silently dropped).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ConstScalarSpelling {
+    Canonical(CanonicalConstValue),
+    Integer(i128),
+    Boolean(bool),
+}
+
+impl ConstScalarSpelling {
+    pub(crate) fn from_bare_name(name: &str) -> Option<Self> {
+        if let Some(value) = CanonicalConstValue::from_atom(name) {
+            return Some(Self::Canonical(value));
+        }
+        if let Ok(value) = name.parse::<i128>() {
+            return Some(Self::Integer(value));
+        }
+        match name {
+            "true" => Some(Self::Boolean(true)),
+            "false" => Some(Self::Boolean(false)),
+            _ => None,
+        }
     }
 }
 
@@ -305,9 +336,37 @@ fn evaluate_declared_integer_fact(
 #[cfg(test)]
 mod tests {
     use super::{
-        BinaryOperator, ConstFactValue, ConstIntegerType, ExpressionHandle, SyntaxTrees,
-        evaluate_const_fact_binary,
+        BinaryOperator, CanonicalConstValue, ConstFactValue, ConstIntegerType, ConstScalarSpelling,
+        ExpressionHandle, SyntaxTrees, evaluate_const_fact_binary,
     };
+
+    #[test]
+    fn bare_names_spell_boolean_integer_and_canonical_scalars() {
+        assert_eq!(
+            ConstScalarSpelling::from_bare_name("true"),
+            Some(ConstScalarSpelling::Boolean(true))
+        );
+        assert_eq!(
+            ConstScalarSpelling::from_bare_name("false"),
+            Some(ConstScalarSpelling::Boolean(false))
+        );
+        assert_eq!(
+            ConstScalarSpelling::from_bare_name("-3"),
+            Some(ConstScalarSpelling::Integer(-3))
+        );
+        let atom = CanonicalConstValue::boolean(true);
+        assert_eq!(
+            ConstScalarSpelling::from_bare_name(&atom.atom()),
+            Some(ConstScalarSpelling::Canonical(atom))
+        );
+        for declaration_name in ["True", "3x", "", "self", "COUNT"] {
+            assert_eq!(
+                ConstScalarSpelling::from_bare_name(declaration_name),
+                None,
+                "`{declaration_name}` names a declaration, not a scalar"
+            );
+        }
+    }
 
     fn declared(value: i128, carrier: &str) -> ConstFactValue {
         ConstFactValue::DeclaredInteger {

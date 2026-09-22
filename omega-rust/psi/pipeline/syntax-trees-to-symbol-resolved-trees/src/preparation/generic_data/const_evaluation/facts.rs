@@ -15,7 +15,7 @@ use syntax_trees::expression::UnaryOperator;
 use crate::preparation::generic_data::const_evaluation::validate_anonymous_remainder;
 use crate::preparation::generic_data::evaluate_const_fact_binary;
 use crate::preparation::generic_data::integer_literal_value;
-use crate::preparation::generic_data::{ConstFactValue, ConstScalarValue};
+use crate::preparation::generic_data::{ConstFactValue, ConstScalarSpelling, ConstScalarValue};
 
 use super::anonymous::{evaluate_anonymous_numeric_expression, has_builtin_const_operator};
 use super::arguments::ConstIntegerType;
@@ -948,22 +948,27 @@ fn evaluate_domain_index_argument(
     }
     match syntax.type_references.type_reference(argument) {
         TypeReferenceNode::Named(name) => {
-            if let Some(atom) = CanonicalConstValue::from_atom(name.as_str()) {
-                let required =
-                    crate::preparation::generic_data::syntax_type_identity(syntax, parameter_type)?;
-                if atom.type_name != required {
-                    return Err(format!(
-                        "index argument for `{family_name}::{parameter_name}` has canonical type `{}`, expected `{required}`",
-                        atom.type_name,
-                    ));
+            match ConstScalarSpelling::from_bare_name(name.as_str()) {
+                Some(ConstScalarSpelling::Canonical(atom)) => {
+                    let required = crate::preparation::generic_data::syntax_type_identity(
+                        syntax,
+                        parameter_type,
+                    )?;
+                    if atom.type_name != required {
+                        return Err(format!(
+                            "index argument for `{family_name}::{parameter_name}` has canonical type `{}`, expected `{required}`",
+                            atom.type_name,
+                        ));
+                    }
+                    return Ok(ConstScalarValue::from_canonical(&atom));
                 }
-                return Ok(ConstScalarValue::from_canonical(&atom));
-            }
-            if let Ok(value) = name.as_str().parse::<i128>() {
-                return Ok(Some(ConstScalarValue::Integer(value)));
-            }
-            if matches!(name.as_str(), "true" | "false") {
-                return Ok(Some(ConstScalarValue::Boolean(name.as_str() == "true")));
+                Some(ConstScalarSpelling::Integer(value)) => {
+                    return Ok(Some(ConstScalarValue::Integer(value)));
+                }
+                Some(ConstScalarSpelling::Boolean(value)) => {
+                    return Ok(Some(ConstScalarValue::Boolean(value)));
+                }
+                None => {}
             }
             if let Some(value) = argument_values.get(name.as_str()) {
                 // Forwarding binds a declared value, not an anonymous integer.

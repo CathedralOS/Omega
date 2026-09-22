@@ -1549,13 +1549,7 @@ pub(crate) fn report_nested_call_in_bound_value_call(
 /// own names -- this scan runs before checking selects either one, so the
 /// spelling is all it has, and it must not carry a second copy of the lists.
 fn call_spelling_is_composing_builtin(target: &str) -> bool {
-    [
-        BuiltinFunction::Min,
-        BuiltinFunction::Max,
-        BuiltinFunction::Sqrt,
-    ]
-    .into_iter()
-    .any(|builtin| builtin.name() == target)
+    BuiltinFunction::from_name(target).is_some_and(BuiltinFunction::is_scalar_computation)
         || CollectionViewOperation::from_authored_spelling(target).is_some()
 }
 

@@ -441,6 +441,26 @@ impl BuiltinFunction {
         Self::ALL.get(ordinal).copied()
     }
 
+    /// The builtin function spelled `name`, or `None` when no compiler-installed
+    /// function carries that name. Stages that only hold a call's target
+    /// spelling ask here instead of keeping their own copy of the names.
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|builtin| builtin.name() == name)
+    }
+
+    /// Whether this builtin is one of the composing scalar computations
+    /// (`min`/`max`/`sqrt`; `abs` and `clamp` desugar to them). A targetless
+    /// call to one of these is not a machine call: it has no declared return
+    /// (its result type is inferred from its first operand), no dispatch
+    /// return route, and it composes inside operands and call arguments. The
+    /// lowering stages therefore leave such calls in expression position
+    /// rather than hoisting them into call-result locals, the checkers exempt
+    /// them from the unresolved-machine-call and nested-argument-call fences,
+    /// and the interpreter evaluates them directly.
+    pub const fn is_scalar_computation(self) -> bool {
+        matches!(self, Self::Min | Self::Max | Self::Sqrt)
+    }
+
     pub fn name(self) -> &'static str {
         match self {
             Self::Max => "max",
@@ -1469,6 +1489,37 @@ mod builtin_ordinal_tests {
             );
         }
         assert_eq!(BuiltinFunction::from_ordinal(BuiltinFunction::COUNT), None);
+    }
+
+    #[test]
+    fn builtin_function_names_round_trip_through_from_name() {
+        for function in BuiltinFunction::ALL {
+            assert_eq!(
+                BuiltinFunction::from_name(function.name()),
+                Some(function),
+                "{:?} must be recoverable from its own spelling",
+                function,
+            );
+        }
+        assert_eq!(BuiltinFunction::from_name(""), None);
+        assert_eq!(BuiltinFunction::from_name("Min"), None);
+        assert_eq!(BuiltinFunction::from_name("abs"), None);
+    }
+
+    #[test]
+    fn scalar_computation_builtins_are_exactly_min_max_sqrt() {
+        let scalar: Vec<BuiltinFunction> = BuiltinFunction::ALL
+            .into_iter()
+            .filter(|function| function.is_scalar_computation())
+            .collect();
+        assert_eq!(
+            scalar,
+            [
+                BuiltinFunction::Max,
+                BuiltinFunction::Min,
+                BuiltinFunction::Sqrt
+            ]
+        );
     }
 
     #[test]

@@ -6,6 +6,7 @@
 //! Expression, conformance-reference, and constant-initializer selections
 //! finalize here once their declarations have symbols.
 
+use crate::preparation::generic_data::ConstScalarSpelling;
 use crate::resolution::lowerer::{PendingAuthoredExpression, PendingAuthoredProofMembership};
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
@@ -1222,7 +1223,10 @@ fn has_authored_static_declaration(
         && argument.application.is_none()
         && argument.evidence_projection.is_none()
         && let [name] = argument.path.as_ref()
-        && matches!(name.as_str(), "true" | "false")
+        && matches!(
+            ConstScalarSpelling::from_bare_name(name.as_str()),
+            Some(ConstScalarSpelling::Boolean(_))
+        )
     {
         return false;
     }

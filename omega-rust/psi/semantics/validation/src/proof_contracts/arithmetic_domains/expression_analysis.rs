@@ -58,6 +58,7 @@ use crate::proof_contracts::arithmetic_domains::operand_reports::arithmetic_oper
 use crate::proof_contracts::arithmetic_domains::return_ranges::{
     infer_return_interval, overflow_operand_value_call_target, resolve_unique_self_call_state,
 };
+use symbols::BuiltinFunction;
 
 fn fixed_array_length(
     program: &TypedTrees,
@@ -1331,8 +1332,12 @@ pub(super) fn analyze(
             // otherwise overflow-checked today, so this stays strictly permissive:
             // it can only tighten a previously-unbounded call result, never add a
             // rejection).
+            let bounding_builtin = BuiltinFunction::from_name(call.target.as_str());
             if !call.receiver.is_valid()
-                && matches!(call.target.as_str(), "min" | "max")
+                && matches!(
+                    bounding_builtin,
+                    Some(BuiltinFunction::Min | BuiltinFunction::Max)
+                )
                 && let [left_arg, right_arg] =
                     program.expression_table.expression_handles(call.arguments)
             {
@@ -1360,7 +1365,7 @@ pub(super) fn analyze(
                     &mut throwaway,
                 );
                 if throwaway.is_empty() {
-                    let interval = if call.target.as_str() == "max" {
+                    let interval = if bounding_builtin == Some(BuiltinFunction::Max) {
                         left.interval.max_with(right.interval)
                     } else {
                         left.interval.min_with(right.interval)

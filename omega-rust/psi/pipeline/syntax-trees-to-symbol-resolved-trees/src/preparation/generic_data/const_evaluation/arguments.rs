@@ -5,6 +5,7 @@ use super::super::{
     TypeReferenceHandle, TypeReferenceNode,
 };
 
+use crate::preparation::generic_data::ConstScalarSpelling;
 use crate::preparation::generic_data::GenericData;
 use crate::preparation::generic_data::Instantiation;
 use crate::preparation::generic_data::PendingRewrite;
@@ -105,26 +106,29 @@ pub(in crate::preparation::generic_data) fn consider_generic_spelling(
             .clone()
         {
             TypeReferenceNode::Named(name) => {
-                if CanonicalConstValue::from_atom(name.as_str()).is_some() {
-                    continue;
-                }
-                if name.as_str().parse::<i128>().is_ok() {
-                    continue;
-                }
-                if matches!(
-                    syntax
-                        .tables
-                        .type_references
-                        .type_reference(parameter_type),
-                    TypeReferenceNode::Named(type_name) if type_name.as_str() == "bool"
-                ) && matches!(name.as_str(), "true" | "false")
-                {
-                    let value = CanonicalConstValue::boolean(name.as_str() == "true");
-                    syntax.tables.type_references.replace_type_reference(
-                        *argument,
-                        TypeReferenceNode::Named(Identifier::generated(value.atom())),
-                    );
-                    continue;
+                match ConstScalarSpelling::from_bare_name(name.as_str()) {
+                    Some(ConstScalarSpelling::Canonical(_) | ConstScalarSpelling::Integer(_)) => {
+                        continue;
+                    }
+                    Some(ConstScalarSpelling::Boolean(value))
+                        if matches!(
+                            syntax
+                                .tables
+                                .type_references
+                                .type_reference(parameter_type),
+                            TypeReferenceNode::Named(type_name) if type_name.as_str() == "bool"
+                        ) =>
+                    {
+                        let value = CanonicalConstValue::boolean(value);
+                        syntax.tables.type_references.replace_type_reference(
+                            *argument,
+                            TypeReferenceNode::Named(Identifier::generated(value.atom())),
+                        );
+                        continue;
+                    }
+                    // A boolean literal against a non-bool parameter is not a
+                    // value here; it falls through to selection like any name.
+                    Some(ConstScalarSpelling::Boolean(_)) | None => {}
                 }
                 if let Some(selection) = selection {
                     // These positions belong only to concrete owners; open
@@ -416,11 +420,12 @@ pub(in crate::preparation::generic_data) fn const_arguments_fit_declarations(
             else {
                 return false;
             };
-            if let Some(value) = CanonicalConstValue::from_atom(value.as_str()) {
-                return value.type_name == type_name.as_str();
-            }
-            let Ok(value) = value.as_str().parse::<i128>() else {
-                return false;
+            let value = match ConstScalarSpelling::from_bare_name(value.as_str()) {
+                Some(ConstScalarSpelling::Canonical(value)) => {
+                    return value.type_name == type_name.as_str();
+                }
+                Some(ConstScalarSpelling::Integer(value)) => value,
+                Some(ConstScalarSpelling::Boolean(_)) | None => return false,
             };
             let (minimum, maximum) = match type_name.as_str() {
                 "i8" => (i128::from(i8::MIN), i128::from(i8::MAX)),

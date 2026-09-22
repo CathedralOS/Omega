@@ -14,7 +14,7 @@ use symbol_resolved_trees::expression::{
 use symbol_resolved_trees::name::DiagnosticName;
 use symbol_resolved_trees::statement::{LocalData, LocalDataStorage, Statement};
 use symbol_resolved_trees::types::TypeReference;
-use symbols::SymbolHandle;
+use symbols::{BuiltinFunction, SymbolHandle};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OperandHoisting {
@@ -229,7 +229,21 @@ fn is_hoistable_value_cast_call(lowerer: &Lowerer, expression: ExpressionHandle)
     };
     !call.receiver.is_valid()
         && !is_integer_embedding_call(lowerer, call)
-        && !matches!(call.target.as_str(), "min" | "max" | "sqrt")
+        && !is_scalar_computation_builtin_call(call)
+}
+
+/// Whether a call spells one of the composing scalar builtins
+/// (`BuiltinFunction::is_scalar_computation`: `min`/`max`/`sqrt`). Calls are
+/// still unresolved at these normalization sites, so the target spelling is
+/// asked of the builtin vocabulary rather than re-listed here. Such a call
+/// keeps its expression lowering: its synthetic result type is inferred from
+/// an operand, not a declared machine return, so no call-result local can
+/// carry it.
+pub(crate) fn is_scalar_computation_builtin_call(
+    call: &symbol_resolved_trees::expression::TableCallExpression,
+) -> bool {
+    BuiltinFunction::from_name(call.target.as_str())
+        .is_some_and(BuiltinFunction::is_scalar_computation)
 }
 
 /// A compiler proof term has no runtime call-result slot to materialize.
@@ -575,7 +589,7 @@ pub(super) fn is_hoistable_builtin_guard_call(
     if call.receiver.is_valid() {
         return false; // a method call, not a free builtin
     }
-    if !matches!(call.target.as_str(), "min" | "max" | "sqrt") {
+    if !is_scalar_computation_builtin_call(call) {
         return false;
     }
     let arguments = expressions.expression_handles(call.arguments);

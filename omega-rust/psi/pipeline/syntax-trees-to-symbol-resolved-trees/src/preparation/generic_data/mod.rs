@@ -120,9 +120,7 @@ fn collect_closed_const_arguments(
                             .type_references
                             .const_argument_normalization(*argument)
                             .is_none()
-                            && CanonicalConstValue::from_atom(name.as_str()).is_none()
-                            && name.as_str().parse::<i128>().is_err()
-                            && !matches!(name.as_str(), "true" | "false")
+                            && ConstScalarSpelling::from_bare_name(name.as_str()).is_none()
                     }
                     _ => false,
                 }
