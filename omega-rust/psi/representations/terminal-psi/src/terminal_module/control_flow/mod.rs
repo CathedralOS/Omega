@@ -7,9 +7,15 @@ mod record_field;
 mod scalar_case_field;
 mod termination;
 
-pub use machines::*;
-pub use operations::*;
-pub use ranking::*;
-pub use record_field::*;
-pub use scalar_case_field::*;
-pub use termination::*;
+pub use machines::{Block, TerminalMachine};
+pub use operations::{
+    Operation, OperationKind, OperationResult, StructuralOperationResult,
+    StructuralResultClaimBinding,
+};
+pub use ranking::{
+    TerminalBlockNaturalRank, TerminalNaturalCycle, TerminalNaturalRankComparison,
+    TerminalNaturalRankEdge, TerminalRankedScc,
+};
+pub use record_field::{RecordFieldInitializer, RecordFieldValue};
+pub use scalar_case_field::ScalarCaseField;
+pub use termination::{CrashCause, StructuralCaseSuccessorEdge, SuccessorEdge, Terminator};

@@ -15,14 +15,93 @@ pub mod proof;
 pub mod types;
 pub mod values;
 
-pub use boundary::*;
-pub use control_flow::*;
-pub use identity::*;
-pub use observation::*;
-pub use ownership::*;
-pub use proof::*;
-pub use types::*;
-pub use values::*;
+pub use boundary::{
+    BoundaryContentGuarantee, BoundaryMachineDeclaration, BoundaryMachineResult,
+    BoundaryParameterKind, BoundaryStructuralResultDeclaration, ClosedConformanceApplication,
+    ClosedConformanceApplicationCommitment, ClosedConformanceCallableResult,
+    ClosedConformanceParameterBinding, ClosedConformanceParameterKind,
+    ClosedConformanceRealizationCallable, ClosedConformanceRow, ClosedReachApplication,
+    ClosedReachArgument, ClosedReachCall, ClosedReachCallApplication, ClosedReachMachineBinding,
+    ClosedReachParameter, ClosedReachSchema, ContentConservationGuarantee,
+    InstallationReachDependency, ProgramLocalRootIntroductionSchema, ProviderCandidateConformance,
+    ProviderParameterRefinement, ProviderRefinement, ProviderSignature, ProviderSignatureParameter,
+    ServiceDeclaration, StructuralDomainRequirement, TerminalDirectDynamicDispatch,
+    TerminalDynamicConformanceSelection, TerminalDynamicDescriptorArgument,
+    TerminalDynamicDescriptorParameter, TerminalDynamicDescriptorSource,
+    TerminalDynamicDispatchCatalog, TerminalDynamicRequirement, TerminalIndirectDynamicDispatch,
+    TerminalParameterDynamicDispatch, TerminalReboundDynamicDescriptor, TerminalRootServiceReach,
+    TerminalStoredDynamicDescriptor, TerminalStoredDynamicDispatch,
+    closed_conformance_application_commitment, closed_conformance_application_report_fingerprint,
+    program_local_root_introduction_compatibility_report_identity,
+};
+pub use control_flow::{
+    Block, CrashCause, Operation, OperationKind, OperationResult, RecordFieldInitializer,
+    RecordFieldValue, ScalarCaseField, StructuralCaseSuccessorEdge, StructuralOperationResult,
+    StructuralResultClaimBinding, SuccessorEdge, TerminalBlockNaturalRank, TerminalMachine,
+    TerminalNaturalCycle, TerminalNaturalRankComparison, TerminalNaturalRankEdge,
+    TerminalRankedScc, Terminator,
+};
+pub use identity::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+pub use observation::{
+    TerminalObservationSchema, TerminalTraceBoundaryCrashSiteRow, TerminalTraceCrashSiteRow,
+    TerminalTraceOrdinaryEventKind, TerminalTraceOrdinaryEventRow, TerminalTraceResultKind,
+    TerminalTraceResultSchema, TerminalTraceResultValue, TerminalTraceRootRow,
+    TerminalTraceScalarSchema, TerminalTraceScalarValue, TerminalTraceStructuralSchema,
+    TerminalTraceStructuralValue, TerminalTraceV1ConstructionError, TerminalTraceV1Event,
+    TerminalTraceV1Outcome, TerminalTraceV1Profile, TerminalTraceV1Rows,
+    TerminalTraceV1RuntimeTrace, TerminalTraceV1TraceBuilder, TerminalTraceValueComparison,
+};
+pub use ownership::{
+    ClaimTransfer, CompletionReceipt, EntryClaim, NominalAffineCleanup,
+    RetainedBorrowContentProjection, RetainedBorrowCustody, RetainedBorrowPlace,
+    RetainedBorrowPlaceRoot, StructuralAccess, StructuralAffineDiscard, StructuralMultiplicity,
+    StructuralResultClaimTransfer, TerminalAffineCleanupAction, TerminalBorrowBoundarySource,
+    TerminalBorrowOwnerSegment, TerminalBorrowPlace, TerminalBorrowPlaceSegment,
+    TerminalPlacedViewInput, TerminalReborrowRestorationClass, TerminalReborrowRestoredCallUse,
+    TerminalReborrowRootHandoff, TerminalReborrowRootHandoffStep,
+    TerminalReborrowSharedCohortMember, TerminalSuspensionCallPlan, TerminalSuspensionCallSite,
+    TerminalSuspensionCallTarget, TerminalSuspensionLiveValue, TerminalSuspensionPlace,
+    TerminalSuspensionStorage, TerminalSuspensionValueType, canonical_placed_view_identity,
+    suspension_frontier_commitment,
+};
+pub use proof::{
+    ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
+    ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, CrashPredicateTerm,
+    CrashRouteBucket, CrashRouteGuard, DirectBlockFloatParameter, DirectCallFloatResult,
+    DirectMachineFloatParameter, DirectMachineFloatResult, DirectOperationFloatResult,
+    DirectStructuralFloatLeaf, EvidenceContractLane, EvidenceContractLaneKind,
+    EvidenceInterfaceIdentity, EvidenceProjectionIdentity, EvidenceRequirementIdentity,
+    EvidenceTermDeclaration, FloatMeaningEqualityProposition, FloatMeaningProjection,
+    FloatMeaningProjectionOperation, FloatMeaningSource, FloatProjectionContractIdentity,
+    FloatProjectionInput, FloatProjectionInputId, FloatSemanticApplication,
+    FloatSemanticApplicationOperand, FloatSemanticContractIdentity, MachineContract,
+    OutcomeSpecificCallEvidence, OutcomeSpecificCallEvidenceValidity,
+    OutcomeSpecificCallResultSubstitution, OutcomeSpecificEnsure, OutcomeSpecificEvidence,
+    OutcomeSpecificEvidenceUse, OutcomeSpecificGuard, ProofOnlyValueType, ProofOutput,
+    ProofOutputCall, ProofOutputEvidenceArgument, ProofOutputRuntimeCall, ProofOutputRuntimeResult,
+    ProofPropositionId, ProofValueDeclaration, ProofValueId, PropositionApplicationIdentity,
+    PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
+    PropositionBinderKind, PropositionDeclaration, PropositionEvidence,
+    QuotientCorrespondenceIdentity, RetainedQuotientCorrespondence, ScalarBlockInvariant,
+    ScalarBlockInvariantArrival, StaticRequirementDispatch, TerminalOperationCrashContract,
+    TerminalProofRankingRelation, TerminalProofRecursiveCallSite, TerminalProofRecursiveComponent,
+    TerminalProofRecursiveEdge, TerminalProofRecursiveField, TerminalProofRecursiveMember,
+    TerminalProofRecursiveTransitionLane, TerminalProofRecursiveType,
+    float_meaning_equality_proposition_id, retain_non_executable_quotient_correspondence,
+};
+pub use types::{
+    ByteSequenceCarrier, ResultQualificationEstablishment, ScalarDomainDeclaration,
+    ScalarDomainEstablishmentRoute, ScalarFloatRange, ScalarIntegerRange,
+    ScalarQualificationCatalog, ScalarQualificationCoercion, ScalarQualificationSet,
+    StructuralCaseDeclaration, StructuralContentProjection, StructuralDomainDeclaration,
+    StructuralEstablishmentRoute, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralPathQualification, StructuralTypeDeclaration, StructuralTypeShape,
+};
+pub use values::{
+    ErasedProofFormal, StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralReferenceResultSource, StructuralResultDeclaration,
+    TerminalMachineResult, ValueDeclaration, is_bounded_structural_scalar_store_path,
+};
 
 use semantic_vocabulary::MachineId;
 

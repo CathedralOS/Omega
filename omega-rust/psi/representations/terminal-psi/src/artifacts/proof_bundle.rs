@@ -4,14 +4,19 @@ mod admission;
 mod nodes;
 mod recursion;
 mod witnesses;
-pub use admission::*;
-pub use nodes::*;
-pub use recursion::*;
+pub use admission::{
+    AdmissionEvidence, AdmissionKind, CertificateEnvelope, EvidenceRoute, ProofSystemMarker,
+};
+pub use nodes::{PrimitiveJudgment, ProofNode, ProofRule};
+pub use recursion::{RecursiveComponentCertificate, RecursiveEdgeCertificate};
 use semantic_vocabulary::Proposition;
 use semantic_vocabulary::{
     CycleComponentId, EvidenceIdentity, EvidenceTermId, ObligationId, RecursiveComponentId,
 };
-pub use witnesses::*;
+pub use witnesses::{
+    CorrelatedAffineBranchWitness, CorrelatedAffineStepWitness, IntegerAffineWitness,
+    IntegerCastChainWitness, IntegerCorrelatedForbiddenRootWitness,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObligationEvidence {

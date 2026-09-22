@@ -108,7 +108,6 @@ const GLOB_REEXPORT_CEILINGS: &[(&str, usize)] = &[
     ("omega-rust/psi/representations/lowered-psi", 2),
     ("omega-rust/psi/representations/optimization", 1),
     ("omega-rust/psi/representations/symbol-resolved-trees", 1),
-    ("omega-rust/psi/representations/terminal-psi", 52),
     ("omega-rust/psi/semantics/terminal-verifier", 8),
 ];
 
