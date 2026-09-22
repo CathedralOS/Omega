@@ -63,7 +63,7 @@ fn selected_form_encoding_data_outlives_its_producer() {
     }
     assert!(!data.contains("post_allocation_machine_to_post_allocation_machine::"));
     assert!(!data.contains("pub struct StagedOptimizedSelectedFormEncoding {"));
-    let admission = std::fs::read_to_string(stage.join("selected_form_encoding/model.rs")).unwrap();
+    let admission = std::fs::read_to_string(stage.join("selected_form_encoding.rs")).unwrap();
     assert!(admission.contains("Arc<SelectedFormEncoding>"));
     assert!(admission.contains("pub fn shared_program("));
     assert!(!admission.contains("pub fn from_program("));
