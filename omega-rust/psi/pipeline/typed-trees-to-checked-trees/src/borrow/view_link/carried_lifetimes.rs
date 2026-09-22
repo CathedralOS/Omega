@@ -103,6 +103,61 @@ pub(crate) fn substituted_result_is_view_free(
     ) && output.is_empty()
 }
 
+/// Exact call substitutions may instead close a formerly dependent result
+/// frontier completely. A closed view-bearing frontier is not view-free:
+/// every instantiated leaf still borrows an exact caller input, which is the
+/// caller-side loan relation `resolve_substituted_view_return_source`
+/// carries. An unresolved structure is never a complete frontier.
+pub(crate) fn substituted_result_frontier_is_complete(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    if substitutions.iter().any(|(_, reference)| {
+        reference.is_valid()
+            && !program
+                .type_reference_table
+                .contains_type_reference(*reference)
+    }) {
+        return false;
+    }
+    collect_type(
+        program,
+        reference,
+        &[],
+        substitutions,
+        &[],
+        &mut Vec::new(),
+        &mut Vec::new(),
+        false,
+        &mut TemplateFrontier::default(),
+    )
+}
+
+/// The instantiated structural frontier of one substituted type: the same
+/// leaf walk as [`carried_lifetimes`], with each declaration type parameter
+/// resolved through the call's own closed bindings. `None` means the
+/// instantiated frontier cannot be enumerated completely.
+pub(super) fn substituted_carried_lifetimes(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> Option<Vec<CarriedLifetime>> {
+    let mut output = Vec::new();
+    collect_type(
+        program,
+        reference,
+        &[],
+        substitutions,
+        &[],
+        &mut Vec::new(),
+        &mut output,
+        false,
+        &mut TemplateFrontier::default(),
+    )
+    .then_some(output)
+}
+
 /// A nongeneric recursive result can retain one whole input loan under ordinary
 /// elision. Repeated declarations need no repeated path expansion here, because
 /// no projected frontier is published. Explicit lifetimes or substitutions
