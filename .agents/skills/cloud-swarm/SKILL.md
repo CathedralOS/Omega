@@ -32,6 +32,92 @@ Never sit still. The wave fails when the coordinator waits on one thing:
   read code, apply edits, launch checks. Always have the next micro-step
   identified so no turn ends in "waiting".
 
+## Small-pool chain mode (the ≤ ~8-slot loop)
+
+When the org cap leaves only a handful of slots (~7 total, coordinator
+included), drop the mass-wave machinery below: no mine/fuzz/garden churn, no
+Overlord tier, no batch merges. Each worker owns ONE endgame chain end-to-end
+on a persistent lane; the coordinator works the last slot as a worker itself.
+Chain-ownership amortizes clone+orientation+build warmth across the whole
+endgame — the leaf-handoff churn machinery only pays at hundreds of workers.
+
+**Dispatch contract.** Every worker message carries, in order:
+
+1. `# NEW ASSIGNMENT — your previous task is complete` when recycling a
+   settled worker (or the `You are zergling z<N> of the <wave> cloud swarm`
+   role line on first dispatch).
+2. The named leaf: title, the board's acceptance text verbatim, the
+   witness/repro lane or file, and the gates
+   (`cargo check -p <touched-crates> --all-targets` +
+   `cargo nextest run -p <touched-crates>`; `mbx` if present).
+3. The lane: `git push -f origin HEAD:leaf/<kebab-item>` — one lane per chain
+   link. Workers NEVER merge, NEVER touch board files, NEVER run landing.py.
+4. "Reuse your existing clone/worktree when present" — suspended workers
+   resume on the same VM; a re-clone plus cold build is measured leg-time tax.
+5. Final message = bare JSON verdict, nothing fenced:
+   `{"verdict":"lane_pushed|blocked|landed","lane":"leaf/<item>",
+   "commits":[<sha>...],"gate":"<commands + counts>","witness":"<evidence>",
+   "notes":"<smallest next same-domain residual>","remaining_legs":[...]}`.
+
+And ALWAYS pass `notify_on_response=true` on every
+`devin_session_interact message` dispatch — it is one-shot (consumed on that
+settle), so re-arm it on every subsequent leg. Session auto-sleep ~30min is
+what silently starves the pool when dispatches lack the alarm.
+
+**Drain = verdict + merge + redispatch, one pass.** On every settle:
+`get_messages` tail → record the outcome → if `lane_pushed`, run the merge
+cycle below immediately → message the next leaf with the notify re-armed.
+One settle = one full drain; never batch deferred merges.
+
+**Coordinator merge cycle (per landed lane).**
+
+1. `git fetch origin`; `git checkout -B merge-check origin/main` in the
+   dedicated merge worktree (never the coordinator's leaf worktree).
+2. `git merge --no-ff <lane-tip>`. Clerical conflicts — the import-naming /
+   module-move churn (globbing→named imports, `X` → `types::X`,
+   `terminal_unit::Y` → `calls::Y`) — resolve by keeping BOTH intents:
+   union the signatures and import lists, never drop a side. Substantive
+   conflicts follow the conflict rules (escalate ambiguous intent).
+3. Scoped gate: `cargo check -p <touched crates>` +
+   `cargo nextest run -p <touched> --lib`, plus `python tools/fmt.py`.
+4. `git push origin HEAD:main`. A rejection means main moved under you —
+   re-fetch, re-checkout the fresh tip, re-merge; never rebase the merge
+   checkout and never carry a wedged tree forward.
+5. Append the ledger row (ISO-UTC, lane, sha, verdict summary, gate counts)
+   to `.swarm/merge-ledger.tsv` or the wave outcomes file.
+6. Prune the remote ref only after the push lands.
+
+**Never park on a `blocked` verdict.** The LANE stays pushed for later
+resume; the WORKER immediately takes the next unblocked leaf. Parking the
+worker on a chain dep was the largest measured loss (~10 worker-hours on a
+6-pool — a `blocked` verdict idled a slot ~6h).
+
+**Slice-first on fat legs.** A leg that turns out chunk-sized lands its
+first verifiable slice and names residuals in the verdict, rather than
+holding the lane for hours. Right-sized legs ran ~7-45min; the 2-5h+ fat
+tails clustered where "leaf" acceptance hid a mini-endgame or a toolchain
+prerequisite that did not exist on main yet — pre-flight every dispatch:
+verify the acceptance's dependencies are already merged before spending a
+leg that can only end `blocked`.
+
+**Coordinator slot.** The coordinator claims and works a leaf like any
+worker (`claims.py claim` → edits → scoped gates → own `leaf/<item>` lane →
+merge through the same cycle). Between drains every turn has a named
+micro-step; long gates run in background shells polled between cycles —
+a blocked coordinator silently leaves settled workers occupying cap slots.
+
+**Toolchain refresh is coordinator-owned.** When workers verify against a
+pinned packaged binary (e.g. Squalr's `swarm-binaries` omega build), the
+coordinator rebuilds and re-pins it in a dedicated worktree after merges
+that touch the toolchain path — never per-leg "build your own binary"
+instructions, which burn leg time and split evidence across mismatched
+binaries.
+
+**Residual treadmill.** Prefer re-dispatching the settled worker onto the
+smallest same-domain residual its own verdict names; warm clone + warm
+build + warm context produced the fastest sustained rate observed (10+
+lands/session vs cold-domain starts).
+
 ## The resume loophole (scaling past the cap)
 
 `devin_session_create` is capped (~7 concurrent SWE-2 sessions org-wide on the
