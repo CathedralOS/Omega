@@ -1,6 +1,6 @@
 use super::{
-    CALLBACK_MATERIALIZATION_POLICY, callback_fixture_source, compile_std_negative,
-    repository_root, write_callback_package, write_program,
+    CALLBACK_MATERIALIZATION_POLICY, bundled_standard_library_root, callback_fixture_source,
+    compile_std_negative, write_callback_package, write_program,
 };
 use compiler::{CheckedCompileRequest, compile_to_checked};
 use package_compilation::{
@@ -33,7 +33,7 @@ satisfies CallingPolicy::plan
         .expect("policy directory")
         .to_path_buf();
     fs::copy(
-        repository_root().join("source/library/std/calling.omg"),
+        bundled_standard_library_root().join("calling.omg"),
         dependency.join("calling.omg"),
     )
     .expect("copy public calling vocabulary");

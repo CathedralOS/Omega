@@ -3,23 +3,22 @@
 
 #[path = "optimizer_opt_in/build_selection_reports.rs"]
 mod build_selection_reports;
-#[path = "support/console_acceptance.rs"]
-mod console_acceptance;
-#[path = "support/linux_entry_acceptance.rs"]
-mod linux_entry_acceptance;
-#[path = "support/macos_entry_acceptance.rs"]
-mod macos_entry_acceptance;
+#[path = "support/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
 #[path = "optimizer_opt_in/product_pruning.rs"]
 mod product_pruning;
 #[path = "optimizer_opt_in/selected_lowering_replays.rs"]
 mod selected_lowering_replays;
 
 use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct};
-use optimization_core::Optimization;
-use package_compilation::{
-    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+use fixture_package_inputs::{
+    bundled_standard_library_dependency_declaration, bundled_standard_library_root,
+    console_acceptance, fixture_package_identity, linux_entry_acceptance, macos_entry_acceptance,
+    repository_fixture_package_inputs,
 };
+use optimization_core::Optimization;
 use std::fmt::Write as _;
+use target::TargetProfile;
 
 fn compile_native_and_publish(
     options: CompileOptions,
@@ -41,7 +40,6 @@ fn compile_check(
     compiler::compile(compiler::CompileRequest::new(options))
         .and_then(compiler::CompileOutcomes::into_single_report)
 }
-use semantic_vocabulary::PackageKeyIdentity;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -74,10 +72,6 @@ fn diagnostic_messages(diagnostics: &[diagnostics::Diagnostic]) -> String {
         .join("\n")
 }
 
-fn package_identity(marker: u8) -> PackageKeyIdentity {
-    PackageKeyIdentity::from_digest([marker; 32]).expect("nonzero package identity")
-}
-
 fn exact_optimization_vocabulary_build(optimization: Optimization) -> String {
     let mut enable_call = String::new();
     writeln!(
@@ -100,26 +94,35 @@ fn exact_optimization_vocabulary_build(optimization: Optimization) -> String {
     )
 }
 
-fn native_evidence_standard_library() -> PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .find(|path| path.join("source/library/std").is_dir())
-        .expect("compiler checkout owns the authored standard package")
-        .join("source/library/std")
+/// Whether the source-owned native evidence leg for `profile` takes the
+/// standard library as a package dependency with its reviewed entry
+/// accepted. Only the macOS ARM64 leg does; every other hosted profile
+/// compiles against the bundled contract.
+fn standard_library_package_mode(profile: TargetProfile) -> bool {
+    match profile {
+        TargetProfile::MacosArm64 => true,
+        TargetProfile::LinuxArm64
+        | TargetProfile::LinuxX64
+        | TargetProfile::MacosX64
+        | TargetProfile::WindowsX64
+        | TargetProfile::UefiX64
+        | TargetProfile::CrossPlatformCli
+        | TargetProfile::LocalUnchecked
+        | TargetProfile::AlphaBootstrap => false,
+    }
 }
 
 fn compile_source_native_evidence(
     target: &str,
     copy_propagation: bool,
     source: &str,
-    standard_library: &std::path::Path,
     macos_entry: &package_compilation::AcceptedSemanticBinding,
 ) -> compiler::CompileReport {
-    let dependency = if target == "macos_arm64" {
-        format!(
-            "builder.depend(Source::Path {{ location: \"{}\" }});",
-            standard_library.to_string_lossy().replace('\\', "/")
-        )
+    let profile = TargetProfile::from_canonical_target_name(target)
+        .unwrap_or_else(|error| panic!("{target}: {error}"));
+    let package_mode = standard_library_package_mode(profile);
+    let dependency = if package_mode {
+        bundled_standard_library_dependency_declaration()
     } else {
         String::new()
     };
@@ -146,29 +149,11 @@ fn compile_source_native_evidence(
         target_name: Some(target.into()),
     })
     .with_requested_product(RequestedCompileProduct::NativeArtifact);
-    if target == "macos_arm64" {
-        let application = package_identity(1);
-        let standard = package_identity(2);
-        let inputs = PackageCompilationInputs::new(
-            application,
-            package_compilation::BuildDeclarationKind::Application,
-            vec![
-                PackageSourceBinding::new(application, "source-native-evidence", root.clone()),
-                PackageSourceBinding::new(
-                    standard,
-                    "omega-language-std",
-                    standard_library.to_path_buf(),
-                ),
-            ],
-            vec![PackageDependencyBinding::new(
-                application,
-                "omega_language_std",
-                standard,
-            )],
-        )
-        .expect("exact application and standard dependency graph")
-        .with_accepted_semantic_bindings(vec![macos_entry.clone()])
-        .expect("explicitly accepted checked target entry candidate");
+    if package_mode {
+        let inputs = repository_fixture_package_inputs(&root.join("main.omg"))
+            .expect("the package-mode leg authors its std dependency")
+            .with_accepted_semantic_bindings(vec![macos_entry.clone()])
+            .expect("explicitly accepted checked target entry candidate");
         request = request.with_package_inputs(inputs);
     }
     compiler::compile(request)
@@ -189,7 +174,10 @@ fn publish_source_native_evidence(report: compiler::CompileReport, target: &str)
         .checked_native_executable_path()
         .expect("published executable receipt");
     assert!(executable.is_file());
-    if target == "macos_arm64" {
+    if matches!(
+        TargetProfile::from_canonical_target_name(target),
+        Ok(TargetProfile::MacosArm64)
+    ) {
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
         {
             let output = std::process::Command::new(executable)

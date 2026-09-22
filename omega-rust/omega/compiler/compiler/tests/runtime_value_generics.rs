@@ -1530,11 +1530,8 @@ impl TerminalEffectHandler for Trace {
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-#[path = "support/console_acceptance.rs"]
-mod console_acceptance;
-#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-#[path = "support/macos_entry_acceptance.rs"]
-mod macos_entry_acceptance;
+#[path = "support/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
 
 /// The native leg: the same runtime-bound subjects execute on the macOS ARM64
 /// host and surface through the process exit code, so the captured subject,
@@ -1554,34 +1551,23 @@ mod macos_entry_acceptance;
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 mod native {
     use super::Fixture;
-    use build_declarations::{BuildDeclaration, extract_build_declaration};
+    use super::fixture_package_inputs::{
+        bundled_standard_library_dependency_declaration, bundled_standard_library_root,
+        console_acceptance, fixture_package_identity, macos_entry_acceptance,
+        repository_fixture_package_inputs,
+    };
     use compiler::{
         CheckedCompileRequest, CompileOptions, CompileRequest, RequestedCompileProduct, compile,
         compile_to_checked,
     };
     use diagnostics::Diagnostic;
-    use package_compilation::{
-        PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
-    };
-    use semantic_vocabulary::PackageKeyIdentity;
+    use package_compilation::PackageCompilationInputs;
     use std::{
         fs,
-        path::{Path, PathBuf},
+        path::Path,
         process::Command,
         time::{SystemTime, UNIX_EPOCH},
     };
-
-    fn repo_root() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR"))
-            .ancestors()
-            .nth(4)
-            .expect("compiler crate should live under omega-rust/omega/compiler/compiler")
-            .to_path_buf()
-    }
-
-    fn identity(marker: u8) -> PackageKeyIdentity {
-        PackageKeyIdentity::from_digest([marker; 32]).expect("nonzero fixture identity")
-    }
 
     fn render(diagnostics: &[Diagnostic]) -> String {
         diagnostics
@@ -1592,51 +1578,19 @@ mod native {
     }
 
     /// The reviewed-fixture package route the canary suite uses for std
-    /// fixtures: the standard library bound by repository path, the macOS
-    /// program entry accepted from the checked target contract, and the exact
-    /// Console `exit_process` provider plan accepted from a preliminary
-    /// checked compile of the fixture itself.
+    /// fixtures: the standard library bound through the fixture's authored
+    /// row, the macOS program entry accepted from the checked target
+    /// contract, and the exact Console `exit_process` provider plan accepted
+    /// from a preliminary checked compile of the fixture itself.
     fn package_inputs(root: &Path) -> Result<PackageCompilationInputs, Vec<Diagnostic>> {
         let main = root.join("main.omg");
-        let standard_library = repo_root().join("source/library/std");
-        let declaration = extract_build_declaration(root)
-            .unwrap_or_else(|error| panic!("fixture {}: {error}", root.display()));
-        let root_role = declaration.kind();
-        let root_name = match declaration {
-            BuildDeclaration::Application(application) => application.name,
-            BuildDeclaration::Package(package) => package.name,
-            BuildDeclaration::Workspace(_) => panic!("native fixture cannot be a workspace"),
-        };
-        let root_identity = identity(1);
-        let std_identity = identity(2);
-        let inputs = PackageCompilationInputs::new(
-            root_identity,
-            root_role,
-            vec![
-                PackageSourceBinding::new(
-                    root_identity,
-                    root_name.into_string(),
-                    root.to_path_buf(),
-                ),
-                PackageSourceBinding::new(
-                    std_identity,
-                    "omega-language-std",
-                    standard_library.clone(),
-                ),
-            ],
-            vec![PackageDependencyBinding::new(
-                root_identity,
-                "omega_language_std",
-                std_identity,
-            )],
-        )
-        .unwrap_or_else(|errors| panic!("native fixture inputs: {errors:#?}"));
-        let mut bindings = vec![
-            super::macos_entry_acceptance::candidate_macos_entry_binding(
-                &standard_library,
-                std_identity,
-            )?,
-        ];
+        let inputs = repository_fixture_package_inputs(&main)
+            .expect("the native fixture authors its std dependency");
+        let std_identity = fixture_package_identity(2);
+        let mut bindings = vec![macos_entry_acceptance::candidate_macos_entry_binding(
+            &bundled_standard_library_root(),
+            std_identity,
+        )?];
         let inputs = inputs
             .with_accepted_semantic_bindings(bindings.clone())
             .map_err(|errors| vec![Diagnostic::error(format!("entry acceptance: {errors:?}"))])?;
@@ -1644,7 +1598,7 @@ mod native {
             package_inputs: Some(inputs.clone()),
             ..CheckedCompileRequest::new(&main, Some("macos_arm64"))
         })?;
-        bindings.push(super::console_acceptance::candidate_console_exit_binding(
+        bindings.push(console_acceptance::candidate_console_exit_binding(
             &preliminary,
             std_identity,
             false,
@@ -1668,16 +1622,13 @@ mod native {
         )));
         fs::create_dir(&fixture.0).unwrap();
         fs::write(fixture.0.join("main.omg"), source).unwrap();
-        let standard_library = repo_root()
-            .join("source/library/std")
-            .to_string_lossy()
-            .replace('\\', "/");
         // Product operands resolve in the Build occurrence's package scope;
         // importing Console in main.omg does not grant it a package-local name.
         fs::write(
             fixture.0.join("build.omg"),
             format!(
-                "machine build(builder: &mut Build) {{\n    builder.application(\"runtime-value-generics-{name}\");\n    builder.depend(Source::Path {{ location: \"{standard_library}\" }});\n    builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();\n    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);\n}}\n"
+                "machine build(builder: &mut Build) {{\n    builder.application(\"runtime-value-generics-{name}\");\n{}    builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();\n    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);\n}}\n",
+                bundled_standard_library_dependency_declaration()
             ),
         )
         .unwrap();

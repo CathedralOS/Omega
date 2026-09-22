@@ -14,7 +14,11 @@ mod policy_evaluation;
 #[path = "calling_policy_plans/windows_entry.rs"]
 mod windows_entry;
 
+#[path = "support/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
+
 use compiler::{CheckedCompileRequest, compile_to_checked};
+use fixture_package_inputs::{bundled_standard_library_root, fixture_package_identity};
 use package_compilation::{
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
@@ -22,8 +26,6 @@ use provider_planning::selected_external_root_provider_plan_id;
 
 use std::fs;
 use std::path::PathBuf;
-
-use semantic_vocabulary::PackageKeyIdentity;
 
 fn write_program(name: &str, source: &str) -> PathBuf {
     let directory = std::env::temp_dir().join(format!(
@@ -73,25 +75,9 @@ fn compile_std_negative(name: &str, source: &str) -> String {
         .join("\n")
 }
 
-fn repository_root() -> PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .expect("Omega repository root")
-        .to_path_buf()
-}
-
 fn callback_fixture_source(name: &str) -> String {
-    fs::read_to_string(
-        repository_root()
-            .join("source/library/std/tests")
-            .join(name),
-    )
-    .unwrap_or_else(|error| panic!("read callback fixture `{name}`: {error}"))
-}
-
-fn standard_library_root() -> PathBuf {
-    repository_root().join("source/library/std")
+    fs::read_to_string(bundled_standard_library_root().join("tests").join(name))
+        .unwrap_or_else(|error| panic!("read callback fixture `{name}`: {error}"))
 }
 
 /// Compose a callback fixture package that takes the standard library as an
@@ -122,10 +108,10 @@ fn write_callback_package(name: &str, source: &str) -> (PathBuf, PackageCompilat
     )
     .expect("write callback package source");
 
-    let package = PackageKeyIdentity::from_digest([73; 32])
-        .expect("nonzero callback fixture package identity");
-    let standard_library = PackageKeyIdentity::from_digest([77; 32])
-        .expect("nonzero standard-library package identity");
+    // The scratch package writes no `build.omg`, so its graph is stated here
+    // rather than projected from an authored row.
+    let package = fixture_package_identity(73);
+    let standard_library = fixture_package_identity(77);
     let inputs = PackageCompilationInputs::new_package(
         package,
         vec![
@@ -133,7 +119,7 @@ fn write_callback_package(name: &str, source: &str) -> (PathBuf, PackageCompilat
             PackageSourceBinding::new(
                 standard_library,
                 "omega-language-std",
-                standard_library_root(),
+                bundled_standard_library_root(),
             ),
         ],
         vec![PackageDependencyBinding::new(

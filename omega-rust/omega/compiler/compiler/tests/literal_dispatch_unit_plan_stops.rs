@@ -19,107 +19,39 @@
 //! identical refusal. When the unit-plan admission lands, this pin flips to
 //! the fixture's active-pass claim and this file can be retired.
 
-use build_declarations::{BuildDeclaration, extract_build_declaration};
 use compiler::{CheckedCompileRequest, compile_to_checked};
 use diagnostics::Diagnostic;
-use package_compilation::{
-    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+use fixture_package_inputs::{
+    bundled_standard_library_root, candidate_program_entry_binding, fixture_package_identity,
+    repo_root, repository_fixture_package_inputs,
 };
-use semantic_vocabulary::PackageKeyIdentity;
-use std::path::{Path, PathBuf};
+use package_compilation::PackageCompilationInputs;
+use std::path::Path;
 
-#[path = "support/linux_entry_acceptance.rs"]
-mod linux_entry_acceptance;
-#[path = "support/macos_entry_acceptance.rs"]
-mod macos_entry_acceptance;
-#[path = "support/windows_entry_acceptance.rs"]
-mod windows_entry_acceptance;
+#[path = "support/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
 
 const STRING_DISPATCH_CANARY: &str = "control_flow/runtime_string_literal_dispatch_exit";
 const ENTRY_REJOIN_PREFIX: &str =
     "selected ProgramEntry establishment rejoins 0 Terminal attachment identities";
 const STRING_OMISSION: &str = "structural field store: record literal field";
 
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .expect("compiler lives under omega-rust/omega/compiler/compiler")
-        .to_path_buf()
-}
-
-fn fixture_package_identity(marker: u8) -> PackageKeyIdentity {
-    PackageKeyIdentity::from_digest([marker; 32])
-        .expect("repository fixture package identity is nonzero")
-}
-
-/// Rebuild the fixture's declared `omega_language_std` package closure the
-/// same way `canary_suite.rs::reviewed_repository_fixture_package_inputs`
-/// does and accept the exact entry schema for `target_name`, so the checked
-/// compile attempts ProgramEntry establishment. Test acceptance only; it is
-/// not evidence that a production audit occurred.
+/// The fixture's authored `omega_language_std` package closure with the exact
+/// entry schema for `target_name` accepted, so the checked compile attempts
+/// ProgramEntry establishment. Test acceptance only; it is not evidence that
+/// a production audit occurred.
 fn entry_admitted_package_inputs(
     project_root: &Path,
     target_name: &str,
 ) -> Result<PackageCompilationInputs, Vec<Diagnostic>> {
-    let declaration = extract_build_declaration(project_root)
-        .unwrap_or_else(|error| panic!("fixture {}: {error}", project_root.display()));
-    let root_role = declaration.kind();
-    let root_name = match declaration {
-        BuildDeclaration::Application(application) => application.name,
-        BuildDeclaration::Package(package) => package.name,
-        BuildDeclaration::Workspace(_) => {
-            panic!(
-                "fixture {} cannot be a workspace root",
-                project_root.display()
-            )
-        }
-    };
-    let root_identity = fixture_package_identity(1);
-    let standard_library_identity = fixture_package_identity(2);
-    let package_inputs = PackageCompilationInputs::new(
-        root_identity,
-        root_role,
-        vec![
-            PackageSourceBinding::new(
-                root_identity,
-                root_name.into_string(),
-                project_root.to_path_buf(),
-            ),
-            PackageSourceBinding::new(
-                standard_library_identity,
-                "omega-language-std",
-                repo_root().join("source/library/std"),
-            ),
-        ],
-        vec![PackageDependencyBinding::new(
-            root_identity,
-            "omega_language_std",
-            standard_library_identity,
-        )],
-    )
-    .unwrap_or_else(|errors| panic!("fixture {}: {errors:#?}", project_root.display()));
-
-    let standard_library_root = repo_root().join("source/library/std");
-    let entry = match target_name {
-        "linux_x86_64" => linux_entry_acceptance::candidate_linux_x86_64_entry_binding(
-            &standard_library_root,
-            standard_library_identity,
-        )?,
-        "linux_arm64" => linux_entry_acceptance::candidate_linux_arm64_entry_binding(
-            &standard_library_root,
-            standard_library_identity,
-        )?,
-        "windows_x86_64" => windows_entry_acceptance::candidate_windows_x86_64_entry_binding(
-            &standard_library_root,
-            standard_library_identity,
-        )?,
-        "macos_arm64" => macos_entry_acceptance::candidate_macos_entry_binding(
-            &standard_library_root,
-            standard_library_identity,
-        )?,
-        other => panic!("literal-dispatch canary has no entry binding for {other}"),
-    };
+    let package_inputs = repository_fixture_package_inputs(&project_root.join("main.omg"))
+        .expect("a literal-dispatch canary authors its std dependency");
+    let entry = candidate_program_entry_binding(
+        target_name,
+        &bundled_standard_library_root(),
+        fixture_package_identity(2),
+    )?
+    .unwrap_or_else(|| panic!("literal-dispatch canary has no entry binding for {target_name}"));
 
     package_inputs
         .with_accepted_semantic_bindings(vec![entry])

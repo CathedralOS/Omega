@@ -12,111 +12,44 @@
 //! emitted host executable exits 70, and the cross targets still compile.
 //! The false twin stays refused before any kernel judgment.
 
-use build_declarations::{BuildDeclaration, extract_build_declaration};
 use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
 use compiler::CheckedCompileRequest;
 use compiler::{CompileOptions, compile, compile_to_checked};
 use diagnostics::Diagnostic;
-use package_compilation::{
-    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+use fixture_package_inputs::{
+    bundled_standard_library_root, candidate_program_entry_binding, console_acceptance,
+    fixture_package_identity, repo_root, repository_fixture_package_inputs,
 };
-use semantic_vocabulary::PackageKeyIdentity;
+use package_compilation::PackageCompilationInputs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[path = "support/console_acceptance.rs"]
-mod console_acceptance;
-#[path = "support/linux_entry_acceptance.rs"]
-mod linux_entry_acceptance;
-#[path = "support/macos_entry_acceptance.rs"]
-mod macos_entry_acceptance;
-#[path = "support/windows_entry_acceptance.rs"]
-mod windows_entry_acceptance;
+#[path = "support/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
 
 const THEOREM_EQUALITY_CANARY: &str = "proofs/kernel_theorem_equality_certificates";
 const THEOREM_EQUALITY_FALSE_TWIN: &str = "fail/proofs/kernel_theorem_equality_false_twin";
 
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .expect("compiler lives under omega-rust/omega/compiler/compiler")
-        .to_path_buf()
-}
-
-fn fixture_package_identity(marker: u8) -> PackageKeyIdentity {
-    PackageKeyIdentity::from_digest([marker; 32])
-        .expect("repository fixture package identity is nonzero")
-}
-
-/// Rebuild the fixture's declared `omega_language_std` package closure the
-/// same way `canary_suite.rs::reviewed_repository_fixture_package_inputs`
-/// does, then accept the exact entry schema for `target_name` and the one
-/// Console `exit_process` provider the source reaches. Test acceptance only;
-/// it is not evidence that a production audit occurred.
+/// The fixture's authored `omega_language_std` package closure with the exact
+/// entry schema for `target_name` accepted, then the one Console
+/// `exit_process` provider the source reaches. Test acceptance only; it is
+/// not evidence that a production audit occurred.
 fn kernel_canary_package_inputs(
     project_root: &Path,
     target_name: &str,
 ) -> Result<PackageCompilationInputs, Vec<Diagnostic>> {
-    let declaration = extract_build_declaration(project_root)
-        .unwrap_or_else(|error| panic!("fixture {}: {error}", project_root.display()));
-    let root_role = declaration.kind();
-    let root_name = match declaration {
-        BuildDeclaration::Application(application) => application.name,
-        BuildDeclaration::Package(package) => package.name,
-        BuildDeclaration::Workspace(_) => {
-            panic!(
-                "fixture {} cannot be a workspace root",
-                project_root.display()
-            )
-        }
-    };
-    let root_identity = fixture_package_identity(1);
+    let package_inputs = repository_fixture_package_inputs(&project_root.join("main.omg"))
+        .expect("a kernel canary authors its std dependency");
     let standard_library_identity = fixture_package_identity(2);
-    let packages = vec![
-        PackageSourceBinding::new(
-            root_identity,
-            root_name.into_string(),
-            project_root.to_path_buf(),
-        ),
-        PackageSourceBinding::new(
-            standard_library_identity,
-            "omega-language-std",
-            repo_root().join("source/library/std"),
-        ),
-    ];
-    let dependencies = vec![PackageDependencyBinding::new(
-        root_identity,
-        "omega_language_std",
+    let entry = candidate_program_entry_binding(
+        target_name,
+        &bundled_standard_library_root(),
         standard_library_identity,
-    )];
-    let package_inputs =
-        PackageCompilationInputs::new(root_identity, root_role, packages, dependencies)
-            .unwrap_or_else(|errors| panic!("fixture {}: {errors:#?}", project_root.display()));
-
-    let standard_library_root = repo_root().join("source/library/std");
-    let entry = match target_name {
-        "linux_x86_64" => linux_entry_acceptance::candidate_linux_x86_64_entry_binding(
-            &standard_library_root,
-            standard_library_identity,
-        )?,
-        "linux_arm64" => linux_entry_acceptance::candidate_linux_arm64_entry_binding(
-            &standard_library_root,
-            standard_library_identity,
-        )?,
-        "windows_x86_64" => windows_entry_acceptance::candidate_windows_x86_64_entry_binding(
-            &standard_library_root,
-            standard_library_identity,
-        )?,
-        "macos_arm64" => macos_entry_acceptance::candidate_macos_entry_binding(
-            &standard_library_root,
-            standard_library_identity,
-        )?,
-        other => panic!("kernel canary has no entry binding for {other}"),
-    };
+    )?
+    .unwrap_or_else(|| panic!("kernel canary has no entry binding for {target_name}"));
 
     // The accepted entry binding authorizes checking the entry schema, so it
     // rides the preliminary build that resolves the exact Console provider

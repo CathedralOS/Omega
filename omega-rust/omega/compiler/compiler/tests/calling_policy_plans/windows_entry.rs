@@ -4,7 +4,7 @@
 //! and completes through the eax process-completion status; the semantic
 //! crossing stays the shared two-root `ProgramStorageEntry` contract.
 
-use super::repository_root;
+use super::bundled_standard_library_root;
 use calling_conventions::{
     CallSignature, CallingPolicy, EntryControl, EntryStack, MachineRegime, MachineRegister,
     ValueLocation, ValueShape, evaluate_ordinary_boundary_entry_plan,
@@ -19,7 +19,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 /// custody: a copied fixture source would declare a second `WindowsX86_64`
 /// beside the bundled target implementation.
 fn checked_contract(_name: &str) -> compiler::CheckedCompilation {
-    let standard_library_root = repository_root().join("source/library/std");
+    let standard_library_root = bundled_standard_library_root();
     let package =
         PackageKeyIdentity::from_digest([75; 32]).expect("nonzero entry fixture package identity");
     let inputs = PackageCompilationInputs::new_package(

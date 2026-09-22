@@ -1,8 +1,7 @@
 use super::{
-    PROJECT_SEQUENCE, compile_source_native_evidence, diagnostic_messages,
-    exact_optimization_vocabulary_build, native_evidence_standard_library, package_identity,
-    project, publish_source_native_evidence, replay_native_artifact_parts,
-    validate_source_native_evidence,
+    PROJECT_SEQUENCE, bundled_standard_library_root, compile_source_native_evidence,
+    diagnostic_messages, exact_optimization_vocabulary_build, fixture_package_identity, project,
+    publish_source_native_evidence, replay_native_artifact_parts, validate_source_native_evidence,
 };
 use crate::macos_entry_acceptance;
 use compiler::{
@@ -191,10 +190,10 @@ data Build {
 
 #[test]
 fn return_only_identity_build_preserves_complete_native_evidence() {
-    let standard_library = native_evidence_standard_library();
+    let standard_library = bundled_standard_library_root();
     let macos_entry = macos_entry_acceptance::candidate_macos_entry_binding(
         &standard_library,
-        package_identity(2),
+        fixture_package_identity(2),
     )
     .expect("check and explicitly accept the real target entry contract");
     for target in [
@@ -207,7 +206,6 @@ fn return_only_identity_build_preserves_complete_native_evidence() {
             target,
             false,
             "data Main {} machine Main::main() {}\n",
-            &standard_library,
             &macos_entry,
         );
         validate_source_native_evidence(&report);
@@ -225,10 +223,10 @@ fn return_only_identity_build_preserves_complete_native_evidence() {
 
 #[test]
 fn scalar_returning_source_calls_preserve_native_evidence_on_every_target() {
-    let standard_library = native_evidence_standard_library();
+    let standard_library = bundled_standard_library_root();
     let macos_entry = macos_entry_acceptance::candidate_macos_entry_binding(
         &standard_library,
-        package_identity(2),
+        fixture_package_identity(2),
     )
     .expect("check and explicitly accept the real target entry contract");
     for target in [
@@ -253,7 +251,6 @@ machine Main::main() {
     let third: u64 = pick(first, second);
 }
 "#,
-                &standard_library,
                 &macos_entry,
             );
             validate_source_native_evidence(&report);
@@ -509,7 +506,7 @@ machine Main::main(&mut self) {
 "#,
     )
     .expect("write selected-lowering physical-child build");
-    let root_identity = package_identity(41);
+    let root_identity = fixture_package_identity(41);
     let inputs = PackageCompilationInputs::new_package(
         root_identity,
         vec![PackageSourceBinding::new(

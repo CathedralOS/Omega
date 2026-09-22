@@ -3,7 +3,7 @@
 //! rsp and completes through `exit_group`; the semantic crossing stays the
 //! shared two-root `ProgramStorageEntry` contract.
 
-use super::repository_root;
+use super::bundled_standard_library_root;
 use calling_conventions::{
     CallSignature, CallingPolicy, EntryControl, EntryStack, MachineRegime, MachineRegister,
     ValueLocation, ValueShape, evaluate_ordinary_boundary_entry_plan,
@@ -18,7 +18,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 /// custody: a copied fixture source would declare a second `LinuxX86_64`
 /// beside the bundled target implementation.
 fn checked_contract(_name: &str) -> compiler::CheckedCompilation {
-    let standard_library_root = repository_root().join("source/library/std");
+    let standard_library_root = bundled_standard_library_root();
     let package =
         PackageKeyIdentity::from_digest([73; 32]).expect("nonzero entry fixture package identity");
     let inputs = PackageCompilationInputs::new_package(
@@ -243,7 +243,7 @@ fn linux_entry_policy_rejects_wrong_physical_or_storage_signatures() {
 /// package custody: a copied fixture source would declare a second
 /// `LinuxArm64` beside the bundled target implementation.
 fn checked_arm64_contract(_name: &str) -> compiler::CheckedCompilation {
-    let standard_library_root = repository_root().join("source/library/std");
+    let standard_library_root = bundled_standard_library_root();
     let package =
         PackageKeyIdentity::from_digest([74; 32]).expect("nonzero entry fixture package identity");
     let inputs = PackageCompilationInputs::new_package(

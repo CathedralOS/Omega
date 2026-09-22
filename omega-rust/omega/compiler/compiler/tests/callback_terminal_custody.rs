@@ -1,5 +1,5 @@
-#[path = "support/windows_entry_acceptance.rs"]
-mod windows_entry_acceptance;
+#[path = "support/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
 
 use compiler::CheckedCompileRequest;
 use compiler::{
@@ -7,13 +7,14 @@ use compiler::{
     SourceEvaluatedImportSettlement, compile, compile_to_checked, realize_retained_native_artifact,
 };
 use effects::provider_plan::ProviderBinding;
-use installation_evidence::ProviderExecutionEvidence;
-use package_compilation::{
-    BuildDeclarationKind, PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+use fixture_package_inputs::{
+    bundled_standard_library_dependency_declaration, bundled_standard_library_root,
+    candidate_program_entry_binding, fixture_package_identity, repository_fixture_package_inputs,
 };
-use semantic_vocabulary::PackageKeyIdentity;
+use installation_evidence::ProviderExecutionEvidence;
+use package_compilation::PackageCompilationInputs;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use task_plans::{
     SameStackContributionAdmissionCandidate, SameStackContributionAdmissionReceiptId,
@@ -51,47 +52,25 @@ data Main { }
 machine Main::main() { }
 "#;
 
-fn repository_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .expect("Omega repository root")
-        .to_path_buf()
-}
-
-fn standard_library_root() -> PathBuf {
-    repository_root().join("source/library/std")
-}
-
 /// The Windows x86-64 program entry is an authored standard-library contract
 /// (`targets/windows_x86_64/entry.omg`), and that contract declares its calling
 /// vocabulary through the bundled `std::calling` module. A fixture that also
 /// copied `calling.omg` into its own package would declare the same vocabulary
 /// twice in one program, so these fixtures take the standard library as an
 /// ordinary package dependency and import `omega_language_std::calling`.
-fn standard_library_build_dependency() -> String {
-    format!(
-        "    builder.depend(Source::Path {{ location: \"{}\" }});\n",
-        standard_library_root().to_string_lossy().replace('\\', "/")
-    )
-}
-
 struct Fixture {
     root: PathBuf,
     main: PathBuf,
-    package: PackageKeyIdentity,
-    standard_library: PackageKeyIdentity,
 }
 
 impl Fixture {
     fn new() -> Self {
-        let repository = repository_root();
         let root = fixture_root("callback-terminal-custody");
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("create callback-custody fixture");
 
         let source = fs::read_to_string(
-            repository.join("source/library/std/tests/callback_materialization_closure.omg"),
+            bundled_standard_library_root().join("tests/callback_materialization_closure.omg"),
         )
         .expect("read callback materialization fixture");
         let source = source
@@ -135,19 +114,12 @@ impl Fixture {
                 "machine build(builder: &mut Build) {{\n    \
                  builder.application(\"callback-terminal-custody\");\n\
                  {}    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);\n}}\n",
-                standard_library_build_dependency(),
+                bundled_standard_library_dependency_declaration(),
             ),
         )
         .expect("write callback-custody build policy");
 
-        Self {
-            root,
-            main,
-            package: PackageKeyIdentity::from_digest([71; 32])
-                .expect("nonzero fixture package identity"),
-            standard_library: PackageKeyIdentity::from_digest([77; 32])
-                .expect("nonzero standard-library package identity"),
-        }
+        Self { root, main }
     }
 
     fn reachable() -> Self {
@@ -180,13 +152,12 @@ machine Main::main(&mut self) reaches WindowRegistrar {
     }
 
     fn direct() -> Self {
-        let repository = repository_root();
         let root = fixture_root("direct-callback-terminal-custody");
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("create direct callback-custody fixture");
         let main = root.join("main.omg");
         let source = fs::read_to_string(
-            repository.join("source/library/std/tests/direct_callback_parameter.omg"),
+            bundled_standard_library_root().join("tests/direct_callback_parameter.omg"),
         )
         .expect("read direct callback source canary")
         .replacen("use calling;", "use omega_language_std::calling;", 1);
@@ -197,18 +168,11 @@ machine Main::main(&mut self) reaches WindowRegistrar {
                 "machine build(builder: &mut Build) {{\n    \
                  builder.application(\"direct-callback-terminal-custody\");\n\
                  {}    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);\n}}\n",
-                standard_library_build_dependency(),
+                bundled_standard_library_dependency_declaration(),
             ),
         )
         .expect("write direct callback-custody build policy");
-        Self {
-            root,
-            main,
-            package: PackageKeyIdentity::from_digest([72; 32])
-                .expect("nonzero direct fixture package identity"),
-            standard_library: PackageKeyIdentity::from_digest([77; 32])
-                .expect("nonzero standard-library package identity"),
-        }
+        Self { root, main }
     }
 
     fn direct_with_import() -> Self {
@@ -269,44 +233,22 @@ data Main { }"#,
     }
 
     /// The fixture application depends on the exact repository standard
-    /// library and accepts its checked `WindowsX86_64Application` entry
-    /// schema. Without that accepted binding the bundled Windows entry
-    /// contract cannot take the program-entry role the build declaration
-    /// binds.
+    /// library through its authored row and accepts its checked
+    /// `WindowsX86_64Application` entry schema. Without that accepted binding
+    /// the bundled Windows entry contract cannot take the program-entry role
+    /// the build declaration binds.
     fn package_inputs(&self) -> PackageCompilationInputs {
-        let standard_library_root = standard_library_root();
-        PackageCompilationInputs::new(
-            self.package,
-            BuildDeclarationKind::Application,
-            vec![
-                PackageSourceBinding::new(
-                    self.package,
-                    "callback-terminal-custody",
-                    self.root.clone(),
-                ),
-                PackageSourceBinding::new(
-                    self.standard_library,
-                    "omega-language-std",
-                    standard_library_root.clone(),
-                ),
-            ],
-            vec![PackageDependencyBinding::new(
-                self.package,
-                "omega_language_std",
-                self.standard_library,
-            )],
+        let entry = candidate_program_entry_binding(
+            "windows_x86_64",
+            &bundled_standard_library_root(),
+            fixture_package_identity(2),
         )
-        .expect("callback fixture package graph")
-        .with_accepted_semantic_bindings(vec![
-            windows_entry_acceptance::candidate_windows_x86_64_entry_binding(
-                &standard_library_root,
-                self.standard_library,
-            )
-            .unwrap_or_else(|diagnostics| {
-                panic!("Windows entry fixture acceptance: {diagnostics:#?}")
-            }),
-        ])
-        .expect("callback fixture entry acceptance")
+        .unwrap_or_else(|diagnostics| panic!("Windows entry fixture acceptance: {diagnostics:#?}"))
+        .expect("Windows x86-64 binds a reviewed entry candidate");
+        repository_fixture_package_inputs(&self.main)
+            .expect("the callback fixture authors its std dependency")
+            .with_accepted_semantic_bindings(vec![entry])
+            .expect("callback fixture entry acceptance")
     }
 
     fn request(&self, product: RequestedCompileProduct, tag: &str) -> CompileRequest {
@@ -395,7 +337,7 @@ fn assert_custody_diagnostic(
 fn a_package_local_calling_copy_rejects_beside_the_standard_library_entry() {
     let fixture = Fixture::new();
     fs::copy(
-        standard_library_root().join("calling.omg"),
+        bundled_standard_library_root().join("calling.omg"),
         fixture.root.join("calling.omg"),
     )
     .expect("copy a second package-local calling vocabulary");

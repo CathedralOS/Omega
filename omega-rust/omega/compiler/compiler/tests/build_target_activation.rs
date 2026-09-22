@@ -3,16 +3,14 @@
 
 #[path = "build_target_activation/activation_identifiers_and_publication.rs"]
 mod activation_identifiers_and_publication;
-#[path = "support/console_acceptance.rs"]
-mod console_acceptance;
 #[path = "build_target_activation/executed_provider_selection.rs"]
 mod executed_provider_selection;
+#[path = "support/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
 #[path = "fixture_rosters/build_target_activation.rs"]
 mod fixtures;
 #[path = "build_target_activation/foreign_helper_product_queries.rs"]
 mod foreign_helper_product_queries;
-#[path = "support/linux_entry_acceptance.rs"]
-mod linux_entry_acceptance;
 #[path = "build_target_activation/product_entry_signatures.rs"]
 mod product_entry_signatures;
 #[path = "build_target_activation/product_query_paths.rs"]
@@ -27,10 +25,14 @@ mod x86_feature_admission;
 use build_declarations::DependencyPurpose;
 use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
+use fixture_package_inputs::{
+    bundled_standard_library_root, console_acceptance, fixture_package_identity,
+    linux_entry_acceptance, macos_entry_acceptance, repository_fixture_package_inputs,
+    standard_library_package_inputs, windows_entry_acceptance,
+};
 use package_compilation::{
     BuildDeclarationKind, PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
-use semantic_vocabulary::PackageKeyIdentity;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -86,40 +88,16 @@ fn pass_canary_main(name: &str) -> PathBuf {
         .join("main.omg")
 }
 
-fn package_identity(marker: u8) -> PackageKeyIdentity {
-    PackageKeyIdentity::from_digest([marker; 32]).expect("nonzero fixture package identity")
-}
-
-fn package_inputs_with_standard_library(
-    main: &std::path::Path,
-    canonical_name: &str,
-) -> PackageCompilationInputs {
-    let root = main.parent().expect("canary project root");
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .expect("repository root")
-        .to_path_buf();
-    let root_identity = package_identity(1);
-    let standard_library_identity = package_identity(2);
-    PackageCompilationInputs::new(
-        root_identity,
-        BuildDeclarationKind::Application,
-        vec![
-            PackageSourceBinding::new(root_identity, canonical_name, root.to_path_buf()),
-            PackageSourceBinding::new(
-                standard_library_identity,
-                "omega-language-std",
-                repository.join("source/library/std"),
-            ),
-        ],
-        vec![PackageDependencyBinding::new(
-            root_identity,
-            "omega_language_std",
-            standard_library_identity,
-        )],
-    )
-    .expect("ordinary std dependency graph")
+/// Root + bundled-std package inputs for one std-linked fixture: the graph a
+/// repository canary authored in its `build.omg`, or, for a temporary project
+/// that writes no dependency row, the standard library stated explicitly.
+fn package_inputs_with_standard_library(main: &std::path::Path) -> PackageCompilationInputs {
+    repository_fixture_package_inputs(main).unwrap_or_else(|| {
+        standard_library_package_inputs(
+            main.parent().expect("project root"),
+            &bundled_standard_library_root(),
+        )
+    })
 }
 
 fn diagnostic_text(project: &TempProject) -> String {
@@ -145,16 +123,24 @@ const MACOS_HOSTED_MAIN: &str = "data Main { }\nmachine Main::main() { }\n";
 /// queries below still answer for the query occurrence's own package.
 fn foreign_helper_inputs(project: &TempProject, helper: &TempProject) -> PackageCompilationInputs {
     PackageCompilationInputs::new(
-        package_identity(1),
+        fixture_package_identity(1),
         BuildDeclarationKind::Application,
         vec![
-            PackageSourceBinding::new(package_identity(1), "root-binding-owner", project.0.clone()),
-            PackageSourceBinding::new(package_identity(2), "root-binding-helper", helper.0.clone()),
+            PackageSourceBinding::new(
+                fixture_package_identity(1),
+                "root-binding-owner",
+                project.0.clone(),
+            ),
+            PackageSourceBinding::new(
+                fixture_package_identity(2),
+                "root-binding-helper",
+                helper.0.clone(),
+            ),
         ],
         vec![PackageDependencyBinding::for_purpose(
-            package_identity(1),
+            fixture_package_identity(1),
             "support",
-            package_identity(2),
+            fixture_package_identity(2),
             DependencyPurpose::Build,
         )],
     )
@@ -168,16 +154,24 @@ fn foreign_helper_inputs(project: &TempProject, helper: &TempProject) -> Package
 /// declarations under the query occurrence's own product authority.
 fn foreign_product_inputs(project: &TempProject, helper: &TempProject) -> PackageCompilationInputs {
     PackageCompilationInputs::new(
-        package_identity(1),
+        fixture_package_identity(1),
         BuildDeclarationKind::Application,
         vec![
-            PackageSourceBinding::new(package_identity(1), "root-binding-owner", project.0.clone()),
-            PackageSourceBinding::new(package_identity(2), "root-binding-helper", helper.0.clone()),
+            PackageSourceBinding::new(
+                fixture_package_identity(1),
+                "root-binding-owner",
+                project.0.clone(),
+            ),
+            PackageSourceBinding::new(
+                fixture_package_identity(2),
+                "root-binding-helper",
+                helper.0.clone(),
+            ),
         ],
         vec![PackageDependencyBinding::new(
-            package_identity(1),
+            fixture_package_identity(1),
             "support",
-            package_identity(2),
+            fixture_package_identity(2),
         )],
     )
     .expect("explicit package graph")

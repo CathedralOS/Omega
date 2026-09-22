@@ -4,14 +4,12 @@
 
 #![cfg(target_os = "macos")]
 
-#[path = "support/console_acceptance.rs"]
-mod console_acceptance;
+#[path = "support/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
 #[path = "fixture_rosters/native_filesystem_canaries.rs"]
 mod fixture_roster;
 #[path = "native_filesystem_canaries/gui_and_sample_apps.rs"]
 mod gui_and_sample_apps;
-#[path = "support/macos_entry_acceptance.rs"]
-mod macos_entry_acceptance;
 #[path = "native_filesystem_canaries/native_filesystem_passes.rs"]
 mod native_filesystem_passes;
 #[path = "native_filesystem_canaries/samples_floats_and_objc.rs"]
@@ -27,15 +25,14 @@ mod samples_floats_and_objc;
 // final write's byte count, so the assertion is on stdout, not the exit code.)
 // The sample projects under `samples/` instead import `omega_language_std` as an
 // ordinary package dependency; `staged_std_package_inputs` supplies that graph.
-use build_declarations::{BuildDeclaration, extract_build_declaration};
 use compiler::{CheckedCompileRequest, CompileOptions, compile_to_checked};
 use diagnostics::Diagnostic;
-use package_compilation::{
-    AcceptedSemanticBindingRole, PackageCompilationInputs, PackageDependencyBinding,
-    PackageSourceBinding,
+use fixture_package_inputs::{
+    bundled_standard_library_root, console_acceptance, copied_fixture_package_inputs,
+    fixture_package_identity, macos_entry_acceptance, repo_root,
 };
-use semantic_vocabulary::PackageKeyIdentity;
-use std::path::{Path, PathBuf};
+use package_compilation::{AcceptedSemanticBindingRole, PackageCompilationInputs};
+use std::path::Path;
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -99,7 +96,7 @@ fn compile_exact_macos_entry(
             .file_name()
             .expect("native source has a file name"),
     );
-    let result = staged_std_package_inputs(&root_path).and_then(|package_inputs| {
+    let result = staged_std_package_inputs(source_dir, &root_path).and_then(|package_inputs| {
         compile_program(
             CompileOptions {
                 root_path,
@@ -113,11 +110,7 @@ fn compile_exact_macos_entry(
     result
 }
 
-fn staged_package_identity(marker: u8) -> PackageKeyIdentity {
-    PackageKeyIdentity::from_digest([marker; 32]).expect("staged package identity is nonzero")
-}
-
-/// Package inputs for a staged project that declares the ordinary std
+/// Package inputs for a staged project that authors the ordinary std
 /// dependency in its `build.omg`; `None` for the self-contained corpus
 /// fixtures, which import the bundled `omega::language::std` modules and
 /// compile exactly as before.
@@ -125,70 +118,30 @@ fn staged_package_identity(marker: u8) -> PackageKeyIdentity {
 /// The stage is a copy of the project under a temporary directory. Without a
 /// package graph the compiler resolves `omega_language_std::console` as a
 /// module below the project root, which the copy cannot satisfy. The sample's
-/// `builder.depend(Source::Path { location: "../../../source/library/std" })`
-/// is relative to its checked-in location and dangles from the copy, but the
-/// package-aware route never reads that row: it consumes the reconciled graph
-/// supplied here, which binds the root package to the stage directory and std
-/// to the repository path directly. Copying std into the stage was rejected
-/// because it would duplicate the package instead of reusing the route the
-/// canary suite and sample oracle already take, and the sample itself stays
-/// unedited. Acceptance follows those harnesses: the exact macOS entry
-/// schema, the std `FilesystemHost` service when imported, and the std
-/// `Console` plan with termination, byte output and byte input, since the
-/// samples reach output through std wrappers such as `write_line` rather
+/// authored `Source::Path` row is relative to its checked-in location and
+/// dangles from the copy, so the graph is projected from the authored project
+/// and its root package bound to the stage directory; the sample itself stays
+/// unedited. Acceptance follows the canary suite and sample oracle: the exact
+/// macOS entry schema, the std `FilesystemHost` service when imported, and
+/// the std `Console` plan with termination, byte output and byte input, since
+/// the samples reach output through std wrappers such as `write_line` rather
 /// than spelling `write_byte` themselves. This is test-owned acceptance, not
 /// a package-review receipt.
 fn staged_std_package_inputs(
+    authored_project: &Path,
     root_path: &Path,
 ) -> Result<Option<PackageCompilationInputs>, Vec<Diagnostic>> {
     let project_root = root_path
         .parent()
         .expect("staged source has a project root");
-    let declares_std = std::fs::read_to_string(project_root.join("build.omg")).is_ok_and(|build| {
-        build.contains("builder.depend(Source::Path") && build.contains("source/library/std")
-    });
-    if !declares_std {
+    let Some(package_inputs) = copied_fixture_package_inputs(authored_project, project_root) else {
         return Ok(None);
-    }
-
-    let declaration = extract_build_declaration(project_root)
-        .unwrap_or_else(|error| panic!("staged project {}: {error}", project_root.display()));
-    let root_role = declaration.kind();
-    let root_name = match declaration {
-        BuildDeclaration::Application(application) => application.name,
-        BuildDeclaration::Package(package) => package.name,
-        BuildDeclaration::Workspace(_) => {
-            panic!(
-                "staged project {} cannot be a workspace root",
-                project_root.display()
-            )
-        }
     };
-    let root_identity = staged_package_identity(1);
-    let standard_library = staged_package_identity(2);
-    let standard_library_root = repo_root().join("source/library/std");
-    let packages = vec![
-        PackageSourceBinding::new(
-            root_identity,
-            root_name.into_string(),
-            project_root.to_path_buf(),
-        ),
-        PackageSourceBinding::new(
-            standard_library,
-            "omega-language-std",
-            standard_library_root.clone(),
-        ),
-    ];
-    let dependencies = vec![PackageDependencyBinding::new(
-        root_identity,
-        "omega_language_std",
-        standard_library,
-    )];
-    let package_inputs =
-        PackageCompilationInputs::new(root_identity, root_role, packages, dependencies)
-            .unwrap_or_else(|errors| {
-                panic!("staged project {}: {errors:#?}", project_root.display())
-            });
+    let standard_library = fixture_package_identity(2);
+    if package_inputs.package_root(standard_library).is_none() {
+        return Ok(Some(package_inputs));
+    }
+    let standard_library_root = bundled_standard_library_root();
 
     // Every staged build binds `macos_arm64::ProgramEntry`, so the checked
     // dependency entry is accepted before the application is selected.
@@ -281,14 +234,6 @@ fn write_exact_macos_build(project: &Path) {
         }
     }
     std::fs::write(path, source).expect("write exact macOS ProgramEntry build root");
-}
-
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .expect("compiler lives under omega-rust/omega/compiler/compiler")
-        .to_path_buf()
 }
 
 fn compile_run(fixture: fixture_roster::Fixture) -> (Option<i32>, String) {

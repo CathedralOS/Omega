@@ -2,7 +2,8 @@
 //! package scope, then retain that exact symbol through executable publication.
 
 use super::{
-    TempProject, application_build, foreign_helper_inputs, foreign_product_inputs, package_identity,
+    TempProject, application_build, fixture_package_identity, foreign_helper_inputs,
+    foreign_product_inputs,
 };
 use build_declarations::DependencyPurpose;
 use compiler::{
@@ -27,19 +28,27 @@ fn dual_purpose_inputs(
     dependency: &TempProject,
 ) -> PackageCompilationInputs {
     PackageCompilationInputs::new(
-        package_identity(1),
+        fixture_package_identity(1),
         BuildDeclarationKind::Application,
         vec![
-            PackageSourceBinding::new(package_identity(1), "root-binding-owner", project.0.clone()),
-            PackageSourceBinding::new(package_identity(2), "entry-library", dependency.0.clone()),
+            PackageSourceBinding::new(
+                fixture_package_identity(1),
+                "root-binding-owner",
+                project.0.clone(),
+            ),
+            PackageSourceBinding::new(
+                fixture_package_identity(2),
+                "entry-library",
+                dependency.0.clone(),
+            ),
         ],
         [DependencyPurpose::Build, DependencyPurpose::Product]
             .into_iter()
             .map(|purpose| {
                 PackageDependencyBinding::for_purpose(
-                    package_identity(1),
+                    fixture_package_identity(1),
                     "support",
-                    package_identity(2),
+                    fixture_package_identity(2),
                     purpose,
                 )
             })
@@ -67,7 +76,7 @@ fn direct_dependency_root_binding_keeps_its_exact_symbol_through_terminal_produc
         checked
             .symbols
             .symbol_product_package_identity(selected_symbol),
-        Some(package_identity(2))
+        Some(fixture_package_identity(2))
     );
     let report = compiler::retained_terminal_report_from_checked_package(
         project.main(),
@@ -150,7 +159,7 @@ fn exact_module_root_path_does_not_collide_with_an_attached_machine_shorthand() 
     );
     assert_eq!(
         checked.symbols.symbol_product_package_identity(selected),
-        Some(package_identity(2))
+        Some(fixture_package_identity(2))
     );
 }
 
@@ -185,29 +194,37 @@ fn direct_root_uses_the_product_target_of_a_shared_dependency_alias() {
         "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); builder.roots.bind(windows_x86_64::ProgramEntry, support::setup::launch); }",
     );
     let inputs = PackageCompilationInputs::new(
-        package_identity(1),
+        fixture_package_identity(1),
         BuildDeclarationKind::Application,
         vec![
-            PackageSourceBinding::new(package_identity(1), "root-binding-owner", project.0.clone()),
             PackageSourceBinding::new(
-                package_identity(2),
+                fixture_package_identity(1),
+                "root-binding-owner",
+                project.0.clone(),
+            ),
+            PackageSourceBinding::new(
+                fixture_package_identity(2),
                 "build-library",
                 build_dependency.0.clone(),
             ),
             PackageSourceBinding::new(
-                package_identity(3),
+                fixture_package_identity(3),
                 "product-library",
                 product_dependency.0.clone(),
             ),
         ],
         vec![
             PackageDependencyBinding::for_purpose(
-                package_identity(1),
+                fixture_package_identity(1),
                 "support",
-                package_identity(2),
+                fixture_package_identity(2),
                 DependencyPurpose::Build,
             ),
-            PackageDependencyBinding::new(package_identity(1), "support", package_identity(3)),
+            PackageDependencyBinding::new(
+                fixture_package_identity(1),
+                "support",
+                fixture_package_identity(3),
+            ),
         ],
     )
     .expect("independent alias targets");
@@ -221,7 +238,7 @@ fn direct_root_uses_the_product_target_of_a_shared_dependency_alias() {
         .machine_symbol();
     assert_eq!(
         checked.symbols.symbol_product_package_identity(selected),
-        Some(package_identity(3))
+        Some(fixture_package_identity(3))
     );
 }
 
@@ -333,21 +350,37 @@ fn foreign_helper_cannot_select_through_its_callers_product_alias() {
         "use support::configure; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); configure::configure(builder); }",
     );
     let inputs = PackageCompilationInputs::new(
-        package_identity(1),
+        fixture_package_identity(1),
         BuildDeclarationKind::Application,
         vec![
-            PackageSourceBinding::new(package_identity(1), "root-binding-owner", project.0.clone()),
-            PackageSourceBinding::new(package_identity(2), "build-helper", helper.0.clone()),
-            PackageSourceBinding::new(package_identity(3), "entry-library", dependency.0.clone()),
+            PackageSourceBinding::new(
+                fixture_package_identity(1),
+                "root-binding-owner",
+                project.0.clone(),
+            ),
+            PackageSourceBinding::new(
+                fixture_package_identity(2),
+                "build-helper",
+                helper.0.clone(),
+            ),
+            PackageSourceBinding::new(
+                fixture_package_identity(3),
+                "entry-library",
+                dependency.0.clone(),
+            ),
         ],
         vec![
             PackageDependencyBinding::for_purpose(
-                package_identity(1),
+                fixture_package_identity(1),
                 "support",
-                package_identity(2),
+                fixture_package_identity(2),
                 DependencyPurpose::Build,
             ),
-            PackageDependencyBinding::new(package_identity(1), "runtime", package_identity(3)),
+            PackageDependencyBinding::new(
+                fixture_package_identity(1),
+                "runtime",
+                fixture_package_identity(3),
+            ),
         ],
     )
     .expect("caller-only product dependency");

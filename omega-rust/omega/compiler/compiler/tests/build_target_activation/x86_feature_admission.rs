@@ -1,8 +1,8 @@
 use super::{
-    TempProject, application_build, diagnostic_text, exact_target_build, package_identity,
+    TempProject, application_build, diagnostic_text, exact_target_build, fixture_package_identity,
     package_inputs_with_standard_library, pass_canary_main,
 };
-use crate::{console_acceptance, fixtures, linux_entry_acceptance};
+use crate::{bundled_standard_library_root, console_acceptance, fixtures, linux_entry_acceptance};
 use compiler::{
     CheckedCompileRequest, CompileOptions, CompileRequest, RequestedCompileProduct,
     RetainedNativeRealizationRequest, compile, compile_to_checked,
@@ -15,18 +15,13 @@ use compiler::{
 /// explicit accepted binding the macOS entry requires.
 fn package_inputs_with_linux_entry(
     main: &std::path::Path,
-    canonical_name: &str,
 ) -> package_compilation::PackageCompilationInputs {
     let entry_binding = linux_entry_acceptance::candidate_linux_x86_64_entry_binding(
-        &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .ancestors()
-            .nth(4)
-            .expect("repository root")
-            .join("source/library/std"),
-        package_identity(2),
+        &bundled_standard_library_root(),
+        fixture_package_identity(2),
     )
     .expect("the fixture explicitly accepts the checked Linux entry schema");
-    package_inputs_with_standard_library(main, canonical_name)
+    package_inputs_with_standard_library(main)
         .with_accepted_semantic_bindings(vec![entry_binding])
         .expect("Linux entry acceptance binds to the std package")
 }
@@ -36,18 +31,13 @@ fn package_inputs_with_linux_entry(
 /// accepted binding.
 fn package_inputs_with_linux_arm64_entry(
     main: &std::path::Path,
-    canonical_name: &str,
 ) -> package_compilation::PackageCompilationInputs {
     let entry_binding = linux_entry_acceptance::candidate_linux_arm64_entry_binding(
-        &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .ancestors()
-            .nth(4)
-            .expect("repository root")
-            .join("source/library/std"),
-        package_identity(2),
+        &bundled_standard_library_root(),
+        fixture_package_identity(2),
     )
     .expect("the fixture explicitly accepts the checked Linux ARM64 entry schema");
-    package_inputs_with_standard_library(main, canonical_name)
+    package_inputs_with_standard_library(main)
         .with_accepted_semantic_bindings(vec![entry_binding])
         .expect("Linux ARM64 entry acceptance binds to the std package")
 }
@@ -57,15 +47,14 @@ fn package_inputs_with_linux_arm64_entry(
 /// inputs.
 fn package_inputs_for_target(
     main: &std::path::Path,
-    canonical_name: &str,
     target: &str,
 ) -> package_compilation::PackageCompilationInputs {
     if target == "linux_x86_64" {
-        package_inputs_with_linux_entry(main, canonical_name)
+        package_inputs_with_linux_entry(main)
     } else if target == "linux_arm64" {
-        package_inputs_with_linux_arm64_entry(main, canonical_name)
+        package_inputs_with_linux_arm64_entry(main)
     } else {
-        package_inputs_with_standard_library(main, canonical_name)
+        package_inputs_with_standard_library(main)
     }
 }
 
@@ -152,11 +141,7 @@ fn exact_x86_fma_demand_fails_closed_without_feature_admission() {
     let main = pass_canary_main(fixtures::NAMED_PROVIDER_FUSED_MULTIPLY_ADD_EXIT);
     for target in ["linux_x86_64", "windows_x86_64"] {
         let diagnostics = compile_to_checked(CheckedCompileRequest {
-            package_inputs: Some(package_inputs_for_target(
-                &main,
-                "named-provider-fused-multiply-add-exit",
-                target,
-            )),
+            package_inputs: Some(package_inputs_for_target(&main, target)),
             ..CheckedCompileRequest::new(&main, Some(target))
         })
         .expect_err("an exact-profile x86 FMA demand requires explicit deployment admission")
@@ -192,11 +177,7 @@ fn admitted_x86_fma_demand_retains_exact_plan_associations() {
     ] {
         let main = pass_canary_main(fixtures::X86_FMA_PLAN_ASSOCIATION);
         let checked = compile_to_checked(CheckedCompileRequest {
-            package_inputs: Some(package_inputs_for_target(
-                &main,
-                "x86-fma-plan-association",
-                target,
-            )),
+            package_inputs: Some(package_inputs_for_target(&main, target)),
             ..CheckedCompileRequest::new(&main, Some(target))
         })
         .unwrap_or_else(|diagnostics| panic!("{target} FMA admission failed: {diagnostics:?}"));
@@ -307,14 +288,10 @@ machine Main::main(&mut self) reaches Console {
     builder.select_provider<Arithmetic::identity, ArithmeticProvider>();"#,
         ),
     );
-    let package_inputs = package_inputs_with_standard_library(&project.main(), "target-activation");
+    let package_inputs = package_inputs_with_standard_library(&project.main());
     let entry_binding = linux_entry_acceptance::candidate_linux_x86_64_entry_binding(
-        &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .ancestors()
-            .nth(4)
-            .expect("repository root")
-            .join("source/library/std"),
-        package_identity(2),
+        &bundled_standard_library_root(),
+        fixture_package_identity(2),
     )
     .expect("the fixture explicitly accepts the checked Linux entry schema");
     let package_inputs = package_inputs
@@ -327,7 +304,7 @@ machine Main::main(&mut self) reaches Console {
     .expect("derive the exact mixed fixture provider plans");
     let console_binding = console_acceptance::candidate_console_exit_binding(
         &preliminary,
-        package_identity(2),
+        fixture_package_identity(2),
         true,
         false,
     )
@@ -717,11 +694,7 @@ machine Main::main(&mut self) {
 fn aarch64_fma_demand_is_not_an_x86_feature_association() {
     let main = pass_canary_main(fixtures::NAMED_PROVIDER_FUSED_MULTIPLY_ADD_EXIT);
     let checked = compile_to_checked(CheckedCompileRequest {
-        package_inputs: Some(package_inputs_for_target(
-            &main,
-            "named-provider-fused-multiply-add-exit",
-            "linux_arm64",
-        )),
+        package_inputs: Some(package_inputs_for_target(&main, "linux_arm64")),
         ..CheckedCompileRequest::new(&main, Some("linux_arm64"))
     })
     .expect("AArch64 FMA remains admitted by its own target realization");
