@@ -11,7 +11,7 @@ use register_model::{
 use target::{Architecture, NativeTarget, ObjectFormat};
 
 use super::catalog::{selected_constraint_keys, selected_environment_keys};
-use super::model::{TargetRegisterEnvironmentValidationError, ValidatedTargetRegisterEnvironment};
+use super::{TargetRegisterEnvironmentValidationError, ValidatedTargetRegisterEnvironment};
 
 pub(super) fn validate_target_register_environment_join(
     target: NativeTarget,
