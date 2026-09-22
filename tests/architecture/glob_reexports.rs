@@ -58,10 +58,6 @@ const GLOB_REEXPORT_CEILINGS: &[(&str, usize)] = &[
     ),
     ("omega-rust/omega/representations/register-model", 3),
     ("omega-rust/omega/semantics/optimization-unit-semantics", 50),
-    (
-        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees",
-        15,
-    ),
 ];
 
 fn workspace_root() -> PathBuf {
