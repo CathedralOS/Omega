@@ -121,6 +121,68 @@ fn merge_terminal_production_timings(
 }
 
 /// Produce the retained Terminal product and its ordinary compiler report.
+/// The admitted entry product both routes leave through. Terminal production
+/// is keyed on the selected entry's exact machine symbol and retains the
+/// unoptimized module beside the artifact; production must hand back the
+/// checked entry receipt, and the authored behavior exclusions are judged on
+/// that unoptimized composition before either route continues. The routes
+/// differ only in the callback custody they carry through production, the
+/// product label their diagnostics wear, and what they do with the admitted
+/// product afterwards.
+fn produce_admitted_entry_artifact<C>(
+    checked: &CheckedCompilation,
+    stage_timings: &mut CompileTimings,
+    entry_machine_symbol: symbols::SymbolHandle,
+    source_signature_identity: [u8; 32],
+    selections: &optimization_core::OptimizationSelections,
+    callback_custody: C,
+    product_label: &str,
+) -> Result<
+    (
+        terminal_production::ProducedTerminalArtifact<C>,
+        terminal_psi::CheckedProgramEntryTerminalReceipt,
+    ),
+    Vec<Diagnostic>,
+> {
+    let psi_optimizations = selections.project_psi();
+    let mut production_timings = production_timings_for(stage_timings);
+    let produced = stage_timings
+        .record_result(TERMINAL_PRODUCTION_STAGE, || {
+            terminal_production::TerminalProductionRequest {
+                checked: checked.terminal_production_trees(),
+                machine: terminal_production::TerminalMachineSelection::Symbol(
+                    entry_machine_symbol,
+                ),
+                optimization_selections: psi_optimizations.selections().clone(),
+            }
+            .produce(TerminalProductionCustody {
+                entry_identity: Some(source_signature_identity),
+                callback_custody,
+                // The authored behavior exclusions are judged against the
+                // unoptimized composition the artifact was published from.
+                retain_unoptimized: true,
+                timings: &mut production_timings,
+            })
+        })
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "{product_label} production failed: {error}"
+            ))]
+        })?;
+    merge_terminal_production_timings(stage_timings, &production_timings);
+    let checked_program_entry = produced.receipt().cloned().ok_or_else(|| {
+        vec![Diagnostic::error(format!(
+            "{product_label} production retained no checked ProgramEntry receipt"
+        ))]
+    })?;
+    behavior_exclusions::verify_entry_behavior_exclusions(
+        checked,
+        produced.unoptimized(),
+        entry_machine_symbol,
+    )?;
+    Ok((produced, checked_program_entry))
+}
+
 pub fn produce_terminal_report(
     root_path: std::path::PathBuf,
     mut checked: CheckedCompilation,
@@ -216,41 +278,23 @@ fn produce_retained_terminal_artifact(
         checked,
         checked.selected_provider_provenance(),
     )?;
-    let psi_optimizations = selections.project_psi();
     // The accumulator steps out of the checked record across the measured
     // legs below so each closure may borrow the record while it is timed; it
     // rejoins the record once the product is produced and admitted.
     let mut stage_timings = std::mem::take(checked.timings_mut());
-    let mut production_timings = production_timings_for(&stage_timings);
-    let produced = stage_timings
-        .record_result(TERMINAL_PRODUCTION_STAGE, || {
-            terminal_production::TerminalProductionRequest {
-                checked: checked.terminal_production_trees(),
-                machine: terminal_production::TerminalMachineSelection::Symbol(
-                    entry_machine_symbol,
-                ),
-                optimization_selections: psi_optimizations.selections().clone(),
-            }
-            .produce(TerminalProductionCustody {
-                entry_identity: Some(source_signature_identity),
-                callback_custody: callback_placements,
-                // The authored behavior exclusions are judged against the
-                // unoptimized composition the artifact was published from.
-                retain_unoptimized: true,
-                timings: &mut production_timings,
-            })
-        })
-        .map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "terminal-artifact production failed: {}",
-                error.error(),
-            ))]
-        })?;
-    merge_terminal_production_timings(&mut stage_timings, &production_timings);
+    let (produced, checked_program_entry) = produce_admitted_entry_artifact(
+        checked,
+        &mut stage_timings,
+        entry_machine_symbol,
+        source_signature_identity,
+        selections,
+        callback_placements,
+        "terminal-artifact",
+    )?;
     let (
         artifact,
-        checked_program_entry,
-        unoptimized,
+        _,
+        _,
         checked_boundary_operator_scope,
         callback_placements,
         source_call_occurrences,
@@ -258,19 +302,6 @@ fn produce_retained_terminal_artifact(
         selected_ieee_float_comparison_occurrences,
         selected_integer_comparison_occurrences,
     ) = produced.into_parts();
-    let checked_program_entry = checked_program_entry.ok_or_else(|| {
-        vec![Diagnostic::error(
-            "terminal-artifact production retained no checked ProgramEntry receipt",
-        )]
-    })?;
-    // The root and provider selections are fixed; the authored behavior
-    // exclusions must hold in the unoptimized composition before the product
-    // is admitted.
-    behavior_exclusions::verify_entry_behavior_exclusions(
-        checked,
-        unoptimized.as_ref(),
-        entry_machine_symbol,
-    )?;
     stage_timings.record_result(TERMINAL_VERIFICATION_STAGE, || {
         verification::verify_terminal_artifact(&artifact, profile)
     })?;
@@ -367,36 +398,20 @@ pub fn produce_program_entry_terminal_artifact(
     // are verified against the unoptimized composition the direct native
     // route's artifact is published from.
     composition_modes::verify_selected_compositions_are_realized(checked)?;
-    let psi_optimizations = optimization_selections.project_psi();
-    let terminal_trees = checked.terminal_production_trees();
     let mut stage_timings = checked.timings().clone();
-    let mut production_timings = production_timings_for(&stage_timings);
-    let produced = stage_timings
-        .record_result(TERMINAL_PRODUCTION_STAGE, || {
-            terminal_production::TerminalProductionRequest {
-                checked: terminal_trees,
-                machine: terminal_production::TerminalMachineSelection::Symbol(
-                    program_entry.source_signature().machine_symbol(),
-                ),
-                optimization_selections: psi_optimizations.selections().clone(),
-            }
-            .produce(TerminalProductionCustody {
-                entry_identity: Some(program_entry.source_signature().identity().bytes()),
-                callback_custody: (),
-                retain_unoptimized: true,
-                timings: &mut production_timings,
-            })
-        })
-        .map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "native-artifact Terminal production failed: {error}"
-            ))]
-        })?;
-    merge_terminal_production_timings(&mut stage_timings, &production_timings);
+    let (produced, checked_program_entry) = produce_admitted_entry_artifact(
+        checked,
+        &mut stage_timings,
+        program_entry.source_signature().machine_symbol(),
+        program_entry.source_signature().identity().bytes(),
+        optimization_selections,
+        (),
+        "native-artifact Terminal",
+    )?;
     let (
         artifact,
-        checked_program_entry,
-        unoptimized,
+        _,
+        _,
         checked_boundary_operator_scope,
         (),
         _source_call_occurrences,
@@ -404,16 +419,6 @@ pub fn produce_program_entry_terminal_artifact(
         selected_ieee_float_comparison_occurrences,
         selected_integer_comparison_occurrences,
     ) = produced.into_parts();
-    let checked_program_entry = checked_program_entry.ok_or_else(|| {
-        vec![Diagnostic::error(
-            "native-artifact Terminal production retained no checked ProgramEntry receipt",
-        )]
-    })?;
-    behavior_exclusions::verify_entry_behavior_exclusions(
-        checked,
-        unoptimized.as_ref(),
-        program_entry.source_signature().machine_symbol(),
-    )?;
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).map_err(|error| {
         vec![Diagnostic::error(format!(
             "native comparison custody could not decode Terminal semantics: {error}"
