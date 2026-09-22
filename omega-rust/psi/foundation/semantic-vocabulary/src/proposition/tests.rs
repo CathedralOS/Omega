@@ -585,26 +585,46 @@ fn wrapping_div_reduces_the_signed_minimum_quotient_overflow() {
     );
 }
 
-#[test]
-fn wrapping_rem_reduces_the_signed_minimum_quotient_overflow_to_zero() {
+fn rem_reduces_the_signed_minimum_quotient_overflow_to_zero(
+    rem: impl Fn(IntegerType, IntegerValue, IntegerValue) -> Option<IntegerValue>,
+) {
     let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     assert_eq!(
-        u8_type.wrapping_rem(IntegerValue::Unsigned(255), IntegerValue::Unsigned(5)),
+        rem(
+            u8_type,
+            IntegerValue::Unsigned(255),
+            IntegerValue::Unsigned(5)
+        ),
         Some(IntegerValue::Unsigned(0))
     );
     assert_eq!(
-        u8_type.wrapping_rem(IntegerValue::Unsigned(255), IntegerValue::Unsigned(0)),
+        rem(
+            u8_type,
+            IntegerValue::Unsigned(255),
+            IntegerValue::Unsigned(0)
+        ),
         None
     );
     let i8_type = IntegerType::new(IntegerSign::Signed, 8).unwrap();
     assert_eq!(
-        i8_type.wrapping_rem(IntegerValue::Signed(-127), IntegerValue::Signed(5)),
+        rem(i8_type, IntegerValue::Signed(-127), IntegerValue::Signed(5)),
         Some(IntegerValue::Signed(-2))
     );
     assert_eq!(
-        i8_type.wrapping_rem(IntegerValue::Signed(-128), IntegerValue::Signed(-1)),
+        rem(
+            i8_type,
+            IntegerValue::Signed(-128),
+            IntegerValue::Signed(-1)
+        ),
         Some(IntegerValue::Signed(0))
     );
+}
+
+#[test]
+fn wrapping_rem_reduces_the_signed_minimum_quotient_overflow_to_zero() {
+    rem_reduces_the_signed_minimum_quotient_overflow_to_zero(|ty, left, right| {
+        ty.wrapping_rem(left, right)
+    });
 }
 
 #[test]
@@ -631,24 +651,9 @@ fn saturating_div_clamps_the_signed_minimum_quotient_overflow() {
 
 #[test]
 fn saturating_rem_reduces_the_signed_minimum_quotient_overflow_to_zero() {
-    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
-    assert_eq!(
-        u8_type.saturating_rem(IntegerValue::Unsigned(255), IntegerValue::Unsigned(5)),
-        Some(IntegerValue::Unsigned(0))
-    );
-    assert_eq!(
-        u8_type.saturating_rem(IntegerValue::Unsigned(255), IntegerValue::Unsigned(0)),
-        None
-    );
-    let i8_type = IntegerType::new(IntegerSign::Signed, 8).unwrap();
-    assert_eq!(
-        i8_type.saturating_rem(IntegerValue::Signed(-127), IntegerValue::Signed(5)),
-        Some(IntegerValue::Signed(-2))
-    );
-    assert_eq!(
-        i8_type.saturating_rem(IntegerValue::Signed(-128), IntegerValue::Signed(-1)),
-        Some(IntegerValue::Signed(0))
-    );
+    rem_reduces_the_signed_minimum_quotient_overflow_to_zero(|ty, left, right| {
+        ty.saturating_rem(left, right)
+    });
 }
 
 #[test]

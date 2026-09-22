@@ -689,14 +689,9 @@ mod tests {
         );
     }
 
-    #[test]
-    fn projection_report_fingerprint_ignores_arena_local_field_symbols() {
-        let expression = |index| ContentProjectionExpression::CountedQuantity {
-            magnitude: ContentScalarExpression::SubjectField(vec![ContentFieldSegment {
-                symbol: SymbolHandle::from_arena_index(index),
-                name: "remaining".to_owned(),
-            }]),
-        };
+    fn fingerprint_ignores_arena_local_field_symbols(
+        expression: impl Fn(u32) -> ContentProjectionExpression,
+    ) {
         let algebra = ContentAlgebraIdentity::CountedQuantity {
             unit: "named(name(Byte))".to_owned(),
         };
@@ -708,21 +703,29 @@ mod tests {
     }
 
     #[test]
-    fn embedded_scalar_fingerprint_ignores_arena_local_field_symbols() {
-        let expression = |index| ContentProjectionExpression::CountedQuantity {
-            magnitude: ContentScalarExpression::RuntimeScalarEmbedding(vec![ContentFieldSegment {
-                symbol: SymbolHandle::from_arena_index(index),
-                name: "remaining".to_owned(),
-            }]),
-        };
-        let algebra = ContentAlgebraIdentity::CountedQuantity {
-            unit: "named(name(Byte))".to_owned(),
-        };
+    fn projection_report_fingerprint_ignores_arena_local_field_symbols() {
+        fingerprint_ignores_arena_local_field_symbols(|index| {
+            ContentProjectionExpression::CountedQuantity {
+                magnitude: ContentScalarExpression::SubjectField(vec![ContentFieldSegment {
+                    symbol: SymbolHandle::from_arena_index(index),
+                    name: "remaining".to_owned(),
+                }]),
+            }
+        });
+    }
 
-        assert_eq!(
-            projection_report_fingerprint(&algebra, &expression(7)),
-            projection_report_fingerprint(&algebra, &expression(91))
-        );
+    #[test]
+    fn embedded_scalar_fingerprint_ignores_arena_local_field_symbols() {
+        fingerprint_ignores_arena_local_field_symbols(|index| {
+            ContentProjectionExpression::CountedQuantity {
+                magnitude: ContentScalarExpression::RuntimeScalarEmbedding(vec![
+                    ContentFieldSegment {
+                        symbol: SymbolHandle::from_arena_index(index),
+                        name: "remaining".to_owned(),
+                    },
+                ]),
+            }
+        });
     }
 
     #[test]
