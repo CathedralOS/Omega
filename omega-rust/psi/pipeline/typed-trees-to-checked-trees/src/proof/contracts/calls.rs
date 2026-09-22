@@ -154,6 +154,46 @@ pub(crate) fn build_contract_exit_facts(
         if !machine.body_is_present {
             continue;
         }
+        // Machine-invariant: this reads only the machine's ENTRY state, so it
+        // is hoisted out of the state loop. Recomputing it per state made
+        // declared_owned_field_domain_identities and
+        // call_result_qualification_identities -- each a deep recursive walk
+        // over the return type's owned field tree -- dominate checking.
+        // A nominal return type -- owned, or the referent of a readable
+        // reference -- owes its declared field predicates on the returned
+        // value even when no ensures clause is authored, and a readable
+        // `&mut` referent (`self` included) owes its entry field facts
+        // again at the return. Record the exit so flow captures the
+        // exit contexts those checks consume (checks/contracts/exits).
+        let return_field_obligations =
+            program
+                .machine_states(machine)
+                .first()
+                .is_some_and(|entry| {
+                    crate::facts::field_domain::declared_result_field_domain_paths(
+                        program,
+                        crate::checks::contracts::result_domain_type(program, entry.return_type),
+                    )
+                    .iter()
+                    .any(|(_, domain)| {
+                        crate::checks::contracts::value_provable_domain(program, *domain)
+                    }) || crate::flow::call_result_qualification_identities(program, entry.symbol)
+                        .iter()
+                        .any(|(_, domain, _)| {
+                            crate::facts::field_domain::domain_requires_provenance(program, *domain)
+                        })
+                        || crate::facts::field_domain::declared_owned_field_domain_identities(
+                            program,
+                            crate::checks::contracts::result_domain_type(
+                                program,
+                                entry.return_type,
+                            ),
+                        )
+                        .iter()
+                        .any(|(_, domain, _)| {
+                            crate::facts::field_domain::domain_requires_provenance(program, *domain)
+                        })
+                });
         for state in program.machine_states(machine) {
             let statements = program.statement_table.statements(state.statement_nodes);
             let ensures = append_contract_fact_refs(
@@ -165,46 +205,6 @@ pub(crate) fn build_contract_exit_facts(
                 true,
             );
 
-            // A nominal return type -- owned, or the referent of a readable
-            // reference -- owes its declared field predicates on the returned
-            // value even when no ensures clause is authored, and a readable
-            // `&mut` referent (`self` included) owes its entry field facts
-            // again at the return. Record the exit so flow captures the
-            // exit contexts those checks consume (checks/contracts/exits).
-            let return_field_obligations =
-                program
-                    .machine_states(machine)
-                    .first()
-                    .is_some_and(|entry| {
-                        crate::facts::field_domain::declared_result_field_domain_paths(
-                            program,
-                            crate::checks::contracts::result_domain_type(
-                                program,
-                                entry.return_type,
-                            ),
-                        )
-                        .iter()
-                        .any(|(_, domain)| {
-                            crate::checks::contracts::value_provable_domain(program, *domain)
-                        }) || crate::flow::call_result_qualification_identities(
-                            program,
-                            entry.symbol,
-                        )
-                        .iter()
-                        .any(|(_, domain, _)| {
-                            crate::facts::field_domain::domain_requires_provenance(program, *domain)
-                        }) || crate::facts::field_domain::declared_owned_field_domain_identities(
-                            program,
-                            crate::checks::contracts::result_domain_type(
-                                program,
-                                entry.return_type,
-                            ),
-                        )
-                        .iter()
-                        .any(|(_, domain, _)| {
-                            crate::facts::field_domain::domain_requires_provenance(program, *domain)
-                        })
-                    });
             let referent_field_obligations =
                 program.state_parameters(state).iter().any(|parameter| {
                     crate::checks::contracts::is_readable_mutable_reference(
