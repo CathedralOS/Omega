@@ -25,6 +25,7 @@ use checked_trees::FlowSemanticContextRef;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::StatementNode;
 use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint};
+use language_semantics::declaration_selection::CollectionViewOperation;
 use symbols::SymbolHandle;
 
 #[allow(clippy::too_many_arguments)]
@@ -219,15 +220,16 @@ fn stable_segment(segment: &facts::PlaceSegment) -> bool {
 }
 
 /// The place a builtin collection-view call lends to its result, or `None`
-/// when `expression` is not a targetless `as_slice`/`as_mut_slice` on a
-/// collection receiver. This mirrors the ownership lane's
-/// `append_builtin_collection_view` gate exactly: a resolved `target_symbol`
-/// means a declared machine or boundary operator answered instead, and its
-/// returned view may be only a partial projection of the input -- evidence
-/// below the argument cannot re-anchor 1:1, so that shape stays unclaimed
-/// here. `as_view`/`bytes` are text-level views of a scalar carrier rather
-/// than element views of a collection, and stay unclaimed for the same reason.
-/// Extra operands or a non-collection receiver fail closed the same way.
+/// when `expression` is not a compiler-owned `as_slice`/`as_mut_slice` view on
+/// a collection receiver. The call shape comes from
+/// [`crate::semantic_calls::collection_view_call`], which this lane and the
+/// ownership lane's `append_builtin_collection_view` now share: a resolved
+/// `target_symbol` means a declared machine or boundary operator answered
+/// instead, and its returned view may be only a partial projection of the
+/// input -- evidence below the argument cannot re-anchor 1:1, so that shape
+/// stays unclaimed here. `as_view`/`bytes` are text-level views of a scalar
+/// carrier rather than element views of a collection, so this lane claims only
+/// the two element views. A non-collection receiver fails closed the same way.
 pub(super) fn collection_view_source_place(
     program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
@@ -239,16 +241,10 @@ pub(super) fn collection_view_source_place(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return None;
     };
-    if !matches!(call.target.as_str(), "as_slice" | "as_mut_slice")
-        || call.target_symbol.is_valid()
-        || !call.receiver.is_valid()
-        || !call.arguments.is_empty()
-        || !call.evidence_arguments.is_empty()
-        || !call.machine_arguments.is_empty()
-        || call.static_requirement_dispatch.is_some()
-        || call.quotient_operation.is_some()
-        || call.private_layout_operation.is_some()
-    {
+    if !matches!(
+        crate::semantic_calls::collection_view_call(program, call),
+        Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
+    ) {
         return None;
     }
     let mut reference = crate::flow::expression_type_reference_in_state(

@@ -6,6 +6,7 @@ use crate::flow::ownership::append_move_events_for_expression;
 use crate::flow::ownership::moves::operator_call_ownership_policy;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use language_core::ReferenceAccess;
+use language_semantics::declaration_selection::CollectionViewOperation;
 use symbols::SymbolHandle;
 
 /// Observing a place evaluates its address and calls, without moving the place.
@@ -123,7 +124,10 @@ pub(super) fn selected_operator(
 }
 
 /// Targetless collection views borrow existing storage. Nominal/operator calls
-/// are resolved before this intrinsic path is considered.
+/// are resolved before this intrinsic path is considered, and
+/// [`crate::semantic_calls::collection_view_call`] rejects them. Only the two
+/// element views are claimed here: `as_view`/`bytes` view a text carrier, not
+/// collection storage whose elements this lane could keep observed.
 pub(super) fn append_builtin_collection_view(
     program: &typed_trees::TypedTrees,
     sink: &mut DirectMoveEventSink<'_>,
@@ -132,15 +136,10 @@ pub(super) fn append_builtin_collection_view(
     call: &typed_trees::expression::TableCallExpression,
     source: FlowOwnershipEventSource,
 ) -> bool {
-    if !matches!(call.target.as_str(), "as_slice" | "as_mut_slice")
-        || call.target_symbol.is_valid()
-        || !call.arguments.is_empty()
-        || !call.evidence_arguments.is_empty()
-        || !call.machine_arguments.is_empty()
-        || call.static_requirement_dispatch.is_some()
-        || call.quotient_operation.is_some()
-        || call.private_layout_operation.is_some()
-    {
+    if !matches!(
+        crate::semantic_calls::collection_view_call(program, call),
+        Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
+    ) {
         return false;
     }
     let Some(mut reference) =

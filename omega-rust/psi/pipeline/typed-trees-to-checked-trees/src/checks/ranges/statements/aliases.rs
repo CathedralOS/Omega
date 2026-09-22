@@ -1,3 +1,4 @@
+use language_semantics::declaration_selection::CollectionViewOperation;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 use super::super::expressions::ensured_call_result_bounds;
@@ -93,8 +94,10 @@ pub(in crate::checks::ranges) fn seed_ensured_call_result_bounds(
 /// Resolves the place a bound value aliases, for index/range fact inheritance.
 ///
 /// A local bound to a bare place (`let y = x`, `let i = room.exit_count`)
-/// aliases that place. A local bound to `recv.as_slice()` / `.as_mut_slice()`
-/// is a full-length view of `recv`, so it aliases the receiver collection.
+/// aliases that place. A local bound to a compiler-owned element view of a
+/// collection (`recv.as_slice()` / `.as_mut_slice()`) is a full-length view of
+/// `recv`, so it aliases the receiver collection. A declared machine spelled
+/// the same way is not that view and inherits nothing.
 /// Returns `None` for values that do not alias a stable place (literals,
 /// arithmetic, other calls), which carry no transferable element-position facts.
 fn alias_source_label(
@@ -107,7 +110,10 @@ fn alias_source_label(
         }
         ExpressionNode::Borrow(inner) => alias_source_label(program, inner.target),
         ExpressionNode::Call(call)
-            if matches!(call.target.as_str(), "as_slice" | "as_mut_slice") =>
+            if matches!(
+                crate::semantic_calls::collection_view_call(program, call),
+                Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
+            ) =>
         {
             Some(program.expression_table.display_name(call.receiver))
         }

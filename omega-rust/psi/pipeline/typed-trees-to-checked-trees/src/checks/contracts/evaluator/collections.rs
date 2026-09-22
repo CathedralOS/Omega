@@ -1,3 +1,4 @@
+use language_semantics::declaration_selection::CollectionViewOperation;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
 
 use super::ContractExpressionEvaluator;
@@ -95,15 +96,12 @@ impl ContractExpressionEvaluator<'_, '_> {
         else {
             return None;
         };
-        if !matches!(call.target.as_str(), "as_slice" | "as_mut_slice")
-            || call.target_symbol.is_valid()
-            || !call.arguments.is_empty()
-            || !call.evidence_arguments.is_empty()
-            || !call.machine_arguments.is_empty()
-            || call.static_requirement_dispatch.is_some()
-            || call.quotient_operation.is_some()
-            || call.private_layout_operation.is_some()
-        {
+        // Only a compiler-owned element view of a collection keeps the
+        // receiver's declared extent; the text views carry no element count.
+        if !matches!(
+            crate::semantic_calls::collection_view_call(self.program, call),
+            Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
+        ) {
             return None;
         }
         let receiver_type = validation::declared_place_type_raw(

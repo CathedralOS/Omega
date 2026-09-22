@@ -5,6 +5,7 @@
 //! views are effect-free calls, and malformed expression handles contribute no
 //! invented effect. It does not resolve or summarize any call frame.
 
+use language_semantics::declaration_selection::CollectionViewOperation;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
@@ -81,12 +82,15 @@ pub(super) fn call_is_transparent_mutable_slice_view(
     program: &TypedTrees,
     call: &TableCallExpression,
 ) -> bool {
-    call.target.as_str() == "as_mut_slice" && call_is_effect_free_slice_view(program, call)
+    call.target.as_str() == CollectionViewOperation::MutableSlice.authored_spelling()
+        && call_is_effect_free_slice_view(program, call)
 }
 
 fn call_is_effect_free_slice_view(program: &TypedTrees, call: &TableCallExpression) -> bool {
-    matches!(call.target.as_str(), "as_slice" | "as_mut_slice")
-        && !call.target_symbol.is_valid()
+    matches!(
+        CollectionViewOperation::from_authored_spelling(call.target.as_str()),
+        Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
+    ) && !call.target_symbol.is_valid()
         && call.receiver.is_valid()
         && program
             .expression_table

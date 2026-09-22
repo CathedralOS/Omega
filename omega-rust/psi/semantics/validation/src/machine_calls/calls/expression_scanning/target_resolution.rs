@@ -6,6 +6,7 @@
 
 use crate::declarations::symbols::TopLevelSymbols;
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::CollectionViewOperation;
 use typed_trees::TypedTrees;
 use typed_trees::expression::TableCallExpression;
 use typed_trees::machine::Machine;
@@ -182,7 +183,7 @@ pub(super) fn report_unresolved_value_call(
     // Collection/text view builtins: `arr.as_slice()` / `.as_mut_slice()`,
     // the text view `text.as_view()` (the borrow layer's own builtin list,
     // borrow/loans.rs), and the view byte accessor `view.bytes()`.
-    if matches!(target, "as_slice" | "as_mut_slice" | "as_view" | "bytes") {
+    if CollectionViewOperation::from_authored_spelling(target).is_some() {
         return;
     }
     // Wire-schema synthesized codecs (`Schema::encode(..)` / `::decode(..)`)
