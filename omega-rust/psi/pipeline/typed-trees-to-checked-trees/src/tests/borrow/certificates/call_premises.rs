@@ -968,3 +968,86 @@ fn nested_call_establishment_rejects_weakened_or_wrapped_results() {
             .replace("choose(seed)..4", "forget(choose(seed))..4"),
     );
 }
+
+/// A call nested inside a statement mints establishments the same statement
+/// consumes through a projection of its result: `choose(seed).first` in the
+/// window bound supplies `result.first >= 2` to the very bound it heads.
+/// Without segmented call-result bounds the nested projection is unproven.
+const NESTED_CALL_PROJECTED_WINDOW: &str = r#"
+    data Pair { first: u64 [0..=4]; second: u64; }
+    data Main { items: [i32; 4]; }
+    machine choose(value: u64 [2..=4]) -> Pair
+        ensures result.first >= 2;
+    { Pair { first: value, second: value } }
+    machine Main::main(&mut self, seed: u64 [2..=4]) -> u64 {
+        let held: &mut [i32] = self.items[choose(seed).first..4];
+        self.items[0] = 3;
+        held.len
+    }
+"#;
+
+#[test]
+fn nested_call_projected_establishment_certifies_disjoint_window_write() {
+    let mut checked = checked_program(NESTED_CALL_PROJECTED_WINDOW);
+    let certificate = checked
+        .facts
+        .borrow
+        .mutation_certificates
+        .iter()
+        .map(|(_, certificate)| certificate)
+        .next()
+        .expect("one mutation certificate");
+    assert_eq!(
+        certificate.derivation,
+        checked_trees::BorrowCompatibilityDerivation::Premised
+    );
+    // The retained premise keeps the call occurrence's projected identity:
+    // `result.first` binds `choose(seed)` + the `first` segment.
+    assert!(
+        certificate.premises.iter().any(|premise| matches!(
+            premise.right,
+            checked_trees::BorrowCompatibilitySelectorValue::CallResult {
+                ref segments,
+                ..
+            } if !segments.is_empty()
+        )),
+        "the nested projection premise records a segmented call result: {:?}",
+        certificate.premises
+    );
+    crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+        .expect("nested projected-call certificate replays its exact tokens");
+}
+
+#[test]
+fn nested_call_projected_establishment_rejects_weakened_or_foreign_results() {
+    for predicate in [
+        "",
+        "ensures result.first >= 0;",
+        "ensures result.second >= 2;",
+        "ensures result.first >= 2 || result.first == 0;",
+    ] {
+        assert_conflict(
+            &NESTED_CALL_PROJECTED_WINDOW.replace("ensures result.first >= 2;", predicate),
+        );
+    }
+    // A computed expression of the projected result is not the call's
+    // established projection: `result.first + 0` names no occurrence.
+    assert_conflict(
+        &NESTED_CALL_PROJECTED_WINDOW
+            .replace("choose(seed).first..4", "(choose(seed).first + 0)..4"),
+    );
+    // A foreign projection of the result is not the bound's projection.
+    assert_conflict(
+        &NESTED_CALL_PROJECTED_WINDOW.replace("choose(seed).first..4", "choose(seed).second..4"),
+    );
+    // A call wrapping the establishing call carries only its own guarantees:
+    // `forget` promises nothing about its result's projection.
+    assert_conflict(
+        &NESTED_CALL_PROJECTED_WINDOW
+            .replace(
+                "machine Main::main",
+                "machine forget(value: Pair) -> Pair { value } machine Main::main",
+            )
+            .replace("choose(seed).first..4", "forget(choose(seed)).first..4"),
+    );
+}
