@@ -2,7 +2,7 @@
 //! structural fields a term can name, and the term forms themselves.
 
 use crate::proposition::propositions::{
-    validate_integer_operands, validate_integer_shift_operands,
+    validate_integer_operands, validate_integer_shift_operands, validate_typed_integer_operands,
 };
 use crate::proposition::{IntegerType, IntegerValue, PropositionError};
 use crate::{PlaceId, StructuralCaseId, StructuralFieldId, ValueId};
@@ -395,14 +395,13 @@ impl ScalarTerm {
         left: ScalarTerm,
         right: ScalarTerm,
     ) -> Result<Self, PropositionError> {
-        let expected = ScalarType::Integer(scalar_type);
-        if left.scalar_type() != expected || right.scalar_type() != expected {
-            return Err(PropositionError::IntegerEqualTypeMismatch {
+        validate_typed_integer_operands(scalar_type, &left, &right, |expected, left, right| {
+            PropositionError::IntegerEqualTypeMismatch {
                 expected,
-                left: left.scalar_type(),
-                right: right.scalar_type(),
-            });
-        }
+                left,
+                right,
+            }
+        })?;
         Ok(Self::IntegerEqual {
             scalar_type,
             left: Box::new(left),
@@ -726,14 +725,13 @@ impl ScalarTerm {
         left: ScalarTerm,
         right: ScalarTerm,
     ) -> Result<Self, PropositionError> {
-        let expected = ScalarType::Integer(scalar_type);
-        if left.scalar_type() != expected || right.scalar_type() != expected {
-            return Err(PropositionError::WrappingIntegerAddTypeMismatch {
+        validate_typed_integer_operands(scalar_type, &left, &right, |expected, left, right| {
+            PropositionError::WrappingIntegerAddTypeMismatch {
                 expected,
-                left: left.scalar_type(),
-                right: right.scalar_type(),
-            });
-        }
+                left,
+                right,
+            }
+        })?;
         Ok(Self::WrappingIntegerAdd {
             scalar_type,
             left: Box::new(left),
@@ -746,14 +744,13 @@ impl ScalarTerm {
         left: ScalarTerm,
         right: ScalarTerm,
     ) -> Result<Self, PropositionError> {
-        let expected = ScalarType::Integer(scalar_type);
-        if left.scalar_type() != expected || right.scalar_type() != expected {
-            return Err(PropositionError::SaturatingIntegerAddTypeMismatch {
+        validate_typed_integer_operands(scalar_type, &left, &right, |expected, left, right| {
+            PropositionError::SaturatingIntegerAddTypeMismatch {
                 expected,
-                left: left.scalar_type(),
-                right: right.scalar_type(),
-            });
-        }
+                left,
+                right,
+            }
+        })?;
         Ok(Self::SaturatingIntegerAdd {
             scalar_type,
             left: Box::new(left),
@@ -766,14 +763,13 @@ impl ScalarTerm {
         left: ScalarTerm,
         right: ScalarTerm,
     ) -> Result<Self, PropositionError> {
-        let expected = ScalarType::Integer(scalar_type);
-        if left.scalar_type() != expected || right.scalar_type() != expected {
-            return Err(PropositionError::WrappingIntegerSubtractTypeMismatch {
+        validate_typed_integer_operands(scalar_type, &left, &right, |expected, left, right| {
+            PropositionError::WrappingIntegerSubtractTypeMismatch {
                 expected,
-                left: left.scalar_type(),
-                right: right.scalar_type(),
-            });
-        }
+                left,
+                right,
+            }
+        })?;
         Ok(Self::WrappingIntegerSubtract {
             scalar_type,
             left: Box::new(left),
@@ -786,14 +782,13 @@ impl ScalarTerm {
         left: ScalarTerm,
         right: ScalarTerm,
     ) -> Result<Self, PropositionError> {
-        let expected = ScalarType::Integer(scalar_type);
-        if left.scalar_type() != expected || right.scalar_type() != expected {
-            return Err(PropositionError::SaturatingIntegerSubtractTypeMismatch {
+        validate_typed_integer_operands(scalar_type, &left, &right, |expected, left, right| {
+            PropositionError::SaturatingIntegerSubtractTypeMismatch {
                 expected,
-                left: left.scalar_type(),
-                right: right.scalar_type(),
-            });
-        }
+                left,
+                right,
+            }
+        })?;
         Ok(Self::SaturatingIntegerSubtract {
             scalar_type,
             left: Box::new(left),
@@ -806,14 +801,13 @@ impl ScalarTerm {
         left: ScalarTerm,
         right: ScalarTerm,
     ) -> Result<Self, PropositionError> {
-        let expected = ScalarType::Integer(scalar_type);
-        if left.scalar_type() != expected || right.scalar_type() != expected {
-            return Err(PropositionError::WrappingIntegerMultiplyTypeMismatch {
+        validate_typed_integer_operands(scalar_type, &left, &right, |expected, left, right| {
+            PropositionError::WrappingIntegerMultiplyTypeMismatch {
                 expected,
-                left: left.scalar_type(),
-                right: right.scalar_type(),
-            });
-        }
+                left,
+                right,
+            }
+        })?;
         Ok(Self::WrappingIntegerMultiply {
             scalar_type,
             left: Box::new(left),
@@ -826,14 +820,13 @@ impl ScalarTerm {
         left: ScalarTerm,
         right: ScalarTerm,
     ) -> Result<Self, PropositionError> {
-        let expected = ScalarType::Integer(scalar_type);
-        if left.scalar_type() != expected || right.scalar_type() != expected {
-            return Err(PropositionError::SaturatingIntegerMultiplyTypeMismatch {
+        validate_typed_integer_operands(scalar_type, &left, &right, |expected, left, right| {
+            PropositionError::SaturatingIntegerMultiplyTypeMismatch {
                 expected,
-                left: left.scalar_type(),
-                right: right.scalar_type(),
-            });
-        }
+                left,
+                right,
+            }
+        })?;
         Ok(Self::SaturatingIntegerMultiply {
             scalar_type,
             left: Box::new(left),
@@ -1424,17 +1417,16 @@ impl ScalarTerm {
                 scalar_type,
                 left,
                 right,
-            } => {
-                let expected = ScalarType::Integer(*scalar_type);
-                if left.scalar_type() != expected || right.scalar_type() != expected {
-                    return Err(PropositionError::IntegerEqualTypeMismatch {
-                        expected,
-                        left: left.scalar_type(),
-                        right: right.scalar_type(),
-                    });
-                }
-                Ok(())
-            }
+            } => validate_typed_integer_operands(
+                *scalar_type,
+                left,
+                right,
+                |expected, left, right| PropositionError::IntegerEqualTypeMismatch {
+                    expected,
+                    left,
+                    right,
+                },
+            ),
             Self::IntegerLessThan {
                 scalar_type,
                 left,
@@ -1526,17 +1518,16 @@ impl ScalarTerm {
                 scalar_type,
                 left,
                 right,
-            } => {
-                let expected = ScalarType::Integer(*scalar_type);
-                if left.scalar_type() != expected || right.scalar_type() != expected {
-                    return Err(PropositionError::WrappingIntegerAddTypeMismatch {
-                        expected,
-                        left: left.scalar_type(),
-                        right: right.scalar_type(),
-                    });
-                }
-                Ok(())
-            }
+            } => validate_typed_integer_operands(
+                *scalar_type,
+                left,
+                right,
+                |expected, left, right| PropositionError::WrappingIntegerAddTypeMismatch {
+                    expected,
+                    left,
+                    right,
+                },
+            ),
             Self::ExactIntegerAdd {
                 scalar_type,
                 left,
@@ -1586,77 +1577,72 @@ impl ScalarTerm {
                 scalar_type,
                 left,
                 right,
-            } => {
-                let expected = ScalarType::Integer(*scalar_type);
-                if left.scalar_type() != expected || right.scalar_type() != expected {
-                    return Err(PropositionError::SaturatingIntegerAddTypeMismatch {
-                        expected,
-                        left: left.scalar_type(),
-                        right: right.scalar_type(),
-                    });
-                }
-                Ok(())
-            }
+            } => validate_typed_integer_operands(
+                *scalar_type,
+                left,
+                right,
+                |expected, left, right| PropositionError::SaturatingIntegerAddTypeMismatch {
+                    expected,
+                    left,
+                    right,
+                },
+            ),
             Self::WrappingIntegerSubtract {
                 scalar_type,
                 left,
                 right,
-            } => {
-                let expected = ScalarType::Integer(*scalar_type);
-                if left.scalar_type() != expected || right.scalar_type() != expected {
-                    return Err(PropositionError::WrappingIntegerSubtractTypeMismatch {
-                        expected,
-                        left: left.scalar_type(),
-                        right: right.scalar_type(),
-                    });
-                }
-                Ok(())
-            }
+            } => validate_typed_integer_operands(
+                *scalar_type,
+                left,
+                right,
+                |expected, left, right| PropositionError::WrappingIntegerSubtractTypeMismatch {
+                    expected,
+                    left,
+                    right,
+                },
+            ),
             Self::SaturatingIntegerSubtract {
                 scalar_type,
                 left,
                 right,
-            } => {
-                let expected = ScalarType::Integer(*scalar_type);
-                if left.scalar_type() != expected || right.scalar_type() != expected {
-                    return Err(PropositionError::SaturatingIntegerSubtractTypeMismatch {
-                        expected,
-                        left: left.scalar_type(),
-                        right: right.scalar_type(),
-                    });
-                }
-                Ok(())
-            }
+            } => validate_typed_integer_operands(
+                *scalar_type,
+                left,
+                right,
+                |expected, left, right| PropositionError::SaturatingIntegerSubtractTypeMismatch {
+                    expected,
+                    left,
+                    right,
+                },
+            ),
             Self::WrappingIntegerMultiply {
                 scalar_type,
                 left,
                 right,
-            } => {
-                let expected = ScalarType::Integer(*scalar_type);
-                if left.scalar_type() != expected || right.scalar_type() != expected {
-                    return Err(PropositionError::WrappingIntegerMultiplyTypeMismatch {
-                        expected,
-                        left: left.scalar_type(),
-                        right: right.scalar_type(),
-                    });
-                }
-                Ok(())
-            }
+            } => validate_typed_integer_operands(
+                *scalar_type,
+                left,
+                right,
+                |expected, left, right| PropositionError::WrappingIntegerMultiplyTypeMismatch {
+                    expected,
+                    left,
+                    right,
+                },
+            ),
             Self::SaturatingIntegerMultiply {
                 scalar_type,
                 left,
                 right,
-            } => {
-                let expected = ScalarType::Integer(*scalar_type);
-                if left.scalar_type() != expected || right.scalar_type() != expected {
-                    return Err(PropositionError::SaturatingIntegerMultiplyTypeMismatch {
-                        expected,
-                        left: left.scalar_type(),
-                        right: right.scalar_type(),
-                    });
-                }
-                Ok(())
-            }
+            } => validate_typed_integer_operands(
+                *scalar_type,
+                left,
+                right,
+                |expected, left, right| PropositionError::SaturatingIntegerMultiplyTypeMismatch {
+                    expected,
+                    left,
+                    right,
+                },
+            ),
         }
     }
 }

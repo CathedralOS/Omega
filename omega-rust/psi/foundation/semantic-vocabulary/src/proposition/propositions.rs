@@ -440,6 +440,22 @@ pub(crate) fn validate_integer_operands(
     Ok(())
 }
 
+/// The integer-operand check every typed operation reports through its own
+/// `TypeMismatch` variant: `mismatch` builds that variant from the expected
+/// and actual operand types.
+pub(crate) fn validate_typed_integer_operands(
+    integer_type: IntegerType,
+    left: &ScalarTerm,
+    right: &ScalarTerm,
+    mismatch: impl FnOnce(ScalarType, ScalarType, ScalarType) -> PropositionError,
+) -> Result<(), PropositionError> {
+    let expected = ScalarType::Integer(integer_type);
+    if left.scalar_type() != expected || right.scalar_type() != expected {
+        return Err(mismatch(expected, left.scalar_type(), right.scalar_type()));
+    }
+    Ok(())
+}
+
 pub(crate) fn validate_integer_shift_operands(
     value_type: IntegerType,
     count_type: IntegerType,
