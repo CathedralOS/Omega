@@ -7,7 +7,7 @@ use crate::record::{
 };
 use diagnostics::Diagnostic;
 use language_semantics::quotient_correspondence::{
-    CanonicalQuotientCorrespondence, QuotientCorrespondenceOperationKind,
+    CanonicalQuotientCorrespondence, QuotientCorrespondenceOperationKind, QuotientResultFlow,
     QuotientTheoremCorrespondence, QuotientTheoremRole as CanonicalQuotientTheoremRole,
 };
 use semantic_vocabulary::PackageKeyIdentity;
@@ -66,32 +66,82 @@ fn project_replayed_batch(
                 "non-executable quotient package-review row names a private package callable",
             )]);
         }
-        let [state] = program.machine_states(machine) else {
+        let states = program.machine_states(machine);
+        let (state, statement_position, alias_count) = match &certificate.result_flow {
+            QuotientResultFlow::Direct {
+                statement_position,
+                immutable_alias_count,
+            } => {
+                let [state] = states else {
+                    return Err(vec![Diagnostic::error(
+                        "non-executable quotient package-review operation is not a one-state callable",
+                    )]);
+                };
+                (state, *statement_position, *immutable_alias_count)
+            }
+            QuotientResultFlow::Forwarded {
+                machine_state_count,
+                result_state_position,
+                statement_position,
+                immutable_alias_count,
+                ..
+            } => {
+                let state_count = usize::try_from(*machine_state_count).map_err(|_| {
+                    vec![Diagnostic::error(
+                        "non-executable quotient package-review machine state count exceeds the host range",
+                    )]
+                })?;
+                if state_count != states.len() {
+                    return Err(vec![Diagnostic::error(
+                        "non-executable quotient package-review result flow lost its machine state coverage",
+                    )]);
+                }
+                let position = usize::try_from(*result_state_position).map_err(|_| {
+                    vec![Diagnostic::error(
+                        "non-executable quotient package-review state position exceeds the host range",
+                    )]
+                })?;
+                let Some(state) = states.get(position) else {
+                    return Err(vec![Diagnostic::error(
+                        "non-executable quotient package-review result names a noncanonical state position",
+                    )]);
+                };
+                (state, *statement_position, *immutable_alias_count)
+            }
+        };
+        let statement_position = usize::try_from(statement_position).map_err(|_| {
+            vec![Diagnostic::error(
+                "non-executable quotient package-review statement position exceeds the host range",
+            )]
+        })?;
+        let alias_count = usize::try_from(alias_count).map_err(|_| {
+            vec![Diagnostic::error(
+                "non-executable quotient package-review alias count exceeds the host range",
+            )]
+        })?;
+        // The retained coordinates name the result statement; the request
+        // itself sits `immutable_alias_count` locals earlier, at position 0 of
+        // the alias form or at the result position when there are no aliases.
+        let Some(request_position) = statement_position.checked_sub(alias_count) else {
             return Err(vec![Diagnostic::error(
-                "non-executable quotient package-review operation is not a one-state callable",
+                "non-executable quotient package-review result flow lost its request position",
             )]);
         };
-        if certificate.result_flow.state_position != 0 {
-            return Err(vec![Diagnostic::error(
-                "non-executable quotient package-review result names a noncanonical state position",
-            )]);
-        }
-        let statement_position = usize::try_from(certificate.result_flow.statement_position)
-            .map_err(|_| {
-                vec![Diagnostic::error(
-                    "non-executable quotient package-review statement position exceeds the host range",
-                )]
-            })?;
-        let Some(StatementNode::Expression(expression)) = program
+        let request_expression = match program
             .statement_table
             .statements(state.statement_nodes)
-            .get(statement_position)
-        else {
-            return Err(vec![Diagnostic::error(
-                "non-executable quotient package-review result does not name an exact expression statement",
-            )]);
+            .get(request_position)
+        {
+            Some(StatementNode::Expression(expression)) if alias_count == 0 => *expression,
+            Some(StatementNode::LocalData(local)) if alias_count != 0 => local.initial_value,
+            _ => {
+                return Err(vec![Diagnostic::error(
+                    "non-executable quotient package-review result does not name an exact request statement",
+                )]);
+            }
         };
-        let ExpressionNode::Call(call) = program.expression_table.expression(*expression) else {
+        let ExpressionNode::Call(call) = program.expression_table.expression(request_expression)
+        else {
             return Err(vec![Diagnostic::error(
                 "non-executable quotient package-review result does not name an exact call",
             )]);

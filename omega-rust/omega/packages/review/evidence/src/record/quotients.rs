@@ -4,8 +4,9 @@ use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
 /// Proof-only package-review projection of the bounded direct quotient
-/// correspondence batch: total faithful `define` and position-preserving
-/// transport-backed `lift`.
+/// correspondence batch: total faithful `define` and transport-backed `lift`,
+/// including immutable result aliases and finite telescope-preserving
+/// forwarding.
 ///
 /// This record is deliberately separate from [`super::CheckedPackageReviewProjection`]:
 /// ordinary checking still rejects every quotient operation request. The

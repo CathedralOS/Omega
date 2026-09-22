@@ -3,14 +3,15 @@
 use language_semantics::quotient_correspondence::{
     CanonicalQuotientCorrespondence, QuotientCallableIdentity, QuotientCongruenceCorrespondence,
     QuotientContractFactCoordinate, QuotientContractOwner, QuotientCorrespondenceOperationKind,
-    QuotientCrashCertificate, QuotientDefineRuntimePosition, QuotientDirectResultFlow,
+    QuotientCrashCertificate, QuotientDefineRuntimePosition,
     QuotientForwardPreconditionTransportCorrespondence, QuotientForwardPreconditionTransportFact,
     QuotientMachineApplication, QuotientPositionalRelation, QuotientPurityCertificate,
     QuotientRelationIdentity, QuotientRepresentativeApplication, QuotientRepresentativeEligibility,
-    QuotientStaticApplication, QuotientTerminationCertificate, QuotientTheoremApplicationSide,
-    QuotientTheoremConclusion, QuotientTheoremCorrespondence, QuotientTheoremEligibility,
-    QuotientTheoremEvidence, QuotientTheoremParameter, QuotientTheoremParameterRole,
-    QuotientTheoremRelationPremise, QuotientTheoremRole,
+    QuotientResultFlow, QuotientStateForwarding, QuotientStaticApplication,
+    QuotientTerminationCertificate, QuotientTheoremApplicationSide, QuotientTheoremConclusion,
+    QuotientTheoremCorrespondence, QuotientTheoremEligibility, QuotientTheoremEvidence,
+    QuotientTheoremParameter, QuotientTheoremParameterRole, QuotientTheoremRelationPremise,
+    QuotientTheoremRole,
 };
 use terminal_psi::{RetainedQuotientCorrespondence, retain_non_executable_quotient_correspondence};
 
@@ -108,8 +109,42 @@ pub(crate) fn encode_quotient_correspondence(
     writer.u8(match certificate.representative_eligibility.termination {
         QuotientTerminationCertificate::Unconditional => 1,
     });
-    writer.u32(certificate.result_flow.state_position);
-    writer.u32(certificate.result_flow.statement_position);
+    encode_result_flow(writer, &certificate.result_flow)?;
+    Ok(())
+}
+
+fn encode_result_flow(
+    writer: &mut Writer,
+    result_flow: &QuotientResultFlow,
+) -> Result<(), CodecError> {
+    match result_flow {
+        QuotientResultFlow::Direct {
+            statement_position,
+            immutable_alias_count,
+        } => {
+            writer.u8(1);
+            writer.u32(*statement_position);
+            writer.u32(*immutable_alias_count);
+        }
+        QuotientResultFlow::Forwarded {
+            machine_state_count,
+            result_state_position,
+            statement_position,
+            immutable_alias_count,
+            forwarding,
+        } => {
+            writer.u8(2);
+            writer.u32(*machine_state_count);
+            writer.u32(*result_state_position);
+            writer.u32(*statement_position);
+            writer.u32(*immutable_alias_count);
+            writer.len("quotient forwarding edges", forwarding.len())?;
+            for edge in forwarding {
+                writer.u32(edge.source_position);
+                writer.u32(edge.target_position);
+            }
+        }
+    }
     Ok(())
 }
 
@@ -210,12 +245,31 @@ pub(crate) fn decode_quotient_correspondence(
         runtime_positions,
         theorem_evidence,
         representative_eligibility,
-        result_flow: QuotientDirectResultFlow {
-            state_position: reader.u32()?,
-            statement_position: reader.u32()?,
-        },
+        result_flow: decode_result_flow(reader)?,
     };
     Ok(retain_non_executable_quotient_correspondence(certificate))
+}
+
+fn decode_result_flow(reader: &mut Reader<'_>) -> Result<QuotientResultFlow, CodecError> {
+    match reader.u8()? {
+        1 => Ok(QuotientResultFlow::Direct {
+            statement_position: reader.u32()?,
+            immutable_alias_count: reader.u32()?,
+        }),
+        2 => Ok(QuotientResultFlow::Forwarded {
+            machine_state_count: reader.u32()?,
+            result_state_position: reader.u32()?,
+            statement_position: reader.u32()?,
+            immutable_alias_count: reader.u32()?,
+            forwarding: decode_counted(reader, |reader| {
+                Ok(QuotientStateForwarding {
+                    source_position: reader.u32()?,
+                    target_position: reader.u32()?,
+                })
+            })?,
+        }),
+        tag => Err(CodecError::InvalidTag("QuotientResultFlow", tag)),
+    }
 }
 
 fn decode_theorem_evidence(reader: &mut Reader<'_>) -> Result<QuotientTheoremEvidence, CodecError> {

@@ -5,7 +5,7 @@
 
 use language_semantics::quotient_correspondence::{
     CanonicalQuotientCorrespondence, QuotientContractFactCoordinate, QuotientContractOwner,
-    QuotientCorrespondenceOperationKind, QuotientPositionalRelation,
+    QuotientCorrespondenceOperationKind, QuotientPositionalRelation, QuotientResultFlow,
     QuotientTheoremApplicationSide, QuotientTheoremCorrespondence, QuotientTheoremParameterRole,
     QuotientTheoremRole,
 };
@@ -35,7 +35,7 @@ fn quotient_correspondence_identity(
     certificate: &CanonicalQuotientCorrespondence,
 ) -> QuotientCorrespondenceIdentity {
     let mut writer = IdentityWriter::new();
-    writer.string("omega.quotient-correspondence.transport-coordinates.v3");
+    writer.string("omega.quotient-correspondence.transport-coordinates.v4");
     writer.byte(match certificate.operation_kind {
         QuotientCorrespondenceOperationKind::Lift => 1,
         QuotientCorrespondenceOperationKind::Define => 2,
@@ -96,9 +96,39 @@ fn quotient_correspondence_identity(
     }
     writer.byte(1); // representative pure closure
     writer.byte(1); // representative unconditional termination
-    writer.u32(certificate.result_flow.state_position);
-    writer.u32(certificate.result_flow.statement_position);
+    write_result_flow(&mut writer, &certificate.result_flow);
     QuotientCorrespondenceIdentity(writer.finish())
+}
+
+fn write_result_flow(writer: &mut IdentityWriter, result_flow: &QuotientResultFlow) {
+    match result_flow {
+        QuotientResultFlow::Direct {
+            statement_position,
+            immutable_alias_count,
+        } => {
+            writer.byte(1);
+            writer.u32(*statement_position);
+            writer.u32(*immutable_alias_count);
+        }
+        QuotientResultFlow::Forwarded {
+            machine_state_count,
+            result_state_position,
+            statement_position,
+            immutable_alias_count,
+            forwarding,
+        } => {
+            writer.byte(2);
+            writer.u32(*machine_state_count);
+            writer.u32(*result_state_position);
+            writer.u32(*statement_position);
+            writer.u32(*immutable_alias_count);
+            writer.len(forwarding.len());
+            for edge in forwarding {
+                writer.u32(edge.source_position);
+                writer.u32(edge.target_position);
+            }
+        }
+    }
 }
 
 fn write_congruence(

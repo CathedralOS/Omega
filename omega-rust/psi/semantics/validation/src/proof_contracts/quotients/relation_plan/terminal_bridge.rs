@@ -3,27 +3,29 @@
 use language_semantics::quotient_correspondence::{
     CanonicalQuotientCorrespondence, QuotientCallableIdentity, QuotientCongruenceCorrespondence,
     QuotientContractFactCoordinate, QuotientContractOwner, QuotientCorrespondenceOperationKind,
-    QuotientCrashCertificate, QuotientDefineRuntimePosition, QuotientDirectResultFlow,
+    QuotientCrashCertificate, QuotientDefineRuntimePosition,
     QuotientForwardPreconditionTransportCorrespondence, QuotientForwardPreconditionTransportFact,
     QuotientMachineApplication, QuotientPositionalRelation, QuotientPurityCertificate,
     QuotientRelationIdentity, QuotientRepresentativeApplication, QuotientRepresentativeEligibility,
-    QuotientStaticApplication, QuotientTerminationCertificate, QuotientTheoremApplicationSide,
-    QuotientTheoremConclusion, QuotientTheoremCorrespondence, QuotientTheoremEligibility,
-    QuotientTheoremEvidence, QuotientTheoremParameter, QuotientTheoremParameterRole,
-    QuotientTheoremRelationPremise, QuotientTheoremRole,
+    QuotientResultFlow, QuotientStateForwarding, QuotientStaticApplication,
+    QuotientTerminationCertificate, QuotientTheoremApplicationSide, QuotientTheoremConclusion,
+    QuotientTheoremCorrespondence, QuotientTheoremEligibility, QuotientTheoremEvidence,
+    QuotientTheoremParameter, QuotientTheoremParameterRole, QuotientTheoremRelationPremise,
+    QuotientTheoremRole,
 };
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
+use typed_trees::statement::StatementNode;
 
 use super::correspondence_certificate::{
     QuotientCorrespondenceCertificate, QuotientCorrespondenceEvidence,
 };
 use super::precondition::{RepresentativeContractFactLocation, RepresentativeContractOwner};
 use super::representative::RepresentativePurity;
-use super::result_flow::CompleteSingleStateResultFlow;
-use super::runtime_correspondence::DirectLiftArgumentSource;
+use super::result_flow::{CompleteResultFlow, CompleteStateForwardingResultFlow};
+use super::runtime_correspondence::{DirectLiftArgumentSource, direct_public_parameter_symbol};
 use super::theorem_schema::{
     TheoremApplicationSide, TheoremContractFactLocation, TheoremContractOwner, TheoremParameterRole,
 };
@@ -46,7 +48,7 @@ pub(in crate::proof_contracts::quotients) fn canonical_direct_correspondence(
     request_expression: ExpressionHandle,
     plan: &DirectTerminalRelationPlan,
     representative_purity: RepresentativePurity,
-    result_flow: CompleteSingleStateResultFlow,
+    result_flow: CompleteResultFlow,
 ) -> Result<CanonicalQuotientCorrespondence, String> {
     let transport_lift = match plan
         .correspondence_certificate
@@ -83,7 +85,7 @@ fn canonical_correspondence(
     request_expression: ExpressionHandle,
     plan: &DirectTerminalRelationPlan,
     representative_purity: RepresentativePurity,
-    result_flow: CompleteSingleStateResultFlow,
+    result_flow: CompleteResultFlow,
     transport_lift: bool,
 ) -> Result<CanonicalQuotientCorrespondence, String> {
     let planned_theorem = plan
@@ -98,7 +100,12 @@ fn canonical_correspondence(
         return Err("quotient correspondence theorem evidence has a noncanonical role".to_owned());
     }
     let selected_theorem = &planned_theorem.selected_application;
-    require_single_entry(program, public_machine, public_state, "public operation")?;
+    match &result_flow {
+        CompleteResultFlow::Single(_) => {
+            require_single_entry(program, public_machine, public_state, "public operation")?
+        }
+        CompleteResultFlow::Forwarded(_) => {}
+    }
     require_empty_owner_telescope(program, public_machine, "public operation")?;
 
     let (representative_machine, representative_state) = exact_machine_state(
@@ -245,13 +252,34 @@ fn canonical_correspondence(
     {
         return Err("purity, termination, or theorem crash eligibility is incomplete".to_owned());
     }
-    if result_flow.root.request_expression != request_expression
-        || result_flow.root.alias_count != 0
-        || result_flow.machine_symbol != public_machine.symbol
-        || result_flow.state_symbol != public_state.symbol
-    {
-        return Err("direct result-flow certificate identity drifted".to_owned());
-    }
+    let statement_position = program
+        .statement_table
+        .statements(public_state.statement_nodes)
+        .len()
+        .checked_sub(1)
+        .ok_or_else(|| "direct result state has no terminal statement".to_owned())?;
+    let result_flow = match result_flow {
+        CompleteResultFlow::Single(flow) => {
+            if flow.root.request_expression != request_expression
+                || flow.machine_symbol != public_machine.symbol
+                || flow.state_symbol != public_state.symbol
+            {
+                return Err("direct result-flow certificate identity drifted".to_owned());
+            }
+            QuotientResultFlow::Direct {
+                statement_position: to_u32(statement_position, "result statement position")?,
+                immutable_alias_count: to_u32(flow.root.alias_count, "immutable alias count")?,
+            }
+        }
+        CompleteResultFlow::Forwarded(flow) => canonical_forwarded_result_flow(
+            program,
+            public_machine,
+            public_state,
+            request_expression,
+            &flow,
+            statement_position,
+        )?,
+    };
 
     if transport_lift {
         // A transport-backed `lift` may adapt arguments: runtime rows and
@@ -295,12 +323,6 @@ fn canonical_correspondence(
         .collect::<Result<Vec<_>, String>>()?;
     let result_relation = relation_identity(program, plan.result_relation)?;
     let theorem = theorem_correspondence(program, plan, certificate, transport_lift)?;
-    let statement_position = program
-        .statement_table
-        .statements(public_state.statement_nodes)
-        .len()
-        .checked_sub(1)
-        .ok_or_else(|| "direct result state has no terminal statement".to_owned())?;
 
     Ok(CanonicalQuotientCorrespondence {
         operation_kind,
@@ -347,11 +369,118 @@ fn canonical_correspondence(
             purity: QuotientPurityCertificate::PureClosure,
             termination: QuotientTerminationCertificate::Unconditional,
         },
-        result_flow: QuotientDirectResultFlow {
-            state_position: 0,
-            statement_position: to_u32(statement_position, "result statement position")?,
-        },
+        result_flow,
     })
+}
+
+/// Retain a checked finite forwarding graph only when every hop preserves the
+/// public telescope.
+///
+/// The result state's own telescope is what the runtime map calls "public":
+/// `input_relations` and `runtime_positions` index `public_state`'s parameters
+/// while `public_operation` names the machine's entry signature. A forwarded
+/// machine only keeps those telescopes identical when each transition binds
+/// every target parameter to the source parameter at the same position —
+/// same kind flags, same normalized type, and a direct same-position source
+/// name for every argument. Any adapted argument would publish a row whose
+/// "public" positions are not the caller's parameters.
+fn canonical_forwarded_result_flow(
+    program: &TypedTrees,
+    public_machine: &Machine,
+    public_state: &State,
+    request_expression: ExpressionHandle,
+    flow: &CompleteStateForwardingResultFlow,
+    statement_position: usize,
+) -> Result<QuotientResultFlow, String> {
+    if flow.root.request_expression != request_expression
+        || flow.machine_symbol != public_machine.symbol
+        || flow.result_state_symbol != public_state.symbol
+    {
+        return Err("forwarded result-flow certificate identity drifted".to_owned());
+    }
+    let states = program.machine_states(public_machine);
+    let state_position = |symbol: symbols::SymbolHandle| {
+        states
+            .iter()
+            .position(|state| state.symbol == symbol)
+            .and_then(|position| u32::try_from(position).ok())
+    };
+    let Some(result_state_position) = state_position(flow.result_state_symbol) else {
+        return Err("forwarded result flow lost its result state".to_owned());
+    };
+    let mut forwarding = Vec::with_capacity(flow.forwarding_edges.len());
+    for edge in &flow.forwarding_edges {
+        let (Some(source_position), Some(target_position)) = (
+            state_position(edge.source_state_symbol),
+            state_position(edge.target_state_symbol),
+        ) else {
+            return Err("forwarded result flow lost a state position".to_owned());
+        };
+        require_positional_state_forwarding(
+            program,
+            &states[source_position as usize],
+            &states[target_position as usize],
+        )?;
+        forwarding.push(QuotientStateForwarding {
+            source_position,
+            target_position,
+        });
+    }
+    Ok(QuotientResultFlow::Forwarded {
+        machine_state_count: to_u32(states.len(), "machine state count")?,
+        result_state_position,
+        statement_position: to_u32(statement_position, "result statement position")?,
+        immutable_alias_count: to_u32(flow.root.alias_count, "immutable alias count")?,
+        forwarding,
+    })
+}
+
+/// One forwarding hop preserves the public telescope exactly when it binds
+/// each target parameter to the source parameter at the same position.
+fn require_positional_state_forwarding(
+    program: &TypedTrees,
+    source: &State,
+    target: &State,
+) -> Result<(), String> {
+    let [StatementNode::Transition(transition)] =
+        program.statement_table.statements(source.statement_nodes)
+    else {
+        return Err("forwarding state lost its single transition".to_owned());
+    };
+    let typed_trees::statement::TransitionTargetNode::Named {
+        path, arguments, ..
+    } = program.statement_table.transition_target(transition.target)
+    else {
+        return Err("forwarding state lost its named target".to_owned());
+    };
+    if path.symbol != target.symbol {
+        return Err("forwarding edge target drifted".to_owned());
+    }
+    let source_parameters = program.state_parameters(source);
+    let target_parameters = program.state_parameters(target);
+    let arguments = program.statement_table.expression_handles(*arguments);
+    if source_parameters.len() != target_parameters.len()
+        || arguments.len() != target_parameters.len()
+    {
+        return Err("forwarded result flow does not preserve the public telescope".to_owned());
+    }
+    for (position, (source_parameter, target_parameter)) in source_parameters
+        .iter()
+        .zip(target_parameters.iter())
+        .enumerate()
+    {
+        if source_parameter.is_const != target_parameter.is_const
+            || source_parameter.is_mutable != target_parameter.is_mutable
+            || source_parameter.is_self != target_parameter.is_self
+            || program.normalized_type_identity(source_parameter.type_reference)
+                != program.normalized_type_identity(target_parameter.type_reference)
+            || direct_public_parameter_symbol(program, arguments[position])
+                != Some(source_parameter.symbol)
+        {
+            return Err("forwarded result flow does not preserve the public telescope".to_owned());
+        }
+    }
+    Ok(())
 }
 
 fn theorem_correspondence(

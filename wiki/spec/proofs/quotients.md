@@ -327,10 +327,17 @@ Diagnostic reconstruction supplies no certificate or execution authority.
 
 ### Published quotient correspondence
 
-The current retained Terminal table is proof-only: monomorphic total direct
-faithful `define` and position-preserving direct `lift` with congruence and forward
-transport evidence. Rows retain exact public callable, selected application,
-theorem roles, relations, eligibility, fact coordinates, and direct result shape.
+The current retained Terminal table is proof-only: monomorphic total faithful
+`define` and transport-backed `lift` with congruence and forward transport
+evidence. Rows retain exact public callable, selected application, theorem
+roles, relations, eligibility, fact coordinates, the representative-ordered
+runtime argument map (`lift` may select, permute, repeat, or omit public
+parameters; `define` stays position-preserving), and the complete checked
+normal-result flow: the result statement position, the exact immutable-alias
+depth between the request and that result, and — for a finite forwarding
+machine — the machine state count, result-state position, and one forwarding
+edge per non-result state, where each edge preserves the public telescope
+positionally.
 
 Role tags precede application and payload in identity. Transport retains Left/Right
 application side and authored-source/selected-theorem coordinates. Rows and their

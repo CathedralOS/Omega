@@ -176,23 +176,8 @@ pub(crate) fn reject_quotient_operation_requests(
                         &operational,
                         &service_reaches,
                     );
-                    let complete_result_flow = relation_plan::complete_single_state_result_flow(
-                        program,
-                        machine,
-                        state,
-                        result_root,
-                    );
-                    let complete_forwarded_result_flow = complete_result_flow
-                        .is_none()
-                        .then(|| {
-                            relation_plan::complete_state_forwarding_result_flow(
-                                program,
-                                machine,
-                                state,
-                                result_root,
-                            )
-                        })
-                        .flatten();
+                    let complete_result_flow =
+                        relation_plan::complete_result_flow(program, machine, state, result_root);
                     // Compose the exact canonical Terminal row this plan's own
                     // certificate licenses. Ordinary validation rederives the
                     // complete congruence/transport join here rather than
@@ -200,6 +185,7 @@ pub(crate) fn reject_quotient_operation_requests(
                     // reconstruction stays diagnostic and grants no execution
                     // authority.
                     let canonical_correspondence = complete_result_flow
+                        .clone()
                         .zip(representative_purity)
                         .map(|(result_flow, purity)| {
                             relation_plan::canonical_direct_correspondence(
@@ -314,16 +300,16 @@ pub(crate) fn reject_quotient_operation_requests(
                             },
                         )
                     };
-                    let result_flow = if complete_result_flow.is_some() {
-                        format!(
+                    let result_flow = match &complete_result_flow {
+                        Some(relation_plan::CompleteResultFlow::Single(_)) => format!(
                             "complete transition-free single-state normal-result coverage through {result_path}"
-                        )
-                    } else if complete_forwarded_result_flow.is_some() {
-                        format!(
+                        ),
+                        Some(relation_plan::CompleteResultFlow::Forwarded(_)) => format!(
                             "complete finite state-forwarded normal-result coverage through {result_path}"
-                        )
-                    } else {
-                        format!("one unchanged state-fallthrough result edge through {result_path}")
+                        ),
+                        None => format!(
+                            "one unchanged state-fallthrough result edge through {result_path}"
+                        ),
                     };
                     let plan_kind = if result_root.alias_count == 0 {
                         "direct-terminal"
@@ -375,7 +361,7 @@ pub(crate) fn reject_quotient_operation_requests(
                             );
                         }
                     }
-                    if complete_result_flow.is_none() && complete_forwarded_result_flow.is_none() {
+                    if complete_result_flow.is_none() {
                         remaining.push("all normalized result exits".to_owned());
                     }
                     // A composed certificate already carries the whole Q => P

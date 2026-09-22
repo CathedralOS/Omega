@@ -203,10 +203,39 @@ pub struct QuotientTheoremEvidence {
     pub eligibility: QuotientTheoremEligibility,
 }
 
+/// One retained unconditional forwarding edge inside the public machine's
+/// state table. Positions index the owner machine's state order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct QuotientDirectResultFlow {
-    pub state_position: u32,
-    pub statement_position: u32,
+pub struct QuotientStateForwarding {
+    pub source_position: u32,
+    pub target_position: u32,
+}
+
+/// Complete source-free result-flow evidence for one canonical row.
+///
+/// `statement_position` is the result expression's index inside the result
+/// state's statement list, and `immutable_alias_count` retains the exact
+/// straight-line immutable alias depth the local judgment proved between the
+/// request call and that result expression.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum QuotientResultFlow {
+    /// The owner machine has exactly one state, which owns the result root.
+    Direct {
+        statement_position: u32,
+        immutable_alias_count: u32,
+    },
+    /// Every non-result state holds one unconditional ordinary transition
+    /// whose arguments bind the target telescope positionally to the source
+    /// telescope, and every path reaches the result state. `forwarding`
+    /// carries one edge per non-result state in machine-state order, so the
+    /// retained graph is the complete checked coverage.
+    Forwarded {
+        machine_state_count: u32,
+        result_state_position: u32,
+        statement_position: u32,
+        immutable_alias_count: u32,
+        forwarding: Vec<QuotientStateForwarding>,
+    },
 }
 
 /// Complete source-free input to the first standalone Terminal replay seam.
@@ -229,5 +258,5 @@ pub struct CanonicalQuotientCorrespondence {
     pub runtime_positions: Vec<QuotientDefineRuntimePosition>,
     pub theorem_evidence: Vec<QuotientTheoremEvidence>,
     pub representative_eligibility: QuotientRepresentativeEligibility,
-    pub result_flow: QuotientDirectResultFlow,
+    pub result_flow: QuotientResultFlow,
 }
