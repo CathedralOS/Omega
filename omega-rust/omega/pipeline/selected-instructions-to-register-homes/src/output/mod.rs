@@ -7,17 +7,19 @@ mod baseline;
 mod current;
 mod fixed_view;
 mod literal_folds;
+mod pre_allocation;
 mod rematerialization;
 mod retained;
 mod runtime_spill;
 
 use crate::{
     OptimizedActiveResidentRematerializationError, OptimizedPostCopyRegisterHomeCustodyError,
-    OptimizedPostLiteralFoldHomeCustodyError, OptimizedPostSelectedLoweringHomeCustodyError,
-    OptimizedRegisterHomeCustodyError,
+    OptimizedPostLiteralFoldHomeCustodyError, OptimizedPostPreAllocationHomeCustodyError,
+    OptimizedPostSelectedLoweringHomeCustodyError, OptimizedRegisterHomeCustodyError,
     StagedOptimizedActiveResidentRematerializationCustodyReceipt,
     StagedOptimizedPostCopyRegisterHomeCustodyReceipt,
     StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
+    StagedOptimizedPostPreAllocationHomeCustodyReceipt,
     StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
     StagedOptimizedRegisterHomeCustodyReceipt,
 };
@@ -156,6 +158,7 @@ pub enum AllocationEvidence {
     FixedViewCopies(StagedOptimizedPostCopyRegisterHomeCustodyReceipt),
     LiteralFolds(StagedOptimizedPostLiteralFoldHomeCustodyReceipt),
     SelectedLowering(StagedOptimizedPostSelectedLoweringHomeCustodyReceipt),
+    PreAllocation(StagedOptimizedPostPreAllocationHomeCustodyReceipt),
     ActiveResidentRematerialization(StagedOptimizedActiveResidentRematerializationCustodyReceipt),
 }
 
@@ -168,6 +171,7 @@ pub enum AllocationReplayError {
     FixedViewCopies(OptimizedPostCopyRegisterHomeCustodyError),
     LiteralFolds(OptimizedPostLiteralFoldHomeCustodyError),
     SelectedLowering(OptimizedPostSelectedLoweringHomeCustodyError),
+    PreAllocation(OptimizedPostPreAllocationHomeCustodyError),
     ActiveResidentRematerialization(OptimizedActiveResidentRematerializationError),
     ReceiptMismatch,
 }

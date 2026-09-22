@@ -63,6 +63,15 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         route: RewriteModuleRoute::Shared,
     },
     RewriteModuleRow {
+        module: "copy_removal",
+        // The pre-allocation executor: `run_pre_allocation_optimizations` is
+        // the rewrite the stage entrance runs for that slice.
+        route: RewriteModuleRoute::Routed {
+            caller: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/selected_optimization.rs",
+            evidence: "run_pre_allocation_optimizations",
+        },
+    },
+    RewriteModuleRow {
         module: "fixed_view",
         // Register allocation stages `stage_optimized_fixed_precolored_
         // segment_homes` and `stage_optimized_fixed_view_copies` from its
@@ -84,6 +93,15 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
     RewriteModuleRow {
         module: "module_catalog",
         route: RewriteModuleRoute::Shared,
+    },
+    RewriteModuleRow {
+        module: "pre_allocation",
+        // The pre-allocation executor: `run_pre_allocation_optimizations` is
+        // the rewrite the stage entrance runs for that slice.
+        route: RewriteModuleRoute::Routed {
+            caller: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/selected_optimization.rs",
+            evidence: "run_pre_allocation_optimizations",
+        },
     },
     RewriteModuleRow {
         module: "runtime_rematerialization",
@@ -191,10 +209,6 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
     },
     RewriteModuleRow {
         module: "constant_branch",
-        route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
-    },
-    RewriteModuleRow {
-        module: "copy_removal",
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
     RewriteModuleRow {

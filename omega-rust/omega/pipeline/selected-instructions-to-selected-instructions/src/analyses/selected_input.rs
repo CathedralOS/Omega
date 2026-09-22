@@ -14,19 +14,19 @@ use crate::rewrites::unexecuted::{
     ValidatedCommutingRelocation, ValidatedCommutingRunInterchange,
     ValidatedCommutingRunRelocation, ValidatedConfluenceRelocation,
     ValidatedConfluenceRunRelocation, ValidatedConstantBoolean, ValidatedConstantBranch,
-    ValidatedCopyRemoval, ValidatedDeadCompare, ValidatedDeadStoreElimination,
-    ValidatedDiamondRelocation, ValidatedDiamondRunRelocation, ValidatedEdgeRelocation,
-    ValidatedEdgeRunRelocation, ValidatedEquivalentCompare, ValidatedForkRelocation,
-    ValidatedForkRunRelocation, ValidatedInflowRelocation, ValidatedJoinRelocation,
-    ValidatedLocalRelocation, ValidatedLocalSchedule, ValidatedMemberRunInterchange,
-    ValidatedMemberRunRelocation, ValidatedPredecessorRelocation,
-    ValidatedPredecessorRunRelocation, ValidatedRedundantCompare, ValidatedRedundantExtension,
-    ValidatedRunInterchange, ValidatedRunRelocation, ValidatedScheduledRelocation,
-    ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding, ValidatedTriangleRelocation,
+    ValidatedDeadCompare, ValidatedDeadStoreElimination, ValidatedDiamondRelocation,
+    ValidatedDiamondRunRelocation, ValidatedEdgeRelocation, ValidatedEdgeRunRelocation,
+    ValidatedEquivalentCompare, ValidatedForkRelocation, ValidatedForkRunRelocation,
+    ValidatedInflowRelocation, ValidatedJoinRelocation, ValidatedLocalRelocation,
+    ValidatedLocalSchedule, ValidatedMemberRunInterchange, ValidatedMemberRunRelocation,
+    ValidatedPredecessorRelocation, ValidatedPredecessorRunRelocation, ValidatedRedundantCompare,
+    ValidatedRedundantExtension, ValidatedRunInterchange, ValidatedRunRelocation,
+    ValidatedScheduledRelocation, ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding,
+    ValidatedTriangleRelocation,
 };
 use crate::{
-    ValidatedFixedViewCopies, ValidatedLiteralFold, ValidatedPressureRematerialization,
-    ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
+    ValidatedCopyRemoval, ValidatedFixedViewCopies, ValidatedLiteralFold,
+    ValidatedPressureRematerialization, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
 };
 
 mod sealed {

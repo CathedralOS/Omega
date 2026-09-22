@@ -21,6 +21,9 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
     SelectedLoweringRuleCatalog(
         selected_instructions_to_selected_instructions::SelectedLoweringRuleCatalogError,
     ),
+    PreAllocationRuleCatalog(
+        selected_instructions_to_selected_instructions::PreAllocationRuleCatalogError,
+    ),
     FunctionRelativeLayoutRuleCatalog(
         resolved_layout_to_resolved_layout::FunctionRelativeLayoutCatalogError,
     ),

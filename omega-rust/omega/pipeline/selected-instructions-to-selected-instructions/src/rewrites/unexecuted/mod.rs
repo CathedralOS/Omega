@@ -28,7 +28,6 @@
 //! - `confluence_run_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `constant_boolean` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `constant_branch` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
-//! - `copy_removal` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `dead_compare` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `dead_store` — staged, owner row **ALIAS-AWARE-MEMORY**
 //! - `diamond_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
@@ -76,7 +75,6 @@ mod confluence_relocation;
 mod confluence_run_relocation;
 mod constant_boolean;
 mod constant_branch;
-mod copy_removal;
 mod dead_compare;
 mod dead_path;
 mod dead_store;
@@ -163,10 +161,6 @@ pub use constant_boolean::{
 pub use constant_branch::{
     ConstantBranchError, ConstantBranchReceipt, ValidatedConstantBranch,
     fold_selected_constant_branch, validate_constant_branch_fold,
-};
-pub use copy_removal::{
-    CopyRemovalError, CopyRemovalReceipt, ValidatedCopyRemoval, remove_selected_copy,
-    validate_copy_removal,
 };
 pub use dead_compare::{
     DeadCompareError, DeadCompareReceipt, EquivalentCompareError, EquivalentCompareReceipt,

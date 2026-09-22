@@ -45,6 +45,7 @@ There is no debug/release bundle and no `O1`, `O2`, or `O3` alias.
 | `CheckedTreeProductPruning` | CheckedTrees | Target-independent | Experimental | `--disable-optimization CheckedTreeProductPruning` | Required |
 | `StateSpecialization` | Psi | Target-independent | Experimental | `--disable-optimization StateSpecialization` | Required |
 | `RepresentationSpecialization` | Psi | Target-independent | Experimental | `--disable-optimization RepresentationSpecialization` | Required |
+| `SelectedSameBlockCopyI64RemovalV1` | PreAllocation | Target-independent | Experimental | `--disable-optimization SelectedSameBlockCopyI64RemovalV1` | Required |
 <!-- exact-rule-inventory:end -->
 
 The architecture test derives exact names and phases from `Optimization::ALL`'s

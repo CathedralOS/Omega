@@ -11,6 +11,10 @@ canonical_identity!(
     b"omega.selected-lowering-optimization-completion-identity.v1\0"
 );
 canonical_identity!(
+    PreAllocationOptimizationCompletionIdentity,
+    b"omega.pre-allocation-optimization-completion-identity.v1\0"
+);
+canonical_identity!(
     FunctionRelativeOptimizationRealizationManifestIdentity,
     b"omega.function-relative-optimization-realization-manifest-identity.v1\0"
 );

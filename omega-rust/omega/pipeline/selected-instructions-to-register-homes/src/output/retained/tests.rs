@@ -5,7 +5,7 @@
 fn every_retained_constructor_fully_replays_fresh_source_before_capture() {
     let source = include_str!("../retained.rs");
     let constructors = source.split("impl TryFrom<").skip(1).collect::<Vec<_>>();
-    assert_eq!(constructors.len(), 6);
+    assert_eq!(constructors.len(), 7);
     for constructor in &constructors {
         let replay = constructor
             .find("let replayed = source.replay_allocation()?;")
@@ -25,7 +25,7 @@ fn every_retained_constructor_fully_replays_fresh_source_before_capture() {
         source
             .matches("validate_recovery_selection(&replayed, None)?;")
             .count(),
-        5
+        6
     );
     assert!(
         source.contains(
@@ -44,7 +44,7 @@ fn immutable_retained_reads_rejoin_all_facts_without_reexecuting_source_replay()
         .split("impl TryFrom<")
         .next()
         .unwrap();
-    assert_eq!(retained.matches("source.project_allocation()").count(), 5);
+    assert_eq!(retained.matches("source.project_allocation()").count(), 6);
     assert_eq!(
         retained
             .matches("source.project_replayed_allocation()?")

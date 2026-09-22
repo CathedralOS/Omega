@@ -32,7 +32,12 @@
 //! Removing the copy shortens the block's instruction vector, so boundary
 //! settlements positioned after it shift one ordinal earlier; positions at
 //! or before it are untouched. Settlements carry no register references, so
-//! the substitution itself is invisible to them.
+//! the substitution itself is invisible to them. Removing the destination's
+//! roster row and the copy instruction also re-densifies the function's
+//! identifiers — readers index `virtual_registers` by register id — so every
+//! register id above the destination and every instruction id above the copy
+//! shifts down one on instruction ids, operands, call and access rows,
+//! roster origins, storage slots, and edge transports.
 //!
 //! Proposal and validation decide legality independently. The producer's
 //! `admission` locates the copy, classifies the destination's mentions, and
@@ -51,11 +56,14 @@ mod validation;
 use std::sync::Arc;
 
 use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+use selected_instructions::{
+    CopyRemovalIdentity, SelectedInstructionId, SelectedInstructionPlan,
+    SelectedInstructionPlanIdentity,
+};
 use semantic_vocabulary::FuelScheduleIdentity;
 
-pub use rewrite::remove_selected_copy;
-pub use validation::validate_copy_removal;
+pub(crate) use rewrite::remove_selected_copy;
+pub(crate) use validation::{measured_steps, validate_copy_removal};
 
 #[cfg(test)]
 mod tests;
@@ -87,6 +95,8 @@ pub struct CopyRemovalReceipt {
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
     fuel_schedule: FuelScheduleIdentity,
+    function_index: usize,
+    copy: SelectedInstructionId,
 }
 
 impl CopyRemovalReceipt {
@@ -102,6 +112,40 @@ impl CopyRemovalReceipt {
     pub const fn fuel_schedule(&self) -> FuelScheduleIdentity {
         self.fuel_schedule
     }
+    /// The function the copy was removed from.
+    pub const fn function_index(&self) -> usize {
+        self.function_index
+    }
+    /// The removed `CopyI64` instruction's source-side identity.
+    pub const fn copy(&self) -> SelectedInstructionId {
+        self.copy
+    }
+    /// The durable transformation identity the post-allocation manifest
+    /// ledger records: the receipt's exact fields under the copy-removal
+    /// domain separator.
+    pub fn identity(&self) -> CopyRemovalIdentity {
+        copy_removal_identity(self)
+    }
+}
+
+/// Canonical identity of one validated copy removal: every receipt field —
+/// the coordinate, both plan identities, and the proof inputs — is part of
+/// the durable record, so two removals of the same instruction under
+/// different sources stay distinct transformations.
+pub(crate) fn copy_removal_identity(receipt: &CopyRemovalReceipt) -> CopyRemovalIdentity {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(b"omega.terminal-copy-removal.v1\0");
+    bytes.extend_from_slice(&receipt.source_selected.bytes());
+    bytes.extend_from_slice(&receipt.transformed_selected.bytes());
+    bytes.extend_from_slice(&receipt.optimization_unit.bytes());
+    bytes.extend_from_slice(&receipt.fuel_schedule.marker().to_le_bytes());
+    bytes.extend_from_slice(
+        &u64::try_from(receipt.function_index)
+            .expect("copy-removal function index fits u64")
+            .to_le_bytes(),
+    );
+    bytes.extend_from_slice(&receipt.copy.0.to_le_bytes());
+    CopyRemovalIdentity::from_canonical_bytes(&bytes)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

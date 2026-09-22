@@ -13,7 +13,6 @@ pub(super) fn validate_physical_selections(
     for phase in [
         OptimizationExecutionPhase::AbstractOperations,
         OptimizationExecutionPhase::TargetOperations,
-        OptimizationExecutionPhase::PreAllocation,
         OptimizationExecutionPhase::PostAllocationMachine,
     ] {
         if !selections.project_phase(phase).is_empty() {
@@ -26,6 +25,13 @@ pub(super) fn validate_physical_selections(
             &selected_lowering,
         )
         .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedLoweringRuleCatalog)?;
+    }
+    let pre_allocation = selections.project_phase(OptimizationExecutionPhase::PreAllocation);
+    if !pre_allocation.is_empty() {
+        selected_instructions_to_selected_instructions::resolve_pre_allocation_rules(
+            &pre_allocation,
+        )
+        .map_err(OptimizedVerifiedPhysicalPipelineError::PreAllocationRuleCatalog)?;
     }
     selected_instructions_to_register_homes::selected_allocation_recovery_rule(
         &selections.project_phase(OptimizationExecutionPhase::AllocationRecovery),

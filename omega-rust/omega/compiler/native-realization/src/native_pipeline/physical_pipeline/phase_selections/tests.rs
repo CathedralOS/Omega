@@ -47,6 +47,15 @@ fn selected_lowering_catalog_selections_pass_the_physical_gate() {
 }
 
 #[test]
+fn pre_allocation_catalog_selections_pass_the_physical_gate() {
+    let selections = PostTerminalOptimizationSelections::new(
+        OptimizationSelections::new([Optimization::SelectedSameBlockCopyI64RemovalV1]).unwrap(),
+    )
+    .unwrap();
+    validate_physical_selections(&selections, target::Architecture::X86_64).unwrap();
+}
+
+#[test]
 fn canonical_frame_accepts_empty_and_layout_selection_without_route_selection() {
     validate_physical_selections(
         &PostTerminalOptimizationSelections::default(),

@@ -2,10 +2,11 @@
 
 use crate::{
     AllocationRecoveryRuleCatalogError, OptimizedAllocationLegalityCustodyError,
-    OptimizedLiteralFoldCustodyError, OptimizedLiveRangeCustodyError,
-    OptimizedLivenessCustodyError, OwnedSelectedProgram, StagedOptimizedLiveRanges,
+    OptimizedCopyRemovalCustodyError, OptimizedLiteralFoldCustodyError,
+    OptimizedLiveRangeCustodyError, OptimizedLivenessCustodyError, OwnedSelectedProgram,
+    StagedOptimizedLiveRanges, StagedPreAllocationOptimizationRun,
     StagedSelectedLoweringOptimizationRun, validate_optimized_live_range_custody,
-    validate_selected_lowering_optimization_custody,
+    validate_pre_allocation_optimization_custody, validate_selected_lowering_optimization_custody,
 };
 
 /// Only replay and custody assembly distinguish how the current program was obtained.
@@ -13,6 +14,7 @@ use crate::{
 pub enum SelectedInstructionOptimizationEvidence {
     Identity(StagedOptimizedLiveRanges),
     LiteralFolds(StagedSelectedLoweringOptimizationRun),
+    PreAllocation(StagedPreAllocationOptimizationRun),
 }
 
 #[derive(Debug)]
@@ -72,6 +74,13 @@ impl SelectedInstructionOptimizationEvidence {
                 // including when the selected suite applied no rewrite.
                 Ok(OwnedSelectedProgram::retain(run.attempt().fold()))
             }
+            Self::PreAllocation(run) => {
+                validate_pre_allocation_optimization_custody(run)
+                    .map_err(SelectedInstructionOptimizationError::PreAllocation)?;
+                // The terminal clean discovery pass is the checked
+                // fixed-point output, including when no copy was admissible.
+                Ok(OwnedSelectedProgram::retain(&run.current()))
+            }
         }
     }
 }
@@ -82,6 +91,7 @@ pub enum SelectedInstructionOptimizationError {
     LiveRanges(OptimizedLiveRangeCustodyError),
     Legality(OptimizedAllocationLegalityCustodyError),
     Rewrite(OptimizedLiteralFoldCustodyError),
+    PreAllocation(OptimizedCopyRemovalCustodyError),
     RecoveryCatalog(AllocationRecoveryRuleCatalogError),
     UnsupportedComposition,
     CurrentProgramMismatch,

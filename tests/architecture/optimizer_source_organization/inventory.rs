@@ -112,6 +112,19 @@ pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
         ],
     },
     RuleStageDescriptor {
+        entrance: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/pre_allocation.rs",
+        catalog: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/pre_allocation/catalog.rs",
+        coordination_marker: "pub fn resolve_pre_allocation_rules",
+        catalog_marker: "PRE_ALLOCATION_RULE_CATALOG",
+        next_rungs: &[
+            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/copy_removal",
+        ],
+        output_marker: "run_pre_allocation_optimizations",
+        consumers: &[
+            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/selected_optimization.rs",
+        ],
+    },
+    RuleStageDescriptor {
         entrance: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/mod.rs",
         catalog: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/catalog.rs",
         coordination_marker: "pub fn selected_allocation_recovery_rule",

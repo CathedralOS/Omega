@@ -130,7 +130,8 @@ pub use stages::{
     FunctionRelativeOptimizationRealizationManifestIdentity, NativeOptimizationProjectionIdentity,
     OptimizedAbstractPlanProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,
     OptimizedOperatorOccurrenceIdentity, PostAllocationOptimizationManifestIdentity,
-    PrePhysicalOptimizationManifestIdentity, SelectedLoweringOptimizationCompletionIdentity,
+    PreAllocationOptimizationCompletionIdentity, PrePhysicalOptimizationManifestIdentity,
+    SelectedLoweringOptimizationCompletionIdentity,
 };
 
 #[cfg(test)]

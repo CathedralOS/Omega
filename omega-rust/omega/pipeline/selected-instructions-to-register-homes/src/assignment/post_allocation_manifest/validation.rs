@@ -1,5 +1,6 @@
 use optimization_core::{
-    PrePhysicalOptimizationManifestIdentity, SelectedLoweringOptimizationCompletionIdentity,
+    PreAllocationOptimizationCompletionIdentity, PrePhysicalOptimizationManifestIdentity,
+    SelectedLoweringOptimizationCompletionIdentity,
 };
 
 use crate::{ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedRegisterHomes};
@@ -14,6 +15,7 @@ pub(super) fn validate(
     candidate: &PostAllocationOptimizationManifest,
     pre_physical: PrePhysicalOptimizationManifestIdentity,
     selected_lowering_completion: Option<SelectedLoweringOptimizationCompletionIdentity>,
+    pre_allocation_completion: Option<PreAllocationOptimizationCompletionIdentity>,
     selected_transformations: &[PostAllocationSelectedTransformation],
     ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,
@@ -25,6 +27,7 @@ pub(super) fn validate(
     let expected = expected_record(
         pre_physical,
         selected_lowering_completion,
+        pre_allocation_completion,
         selected_transformations,
         ranges,
         legality,

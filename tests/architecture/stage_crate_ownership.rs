@@ -502,7 +502,7 @@ fn stage_root_public_modules_have_external_consumers() {
 /// their `pub fn`s are the only root-reachable functions this audit excuses
 /// as a group. A family that gains a production caller must leave both
 /// rosters; a family the board retires must be deleted, not kept here.
-const UNEXECUTED_REWRITE_FAMILIES: [(&str, &str); 39] = [
+const UNEXECUTED_REWRITE_FAMILIES: [(&str, &str); 38] = [
     ("address_fold", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("arm_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("boundary_boolean", "EXACT-MACHINE-SIMPLIFICATIONS"),
@@ -521,7 +521,6 @@ const UNEXECUTED_REWRITE_FAMILIES: [(&str, &str); 39] = [
     ("confluence_run_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("constant_boolean", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("constant_branch", "EXACT-MACHINE-SIMPLIFICATIONS"),
-    ("copy_removal", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("dead_compare", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("dead_store", "ALIAS-AWARE-MEMORY"),
     ("diamond_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),

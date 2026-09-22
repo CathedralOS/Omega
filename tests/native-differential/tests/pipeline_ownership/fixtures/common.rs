@@ -2,13 +2,13 @@
 
 use crate::tests::{
     AdmissionProfile, Block, BlockId, CertificateEnvelope, ContractId, EdgeId, EvidenceIdentity,
-    EvidenceRoute, IntegerSign, IntegerType, IntegerValue, MachineContract, MachineId,
-    NativeTarget, ObligationEvidence, ObligationId, Operation, OperationId, OperationKind,
-    OperationResult, Optimization, OptimizationSelections, OptimizationWorkBudget,
-    OptimizedTargetLoweringRequest, ProofBundle, ProofNode, ProofRule, ProofSystemMarker,
-    ScalarType, StagedOptimizedSelectedInstructions, SuccessorEdge, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, ValueId, VocabularyMarker,
-    lower_optimized_to_target_operations, optimize_artifact_sections,
+    EvidenceRoute, ExplicitOptimizationRequest, IntegerSign, IntegerType, IntegerValue,
+    MachineContract, MachineId, NativeTarget, ObligationEvidence, ObligationId, Operation,
+    OperationId, OperationKind, OperationResult, Optimization, OptimizationSelections,
+    OptimizationWorkBudget, OptimizedTargetLoweringRequest, ProofBundle, ProofNode, ProofRule,
+    ProofSystemMarker, ScalarType, StagedOptimizedSelectedInstructions, SuccessorEdge,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, ValueId,
+    VocabularyMarker, lower_optimized_to_target_operations, optimize_artifact_sections,
     reconstruct_operation_obligations, request, stage_optimized_instruction_selection,
 };
 pub(crate) fn budget() -> OptimizationWorkBudget {
@@ -830,6 +830,32 @@ pub(crate) fn staged_conditional(target: NativeTarget) -> StagedOptimizedSelecte
         &proof,
         &AdmissionProfile::default(),
         request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+    )
+    .unwrap();
+    let target = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(target),
+    )
+    .unwrap();
+    stage_optimized_instruction_selection(target).unwrap()
+}
+
+/// The two-`u64`-parameter equality diamond under an authored suite: each
+/// parameter's carrier normalization selects a `CopyI64` in the entry block
+/// whose only readers are the compare's plain uses — the admissible
+/// same-block removal surface — while each leaf's return copy stays
+/// constrained and declines.
+pub(crate) fn staged_u64_equal_conditional_with_selections(
+    target: NativeTarget,
+    selections: OptimizationSelections,
+    budget: OptimizationWorkBudget,
+) -> StagedOptimizedSelectedInstructions {
+    let (semantic, proof) = conditional_u64_integer_equal_parameters_artifact();
+    let optimized = optimize_artifact_sections(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        ExplicitOptimizationRequest::new(selections, budget).unwrap(),
     )
     .unwrap();
     let target = lower_optimized_to_target_operations(

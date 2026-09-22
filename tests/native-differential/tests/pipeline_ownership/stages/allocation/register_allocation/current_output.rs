@@ -2,16 +2,18 @@ use crate::tests::{
     AdmissionProfile, AllocatedCalleeSavedRequirementError, AllocatedCalleeSavedRequirementPolicy,
     AllocationEvidence, AllocationReplayError, ExplicitOptimizationRequest, NativeTarget,
     Optimization, OptimizationSelections, OptimizationWorkBudget, OptimizedTargetLoweringRequest,
-    PressureRematerializationPolicy, RecoveryClassificationPolicy, SpillChoicePolicy,
-    StagedOptimizedRegisterHomes, budget, conditional_forwarded_parameter_artifact,
-    lower_optimized_to_target_operations, optimize_artifact_sections, selected_lowering_budget,
+    PostAllocationSelectedTransformation, PressureRematerializationPolicy,
+    RecoveryClassificationPolicy, SpillChoicePolicy, StagedOptimizedRegisterHomes, budget,
+    conditional_forwarded_parameter_artifact, lower_optimized_to_target_operations,
+    optimize_artifact_sections, selected_lowering_budget,
     stage_allocated_callee_saved_requirements, stage_optimized_active_resident_rematerialization,
     stage_optimized_allocation_legality, stage_optimized_instruction_selection,
     stage_optimized_live_ranges, stage_optimized_liveness,
     stage_optimized_post_allocation_machine_plan, stage_optimized_register_homes,
     stage_register_allocation, staged_active_resident_exact_add_chain_with_selections,
     staged_active_resident_two_view_legality, staged_conditional, staged_exact_add_conditional,
-    staged_exact_add_conditional_with_selections, validate_allocated_callee_saved_requirements,
+    staged_exact_add_conditional_with_selections, staged_u64_equal_conditional_with_selections,
+    validate_allocated_callee_saved_requirements,
     validate_optimized_post_allocation_machine_plan_custody,
 };
 use selected_instructions_to_register_homes::AllocationSource;
@@ -329,6 +331,45 @@ fn fixed_view_recovery_publishes_the_same_owned_program_contract() {
             retained.current().evidence(),
             AllocationEvidence::FixedViewCopies(_)
         ));
+        assert_eq!(
+            stage_optimized_post_allocation_machine_plan(&retained).unwrap(),
+            stage_optimized_post_allocation_machine_plan(&retained.current()).unwrap(),
+        );
+    }
+}
+
+#[test]
+fn pre_allocation_copy_removal_publishes_the_same_owned_program_contract() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let selected = staged_u64_equal_conditional_with_selections(
+            target,
+            OptimizationSelections::new([
+                Optimization::CopyPropagation,
+                Optimization::SelectedSameBlockCopyI64RemovalV1,
+            ])
+            .unwrap(),
+            selected_lowering_budget(),
+        );
+        let retained = stage_register_allocation(
+            selected_instructions_to_register_homes::optimize_selected_instructions(selected)
+                .unwrap(),
+        )
+        .unwrap();
+        assert_owned_program(&retained);
+        assert!(matches!(
+            retained.current().evidence(),
+            AllocationEvidence::PreAllocation(_)
+        ));
+        // The manifest's selected-transformation ledger records one copy
+        // removal per committed step, bound to the run's completion identity.
+        let manifest = retained.current().post_allocation_manifest().record();
+        assert_eq!(manifest.selected_transformations.len(), 2);
+        for transformation in &manifest.selected_transformations {
+            assert!(matches!(
+                transformation,
+                PostAllocationSelectedTransformation::CopyRemoval(_)
+            ));
+        }
         assert_eq!(
             stage_optimized_post_allocation_machine_plan(&retained).unwrap(),
             stage_optimized_post_allocation_machine_plan(&retained.current()).unwrap(),

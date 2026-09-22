@@ -10,7 +10,8 @@ mod reconstruction;
 mod validation;
 
 use optimization_core::{
-    PrePhysicalOptimizationManifestIdentity, SelectedLoweringOptimizationCompletionIdentity,
+    PreAllocationOptimizationCompletionIdentity, PrePhysicalOptimizationManifestIdentity,
+    SelectedLoweringOptimizationCompletionIdentity,
 };
 
 use crate::{ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedRegisterHomes};
@@ -26,6 +27,7 @@ pub(crate) fn project_post_allocation_optimization_manifest(
 ) -> Result<ValidatedPostAllocationOptimizationManifest, PostAllocationOptimizationManifestError> {
     projection::project(
         pre_physical,
+        None,
         None,
         selected_transformations,
         ranges,
@@ -44,6 +46,26 @@ pub(crate) fn project_post_allocation_optimization_manifest_after_selected_lower
 ) -> Result<ValidatedPostAllocationOptimizationManifest, PostAllocationOptimizationManifestError> {
     projection::project(
         pre_physical,
+        Some(completion),
+        None,
+        selected_transformations,
+        ranges,
+        legality,
+        homes,
+    )
+}
+
+pub(crate) fn project_post_allocation_optimization_manifest_after_pre_allocation(
+    pre_physical: PrePhysicalOptimizationManifestIdentity,
+    completion: PreAllocationOptimizationCompletionIdentity,
+    selected_transformations: &[PostAllocationSelectedTransformation],
+    ranges: &ValidatedLiveRanges,
+    legality: &ValidatedAllocationLegality,
+    homes: &ValidatedRegisterHomes,
+) -> Result<ValidatedPostAllocationOptimizationManifest, PostAllocationOptimizationManifestError> {
+    projection::project(
+        pre_physical,
+        None,
         Some(completion),
         selected_transformations,
         ranges,
@@ -64,6 +86,7 @@ pub fn validate_post_allocation_optimization_manifest(
         candidate,
         pre_physical,
         None,
+        None,
         selected_transformations,
         ranges,
         legality,
@@ -83,6 +106,28 @@ pub(crate) fn validate_post_allocation_optimization_manifest_after_selected_lowe
     validation::validate(
         candidate,
         pre_physical,
+        Some(completion),
+        None,
+        selected_transformations,
+        ranges,
+        legality,
+        homes,
+    )
+}
+
+pub(crate) fn validate_post_allocation_optimization_manifest_after_pre_allocation(
+    candidate: &PostAllocationOptimizationManifest,
+    pre_physical: PrePhysicalOptimizationManifestIdentity,
+    completion: PreAllocationOptimizationCompletionIdentity,
+    selected_transformations: &[PostAllocationSelectedTransformation],
+    ranges: &ValidatedLiveRanges,
+    legality: &ValidatedAllocationLegality,
+    homes: &ValidatedRegisterHomes,
+) -> Result<ValidatedPostAllocationOptimizationManifest, PostAllocationOptimizationManifestError> {
+    validation::validate(
+        candidate,
+        pre_physical,
+        None,
         Some(completion),
         selected_transformations,
         ranges,

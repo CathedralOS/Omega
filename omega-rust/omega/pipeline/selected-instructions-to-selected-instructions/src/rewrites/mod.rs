@@ -7,7 +7,9 @@
 //! slice (literal folds under the pair-rule descriptors); `allocation_recovery`
 //! executes the allocation-recovery slice through `fixed_view` (fixed-view
 //! copies and fixed precolored segment homes) and the pressure
-//! rematerialization it owns; `runtime_spill` and `runtime_rematerialization`
+//! rematerialization it owns; `pre_allocation` executes the pre-allocation
+//! slice through `copy_removal` (same-block copy removal);
+//! `runtime_spill` and `runtime_rematerialization`
 //! are the recovery rewrites register assignment replays. `block_edges` and
 //! `window_hazards` are the block-boundary and hazard vocabulary those and
 //! the unexecuted families share.
@@ -20,10 +22,12 @@
 mod allocation_recovery;
 mod block_edges;
 mod catalog;
+mod copy_removal;
 mod fixed_view;
 mod literal_folds;
 #[cfg(test)]
 mod module_catalog;
+mod pre_allocation;
 mod runtime_rematerialization;
 mod runtime_spill;
 mod selected_lowering;
@@ -54,6 +58,8 @@ pub use catalog::{
 };
 #[allow(unused_imports)]
 pub(crate) use catalog::{selected_stage_catalog_contains, selected_stage_rule_rows};
+pub use copy_removal::{CopyRemovalError, CopyRemovalReceipt, ValidatedCopyRemoval};
+pub(crate) use copy_removal::{measured_steps, remove_selected_copy};
 pub use fixed_view::{
     FixedPrecoloredSegmentHomeDecline, OptimizedFixedPrecoloredSegmentHomeCustodyError,
     OptimizedFixedViewCopyCustodyError, StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,
@@ -80,6 +86,17 @@ pub use literal_folds::{
 #[cfg(any(test, feature = "test-support"))]
 pub use literal_folds::{
     OptimizedLiteralFoldCustodyFieldForTest, SelectedLoweringOptimizationCustodyFieldForTest,
+};
+#[cfg(any(test, feature = "test-support"))]
+pub use pre_allocation::PreAllocationOptimizationCustodyFieldForTest;
+pub use pre_allocation::{
+    CopyRemovalPolicy, ORDERED_PRE_ALLOCATION_RULES, OptimizedCopyRemovalCustodyError,
+    PRE_ALLOCATION_RULE_CATALOG, PreAllocationRuleCatalogEntry, PreAllocationRuleCatalogError,
+    PreAllocationRuleCatalogPayload, StagedOptimizedCopyRemovalAttempt,
+    StagedOptimizedCopyRemovalAttemptReceipt, StagedOptimizedCopyRemovalIterationReceipt,
+    StagedOptimizedCopyRemovalStep, StagedPreAllocationOptimizationCustodyReceipt,
+    StagedPreAllocationOptimizationRun, resolve_pre_allocation_rules,
+    run_pre_allocation_optimizations, validate_pre_allocation_optimization_custody,
 };
 pub use runtime_rematerialization::{
     RuntimeRematerializationError, RuntimeRematerializationReceipt,
