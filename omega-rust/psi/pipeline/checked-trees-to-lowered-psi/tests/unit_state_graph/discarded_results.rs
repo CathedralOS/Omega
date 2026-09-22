@@ -3,6 +3,7 @@ use super::{
     encode_proof_section, interpret_terminal_artifact_measured,
 };
 use checked_trees::CheckedUnitEffectOperationPlan;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
@@ -48,8 +49,11 @@ fn discarded_structural_calls_preserve_results_and_interleaved_effects() {
 }
 
 fn effects(source: &str) -> Vec<Vec<u8>> {
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked(source), "Root::enter")
-        .expect("discard is a result disposition, not a Unit signature");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked(source),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("discard is a result disposition, not a Unit signature");
     let execution = interpret_terminal_artifact_measured(
         &encode_module(&lowered.semantic_module).unwrap(),
         &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
@@ -144,7 +148,11 @@ fn discarded_result_still_requires_exact_source_and_cleanup() {
             _ => unreachable!(),
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("Root::enter")
+            )
+            .is_err(),
             "mutation {mutation}"
         );
     }
@@ -165,8 +173,11 @@ fn discarded_boundary_result_retains_computed_arguments() {
             Output::write(4u8);
         }
     "#;
-    let lowered =
-        checked_trees_to_lowered_psi::lower_machine(&checked(source), "Root::enter").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked(source),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .unwrap();
     let module =
         terminal_codec::decode_module(&encode_module(&lowered.semantic_module).unwrap()).unwrap();
     terminal_verifier::verify_module(&module, &lowered.proof_bundle, &AdmissionProfile::default())
@@ -191,10 +202,12 @@ fn discarded_graph_result_keeps_projected_storage_across_resumes() {
 
 #[test]
 fn projected_result_call_rejects_forged_paths_and_access() {
-    let baseline =
-        checked_trees_to_lowered_psi::lower_machine(&checked(BUFFER_SOURCE), "Root::enter")
-            .unwrap()
-            .semantic_module;
+    let baseline = checked_trees_to_lowered_psi::lower_machine(
+        &checked(BUFFER_SOURCE),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .unwrap()
+    .semantic_module;
     terminal_verifier::validate_module(&baseline).unwrap();
     for mutation in 0..5 {
         let mut module = baseline.clone();
@@ -253,7 +266,11 @@ fn graph_result_call_cannot_substitute_a_same_typed_mutable_input() {
         }
     "#;
     let mut checked = checked(source);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .unwrap();
     terminal_verifier::validate_module(&lowered.semantic_module).unwrap();
     let operation = checked
         .facts
@@ -279,7 +296,11 @@ fn graph_result_call_cannot_substitute_a_same_typed_mutable_input() {
     };
     structural_arguments[0].source =
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 };
-    let error = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter").unwrap_err();
+    let error = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .unwrap_err();
     assert!(
         format!("{error:?}").contains("differs from its authored destination"),
         "{error:?}"
@@ -308,8 +329,11 @@ fn discarded_receiver_result_retains_forwarded_self() {
 }
 
 fn assert_original_buffer_is_updated(source: &str) {
-    let lowered =
-        checked_trees_to_lowered_psi::lower_machine(&checked(source), "Root::enter").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked(source),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .unwrap();
     let module = &lowered.semantic_module;
     let root = module
         .machines

@@ -8,6 +8,7 @@ use super::{
     lower_to_target_operations, lower_verified_artifact, source_canary, start_verified_artifact,
     terminal_source_canary, verify_module,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;
 use terminal_interpreter::AcceptTerminalEffects;
 
@@ -29,7 +30,7 @@ fn checked_source_integer_policy_operations_survive_frontend_drop() {
             (
                 *machine,
                 *expected,
-                lower_machine(&checked, machine)
+                lower_machine(&checked, TerminalMachineSelection::Name(machine))
                     .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}")),
             )
         })
@@ -65,13 +66,19 @@ fn checked_source_integer_policy_operations_survive_frontend_drop() {
 fn checked_source_scalar_locals_become_terminal_block_values() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("terminal-Psi scalar-local source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_scalar_locals")
-        .expect("immutable scalar locals should lower from checked plans");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_scalar_locals"),
+    )
+    .expect("immutable scalar locals should lower from checked plans");
     let mut without_typed_frontend = checked.clone().into_program();
     without_typed_frontend.typed = Default::default();
     assert_eq!(
-        lower_machine(&without_typed_frontend, "terminal_scalar_locals")
-            .expect_err("scalar local plans must retain authored initializer and return custody"),
+        lower_machine(
+            &without_typed_frontend,
+            TerminalMachineSelection::Name("terminal_scalar_locals")
+        )
+        .expect_err("scalar local plans must retain authored initializer and return custody"),
         LoweringError::Unsupported("direct Unit parameter plan has no exact typed machine")
     );
     drop(without_typed_frontend);
@@ -148,8 +155,11 @@ fn checked_source_scalar_locals_become_terminal_block_values() {
 fn checked_source_boolean_local_becomes_a_terminal_block_value() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("terminal-Psi Boolean-local source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_boolean_local")
-        .expect("an immutable Boolean local should lower from checked plans");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_boolean_local"),
+    )
+    .expect("an immutable Boolean local should lower from checked plans");
     drop(checked);
 
     let semantic = encode_module(&lowered.semantic_module)
@@ -187,8 +197,11 @@ fn checked_source_boolean_local_becomes_a_terminal_block_value() {
 fn checked_source_direct_call_emits_its_reachable_terminal_closure() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("the direct-call source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_call_forward")
-        .expect("checked direct calls should compose a terminal machine closure");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_call_forward"),
+    )
+    .expect("checked direct calls should compose a terminal machine closure");
     assert_eq!(lowered.semantic_module.machines.len(), 2);
     let call = lowered.semantic_module.machines[0]
         .blocks
@@ -247,8 +260,11 @@ fn checked_source_direct_call_emits_its_reachable_terminal_closure() {
 fn checked_source_short_circuit_call_argument_is_staged_before_the_call() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("the short-circuit call source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_call_short_argument")
-        .expect("a checked short-circuit call argument should lower through terminal control");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_call_short_argument"),
+    )
+    .expect("a checked short-circuit call argument should lower through terminal control");
     assert_eq!(lowered.semantic_module.machines.len(), 2);
     let caller = &lowered.semantic_module.machines[0];
     let (call_block, call) = caller
@@ -310,8 +326,11 @@ fn checked_source_short_circuit_call_argument_is_staged_before_the_call() {
 fn checked_source_guarded_short_circuit_call_argument_uses_the_staged_value() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("the guarded short-circuit call canary should compile");
-    let lowered = lower_machine(&checked, "terminal_call_short_guarded")
-        .expect("callee-relative crash routes should bind the staged terminal argument");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_call_short_guarded"),
+    )
+    .expect("callee-relative crash routes should bind the staged terminal argument");
     let call = lowered.semantic_module.machines[0]
         .blocks
         .iter()
@@ -416,7 +435,7 @@ fn aggregate_member_crash_contract_fails_closed_at_terminal_production() {
         },
     );
 
-    let scalar = lower_machine(&checked, "scalar_guarded")
+    let scalar = lower_machine(&checked, TerminalMachineSelection::Name("scalar_guarded"))
         .expect("the paired scalar crash contract should lower to terminal Psi");
     verify_module(
         &scalar.semantic_module,
@@ -426,7 +445,7 @@ fn aggregate_member_crash_contract_fails_closed_at_terminal_production() {
     .expect("the paired scalar crash contract should verify from its artifact");
 
     assert_eq!(
-        lower_machine(&checked, "member_guarded")
+        lower_machine(&checked, TerminalMachineSelection::Name("member_guarded"))
             .expect_err("aggregate/member crash predicates must remain fail-closed"),
         LoweringError::Unsupported("machine has no source-independent checked scalar control plan")
     );
@@ -436,8 +455,11 @@ fn aggregate_member_crash_contract_fails_closed_at_terminal_production() {
 fn checked_source_guarded_call_uses_invocation_specific_crash_terms() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("the guarded-call source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_call_guarded_caller")
-        .expect("checked guarded calls should compose a terminal machine closure");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_call_guarded_caller"),
+    )
+    .expect("checked guarded calls should compose a terminal machine closure");
     let call = lowered.semantic_module.machines[0]
         .blocks
         .iter()
@@ -529,8 +551,11 @@ fn checked_source_guarded_call_uses_invocation_specific_crash_terms() {
 fn checked_source_direct_return_short_circuit_local_uses_terminal_control() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("short-circuit Boolean-local source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_short_circuit_boolean_local")
-        .expect("a directly returned short-circuit local should lower as terminal control");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_short_circuit_boolean_local"),
+    )
+    .expect("a directly returned short-circuit local should lower as terminal control");
     drop(checked);
 
     let semantic = encode_module(&lowered.semantic_module)
@@ -577,8 +602,11 @@ fn checked_source_direct_return_short_circuit_local_uses_terminal_control() {
 fn checked_source_strict_short_circuit_local_use_preserves_terminal_control() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("consumed short-circuit Boolean-local source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_consumed_short_circuit_boolean_local")
-        .expect("a strictly consumed short-circuit local should lower as terminal control");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_consumed_short_circuit_boolean_local"),
+    )
+    .expect("a strictly consumed short-circuit local should lower as terminal control");
     drop(checked);
 
     let semantic = encode_module(&lowered.semantic_module)
@@ -626,8 +654,11 @@ fn checked_source_strict_short_circuit_local_use_preserves_terminal_control() {
 fn checked_source_reused_short_circuit_local_is_carried_once() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("reused short-circuit Boolean-local source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_reused_short_circuit_boolean_local")
-        .expect("a reused short-circuit local should lower through a carried block value");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_reused_short_circuit_boolean_local"),
+    )
+    .expect("a reused short-circuit local should lower through a carried block value");
     drop(checked);
 
     let machine = &lowered.semantic_module.machines[0];
@@ -693,8 +724,11 @@ fn checked_source_reused_short_circuit_local_is_carried_once() {
 fn checked_source_short_circuit_local_is_carried_into_a_branch_guard() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("branched short-circuit Boolean-local source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_branched_short_circuit_boolean_local")
-        .expect("a short-circuit local should be carried into terminal branch control");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_branched_short_circuit_boolean_local"),
+    )
+    .expect("a short-circuit local should be carried into terminal branch control");
     drop(checked);
 
     let machine = &lowered.semantic_module.machines[0];
@@ -752,8 +786,11 @@ fn checked_source_short_circuit_local_is_carried_into_a_branch_guard() {
 fn checked_source_multiple_short_circuit_locals_are_staged_left_to_right() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("multiple short-circuit Boolean-local source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_two_short_circuit_boolean_locals")
-        .expect("multiple short-circuit locals should stage through terminal block values");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_two_short_circuit_boolean_locals"),
+    )
+    .expect("multiple short-circuit locals should stage through terminal block values");
     drop(checked);
 
     let machine = &lowered.semantic_module.machines[0];
@@ -820,7 +857,7 @@ fn checked_source_staged_local_composes_with_a_short_circuit_return() {
         .expect("staged-local short-circuit-return source canary should compile");
     let lowered = lower_machine(
         &checked,
-        "terminal_short_circuit_local_then_short_circuit_return",
+        TerminalMachineSelection::Name("terminal_short_circuit_local_then_short_circuit_return"),
     )
     .expect("a staged local should compose with short-circuit terminal return control");
     drop(checked);
@@ -870,8 +907,11 @@ fn checked_source_staged_local_composes_with_a_short_circuit_return() {
 fn checked_source_staged_local_is_carried_through_a_jump_argument() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("staged-local jump source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_short_circuit_local_jump")
-        .expect("a staged local should cross an ordinary terminal jump argument");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_short_circuit_local_jump"),
+    )
+    .expect("a staged local should cross an ordinary terminal jump argument");
     drop(checked);
 
     let semantic = encode_module(&lowered.semantic_module)
@@ -917,8 +957,11 @@ fn checked_source_staged_local_is_carried_through_a_jump_argument() {
 fn checked_source_staged_local_composes_with_a_short_circuit_jump_argument() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("staged-local nested-jump source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_short_circuit_local_nested_jump")
-        .expect("a staged local should compose with a short-circuit terminal jump argument");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_short_circuit_local_nested_jump"),
+    )
+    .expect("a staged local should compose with a short-circuit terminal jump argument");
     drop(checked);
 
     let semantic = encode_module(&lowered.semantic_module)
@@ -965,8 +1008,11 @@ fn checked_source_staged_local_composes_with_a_short_circuit_jump_argument() {
 fn checked_source_staged_local_composes_with_short_circuit_jump_tuple() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("staged-local nested-jump tuple source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_short_circuit_local_nested_jump_tuple")
-        .expect("a staged local should compose with left-to-right jump-argument staging");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_short_circuit_local_nested_jump_tuple"),
+    )
+    .expect("a staged local should compose with left-to-right jump-argument staging");
     drop(checked);
 
     let semantic = encode_module(&lowered.semantic_module)
@@ -1013,8 +1059,11 @@ fn checked_source_staged_local_composes_with_short_circuit_jump_tuple() {
 fn checked_source_staged_local_keeps_short_circuit_edge_arguments_arm_local() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("staged-local conditional-edge source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_short_circuit_local_conditional_edge")
-        .expect("staged locals should compose with selected conditional-edge staging");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_short_circuit_local_conditional_edge"),
+    )
+    .expect("staged locals should compose with selected conditional-edge staging");
     drop(checked);
 
     let semantic = encode_module(&lowered.semantic_module)
@@ -1062,8 +1111,11 @@ fn checked_source_staged_local_keeps_short_circuit_edge_arguments_arm_local() {
 fn checked_source_staged_local_composes_with_a_short_circuit_guard() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("staged-local short-circuit-guard source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_short_circuit_local_guard")
-        .expect("a staged local should compose with short-circuit terminal guard control");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_short_circuit_local_guard"),
+    )
+    .expect("a staged local should compose with short-circuit terminal guard control");
     drop(checked);
 
     let semantic = encode_module(&lowered.semantic_module)
@@ -1111,8 +1163,11 @@ fn checked_source_staged_local_composes_with_a_short_circuit_guard() {
 fn checked_source_staged_local_sequences_before_an_explicit_crash() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("staged-local crash source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_short_circuit_local_crash")
-        .expect("a staged local should sequence before terminal crash control");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_short_circuit_local_crash"),
+    )
+    .expect("a staged local should sequence before terminal crash control");
     drop(checked);
 
     let semantic = encode_module(&lowered.semantic_module)

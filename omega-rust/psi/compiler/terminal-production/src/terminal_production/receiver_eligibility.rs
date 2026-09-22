@@ -547,6 +547,7 @@ mod tests {
         StructuralFieldType, StructuralTypeShape, admit_fused_service_field, derive,
     };
     use crate::TerminalProductionRequest;
+    use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
     fn check_source(source: &str) -> CheckedTrees {
         let tokens = source_files_to_tokens::Lexer::new(source)
@@ -587,9 +588,11 @@ mod tests {
             );
             let module =
                 terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
-            let selection =
-                checked_trees_to_lowered_psi::select_terminal_machine(&checked, "Main::run")
-                    .unwrap();
+            let selection = checked_trees_to_lowered_psi::select_terminal_machine(
+                &checked,
+                TerminalMachineSelection::Name("Main::run"),
+            )
+            .unwrap();
             for corruption in 0..4 {
                 let mut changed = module.clone();
                 let declaration = changed
@@ -652,8 +655,11 @@ mod tests {
             StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
                 capacity: 3,
             });
-        let selection =
-            checked_trees_to_lowered_psi::select_terminal_machine(&checked, "Main::run").unwrap();
+        let selection = checked_trees_to_lowered_psi::select_terminal_machine(
+            &checked,
+            TerminalMachineSelection::Name("Main::run"),
+        )
+        .unwrap();
         assert!(derive(&checked, selection, &module).is_none());
     }
 
@@ -708,8 +714,11 @@ mod tests {
             .unwrap();
         assert!(produced.receipt().receiver_eligibility().is_some());
         let module = terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
-        let selection =
-            checked_trees_to_lowered_psi::select_terminal_machine(&checked, "Main::run").unwrap();
+        let selection = checked_trees_to_lowered_psi::select_terminal_machine(
+            &checked,
+            TerminalMachineSelection::Name("Main::run"),
+        )
+        .unwrap();
         let counter = module
             .structural_types
             .iter()
@@ -779,9 +788,11 @@ mod tests {
                 unreachable!();
             };
             *element = array.id;
-            let selection =
-                checked_trees_to_lowered_psi::select_terminal_machine(&checked, "Main::run")
-                    .unwrap();
+            let selection = checked_trees_to_lowered_psi::select_terminal_machine(
+                &checked,
+                TerminalMachineSelection::Name("Main::run"),
+            )
+            .unwrap();
             assert!(
                 derive(&checked, selection, &module).is_none(),
                 "cyclic elements reject even beneath an empty dimension"
@@ -874,8 +885,11 @@ mod tests {
             .unwrap();
         let eligible = produced.receipt().receiver_eligibility().unwrap();
         let module = terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
-        let selection =
-            checked_trees_to_lowered_psi::select_terminal_machine(&checked, "Main::run").unwrap();
+        let selection = checked_trees_to_lowered_psi::select_terminal_machine(
+            &checked,
+            TerminalMachineSelection::Name("Main::run"),
+        )
+        .unwrap();
         for corruption in 0..4 {
             let mut changed = module.clone();
             let declaration = changed
@@ -961,8 +975,11 @@ mod tests {
         ));
         let mut module =
             terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
-        let selection =
-            checked_trees_to_lowered_psi::select_terminal_machine(&checked, "Main::run").unwrap();
+        let selection = checked_trees_to_lowered_psi::select_terminal_machine(
+            &checked,
+            TerminalMachineSelection::Name("Main::run"),
+        )
+        .unwrap();
         assert_eq!(
             derive(&checked, selection, &module).as_ref(),
             Some(eligible)
@@ -1027,9 +1044,11 @@ mod tests {
                     .iter()
                     .all(|parameter| !parameter.is_self)
             );
-            let selection =
-                checked_trees_to_lowered_psi::select_terminal_machine(&checked, "Main::run")
-                    .unwrap();
+            let selection = checked_trees_to_lowered_psi::select_terminal_machine(
+                &checked,
+                TerminalMachineSelection::Name("Main::run"),
+            )
+            .unwrap();
             for corruption in 0..3 {
                 let mut changed = module.clone();
                 if corruption == 0 {
@@ -1106,9 +1125,11 @@ mod tests {
             "data Child { value: i32 [1..=9]; } data Main { value: i32; child: Child; } machine Main::run(&mut self) {}",
         ] {
             let checked = check_source(source);
-            let selection =
-                checked_trees_to_lowered_psi::select_terminal_machine(&checked, "Main::run")
-                    .unwrap();
+            let selection = checked_trees_to_lowered_psi::select_terminal_machine(
+                &checked,
+                TerminalMachineSelection::Name("Main::run"),
+            )
+            .unwrap();
             assert!(derive(&checked, selection, &module).is_none(), "{source}");
         }
     }
@@ -1132,15 +1153,20 @@ mod tests {
             "data Child { value: i32 [1..=9]; } data Pair { child: Child; } data Main { value: i32; pair: Pair; } machine Main::run(&mut self) { self.value = 7; }",
         ] {
             let checked = check_source(source);
-            let selection =
-                checked_trees_to_lowered_psi::select_terminal_machine(&checked, "Main::run")
-                    .unwrap();
+            let selection = checked_trees_to_lowered_psi::select_terminal_machine(
+                &checked,
+                TerminalMachineSelection::Name("Main::run"),
+            )
+            .unwrap();
             assert!(derive(&checked, selection, &module).is_none());
         }
         let mut missing = check_source(SOURCE);
         missing.typed.roots.data_definitions = Default::default();
-        let selection =
-            checked_trees_to_lowered_psi::select_terminal_machine(&missing, "Main::run").unwrap();
+        let selection = checked_trees_to_lowered_psi::select_terminal_machine(
+            &missing,
+            TerminalMachineSelection::Name("Main::run"),
+        )
+        .unwrap();
         assert!(derive(&missing, selection, &module).is_none());
     }
 

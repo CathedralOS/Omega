@@ -1,4 +1,5 @@
 use abstract_operations::{AbstractDynamicDescriptorSource, AbstractOperation};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_unit::{
     recompute_psi_optimization_unit_identity, reconstruct_psi_optimization_unit_seed,
 };
@@ -62,8 +63,11 @@ fn checked_descriptor_join_retains_both_predecessors_through_optimization_seed()
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
-    let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
-        .expect("joined dynamic source lowers to verified Terminal Psi");
+    let terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::run"),
+    )
+    .expect("joined dynamic source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
         .expect("encode proof");

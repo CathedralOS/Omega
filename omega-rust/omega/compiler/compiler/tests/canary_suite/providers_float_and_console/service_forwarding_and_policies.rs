@@ -12,6 +12,7 @@ use crate::{
     hosted_main_program_entry_build_for, interpret, pass_canary,
     reviewed_repository_fixture_package_inputs,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;
 
 #[test]
@@ -42,7 +43,11 @@ fn fused_service_parameter_moves_through_one_exact_internal_hop() {
             "`{fenced}` must remain outside the bounded checked forwarding rung"
         );
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&baseline, fenced).is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &baseline,
+                TerminalMachineSelection::Name(fenced)
+            )
+            .is_err(),
             "`{fenced}` must remain outside Terminal rather than dropping custody"
         );
     }
@@ -107,8 +112,11 @@ fn fused_service_parameter_moves_through_one_exact_internal_hop() {
     );
     assert!(claim_transfers.is_empty());
 
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&baseline, "forwarding_once")
-        .expect("one exact whole-root Service hop should lower to Terminal Psi");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &baseline,
+        TerminalMachineSelection::Name("forwarding_once"),
+    )
+    .expect("one exact whole-root Service hop should lower to Terminal Psi");
     assert!(
         lowered.semantic_module.machines.len() >= 2,
         "Terminal closure should retain the forwarding caller and helper"
@@ -152,7 +160,10 @@ fn fused_service_parameter_moves_through_one_exact_internal_hop() {
             panic!("{label} should reject final Fused custody")
         };
         assert!(!diagnostics.is_empty());
-        let Err(_) = checked_trees_to_lowered_psi::lower_machine(mutated, "forwarding_once") else {
+        let Err(_) = checked_trees_to_lowered_psi::lower_machine(
+            mutated,
+            TerminalMachineSelection::Name("forwarding_once"),
+        ) else {
             panic!("{label} should reject raw Terminal lowering")
         };
     };

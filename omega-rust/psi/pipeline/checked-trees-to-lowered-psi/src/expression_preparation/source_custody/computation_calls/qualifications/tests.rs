@@ -4,6 +4,7 @@ use super::{
     CheckedScalarComputationHandle, CheckedTrees, ExpressionNode, LoweringError, PrimitiveType,
     TypeReferenceHandle,
 };
+use crate::TerminalMachineSelection;
 use language_semantics::SemanticDomainId;
 
 fn checked(source: &str) -> CheckedTrees {
@@ -165,7 +166,8 @@ fn qualification_match_replays_checked_custody_and_publishes_exact_terminal_memb
     let checked = checked(SOURCE);
     assert_eq!(qualifications(&checked).len(), 2);
     replay(&checked).expect("exact source, membership, and operand custody");
-    let lowered = crate::lower_machine(&checked, "choose").expect("qualified Terminal graph");
+    let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
+        .expect("qualified Terminal graph");
     let catalog = &lowered.semantic_module.scalar_qualifications;
     assert_eq!(catalog.domains.len(), 1);
     assert_eq!(catalog.sets.len(), 1);
@@ -430,7 +432,8 @@ fn indexed_call_replay_rechecks_parameter_contract_instance() {
     ));
     for erase_arguments in [false, true] {
         let mut checked = checked(source);
-        crate::lower_machine(&checked, "choose").expect("original exact call contract");
+        crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
+            .expect("original exact call contract");
         let membership = checked
             .typed
             .proof_facts
@@ -450,7 +453,7 @@ fn indexed_call_replay_rechecks_parameter_contract_instance() {
             membership.semantic_domain = SemanticDomainId::NULL;
         }
         assert!(
-            crate::lower_machine(&checked, "choose").is_err(),
+            crate::lower_machine(&checked, TerminalMachineSelection::Name("choose")).is_err(),
             "erase_arguments={erase_arguments}"
         );
     }

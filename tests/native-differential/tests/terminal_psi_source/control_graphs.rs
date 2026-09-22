@@ -5,14 +5,18 @@ use super::{
     encode_proof_section, interpret_verified_artifact, lower_machine, lower_to_target_operations,
     lower_verified_artifact, source_canary, verify_module,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;
 
 #[test]
 fn checked_source_nested_jump_expressions_reach_terminal_and_target_lowering() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("computed nested-jump source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_nested_jump_expression")
-        .expect("an unconditional nested jump may compute its arguments");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_nested_jump_expression"),
+    )
+    .expect("an unconditional nested jump may compute its arguments");
     drop(checked);
 
     assert_eq!(lowered.semantic_module.machines[0].blocks.len(), 4);
@@ -80,8 +84,11 @@ fn checked_source_nested_jump_expressions_reach_terminal_and_target_lowering() {
 fn checked_source_conditional_edge_expressions_execute_only_on_the_selected_arm() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("computed conditional-edge source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_conditional_edge_expression")
-        .expect("conditional edges may compute bindings in selected-arm blocks");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_conditional_edge_expression"),
+    )
+    .expect("conditional edges may compute bindings in selected-arm blocks");
     drop(checked);
 
     let machine = &lowered.semantic_module.machines[0];
@@ -173,8 +180,11 @@ fn checked_source_conditional_edge_expressions_execute_only_on_the_selected_arm(
 fn checked_source_short_circuit_guard_keeps_computed_bindings_arm_local() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("short-circuit computed-edge source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_short_circuit_edge_expression")
-        .expect("short-circuit guards should route into selected binding blocks");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_short_circuit_edge_expression"),
+    )
+    .expect("short-circuit guards should route into selected binding blocks");
     drop(checked);
 
     let machine = &lowered.semantic_module.machines[0];
@@ -270,8 +280,11 @@ fn checked_source_short_circuit_guard_keeps_computed_bindings_arm_local() {
 fn checked_source_mixed_scalar_boolean_short_circuit_preserves_selected_fuel() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("mixed-scalar Boolean short-circuit canary should compile");
-    let lowered = lower_machine(&checked, "terminal_mixed_scalar_boolean_short_circuit")
-        .expect("mixed-scalar Boolean short-circuit graph should lower");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_mixed_scalar_boolean_short_circuit"),
+    )
+    .expect("mixed-scalar Boolean short-circuit graph should lower");
     drop(checked);
 
     let verified = verify_module(
@@ -328,8 +341,11 @@ fn checked_source_mixed_scalar_boolean_short_circuit_preserves_selected_fuel() {
 fn source_closed_integer_chain_matches_target_lowering() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("terminal-Psi closed integer-chain canary should compile");
-    let lowered = lower_machine(&checked, "terminal_closed_integer_chain")
-        .expect("closed integer state chain should lower");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_closed_integer_chain"),
+    )
+    .expect("closed integer state chain should lower");
     drop(checked);
 
     let verified = verify_module(
@@ -363,7 +379,7 @@ fn source_runtime_arithmetic_retains_target_parameter_abi_and_provenance() {
         (
             machine,
             operation_count,
-            lower_machine(&checked, machine)
+            lower_machine(&checked, TerminalMachineSelection::Name(machine))
                 .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}")),
         )
     })

@@ -8,6 +8,7 @@ use crate::structural_return_source::{
     decode_module,
 };
 use checked_trees::{CheckedScalarComputationKind, CheckedUnitEffectOperationPlan};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 #[test]
 fn mixed_scalar_formals_retain_ranges_and_linear_boundary_settlement() {
@@ -94,7 +95,11 @@ fn mixed_scalar_wrapper_cannot_erase_or_substitute_structural_membership() {
             assert!(changed > 0);
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("Root::enter")
+            )
+            .is_err(),
             "mutation {mutation}"
         );
     }
@@ -297,7 +302,11 @@ fn nested_wrapper_rejects_reordered_producers_and_scalar_binding_drift() {
             _ => unreachable!(),
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Root::enter")
+            )
+            .is_err(),
             "nested wrapper custody mutation {mutation}"
         );
     }
@@ -351,8 +360,11 @@ fn nested_wrapper_computation_cannot_read_a_private_argument_slot() {
             position: 1,
             primitive_type: typed_trees::types::PrimitiveType::U16,
         });
-    let error = checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter")
-        .expect_err("private argument slots are not authored local bindings");
+    let error = checked_trees_to_lowered_psi::lower_machine(
+        &changed,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect_err("private argument slots are not authored local bindings");
     assert!(
         format!("{error:?}")
             .contains("scalar read differs from its authored binding or mutable place"),

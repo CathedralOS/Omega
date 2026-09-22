@@ -1,6 +1,7 @@
 //! Composed Unit calls execute their scalar operands and their observable bodies.
 
 use checked_trees::{CheckedScalarComputationKind, CheckedScalarExpressionRole};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source_files_to_tokens::Lexer;
@@ -84,8 +85,11 @@ fn artifact(checked: &checked_trees::CheckedTrees, state_count: usize) -> (Vec<u
             }),
         "root retains ordinary Unit argument computations"
     );
-    let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Main::main")
-        .expect("composed internal Unit operand and body lowering");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("composed internal Unit operand and body lowering");
     if state_count == 4 {
         let helper = checked
             .typed
@@ -513,7 +517,11 @@ fn transitive_unit_callee_suspension_metadata_is_retained_and_validated() {
         .typed
         .state_parameters(&checked.typed.machine_states(helper)[0])[0]
         .type_reference;
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .unwrap();
     assert!(lowered.semantic_module.suspension_call_plans.is_empty());
     let occurrence = lowered
         .source_call_occurrences
@@ -572,7 +580,10 @@ fn transitive_unit_callee_suspension_metadata_is_retained_and_validated() {
         .receiver = Some(owner_symbol);
     assert!(
         matches!(
-            checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main"),
+            checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("Main::main")
+            ),
             Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
                 "receiver-bearing suspension frontier lacks an exact Terminal receiver place join"
             ))
@@ -638,8 +649,11 @@ fn outer_and_transitive_unit_calls_reject_target_arity_and_operand_source_drift(
                         _ => unreachable!(),
                     }
                     assert!(
-                        checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main")
-                            .is_err(),
+                        checked_trees_to_lowered_psi::lower_machine(
+                            &changed,
+                            TerminalMachineSelection::Name("Main::main")
+                        )
+                        .is_err(),
                         "{}: outer/target call mutation={mutation}",
                         machine.name.as_str()
                     );
@@ -670,7 +684,13 @@ fn outer_and_transitive_unit_calls_reject_target_arity_and_operand_source_drift(
             .calls
             .get_mut(source_call)
             .authored_expression = arena::Handle::invalid();
-        assert!(checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err());
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err()
+        );
         let ExpressionNode::Call(call) = checked.typed.expression_table.expression(authored) else {
             unreachable!();
         };
@@ -682,7 +702,13 @@ fn outer_and_transitive_unit_calls_reject_target_arity_and_operand_source_drift(
                 unreachable!();
             };
             path.symbol = symbols::SymbolHandle::invalid();
-            assert!(checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err());
+            assert!(
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("Main::main")
+                )
+                .is_err()
+            );
         }
     }
 }

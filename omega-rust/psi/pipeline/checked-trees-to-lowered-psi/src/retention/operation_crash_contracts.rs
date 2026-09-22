@@ -479,6 +479,7 @@ mod tests {
     use super::{
         CheckedTrees, LoweredPsi, LoweringError, OperationKind, retain_operation_crash_contracts,
     };
+    use crate::TerminalMachineSelection;
 
     /// A crash-qualified positional `==` use beside an ordinary machine call:
     /// the checked site's honest join lands on the emitted `IntegerEqual`,
@@ -558,7 +559,7 @@ mod tests {
     #[test]
     fn crash_contract_rejects_a_call_operation_carrier() {
         let checked = checked(CALL_BESIDE_COMPARISON_SOURCE);
-        let mut lowered = crate::lower_machine(&checked, "choose")
+        let mut lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
             .expect("a crash-qualified comparison beside a call lowers");
         assert_eq!(
             lowered.semantic_module.operation_crash_contracts.len(),
@@ -608,7 +609,7 @@ mod tests {
     #[test]
     fn crash_contract_rejects_a_site_with_no_emitted_join() {
         let checked = checked(CALL_BESIDE_COMPARISON_SOURCE);
-        let mut lowered = crate::lower_machine(&checked, "choose")
+        let mut lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
             .expect("a crash-qualified comparison beside a call lowers");
         lowered.selected_integer_comparison_occurrences.clear();
         let error = retain_again(&checked, &mut lowered);
@@ -633,7 +634,7 @@ mod tests {
             machine choose(left: u16, right: u16) -> bool { Meaning::equal(left, right) }
             "#,
         );
-        let error = crate::lower_machine(&checked, "choose")
+        let error = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
             .expect_err("a named crash invocation has no operation join");
         assert!(
             matches!(
@@ -648,7 +649,7 @@ mod tests {
     #[test]
     fn crash_contract_rejects_a_duplicated_join() {
         let checked = checked(CALL_BESIDE_COMPARISON_SOURCE);
-        let mut lowered = crate::lower_machine(&checked, "choose")
+        let mut lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
             .expect("a crash-qualified comparison beside a call lowers");
         let duplicated = *sole_occurrence(&mut lowered);
         lowered
@@ -668,7 +669,7 @@ mod tests {
     #[test]
     fn crash_contract_rejects_a_join_outside_the_lowered_module() {
         let checked = checked(CALL_BESIDE_COMPARISON_SOURCE);
-        let mut lowered = crate::lower_machine(&checked, "choose")
+        let mut lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
             .expect("a crash-qualified comparison beside a call lowers");
         sole_occurrence(&mut lowered).terminal_machine =
             semantic_vocabulary::MachineId::new(u64::MAX).expect("nonzero machine id");
@@ -686,7 +687,7 @@ mod tests {
     #[test]
     fn crash_contract_rejects_an_absent_operation_join() {
         let checked = checked(CALL_BESIDE_COMPARISON_SOURCE);
-        let mut lowered = crate::lower_machine(&checked, "choose")
+        let mut lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
             .expect("a crash-qualified comparison beside a call lowers");
         sole_occurrence(&mut lowered).terminal_operation =
             semantic_vocabulary::OperationId::new(u64::MAX).expect("nonzero operation id");
@@ -712,7 +713,7 @@ mod tests {
             machine choose(flag: bool, left: u16, right: u16) -> bool { !flag || (left == right) }
             "#,
         );
-        let mut lowered = crate::lower_machine(&checked, "choose")
+        let mut lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
             .expect("a crash-qualified comparison beside a negation lowers");
         let unary = lowered
             .semantic_module
@@ -756,7 +757,7 @@ mod tests {
             machine choose(left: u16, right: u16, extra: u16) -> bool { (left == right) || (extra == left) }
             "#,
         );
-        let mut lowered = crate::lower_machine(&checked, "choose")
+        let mut lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
             .expect("two crash-qualified comparisons lower");
         assert_eq!(
             lowered.semantic_module.operation_crash_contracts.len(),
@@ -783,7 +784,7 @@ mod tests {
     #[test]
     fn crash_contract_rejects_reinstallation() {
         let checked = checked(CALL_BESIDE_COMPARISON_SOURCE);
-        let mut lowered = crate::lower_machine(&checked, "choose")
+        let mut lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
             .expect("a crash-qualified comparison beside a call lowers");
         // The honest install is still present, so a second pass must refuse
         // rather than rewrite the carrier.
@@ -829,7 +830,7 @@ mod tests {
                  crashes Trap {guard};\n\
                  machine compare(left: f64, right: f64) -> bool crashes Trap {{ left == right }}"
             ));
-            let lowered = crate::lower_machine(&checked, "compare")
+            let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("compare"))
                 .unwrap_or_else(|error| panic!("{guard} lowers: {error:?}"));
             let [row] = lowered.semantic_module.operation_crash_contracts.as_slice() else {
                 panic!("{guard}: one float use installs one operation crash contract")
@@ -871,7 +872,7 @@ mod tests {
              crashes Trap !(right >= 0.0);\n\
              machine compare(left: f64, right: f64) -> bool crashes Trap { left == right }",
         );
-        let error = crate::lower_machine(&checked, "compare")
+        let error = crate::lower_machine(&checked, TerminalMachineSelection::Name("compare"))
             .expect_err("an ordering guard has no structured scalar form");
         assert!(
             format!("{error:?}")

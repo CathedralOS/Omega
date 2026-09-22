@@ -2,6 +2,7 @@
 //! whose `EstablishScalarCase` producer proves two membership observations.
 
 use super::{VerifiedPsiOptimizationUnit, verified};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use checked_trees_to_lowered_psi::lower_machine;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -46,7 +47,8 @@ pub(super) fn representation_specialization_membership_verified() -> VerifiedPsi
     let typed = lower_symbol_resolved_trees(&resolved).expect("type established memberships");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("check established memberships");
-    let lowered = lower_machine(&checked, "probe").expect("lower established memberships");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("probe"))
+        .expect("lower established memberships");
     verified(lowered.semantic_module, lowered.proof_bundle)
 }
 
@@ -63,6 +65,7 @@ pub(super) fn representation_specialization_field_value_verified() -> VerifiedPs
     let typed = lower_symbol_resolved_trees(&resolved).expect("type established field values");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("check established field values");
-    let lowered = lower_machine(&checked, "probe").expect("lower established field values");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("probe"))
+        .expect("lower established field values");
     verified(lowered.semantic_module, lowered.proof_bundle)
 }

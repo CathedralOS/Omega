@@ -12,6 +12,7 @@ use crate::{
     reviewed_repository_fixture_package_inputs,
 };
 use checked_interpreter::InterpretOptions;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 
@@ -215,8 +216,11 @@ fn float_match_executes_selected_arms_through_verified_terminal() {
         Some("macos_arm64"),
     ))
     .unwrap();
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
-        .expect("the unchanged call-bearing Match customer must reach Terminal");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("choose"),
+    )
+    .expect("the unchanged call-bearing Match customer must reach Terminal");
     compiler::validate_lowered_ieee_float_comparison_custody(&checked, &lowered)
         .expect("each comparison independently rejoins its selected provider");
     assert_eq!(lowered.selected_ieee_float_comparison_occurrences.len(), 2);

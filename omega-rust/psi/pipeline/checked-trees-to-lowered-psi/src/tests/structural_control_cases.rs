@@ -4,6 +4,7 @@ use super::{
     CheckedScalarExpressionRole, CheckedTrees, LoweringError, ScalarType, SymbolHandle,
     checked_source, checked_source_with_core_service, hard_root_checked_fixture, lower_machine,
 };
+use crate::TerminalMachineSelection;
 use crate::machine_lowering::machine_dispatch::{lower_selected_machine, select_terminal_machine};
 use crate::producer_result::{ConformancePublication, OperandProofCompletion};
 use crate::terminal_identities::{block_id, edge_id, place_id, value_id};
@@ -32,7 +33,7 @@ fn lowers_conditional_unit_control_with_exact_boundary_effect_leaves() {
             }
         "#,
     );
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("checked control and boundary effects lower atomically");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("composed route emits one machine")
@@ -73,7 +74,10 @@ fn lowers_conditional_unit_control_with_exact_boundary_effect_leaves() {
         .boundary_machines
         .clear();
     assert!(matches!(
-        lower_machine(&without_boundary, "Root::enter"),
+        lower_machine(
+            &without_boundary,
+            TerminalMachineSelection::Name("Root::enter")
+        ),
         Err(LoweringError::Unsupported(_))
     ));
 }
@@ -94,7 +98,7 @@ fn lowers_closed_guard_and_provider_attachment_as_one_composed_machine() {
             }
         "#,
     );
-    let lowered = lower_machine(&checked, "Main::main")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
         .expect("closed guard and provider attachment lower atomically");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("composed provider route emits one machine")
@@ -142,7 +146,10 @@ fn lowers_closed_guard_and_provider_attachment_as_one_composed_machine() {
         .provider_attachment_requirements
         .clear();
     assert!(matches!(
-        lower_machine(&missing_provider, "Main::main"),
+        lower_machine(
+            &missing_provider,
+            TerminalMachineSelection::Name("Main::main")
+        ),
         Err(LoweringError::Unsupported(_))
     ));
 }
@@ -166,7 +173,7 @@ fn provider_attachment_and_ordinary_state_locals_keep_independent_custody() {
         "#
         .replace("INITIALIZER", initializer);
         let checked = checked_source_with_core_service(&source);
-        let lowered = lower_machine(&checked, "Main::main")
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
             .expect("ordinary local values do not become provider requests");
         terminal_verifier::verify_module(
             &lowered.semantic_module,
@@ -185,7 +192,11 @@ fn provider_attachment_and_ordinary_state_locals_keep_independent_custody() {
             .unwrap();
         plan.provider_attachment_requirements.clear();
         assert!(
-            lower_machine(&missing_provider, "Main::main").is_err(),
+            lower_machine(
+                &missing_provider,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "ordinary construction cannot replace the required provider field"
         );
     }
@@ -207,7 +218,7 @@ fn lowers_one_compile_known_u64_binding_and_rejects_checked_drift() {
         }
     "#;
     let checked = checked_source(source);
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("one compile-known local lowers through composed Unit control");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("one composed Terminal machine")
@@ -244,7 +255,7 @@ fn lowers_one_compile_known_u64_binding_and_rejects_checked_drift() {
         ),
     };
     assert!(matches!(
-        lower_machine(&drifted_fact, "Root::enter"),
+        lower_machine(&drifted_fact, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(_))
     ));
 
@@ -264,7 +275,10 @@ fn lowers_one_compile_known_u64_binding_and_rejects_checked_drift() {
         ),
     };
     assert!(matches!(
-        lower_machine(&drifted_retained_initializer, "Root::enter"),
+        lower_machine(
+            &drifted_retained_initializer,
+            TerminalMachineSelection::Name("Root::enter")
+        ),
         Err(LoweringError::Unsupported(_))
     ));
 
@@ -278,7 +292,10 @@ fn lowers_one_compile_known_u64_binding_and_rejects_checked_drift() {
         .bindings[0]
         .statement_ordinal = 1;
     assert!(matches!(
-        lower_machine(&drifted_binding, "Root::enter"),
+        lower_machine(
+            &drifted_binding,
+            TerminalMachineSelection::Name("Root::enter")
+        ),
         Err(LoweringError::Unsupported(_))
     ));
 }
@@ -844,7 +861,7 @@ fn structural_unit_control_lowers_exact_transfer_and_edge_cleanup() {
     let mut checked = hard_root_checked_fixture();
     install_structural_unit_control_fixture(&mut checked);
 
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("exact structural custody chain should lower");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("structural control slice lowers one attached machine")
@@ -929,7 +946,8 @@ fn static_requirement_evidence_does_not_preempt_exact_structural_unit_control() 
         });
 
     let selection =
-        select_terminal_machine(&checked, "Root::enter").expect("fixture has one selected root");
+        select_terminal_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+            .expect("fixture has one selected root");
     let routed = lower_selected_machine(&checked, selection)
         .expect("retained structural control wins before attached-Unit fallback");
 
@@ -950,7 +968,7 @@ fn structural_unit_conditional_lowers_independent_transfer_cleanup_frontiers() {
     let mut checked = hard_root_checked_fixture();
     install_structural_unit_conditional_fixture(&mut checked);
 
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("exact structural conditional frontiers should lower");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("structural conditional slice lowers one attached machine")
@@ -1054,7 +1072,7 @@ fn structural_unit_conditional_lowers_independent_transfer_cleanup_frontiers() {
     when_true.scalar_arguments[0].source =
         checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 0 };
     assert!(matches!(
-        lower_machine(&checked, "Root::enter"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(
             "structural Unit scalar successor map changes its checked signature"
         ))
@@ -1081,7 +1099,7 @@ fn structural_unit_conditional_lowers_independent_transfer_cleanup_frontiers() {
         &mut when_false.statement_ordinal,
     );
     assert!(matches!(
-        lower_machine(&checked, "Root::enter"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(
             "structural Unit conditional successors are not in canonical order"
         ))
@@ -1093,7 +1111,7 @@ fn structural_unit_conditional_lowers_after_an_unconditional_prefix() {
     let mut checked = hard_root_checked_fixture();
     install_structural_unit_nonentry_conditional_fixture(&mut checked);
 
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("one structural conditional may follow an unconditional prefix");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("prefixed structural conditional lowers one attached machine")
@@ -1190,7 +1208,7 @@ fn structural_unit_conditional_lowers_after_an_unconditional_prefix() {
     // The cloned conditional lands on leaf states with no Boolean scalar input;
     // the arity fences are gone, but the guard-signature invariant still rejects.
     assert!(matches!(
-        lower_machine(&checked, "Root::enter"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(
             "structural Unit conditional must select one Boolean scalar state input"
         ))
@@ -1202,7 +1220,7 @@ fn structural_unit_two_conditional_tree_lowers_exact_edge_maps() {
     let mut checked = hard_root_checked_fixture();
     install_structural_unit_two_conditional_fixture(&mut checked);
 
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("two checked structural conditionals should lower");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("two-decision structural tree lowers one attached machine")
@@ -1295,8 +1313,8 @@ fn structural_unit_diamond_requires_one_exact_join_frontier() {
     let mut checked = hard_root_checked_fixture();
     install_structural_unit_join_fixture(&mut checked);
 
-    let lowered =
-        lower_machine(&checked, "Root::enter").expect("one exact structural diamond should lower");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+        .expect("one exact structural diamond should lower");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("structural diamond lowers one attached machine")
     };
@@ -1392,7 +1410,7 @@ fn structural_unit_diamond_requires_one_exact_join_frontier() {
         checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 };
     when_false.trivial_affine_discard_parameter_positions = vec![0];
     assert!(matches!(
-        lower_machine(&checked, "Root::enter"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(
             "structural Unit join predecessors reconstruct different custody frontiers"
         ))
@@ -1425,7 +1443,7 @@ fn structural_unit_diamond_requires_one_exact_join_frontier() {
         trivial_affine_discard_parameter_positions: Vec::new(),
     };
     assert!(matches!(
-        lower_machine(&checked, "Root::enter"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(
             "structural Unit control entry has an incoming edge"
         ))
@@ -1437,7 +1455,7 @@ fn structural_unit_multi_frontier_dag_lowers_and_verifies() {
     let mut checked = hard_root_checked_fixture();
     install_structural_unit_wide_dag_fixture(&mut checked);
 
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("a multi-conditional multi-join structural dag should lower");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("structural dag lowers one attached machine")
@@ -1536,7 +1554,7 @@ fn structural_unit_control_fails_closed_on_stale_cleanup_or_signature() {
     };
     trivial_affine_discard_parameter_positions.clear();
     assert!(matches!(
-        lower_machine(&checked, "Root::enter"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(
             "structural Unit jump transfer and cleanup do not partition its exact frontier"
         ))
@@ -1558,7 +1576,7 @@ fn structural_unit_control_fails_closed_on_stale_cleanup_or_signature() {
     scalar_arguments[0].source =
         checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 };
     assert!(matches!(
-        lower_machine(&checked, "Root::enter"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(
             "structural Unit scalar successor map changes its checked signature"
         ))
@@ -1580,7 +1598,7 @@ fn structural_unit_control_fails_closed_on_stale_cleanup_or_signature() {
         .states[1]
         .structural_parameters[0]
         .type_identity = wrong_type;
-    let stale_signature = lower_machine(&checked, "Root::enter");
+    let stale_signature = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"));
     assert!(
         matches!(
             &stale_signature,
@@ -1882,7 +1900,7 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
         Err(terminal_fixed_fuel::FixedFuelError::CertificateMismatch),
         "a different terminal semantic identity cannot replay ranked segments"
     );
-    let lowered = lower_machine(&checked, "Root::countdown")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::countdown"))
         .expect("public lowering admits the certified ranked slice");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module)
         .expect("ranked semantic section encodes");
@@ -2184,7 +2202,7 @@ fn ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64() {
     );
     // Both lowering entries emit the same Natural countdown carrier; the
     // u64 rank bound overflows the u64 fuel ceiling either way.
-    let general = lower_machine(&checked, "Root::countdown")
+    let general = lower_machine(&checked, TerminalMachineSelection::Name("Root::countdown"))
         .expect("ordinary owned state parameters use the general Natural graph");
     let verified_general = terminal_verifier::verify_module(
         &general.semantic_module,
@@ -2256,7 +2274,8 @@ fn nominal_cleanup_hook_body_interprets_against_the_consumed_receiver() {
             machine Root::score(guard: Guard) -> i32 { consume(guard); 41 }
         "#,
     );
-    let lowered = lower_machine(&checked, "Root::score").expect("drop hook invocation lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::score"))
+        .expect("drop hook invocation lowers");
     let semantic =
         terminal_codec::encode_module(&lowered.semantic_module).expect("semantic section encodes");
     let proof =

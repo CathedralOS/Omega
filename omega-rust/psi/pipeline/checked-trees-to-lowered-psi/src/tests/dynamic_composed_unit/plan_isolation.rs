@@ -1,4 +1,5 @@
 use super::{DIRECT_DYNAMIC_SOURCE, DIRECT_DYNAMIC_UNIT_SOURCE};
+use crate::TerminalMachineSelection;
 use crate::tests::{checked_source, lower_machine};
 
 #[test]
@@ -36,7 +37,7 @@ fn assert_neighboring_machine_is_isolated(supported: &str, unsupported: &str) {
         format!("{unsupported}\n{supported}"),
     ] {
         let checked = checked_source(&source);
-        let lowered = lower_machine(&checked, "Main::run")
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
             .expect("an unsupported neighboring call must not erase complete dispatch custody");
         terminal_verifier::validate_module(&lowered.semantic_module)
             .expect("the supported machine retains valid dynamic dispatch");
@@ -49,7 +50,11 @@ fn assert_neighboring_machine_is_isolated(supported: &str, unsupported: &str) {
         assert_supported_artifact_executes(&artifact, &decoded);
 
         assert!(
-            lower_machine(&checked, "Main::unsupported").is_err(),
+            lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("Main::unsupported")
+            )
+            .is_err(),
             "retaining complete call plans must not silently drop unsupported calls"
         );
     }

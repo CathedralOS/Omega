@@ -7,6 +7,7 @@ use crate::{
     validate_field_value_specialization,
 };
 use abstract_operations::AbstractOperation;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_unit::{
     FoldedFieldValue, NodeLocation, ProvenanceDisposition, PsiOptimizationUnit, PsiProvenance,
     PsiRealizationSite, recompute_psi_optimization_unit_identity,
@@ -731,8 +732,11 @@ fn lowered_session_entry(source: &str, label: &str, entry: &str) -> VerifiedPsiO
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap_or_else(|error| panic!("check {label}: {error:?}"));
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
-        .unwrap_or_else(|error| panic!("lower {label}: {error:?}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name(entry),
+    )
+    .unwrap_or_else(|error| panic!("lower {label}: {error:?}"));
     let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(&lowered.semantic_module)

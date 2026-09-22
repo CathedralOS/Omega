@@ -1,4 +1,5 @@
 use super::{ObligationId, Proposition, ScalarBlockInvariantArrival, restore_seeds};
+use crate::TerminalMachineSelection;
 use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 use terminal_psi::ScalarBlockInvariant;
 
@@ -67,7 +68,8 @@ fn guarded_join_source(right_reason: i32) -> lowered_psi::LoweredPsi {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    crate::machine_lowering::lower_machine(&checked, "root").unwrap()
+    crate::machine_lowering::lower_machine(&checked, TerminalMachineSelection::Name("root"))
+        .unwrap()
 }
 
 #[test]

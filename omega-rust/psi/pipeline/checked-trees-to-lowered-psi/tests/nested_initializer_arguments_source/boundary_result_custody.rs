@@ -1,4 +1,5 @@
 use super::{CheckedUnitEffectOperationPlan, ExpressionNode, StatementNode, checked, main_machine};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 const SOURCE: &str = r#"
     pub data Token { flag: bool; }
     boundary trait Factory { machine create() -> Token reaches Factory; }
@@ -14,8 +15,11 @@ const SOURCE: &str = r#"
 #[test]
 fn boundary_result_move_rejects_a_conflicting_authored_name_head() {
     let original = checked(SOURCE);
-    checked_trees_to_lowered_psi::lower_machine(&original, "Main::main")
-        .expect("valid boundary result move");
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("valid boundary result move");
     let machine = main_machine(&original);
     let [state] = original.machine_states(machine) else {
         panic!("one source state")
@@ -50,7 +54,11 @@ fn boundary_result_move_rejects_a_conflicting_authored_name_head() {
     };
     name.head_symbol = second.symbol;
     assert!(
-        checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+        checked_trees_to_lowered_psi::lower_machine(
+            &changed,
+            TerminalMachineSelection::Name("Main::main")
+        )
+        .is_err(),
         "a live terminal symbol cannot hide a different authored root"
     );
 }
@@ -58,8 +66,11 @@ fn boundary_result_move_rejects_a_conflicting_authored_name_head() {
 #[test]
 fn boundary_result_moves_reject_same_type_substitution_and_conflicting_cleanup() {
     let original = checked(SOURCE);
-    checked_trees_to_lowered_psi::lower_machine(&original, "Main::main")
-        .expect("valid boundary result move");
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("valid boundary result move");
     let machine = main_machine(&original);
     for mutation in 0..3 {
         let mut changed = original.clone();
@@ -102,7 +113,11 @@ fn boundary_result_moves_reject_same_type_substitution_and_conflicting_cleanup()
             }
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "same-type substitution or conflicting cleanup mutation {mutation}"
         );
     }

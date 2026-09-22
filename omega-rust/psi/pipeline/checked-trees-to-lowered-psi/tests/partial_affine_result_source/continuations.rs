@@ -5,6 +5,7 @@ use super::{
     TerminalFuelMeter, TerminalStructuralValue, Terminator, anonymous_source, checked,
     decode_module, decode_proof_bundle, encode_module, encode_proof_section, path,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::TerminalStructuralInputs;
 pub(super) fn assert_source(
     source: &str,
@@ -41,7 +42,11 @@ fn assert_source_with_scalars(
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Root::enter")
         .produce_artifact()
         .unwrap_or_else(|error| panic!("{source}\n{error:?}"));
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .unwrap();
     let module = &lowered.semantic_module;
     assert_eq!(decode_module(artifact.semantic_bytes()).unwrap(), *module);
     let semantic = encode_module(module).unwrap();
@@ -249,8 +254,11 @@ fn scalar_result_continuations_reject_binding_and_cleanup_drift() {
         "Root::enter(first: u16, value: Pair)",
     );
     let source = format!("{source} machine Sink::number(value: u16) {{}}");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked(&source), "Root::enter")
-        .expect("valid scalar result continuation before mutations");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked(&source),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("valid scalar result continuation before mutations");
     let original = &lowered.semantic_module;
     for mutation in 0..6 {
         let mut changed = original.clone();

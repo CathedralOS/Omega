@@ -1,3 +1,4 @@
+use crate::TerminalMachineSelection;
 use crate::lower_machine;
 use crate::tests::checked_source;
 use semantic_vocabulary::{ScalarType, StructuralPlaceKind};
@@ -143,7 +144,8 @@ fn checked_boundary_operator_scope_rejects_terminal_artifact_substitution() {
     let substituted = terminal_production::TerminalProductionRequest::new(&second, "Main::launch")
         .produce_artifact()
         .expect("distinct canonical Terminal artifact");
-    let first_lowered = lower_machine(&first, "Main::launch").expect("first source lowers");
+    let first_lowered = lower_machine(&first, TerminalMachineSelection::Name("Main::launch"))
+        .expect("first source lowers");
     assert_eq!(
         lowered_psi_to_terminal_psi::checked_boundary_operator_scope(
             &first,

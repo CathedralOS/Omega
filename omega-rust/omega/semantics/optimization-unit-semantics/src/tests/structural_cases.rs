@@ -11,6 +11,7 @@ use crate::tests::refresh_node_derivatives;
 use crate::unit_validation::affine_authority::valid_edge_affine_transition;
 use crate::validate_psi_optimization_unit;
 use abstract_operations::AbstractOperation;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_unit::OwnershipFrontierFact;
 use optimization_unit::reconstruct_psi_optimization_unit_seed;
 use semantic_vocabulary::ScalarType;
@@ -61,8 +62,11 @@ fn source_machine_unit(source: &str, machine: &str, retain_contracts: bool) -> P
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("check");
-    let terminal =
-        checked_trees_to_lowered_psi::lower_machine(&checked, machine).expect("Terminal");
+    let terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name(machine),
+    )
+    .expect("Terminal");
     let semantic =
         terminal_codec::encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof =

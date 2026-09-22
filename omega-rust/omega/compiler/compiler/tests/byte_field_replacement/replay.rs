@@ -1,5 +1,6 @@
 //! Hostile projection changes are checked against one immutable verified artifact.
 use super::{AdmissionProfile, NativeTarget};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 #[path = "indexed_replay.rs"]
 mod indexed;
 use legalized_operations::LegalizedScalarInstructionKind as Legalized;
@@ -40,8 +41,11 @@ fn byte_replacement_replay_binds_equal_capacity_siblings_and_dynamic_copy() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    let terminal =
-        checked_trees_to_lowered_psi::lower_machine(&checked, "Record::replace").unwrap();
+    let terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Record::replace"),
+    )
+    .unwrap();
     let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(&terminal.semantic_module).unwrap(),

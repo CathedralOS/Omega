@@ -1,4 +1,5 @@
 use super::{CheckedTrees, StructuralScalarReturnTypes, validate};
+use crate::TerminalMachineSelection;
 fn checked(source: &str) -> CheckedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
@@ -41,7 +42,8 @@ fn pure_primitive_reference_returns_lower_without_fabricated_effects_or_attachme
             .unwrap(),
             "primitive-reference cohort: {source}"
         );
-        let lowered = crate::lower_machine(&checked, "hold").unwrap();
+        let lowered =
+            crate::lower_machine(&checked, TerminalMachineSelection::Name("hold")).unwrap();
         let machine = &lowered.semantic_module.machines[0];
         assert!(machine.attachment.is_none());
         assert_eq!(

@@ -2,6 +2,7 @@ use checked_trees::{
     CheckedCallScalarArgument, CheckedScalarComputationKind, CheckedScalarExpressionRole,
     CheckedUnitEffectOperationPlan,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source_files_to_tokens::Lexer;
@@ -84,8 +85,11 @@ fn encoded(checked: &checked_trees::CheckedTrees, locals: &[&str]) -> (Vec<u8>, 
             .expression_handles(call.arguments);
         assert!(arguments.contains(&computations.nodes.get(root.root).authored_root));
     }
-    let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Main::main")
-        .expect("nested call arguments lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("nested call arguments lower");
     let artifact = (
         encode_module(&lowered.semantic_module).unwrap(),
         encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
@@ -435,7 +439,11 @@ fn embedded_static_scalar_helpers_retain_transitive_computation_targets() {
                 }
             }
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("Main::main")
+                )
+                .is_err(),
                 "transitive static computation source mutation {mutation} must reject"
             );
         }
@@ -583,7 +591,11 @@ fn assert_static_qualifier_custody(checked: &checked_trees::CheckedTrees) {
             _ => unreachable!(),
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "static qualifier custody mutation={mutation}: no runtime receiver may be erased"
         );
     }
@@ -953,7 +965,11 @@ fn nested_argument_roots_and_call_occurrences_rejoin_authored_source() {
                 _ => unreachable!(),
             }
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("Main::main")
+                )
+                .is_err(),
                 "outer argument plan mutation={mutation}"
             );
         }
@@ -969,7 +985,11 @@ fn nested_argument_roots_and_call_occurrences_rejoin_authored_source() {
                     _ => unreachable!(),
                 }
                 assert!(
-                    checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+                    checked_trees_to_lowered_psi::lower_machine(
+                        &changed,
+                        TerminalMachineSelection::Name("Main::main")
+                    )
+                    .is_err(),
                     "root mutation={mutation}"
                 );
             }
@@ -1035,7 +1055,11 @@ fn nested_argument_roots_and_call_occurrences_rejoin_authored_source() {
                     .get_mut(source_call)
                     .authored_expression = replacement;
                 assert!(
-                    checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+                    checked_trees_to_lowered_psi::lower_machine(
+                        &changed,
+                        TerminalMachineSelection::Name("Main::main")
+                    )
+                    .is_err(),
                     "authored nested-call occurrence mutation={mutation}"
                 );
             }
@@ -1047,7 +1071,11 @@ fn nested_argument_roots_and_call_occurrences_rejoin_authored_source() {
             };
             call.target_symbol = alternate_target;
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("Main::main")
+                )
+                .is_err(),
                 "same-carrier authored nested target substitution"
             );
             for mutation in 0..3 {
@@ -1074,7 +1102,11 @@ fn nested_argument_roots_and_call_occurrences_rejoin_authored_source() {
                     _ => unreachable!(),
                 }
                 assert!(
-                    checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+                    checked_trees_to_lowered_psi::lower_machine(
+                        &changed,
+                        TerminalMachineSelection::Name("Main::main")
+                    )
+                    .is_err(),
                     "call mutation={mutation}"
                 );
             }
@@ -1094,7 +1126,11 @@ fn nested_argument_roots_and_call_occurrences_rejoin_authored_source() {
             .statement_table
             .set_expression_handle_at_offset(call.arguments, 0, arguments[1]);
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "same-carrier authored operand swap"
         );
         let mut changed = checked.clone();
@@ -1105,7 +1141,11 @@ fn nested_argument_roots_and_call_occurrences_rejoin_authored_source() {
         };
         call.target_symbol = symbols::SymbolHandle::invalid();
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "authored outer target changed"
         );
     }

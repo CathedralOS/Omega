@@ -7,6 +7,7 @@
 //! witness that shape end-to-end — checked admission, exactly one emitted call
 //! per authored call site, exact source receipts, and verified execution.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source_files_to_tokens::Lexer;
@@ -46,8 +47,9 @@ fn lowered_verified(
     name: &str,
 ) -> (terminal_psi::TerminalModule, lowered_psi::LoweredPsi) {
     let checked = checked(source);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, name)
-        .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
+    let lowered =
+        checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name(name))
+            .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
     let semantics = encode_module(&lowered.semantic_module).expect("encode semantics");
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("encode proof");
@@ -235,8 +237,11 @@ fn nested_call_assignment_executes_after_artifact_verification() {
         }
     "#;
     let checked = checked(source);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "exercise")
-        .expect("nested store assignment lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("exercise"),
+    )
+    .expect("nested store assignment lowers");
     let semantics = encode_module(&lowered.semantic_module).expect("encode semantics");
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("encode proof");

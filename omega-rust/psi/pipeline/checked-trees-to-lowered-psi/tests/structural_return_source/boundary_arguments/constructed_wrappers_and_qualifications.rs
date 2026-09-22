@@ -9,6 +9,7 @@ use crate::structural_return_source::{
     TerminalScalarValue, Terminator, decode_module,
 };
 use checked_trees::CheckedUnitEffectOperationPlan;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
@@ -74,7 +75,11 @@ fn unit_wrapper_constructor_source_and_permission_mutations_reject() {
             changed.facts.flow.ownership.permissions.insert(event);
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Root::enter")
+            )
+            .is_err(),
             "constructor source custody mutation {mutation}"
         );
     }
@@ -102,7 +107,13 @@ fn unit_wrapper_constructor_value_cannot_drift_from_source() {
         .kind;
     assert_ne!(*retained, value);
     *retained = value;
-    assert!(checked_trees_to_lowered_psi::lower_machine(&original, "Root::enter").is_err());
+    assert!(
+        checked_trees_to_lowered_psi::lower_machine(
+            &original,
+            TerminalMachineSelection::Name("Root::enter")
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -151,7 +162,13 @@ fn unit_wrapper_cannot_substitute_a_same_typed_local_and_its_cleanup() {
         }
     }
     assert!(changed_call && changed_cleanup);
-    assert!(checked_trees_to_lowered_psi::lower_machine(&original, "Root::enter").is_err());
+    assert!(
+        checked_trees_to_lowered_psi::lower_machine(
+            &original,
+            TerminalMachineSelection::Name("Root::enter")
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -377,7 +394,11 @@ fn unit_wrapper_consumes_established_affine_result_without_duplicate_cleanup() {
             *discard_result_on_return = true;
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Root::enter")
+            )
+            .is_err(),
             "established affine result custody mutation {mutation}"
         );
     }
@@ -447,7 +468,13 @@ fn unit_wrapper_rejects_missing_checked_and_terminal_claim_transfers() {
     };
     assert_eq!(claim_transfers.len(), 1);
     claim_transfers.clear();
-    assert!(checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter").is_err());
+    assert!(
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Root::enter")
+        )
+        .is_err()
+    );
     let mut module = decode_module(&artifact.0).unwrap();
     let operation = module
         .machines
@@ -506,7 +533,13 @@ fn unit_wrapper_rejects_same_typed_structural_argument_substitution() {
     assert_eq!(structural_arguments[0].source_parameter_index(), Some(0));
     structural_arguments[0].source =
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 };
-    assert!(checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter").is_err());
+    assert!(
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Root::enter")
+        )
+        .is_err()
+    );
 }
 
 #[test]

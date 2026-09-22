@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -65,8 +66,11 @@ impl TerminalEffectHandler for Flags {
 
 fn execute(source: &str) -> Vec<bool> {
     let checked = checked(source);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("guarded read has an executable helper closure");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("guarded read has an executable helper closure");
     let expected = execute_lowered(&lowered);
     let selections = optimization::PsiOptimizationSelections::new([
         optimization::PsiOptimization::DeadPureScalarElimination,

@@ -6,6 +6,7 @@ use super::{
     interpret_terminal_artifact_measured, lower_symbol_resolved_trees, lower_typed_trees,
     parse_syntax_trees, resolve, validate_fixed_entry_fuel,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::TerminalStructuralInputs;
 use typed_trees_to_checked_trees::CheckingRequest;
 const MIXED_NOMINAL_REUSED_SHORT_CIRCUIT_SCALAR_SOURCE: &str = r#"
@@ -84,8 +85,11 @@ fn mixed_nominal_scalar_return_source_distributes_reused_short_circuit_value() {
         .expect("type reused nominal short-circuit scalar return");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("check reused nominal short-circuit scalar return");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
-        .expect("pure reused short-circuit value source-distributes through nominal cleanup");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::measure"),
+    )
+    .expect("pure reused short-circuit value source-distributes through nominal cleanup");
 
     let entry = lowered
         .semantic_module
@@ -200,8 +204,11 @@ fn mixed_contextual_scalar_return_proves_cleanup_on_every_short_circuit_leaf() {
         .expect("type mixed contextual short-circuit scalar return");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("check mixed contextual short-circuit scalar return");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
-        .expect("mixed contextual short-circuit scalar return lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::measure"),
+    )
+    .expect("mixed contextual short-circuit scalar return lowers");
 
     let entry = lowered
         .semantic_module
@@ -371,8 +378,11 @@ fn contextual_scalar_cleanup_and_exact_result_use_disjoint_obligation_identities
         .expect("type contextual exact scalar cleanup source");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("check contextual exact scalar cleanup source");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
-        .expect("contextual cleanup and exact scalar result lower together");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::measure"),
+    )
+    .expect("contextual cleanup and exact scalar result lower together");
 
     let obligations =
         terminal_verifier::reconstruct_operation_obligations(&lowered.semantic_module)

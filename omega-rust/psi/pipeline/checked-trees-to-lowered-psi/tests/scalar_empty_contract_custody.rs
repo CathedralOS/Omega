@@ -2,6 +2,7 @@
 
 use checked_trees::{CheckedTrees, ClosedScalarValueContractPlan};
 use checked_trees_to_lowered_psi::LoweringError;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_codec::CanonicalTerminalArtifact;
@@ -81,7 +82,10 @@ fn reject_erased_contract(original: &CheckedTrees, owner: &str, expected_message
         changed.typed, original.typed,
         "authored custody is unchanged"
     );
-    match checked_trees_to_lowered_psi::lower_machine(&changed, "enter") {
+    match checked_trees_to_lowered_psi::lower_machine(
+        &changed,
+        TerminalMachineSelection::Name("enter"),
+    ) {
         Err(LoweringError::Unsupported(message)) => assert_eq!(message, expected_message),
         Err(error) => panic!("unexpected rejection for {owner}: {error:#?}"),
         Ok(_) => panic!("accepted erased scalar contract for {owner}"),

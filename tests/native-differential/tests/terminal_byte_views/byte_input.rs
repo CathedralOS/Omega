@@ -1,4 +1,9 @@
 //! A boundary result and guarded mutable view compose through ordinary edges.
+use super::native_function;
+use super::{AdmissionProfile, IntegerValue, NativeTarget, calls};
+use abstract_operations_to_target_operations::{
+    AdmittedBoundaryExecution, AdmittedBoundarySettlement,
+};
 #[cfg(any(
     all(
         target_os = "linux",
@@ -6,11 +11,7 @@
     ),
     all(target_os = "macos", target_arch = "aarch64")
 ))]
-use super::native_function;
-use super::{AdmissionProfile, IntegerValue, NativeTarget, calls};
-use abstract_operations_to_target_operations::{
-    AdmittedBoundaryExecution, AdmittedBoundarySettlement,
-};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 #[path = "byte_input/line_read.rs"]
 mod line_read;
@@ -38,7 +39,7 @@ fn try_lower_reader(
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    checked_trees_to_lowered_psi::lower_machine(&checked, machine)
+    checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name(machine))
 }
 
 fn lower_reader(source: &str, machine: &str) -> lowered_psi::LoweredPsi {

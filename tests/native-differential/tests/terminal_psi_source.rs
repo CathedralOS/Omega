@@ -2,6 +2,7 @@
 //! trees are dropped before canonical decoding, verification, interpretation,
 //! and Omega lowering.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 #[path = "../fixture_rosters/terminal_sources.rs"]
 mod fixture_roster;
@@ -757,7 +758,8 @@ fn unimplemented_post_terminal_phase_rejects_before_native_publication() {
     let entry = checked
         .selected_program_entry_machine()
         .expect("selected entry");
-    let lowered = lower_machine(&checked, entry).expect("source still produces Terminal Psi");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name(entry))
+        .expect("source still produces Terminal Psi");
     verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,

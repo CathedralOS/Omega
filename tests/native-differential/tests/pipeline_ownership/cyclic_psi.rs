@@ -8,6 +8,7 @@ use abstract_operations_to_abstract_operations::validation::{
 use abstract_operations_to_abstract_operations::{
     AnalysisManager, AnalysisProduct, VerifiedPsiOptimizationSession,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_core::AnalysisKind;
 use optimization_unit::{OptimizerCycleComponentSnapshot, OptimizerRankingCertificateSnapshot};
 use optimization_unit_semantics::{
@@ -53,8 +54,11 @@ fn countdown_input() -> (terminal_psi::TerminalModule, VerifiedPsiOptimizationIn
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve countdown");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type countdown");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check countdown");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::countdown")
-        .expect("lower countdown");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::countdown"),
+    )
+    .expect("lower countdown");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module)
         .expect("encode countdown semantics");
     let proof =

@@ -3,6 +3,7 @@ use super::{
     TerminalExecutionResult, TerminalInterpretError, TerminalScalarValue, checked_arms,
     encode_module, encoded, encoded_arms, execute,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 fn source(parameter: &str, requires: &str) -> String {
     format!(
         r#"
@@ -107,8 +108,11 @@ fn entry_range_replay_rejects_changed_authored_end_kind() {
     use checked_trees::types::{TypeConstraintNode, TypeReferenceNode};
     let source = "machine value(input: u8[0..128]) -> u8 { input }";
     let mut checked = checked_arms(source, false);
-    let original = checked_trees_to_lowered_psi::lower_machine(&checked, "value")
-        .expect("original exclusive predicate publishes");
+    let original = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("value"),
+    )
+    .expect("original exclusive predicate publishes");
     assert_eq!(original.semantic_module.machines.len(), 1);
     assert!(
         !original.semantic_module.machines[0]
@@ -133,7 +137,11 @@ fn entry_range_replay_rejects_changed_authored_end_kind() {
     };
     *end_inclusive = true;
     assert!(
-        checked_trees_to_lowered_psi::lower_machine(&checked, "value").is_err(),
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("value")
+        )
+        .is_err(),
         "retained <=127 cannot certify authored inclusive128"
     );
 }

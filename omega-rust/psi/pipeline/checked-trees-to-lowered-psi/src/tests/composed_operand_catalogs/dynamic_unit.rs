@@ -3,6 +3,7 @@ use super::{
     CheckedTrees, DYNAMIC_CONTINUATION_SOURCE, LoweredPsi, OperationKind, Terminator,
     checked_source_with_core_service, lower_machine, roundtrip,
 };
+use crate::TerminalMachineSelection;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
@@ -275,7 +276,7 @@ fn assert_source_custody(checked: &CheckedTrees) {
         .get_mut(handle)
         .target_symbol = symbols::SymbolHandle::invalid();
     assert!(
-        lower_machine(&changed, "Main::main").is_err(),
+        lower_machine(&changed, TerminalMachineSelection::Name("Main::main")).is_err(),
         "captured ordinary target drift rejects"
     );
     let (handle, _) = checked
@@ -300,7 +301,7 @@ fn assert_source_custody(checked: &CheckedTrees) {
         .get_mut(handle)
         .statement_ordinal += 1;
     assert!(
-        lower_machine(&changed, "Main::main").is_err(),
+        lower_machine(&changed, TerminalMachineSelection::Name("Main::main")).is_err(),
         "computed argument coordinate drift rejects"
     );
 }

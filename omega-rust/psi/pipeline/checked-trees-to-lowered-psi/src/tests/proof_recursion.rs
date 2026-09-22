@@ -3,6 +3,7 @@ use super::{
     lower_machine, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees_with_id,
     resolve,
 };
+use crate::TerminalMachineSelection;
 use crate::machine_lowering::machine_dispatch::select_terminal_machine;
 use semantic_vocabulary::PackageKeyIdentity;
 use typed_trees_to_checked_trees::CheckingRequest;
@@ -73,9 +74,10 @@ const REACHABLE_SINGLETON_PROOF_SCC: &str = r#"
 #[test]
 fn selected_proof_closure_lowers_exact_recursive_component() {
     let checked = checked_managed_source(REACHABLE_PROOF_SCC);
-    let root_symbol = select_terminal_machine(&checked, "Root::main")
-        .expect("root selection")
-        .machine;
+    let root_symbol =
+        select_terminal_machine(&checked, TerminalMachineSelection::Name("Root::main"))
+            .expect("root selection")
+            .machine;
     let root = checked
         .typed
         .machines()
@@ -98,7 +100,8 @@ fn selected_proof_closure_lowers_exact_recursive_component() {
         dependencies.contains(&left_entry.symbol),
         "closure must resolve an entry-state call target back to its owning machine"
     );
-    let lowered = lower_machine(&checked, "Root::main").expect("proof SCC should lower");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::main"))
+        .expect("proof SCC should lower");
     let [component] = lowered
         .semantic_module
         .proof_recursive_components
@@ -212,7 +215,8 @@ fn selected_proof_closure_lowers_exact_recursive_component() {
 #[test]
 fn selected_singleton_proof_closure_uses_the_grouped_certificate_path() {
     let checked = checked_managed_source(REACHABLE_SINGLETON_PROOF_SCC);
-    let lowered = lower_machine(&checked, "Root::main").expect("proof SCC should lower");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::main"))
+        .expect("proof SCC should lower");
     let [component] = lowered
         .semantic_module
         .proof_recursive_components
@@ -302,7 +306,8 @@ fn unreachable_proof_scc_is_not_retained() {
         "",
     );
     let checked = checked_managed_source(&source);
-    let lowered = lower_machine(&checked, "Root::main").expect("unrelated entry should lower");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::main"))
+        .expect("unrelated entry should lower");
     assert!(
         lowered
             .semantic_module
@@ -319,7 +324,8 @@ fn unreachable_singleton_proof_scc_is_not_retained() {
         "",
     );
     let checked = checked_managed_source(&source);
-    let lowered = lower_machine(&checked, "Root::main").expect("unrelated entry should lower");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::main"))
+        .expect("unrelated entry should lower");
     assert!(
         lowered
             .semantic_module
@@ -332,7 +338,8 @@ fn unreachable_singleton_proof_scc_is_not_retained() {
 #[test]
 fn stale_or_missing_source_recursive_evidence_rejects() {
     let checked = checked_managed_source(REACHABLE_PROOF_SCC);
-    let lowered = lower_machine(&checked, "Root::main").expect("proof SCC should lower");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::main"))
+        .expect("proof SCC should lower");
 
     let mut missing = lowered.proof_bundle.clone();
     missing.recursive_components.clear();
@@ -395,7 +402,7 @@ fn stale_checked_edge_rank_parameter_rejects_before_erasure() {
     checked.facts.termination.proof_recursive_components[0].edges[0].callee_rank_parameter =
         symbols::SymbolHandle::invalid();
     assert!(matches!(
-        lower_machine(&checked, "Root::main"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::main")),
         Err(LoweringError::Unsupported(
             "checked recursive edge rank parameter is stale"
         ))

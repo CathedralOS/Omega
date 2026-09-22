@@ -19,6 +19,7 @@ mod support;
 #[path = "owned_scalar_graphs/type_custody.rs"]
 mod type_custody;
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_psi::{
     OperationKind, StructuralAccess, StructuralMultiplicity, TerminalAffineCleanupAction,
     TerminalMachineResult, Terminator,
@@ -86,7 +87,11 @@ fn source_debug_follows_selected_entry_after_ordered_helpers() {
         .symbols
         .symbol_source_span(parameter.symbol)
         .unwrap();
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "selected").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .unwrap();
     let module = &lowered.semantic_module;
     let entry = module
         .machines
@@ -130,8 +135,11 @@ fn source_debug_follows_selected_entry_after_ordered_helpers() {
 fn source_debug_parameters_follow_scalar_positions_among_owned_inputs() {
     for entry in ["inspect", "enter"] {
         let (checked, _, _, _) = support::publish(ORDERED, entry);
-        let selection =
-            checked_trees_to_lowered_psi::select_terminal_machine(&checked, entry).unwrap();
+        let selection = checked_trees_to_lowered_psi::select_terminal_machine(
+            &checked,
+            TerminalMachineSelection::Name(entry),
+        )
+        .unwrap();
         let graph = checked
             .facts
             .flow
@@ -145,7 +153,11 @@ fn source_debug_parameters_follow_scalar_positions_among_owned_inputs() {
             .unwrap();
         let source_parameters =
             checked.state_parameters(&checked.machine_states(source_machine)[0]);
-        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry).unwrap();
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name(entry),
+        )
+        .unwrap();
         let root = lowered
             .semantic_module
             .machines

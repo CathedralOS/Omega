@@ -1,5 +1,6 @@
 use super::super::super::OperationKind;
 use super::super::CheckedScalarComputationKind;
+use crate::TerminalMachineSelection;
 use checked_trees::CheckedTrees;
 use checked_trees::expression::ExpressionNode;
 
@@ -52,8 +53,8 @@ fn ordinary_selected_float_comparisons_emit_one_exact_operation() {
                 "boundary operator {token} Float::{name}(left: {format}, right: {format}) -> bool; machine choose(left: {format}, right: {format}) -> bool {{ left {token} right }}"
             );
             let checked = checked(&source);
-            let lowered =
-                crate::lower_machine(&checked, "choose").expect("selected comparison lowers");
+            let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
+                .expect("selected comparison lowers");
             assert_eq!(lowered.selected_ieee_float_comparison_occurrences.len(), 1);
             let produced = terminal_production::TerminalProductionRequest::new(&checked, "choose")
                 .produce_checked_artifact()
@@ -132,7 +133,7 @@ fn ordinary_selected_integer_comparisons_emit_one_exact_operation() {
                 "boundary operator {token} Comparison::{name}(left: {primitive}, right: {primitive}) -> bool; machine choose(left: {primitive}, right: {primitive}) -> bool {{ left {token} right }}"
             );
             let checked = checked(&source);
-            let lowered = crate::lower_machine(&checked, "choose")
+            let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
                 .expect("selected integer comparison lowers");
             assert!(
                 lowered
@@ -227,7 +228,7 @@ fn published_match_custody_rejects_missing_and_duplicate_occurrences() {
             match identity(value) { identity(first) -> 7, identity(second) -> 9, _ -> 11 }
         }",
     );
-    let lowered = crate::lower_machine(&checked, "choose").unwrap();
+    let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose")).unwrap();
     let produced = terminal_production::TerminalProductionRequest::new(&checked, "choose")
         .produce_checked_artifact()
         .expect("both selected arms publish exact custody");
@@ -266,8 +267,8 @@ fn match_comparison_custody_rejects_arm_and_provider_substitution() {
             match identity(value) { identity(first) -> 7, identity(second) -> 9, _ -> 11 }
         }",
     );
-    let lowered =
-        crate::lower_machine(&checked, "choose").expect("saved subject and ordered patterns");
+    let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
+        .expect("saved subject and ordered patterns");
     assert_eq!(lowered.selected_ieee_float_comparison_occurrences.len(), 2);
     let original = lowered.selected_ieee_float_comparison_occurrences[0];
     let selected = *checked.facts.operators.uses.get(original.operator_use);
@@ -277,7 +278,7 @@ fn match_comparison_custody_rejects_arm_and_provider_substitution() {
         .uses
         .get_mut(original.operator_use)
         .provider_plan_commitment = Default::default();
-    assert!(crate::lower_machine(&checked, "choose").is_err());
+    assert!(crate::lower_machine(&checked, TerminalMachineSelection::Name("choose")).is_err());
     *checked.facts.operators.uses.get_mut(original.operator_use) = selected;
     let arms = checked
         .facts
@@ -304,7 +305,7 @@ fn match_comparison_custody_rejects_arm_and_provider_substitution() {
     retained[0].equality_use = retained[1].equality_use;
     retained[1].equality_use = first_use;
     assert!(
-        crate::lower_machine(&checked, "choose").is_err(),
+        crate::lower_machine(&checked, TerminalMachineSelection::Name("choose")).is_err(),
         "arm equality cannot borrow a sibling occurrence"
     );
 }
@@ -315,7 +316,7 @@ fn selected_comparison_replay_rejects_swapped_operands_and_changed_source_operat
         "boundary operator < Float::less(left: f64, right: f64) -> bool;
         machine choose(left: f64, right: f64) -> bool { left < right }",
     );
-    let lowered = crate::lower_machine(&checked, "choose").unwrap();
+    let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose")).unwrap();
     let use_handle = lowered.selected_ieee_float_comparison_occurrences[0].operator_use;
     let expression = checked.facts.operators.uses.get(use_handle).expression;
     let computation = checked
@@ -351,7 +352,7 @@ fn selected_comparison_replay_rejects_swapped_operands_and_changed_source_operat
         std::mem::swap(left, right);
     }
     assert!(
-        crate::lower_machine(&checked, "choose").is_err(),
+        crate::lower_machine(&checked, TerminalMachineSelection::Name("choose")).is_err(),
         "same-typed operands retain authored order"
     );
     checked
@@ -367,7 +368,7 @@ fn selected_comparison_replay_rejects_swapped_operands_and_changed_source_operat
         binary.operator = checked_trees::expression::BinaryOperator::Greater;
     }
     assert!(
-        crate::lower_machine(&checked, "choose").is_err(),
+        crate::lower_machine(&checked, TerminalMachineSelection::Name("choose")).is_err(),
         "source operator cannot reuse selected less meaning"
     );
 }
@@ -378,7 +379,7 @@ fn selected_comparison_replays_origin_role_even_when_application_is_relabelled()
         "boundary operator == Float::equal(left: f32, right: f32) -> bool;
         machine choose(left: f32, right: f32) -> bool { left == right }",
     );
-    let lowered = crate::lower_machine(&checked, "choose").unwrap();
+    let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose")).unwrap();
     let handle = lowered.selected_ieee_float_comparison_occurrences[0].operator_use;
     let selected = checked.facts.operators.uses.get_mut(handle);
     let original_site = selected.application_site();
@@ -394,7 +395,7 @@ fn selected_comparison_replays_origin_role_even_when_application_is_relabelled()
         }
     }
     assert!(
-        crate::lower_machine(&checked, "choose").is_err(),
+        crate::lower_machine(&checked, TerminalMachineSelection::Name("choose")).is_err(),
         "origin role is replayed from the actual statement"
     );
 }

@@ -2,12 +2,16 @@ use super::{
     AdmissionProfile, TerminalEffect, TerminalExecutionResult, checked, encode_module,
     encode_proof_section, interpret_terminal_artifact_measured,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::{TerminalNaturalRankComparison, TerminalRankedScc};
 
 fn lower_writer() -> lowered_psi::LoweredPsi {
-    checked_trees_to_lowered_psi::lower_machine(&checked(WRITER), "Root::enter")
-        .expect("the authored slice rank survives ordinary call-closure lowering")
+    checked_trees_to_lowered_psi::lower_machine(
+        &checked(WRITER),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("the authored slice rank survives ordinary call-closure lowering")
 }
 
 const WRITER: &str = r#"
@@ -270,7 +274,13 @@ fn checked_slice_rank_cannot_be_removed_or_redirected() {
         } else {
             plan.natural_ranks[0].parameter_position = 0;
         }
-        assert!(checked_trees_to_lowered_psi::lower_machine(&source, "Root::enter").is_err());
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &source,
+                TerminalMachineSelection::Name("Root::enter")
+            )
+            .is_err()
+        );
     }
 }
 

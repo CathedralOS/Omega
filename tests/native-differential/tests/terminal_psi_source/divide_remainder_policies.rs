@@ -7,6 +7,7 @@ use super::{
 };
 #[cfg(unix)]
 use super::{ScratchDirectory, fresh_scratch_directory};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 
@@ -14,8 +15,11 @@ use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 fn checked_source_exact_divide_uses_known_nonzero_divisor() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("known-divisor exact-divide source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_divide_known_right")
-        .expect("known nonzero exact division should lower");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_divide_known_right"),
+    )
+    .expect("known nonzero exact division should lower");
     let divide_operation = lowered.semantic_module.machines[0]
         .blocks
         .iter()
@@ -111,8 +115,11 @@ fn checked_source_exact_divide_uses_known_nonzero_divisor() {
 fn checked_source_signed_exact_divide_truncates_toward_zero() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("signed exact-divide source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_signed_divide_known_right")
-        .expect("known signed exact division should lower");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_signed_divide_known_right"),
+    )
+    .expect("known signed exact division should lower");
     let semantic = encode_module(&lowered.semantic_module).expect("signed exact-divide semantics");
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("signed exact-divide proof");
@@ -159,8 +166,11 @@ fn checked_source_signed_exact_divide_truncates_toward_zero() {
 fn checked_source_exact_remainder_uses_known_nonzero_divisor() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("known-divisor exact-remainder source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_remainder_known_right")
-        .expect("known nonzero exact remainder should lower");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_remainder_known_right"),
+    )
+    .expect("known nonzero exact remainder should lower");
     let remainder_operation = lowered.semantic_module.machines[0]
         .blocks
         .iter()
@@ -257,8 +267,11 @@ fn checked_source_exact_remainder_uses_known_nonzero_divisor() {
 fn checked_source_signed_exact_remainder_is_truncating() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("signed exact-remainder source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_signed_remainder_known_right")
-        .expect("known signed exact remainder should lower");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_signed_remainder_known_right"),
+    )
+    .expect("known signed exact remainder should lower");
     let semantic =
         encode_module(&lowered.semantic_module).expect("signed exact-remainder semantics");
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -306,8 +319,11 @@ fn checked_source_signed_exact_remainder_is_truncating() {
 fn checked_source_wrapping_divide_uses_known_nonzero_divisor() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("known-divisor wrapping-divide source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_wrapping_divide_known_right")
-        .expect("known nonzero wrapping division should lower");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_wrapping_divide_known_right"),
+    )
+    .expect("known nonzero wrapping division should lower");
     let divide_operation = lowered.semantic_module.machines[0]
         .blocks
         .iter()
@@ -467,7 +483,7 @@ fn exact_nonzero_rows_keep_the_canonical_divisor_question() {
         "terminal_exact_divide_known_right",
         "terminal_exact_remainder_known_right",
     ] {
-        let lowered = lower_machine(&checked, machine)
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name(machine))
             .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}"));
         let (obligation, right) = lowered.semantic_module.machines[0]
             .blocks
@@ -524,8 +540,11 @@ fn exact_nonzero_rows_keep_the_canonical_divisor_question() {
 fn checked_source_signed_wrapping_divide_wraps_minimum_by_negative_one() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("signed wrapping-divide source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_signed_wrapping_divide_min")
-        .expect("known signed wrapping division should lower");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_signed_wrapping_divide_min"),
+    )
+    .expect("known signed wrapping division should lower");
     let semantic =
         encode_module(&lowered.semantic_module).expect("signed wrapping-divide semantics");
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -573,8 +592,11 @@ fn checked_source_signed_wrapping_divide_wraps_minimum_by_negative_one() {
 fn checked_source_wrapping_remainder_uses_known_nonzero_divisor() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("known-divisor wrapping-remainder source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_wrapping_remainder_known_right")
-        .expect("known nonzero wrapping remainder should lower");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_wrapping_remainder_known_right"),
+    )
+    .expect("known nonzero wrapping remainder should lower");
     let remainder_operation = lowered.semantic_module.machines[0]
         .blocks
         .iter()
@@ -739,8 +761,11 @@ fn checked_source_wrapping_remainder_uses_known_nonzero_divisor() {
 fn checked_source_signed_wrapping_remainder_returns_zero_for_minimum_by_negative_one() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("signed wrapping-remainder source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_signed_wrapping_remainder_min")
-        .expect("known signed wrapping remainder should lower");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_signed_wrapping_remainder_min"),
+    )
+    .expect("known signed wrapping remainder should lower");
     let semantic =
         encode_module(&lowered.semantic_module).expect("signed wrapping-remainder semantics");
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -788,8 +813,11 @@ fn checked_source_signed_wrapping_remainder_returns_zero_for_minimum_by_negative
 fn checked_source_saturating_divide_uses_known_nonzero_divisor() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("known-divisor saturating-divide source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_saturating_divide_known_right")
-        .expect("known nonzero saturating division should lower");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_saturating_divide_known_right"),
+    )
+    .expect("known nonzero saturating division should lower");
     let divide_operation = lowered.semantic_module.machines[0]
         .blocks
         .iter()
@@ -953,8 +981,11 @@ fn checked_source_saturating_divide_uses_known_nonzero_divisor() {
 fn checked_source_signed_saturating_divide_clamps_minimum_by_negative_one() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("signed saturating-divide source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_signed_saturating_divide_min")
-        .expect("known signed saturating division should lower");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_signed_saturating_divide_min"),
+    )
+    .expect("known signed saturating division should lower");
     let semantic =
         encode_module(&lowered.semantic_module).expect("signed saturating-divide semantics");
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -1008,8 +1039,11 @@ fn checked_source_signed_saturating_divide_clamps_minimum_by_negative_one() {
 fn checked_source_saturating_remainder_uses_known_nonzero_divisor() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("known-divisor saturating-remainder source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_saturating_remainder_known_right")
-        .expect("known nonzero saturating remainder should lower");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_saturating_remainder_known_right"),
+    )
+    .expect("known nonzero saturating remainder should lower");
     let remainder_operation = lowered.semantic_module.machines[0]
         .blocks
         .iter()
@@ -1174,8 +1208,11 @@ fn checked_source_saturating_remainder_uses_known_nonzero_divisor() {
 fn checked_source_signed_saturating_remainder_returns_zero_for_minimum_by_negative_one() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("signed saturating-remainder source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_signed_saturating_remainder_min")
-        .expect("known signed saturating remainder should lower");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_signed_saturating_remainder_min"),
+    )
+    .expect("known signed saturating remainder should lower");
     let semantic =
         encode_module(&lowered.semantic_module).expect("signed saturating-remainder semantics");
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -1259,7 +1296,7 @@ fn checked_source_signed_saturating_i64_ordinary_divisors_execute_on_the_host() 
         ("terminal_signed_saturating_divide_min", -20_i128),
         ("terminal_signed_saturating_remainder_min", -1_i128),
     ] {
-        let lowered = lower_machine(&checked, machine)
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name(machine))
             .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}"));
         let semantic = encode_module(&lowered.semantic_module)
             .unwrap_or_else(|error| panic!("encode {machine} semantics: {error:?}"));
@@ -1349,7 +1386,7 @@ fn checked_source_guarded_runtime_divisors_cross_every_fixed_integer_policy() {
     };
 
     for (machine, expected) in cases {
-        let lowered = lower_machine(&checked, machine)
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name(machine))
             .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}"));
         assert_eq!(
             lowered.semantic_module.vocabulary_marker,
@@ -1437,8 +1474,11 @@ fn checked_source_guarded_runtime_divisors_cross_every_fixed_integer_policy() {
 fn checked_source_guarded_negative_runtime_divisor_excludes_zero_and_negative_one() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("guarded negative runtime-divisor source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_divide_guarded_negative_right")
-        .expect("divisor <= -2 should lower exact signed division");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_divide_guarded_negative_right"),
+    )
+    .expect("divisor <= -2 should lower exact signed division");
     assert_eq!(
         lowered.semantic_module.vocabulary_marker,
         VocabularyMarker::CURRENT
@@ -1516,7 +1556,7 @@ fn checked_source_negative_one_range_uses_policy_appropriate_dividend_evidence()
             i32::MIN as i128,
         ),
     ] {
-        let lowered = lower_machine(&checked, machine)
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name(machine))
             .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}"));
         assert_eq!(
             lowered.semantic_module.vocabulary_marker,

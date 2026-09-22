@@ -3,6 +3,7 @@
 use abstract_operations::AbstractOperation;
 use abstract_operations_to_abstract_operations::validation::validate_verified_psi_optimization_unit;
 use abstract_operations_to_target_operations::{TargetLoweringRequest, lower_to_target_operations};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use checked_trees_to_lowered_psi::lower_machine;
 use optimization_unit::recompute_psi_optimization_unit_identity;
 use optimization_unit_semantics::{
@@ -62,7 +63,8 @@ fn lowered_source(source: &str, machine: &str) -> lowered_psi::LoweredPsi {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
-    lower_machine(&checked, machine).expect("lower exact payloadless source")
+    lower_machine(&checked, TerminalMachineSelection::Name(machine))
+        .expect("lower exact payloadless source")
 }
 
 fn optimizer_unit(

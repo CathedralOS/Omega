@@ -4,11 +4,13 @@ use super::{
     TerminalFuelMeter, TerminalScalarValue, TerminalStructuralValue, Terminator, checked,
     decode_module, decode_proof_bundle, encode_module, encode_proof_section, lower_machine,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
 fn assert_order(source: &str, arguments: &[TerminalScalarValue], expected: &[(usize, usize)]) {
     let checked = checked(source);
-    let lowered = lower_machine(&checked, "Main::caller").expect("mixed arguments lower");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::caller"))
+        .expect("mixed arguments lower");
     let semantic = encode_module(&lowered.semantic_module).unwrap();
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     let module = decode_module(&semantic).unwrap();
@@ -212,8 +214,8 @@ fn argument_failure_preserves_only_already_established_structural_storage() {
             machine Main::consume({signature}) {{}}
             machine Main::caller(flag: bool, value: Value) crashes Abort {{ Main::consume({operands}); }}");
         let checked = checked(&source);
-        let lowered =
-            lower_machine(&checked, "Main::caller").expect("crashing mixed operands lower");
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::caller"))
+            .expect("crashing mixed operands lower");
         let module = &lowered.semantic_module;
         let caller = module
             .machines

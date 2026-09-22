@@ -1,4 +1,5 @@
 use super::{checked_source, lower_machine};
+use crate::TerminalMachineSelection;
 use crate::expression_preparation::qualifications::PreparedScalarQualifications;
 use crate::scalar_graph::scalar_graph_lowering::prepare_scalar_graph_machine;
 use crate::scalar_graph::scalar_graph_module::build_scalar_graph_module;
@@ -54,7 +55,8 @@ fn unconditional_scalar_return_rejects_forged_coordinates_type_and_missing_prefi
              transition { _ -> (observed) }
          }",
     );
-    lower_machine(&checked, "Record::read").expect("retained prefix and final return");
+    lower_machine(&checked, TerminalMachineSelection::Name("Record::read"))
+        .expect("retained prefix and final return");
     for corruption in 0..3 {
         let mut changed = checked.clone();
         let plan = changed
@@ -79,7 +81,7 @@ fn unconditional_scalar_return_rejects_forged_coordinates_type_and_missing_prefi
             _ => unreachable!(),
         }
         assert!(
-            lower_machine(&changed, "Record::read").is_err(),
+            lower_machine(&changed, TerminalMachineSelection::Name("Record::read")).is_err(),
             "unconditional return corruption {corruption} must reject"
         );
     }
@@ -93,7 +95,8 @@ fn unconditional_scalar_return_cannot_replace_or_omit_an_authored_guard() {
              transition choose { true -> (self.value) false -> (self.other) }
          }",
     );
-    lower_machine(&checked, "Record::read").expect("both authored guarded returns");
+    lower_machine(&checked, TerminalMachineSelection::Name("Record::read"))
+        .expect("both authored guarded returns");
     let plan = checked
         .facts
         .flow
@@ -124,7 +127,7 @@ fn unconditional_scalar_return_cannot_replace_or_omit_an_authored_guard() {
         plan.scalar_control.as_mut().unwrap().terminator =
             checked_trees::CheckedScalarStateTerminator::Return { statement_ordinal };
         assert!(
-            lower_machine(&changed, "Record::read").is_err(),
+            lower_machine(&changed, TerminalMachineSelection::Name("Record::read")).is_err(),
             "forged return at {statement_ordinal} cannot discard the authored guard"
         );
     }

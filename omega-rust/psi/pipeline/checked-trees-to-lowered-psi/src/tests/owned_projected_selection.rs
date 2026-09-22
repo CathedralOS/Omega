@@ -2,6 +2,7 @@
 //! residual siblings die on the actual selected edge.
 
 use super::{CheckedTrees, checked_source, lower_machine};
+use crate::TerminalMachineSelection;
 use terminal_psi::Terminator;
 fn projected_selection_source() -> CheckedTrees {
     checked_source(
@@ -82,7 +83,8 @@ fn projection_handles(checked: &CheckedTrees) -> Vec<checked_trees::CheckedStruc
 #[test]
 fn projected_owned_selection_lowers_path_arguments_and_residual_cleanup() {
     let checked = projected_selection_source();
-    let lowered = lower_machine(&checked, "choose").expect("projected selection lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("choose"))
+        .expect("projected selection lowers");
     let edges = projected_edges(choose_machine(&lowered.semantic_module));
     assert_eq!(edges.len(), 2, "one projected edge per selected arm");
     let field = |name: &str| vec![terminal_psi::StructuralPathSegment::from(name)];
@@ -199,7 +201,7 @@ fn projected_owned_selection_rejects_mutated_projection_evidence() {
             }
         }
         assert!(
-            lower_machine(&checked, "choose").is_err(),
+            lower_machine(&checked, TerminalMachineSelection::Name("choose")).is_err(),
             "mutation {mutation} must reject"
         );
     }
@@ -209,7 +211,8 @@ fn projected_owned_selection_rejects_mutated_projection_evidence() {
 fn projected_owned_selection_verifier_rejects_mutated_edges() {
     for mutation in 0..3 {
         let checked = projected_selection_source();
-        let mut lowered = lower_machine(&checked, "choose").expect("lowers");
+        let mut lowered =
+            lower_machine(&checked, TerminalMachineSelection::Name("choose")).expect("lowers");
         for block in lowered
             .semantic_module
             .machines

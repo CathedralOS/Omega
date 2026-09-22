@@ -1,5 +1,6 @@
 //! Mutable owned formals receive values once and retain separate current storage.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source_files_to_tokens::Lexer;
@@ -28,8 +29,11 @@ fn assert_execution(source: &str, expected: TerminalScalarValue) {
     let artifact = {
         let checked = lower_typed_trees(typed(source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
-        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "value")
-            .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("value"),
+        )
+        .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
         (
             encode_module(&lowered.semantic_module).expect("canonical semantic bytes"),
             encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -50,8 +54,11 @@ fn assert_execution(source: &str, expected: TerminalScalarValue) {
 fn encoded(source: &str) -> (Vec<u8>, Vec<u8>) {
     let checked = lower_typed_trees(typed(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "value")
-        .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("value"),
+    )
+    .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
     (
         encode_module(&lowered.semantic_module).unwrap(),
         encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
@@ -451,7 +458,11 @@ fn checked_entry_storage_custody_rejects_missing_stale_and_rebound_parameter_row
             _ => unreachable!(),
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&candidate, "value").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &candidate,
+                TerminalMachineSelection::Name("value")
+            )
+            .is_err(),
             "entry storage mutation {mutation} must reject before Terminal publication"
         );
     }

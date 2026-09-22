@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -73,8 +74,11 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
 #[test]
 fn free_unit_graph_preserves_view_scalar_edges_effect_order_and_continuation() {
     let checked = checked(SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("free multistate helper belongs to the ordinary call closure");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("free multistate helper belongs to the ordinary call closure");
     let result = interpret_terminal_artifact_measured(
         &encode_module(&lowered.semantic_module).unwrap(),
         &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),

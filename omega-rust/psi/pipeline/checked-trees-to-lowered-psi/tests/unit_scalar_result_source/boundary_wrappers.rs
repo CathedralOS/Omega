@@ -1,6 +1,7 @@
 //! Fixtures shared by the boundary wrapper tests: sources, artifacts, the
 //! observing handler and the guarantee sources.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::TerminalStructuralInputs;
 #[path = "boundary_wrappers/ordered_boolean_guarantees.rs"]
 mod ordered_boolean_guarantees;
@@ -37,8 +38,11 @@ fn source() -> String {
 }
 
 fn artifact(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
-    let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Main::main")
-        .expect("Unit closure retains scalar boundary body");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("Unit closure retains scalar boundary body");
     let semantic = encode_module(&lowered.semantic_module).unwrap();
     let evidence = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     let module = decode_module(&semantic).unwrap();

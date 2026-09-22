@@ -5,6 +5,7 @@
 //! emission, not the folded spelling.
 
 use crate::value_dispatch::check_source;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 const LITERAL_SOURCE: &str = "data Cell { tag: u64; }
     data Pack { items: [Cell; 2]; }
@@ -34,7 +35,11 @@ fn folded_index_faces_the_literal_lowering_boundary() {
         assert_eq!(
             format!(
                 "{:?}",
-                checked_trees_to_lowered_psi::lower_machine(&checked, "choose").unwrap_err()
+                checked_trees_to_lowered_psi::lower_machine(
+                    &checked,
+                    TerminalMachineSelection::Name("choose")
+                )
+                .unwrap_err()
             ),
             r#"Unsupported("machine has no source-independent checked scalar control plan")"#,
             "{label}: an owned indexed leaf meets the scalar-plan boundary, same as a literal"

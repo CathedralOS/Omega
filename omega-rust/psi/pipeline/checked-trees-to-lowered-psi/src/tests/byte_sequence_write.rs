@@ -1,6 +1,7 @@
 //! Exact indexed mutation of the supplied mutable byte view.
 
 use super::{checked_source, lower_machine};
+use crate::TerminalMachineSelection;
 use checked_trees::{
     CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
 };
@@ -137,7 +138,7 @@ fn byte_view_write_rejects_changed_source_operands_access_and_roster() {
             _ => unreachable!(),
         }
         assert!(
-            lower_machine(&changed, "put").is_err(),
+            lower_machine(&changed, TerminalMachineSelection::Name("put")).is_err(),
             "source custody mutation {mutation}"
         );
     }
@@ -197,7 +198,7 @@ fn guarded_mutable_byte_write_keeps_original_field_extent_and_tail() {
         structural_arguments[0].path =
             vec![CheckedUnitStructuralPathSegment::Field("other".into())];
         assert!(
-            lower_machine(&redirected, "Record::run").is_err(),
+            lower_machine(&redirected, TerminalMachineSelection::Name("Record::run")).is_err(),
             "same-typed sibling cannot replace authored output"
         );
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();

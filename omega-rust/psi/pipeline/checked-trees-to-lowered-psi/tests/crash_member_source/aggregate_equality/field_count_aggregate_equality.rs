@@ -14,6 +14,7 @@ use crate::crash_member_source::{
     TWO_FIELD_NESTED_MIXED_AGGREGATE_EQUALITY_SOURCE,
     assert_nested_mixed_aggregate_equality_replays_every_prefixed_path,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, Proposition, ScalarTerm, StructuralFieldId,
@@ -123,10 +124,16 @@ fn two_field_nested_mixed_aggregate_equality_replays_every_prefixed_path() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let equal = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("two-field nested mixed equality lowers through the whole-root call");
-    let different = checked_trees_to_lowered_psi::lower_machine(&checked, "Different::enter")
-        .expect("two-field nested mixed inequality lowers through the whole-root call");
+    let equal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("two-field nested mixed equality lowers through the whole-root call");
+    let different = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Different::enter"),
+    )
+    .expect("two-field nested mixed inequality lowers through the whole-root call");
 
     for (lowered, is_different) in [(&equal, false), (&different, true)] {
         let machine = &lowered.semantic_module.machines[0];

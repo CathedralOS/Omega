@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
@@ -145,7 +146,7 @@ fn invalid_unit_provider_plan_names_the_exact_candidate() {
                 "attached Unit closure is missing a checked transitive machine plan"
             };
             assert!(matches!(
-                checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter"),
+                checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
                 Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
                     machine, reason: actual_reason, ..
                 }) if machine == candidate && actual_reason == reason
@@ -161,8 +162,11 @@ fn checked_unit_provider_candidates_are_cataloged_without_selection_or_call_rewr
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("zero-argument Unit provider catalog lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("zero-argument Unit provider catalog lowers");
 
     let module = &lowered.semantic_module;
     assert_eq!(module.boundary_machines.len(), 1);
@@ -238,8 +242,11 @@ fn checked_unit_provider_candidates_retain_linear_qualified_structural_inputs() 
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("structural Unit provider catalog lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("structural Unit provider catalog lowers");
 
     let module = &lowered.semantic_module;
     let [candidate] = module.provider_candidates.as_slice() else {
@@ -330,8 +337,11 @@ fn installed_structural_provider_receives_and_settles_the_exact_linear_claim() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("structural provider artifact lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("structural provider artifact lowers");
     let [candidate] = lowered.semantic_module.provider_candidates.as_slice() else {
         panic!("one exact structural provider candidate")
     };

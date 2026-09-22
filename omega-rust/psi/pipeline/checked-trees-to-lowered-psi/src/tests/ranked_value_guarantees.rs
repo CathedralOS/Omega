@@ -4,6 +4,7 @@
 //! while the unchanged `Natural` certificate still answers the cycle question.
 
 use super::{LoweringError, checked_source, lower_machine};
+use crate::TerminalMachineSelection;
 use crate::proofs::operation_proofs::finalize_operation_proofs;
 use crate::proofs::scalar_block_invariants::retain_provable;
 use lowered_psi::LoweredPsi;
@@ -40,7 +41,7 @@ fn guaranteed_countdown(
     guarantee: impl FnOnce(&ValueDeclaration, &[ValueDeclaration]) -> Proposition,
 ) -> LoweredPsi {
     let checked = checked_source(COUNTDOWN);
-    let mut lowered = lower_machine(&checked, "descend").unwrap();
+    let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("descend")).unwrap();
     assert!(lowered.semantic_module.scalar_block_invariants.is_empty());
     assert!(matches!(
         lowered.semantic_module.machines[0].ranked_scc,

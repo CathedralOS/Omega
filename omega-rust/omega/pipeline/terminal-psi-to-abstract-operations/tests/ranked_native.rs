@@ -1,5 +1,6 @@
 #[path = "ranked_native/legacy_fixture.rs"]
 mod legacy_fixture;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
@@ -29,8 +30,11 @@ fn artifact(source: &str) -> (Vec<u8>, Vec<u8>, terminal_psi::TerminalModule) {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve fixture");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type fixture");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check fixture");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::countdown")
-        .expect("lower ranked fixture");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::countdown"),
+    )
+    .expect("lower ranked fixture");
     let semantic =
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode ranked semantics");
     let proof =

@@ -2,6 +2,7 @@ use super::{
     Lexer, ResolutionRequest, checked_source_with_core_service, lower_machine,
     lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
 };
+use crate::TerminalMachineSelection;
 use checked_trees::{
     CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
 };
@@ -24,7 +25,8 @@ fn source_indexed_primitive_storage_composes_with_boundary_and_successors() {
         }
     "#;
     let checked = checked_source_with_core_service(source);
-    lower_machine(&checked, "Main::main").expect("indexed source retains its composed attachment");
+    lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
+        .expect("indexed source retains its composed attachment");
 }
 
 fn source(primitive: &str, value: &str) -> String {
@@ -156,7 +158,7 @@ fn source_indexed_primitive_store_and_read_share_serialized_backing() {
 #[test]
 fn indexed_primitive_store_receiver_rejects_changed_path_and_missing_store() {
     let checked = checked_source_with_core_service(&source("u8", "65"));
-    lower_machine(&checked, "Buffer::update").unwrap();
+    lower_machine(&checked, TerminalMachineSelection::Name("Buffer::update")).unwrap();
     for index in [254, 256] {
         let mut changed = checked.clone();
         let operation = changed
@@ -178,7 +180,7 @@ fn indexed_primitive_store_receiver_rejects_changed_path_and_missing_store() {
         };
         *path.last_mut().unwrap() = CheckedUnitStructuralPathSegment::FixedIndex(index);
         assert!(
-            lower_machine(&changed, "Buffer::update").is_err(),
+            lower_machine(&changed, TerminalMachineSelection::Name("Buffer::update")).is_err(),
             "index substitution {index}"
         );
     }
@@ -191,7 +193,7 @@ fn indexed_primitive_store_receiver_rejects_changed_path_and_missing_store() {
             )
         });
     }
-    assert!(lower_machine(&changed, "Buffer::update").is_err());
+    assert!(lower_machine(&changed, TerminalMachineSelection::Name("Buffer::update")).is_err());
 }
 
 #[test]

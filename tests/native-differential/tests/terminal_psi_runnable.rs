@@ -5,6 +5,7 @@ use abstract_operations_to_target_operations::{
     lower_to_target_operations,
 };
 use calling_conventions::{CallSignature, ValueShape};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use omega_native_differential_test::admit_native_provider;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{BoundaryMachineId, StructuralPlaceKind};
@@ -143,8 +144,11 @@ fn project_source_entry(source: &str, entry: &str) -> (Vec<u8>, Vec<u8>) {
     .expect("resolve O1 source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type O1 source");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check O1 source");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
-        .expect("lower O1 source to terminal Psi");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name(entry),
+    )
+    .expect("lower O1 source to terminal Psi");
     (
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode O1 terminal Psi"),
         encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)

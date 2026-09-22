@@ -3,6 +3,7 @@ use super::{
     MUTATING_REALIZATION_SOURCE, PROJECTED_MUTATING_REALIZATION_SOURCE, direct_dynamic_checked,
     direct_plan, direct_plan_mut, unsupported_message,
 };
+use crate::TerminalMachineSelection;
 use crate::tests::{checked_source, checked_source_with_core_service, lower_machine};
 use checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
 use terminal_psi::{OperationKind, Terminator};
@@ -27,7 +28,8 @@ fn lowers_exact_named_dynamic_field_call_without_selecting_ambient_lookalike() {
     assert_ne!(ambient.symbol, plan.realization_machine);
     assert_ne!(ambient_callable_identity, selected_callable_identity);
 
-    let lowered = lower_machine(&checked, "Main::run").expect("direct dynamic call lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("direct dynamic call lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("lowered direct dynamic module verifies");
     let module = &lowered.semantic_module;
@@ -170,7 +172,8 @@ fn lowers_checked_integer_field_store_through_the_selected_dynamic_realization()
         .expect("checked caller field store");
     assert_eq!(store.field_identity, "value");
 
-    let lowered = lower_machine(&checked, "Main::run").expect("integer store route lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("integer store route lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("integer store route verifies");
     let caller = lowered
@@ -225,7 +228,8 @@ fn lowers_checked_mutating_dynamic_realization_before_its_scalar_return() {
     let plan = direct_plan(&checked);
     assert_eq!(plan.realization_structural_scalar_field_stores.len(), 3);
 
-    let lowered = lower_machine(&checked, "Main::run").expect("mutating realization lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("mutating realization lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("mutating realization module verifies");
     let realization = lowered
@@ -290,7 +294,8 @@ fn lowers_nested_projected_mutating_realization_path_before_its_scalar_return() 
     assert_eq!(store.field_identity, "value");
     assert_eq!(store.primitive_type, typed_trees::types::PrimitiveType::U16);
 
-    let lowered = lower_machine(&checked, "Main::run").expect("projected realization lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("projected realization lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("projected realization module verifies");
     let realization = lowered
@@ -389,7 +394,7 @@ fn lowers_dynamic_scalar_result_into_console_effect_control() {
             .caller_structural_scalar_field_store
             .is_none()
     );
-    let lowered = lower_machine(&checked, "Main::run")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
         .expect("direct dynamic result control lowers as one module");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("direct dynamic result control verifies");

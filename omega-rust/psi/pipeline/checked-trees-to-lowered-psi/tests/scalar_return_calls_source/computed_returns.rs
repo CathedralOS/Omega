@@ -3,11 +3,15 @@ use super::{
     TerminalExecutionResult, TerminalInterpretError, TerminalScalarValue, checked_arms,
     encode_module, encode_proof_section, execute,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 fn encoded_computed_arms(source: &str, combined: bool) -> (Vec<u8>, Vec<u8>) {
     let checked = checked_arms(source, combined);
     assert_authored_return_roots(&checked, source);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "value")
-        .unwrap_or_else(|error| panic!("{source}, combined={combined}: {error:#?}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("value"),
+    )
+    .unwrap_or_else(|error| panic!("{source}, combined={combined}: {error:#?}"));
     (
         encode_module(&lowered.semantic_module).expect("encode semantics"),
         encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -491,7 +495,11 @@ fn computed_return_custody_mutations_reject_before_publication() {
     for combined in [false, true] {
         let checked = checked_arms(source, combined);
         assert_authored_return_roots(&checked, source);
-        checked_trees_to_lowered_psi::lower_machine(&checked, "value").unwrap();
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("value"),
+        )
+        .unwrap();
         let plans = &checked.facts.values.scalar_computations;
         let roots: Vec<_> = plans
             .roots
@@ -591,7 +599,11 @@ fn computed_return_custody_mutations_reject_before_publication() {
                     _ => unreachable!(),
                 }
                 assert!(
-                    checked_trees_to_lowered_psi::lower_machine(&changed, "value").is_err(),
+                    checked_trees_to_lowered_psi::lower_machine(
+                        &changed,
+                        TerminalMachineSelection::Name("value")
+                    )
+                    .is_err(),
                     "mutation={mutation}, role={:?}, combined={combined}",
                     root.role
                 );
@@ -616,7 +628,11 @@ fn computed_return_custody_mutations_reject_before_publication() {
                 plans.roots.get_mut(*second_handle).root = first.root;
             }
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "value").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("value")
+                )
+                .is_err(),
                 "paired swap_site={swap_site}, combined={combined}"
             );
         }

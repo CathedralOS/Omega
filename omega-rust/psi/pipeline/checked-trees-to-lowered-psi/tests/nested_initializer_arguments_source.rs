@@ -2,6 +2,7 @@ use checked_trees::{
     CheckedCallScalarArgument, CheckedScalarComputationKind, CheckedScalarExpressionRole,
     CheckedUnitEffectOperationPlan,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source_files_to_tokens::Lexer;
@@ -162,8 +163,11 @@ fn encoded(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
     for (_, root) in roots {
         assert!(arguments.contains(&computations.nodes.get(root.root).authored_root));
     }
-    let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Main::main")
-        .expect("computed result initializer lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("computed result initializer lowers");
     let artifact = (
         encode_module(&lowered.semantic_module).unwrap(),
         encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
@@ -465,7 +469,7 @@ where machine Create satisfies Producer::{requirement};"
                 ),
             );
             assert!(matches!(
-                checked_trees_to_lowered_psi::lower_machine(&self::checked(&open), "Main::main"),
+                checked_trees_to_lowered_psi::lower_machine(&self::checked(&open), TerminalMachineSelection::Name("Main::main")),
                 Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan { machine, .. })
                     if machine == "Main::main"
             ));
@@ -760,7 +764,11 @@ fn initializer_computations_and_outer_result_custody_reject_stale_source() {
                     _ => unreachable!(),
                 }
                 assert!(
-                    checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+                    checked_trees_to_lowered_psi::lower_machine(
+                        &changed,
+                        TerminalMachineSelection::Name("Main::main")
+                    )
+                    .is_err(),
                     "initializer root mutation={mutation}"
                 );
             }
@@ -801,7 +809,11 @@ fn initializer_computations_and_outer_result_custody_reject_stale_source() {
                     }
                 }
                 assert!(
-                    checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+                    checked_trees_to_lowered_psi::lower_machine(
+                        &changed,
+                        TerminalMachineSelection::Name("Main::main")
+                    )
+                    .is_err(),
                     "nested occurrence mutation={mutation}"
                 );
             }
@@ -952,7 +964,11 @@ fn initializer_computations_and_outer_result_custody_reject_stale_source() {
                 _ => unreachable!(),
             }
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("Main::main")
+                )
+                .is_err(),
                 "outer initializer mutation={mutation}"
             );
         }

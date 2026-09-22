@@ -4,6 +4,7 @@ use super::{
 };
 use checked_trees::CheckedUnitStructuralArgumentSourcePlan as ArgumentSource;
 use checked_trees_to_lowered_psi::LoweringError;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 const CHAIN_WITH_SPARE: &str = "data Value { number: u64; }
     machine forward(value: Value) -> Value { value }
@@ -29,7 +30,8 @@ fn assert_input_rejoin(authored_uses_result: bool) {
         CHAIN_WITH_SPARE.replace("forward(first)", "forward(spare)")
     };
     let mut checked = checked(&source);
-    let mut lowered = lower_machine(&checked, "Main::caller").expect("authored inputs lower");
+    let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::caller"))
+        .expect("authored inputs lower");
     let caller_state = lowered.source_call_occurrences[0].source_state;
     let caller = &mut lowered.semantic_module.machines[0];
     let spare = caller.structural_parameters[1].place;
@@ -132,7 +134,8 @@ fn assert_input_rejoin(authored_uses_result: bool) {
         "Unit structural result argument does not rejoin its exact authored local"
     };
     assert_eq!(
-        lower_machine(&checked, "Main::caller").expect_err("forged authored input must reject"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Main::caller"))
+            .expect_err("forged authored input must reject"),
         LoweringError::Unsupported(expected)
     );
 }

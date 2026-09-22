@@ -1,5 +1,6 @@
 //! Selective value dispatch survives checked custody and canonical execution.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IeeeFloatValue, IntegerSign, IntegerType, IntegerValue};
 use terminal_fuel::FuelChargeSite;
@@ -391,8 +392,11 @@ fn execute_machine_with_structural_inputs(
             "dispatch does not manufacture source states"
         );
     }
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, machine_name)
-        .unwrap_or_else(|error| panic!("lowering {source}: {error:#?}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name(machine_name),
+    )
+    .unwrap_or_else(|error| panic!("lowering {source}: {error:#?}"));
     let semantic_bytes =
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode semantics");
     let proof_bytes =

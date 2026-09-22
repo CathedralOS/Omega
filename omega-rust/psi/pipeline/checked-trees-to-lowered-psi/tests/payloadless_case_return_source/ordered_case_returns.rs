@@ -2,6 +2,7 @@ use super::{
     SELECTED_WITNESS_TAIL_USE_SOURCE, assert_guarded_case_results, checked,
     checked_ordered_case_returns, integer_case_argument,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fixed_fuel::derive_fixed_entry_fuel;
@@ -227,8 +228,11 @@ fn selected_witness_tail_use_is_canonical_and_runtime_free() {
     };
     assert!(checked_selection.tail_use.is_some());
 
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::caller")
-        .expect("the exact selected-witness tail use lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::caller"),
+    )
+    .expect("the exact selected-witness tail use lowers");
     let module = &lowered.semantic_module;
     let [caller, _callee, target] = module.machines.as_slice() else {
         panic!("caller, producer, and proof-visible tail target remain canonical")
@@ -354,6 +358,10 @@ fn selected_witness_tail_use_is_canonical_and_runtime_free() {
         .selected_evidence[0]
         .tail_use = None;
     assert!(
-        checked_trees_to_lowered_psi::lower_machine(&omitted_checked_use, "Root::caller").is_err()
+        checked_trees_to_lowered_psi::lower_machine(
+            &omitted_checked_use,
+            TerminalMachineSelection::Name("Root::caller")
+        )
+        .is_err()
     );
 }

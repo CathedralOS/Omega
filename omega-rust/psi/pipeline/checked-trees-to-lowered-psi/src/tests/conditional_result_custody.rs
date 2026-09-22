@@ -1,4 +1,5 @@
 use super::{LoweringError, checked_source, lower_machine};
+use crate::TerminalMachineSelection;
 
 const SOURCE: &str = r#"
     data Receipt [linear] { code: i32; }
@@ -35,12 +36,14 @@ fn conditional_result_custody_requires_terminal_correspondence_only_when_demande
     let checked = checked_source(SOURCE);
     assert!(!checked.facts.flow.ownership.claim_join_receipts.is_empty());
     assert_eq!(
-        lower_machine(&checked, "consume").expect_err("Terminal must retain both return origins"),
+        lower_machine(&checked, TerminalMachineSelection::Name("consume"))
+            .expect_err("Terminal must retain both return origins"),
         LoweringError::Unsupported(
             "conditional result custody requires Terminal exit-alternative correspondence"
         ),
     );
-    lower_machine(&checked, "identity").expect("unused checked joins do not block another product");
+    lower_machine(&checked, TerminalMachineSelection::Name("identity"))
+        .expect("unused checked joins do not block another product");
 }
 
 #[test]
@@ -48,7 +51,8 @@ fn removing_the_join_receipt_does_not_make_joined_provenance_executable() {
     let mut checked = checked_source(SOURCE);
     checked.facts.flow.ownership.claim_join_receipts = arena::Arena::default();
     assert_eq!(
-        lower_machine(&checked, "consume").expect_err("missing correspondence is not a root"),
+        lower_machine(&checked, TerminalMachineSelection::Name("consume"))
+            .expect_err("missing correspondence is not a root"),
         LoweringError::Unsupported(
             "conditional result custody requires Terminal exit-alternative correspondence"
         ),

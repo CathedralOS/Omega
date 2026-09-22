@@ -6,6 +6,7 @@ use super::{
     lower_machine, lower_to_target_operations, lower_verified_artifact, source_canary,
     verify_module,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 
@@ -14,8 +15,11 @@ use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 fn source_wrapping_add_matches_target_lowering() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("terminal-Psi integer policy source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_wrapping_add")
-        .expect("source wrapping add should lower to terminal Psi");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_wrapping_add"),
+    )
+    .expect("source wrapping add should lower to terminal Psi");
     drop(checked);
 
     let verified = verify_module(
@@ -38,8 +42,11 @@ fn source_wrapping_add_matches_target_lowering() {
 fn checked_source_ninth_parameter_reaches_the_host_stack_abi() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("terminal-Psi runtime-parameter source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_ninth_parameter")
-        .expect("nine-parameter source machine should lower to terminal Psi");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_ninth_parameter"),
+    )
+    .expect("nine-parameter source machine should lower to terminal Psi");
     drop(checked);
 
     let verified = verify_module(
@@ -128,7 +135,7 @@ fn checked_source_runtime_integer_policy_operations_survive_frontend_drop() {
                 arguments,
                 expected,
                 fuel,
-                lower_machine(&checked, machine)
+                lower_machine(&checked, TerminalMachineSelection::Name(machine))
                     .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}")),
             )
         })
@@ -171,8 +178,11 @@ fn checked_source_runtime_integer_policy_operations_survive_frontend_drop() {
 fn checked_source_exact_literal_narrowing_relands_before_psi() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("exact literal narrowing source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_literal_narrowing")
-        .expect("exact literal narrowing should lower to terminal Psi");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_literal_narrowing"),
+    )
+    .expect("exact literal narrowing should lower to terminal Psi");
     let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
 
     let operations = &lowered.semantic_module.machines[0].blocks[0].operations;

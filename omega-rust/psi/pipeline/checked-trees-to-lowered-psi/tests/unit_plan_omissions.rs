@@ -2,6 +2,7 @@
 //! lowering error carries the omission chain from the requested machine to
 //! the machine whose own body failed local construction.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
@@ -32,8 +33,11 @@ const UNSUPPORTED_BODY: &str = r#"
 #[test]
 fn a_root_without_an_admitted_body_names_its_own_local_construction() {
     let checked = checked(UNSUPPORTED_BODY);
-    let error = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
-        .expect_err("the mixed member/comparison body has no Unit plan");
+    let error = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect_err("the mixed member/comparison body has no Unit plan");
     let checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
         machine,
         reason,
@@ -103,8 +107,11 @@ fn a_root_whose_callee_lacks_a_body_names_the_callee_chain() {
             target: named("Main::relay")
         }
     );
-    let error = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
-        .expect_err("the root's transitive callee has no Unit plan");
+    let error = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect_err("the root's transitive callee has no Unit plan");
     let checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
         machine,
         omission,
@@ -410,8 +417,11 @@ fn a_routed_task_start_call_plans_and_owned_settle_reaches_module_production() {
     // `Task::settle`, the body's normal completion retires the minted linear
     // `self` entry claim — an owned receiver is the terminal-consumer input
     // — and the whole routed program produces a verified module.
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::probe")
-        .expect("the settle body retires its linear self claim at Unit return");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::probe"),
+    )
+    .expect("the settle body retires its linear self claim at Unit return");
     let settle = lowered
         .semantic_module
         .machines
@@ -533,8 +543,11 @@ fn a_routed_task_result_into_self_rejects_claim_custody_corruption() {
             .expect("the specialized settle has a Unit plan")
     }
     let rejects = |checked: &checked_trees::CheckedTrees, expected: &str, corruption: &str| {
-        let error = checked_trees_to_lowered_psi::lower_machine(checked, "Main::probe")
-            .expect_err(corruption);
+        let error = checked_trees_to_lowered_psi::lower_machine(
+            checked,
+            TerminalMachineSelection::Name("Main::probe"),
+        )
+        .expect_err(corruption);
         assert!(
             matches!(
                 error,
@@ -828,8 +841,11 @@ fn a_shared_task_runtime_place_stops_at_signature_construction() {
             ..
         }
     ));
-    let error = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::probe")
-        .expect_err("a shared TaskRuntime place has no admitted checked signature");
+    let error = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::probe"),
+    )
+    .expect_err("a shared TaskRuntime place has no admitted checked signature");
     let checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
         machine,
         omission,
@@ -900,11 +916,14 @@ fn an_inline_case_argument_on_an_attached_call_plans() {
         "Main::plain_scalar_siblings",
         "Main::bound_affine",
     ] {
-        checked_trees_to_lowered_psi::lower_machine(&checked, name)
+        checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name(name))
             .unwrap_or_else(|error| panic!("{name}: {error:?}"));
     }
-    let error = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::inline_affine")
-        .expect_err("an affine literal has no permission events to carry it");
+    let error = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::inline_affine"),
+    )
+    .expect_err("an affine literal has no permission events to carry it");
     let checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
         machine,
         omission,

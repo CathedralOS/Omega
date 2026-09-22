@@ -6,6 +6,7 @@ use super::{
     encode_proof_section, interpret_terminal_artifact_measured, lower_symbol_resolved_trees,
     lower_typed_trees, parse_syntax_trees, resolve, validate_fixed_entry_fuel,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::TerminalStructuralInputs;
 use typed_trees_to_checked_trees::CheckingRequest;
 const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
@@ -203,7 +204,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve shared integer convergence");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type shared integer convergence");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check shared integer convergence");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name("Root::measure"))
         .expect("shared integer-comparison convergence lowers");
     let entry = lowered
         .semantic_module

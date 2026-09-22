@@ -1,6 +1,7 @@
 //! Published cyclic Unit calls preserve literal contents through resumable execution.
 
 use super::checked_source;
+use crate::TerminalMachineSelection;
 use crate::{LoweringError, lower_machine};
 use terminal_interpreter::TerminalStructuralInputs;
 mod mixed_and_custody;
@@ -179,8 +180,8 @@ machine Main::main(&mut self) reaches Trace {
 }
 "#,
     );
-    let lowered =
-        lower_machine(&checked, "Main::main").expect("storage-observation invariant proves");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
+        .expect("storage-observation invariant proves");
     let invariants = &lowered.semantic_module.scalar_block_invariants;
     assert!(
         invariants.iter().any(|invariant| {
@@ -454,7 +455,7 @@ machine Main::main(&mut self) reaches Trace {
 "#,
     );
     assert!(matches!(
-        lower_machine(&checked, "Main::main"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Main::main")),
         Err(LoweringError::OperationProofUnavailable(_))
     ));
 }

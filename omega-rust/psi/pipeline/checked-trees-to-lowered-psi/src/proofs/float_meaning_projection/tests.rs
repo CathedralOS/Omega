@@ -11,6 +11,7 @@ use super::{
     lower_float_meaning_projection, rejoin_float_semantic_applications,
     resolve_direct_float_source_binding,
 };
+use crate::TerminalMachineSelection;
 use checked_trees::{
     CheckedDirectBlockFloatParameter, CheckedDirectCallFloatResult,
     CheckedDirectMachineFloatParameter, CheckedDirectMachineFloatResult,
@@ -1077,7 +1078,8 @@ fn semantic_application_lowers_to_the_terminal_carrier_end_to_end() {
         "#,
     );
     assert_eq!(checked.facts.proof.float_semantic_applications.len(), 1);
-    let lowered = crate::lower_machine(&checked, "terminal_root").expect("lower semantic fixture");
+    let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("terminal_root"))
+        .expect("lower semantic fixture");
     let projections = &lowered.semantic_module.float_meaning_projections;
     let application_index = projections
         .iter()

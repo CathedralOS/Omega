@@ -6,6 +6,7 @@ use super::{
     interpret_terminal_artifact_measured, lower_symbol_resolved_trees, lower_typed_trees,
     parse_syntax_trees, resolve, validate_fixed_entry_fuel,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::TerminalStructuralInputs;
 use typed_trees_to_checked_trees::CheckingRequest;
 const AFFINE_CAST_AFFINE_SOURCE: &str = r#"
@@ -48,8 +49,11 @@ fn affine_cast_affine_sandwich_retains_every_independent_proof_end_to_end() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("type affine-cast-affine source");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("check affine-cast-affine source");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
-        .expect("affine-cast-affine source lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::measure"),
+    )
+    .expect("affine-cast-affine source lowers");
     let entry = lowered
         .semantic_module
         .machines

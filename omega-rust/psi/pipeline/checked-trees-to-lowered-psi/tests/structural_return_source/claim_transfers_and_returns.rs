@@ -3,6 +3,7 @@ use super::{
     RESULT_BOUNDARY_CONTENT_CUSTODY_SOURCE, RejectSecondEffect, ResultBoundaryHandler,
     checked_result_boundary_source, checked_source,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use language_semantics::{Multiplicity, PermissionClaimIdentity};
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{ContentAlgebraKind, ContentPlaceVersion};
@@ -42,7 +43,10 @@ fn result_bearing_boundary_rejects_missing_canonical_contract_custody() {
         .retain(|capsule| capsule.target_machine() != boundary);
 
     assert_eq!(
-        checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter"),
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Root::enter")
+        ),
         Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
             "result-bearing boundary target is missing its canonical contract identity",
         )),
@@ -63,7 +67,10 @@ fn result_bearing_boundary_rejects_compact_equal_commitment_substitution() {
     assert_eq!(boundary.contract_report_fingerprint, retained_report);
 
     assert_eq!(
-        checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter"),
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Root::enter")
+        ),
         Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
             "result-bearing boundary target contract compatibility coordinate or strong commitment drifted",
         )),
@@ -80,8 +87,11 @@ fn source_content_custody_exit_retains_projection_and_commits_only_after_success
     let typed = lower_symbol_resolved_trees(&resolved).expect("type content custody exit");
     let checked =
         lower_typed_trees(typed, &CheckingRequest::settled()).expect("check content custody exit");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("content-bearing boundary custody should lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("content-bearing boundary custody should lower");
     let module = &lowered.semantic_module;
     let [machine] = module.machines.as_slice() else {
         panic!("one content custody root machine")
@@ -185,8 +195,11 @@ fn source_content_custody_unit_exit_retains_projection_and_consumes_claim() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("type Unit content custody exit");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("check Unit content custody exit");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::exit")
-        .expect("content-bearing Unit boundary custody should lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::exit"),
+    )
+    .expect("content-bearing Unit boundary custody should lower");
     let module = &lowered.semantic_module;
     let [machine] = module.machines.as_slice() else {
         panic!("one Unit content custody root machine")
@@ -249,8 +262,11 @@ fn result_bearing_boundary_retains_exact_bounded_installation_reach() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("type bounded result boundary");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("check bounded result boundary");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("bounded result boundary should lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("bounded result boundary should lower");
     let module = &lowered.semantic_module;
 
     // The entry declares the services its explicit invocation may reach, and
@@ -379,8 +395,11 @@ fn literal_fixed_array_custody_reaches_verified_interpreted_terminal_psi() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("type indexed custody");
     let checked =
         lower_typed_trees(typed, &CheckingRequest::settled()).expect("check indexed custody");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("literal fixed-array custody should lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("literal fixed-array custody should lower");
     let module = &lowered.semantic_module;
     let machine = module.machines.first().expect("one root machine");
     assert_eq!(machine.entry_claims.len(), 2);
@@ -512,8 +531,11 @@ fn literal_fixed_array_custody_crosses_ordinary_unit_calls_without_losing_siblin
     let typed = lower_symbol_resolved_trees(&resolved).expect("type ordinary indexed custody");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("check ordinary indexed custody");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("ordinary literal fixed-index custody should lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("ordinary literal fixed-index custody should lower");
     let root = &lowered.semantic_module.machines[0];
     let [first, second] = root.blocks[0].operations.as_slice() else {
         panic!("root should call the helper once per sibling")
@@ -671,8 +693,11 @@ fn whole_root_source_passthrough_reaches_verified_and_interpreted_terminal_psi()
     assert_eq!(plan.entry_claim.claim_identity, plan.transferred_claim);
     assert!(plan.entry_claim.path.is_empty());
 
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::forward")
-        .expect("exact whole-root passthrough should lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::forward"),
+    )
+    .expect("exact whole-root passthrough should lower");
     let module = &lowered.semantic_module;
     let [machine] = module.machines.as_slice() else {
         panic!("one source machine should produce one terminal machine")
@@ -791,8 +816,11 @@ fn direct_internal_structural_result_call_gets_an_exact_checked_plan() {
         state.entry_claims[0].claim_identity
     );
 
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::through_call")
-        .expect("bounded direct structural-result call should lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::through_call"),
+    )
+    .expect("bounded direct structural-result call should lower");
     let module = &lowered.semantic_module;
     assert_eq!(module.machines.len(), 2);
     let caller = module
@@ -870,8 +898,11 @@ fn structural_return_discards_one_claim_free_affine_parameter_after_materializat
     );
     assert_eq!(plan.trivial_affine_discards, [1]);
 
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::forward_and_drop")
-        .expect("exact structural return plus affine cleanup should lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::forward_and_drop"),
+    )
+    .expect("exact structural return plus affine cleanup should lower");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("one source machine should produce one terminal machine")
     };
@@ -976,8 +1007,11 @@ fn structural_return_establishes_and_discards_one_trivial_affine_local() {
     assert_eq!(plan.trivial_affine_local_discard_ordinals, [0]);
     assert!(plan.trivial_affine_discards.is_empty());
 
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::forward_with_local")
-        .expect("exact affine local structural return should lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::forward_with_local"),
+    )
+    .expect("exact affine local structural return should lower");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("one source machine should produce one terminal machine")
     };
@@ -1092,9 +1126,11 @@ fn structural_return_establishes_multiple_locals_in_declaration_order_and_discar
     );
     assert_eq!(plan.trivial_affine_local_discard_ordinals, [1, 0]);
 
-    let lowered =
-        checked_trees_to_lowered_psi::lower_machine(&checked, "Main::forward_with_two_locals")
-            .expect("multiple affine locals should lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::forward_with_two_locals"),
+    )
+    .expect("multiple affine locals should lower");
     let machine = &lowered.semantic_module.machines[0];
     let destinations = machine.blocks[0]
         .operations
@@ -1183,9 +1219,11 @@ fn structural_return_establishes_multiple_locals_in_declaration_order_and_discar
 #[test]
 fn structural_return_cleans_local_before_affine_parameter() {
     let checked = checked_source();
-    let lowered =
-        checked_trees_to_lowered_psi::lower_machine(&checked, "Main::forward_with_local_and_drop")
-            .expect("combined local and parameter cleanup should lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::forward_with_local_and_drop"),
+    )
+    .expect("combined local and parameter cleanup should lower");
     let machine = &lowered.semantic_module.machines[0];
     let terminal_psi::OperationKind::EstablishTrivialAffineLocal { destination } =
         machine.blocks[0].operations[0].kind
@@ -1232,7 +1270,7 @@ fn structural_return_cleans_locals_then_every_affine_tail_parameter_in_reverse_o
 
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
-        "Main::forward_with_local_and_drop_two",
+        TerminalMachineSelection::Name("Main::forward_with_local_and_drop_two"),
     )
     .expect("multiple affine tail parameters should lower");
     let machine = &lowered.semantic_module.machines[0];
@@ -1327,8 +1365,11 @@ fn affine_local_composes_with_claim_bearing_state_transition() {
     // instead of becoming a fresh block claim, so the machine lowers, verifies,
     // and interprets rather than rejecting.
     let checked = checked_source();
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::local_control")
-        .expect("claim-bearing state transition lowers through the composed graph");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::local_control"),
+    )
+    .expect("claim-bearing state transition lowers through the composed graph");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("one composed machine")
     };
@@ -1447,11 +1488,27 @@ fn producer_fences_locals_and_authored_contracts() {
             "Main::forward_with_local_and_drop_two"
         ]
     );
-    assert!(checked_trees_to_lowered_psi::lower_machine(&checked, "Main::through_local").is_err());
-    assert!(checked_trees_to_lowered_psi::lower_machine(&checked, "Main::contracted").is_err());
+    assert!(
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Main::through_local")
+        )
+        .is_err()
+    );
+    assert!(
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Main::contracted")
+        )
+        .is_err()
+    );
     for rejected in ["Main::local_partial_value", "Main::local_nominal_cleanup"] {
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&checked, rejected).is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name(rejected)
+            )
+            .is_err(),
             "{rejected} must remain outside the exact affine-local slice"
         );
     }
@@ -1476,7 +1533,10 @@ fn lowering_rejects_a_stale_checked_claim_join() {
         .expect("forward plan");
     plan.transferred_claim = PermissionClaimIdentity::Unknown;
     assert!(matches!(
-        checked_trees_to_lowered_psi::lower_machine(&checked, "Main::forward"),
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Main::forward")
+        ),
         Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
             "structural result plan is not one exact whole-root linear transfer with affine cleanup"
         ))
@@ -1502,7 +1562,10 @@ fn lowering_rejects_stale_structural_return_cleanup_coordinates() {
         .expect("forward-and-drop plan");
     plan.trivial_affine_discards.clear();
     assert!(matches!(
-        checked_trees_to_lowered_psi::lower_machine(&checked, "Main::forward_and_drop"),
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Main::forward_and_drop")
+        ),
         Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
             "structural result plan is not one exact whole-root linear transfer with affine cleanup"
         ))
@@ -1533,7 +1596,11 @@ fn lowering_rejects_stale_affine_local_declaration_and_cleanup_rows() {
         .unwrap();
     plan.trivial_affine_local_discard_ordinals.clear();
     assert!(
-        checked_trees_to_lowered_psi::lower_machine(&checked, "Main::forward_with_local").is_err()
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Main::forward_with_local")
+        )
+        .is_err()
     );
 
     let (mut checked, symbol) = checked_plan();
@@ -1548,7 +1615,11 @@ fn lowering_rejects_stale_affine_local_declaration_and_cleanup_rows() {
     plan.trivial_affine_locals[0].declaration_ordinal = 1;
     plan.trivial_affine_local_discard_ordinals[0] = 1;
     assert!(
-        checked_trees_to_lowered_psi::lower_machine(&checked, "Main::forward_with_local").is_err()
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Main::forward_with_local")
+        )
+        .is_err()
     );
 
     let (mut checked, symbol) = checked_plan();
@@ -1577,6 +1648,10 @@ fn lowering_rejects_stale_affine_local_declaration_and_cleanup_rows() {
         .unwrap();
     plan.trivial_affine_locals[0].type_identity = scratch_type;
     assert!(
-        checked_trees_to_lowered_psi::lower_machine(&checked, "Main::forward_with_local").is_err()
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Main::forward_with_local")
+        )
+        .is_err()
     );
 }

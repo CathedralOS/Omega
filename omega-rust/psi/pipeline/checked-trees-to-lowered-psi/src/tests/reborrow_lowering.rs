@@ -6,6 +6,7 @@ use super::{
     two_shared_reborrow_restored_call_source,
     two_shared_reborrow_restored_call_source_with_observations,
 };
+use crate::TerminalMachineSelection;
 use crate::lower_machine;
 use crate::lowering_error::LoweringError;
 use checked_trees::CheckedUnitEffectOperationPlan;
@@ -30,7 +31,7 @@ fn inline_scalar_call_computation_rejects_a_missing_source_occurrence() {
     };
     *source_call = Default::default();
     assert!(
-        lower_machine(&checked, "root").is_err(),
+        lower_machine(&checked, TerminalMachineSelection::Name("root")).is_err(),
         "an inline call must retain its exact checked occurrence"
     );
 }
@@ -104,7 +105,8 @@ fn receiver_free_scalar_suspension_plan_rejoins_parameter_local_and_argument_fro
                 ),
             ],
         });
-    let lowered = lower_machine(&checked, "root").expect("bounded scalar suspension lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("root"))
+        .expect("bounded scalar suspension lowers");
     let [site] = lowered.semantic_module.suspension_call_sites.as_slice() else {
         panic!("one exact suspension call site")
     };
@@ -154,7 +156,7 @@ fn unsupported_receiver_suspension_frontier_fails_closed() {
             live_values: Vec::new(),
         });
     assert!(matches!(
-        lower_machine(&checked, "root"),
+        lower_machine(&checked, TerminalMachineSelection::Name("root")),
         Err(LoweringError::Unsupported(
             "receiver-bearing suspension frontier lacks an exact Terminal receiver place join"
         ))
@@ -225,7 +227,7 @@ fn unsupported_staged_local_suspension_frontier_fails_closed() {
                 effective: language_semantics::CarryPolicy::PERMISSIVE,
             }],
         });
-    let result = lower_machine(&checked, "root");
+    let result = lower_machine(&checked, TerminalMachineSelection::Name("root"));
     assert!(
         matches!(
             result,
@@ -247,7 +249,8 @@ fn ordinary_scalar_lowering_keeps_suspension_catalogs_empty() {
             { value }
         "#,
     );
-    let lowered = lower_machine(&checked, "identity").expect("ordinary scalar lowering");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("identity"))
+        .expect("ordinary scalar lowering");
     assert_eq!(lowered.semantic_module.suspension_call_plan_count, 0);
     assert!(lowered.semantic_module.suspension_call_sites.is_empty());
     assert!(lowered.semantic_module.suspension_call_plans.is_empty());
@@ -362,9 +365,10 @@ fn terminal_reborrow_restored_call_use_lowers_exclusive_and_sole_shared_children
             terminal_psi::StructuralAccess::SharedBorrow,
         ),
     ] {
-        let lowered = lower_machine(&checked, machine_name).unwrap_or_else(|error| {
-            panic!("{label} restored-parent mutating call lowers to Terminal Psi: {error:?}")
-        });
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name(machine_name))
+            .unwrap_or_else(|error| {
+                panic!("{label} restored-parent mutating call lowers to Terminal Psi: {error:?}")
+            });
         let [use_row] = lowered
             .semantic_module
             .reborrow_restored_call_uses
@@ -517,8 +521,11 @@ fn terminal_reborrow_restored_call_use_lowers_exact_two_member_shared_cohort() {
         mutation_argument.access,
         checked_trees::CheckedStructuralAccess::MutableBorrow
     );
-    let lowered = lower_machine(&checked, "Harness::exercise")
-        .expect("two-member shared cohort lowers to Terminal Psi");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Harness::exercise"),
+    )
+    .expect("two-member shared cohort lowers to Terminal Psi");
     let [row] = lowered
         .semantic_module
         .reborrow_restored_call_uses
@@ -602,8 +609,11 @@ fn terminal_reborrow_restored_call_use_lowers_exact_three_member_shared_cohort()
         checked_trees::CheckedStructuralAccess::MutableBorrow
     );
 
-    let lowered = lower_machine(&checked, "Harness::exercise")
-        .expect("three-member shared cohort lowers to Terminal Psi");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Harness::exercise"),
+    )
+    .expect("three-member shared cohort lowers to Terminal Psi");
     let [row] = lowered
         .semantic_module
         .reborrow_restored_call_uses
@@ -650,7 +660,11 @@ fn terminal_reborrow_restored_call_use_lowers_exact_three_member_shared_cohort()
         .get_mut(certificate.disposition);
     disposition.shared_cohort[2] = disposition.shared_cohort[0];
     assert!(
-        lower_machine(&duplicate, "Harness::exercise").is_err(),
+        lower_machine(
+            &duplicate,
+            TerminalMachineSelection::Name("Harness::exercise")
+        )
+        .is_err(),
         "nonadjacent duplicate cohort members must fail checked-to-Terminal replay"
     );
 }
@@ -671,7 +685,11 @@ fn terminal_two_shared_restored_call_aliasing_fences_reordered_and_extra_observa
             "unsupported shared observation layout must not gain checked authority"
         );
         assert!(
-            lower_machine(&checked, "Harness::exercise").is_err(),
+            lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("Harness::exercise")
+            )
+            .is_err(),
             "unsupported shared observation layout must remain outside the Unit plan"
         );
     }
@@ -698,7 +716,13 @@ fn terminal_shared_restored_call_use_rejects_checked_cohort_drift() {
         .get_mut(certificate.disposition)
         .shared_cohort
         .clear();
-    assert!(lower_machine(&missing, "Harness::exercise").is_err());
+    assert!(
+        lower_machine(
+            &missing,
+            TerminalMachineSelection::Name("Harness::exercise")
+        )
+        .is_err()
+    );
 
     let mut wrong_disposition = baseline.clone();
     wrong_disposition
@@ -707,7 +731,13 @@ fn terminal_shared_restored_call_use_rejects_checked_cohort_drift() {
         .reborrow_disposition_events
         .get_mut(certificate.disposition)
         .disposition = checked_trees::CheckedReborrowResourceDisposition::Reactivate;
-    assert!(lower_machine(&wrong_disposition, "Harness::exercise").is_err());
+    assert!(
+        lower_machine(
+            &wrong_disposition,
+            TerminalMachineSelection::Name("Harness::exercise")
+        )
+        .is_err()
+    );
 
     let mut wrong_containment = baseline;
     wrong_containment
@@ -716,7 +746,13 @@ fn terminal_shared_restored_call_use_rejects_checked_cohort_drift() {
         .reborrow_containment_certificates
         .get_mut(certificate.containment)
         .containment = checked_trees::CheckedReborrowContainmentKind::ExclusiveSuspension;
-    assert!(lower_machine(&wrong_containment, "Harness::exercise").is_err());
+    assert!(
+        lower_machine(
+            &wrong_containment,
+            TerminalMachineSelection::Name("Harness::exercise")
+        )
+        .is_err()
+    );
 
     let mut wrong_parent_status = shared_reborrow_restored_call_source();
     wrong_parent_status
@@ -726,7 +762,13 @@ fn terminal_shared_restored_call_use_rejects_checked_cohort_drift() {
         .get_mut(certificate.child_resource)
         .parent_end_status
         .status = checked_trees::ParentLexicalStatusAtChildEnd::RetiredWithChild;
-    assert!(lower_machine(&wrong_parent_status, "Harness::exercise").is_err());
+    assert!(
+        lower_machine(
+            &wrong_parent_status,
+            TerminalMachineSelection::Name("Harness::exercise")
+        )
+        .is_err()
+    );
 
     let mut wrong_parent_weakening = shared_reborrow_restored_call_source();
     wrong_parent_weakening
@@ -735,7 +777,13 @@ fn terminal_shared_restored_call_use_rejects_checked_cohort_drift() {
         .reborrow_containment_certificates
         .get_mut(certificate.containment)
         .parent_weakening = certificate.child_weakening;
-    assert!(lower_machine(&wrong_parent_weakening, "Harness::exercise").is_err());
+    assert!(
+        lower_machine(
+            &wrong_parent_weakening,
+            TerminalMachineSelection::Name("Harness::exercise")
+        )
+        .is_err()
+    );
 
     let mut invalid_formation_constraint = shared_reborrow_restored_call_source();
     invalid_formation_constraint
@@ -745,7 +793,13 @@ fn terminal_shared_restored_call_use_rejects_checked_cohort_drift() {
         .get_mut(certificate.child_resource)
         .parent_suspension
         .parent_entry_constraint = arena::Handle::invalid();
-    assert!(lower_machine(&invalid_formation_constraint, "Harness::exercise").is_err());
+    assert!(
+        lower_machine(
+            &invalid_formation_constraint,
+            TerminalMachineSelection::Name("Harness::exercise")
+        )
+        .is_err()
+    );
 }
 
 #[test]

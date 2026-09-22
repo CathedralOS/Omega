@@ -5,6 +5,7 @@ use crate::PsiOptimizationUnit;
 use crate::tests::refresh_node_derivatives;
 use crate::validate_psi_optimization_unit;
 use abstract_operations::AbstractOperation;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 pub(crate) fn indexed_field_unit() -> PsiOptimizationUnit {
     let source = r#"
@@ -31,8 +32,11 @@ pub(crate) fn indexed_field_unit() -> PsiOptimizationUnit {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    let terminal =
-        checked_trees_to_lowered_psi::lower_machine(&checked, "Record::replace").unwrap();
+    let terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Record::replace"),
+    )
+    .unwrap();
     let semantic = terminal_codec::encode_module(&terminal.semantic_module).unwrap();
     let proof =
         terminal_codec::encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)

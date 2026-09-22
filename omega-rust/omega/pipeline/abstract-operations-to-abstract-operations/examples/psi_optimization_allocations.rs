@@ -4,6 +4,7 @@
 //! Run: cargo run -p abstract-operations-to-abstract-operations --example psi_optimization_allocations
 //! Counts successful allocation/reallocation requests and requested bytes, not peak RSS.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::fmt::Write;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -96,8 +97,11 @@ fn verified_unit(source: &str) -> VerifiedPsiOptimizationUnit {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("check");
-    let lowered =
-        checked_trees_to_lowered_psi::lower_machine(&checked, "measure").expect("lower measure");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("measure"),
+    )
+    .expect("lower measure");
     let semantic =
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode semantics");
     let proof =

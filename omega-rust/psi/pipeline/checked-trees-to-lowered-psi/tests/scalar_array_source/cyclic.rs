@@ -7,6 +7,7 @@
 //! replaces the stored payload each traversal instead of treating the place
 //! as established once per activation.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, StructuralPlaceKind};
 use terminal_interpreter::{
@@ -39,8 +40,11 @@ const CYCLE_SOURCE: &str = r#"
 #[test]
 fn cyclic_unrestricted_scalar_array_reestablishes_and_feeds_an_owned_argument() {
     let checked = checked_source(CYCLE_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "scan")
-        .expect("ranked cycle carrying a scalar-array establishment lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("scan"),
+    )
+    .expect("ranked cycle carrying a scalar-array establishment lowers");
     let module = &lowered.semantic_module;
     let scan = module
         .machines
@@ -136,8 +140,11 @@ const AFFINE_CYCLE_SOURCE: &str = r#"
 #[test]
 fn cyclic_affine_empty_record_reestablishes_inside_the_component() {
     let checked = checked_source(AFFINE_CYCLE_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "scan")
-        .expect("ranked cycle carrying an affine empty local lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("scan"),
+    )
+    .expect("ranked cycle carrying an affine empty local lowers");
     let module = &lowered.semantic_module;
     let scan = module
         .machines
@@ -205,8 +212,11 @@ fn cyclic_affine_empty_record_reestablishes_inside_the_component() {
 #[test]
 fn cyclic_affine_empty_record_rejects_when_an_edge_drops_its_disposal() {
     let checked = checked_source(AFFINE_CYCLE_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "scan")
-        .expect("ranked cycle carrying an affine empty local lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("scan"),
+    )
+    .expect("ranked cycle carrying an affine empty local lowers");
     let module = &lowered.semantic_module;
     let mut rosters = 0;
     for block_index in 0..module.machines[0].blocks.len() {
@@ -335,8 +345,11 @@ fn respell_member_record_as_trivial_affine_local(
 #[test]
 fn cyclic_trivial_affine_local_reestablishes_inside_the_component() {
     let checked = checked_source(AFFINE_CYCLE_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "scan")
-        .expect("ranked cycle carrying an affine empty local lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("scan"),
+    )
+    .expect("ranked cycle carrying an affine empty local lowers");
     let mut module = lowered.semantic_module.clone();
     let picked = respell_member_record_as_trivial_affine_local(&mut module);
     let scan = module
@@ -402,8 +415,11 @@ fn cyclic_trivial_affine_local_reestablishes_inside_the_component() {
 #[test]
 fn cyclic_trivial_affine_local_rejects_when_an_edge_drops_its_disposal() {
     let checked = checked_source(AFFINE_CYCLE_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "scan")
-        .expect("ranked cycle carrying an affine empty local lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("scan"),
+    )
+    .expect("ranked cycle carrying an affine empty local lowers");
     let mut module = lowered.semantic_module.clone();
     respell_member_record_as_trivial_affine_local(&mut module);
     let mut rosters = 0;

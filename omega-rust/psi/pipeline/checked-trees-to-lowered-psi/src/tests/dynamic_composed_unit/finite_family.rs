@@ -13,6 +13,7 @@ use super::{
     REBOUND_FAMILY_DYNAMIC_INTEGER_SOURCE, assert_dynamic_unit_artifact_executes,
     unsupported_message,
 };
+use crate::TerminalMachineSelection;
 use crate::tests::{checked_source, lower_machine};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::{OperationKind, OperationResult};
@@ -130,7 +131,8 @@ fn lowers_a_direct_family_call_to_the_selected_tuple_row() {
         !callable.family_tuple.is_empty() && callable.realization_machine != row.realization_machine
     }));
 
-    let lowered = lower_machine(&checked, "Main::run").expect("the family call lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("the family call lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("the family module verifies");
     let catalog = &lowered.semantic_module.dynamic_dispatch;
@@ -199,7 +201,8 @@ fn rebound_family_call_retains_every_tuple_row_callable() {
     };
     assert_eq!(plan.latest.family_tuple.as_ref(), [WIDTH_32.to_owned()]);
 
-    let lowered = lower_machine(&checked, "Main::run").expect("the rebound family call lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("the rebound family call lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("the rebound family module verifies");
     let catalog = &lowered.semantic_module.dynamic_dispatch;
@@ -270,7 +273,8 @@ fn forwarded_family_call_exposes_every_tuple_row_on_the_parameter_interface() {
     ));
     assert_eq!(plan.family_tuple.as_ref(), [WIDTH_16.to_owned()]);
 
-    let lowered = lower_machine(&checked, "Main::run").expect("the forwarded family call lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("the forwarded family call lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("the forwarded family module verifies");
     let catalog = &lowered.semantic_module.dynamic_dispatch;
@@ -344,7 +348,8 @@ fn joined_family_call_materializes_the_tuple_roster_once() {
         [WIDTH_32.to_owned()]
     );
 
-    let lowered = lower_machine(&checked, "Main::run").expect("the joined family call lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("the joined family call lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("the joined family module verifies");
     let catalog = &lowered.semantic_module.dynamic_dispatch;
@@ -393,7 +398,8 @@ fn lowers_a_family_unit_call_without_a_scalar_result() {
     };
     assert_eq!(plan.family_tuple.as_ref(), [WIDTH_16.to_owned()]);
 
-    let lowered = lower_machine(&checked, "Main::run").expect("the family Unit call lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("the family Unit call lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("the family Unit module verifies");
     let catalog = &lowered.semantic_module.dynamic_dispatch;

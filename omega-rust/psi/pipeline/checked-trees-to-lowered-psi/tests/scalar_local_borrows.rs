@@ -13,6 +13,7 @@ use checked_trees::{
     CheckedScalarBindingDestination, CheckedScalarComputationKind, CheckedScalarExpression,
     CheckedUnitStructuralArgumentSourcePlan,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::{TerminalExecutionResult, TerminalScalarValue};
 use terminal_psi::{OperationKind, StructuralAccess};
 
@@ -48,7 +49,11 @@ machine enter(before: u64, after: u64) -> u64 {
 #[test]
 fn source_debug_map_distinguishes_scalar_values_from_local_and_unit_results() {
     let checked = support::checked(SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "enter").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .unwrap();
     let module = &lowered.semantic_module;
     let mut debug_map = lowered.debug_map.expect("source-backed local debug map");
     assert!(!debug_map.sites.is_empty());

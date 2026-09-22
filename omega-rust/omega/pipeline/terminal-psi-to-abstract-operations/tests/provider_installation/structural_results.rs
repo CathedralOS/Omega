@@ -1,5 +1,6 @@
 //! Installed affine providers retain the caller's result, not the candidate's.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -42,7 +43,11 @@ fn artifact(source: &str) -> (terminal_psi::TerminalModule, Vec<u8>, Vec<u8>) {
     let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).unwrap();
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "enter").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .unwrap();
     let semantic = encode_module(&lowered.semantic_module).unwrap();
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     (lowered.semantic_module, semantic, proof)

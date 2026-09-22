@@ -1,6 +1,7 @@
 //! Internal Unit-call leaves and exact target replay.
 
 use super::{CheckedTrees, LoweringError, checked_source, lower_machine};
+use crate::TerminalMachineSelection;
 use checked_trees::CheckedUnitEffectOperationPlan;
 use terminal_psi::{Operation, OperationKind, OperationResult, Terminator};
 #[test]
@@ -21,7 +22,7 @@ fn composed_scalar_call_locals_replay_their_authored_computation() {
                  state no() {{}}
              }}"
         ));
-        lower_machine(&checked, "Root::enter")
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
             .expect("call locals compose with earlier pure bindings and call results");
         let machine = source_machine(&checked, "Root::enter");
         let root = checked
@@ -43,7 +44,7 @@ fn composed_scalar_call_locals_replay_their_authored_computation() {
             .get_mut(root)
             .authored_root = typed_trees::expression::ExpressionHandle::invalid();
         assert!(
-            lower_machine(&changed, "Root::enter").is_err(),
+            lower_machine(&changed, TerminalMachineSelection::Name("Root::enter")).is_err(),
             "retained computation cannot replace its authored call custody"
         );
     }
@@ -81,7 +82,7 @@ fn source_machine(checked: &CheckedTrees, name: &str) -> symbols::SymbolHandle {
 #[test]
 fn lowers_both_internal_unit_leaves_to_one_canonical_target() {
     let checked = checked_composed_internal_calls();
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("both internal leaves should lower with their exact target closure");
     let [root, target] = lowered.semantic_module.machines.as_slice() else {
         panic!("composed root and its deduplicated target should be the whole closure")
@@ -152,7 +153,7 @@ fn internal_unit_call_carries_the_erased_lane_and_requires_obligations() {
             }
         "#,
     );
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("internal Unit callee with requires and an erased formal lowers");
     let [root, target] = lowered.semantic_module.machines.as_slice() else {
         panic!("composed root and its requires-bearing target form the whole closure")
@@ -213,7 +214,8 @@ fn internal_unit_call_rejects_a_violating_or_missing_erased_actual() {
             }
         "#,
     );
-    let lowered = lower_machine(&checked, "Root::enter").expect("baseline lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+        .expect("baseline lowers");
     let verify = |mutate: &mut dyn FnMut(&mut terminal_psi::TerminalMachine)| {
         let mut module = lowered.semantic_module.clone();
         mutate(&mut module.machines[0]);
@@ -279,7 +281,7 @@ fn internal_unit_call_cites_the_second_erased_formal_in_its_own_ordinal() {
             }
         "#,
     );
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("internal Unit callee with two erased formals lowers");
     let [root, target] = lowered.semantic_module.machines.as_slice() else {
         panic!("composed root and its requires-bearing target form the whole closure")
@@ -360,7 +362,7 @@ fn internal_unit_call_cites_the_second_erased_formal_in_its_own_ordinal() {
 fn internal_unit_leaf_rejects_target_plan_and_identity_corruption() {
     let baseline = checked_composed_internal_calls();
     let rejects = |checked: &CheckedTrees| {
-        let result = lower_machine(checked, "Root::enter");
+        let result = lower_machine(checked, TerminalMachineSelection::Name("Root::enter"));
         assert!(
             matches!(result, Err(LoweringError::Unsupported(_))),
             "unexpected result: {result:?}"
@@ -397,7 +399,7 @@ fn internal_unit_leaf_rejects_target_plan_and_identity_corruption() {
         .machines
         .retain(|plan| plan.machine != quiet);
     assert!(matches!(
-        lower_machine(&missing, "Root::enter"),
+        lower_machine(&missing, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::InvalidUnitMachinePlan { machine, reason, .. })
             if machine == "Root::quiet"
                 && reason == "attached Unit closure is missing a checked transitive machine plan"
@@ -423,7 +425,8 @@ fn free_composed_attachment_matches_the_authored_declaration() {
         "#,
     );
     for name in ["finish", "Owner::finish"] {
-        let lowered = lower_machine(&baseline, name).expect("exact free or attached composed root");
+        let lowered = lower_machine(&baseline, TerminalMachineSelection::Name(name))
+            .expect("exact free or attached composed root");
         terminal_verifier::verify_module(
             &lowered.semantic_module,
             &lowered.proof_bundle,
@@ -469,7 +472,7 @@ fn free_composed_attachment_matches_the_authored_declaration() {
             .unwrap()
             .attachment_type_identity = replacement;
         assert!(
-            lower_machine(&changed, name).is_err(),
+            lower_machine(&changed, TerminalMachineSelection::Name(name)).is_err(),
             "attachment substitution rejects for {name}"
         );
     }
@@ -502,7 +505,7 @@ fn free_composed_helper_rejects_fabricated_provider_fields() {
             provider_type_identity: "fabricated".to_owned(),
             boundary: free,
         });
-    assert!(lower_machine(&checked, "finish").is_err());
+    assert!(lower_machine(&checked, TerminalMachineSelection::Name("finish")).is_err());
 }
 
 // A composed caller retains its embedded scalar-graph callee's result: the
@@ -530,7 +533,7 @@ fn composed_caller_lowers_a_retained_scalar_graph_call_result() {
             }
         "#,
     );
-    let lowered = lower_machine(&checked, "Main::main")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
         .expect("the retained scalar-graph call result joins the caller namespace");
     terminal_verifier::verify_module(
         &lowered.semantic_module,

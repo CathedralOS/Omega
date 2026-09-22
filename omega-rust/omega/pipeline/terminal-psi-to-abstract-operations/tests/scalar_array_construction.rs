@@ -1,6 +1,7 @@
 //! Verified scalar-array construction retains exact payloads through current IR.
 
 use abstract_operations::AbstractOperation;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_psi::OperationKind;
@@ -75,8 +76,11 @@ fn assert_array_retention(source: &str, entry: &str) {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("check array source");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
-        .expect("selected array reaches Terminal");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name(entry),
+    )
+    .expect("selected array reaches Terminal");
     let semantic = encode_module(&lowered.semantic_module).expect("encode array semantics");
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("encode array proof");

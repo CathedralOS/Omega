@@ -1,5 +1,6 @@
 //! Installed checked providers write the caller's fixed extent, not replacement storage.
 use super::{CheckedTrees, byte_sequence_write, checked_source, lower_machine};
+use crate::TerminalMachineSelection;
 use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
@@ -344,7 +345,7 @@ fn fixed_array_boundary_provider_replays_exact_field_and_mutable_access() {
                 vec![CheckedUnitStructuralPathSegment::Field("other".into())];
         }
         assert!(
-            lower_machine(&changed, "Root::run").is_err(),
+            lower_machine(&changed, TerminalMachineSelection::Name("Root::run")).is_err(),
             "same-typed field or access substitution cannot borrow another source operand"
         );
     }

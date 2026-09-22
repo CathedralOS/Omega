@@ -11,6 +11,7 @@
 //! entry has a fixed physical signature per target, so those corpus legs stay
 //! on `native_function`'s C caller.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use std::sync::Arc;
 
 /// One compiled attached-entry program: the retained container custody, the
@@ -175,8 +176,11 @@ fn fragment_container(
     machine_name: &str,
     target: target::NativeTarget,
 ) -> Arc<object_file::StagedOptimizedRelocationFreeObjectContainer> {
-    let lowered = checked_trees_to_lowered_psi::lower_machine(checked, machine_name)
-        .expect("entry machine must reach Terminal");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        checked,
+        TerminalMachineSelection::Name(machine_name),
+    )
+    .expect("entry machine must reach Terminal");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).expect("semantic bytes");
     let proof =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)

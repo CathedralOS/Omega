@@ -1,5 +1,6 @@
 //! A case actual retains its constructor and each authored payload occurrence.
 use super::{LoweringError, checked_source, lower_machine};
+use crate::TerminalMachineSelection;
 use checked_trees::{CheckedScalarComputationKind, CheckedScalarComputationStructuralArgument};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
@@ -148,7 +149,10 @@ fn ordered_structural_constructor_replays_guards_fallback_and_exact_values() {
         .attachment_type_identity = Some(unrelated_identity);
     assert!(
         matches!(
-            lower_machine(&changed, "MemoryAlignment::from"),
+            lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("MemoryAlignment::from")
+            ),
             Err(LoweringError::Unsupported(
                 "composed Unit attachment disagrees with its authored owner"
             ))
@@ -245,7 +249,11 @@ fn ordered_structural_constructor_replays_guards_fallback_and_exact_values() {
             _ => unreachable!(),
         }
         assert!(
-            lower_machine(&changed, "MemoryAlignment::from").is_err(),
+            lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("MemoryAlignment::from")
+            )
+            .is_err(),
             "accepted {corruption}"
         );
     }
@@ -261,7 +269,7 @@ fn ordered_constructor_local_sum_lends_original_result_to_scalar_getter() {
         }}"
     );
     let checked = checked_source(&source);
-    let lowered = lower_machine(&checked, "evaluate")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("evaluate"))
         .expect("ordinary scalar completion borrows the original copy sum result");
     terminal_verifier::verify_module(
         &lowered.semantic_module,
@@ -445,7 +453,7 @@ fn ordered_structural_payload_effects_preserve_selected_mutation_and_reject_subs
         .get_mut(first_handle)
         .value = replacement;
     assert!(
-        lower_machine(&changed, "choose").is_err(),
+        lower_machine(&changed, TerminalMachineSelection::Name("choose")).is_err(),
         "another authored mutation cannot substitute the payload call"
     );
 }
@@ -471,7 +479,8 @@ fn case_call_operands_reject_substituted_payload_and_constructor_occurrences() {
         }
         "#,
     );
-    let lowered = lower_machine(&checked, "evaluate").expect("authored case actual lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("evaluate"))
+        .expect("authored case actual lowers");
     terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
@@ -500,7 +509,7 @@ fn case_call_operands_reject_substituted_payload_and_constructor_occurrences() {
         .get_mut(field_handle)
         .value = replacement;
     assert!(
-        lower_machine(&changed, "evaluate").is_err(),
+        lower_machine(&changed, TerminalMachineSelection::Name("evaluate")).is_err(),
         "another argument's effectful call cannot replace the payload occurrence"
     );
 
@@ -530,7 +539,7 @@ fn case_call_operands_reject_substituted_payload_and_constructor_occurrences() {
     assert_ne!(constructor.expression, replacement_source);
     constructor.expression = replacement_source;
     assert!(
-        lower_machine(&changed, "evaluate").is_err(),
+        lower_machine(&changed, TerminalMachineSelection::Name("evaluate")).is_err(),
         "the fresh constructor cannot borrow another call's authored identity"
     );
 }

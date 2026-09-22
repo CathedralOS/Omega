@@ -6,6 +6,7 @@ use super::{
     TerminalEffectResult, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
     TerminalStructuralValue, assert_stored_fields, checked_source, lower_machine,
 };
+use crate::TerminalMachineSelection;
 use checked_trees::CheckedStructuralAccess;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
@@ -305,7 +306,7 @@ fn checked_provider_empty_path_reborrow_rejects_retained_source_substitution() {
         }
     "#;
     let checked = checked_source(source);
-    lower_machine(&checked, "Record::run")
+    lower_machine(&checked, TerminalMachineSelection::Name("Record::run"))
         .expect("the authored two-parameter checked provider lowers before mutation");
     for mutation in 0..3 {
         let mut changed = checked.clone();
@@ -345,7 +346,8 @@ fn checked_provider_empty_path_reborrow_rejects_retained_source_substitution() {
                 .push(CheckedUnitStructuralPathSegment::FixedIndex(0)),
             _ => unreachable!(),
         }
-        let result = lower_machine(&changed, "Record::run").map(|_| ());
+        let result =
+            lower_machine(&changed, TerminalMachineSelection::Name("Record::run")).map(|_| ());
         assert!(
             matches!(&result, Err(LoweringError::Unsupported(message))
             if *message == "boundary byte loan differs from its authored backing"),

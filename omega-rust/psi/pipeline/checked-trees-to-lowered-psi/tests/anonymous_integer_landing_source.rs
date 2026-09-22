@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source_files_to_tokens::Lexer;
@@ -74,8 +75,11 @@ fn anonymous_integer_destinations_preserve_the_landed_value_through_terminal_exe
             let typed = lower_symbol_resolved_trees(&resolved).expect("type");
             let checked = lower_typed_trees(typed, &CheckingRequest::settled())
                 .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
-            let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "value")
-                .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
+            let lowered = checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("value"),
+            )
+            .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
             let semantics = encode_module(&lowered.semantic_module).expect("encode semantics");
             let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
                 .expect("encode proof");

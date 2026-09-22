@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -33,8 +34,11 @@ fn lower(source: &str) -> lowered_psi::LoweredPsi {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("borrowed bytes have an ordinary helper call plan")
+    checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("borrowed bytes have an ordinary helper call plan")
 }
 
 #[derive(Default)]

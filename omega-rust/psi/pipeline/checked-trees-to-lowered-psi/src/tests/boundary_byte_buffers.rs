@@ -1,5 +1,6 @@
 //! Source-produced bounded byte fields presented to an external boundary.
 use super::{checked_source, lower_machine};
+use crate::TerminalMachineSelection;
 use terminal_interpreter::TerminalStructuralInputs;
 mod checked_provider;
 use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
@@ -206,7 +207,7 @@ fn boundary_byte_buffer_nested_source_preserves_initialized_field() {
             .unwrap();
         *array_segment = CheckedUnitStructuralPathSegment::FixedIndex(0);
         assert!(
-            lower_machine(&checked, "Record::run").is_err(),
+            lower_machine(&checked, TerminalMachineSelection::Name("Record::run")).is_err(),
             "a different valid array index does not match the source"
         );
     }

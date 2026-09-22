@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
@@ -66,8 +67,11 @@ fn authored_affine_provider_returns_into_partial_result_cleanup() {
                 1,
                 "the caller must have checked partial-result cleanup"
             );
-            let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
-                .expect("lower provider result and partial cleanup");
+            let lowered = checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name(entry),
+            )
+            .expect("lower provider result and partial cleanup");
             assert_eq!(lowered.semantic_module.provider_candidates.len(), 2);
             let caller = lowered
                 .semantic_module
@@ -239,7 +243,11 @@ fn authored_affine_provider_requires_one_exact_checked_return_plan() {
             _ => unreachable!(),
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&malformed, "Root::enter").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &malformed,
+                TerminalMachineSelection::Name("Root::enter")
+            )
+            .is_err(),
             "mutation {mutation}"
         );
     }
@@ -271,7 +279,13 @@ fn boundary_result_cleanup_does_not_forget_an_untransferred_input() {
             .machines
             .is_empty()
     );
-    assert!(checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter").is_err());
+    assert!(
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Root::enter")
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -305,6 +319,12 @@ fn retained_affine_provider_rejoins_its_authored_return_source() {
         } else {
             path.symbol = machine.symbol;
         }
-        assert!(checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter").is_err());
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Root::enter")
+            )
+            .is_err()
+        );
     }
 }

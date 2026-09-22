@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use source_files_to_tokens::Lexer;
@@ -39,8 +40,11 @@ fn guarded_boundary_crash_contract_survives_source_lowering() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("guarded boundary source should lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("guarded boundary source should lower");
     let routes = &lowered.semantic_module.boundary_machines[0].crash_routes;
     assert_eq!(routes.len(), 1);
     assert_eq!(routes[0].cause, terminal_psi::CrashCause::Abort);
@@ -77,8 +81,11 @@ fn mathematical_boundary_crash_guard_replays_and_executes_exact_actuals() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let mut lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("boundary source lowers");
+    let mut lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("boundary source lowers");
     // Source crash predicates still use fixed-width ScalarTerm. Exercise the
     // already admitted mathematical Terminal vocabulary on this real call:
     // narrowing only the boundary route preserves its caller's Abort ceiling.
@@ -282,8 +289,11 @@ fn named_crash_qualified_operator_call_rejects_at_terminal_lowering() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let error = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect_err("named crash-qualified operator call has no Terminal replay support");
+    let error = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect_err("named crash-qualified operator call has no Terminal replay support");
     assert!(
         format!("{error:?}").contains("crash"),
         "named crash-qualified operator call must reject as a crash obligation, not incidentally: {error:?}"
@@ -344,8 +354,11 @@ fn mixed_boundary_signature_uses_dense_scalar_crash_formals() {
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
         let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-            .unwrap_or_else(|error| panic!("{parameters}: {error:?}"));
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Root::enter"),
+        )
+        .unwrap_or_else(|error| panic!("{parameters}: {error:?}"));
         let module = &lowered.semantic_module;
         let boundary = &module.boundary_machines[0];
         assert_eq!(boundary.parameter_order, order);
@@ -452,8 +465,11 @@ fn literal_false_boundary_route_has_no_surviving_cause() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("false boundary route should normalize before lowering");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("false boundary route should normalize before lowering");
     assert!(
         lowered.semantic_module.boundary_machines[0]
             .crash_routes
@@ -501,8 +517,11 @@ fn guarded_boundary_contracts_survive_attached_and_scalar_result_producers() {
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
         let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-            .unwrap_or_else(|error| panic!("{source}: {error:?}"));
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Root::enter"),
+        )
+        .unwrap_or_else(|error| panic!("{source}: {error:?}"));
         assert_eq!(
             lowered.semantic_module.boundary_machines[0]
                 .crash_routes
@@ -534,8 +553,11 @@ fn structural_boundary_crash_guards_reject_without_losing_the_contract() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked =
         lower_typed_trees(typed, &CheckingRequest::settled()).expect("source contract checks");
-    let error = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect_err("unsupported structural boundary crash contract must reject");
+    let error = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect_err("unsupported structural boundary crash contract must reject");
     assert!(format!("{error:?}").contains("guarded crash route"));
 }
 
@@ -546,8 +568,11 @@ fn checked_source_preserves_exact_scalar_boundary_argument_into_terminal_psi() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("scalar boundary source should lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("scalar boundary source should lower");
 
     let [boundary] = lowered.semantic_module.boundary_machines.as_slice() else {
         panic!("one boundary declaration should be retained")

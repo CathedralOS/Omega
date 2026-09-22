@@ -1,6 +1,7 @@
 //! Checked ranked receivers retain primitive-array types through canonical Psi.
 
 use checked_trees::CheckedStructuralAccess;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::{
     IeeeFloatFormat, IntegerSign, IntegerType, ScalarType, StructuralPlaceKind, StructuralTypeId,
 };
@@ -60,8 +61,11 @@ fn canonical_countdown(field_type: &str) -> (TerminalModule, ProofBundle) {
     assert_eq!(receiver.position, 0);
     assert_eq!(receiver.access, CheckedStructuralAccess::MutableBorrow);
 
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::countdown")
-        .expect("ranked lowering exports primitive array element declarations");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::countdown"),
+    )
+    .expect("ranked lowering exports primitive array element declarations");
     drop(checked);
     let semantic_bytes =
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode ranked semantics");

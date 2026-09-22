@@ -5,10 +5,11 @@
 //! Output retains source custody, proof and debug companions for later stages.
 //! Unsupported constructs fail closed; this stage does not optimize or publish.
 //!
-//! Start at `machine_lowering.rs`: it selects the checked machine, dispatches it
-//! through `machine_lowering::machine_dispatch` to the plan family that owns its shape, and
-//! sequences the custody, evidence, validation and debug work every selected
-//! module needs. The plan families beneath it are:
+//! Start at `machine_lowering.rs`: it selects the checked machine named by a
+//! [`TerminalMachineSelection`], dispatches it through
+//! `machine_lowering::machine_dispatch` to the plan family that owns its shape,
+//! and sequences the custody, evidence, validation and debug work every
+//! selected module needs. The plan families beneath it are:
 //!
 //! - [`unit`]: attached, dynamic composed, structural-control and cleanup Unit machines.
 //! - [`returns`]: affine, boundary-scalar, payloadless and structural return machines.
@@ -36,12 +37,8 @@ mod terminal_identities;
 mod unit;
 
 pub use lowering_error::LoweringError;
-pub use machine_lowering::machine_dispatch::{
-    select_terminal_machine, select_terminal_machine_by_symbol,
-};
-pub use machine_lowering::{
-    lower_bounded_callback_identity_machine, lower_machine, lower_machine_by_symbol,
-};
+pub use machine_lowering::machine_dispatch::{TerminalMachineSelection, select_terminal_machine};
+pub use machine_lowering::{lower_bounded_callback_identity_machine, lower_machine};
 pub use proofs::content_conservation::{
     LoweredContentConservation, LoweredContentIdentityReshuffles,
     LoweredContentPartitionComposition, LoweredContentPartitionCompositions,

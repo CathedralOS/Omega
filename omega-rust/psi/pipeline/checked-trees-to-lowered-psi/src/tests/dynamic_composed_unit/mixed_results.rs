@@ -1,3 +1,4 @@
+use crate::TerminalMachineSelection;
 use crate::tests::{checked_source, lower_machine};
 use terminal_psi::ClosedConformanceCallableResult;
 
@@ -37,7 +38,7 @@ fn source(call: &str) -> String {
 fn dynamic_table_retains_each_members_result_kind() {
     for call in CALLS {
         let checked = checked_source(&source(call));
-        let lowered = lower_machine(&checked, "Main::run")
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
             .expect("query and command use the same complete mixed-result conformance");
         let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
             .produce_artifact()
@@ -82,7 +83,7 @@ fn mixed_table_rejects_result_kind_drift_in_called_and_uncalled_members() {
             };
             callables[member].body = callables[1 - member].body.clone();
             assert!(
-                lower_machine(&changed, "Main::run").is_err(),
+                lower_machine(&changed, TerminalMachineSelection::Name("Main::run")).is_err(),
                 "member {member} cannot adopt another member's result kind: {call}"
             );
         }

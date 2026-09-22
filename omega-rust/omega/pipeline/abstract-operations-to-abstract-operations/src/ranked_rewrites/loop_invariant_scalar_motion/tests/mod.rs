@@ -13,6 +13,7 @@ mod structural_establishments;
 
 use crate::VerifiedPsiOptimizationSession;
 use abstract_operations::AbstractOperation;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_unit::{
     PsiOptimizationUnit, PsiProvenance, recompute_psi_optimization_unit_identity,
 };
@@ -286,8 +287,11 @@ pub(super) fn lowered_session_entry_with_module_edit(
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap_or_else(|error| panic!("check {label}: {error:?}"));
-    let mut lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
-        .unwrap_or_else(|error| panic!("lower {label}: {error:?}"));
+    let mut lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name(entry),
+    )
+    .unwrap_or_else(|error| panic!("lower {label}: {error:?}"));
     edit(&mut lowered.semantic_module);
     let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {

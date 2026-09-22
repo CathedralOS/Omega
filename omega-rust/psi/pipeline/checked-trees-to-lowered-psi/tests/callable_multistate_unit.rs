@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -51,8 +52,11 @@ fn ordinary_calls_retain_multistate_branches_and_return_to_caller() {
             .as_deref(),
         Some("named(name(Writer))")
     );
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("ordinary caller retains its multistate helper");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("ordinary caller retains its multistate helper");
     assert_eq!(lowered.semantic_module.machines.len(), 3);
     assert_eq!(
         lowered
@@ -130,7 +134,11 @@ fn nested_composed_and_ordinary_calls_share_bodies_and_continue_in_order() {
         ("Writer::choose", Some(true), vec![10]),
         ("Writer::choose", Some(false), vec![]),
     ] {
-        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, root).unwrap();
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name(root),
+        )
+        .unwrap();
         if let Some(enabled) = arguments {
             let execution = interpret_terminal_artifact_measured(
                 &encode_module(&lowered.semantic_module).unwrap(),
@@ -196,7 +204,11 @@ fn composed_leaf_scalar_calls_share_ids_and_proof_obligations_with_caller() {
         )
         .replace("Output::byte(99)", "Output::byte(Scalar::identity(99))");
     let checked = checked(&source);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .unwrap();
     assert_eq!(lowered.semantic_module.machines.len(), 5);
     assert_eq!(execute(&lowered), [10, 11, 99]);
     assert_optimized(lowered, &[10, 11, 99]);
@@ -218,8 +230,11 @@ fn missing_or_duplicate_composed_callee_is_rejected() {
         } else {
             plans.composed_machines.clear();
         }
-        let error =
-            checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter").unwrap_err();
+        let error = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Root::enter"),
+        )
+        .unwrap_err();
         let expected = match mutation {
             0 => "missing a checked transitive machine plan",
             1 => "direct Unit scalar parameters do not rejoin the exact typed source partition",
@@ -283,7 +298,11 @@ fn callable_composed_guard_edges_contract_and_call_operands_rejoin_checked_sourc
             _ => unreachable!(),
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("Root::enter")
+            )
+            .is_err(),
             "mutation {mutation}"
         );
     }
@@ -323,7 +342,11 @@ fn ordinary_call_to_composed_body_retains_target_state_contract_and_reach() {
             _ => unreachable!(),
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("Root::enter")
+            )
+            .is_err(),
             "mutation {mutation}"
         );
     }
@@ -346,7 +369,11 @@ fn ordinary_caller_transfers_linear_claim_into_composed_callee() {
         }
     "#;
     let baseline = checked(source);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&baseline, "Root::enter").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &baseline,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .unwrap();
     assert_eq!(lowered.semantic_module.machines.len(), 2);
     terminal_verifier::verify_module(
         &lowered.semantic_module,
@@ -396,7 +423,11 @@ fn ordinary_caller_transfers_linear_claim_into_composed_callee() {
                 language_semantics::PermissionClaimIdentity::Unknown;
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("Root::enter")
+            )
+            .is_err(),
             "mutation {mutation}"
         );
     }

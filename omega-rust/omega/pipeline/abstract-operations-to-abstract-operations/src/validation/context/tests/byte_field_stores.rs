@@ -4,6 +4,7 @@ use super::{
     AbstractOperation, OptimizationUnitValidationError, TerminalFuelSchedule, refresh_identity,
     validate_transformed_psi_optimization_unit, validate_verified_psi_optimization_unit,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 #[test]
 fn indexed_byte_field_rejoins_original_field_even_when_current_bounds_match() {
     let source = r#"
@@ -30,8 +31,11 @@ fn indexed_byte_field_rejoins_original_field_even_when_current_bounds_match() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    let terminal =
-        checked_trees_to_lowered_psi::lower_machine(&checked, "Record::replace").unwrap();
+    let terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Record::replace"),
+    )
+    .unwrap();
     let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(&terminal.semantic_module).unwrap(),
@@ -118,8 +122,11 @@ fn byte_field_replacement_rejoins_capacity_and_verified_destination() {
             &typed_trees_to_checked_trees::CheckingRequest::settled(),
         )
         .unwrap();
-        let terminal =
-            checked_trees_to_lowered_psi::lower_machine(&checked, "Record::replace").unwrap();
+        let terminal = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Record::replace"),
+        )
+        .unwrap();
         let input = terminal_psi_to_abstract_operations::lower_artifact(
             terminal_psi_to_abstract_operations::ArtifactSections {
                 semantic_bytes: &terminal_codec::encode_module(&terminal.semantic_module).unwrap(),

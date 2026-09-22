@@ -1,6 +1,7 @@
 use super::{TempTree, identity};
 use crate::fixtures;
 use checked_interpreter::InterpretOptions;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::{
     CheckedCompileRequest, CompileOptions, CompileRequest, RequestedCompileProduct,
     RetainedNativeRealizationRequest, TargetCompileConfiguration, compile, compile_to_checked,
@@ -1563,8 +1564,11 @@ fn free_process_exit_helper_lowers_without_a_synthetic_attachment() {
         checked.selected_provider_provenance(),
     )
     .expect("free process-exit helper should rejoin exact Fused Service custody");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "terminate")
-        .expect("free process-exit helper should lower to canonical Terminal Psi");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminate"),
+    )
+    .expect("free process-exit helper should lower to canonical Terminal Psi");
     let terminal = lowered
         .semantic_module
         .machines

@@ -1,5 +1,6 @@
 //! Case selection consumes its subject; ordinary edges own every other local.
 use super::{CLOSED_SUM_UNIT_SOURCE, checked_source_with_core_service, lower_machine, roundtrip};
+use crate::TerminalMachineSelection;
 use language_semantics::{PermissionEventKind, PermissionEventSource, PermissionProvenance};
 use terminal_psi::{OperationResult, Terminator};
 
@@ -209,7 +210,7 @@ fn closed_sum_successor_catalogs_reject_duplicate_and_mixed_value_lanes() {
         .roots
         .insert(extra.clone());
     changed.facts.values.scalar_computations.roots.insert(extra);
-    assert!(lower_machine(&changed, "Main::main").is_err());
+    assert!(lower_machine(&changed, TerminalMachineSelection::Name("Main::main")).is_err());
 
     // An incomplete or duplicated pure roster cannot hide behind a valid root.
     for (binding_count, expression_count) in [(1, 0), (2, 0), (0, 1), (0, 2), (2, 2)] {
@@ -238,7 +239,7 @@ fn closed_sum_successor_catalogs_reject_duplicate_and_mixed_value_lanes() {
             );
         }
         assert!(
-            lower_machine(&changed, "Main::main").is_err(),
+            lower_machine(&changed, TerminalMachineSelection::Name("Main::main")).is_err(),
             "binding rows {binding_count}, expression rows {expression_count}"
         );
     }
@@ -324,7 +325,7 @@ fn closed_sum_exit_roster_rejects_unknown_duplicate_and_missing_receipts() {
                 _ => unreachable!(),
             }
             assert!(
-                lower_machine(&changed, "Main::main").is_err(),
+                lower_machine(&changed, TerminalMachineSelection::Name("Main::main")).is_err(),
                 "receipt {handle:?}, mutation {mutation}"
             );
         }

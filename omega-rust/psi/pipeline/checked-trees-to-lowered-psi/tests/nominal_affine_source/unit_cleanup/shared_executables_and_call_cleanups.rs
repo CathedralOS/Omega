@@ -7,6 +7,7 @@ use crate::nominal_affine_source::{
     decode_module, encode_module, lower_symbol_resolved_trees, lower_typed_trees,
     parse_syntax_trees, resolve,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use typed_trees_to_checked_trees::CheckingRequest;
 
 #[test]
@@ -18,8 +19,11 @@ fn three_distinct_nominal_roots_cross_source_codec_and_verifier_in_reverse_order
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("three distinct cleanup targets lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("three distinct cleanup targets lower");
 
     assert_eq!(lowered.semantic_module.machines.len(), 4);
     let entry = lowered
@@ -74,8 +78,11 @@ fn three_nominal_roots_may_share_one_executable_target_and_helper() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("three shared executable cleanup actions lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("three shared executable cleanup actions lower");
 
     assert_eq!(lowered.semantic_module.machines.len(), 3);
     let entry = lowered
@@ -127,8 +134,11 @@ fn one_call_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("one-call nominal cleanup lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("one-call nominal cleanup lowers");
 
     assert_eq!(lowered.semantic_module.machines.len(), 3);
     let entry = lowered
@@ -207,8 +217,11 @@ fn two_call_nominal_cleanup_preserves_source_order_through_codec_and_verifier() 
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("two-call nominal cleanup lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("two-call nominal cleanup lowers");
 
     assert_eq!(lowered.semantic_module.machines.len(), 4);
     let entry = lowered
@@ -294,8 +307,11 @@ fn three_call_nominal_cleanup_preserves_exact_source_order_through_codec_and_ver
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("three-call nominal cleanup lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("three-call nominal cleanup lowers");
 
     assert_eq!(lowered.semantic_module.machines.len(), 5);
     let entry = &lowered.semantic_module.machines[0];

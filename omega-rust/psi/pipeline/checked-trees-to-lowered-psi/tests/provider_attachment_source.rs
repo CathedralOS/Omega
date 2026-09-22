@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     BoundaryMachineId, IntegerValue, OperationId, PlaceId, StructuralPlaceKind, ValueId,
@@ -94,8 +95,11 @@ fn lower_source(source: &str) -> lowered_psi::LoweredPsi {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
-        .expect("provider-backed O0 source should lower")
+    checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("provider-backed O0 source should lower")
 }
 
 fn lowered() -> lowered_psi::LoweredPsi {

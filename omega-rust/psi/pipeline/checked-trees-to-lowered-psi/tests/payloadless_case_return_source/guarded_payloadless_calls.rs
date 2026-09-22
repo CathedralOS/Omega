@@ -2,6 +2,7 @@ use super::{
     GUARDED_CALL_SOURCE, GUARDED_SOURCE, OMITTED_GUARDED_CALL_SOURCE,
     RESULT_SUBSTITUTED_GUARDED_CALL_SOURCE, checked, checked_source,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fixed_fuel::derive_fixed_entry_fuel;
@@ -38,8 +39,11 @@ fn guarded_payloadless_call_substitutes_the_exact_whole_result_application() {
     };
     assert!(checked_selection.substitutes_result);
 
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::caller")
-        .expect("the whole-result guarded application lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::caller"),
+    )
+    .expect("the whole-result guarded application lowers");
     let [caller, callee] = lowered.semantic_module.machines.as_slice() else {
         panic!("caller and producer remain exact")
     };
@@ -150,7 +154,7 @@ fn guarded_payloadless_call_substitutes_the_exact_whole_result_application() {
 fn omitted_guarded_selector_retains_fact_only_callee_without_runtime_delta() {
     let omitted = checked_trees_to_lowered_psi::lower_machine(
         &checked(OMITTED_GUARDED_CALL_SOURCE),
-        "Root::caller",
+        TerminalMachineSelection::Name("Root::caller"),
     )
     .expect("the exact omitted-selector guarded call lowers");
     let [caller, callee] = omitted.semantic_module.machines.as_slice() else {
@@ -173,9 +177,11 @@ fn omitted_guarded_selector_retains_fact_only_callee_without_runtime_delta() {
     assert!(omitted.semantic_module.evidence_contract_lanes.is_empty());
     assert!(omitted.semantic_module.proof_output_calls.is_empty());
 
-    let selected =
-        checked_trees_to_lowered_psi::lower_machine(&checked(GUARDED_CALL_SOURCE), "Root::caller")
-            .expect("selected comparison lowers");
+    let selected = checked_trees_to_lowered_psi::lower_machine(
+        &checked(GUARDED_CALL_SOURCE),
+        TerminalMachineSelection::Name("Root::caller"),
+    )
+    .expect("selected comparison lowers");
     let mut selected_blocks = selected
         .semantic_module
         .machines
@@ -270,8 +276,11 @@ fn omitted_guarded_selector_retains_fact_only_callee_without_runtime_delta() {
 #[test]
 fn exact_payloadless_case_return_is_canonical_verified_and_executable() {
     let checked = checked_source();
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::choose")
-        .expect("the exact payloadless case producer lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::choose"),
+    )
+    .expect("the exact payloadless case producer lowers");
     let module = &lowered.semantic_module;
     let [machine] = module.machines.as_slice() else {
         panic!("the source producer lowers to one terminal machine")
@@ -373,11 +382,17 @@ fn exact_payloadless_case_return_is_canonical_verified_and_executable() {
 
 #[test]
 fn guarded_payloadless_case_return_retains_active_evidence_and_vacuous_siblings() {
-    let baseline = checked_trees_to_lowered_psi::lower_machine(&checked_source(), "Root::choose")
-        .expect("the proof-free payloadless producer lowers");
+    let baseline = checked_trees_to_lowered_psi::lower_machine(
+        &checked_source(),
+        TerminalMachineSelection::Name("Root::choose"),
+    )
+    .expect("the proof-free payloadless producer lowers");
     let checked = checked(GUARDED_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::choose")
-        .expect("the exact guarded payloadless producer lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::choose"),
+    )
+    .expect("the exact guarded payloadless producer lowers");
     let module = &lowered.semantic_module;
     let [machine] = module.machines.as_slice() else {
         panic!("the guarded producer lowers to one machine")

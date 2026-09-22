@@ -7,6 +7,7 @@ use super::CALL_VALUE_SOURCE;
 use crate::value_dispatch::{
     TerminalExecutionResult, TerminalScalarValue, check_source, execute_machine, unsigned,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 #[test]
 fn owned_match_call_product_executes_both_arms() {
@@ -128,8 +129,11 @@ fn owned_match_call_arm_evaluates_nested_scalar_call_arguments() {
 #[test]
 fn owned_match_call_product_edge_transports_the_exact_selected_owner() {
     let checked = check_source(CALL_VALUE_SOURCE).expect("call selection checks");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
-        .expect("call selection lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("choose"),
+    )
+    .expect("call selection lowers");
     let machine = lowered
         .semantic_module
         .machines
@@ -198,8 +202,11 @@ fn owned_match_call_product_edge_transports_the_exact_selected_owner() {
 #[test]
 fn owned_match_call_product_rejects_mutated_edge_evidence() {
     let checked = check_source(CALL_VALUE_SOURCE).expect("call selection checks");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
-        .expect("call selection lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("choose"),
+    )
+    .expect("call selection lowers");
     let join = lowered
         .semantic_module
         .machines
@@ -307,8 +314,11 @@ fn owned_match_record_arm_children_check_but_await_leaf_emission() {
             }}"
         ))
         .unwrap_or_else(|errors| panic!("{arm} keeps each field's moved child: {errors:#?}"));
-        let error = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
-            .expect_err("record field leaves await their extraction edge");
+        let error = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("choose"),
+        )
+        .expect_err("record field leaves await their extraction edge");
         assert!(
             format!("{error:?}").contains("projected selection"),
             "{arm}: the leaf emission gap is the remaining boundary: {error:?}"

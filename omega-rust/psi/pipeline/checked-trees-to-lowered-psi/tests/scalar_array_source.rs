@@ -17,6 +17,7 @@ use checked_trees::{
     CheckedCallScalarArgument, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
     CheckedUnitEffectOperationPlan,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::{
@@ -59,7 +60,11 @@ fn checked_source(source: &str) -> CheckedTrees {
 
 fn reject(checked: &CheckedTrees, mutation: &str) {
     assert!(
-        checked_trees_to_lowered_psi::lower_machine(checked, "selected").is_err(),
+        checked_trees_to_lowered_psi::lower_machine(
+            checked,
+            TerminalMachineSelection::Name("selected")
+        )
+        .is_err(),
         "source custody must reject {mutation}"
     );
 }
@@ -68,8 +73,11 @@ fn reject(checked: &CheckedTrees, mutation: &str) {
 fn same_typed_array_locals_return_the_authored_binding_contents() {
     for (returned, expected) in [("first", [7, 9]), ("second", [11, 13])] {
         let checked = fixture(returned);
-        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "selected")
-            .expect("lower ordinary array locals and selected return");
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("selected"),
+        )
+        .expect("lower ordinary array locals and selected return");
         let semantic =
             terminal_codec::encode_module(&lowered.semantic_module).expect("encode semantics");
         let proof =
@@ -111,8 +119,11 @@ fn empty_array_catalog_cannot_change_primitive_or_nested_dimensions_under_the_sa
         ("[[f64; 2]; 0]", PrimitiveType::F64),
     ] {
         let original = checked_source(&format!("machine selected() -> {carrier} {{ [] }}"));
-        checked_trees_to_lowered_psi::lower_machine(&original, "selected")
-            .expect("empty array source has complete declared shape");
+        checked_trees_to_lowered_psi::lower_machine(
+            &original,
+            TerminalMachineSelection::Name("selected"),
+        )
+        .expect("empty array source has complete declared shape");
 
         let mut changed = original.clone();
         let primitive = changed
@@ -415,8 +426,11 @@ fn array_parameters_locals_and_calls_execute_in_authored_leaf_order() {
                 CheckedCallScalarArgument::Computation(_),
             ]
         ));
-        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "selected")
-            .expect("lower evaluated array operands");
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("selected"),
+        )
+        .expect("lower evaluated array operands");
         let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
         let proof =
             terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -442,8 +456,11 @@ fn array_parameters_locals_and_calls_execute_in_authored_leaf_order() {
 fn substituted_array_pure_operands_and_computation_roots_reject() {
     for local in [false, true] {
         let original = computed_fixture(local);
-        checked_trees_to_lowered_psi::lower_machine(&original, "selected")
-            .expect("computed fixture lowers before corruption");
+        checked_trees_to_lowered_psi::lower_machine(
+            &original,
+            TerminalMachineSelection::Name("selected"),
+        )
+        .expect("computed fixture lowers before corruption");
         for mutation in [
             "pure plan",
             "parameter position",
@@ -657,8 +674,11 @@ fn array_pure_and_computed_operators_reject_semantic_substitution() {
              [first & second, identity(first) | second]
          }",
     );
-    checked_trees_to_lowered_psi::lower_machine(&original, "selected")
-        .expect("pure and computed bitwise operands lower before corruption");
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .expect("pure and computed bitwise operands lower before corruption");
     let (_, expressions) = selected_source(&original);
     let ExpressionNode::ArrayLiteral(elements) =
         original.typed.expression_table.expression(expressions[0])
@@ -743,8 +763,11 @@ fn array_boolean_values_reject_source_and_retained_substitution() {
     use checked_trees::CheckedBooleanExpression;
 
     let original = checked_source("machine selected() -> [bool; 2] { [true, false] }");
-    checked_trees_to_lowered_psi::lower_machine(&original, "selected")
-        .expect("Boolean array lowers before corruption");
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .expect("Boolean array lowers before corruption");
     let (_, expressions) = selected_source(&original);
     let ExpressionNode::ArrayLiteral(elements) =
         original.typed.expression_table.expression(expressions[0])
@@ -783,8 +806,11 @@ fn nested_literal_casts_preserve_the_exact_value_and_each_intermediate_fit() {
     let source = "machine byte(value: u8) -> u8 { value }
                   machine selected() -> [u64; 1] { [((300u16 as u32) as u64)] }";
     let original = checked_source(source);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&original, "selected")
-        .expect("nested exact literal casts lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .expect("nested exact literal casts lower");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
     let proof =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -846,8 +872,11 @@ fn array_boolean_expression_depth_has_no_smaller_correspondence_limit() {
                 "!".repeat(140)
             );
             let checked = checked_source(&source);
-            checked_trees_to_lowered_psi::lower_machine(&checked, "selected")
-                .expect("array operands retain the ordinary scalar expression depth");
+            checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("selected"),
+            )
+            .expect("array operands retain the ordinary scalar expression depth");
         })
         .expect("spawn the deep-expression probe")
         .join()
@@ -886,8 +915,11 @@ fn array_operator_selection_cannot_change_while_value_and_source_stay_fixed() {
                 ..Default::default()
             })
     });
-    checked_trees_to_lowered_psi::lower_machine(&original, "selected")
-        .expect("retained builtin addition lowers");
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .expect("retained builtin addition lowers");
     for mutation in ["spelling", "selected declaration", "candidate count"] {
         let mut changed = original.clone();
         let state = changed

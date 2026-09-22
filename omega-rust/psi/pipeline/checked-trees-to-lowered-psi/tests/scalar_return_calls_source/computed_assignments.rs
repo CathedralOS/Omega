@@ -5,6 +5,7 @@ use super::{
     lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
 };
 use checked_trees::{CheckedScalarBindingDestination, CheckedScalarExpressionRole};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use typed_trees::statement::StatementNode;
 use typed_trees_to_checked_trees::CheckingRequest;
 
@@ -81,8 +82,11 @@ fn encoded_assignments(
 ) -> (Vec<u8>, Vec<u8>) {
     let checked = checked_arms(source, false);
     assert_assignment_roots(&checked, names, states, assignments);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "value")
-        .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("value"),
+    )
+    .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
     (
         encode_module(&lowered.semantic_module).unwrap(),
         encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
@@ -326,7 +330,11 @@ fn assignment_destination_carrier_does_not_prove_unbounded_call_result_narrowing
     match lower_typed_trees(typed, &CheckingRequest::settled()) {
         Err(diagnostics) => assert!(!diagnostics.is_empty()),
         Ok(checked) => assert!(
-            checked_trees_to_lowered_psi::lower_machine(&checked, "value").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("value")
+            )
+            .is_err(),
             "the destination's u8 carrier cannot justify narrowing an arbitrary u16 result"
         ),
     }
@@ -406,7 +414,8 @@ fn computed_assignment_custody_mutations_reject_before_publication() {
     "#;
     let checked = checked_arms(source, false);
     assert_assignment_roots(&checked, &["current", "other"], 1, 2);
-    checked_trees_to_lowered_psi::lower_machine(&checked, "value").unwrap();
+    checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name("value"))
+        .unwrap();
     let machine = checked
         .typed
         .machines()
@@ -519,7 +528,11 @@ fn computed_assignment_custody_mutations_reject_before_publication() {
                 _ => unreachable!(),
             }
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "value").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("value")
+                )
+                .is_err(),
                 "mutation={mutation}, statement={}",
                 root.statement_ordinal
             );

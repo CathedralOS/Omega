@@ -5,6 +5,7 @@ use super::{
     Terminator, checked, decode_module, decode_proof_bundle, encode_module, encode_proof_section,
     lower_machine, typed,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
 const CHAIN: &str = "data Value { number: u64; }
@@ -74,7 +75,7 @@ fn assert_chain(
             .collect::<Vec<_>>(),
         [0, 1]
     );
-    let lowered = lower_machine(&checked, name)
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name(name))
         .unwrap_or_else(|error| panic!("result chain lowers: {error:?}\n{source}"));
     let module = &lowered.semantic_module;
     let caller = &module.machines[0];
@@ -316,7 +317,8 @@ fn scalar_and_structural_bindings_have_independent_dense_ordinals() {
 fn transitive_chains_share_the_producer_catalog() {
     let source = format!("{CHAIN} machine Main::root(value: Value) {{ Main::caller(value); }}");
     let checked = checked(&source);
-    let lowered = lower_machine(&checked, "Main::root").expect("transitive chain lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::root"))
+        .expect("transitive chain lowers");
     assert_eq!(lowered.semantic_module.machines.len(), 4);
     assert_eq!(lowered.source_call_occurrences.len(), 4);
     assert_execution(&lowered.semantic_module, &lowered.proof_bundle, &[], 9);
@@ -331,7 +333,8 @@ fn unused_results_are_disposed_in_reverse_order_before_older_parameters() {
             let later: Value = forward(second);
         }";
     let checked = checked(source);
-    let lowered = lower_machine(&checked, "Main::caller").expect("two retained results lower");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::caller"))
+        .expect("two retained results lower");
     let caller = &lowered.semantic_module.machines[0];
     let results = caller.blocks[0]
         .operations
@@ -435,7 +438,7 @@ fn result_chains_reject_binding_source_and_cleanup_drift() {
             _ => unreachable!(),
         }
         assert!(
-            lower_machine(&checked, "Main::caller").is_err(),
+            lower_machine(&checked, TerminalMachineSelection::Name("Main::caller")).is_err(),
             "mutation {mutation}"
         );
     }

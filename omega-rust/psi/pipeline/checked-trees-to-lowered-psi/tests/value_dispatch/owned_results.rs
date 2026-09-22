@@ -15,6 +15,7 @@ mod membership_subjects;
 mod owned_match_records_and_selections;
 
 use crate::value_dispatch::check_source;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 const SOURCE: &str =
     include_str!("../../../../../../tests/omega/pass/expressions/owned_match_values/main.omg");
@@ -97,8 +98,11 @@ fn verify_membership_source(
         .next()
         .expect("membership machine")
         .symbol;
-    let lowered = checked_trees_to_lowered_psi::lower_machine_by_symbol(&checked, machine)
-        .unwrap_or_else(|error| panic!("lowering {source}: {error:#?}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Symbol(machine),
+    )
+    .unwrap_or_else(|error| panic!("lowering {source}: {error:#?}"));
     let semantic_bytes =
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode semantics");
     let proof_bytes =

@@ -1,6 +1,7 @@
 //! Source-backed indexed replacement within a bounded byte field's live prefix.
 
 use super::{LoweringError, ScalarType, checked_source, lower_machine};
+use crate::TerminalMachineSelection;
 use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
 use semantic_vocabulary::{IntegerValue, Proposition, ScalarTerm};
 use terminal_interpreter::AcceptTerminalEffects;
@@ -109,7 +110,8 @@ fn caller_byte_index_range_is_checked_against_the_evaluated_argument() {
         .produce_artifact()
         .expect("bounded caller argument");
     run_stores(&artifact, &[], &[b"", b"XXX", b"XXA"]);
-    let mut lowered = lower_machine(&checked, "Record::run").unwrap();
+    let mut lowered =
+        lower_machine(&checked, TerminalMachineSelection::Name("Record::run")).unwrap();
     let caller = lowered
         .semantic_module
         .machines
@@ -150,7 +152,8 @@ fn indexed_byte_store_rejects_same_type_substitution_duplicate_and_reordering() 
         }
     "#,
     );
-    lower_machine(&checked, "Record::replace").expect("untampered ordered stores");
+    lower_machine(&checked, TerminalMachineSelection::Name("Record::replace"))
+        .expect("untampered ordered stores");
     for mutation in 0..3 {
         let mut changed = checked.clone();
         let plan = changed
@@ -203,7 +206,7 @@ fn indexed_byte_store_rejects_same_type_substitution_duplicate_and_reordering() 
             _ => unreachable!(),
         }
         assert!(
-            lower_machine(&changed, "Record::replace").is_err(),
+            lower_machine(&changed, TerminalMachineSelection::Name("Record::replace")).is_err(),
             "mutation {mutation}"
         );
     }
@@ -382,7 +385,8 @@ fn indexed_byte_store_rejoins_index_value_field_access_and_complete_roster() {
         }
     "#,
     );
-    lower_machine(&checked, "Record::replace").expect("untampered indexed store");
+    lower_machine(&checked, TerminalMachineSelection::Name("Record::replace"))
+        .expect("untampered indexed store");
     for mutation in 0..6 {
         let mut changed = checked.clone();
         let plan = changed
@@ -441,7 +445,7 @@ fn indexed_byte_store_rejoins_index_value_field_access_and_complete_roster() {
             }
         }
         assert!(
-            lower_machine(&changed, "Record::replace").is_err(),
+            lower_machine(&changed, TerminalMachineSelection::Name("Record::replace")).is_err(),
             "mutation {mutation}"
         );
     }

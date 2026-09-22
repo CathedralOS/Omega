@@ -1,5 +1,6 @@
 use super::{Sources, compile, compile_to_checked, identity, root_inputs, selections};
 use build_time_evaluation::{BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::{TerminalExecutionResult, TerminalScalarValue};
@@ -60,8 +61,11 @@ fn static_array_constant_projections_execute_checked_and_decoded_terminal_values
                 )
                 .expect("checked projection executes");
             assert_eq!(execution.value(), &expected, "{path}");
-            let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, path)
-                .expect("static projection lowers without constant storage");
+            let lowered = checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name(path),
+            )
+            .expect("static projection lowers without constant storage");
             artifacts.push((
                 terminal_codec::encode_module(&lowered.semantic_module).expect("encode semantics"),
                 terminal_codec::encode_proof_section(
@@ -165,8 +169,11 @@ fn constant_projection_types_are_checked_at_storage_call_and_conversion_sites() 
         "use settings; machine read() -> u64 { settings::Sizes::VALUES[0] as u64 }",
     );
     let checked = compile(&root, root_inputs(&root));
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "read")
-        .expect("explicit widening lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("read"),
+    )
+    .expect("explicit widening lowers");
     let result = terminal_interpreter::interpret_terminal_artifact(
         &terminal_codec::encode_module(&lowered.semantic_module).expect("encode semantics"),
         &terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)

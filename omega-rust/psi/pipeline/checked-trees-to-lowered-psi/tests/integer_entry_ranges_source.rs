@@ -4,6 +4,7 @@
 //! conforming delivery executes, and an exact out-of-range constant rejects.
 
 use checked_trees::CheckedTrees;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType,
 };
@@ -32,8 +33,11 @@ fn check(source: &str) -> CheckedTrees {
 }
 
 fn lower(source: &str, entry: &str) -> lowered_psi::LoweredPsi {
-    checked_trees_to_lowered_psi::lower_machine(&check(source), entry)
-        .unwrap_or_else(|error| panic!("{source}: {error:?}"))
+    checked_trees_to_lowered_psi::lower_machine(
+        &check(source),
+        TerminalMachineSelection::Name(entry),
+    )
+    .unwrap_or_else(|error| panic!("{source}: {error:?}"))
 }
 
 fn u64_integer() -> IntegerType {

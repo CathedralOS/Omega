@@ -4,6 +4,7 @@ use super::{
     TerminalScalarValue, checked_arms, encoded_arms, execute, lower_symbol_resolved_trees,
     lower_typed_trees, parse_syntax_trees, resolve,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use typed_trees_to_checked_trees::CheckingRequest;
 #[test]
 fn call_bearing_integer_operations_execute_inside_selected_boolean_operands() {
@@ -305,7 +306,11 @@ fn computed_integer_narrowing_retains_its_exact_value_proof() {
         *node = numerics::literals::IntegerLiteral::from_value(512)
             .with_landing(node.landing().unwrap());
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&corrupted, "value").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &corrupted,
+                TerminalMachineSelection::Name("value")
+            )
+            .is_err(),
             "stale exact cast evidence cannot narrow a remainder in 0..512"
         );
     }
@@ -394,7 +399,11 @@ fn integer_application_operand_namespaces_reject_malformed_templates() {
     "#;
     for combined in [false, true] {
         let checked = checked_arms(source, combined);
-        checked_trees_to_lowered_psi::lower_machine(&checked, "value").unwrap();
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("value"),
+        )
+        .unwrap();
         let (handle, _) = checked
             .facts
             .values
@@ -448,7 +457,11 @@ fn integer_application_operand_namespaces_reject_malformed_templates() {
                 _ => unreachable!(),
             }
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&mutated, "value").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &mutated,
+                    TerminalMachineSelection::Name("value")
+                )
+                .is_err(),
                 "mutation={mutation}, combined={combined}"
             );
         }

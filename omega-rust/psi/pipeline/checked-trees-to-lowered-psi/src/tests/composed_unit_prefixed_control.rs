@@ -1,6 +1,7 @@
 //! Scalar prefixes compose with ordinary graph edges and effect sequencing.
 
 use super::{CheckedTrees, LoweringError, checked_source, lower_machine};
+use crate::TerminalMachineSelection;
 use checked_trees::CheckedComposedUnitControlTerminatorPlan;
 use terminal_psi::{Operation, OperationKind, Terminator};
 
@@ -102,7 +103,7 @@ fn interleaved_states_preserve_mixed_handoffs_and_effect_order() {
     };
     successor.scalar_arguments.swap(0, 1);
     assert!(
-        lower_machine(&corrupted, "Root::enter").is_err(),
+        lower_machine(&corrupted, TerminalMachineSelection::Name("Root::enter")).is_err(),
         "mixed lanes cannot be swapped"
     );
 }
@@ -163,7 +164,7 @@ fn checked_multi_prefixed_internal_control() -> CheckedTrees {
 #[test]
 fn lowers_scalar_prefix_before_conditional_effect_leaves() {
     let checked = checked_prefixed_control();
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("the exact four-state effect graph should lower");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("prefixed boundary graph emits one machine")
@@ -220,7 +221,7 @@ fn prefixed_control_rejects_scalar_edge_and_topology_corruption() {
     let baseline = checked_prefixed_control();
     let rejects = |checked: &CheckedTrees| {
         assert!(matches!(
-            lower_machine(checked, "Root::enter"),
+            lower_machine(checked, TerminalMachineSelection::Name("Root::enter")),
             Err(LoweringError::Unsupported(_))
         ));
     };
@@ -248,7 +249,7 @@ fn prefixed_control_rejects_scalar_edge_and_topology_corruption() {
 #[test]
 fn lowers_and_independently_replays_two_scalar_prefixes() {
     let checked = checked_multi_prefixed_control();
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("the exact five-state effect graph should lower");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("multi-prefix boundary graph emits one machine")
@@ -319,7 +320,7 @@ fn multi_prefixed_control_rejects_second_edge_corruption() {
     successor.scalar_arguments[0].source =
         checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 };
     assert!(matches!(
-        lower_machine(&checked, "Root::enter"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(_))
     ));
 }
@@ -327,7 +328,7 @@ fn multi_prefixed_control_rejects_second_edge_corruption() {
 #[test]
 fn multi_prefixed_control_retains_its_internal_target_with_disjoint_root_blocks() {
     let checked = checked_multi_prefixed_internal_control();
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("multi-prefix internal-call graph should lower");
     let [root, target] = lowered.semantic_module.machines.as_slice() else {
         panic!("multi-prefix root and one deduplicated target form the closure")

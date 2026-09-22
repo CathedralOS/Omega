@@ -4,6 +4,7 @@ use super::{
     Proposition, finalize_operation_proofs, finalize_operation_proofs_inner, lower_machine,
     obligation_id, produce_checked_canonical_integer_proof,
 };
+use crate::TerminalMachineSelection;
 use crate::terminal_identities::block_id;
 
 fn fixture(obligation_count: usize) -> LoweredPsi {
@@ -34,7 +35,7 @@ fn lower_source(source: &str) -> LoweredPsi {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    lower_machine(&checked, "root").unwrap()
+    lower_machine(&checked, TerminalMachineSelection::Name("root")).unwrap()
 }
 
 // Retain the previous per-obligation preparation as a same-process reference.

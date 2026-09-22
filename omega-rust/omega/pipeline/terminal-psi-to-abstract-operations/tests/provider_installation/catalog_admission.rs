@@ -1,5 +1,6 @@
 use super::builders::{artifact, provider_module, selected};
 use super::ids::{boundary_id, machine_id, operation_id, structural_type_id};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -527,7 +528,11 @@ fn check_selected_overload_identity(source: &str, provider_machine: &str, wrong_
         provider_identity: "Provider".into(),
         machine_identity,
     };
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "enter").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .unwrap();
     let semantic = encode_module(&lowered.semantic_module).unwrap();
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     let profile = AdmissionProfile::default();

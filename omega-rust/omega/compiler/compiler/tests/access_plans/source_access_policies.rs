@@ -3,6 +3,7 @@ use crate::fixture_roster;
 use access_plans::{AccessExposure, ExternalRead, FieldAccess, ObservationModel};
 use build_time_evaluation::{compute_access_plan, compute_layout_plan, compute_placement_plan};
 use calling_conventions::{MachineRegister, ValueLocation};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use checked_trees_to_lowered_psi::lower_machine;
 use compiler::{CheckedCompileRequest, compile_to_checked};
 use language_core::ReferenceAccess;
@@ -512,8 +513,11 @@ machine Inspector::inspect(
         .iter()
         .find(|input| input.machine == inspect.symbol)
         .expect("checked placed-view input");
-    let lowered = lower_machine(&checked, "Inspector::inspect")
-        .expect("direct placed-view input should cross the Terminal boundary");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Inspector::inspect"),
+    )
+    .expect("direct placed-view input should cross the Terminal boundary");
     let [terminal_input] = lowered.semantic_module.placed_view_inputs.as_slice() else {
         panic!("one direct Terminal placed-view input")
     };
@@ -589,8 +593,11 @@ machine Inspector::inspect(
         .iter()
         .find(|input| input.machine == inspect.symbol)
         .expect("checked direct placed-view input");
-    let lowered =
-        lower_machine(&checked, "Inspector::inspect").expect("lower placed-view consumer");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Inspector::inspect"),
+    )
+    .expect("lower placed-view consumer");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module)
         .expect("encode placed-view Terminal module");
     let proof =
@@ -755,8 +762,11 @@ machine Inspector::inspect(
     let [first_checked, second_checked] = checked_inputs.as_slice() else {
         panic!("two checked placed-view inputs")
     };
-    let lowered = lower_machine(&checked, "Inspector::inspect")
-        .expect("lower multi-row placed-view consumer");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Inspector::inspect"),
+    )
+    .expect("lower multi-row placed-view consumer");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module)
         .expect("encode multi-row Terminal module");
     let proof =
@@ -915,8 +925,11 @@ machine Inspector::inspect(
         ..CheckedCompileRequest::new(&main, None)
     })
     .expect("multi-row placed-view consumer should compile");
-    let lowered = lower_machine(&checked, "Inspector::inspect")
-        .expect("lower multi-row placed-view consumer");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Inspector::inspect"),
+    )
+    .expect("lower multi-row placed-view consumer");
     assert_eq!(lowered.semantic_module.placed_view_inputs.len(), 2);
 
     let semantic = terminal_codec::encode_module(&lowered.semantic_module)
@@ -1075,8 +1088,11 @@ machine Inspector::inspect(
         ..CheckedCompileRequest::new(&shared_main, None)
     })
     .expect("shared-row placed-view consumer should compile");
-    let shared_lowered = lower_machine(&shared_checked, "Inspector::inspect")
-        .expect("lower shared-row placed-view consumer");
+    let shared_lowered = lower_machine(
+        &shared_checked,
+        TerminalMachineSelection::Name("Inspector::inspect"),
+    )
+    .expect("lower shared-row placed-view consumer");
     let shared_semantic = terminal_codec::encode_module(&shared_lowered.semantic_module)
         .expect("encode shared-row Terminal module");
     let shared_proof = terminal_codec::encode_proof_section(
@@ -1126,8 +1142,11 @@ machine Inspector::inspect(
         ..CheckedCompileRequest::new(&main, None)
     })
     .expect("direct placed-view input should compile");
-    let lowered =
-        lower_machine(&checked, "Inspector::inspect").expect("lower placed-view consumer");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Inspector::inspect"),
+    )
+    .expect("lower placed-view consumer");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module)
         .expect("encode placed-view Terminal module");
     let proof =

@@ -5,6 +5,7 @@
 //! tests pin that expansion, the tuple the row carries, and the exact tuple
 //! specialization it names so sibling rows cannot satisfy one another.
 
+use crate::TerminalMachineSelection;
 use checked_trees::CheckedTrees;
 
 const STATIC_REQUIREMENT_FAMILY_SOURCE: &str = r#"
@@ -123,7 +124,7 @@ fn requirement_caller_terminal_name(checked: &CheckedTrees) -> String {
 fn family_conformance_row_lowers_to_one_tuple_keyed_table_row_per_roster_member() {
     let checked = check(STATIC_REQUIREMENT_FAMILY_SOURCE);
     let machine_name = requirement_caller_terminal_name(&checked);
-    let lowered = crate::lower_machine(&checked, &machine_name)
+    let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name(&machine_name))
         .expect("family conformance rows lower to tuple-keyed table rows");
 
     let [application] = lowered
@@ -199,7 +200,7 @@ fn family_row_rejects_when_its_tuple_specialization_is_missing() {
             specialization.const_argument_identities.as_slice() != ["named(integer-const(32))"]
         });
     let machine_name = requirement_caller_terminal_name(&checked);
-    let error = crate::lower_machine(&checked, &machine_name)
+    let error = crate::lower_machine(&checked, TerminalMachineSelection::Name(&machine_name))
         .expect_err("a roster tuple without a retained specialization must reject");
     assert!(
         matches!(error, crate::LoweringError::Unsupported(_)),

@@ -4,6 +4,7 @@
 //! emitted operation, and a stale, duplicated or foreign row rejects.
 
 use super::checked_source;
+use crate::TerminalMachineSelection;
 use crate::lower_machine;
 use lowered_psi::{
     LoweredSelectedIntegerComparisonOperandOrder, LoweredSelectedIntegerComparisonOperation,
@@ -71,8 +72,8 @@ fn a_replayed_integer_occurrence_is_admitted_into_the_custody_scope() {
         ] {
             let source = selected_integer_comparison(token, name, primitive);
             let checked = checked_with_provider_commitments(&source);
-            let lowered =
-                lower_machine(&checked, "choose").expect("selected integer comparison lowers");
+            let lowered = lower_machine(&checked, TerminalMachineSelection::Name("choose"))
+                .expect("selected integer comparison lowers");
             let [occurrence] = lowered.selected_integer_comparison_occurrences.as_slice() else {
                 panic!("one selected integer comparison occurrence: {source}");
             };
@@ -117,7 +118,7 @@ fn a_replayed_integer_occurrence_is_admitted_into_the_custody_scope() {
 #[test]
 fn a_stale_integer_occurrence_rejects() {
     let checked = i32_equality();
-    let lowered = lower_machine(&checked, "choose").unwrap();
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("choose")).unwrap();
     let produced = terminal_production::TerminalProductionRequest::new(&checked, "choose")
         .produce_checked_artifact()
         .unwrap();
@@ -157,7 +158,7 @@ fn a_stale_integer_occurrence_rejects() {
 #[test]
 fn a_duplicated_integer_occurrence_rejects() {
     let checked = i32_equality();
-    let lowered = lower_machine(&checked, "choose").unwrap();
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("choose")).unwrap();
     let produced = terminal_production::TerminalProductionRequest::new(&checked, "choose")
         .produce_checked_artifact()
         .unwrap();
@@ -180,7 +181,7 @@ fn a_duplicated_integer_occurrence_rejects() {
 #[test]
 fn a_foreign_integer_occurrence_rejects() {
     let checked = i32_equality();
-    let lowered = lower_machine(&checked, "choose").unwrap();
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("choose")).unwrap();
     let produced = terminal_production::TerminalProductionRequest::new(&checked, "choose")
         .produce_checked_artifact()
         .unwrap();

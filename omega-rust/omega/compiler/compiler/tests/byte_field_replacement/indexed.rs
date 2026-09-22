@@ -1,6 +1,7 @@
 //! Source-authored runtime indexed writes retain the field's live extent.
 
 use super::{AdmissionProfile, NativeTarget, publish};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 fn source(nested: bool, maximum: u64) -> String {
     let (field, selected) = if nested {
@@ -40,8 +41,11 @@ pub(super) fn indexed_replacement(nested: bool) -> lowered_psi::LoweredPsi {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("authored index range and ASCII byte establish indexed replacement");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Record::replace")
-        .expect("source-authored indexed replacement reaches Terminal");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Record::replace"),
+    )
+    .expect("source-authored indexed replacement reaches Terminal");
     terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
@@ -118,8 +122,11 @@ pub(super) fn cyclic_indexed_replacement(nested: bool) -> lowered_psi::LoweredPs
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("authored cyclic index range and ASCII byte establish indexed replacement");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Record::rewrite")
-        .expect("cyclic indexed replacement reaches Terminal");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Record::rewrite"),
+    )
+    .expect("cyclic indexed replacement reaches Terminal");
     terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
@@ -246,7 +253,11 @@ fn indexed_store_rejects_index_at_live_length() {
         );
         if let Ok(checked) = result {
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&checked, "Record::replace").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &checked,
+                    TerminalMachineSelection::Name("Record::replace")
+                )
+                .is_err(),
                 "index range includes live length and must not publish"
             );
         }

@@ -2,6 +2,7 @@
 //! in authored order, with the wildcard transition retained as the fallback.
 
 use super::{checked_source, lower_machine};
+use crate::TerminalMachineSelection;
 use checked_trees::CheckedComposedUnitControlTerminatorPlan;
 
 #[test]
@@ -122,7 +123,7 @@ fn stale_arm_guard_rejects_lowering() {
     };
     arms[0].guard = arms[1].guard.clone();
     assert!(
-        lower_machine(&corrupted, "Root::enter").is_err(),
+        lower_machine(&corrupted, TerminalMachineSelection::Name("Root::enter")).is_err(),
         "an arm guard that disagrees with the checked guarded-exit roster must reject"
     );
 }

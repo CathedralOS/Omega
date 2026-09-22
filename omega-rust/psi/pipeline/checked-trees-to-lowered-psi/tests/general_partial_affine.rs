@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use checked_trees_to_lowered_psi::lower_machine;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, encode_module, encode_proof_section};
@@ -62,8 +63,11 @@ fn assert_source(
     moved: &[Vec<StructuralPathSegment>],
     residuals: &[Vec<StructuralPathSegment>],
 ) -> lowered_psi::LoweredPsi {
-    let lowered = lower_machine(&checked(source), "Root::enter")
-        .expect("finite paths have exact residual cleanup");
+    let lowered = lower_machine(
+        &checked(source),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("finite paths have exact residual cleanup");
     let module = &lowered.semantic_module;
     let caller = module
         .machines
@@ -347,7 +351,8 @@ fn lowering_independently_reconstructs_the_checked_residual_complement() {
         data Sink {} machine Sink::take(value: Token) {}
         data Root {} machine Root::enter(values: [Token; 5]) { Sink::take(values[2]); }";
     let baseline = checked(source);
-    lower_machine(&baseline, "Root::enter").expect("unaltered checked partition lowers");
+    lower_machine(&baseline, TerminalMachineSelection::Name("Root::enter"))
+        .expect("unaltered checked partition lowers");
     for mutation in 0..5 {
         let mut checked = baseline.clone();
         let plans = &mut checked.facts.flow.terminal_partial_affine_unit_cleanups;
@@ -381,7 +386,7 @@ fn lowering_independently_reconstructs_the_checked_residual_complement() {
             _ => unreachable!(),
         }
         assert!(
-            lower_machine(&checked, "Root::enter").is_err(),
+            lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")).is_err(),
             "checked complement mutation {mutation} must reject before Terminal verification"
         );
     }

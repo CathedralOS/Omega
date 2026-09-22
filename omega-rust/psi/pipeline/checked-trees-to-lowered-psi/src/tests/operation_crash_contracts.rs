@@ -2,6 +2,7 @@
 //! at the exact emitted operation, and every crash-qualified use the closure
 //! cannot carry that way fails closed.
 
+use crate::TerminalMachineSelection;
 use std::collections::BTreeMap;
 
 use super::checked_source;
@@ -131,7 +132,7 @@ fn selected_operator_crash_site_lowers_to_one_row_at_the_emitted_comparison() {
             CrashCause::Trap => "Trap",
             CrashCause::Abort => "Abort",
         });
-        let lowered = lower_machine(&checked, "compare")
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name("compare"))
             .expect("a joined selected comparison carries its crash contract");
         let [occurrence] = lowered
             .selected_ieee_float_comparison_occurrences
@@ -158,7 +159,7 @@ fn the_row_carries_the_declaration_local_formal_telescope() {
     // verifier's own reconstruction of the continuations: a continuation over
     // the formal namespace, or over swapped operands, is a verifier rejection.
     let checked = crash_qualified_float_comparison("Trap");
-    let lowered = lower_machine(&checked, "compare").unwrap();
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("compare")).unwrap();
     let mut forged = lowered.semantic_module.clone();
     let row = &mut forged.operation_crash_contracts[0];
     let formal = |raw| {
@@ -184,7 +185,8 @@ fn a_recaused_site_roster_fails_closed_at_verification() {
     // whose cause no longer matches what the caller publishes produces a row
     // the verifier rejects, and lowering fails closed on that rejection.
     let mut checked = crash_qualified_float_comparison("Trap");
-    lower_machine(&checked, "compare").expect("the retained site lowers");
+    lower_machine(&checked, TerminalMachineSelection::Name("compare"))
+        .expect("the retained site lowers");
     let compare = checked
         .machines()
         .iter()
@@ -209,7 +211,7 @@ fn a_recaused_site_roster_fails_closed_at_verification() {
         .with_checked_operators(sites)
         .expect("one site identity");
     assert!(matches!(
-        lower_machine(&checked, "compare"),
+        lower_machine(&checked, TerminalMachineSelection::Name("compare")),
         Err(LoweringError::InvalidTerminalModule(
             terminal_verifier::ModuleError::CallCrashContinuationUncovered {
                 cause: CrashCause::Abort,
@@ -254,7 +256,8 @@ fn a_guarded_operator_route_lowers_to_the_guard_proposition_the_verifier_accepts
     let host = checked_source(
         "pub machine compare(left: i32, right: i32) -> bool crashes Trap { left == right }",
     );
-    let lowered = lower_machine(&host, "compare").expect("an integer comparison lowers");
+    let lowered = lower_machine(&host, TerminalMachineSelection::Name("compare"))
+        .expect("an integer comparison lowers");
     let mut module = lowered.semantic_module.clone();
     let (machine, operation, left, right) = module
         .machines
@@ -304,7 +307,7 @@ fn a_guarded_integer_operator_route_lowers_end_to_end_to_the_row_the_verifier_ac
     // right operand, and the verifier accepts the module `lower_machine`
     // produced.
     let checked = checked_with_provider_commitments(GUARDED_INTEGER_OPERATOR_SOURCE);
-    let lowered = lower_machine(&checked, "compare")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("compare"))
         .expect("a joined guarded integer comparison carries its crash contract");
     assert!(
         lowered
@@ -371,7 +374,7 @@ fn a_reordered_greater_route_publishes_the_operations_own_formal_telescope() {
     // binds formal 1 to operand position 0 — reconstructs the guard over the
     // authored `right` without the positional rule being relaxed.
     let checked = checked_with_provider_commitments(GUARDED_REORDERED_INTEGER_OPERATOR_SOURCE);
-    let lowered = lower_machine(&checked, "compare")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("compare"))
         .expect("a reordered guarded integer comparison carries its crash contract");
     let [occurrence] = lowered.selected_integer_comparison_occurrences.as_slice() else {
         panic!("one selected integer comparison occurrence");
@@ -417,7 +420,8 @@ fn a_reordered_row_left_in_the_authored_telescope_fails_verification() {
     // operator declaration's authored formal 2 would make the verifier
     // reconstruct the guard over the other operand, so it must reject.
     let checked = checked_with_provider_commitments(GUARDED_REORDERED_INTEGER_OPERATOR_SOURCE);
-    let lowered = lower_machine(&checked, "compare").expect("the reordered route lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("compare"))
+        .expect("the reordered route lowers");
     let mut forged = lowered.semantic_module.clone();
     let integer = ScalarType::Integer(i32_type());
     forged.operation_crash_contracts[0].published_routes = vec![guarded_trap_route(
@@ -437,7 +441,7 @@ fn a_negated_route_keeps_its_contract_on_the_emitted_comparison() {
     // telescope needs no reindexing and the negation only carries the Boolean
     // result forward without taking a row of its own.
     let checked = checked_with_provider_commitments(GUARDED_NEGATED_INTEGER_OPERATOR_SOURCE);
-    let lowered = lower_machine(&checked, "compare")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("compare"))
         .expect("a negated guarded integer comparison carries its crash contract");
     let [occurrence] = lowered.selected_integer_comparison_occurrences.as_slice() else {
         panic!("one selected integer comparison occurrence");
@@ -503,7 +507,8 @@ fn a_guarded_operator_route_without_a_structured_scalar_form_fails_closed() {
          crashes Trap !(right >= 0.0);
          machine compare(left: f64, right: f64) -> bool crashes Trap { left == right }",
     );
-    let error = lower_machine(&checked, "compare").expect_err("a guarded route cannot lower");
+    let error = lower_machine(&checked, TerminalMachineSelection::Name("compare"))
+        .expect_err("a guarded route cannot lower");
     assert!(
         format!("{error:?}")
             .contains("guarded crash route is outside structured scalar predicate lowering"),
@@ -523,14 +528,14 @@ fn a_crash_qualified_use_without_lowerable_crash_evidence_fails_closed() {
          crashes Trap false;
          pub machine compare(left: i32, right: i32) -> bool { left > right }",
     );
-    let error = lower_machine(&checked, "compare")
+    let error = lower_machine(&checked, TerminalMachineSelection::Name("compare"))
         .expect_err("a site with no lowerable route must not lower crash-free");
     assert!(
         format!("{error:?}").contains("operator crash site publishes no lowerable crash route"),
         "{error:?}"
     );
     let checked = checked_source(GUARDED_INTEGER_OPERATOR_SOURCE);
-    let error = lower_machine(&checked, "compare")
+    let error = lower_machine(&checked, TerminalMachineSelection::Name("compare"))
         .expect_err("a use without complete provider plan evidence must not lower");
     assert!(
         format!("{error:?}").contains("selected comparison has no complete provider plan evidence"),
@@ -559,7 +564,8 @@ fn a_crash_qualified_use_whose_site_was_dropped_fails_closed() {
         .clone()
         .with_checked_operators(Vec::new())
         .expect("an empty site roster");
-    let error = lower_machine(&checked, "compare").expect_err("a dropped site cannot lower");
+    let error = lower_machine(&checked, TerminalMachineSelection::Name("compare"))
+        .expect_err("a dropped site cannot lower");
     assert!(
         format!("{error:?}")
             .contains("selected operator crash invocation has no checked crash site to lower"),

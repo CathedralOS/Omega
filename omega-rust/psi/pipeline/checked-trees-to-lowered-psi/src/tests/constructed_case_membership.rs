@@ -1,5 +1,6 @@
 //! Constructor subjects remain real established owners through observation.
 use super::{CheckedTrees, checked_source, lower_machine};
+use crate::TerminalMachineSelection;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::types::PrimitiveType;
 use checked_trees::{CheckedScalarComputationKind, CheckedUnitEffectOperationPlan};
@@ -317,7 +318,7 @@ fn selected_local_case_membership_observes_the_joined_owner_and_rejects_foreign_
                 .symbol = checked.data_payload_fields(foreign_case)[0].symbol;
         }
         assert!(
-            lower_machine(&changed, "choose").is_err(),
+            lower_machine(&changed, TerminalMachineSelection::Name("choose")).is_err(),
             "same-shaped foreign payload or case cannot authorize a selected leaf"
         );
     }
@@ -332,7 +333,8 @@ fn local_case_membership_rejoins_establishment_and_exit_provenance() {
              choice in Choice::Empty
          }",
     );
-    lower_machine(&checked, "choose").expect("exact local lifetime");
+    lower_machine(&checked, TerminalMachineSelection::Name("choose"))
+        .expect("exact local lifetime");
     let events = checked
         .facts
         .flow
@@ -354,7 +356,7 @@ fn local_case_membership_rejoins_establishment_and_exit_provenance() {
                 event.provenance = language_semantics::PermissionProvenance::Unknown;
             }
             assert!(
-                lower_machine(&changed, "choose").is_err(),
+                lower_machine(&changed, TerminalMachineSelection::Name("choose")).is_err(),
                 "local lifetime cannot omit a permission or replace its establishment provenance"
             );
         }
@@ -441,7 +443,8 @@ fn local_case_membership_rejects_payload_and_same_typed_source_substitution() {
         }
     "#,
     );
-    lower_machine(&checked, "choose").expect("two independent local cases");
+    lower_machine(&checked, TerminalMachineSelection::Name("choose"))
+        .expect("two independent local cases");
     let plan = checked
         .facts
         .flow
@@ -502,7 +505,7 @@ fn local_case_membership_rejects_payload_and_same_typed_source_substitution() {
                 .kind = nodes.get(fields[1]).kind.clone();
         }
         assert!(
-            lower_machine(&changed, "choose").is_err(),
+            lower_machine(&changed, TerminalMachineSelection::Name("choose")).is_err(),
             "same-type local payload tampering must reject"
         );
     }
@@ -552,7 +555,7 @@ fn local_case_membership_rejects_payload_and_same_typed_source_substitution() {
     argument.source =
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: other };
     assert!(
-        lower_machine(&changed, "choose").is_err(),
+        lower_machine(&changed, TerminalMachineSelection::Name("choose")).is_err(),
         "same-typed established local cannot replace the authored subject"
     );
     let drop_handle = checked
@@ -578,7 +581,7 @@ fn local_case_membership_rejects_payload_and_same_typed_source_substitution() {
         .get_mut(drop_handle)
         .access = language_semantics::PermissionAccess::Shared;
     assert!(
-        lower_machine(&changed, "choose").is_err(),
+        lower_machine(&changed, TerminalMachineSelection::Name("choose")).is_err(),
         "local cleanup requires exact owned source disposition"
     );
 
@@ -651,7 +654,8 @@ fn constructor_membership_rejects_changed_literal_payload_in_either_source_or_pl
         machine donor() -> bool { Choice::Some { value: 38 } in Choice::Some }
     "#,
     );
-    lower_machine(&checked, "choose").expect("original literal construction");
+    lower_machine(&checked, TerminalMachineSelection::Name("choose"))
+        .expect("original literal construction");
     let field = field_computation(&checked, "choose");
     let donor = field_computation(&checked, "donor");
     let original = checked
@@ -685,7 +689,7 @@ fn constructor_membership_rejects_changed_literal_payload_in_either_source_or_pl
         .get_mut(field)
         .kind = replacement.kind;
     assert!(
-        lower_machine(&changed_plan, "choose").is_err(),
+        lower_machine(&changed_plan, TerminalMachineSelection::Name("choose")).is_err(),
         "37 -> 38 cannot change the retained payload while keeping its source, type and case"
     );
 
@@ -698,7 +702,7 @@ fn constructor_membership_rejects_changed_literal_payload_in_either_source_or_pl
         .expression(replacement.authored_root)
         .clone();
     assert!(
-        lower_machine(&changed_source, "choose").is_err(),
+        lower_machine(&changed_source, TerminalMachineSelection::Name("choose")).is_err(),
         "38 in source cannot keep the old 37 payload merely because membership is unchanged"
     );
 }
@@ -711,7 +715,8 @@ fn constructor_membership_rejects_erased_field_operator_meaning() {
         machine choose(value: bool) -> bool { Choice::Some { value: !value } in Choice::Some }
     "#,
     );
-    lower_machine(&checked, "choose").expect("original field negation");
+    lower_machine(&checked, TerminalMachineSelection::Name("choose"))
+        .expect("original field negation");
     let field = field_computation(&checked, "choose");
     let mut changed = checked.clone();
     match &mut changed
@@ -739,7 +744,7 @@ fn constructor_membership_rejects_erased_field_operator_meaning() {
         unexpected => panic!("unexpected negation computation: {unexpected:?}"),
     }
     assert!(
-        lower_machine(&changed, "choose").is_err(),
+        lower_machine(&changed, TerminalMachineSelection::Name("choose")).is_err(),
         "matching reads cannot justify deleting a field's negation"
     );
 }
@@ -747,7 +752,8 @@ fn constructor_membership_rejects_erased_field_operator_meaning() {
 #[test]
 fn constructor_membership_stages_fields_before_observation_and_affine_cleanup() {
     let checked = checked_source(SOURCE);
-    let lowered = lower_machine(&checked, "choose").expect("dynamic constructor membership");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("choose"))
+        .expect("dynamic constructor membership");
     let module = &lowered.semantic_module;
     let root = module
         .machines
@@ -893,7 +899,8 @@ fn selected_constructor_membership_closes_its_affine_frontier_before_the_join() 
 #[test]
 fn constructor_membership_rejoins_field_roster_roots_types_and_authored_source() {
     let checked = checked_source(SOURCE);
-    lower_machine(&checked, "choose").expect("original source custody");
+    lower_machine(&checked, TerminalMachineSelection::Name("choose"))
+        .expect("original source custody");
     let (handle, subject) = checked
         .facts
         .values
@@ -979,7 +986,7 @@ fn constructor_membership_rejoins_field_roster_roots_types_and_authored_source()
             }
         }
         assert!(
-            lower_machine(&changed, "choose").is_err(),
+            lower_machine(&changed, TerminalMachineSelection::Name("choose")).is_err(),
             "source/plan mutation {mutation} must reject"
         );
     }
@@ -992,7 +999,8 @@ fn constructor_membership_rejects_a_same_spelled_foreign_observation_case() {
         data Other {{ case Empty; case Some(first: bool, second: bool); }}
     "
     ));
-    lower_machine(&checked, "choose").expect("original nominal owner");
+    lower_machine(&checked, TerminalMachineSelection::Name("choose"))
+        .expect("original nominal owner");
     let owner = checked
         .data_definitions()
         .iter()
@@ -1034,5 +1042,5 @@ fn constructor_membership_rejects_a_same_spelled_foreign_observation_case() {
         panic!("retained membership");
     };
     *case = foreign;
-    assert!(lower_machine(&changed, "choose").is_err());
+    assert!(lower_machine(&changed, TerminalMachineSelection::Name("choose")).is_err());
 }

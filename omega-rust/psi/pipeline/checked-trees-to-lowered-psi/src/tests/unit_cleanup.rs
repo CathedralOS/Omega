@@ -4,6 +4,7 @@ use super::{
     CheckedTrees, Lexer, LoweringError, ResolutionRequest, checked_source, lower_machine,
     lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
 };
+use crate::TerminalMachineSelection;
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::unit::unit_cleanup::{
     lower_nominal_affine_unit_cleanup_machine, lower_partial_affine_unit_cleanup_machine,
@@ -113,7 +114,7 @@ fn nominal_affine_unit_cleanup_lowers_exact_target_into_terminal_closure() {
         .expect("nominal cleanup terminal selection")
         .name
         .clone();
-    let public = lower_machine(&checked, &entry_name)
+    let public = lower_machine(&checked, TerminalMachineSelection::Name(&entry_name))
         .expect("source nominal cleanup should cross the public lowering entry");
     assert!(matches!(
         public.semantic_module.machines[0].blocks[0].terminator,
@@ -585,7 +586,7 @@ fn partial_affine_unit_cleanup_lowers_exact_terminal_paths_before_verification()
         .expect("partial cleanup terminal selection")
         .name
         .clone();
-    lower_machine(&checked, &entry_name)
+    lower_machine(&checked, TerminalMachineSelection::Name(&entry_name))
         .expect("verified partial affine cleanup should cross the ordinary lowering entry");
 }
 

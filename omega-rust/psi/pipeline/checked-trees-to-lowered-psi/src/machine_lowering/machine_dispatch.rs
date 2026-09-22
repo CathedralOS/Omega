@@ -34,44 +34,43 @@ use crate::unit::unit_cleanup::{
 };
 use lowered_psi::LoweredPsi;
 
-pub fn select_terminal_machine<'checked>(
-    checked: &'checked CheckedTrees,
-    machine_name: &str,
-) -> Result<&'checked CheckedTerminalMachineSelection, LoweringError> {
-    let mut matches = checked
-        .facts
-        .flow
-        .terminal_machines
-        .machines
-        .iter()
-        .filter(|machine| machine.name == machine_name);
-    let selection = matches
-        .next()
-        .ok_or_else(|| LoweringError::MachineNotFound(machine_name.to_owned()))?;
-    if matches.next().is_some() {
-        return Err(LoweringError::AmbiguousMachineName(machine_name.to_owned()));
-    }
-    Ok(selection)
+/// Which checked Terminal machine one lowering selects.
+///
+/// `Symbol` rejoins an already-selected exact checked machine: build product
+/// operands resolve their implementation lexically and retain the exact
+/// machine symbol, so production rejoins that symbol rather than a qualified
+/// name another package could also declare. `Name` is the display-name
+/// lookup for ad hoc producers and tests; an absent or ambiguous name fails
+/// closed.
+#[derive(Debug, Clone, Copy)]
+pub enum TerminalMachineSelection<'a> {
+    Name(&'a str),
+    Symbol(symbols::SymbolHandle),
 }
 
-/// Rejoin an already-selected machine by its exact checked symbol instead of
-/// its qualified display name. Lexically resolved build product operands carry
-/// the exact symbol so a same-named machine in another package cannot capture
-/// this production.
-pub fn select_terminal_machine_by_symbol(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-) -> Result<&CheckedTerminalMachineSelection, LoweringError> {
-    checked
-        .facts
-        .flow
-        .terminal_machines
-        .machines
-        .iter()
-        .find(|selection| selection.machine == machine)
-        .ok_or_else(|| {
-            LoweringError::MachineNotFound(checked.typed.symbols.display_path(machine, "::"))
-        })
+/// Select the exact checked Terminal machine `machine` names.
+pub fn select_terminal_machine<'checked>(
+    checked: &'checked CheckedTrees,
+    machine: TerminalMachineSelection<'_>,
+) -> Result<&'checked CheckedTerminalMachineSelection, LoweringError> {
+    let mut machines = checked.facts.flow.terminal_machines.machines.iter();
+    match machine {
+        TerminalMachineSelection::Name(machine_name) => {
+            let mut matches = machines.filter(|machine| machine.name == machine_name);
+            let selection = matches
+                .next()
+                .ok_or_else(|| LoweringError::MachineNotFound(machine_name.to_owned()))?;
+            if matches.next().is_some() {
+                return Err(LoweringError::AmbiguousMachineName(machine_name.to_owned()));
+            }
+            Ok(selection)
+        }
+        TerminalMachineSelection::Symbol(machine) => machines
+            .find(|selection| selection.machine == machine)
+            .ok_or_else(|| {
+                LoweringError::MachineNotFound(checked.typed.symbols.display_path(machine, "::"))
+            }),
+    }
 }
 
 fn selected_machine(

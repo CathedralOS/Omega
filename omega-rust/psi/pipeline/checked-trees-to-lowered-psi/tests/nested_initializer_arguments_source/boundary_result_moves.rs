@@ -4,6 +4,7 @@ use super::{
     TerminalEffectRejection, TerminalEffectResult, TerminalExecutionResult, TerminalInterpretError,
     checked, decode_module, decode_proof_bundle, main_machine, unsigned,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
@@ -276,7 +277,11 @@ fn a_crashing_consumer_operand_never_transfers_or_cleans_boundary_results() {
         );
         let checked = checked(&source);
         let artifact = encoded_locals(&checked, &["prefix", "first", "spare"]);
-        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main").unwrap();
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Main::main"),
+        )
+        .unwrap();
         let state = checked.machine_states(main_machine(&checked))[0].symbol;
         let operand = lowered
             .source_call_occurrences

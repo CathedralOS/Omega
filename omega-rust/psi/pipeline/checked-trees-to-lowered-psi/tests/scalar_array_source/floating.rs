@@ -3,12 +3,16 @@ use super::{
     AdmissionProfile, ExpressionNode, TerminalExecutionResult, TerminalScalarValue, checked_source,
     interpret_terminal_artifact, reject, row_elements, selected_source,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::IeeeFloatValue;
 
 fn execute(source: &str, arguments: &[TerminalScalarValue]) -> Vec<TerminalScalarValue> {
     let checked = checked_source(source);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "selected")
-        .unwrap_or_else(|error| panic!("floating array must lower: {error:?}\n{source}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .unwrap_or_else(|error| panic!("floating array must lower: {error:?}\n{source}"));
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
     let proof =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -66,7 +70,11 @@ fn floating_array_literals_calls_and_projections_execute_exact_bits() {
 #[test]
 fn floating_array_source_bits_and_format_cannot_be_substituted() {
     let original = checked_source("machine selected() -> [f32; 2] { [1.5f32, -0.0f32] }");
-    checked_trees_to_lowered_psi::lower_machine(&original, "selected").unwrap();
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .unwrap();
     let (_, expressions) = selected_source(&original);
     let ExpressionNode::ArrayLiteral(elements) =
         original.expression_table.expression(expressions[0])
@@ -106,7 +114,11 @@ fn projected_floating_array_cannot_erase_an_invalid_sibling_format() {
         "data Rows {} const Rows::VALUES: [[f32; 1]; 2] = [[1.5f32], [2.5f32]];
          machine selected() -> [f32; 1] { Rows::VALUES[0] }",
     );
-    checked_trees_to_lowered_psi::lower_machine(&original, "selected").unwrap();
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .unwrap();
     let (_, expressions) = selected_source(&original);
     let sibling = row_elements(&original, expressions[0], 1)[0];
     let replacement = checked_source("machine selected() -> [f64; 1] { [2.5f64] }");

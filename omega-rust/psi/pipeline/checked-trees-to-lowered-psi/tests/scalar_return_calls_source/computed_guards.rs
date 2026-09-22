@@ -4,6 +4,7 @@ use super::{
     encode_module, encode_proof_section, execute,
 };
 use checked_trees::{CheckedScalarComputationKind, CheckedScalarExpressionRole};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use typed_trees::statement::{StatementNode, TransitionGuardNode};
 
 fn dispatch(predicate: &str, when_true: &str, when_false: &str, form: usize) -> String {
@@ -86,8 +87,11 @@ fn encoded_guard_arms(
 ) -> (Vec<u8>, Vec<u8>) {
     let checked = checked_arms(source, combined);
     assert_guard_roots(&checked, names, states);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "value")
-        .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("value"),
+    )
+    .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
     (
         encode_module(&lowered.semantic_module).unwrap(),
         encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
@@ -414,7 +418,8 @@ fn computed_guard_custody_mutations_reject_before_publication() {
     "#;
     let checked = checked_arms(source, false);
     assert_guard_roots(&checked, &[], 1);
-    checked_trees_to_lowered_psi::lower_machine(&checked, "value").unwrap();
+    checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name("value"))
+        .unwrap();
     let (handle, root) = checked
         .facts
         .values
@@ -541,7 +546,11 @@ fn computed_guard_custody_mutations_reject_before_publication() {
             _ => unreachable!(),
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "value").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("value")
+            )
+            .is_err(),
             "guard mutation={mutation}"
         );
     }

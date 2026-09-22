@@ -1,4 +1,5 @@
 use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use checked_trees_to_lowered_psi::{LoweringError, lower_machine};
 use proof_admission::AdmissionProfile;
 
@@ -30,7 +31,8 @@ fn checked_siblings() -> checked_trees::CheckedTrees {
 #[test]
 fn reordered_sibling_producers_with_repaired_bindings_reject_authored_execution_order() {
     let mut checked = checked_siblings();
-    let mut lowered = lower_machine(&checked, "Main::caller").expect("authored siblings lower");
+    let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::caller"))
+        .expect("authored siblings lower");
     let caller_state = lowered.source_call_occurrences[0].source_state;
     assert_eq!(
         lowered
@@ -119,7 +121,8 @@ fn reordered_sibling_producers_with_repaired_bindings_reject_authored_execution_
     // consuming use, which still names the exact authored argument expression.
     // Source coordinates and captured expressions deliberately remain intact.
     assert_eq!(
-        lower_machine(&checked, "Main::caller").expect_err("authored sibling order must reject"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Main::caller"))
+            .expect_err("authored sibling order must reject"),
         LoweringError::Unsupported(
             "nested structural operations disagree with authored argument execution order"
         )

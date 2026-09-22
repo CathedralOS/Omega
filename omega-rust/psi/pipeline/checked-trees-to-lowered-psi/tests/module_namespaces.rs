@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source::{SourceId, SourceMap};
@@ -47,8 +48,11 @@ fn qualified_same_leaf_machines_publish_independently_executable_artifacts() {
         ("dungeon::combat::value", 7u128),
         ("dungeon::rooms::value", 9u128),
     ] {
-        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, qualified)
-            .expect("select qualified module machine");
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name(qualified),
+        )
+        .expect("select qualified module machine");
         artifacts.push((
             encode_module(&lowered.semantic_module).expect("encode semantics"),
             encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)

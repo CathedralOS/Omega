@@ -1,6 +1,7 @@
 //! Local stores compose with copying, scalar snapshots and selected exits.
 
 use super::support;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
@@ -133,7 +134,11 @@ fn store_cannot_resurrect_a_moved_local_from_its_declaration() {
         );
         let checked = support::check(&source);
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&checked, "changed").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("changed")
+            )
+            .is_err(),
             "moved source cannot regain its old home: {binding}"
         );
     }
@@ -216,7 +221,11 @@ fn store_replay_rejects_substituted_local_and_field_custody() {
             }
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "changed").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("changed")
+            )
+            .is_err(),
             "store substitution {corruption}"
         );
     }

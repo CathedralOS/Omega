@@ -50,6 +50,7 @@ mod suspension_call_plans;
 mod unit_cleanup;
 mod value_case_dispatch;
 
+use crate::TerminalMachineSelection;
 use crate::lower_machine;
 use crate::lowering_error::LoweringError;
 use crate::retention::reborrow_root_handoff;
@@ -492,7 +493,7 @@ fn terminal_module_with_reborrow(
             machine Empty::run() {}
         "#,
     );
-    let mut module = lower_machine(&empty, "Empty::run")
+    let mut module = lower_machine(&empty, TerminalMachineSelection::Name("Empty::run"))
         .expect("empty terminal baseline")
         .semantic_module;
     let mut rows = lower_reborrow_rows(checked).expect("real checked handoff");
@@ -534,7 +535,8 @@ fn assert_source_direct_float_result(primitive: &str, projection: &str, format: 
         "#,
     );
     let checked = checked_float_projection_source(&source);
-    let lowered = lower_machine(&checked, "result").expect("lower direct float result owner");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("result"))
+        .expect("lower direct float result owner");
     let machine = lowered
         .semantic_module
         .machines
@@ -648,8 +650,8 @@ fn mathematical_declarations_refuse_at_terminal_lowering() {
         "#,
     );
     assert_eq!(checked.facts.proof.mathematical_declarations.len(), 1);
-    let error =
-        lower_machine(&checked, "main").expect_err("mathematical declarations refuse at lowering");
+    let error = lower_machine(&checked, TerminalMachineSelection::Name("main"))
+        .expect_err("mathematical declarations refuse at lowering");
     assert!(
         matches!(
             error,

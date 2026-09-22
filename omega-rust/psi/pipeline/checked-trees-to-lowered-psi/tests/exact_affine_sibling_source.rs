@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::{AdmissionProfile, EvidenceRoute, ProofRule};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarTerm};
 use source_files_to_tokens::Lexer;
@@ -179,8 +180,11 @@ fn landed_affine_sibling_custody_crosses_source_codec_and_independent_verificati
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("the landed affine sibling completes the source certificate");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("the landed affine sibling completes the source certificate");
 
     let exact_divide = lowered
         .semantic_module
@@ -265,8 +269,11 @@ fn definition_affine_divisor_crosses_source_codec_and_independent_verification(
     let typed = lower_symbol_resolved_trees(&resolved).expect("type bounded-definition divisor");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("check bounded-definition affine divisor");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, machine_name)
-        .expect("bounded-definition affine divisor lowers with a checked certificate");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name(machine_name),
+    )
+    .expect("bounded-definition affine divisor lowers with a checked certificate");
 
     let entry = lowered
         .semantic_module
@@ -457,7 +464,7 @@ fn ten_definition_affine_divisor_crosses_source_codec_and_independent_verificati
     // certificate still crosses the codec and independent verification.
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
-        "Root::divide_and_remainder_after_ten_definitions",
+        TerminalMachineSelection::Name("Root::divide_and_remainder_after_ten_definitions"),
     )
     .expect("a ten-definition source word crosses the derived-chain closure");
 
@@ -559,8 +566,11 @@ fn affine_to_partial_cast_exact_division_and_remainder_cross_source_codec_verifi
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::divide")
-        .expect("affine-to-partial-cast divisor lowers from real source");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::divide"),
+    )
+    .expect("affine-to-partial-cast divisor lowers from real source");
 
     let entry = lowered
         .semantic_module
@@ -710,8 +720,11 @@ fn partial_cast_to_affine_exact_division_and_remainder_cross_source_codec_verifi
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::divide_after_cast")
-        .expect("partial-cast-to-affine divisor lowers from real source");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::divide_after_cast"),
+    )
+    .expect("partial-cast-to-affine divisor lowers from real source");
     let entry = lowered
         .semantic_module
         .machines
@@ -862,8 +875,11 @@ fn affine_cast_affine_exact_division_and_remainder_cross_source_codec_verificati
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::divide_across_cast")
-        .expect("affine-cast-affine divisor lowers from real source");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::divide_across_cast"),
+    )
+    .expect("affine-cast-affine divisor lowers from real source");
     let entry = lowered
         .semantic_module
         .machines
@@ -1032,7 +1048,11 @@ fn affine_cast_affine_exact_division_and_remainder_cross_source_codec_verificati
     let checked =
         lower_typed_trees(typed, &CheckingRequest::settled()).expect("check near-miss source");
     assert!(
-        checked_trees_to_lowered_psi::lower_machine(&checked, "Root::divide_across_cast").is_err(),
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Root::divide_across_cast")
+        )
+        .is_err(),
         "the sandwich cannot manufacture its missing source-root lower bound",
     );
 }

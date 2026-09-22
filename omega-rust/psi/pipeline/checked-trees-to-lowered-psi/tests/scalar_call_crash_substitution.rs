@@ -1,5 +1,6 @@
 //! Published call routes bind to emitted argument values, not folded source guards.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -19,8 +20,11 @@ fn encoded(source: &str) -> (Vec<u8>, Vec<u8>) {
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "value")
-        .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("value"),
+    )
+    .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
     (
         encode_module(&lowered.semantic_module).expect("canonical semantics"),
         encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)

@@ -14,6 +14,7 @@
 //! a completed call result is such a value, so no authored local has to name
 //! it.
 
+use crate::TerminalMachineSelection;
 use crate::lower_machine;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -119,7 +120,7 @@ const BOUNDED_DESTINATION: &str = r#"
 #[test]
 fn same_statement_field_store_reads_its_own_boundary_call_result() {
     let checked = checked(DIRECT_FIELD);
-    let lowered = lower_machine(&checked, "Main::main")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
         .unwrap_or_else(|error| panic!("{DIRECT_FIELD}: {error:#?}"));
     assert!(
         carrier_path_storing_the_call_result(&lowered.semantic_module).is_empty(),
@@ -130,7 +131,7 @@ fn same_statement_field_store_reads_its_own_boundary_call_result() {
 #[test]
 fn same_statement_field_store_composes_with_a_carrier_path() {
     let checked = checked(CARRIER_PATH_FIELD);
-    let lowered = lower_machine(&checked, "Main::main")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
         .unwrap_or_else(|error| panic!("{CARRIER_PATH_FIELD}: {error:#?}"));
     assert_eq!(
         carrier_path_storing_the_call_result(&lowered.semantic_module),

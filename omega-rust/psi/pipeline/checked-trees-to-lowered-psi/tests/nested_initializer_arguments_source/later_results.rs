@@ -4,6 +4,7 @@ use super::{
     TerminalInterpretError, TerminalScalarValue, checked, decode_module, decode_proof_bundle,
     encode_module, encode_proof_section, execute, main_machine, scalar_source, unsigned,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 pub(super) fn encoded_locals(
     checked: &checked_trees::CheckedTrees,
     names: &[&str],
@@ -25,8 +26,11 @@ pub(super) fn encoded_locals(
         })
         .collect::<Vec<_>>();
     assert_eq!(locals, names, "no synthetic source bindings");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Main::main")
-        .expect("later immutable result initializer lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("later immutable result initializer lowers");
     let artifact = (
         encode_module(&lowered.semantic_module).unwrap(),
         encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
@@ -340,7 +344,11 @@ fn later_initializer_custody_rejects_target_coordinate_namespace_and_result_drif
                 result.primitive_type = typed_trees::types::PrimitiveType::Bool;
             }
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("Main::main")
+                )
+                .is_err(),
                 "result binding ordinal and carrier must match the source local: mutation={mutation}"
             );
         }
@@ -377,7 +385,11 @@ fn later_initializer_custody_rejects_target_coordinate_namespace_and_result_drif
                 path.head_symbol = destination;
             }
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("Main::main")
+                )
+                .is_err(),
                 "second initializer cannot read its own or a later result before establishment"
             );
         }
@@ -406,7 +418,11 @@ fn later_initializer_custody_rejects_target_coordinate_namespace_and_result_drif
     };
     changed_between.initial_value = prefix.initial_value;
     assert!(
-        checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+        checked_trees_to_lowered_psi::lower_machine(
+            &changed,
+            TerminalMachineSelection::Name("Main::main")
+        )
+        .is_err(),
         "pure local between result calls retains its exact authored initializer"
     );
     let mut changed = checked.clone();
@@ -419,7 +435,11 @@ fn later_initializer_custody_rejects_target_coordinate_namespace_and_result_drif
     };
     changed_between.symbol = prefix.symbol;
     assert!(
-        checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+        checked_trees_to_lowered_psi::lower_machine(
+            &changed,
+            TerminalMachineSelection::Name("Main::main")
+        )
+        .is_err(),
         "pure local declaration identity cannot reuse an earlier local"
     );
     for (index, local) in &locals {
@@ -484,7 +504,11 @@ fn later_initializer_custody_rejects_target_coordinate_namespace_and_result_drif
                     .set_expression_handle_at_offset(call.arguments, 0, arguments[1]);
             }
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("Main::main")
+                )
+                .is_err(),
                 "initializer at statement {index}: mutation={mutation}"
             );
         }
@@ -515,7 +539,13 @@ fn later_initializer_custody_rejects_target_coordinate_namespace_and_result_drif
             .roots
             .get_mut(handle)
             .statement_ordinal = 1;
-        assert!(checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err());
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err()
+        );
         let mut changed = checked.clone();
         changed
             .facts
@@ -524,7 +554,13 @@ fn later_initializer_custody_rejects_target_coordinate_namespace_and_result_drif
             .nodes
             .get_mut(root.root)
             .authored_root = locals[0].1.initial_value;
-        assert!(checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err());
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err()
+        );
     }
     let bindings = &checked.facts.values.scalar_expressions;
     let later_namespaces = bindings
@@ -552,7 +588,11 @@ fn later_initializer_custody_rejects_target_coordinate_namespace_and_result_drif
         let last = symbols.len() - 1;
         symbols.swap(0, last);
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "later initializer/consumer cannot reorder its parameter and prior-result namespace"
         );
     }

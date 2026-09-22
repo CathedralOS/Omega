@@ -2,6 +2,7 @@ use super::{INTERLEAVED_SOURCE, PARAMETER_SOURCE, PROJECTED_FIELD_SOURCE};
 use crate::value_dispatch::{
     TerminalExecutionResult, TerminalScalarValue, check_source, execute, unsigned,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::TerminalStructuralInputs;
 
 #[test]
@@ -121,7 +122,11 @@ fn interleaved_fresh_arm_discards_only_the_displaced_candidate() {
 #[test]
 fn interleaved_selection_rejects_reordered_or_incomplete_return_cleanup() {
     let checked = check_source(INTERLEAVED_SOURCE).unwrap();
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("choose"),
+    )
+    .unwrap();
     for mutation in 0..3 {
         let mut changed = lowered.semantic_module.clone();
         let machine = changed
@@ -165,7 +170,11 @@ fn interleaved_selection_rejects_reordered_or_incomplete_return_cleanup() {
 #[test]
 fn interleaved_selection_rejects_swapped_join_arguments() {
     let checked = check_source(INTERLEAVED_SOURCE).unwrap();
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("choose"),
+    )
+    .unwrap();
     let mut changed = lowered.semantic_module.clone();
     let machine = changed
         .machines
@@ -297,7 +306,11 @@ fn owned_match_projected_children_execute_and_close_root_residuals() {
 #[test]
 fn owned_match_projected_children_reject_mutated_edge_evidence() {
     let checked = check_source(PROJECTED_FIELD_SOURCE).unwrap();
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("choose"),
+    )
+    .unwrap();
     for mutation in 0..3 {
         let mut changed = lowered.semantic_module.clone();
         for block in changed
@@ -348,8 +361,11 @@ fn owned_match_projected_children_reject_mutated_edge_evidence() {
 #[test]
 fn owned_match_parameter_source_returns_the_exact_selected_identity() {
     let checked = check_source(PARAMETER_SOURCE).expect("parameter selection checks");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "pick")
-        .expect("parameter selection lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("pick"),
+    )
+    .expect("parameter selection lowers");
     let semantic_bytes =
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode semantics");
     let proof_bytes =
@@ -413,8 +429,11 @@ fn owned_match_parameter_source_returns_the_exact_selected_identity() {
 #[test]
 fn owned_match_parameter_sources_reject_mutated_residual_cleanup() {
     let checked = check_source(PARAMETER_SOURCE).expect("parameter selection checks");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
-        .expect("parameter selection lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("choose"),
+    )
+    .expect("parameter selection lowers");
     let semantic_bytes =
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode semantics");
     let proof_bytes =
@@ -526,10 +545,13 @@ fn owned_match_parameter_sources_reject_mutated_residual_cleanup() {
 #[test]
 fn projected_parameter_roots_move_the_selected_child_with_exact_identity() {
     let checked = check_source(PARAMETER_SOURCE).expect("parameter selection checks");
-    checked_trees_to_lowered_psi::lower_machine(&checked, "peek")
+    checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name("peek"))
         .expect("same-root projected parameter selection lowers");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "select_field")
-        .expect("projected parameter selection lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("select_field"),
+    )
+    .expect("projected parameter selection lowers");
     let semantic_bytes =
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode semantics");
     let proof_bytes =
@@ -647,8 +669,11 @@ fn projected_parameter_roots_move_the_selected_child_with_exact_identity() {
 #[test]
 fn projected_parameter_roots_reject_mutated_residual_cleanup() {
     let checked = check_source(PARAMETER_SOURCE).expect("parameter selection checks");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "select_field")
-        .expect("projected parameter selection lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("select_field"),
+    )
+    .expect("projected parameter selection lowers");
     for mutation in 0..2 {
         let mut changed = lowered.semantic_module.clone();
         let machine = changed
@@ -728,8 +753,11 @@ fn heterogeneous_residual_sources_reject_the_custody_join() {
     for source in [local, parameter] {
         let checked =
             check_source(source).unwrap_or_else(|errors| panic!("checking {source}: {errors:#?}"));
-        let error = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
-            .expect_err("heterogeneous residual custody stays rejected");
+        let error = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("choose"),
+        )
+        .expect_err("heterogeneous residual custody stays rejected");
         assert!(
             matches!(
                 error,

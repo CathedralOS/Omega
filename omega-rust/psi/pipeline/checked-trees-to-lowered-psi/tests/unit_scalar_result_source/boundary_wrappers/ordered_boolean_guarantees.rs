@@ -3,6 +3,7 @@ use super::{
     normal_guarantee_source,
 };
 use crate::unit_scalar_result_source::{CheckedScalarExpression, checked_from_source};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle};
 use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue};
@@ -193,7 +194,11 @@ fn literal_comparison_guarantees_reject_changed_source_meaning() {
         // Changed value/kind can still denote true, but semantic agreement is
         // not custody of the authored operator and its exact literal operands.
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "mutation {mutation}"
         );
     }
@@ -885,7 +890,11 @@ fn computed_boolean_guarantees_reject_changed_return_and_selected_evidence() {
             _ => unreachable!(),
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "mutation {mutation}"
         );
     }

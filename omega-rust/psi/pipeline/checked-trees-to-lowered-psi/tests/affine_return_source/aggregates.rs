@@ -2,6 +2,7 @@ use super::{assert_identity_execution, checked};
 use checked_trees::{
     CheckedUnitStructuralFieldType, CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use checked_trees_to_lowered_psi::lower_machine;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
@@ -142,7 +143,8 @@ fn assert_aggregate(source: &str, expected: &ExpectedShape<'_>) {
             .as_str(),
         "the result identity rejoins the authored concrete return type"
     );
-    let lowered = lower_machine(&checked, "forward").expect("aggregate identity lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("forward"))
+        .expect("aggregate identity lowers");
     let module = decode_module(&encode_module(&lowered.semantic_module).unwrap()).unwrap();
     assert_eq!(module, lowered.semantic_module);
     let result = module.machines[0].result.structural().unwrap();
@@ -335,7 +337,10 @@ fn assert_no_affine_plan(source: &str) {
             .is_empty(),
         "unsupported aggregate must retain its source obligations: {source}"
     );
-    assert!(lower_machine(&checked, "forward").is_err(), "{source}");
+    assert!(
+        lower_machine(&checked, TerminalMachineSelection::Name("forward")).is_err(),
+        "{source}"
+    );
 }
 
 #[test]
@@ -395,7 +400,8 @@ fn nested_field_qualifications_have_no_affine_plan() {
             .claim_free_affine_machines
             .is_empty()
     );
-    lower_machine(&ranged, "forward").expect("ranged field identity return lowers");
+    lower_machine(&ranged, TerminalMachineSelection::Name("forward"))
+        .expect("ranged field identity return lowers");
 }
 
 #[test]
@@ -407,7 +413,11 @@ fn corrupted_array_declarations_result_type_and_returned_claims_reject() {
         DuplicatedReturnedClaim,
         BorrowedElementField,
     }
-    let lowered = lower_machine(&checked(RECORD_ARRAY), "forward").expect("array identity lowers");
+    let lowered = lower_machine(
+        &checked(RECORD_ARRAY),
+        TerminalMachineSelection::Name("forward"),
+    )
+    .expect("array identity lowers");
     terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,

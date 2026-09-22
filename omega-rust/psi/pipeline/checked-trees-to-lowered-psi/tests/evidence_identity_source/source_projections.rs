@@ -2,6 +2,7 @@ use super::{
     ARGUMENTED_PROOF_OUTPUT_SOURCE, DUPLICATE_ARGUMENTED_PROOF_OUTPUT_SOURCE, FORWARDED_SOURCE,
     PRODUCED_SOURCE, PROJECTED_SOURCE, PROOF_OUTPUT_SOURCE, check,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{
     decode_module, decode_proof_bundle, encode_module, encode_proof_section,
@@ -18,8 +19,11 @@ use terminal_psi::{EvidenceContractLaneKind, EvidenceTermDeclaration};
 #[test]
 fn source_projection_uses_canonical_term_and_exact_requirement_identity() {
     let checked = check(PROJECTED_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::project")
-        .expect("carrierless projection should cross terminal Psi");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::project"),
+    )
+    .expect("carrierless projection should cross terminal Psi");
     let projections = lowered
         .semantic_module
         .proposition_applications
@@ -80,8 +84,11 @@ fn source_projection_uses_canonical_term_and_exact_requirement_identity() {
 #[test]
 fn forwarded_projection_uses_the_shared_terminal_term_identity() {
     let checked = check(PROJECTED_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::forward")
-        .expect("forwarded carrierless projection should cross terminal Psi");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::forward"),
+    )
+    .expect("forwarded carrierless projection should cross terminal Psi");
     let projection = lowered
         .semantic_module
         .proposition_applications
@@ -121,8 +128,11 @@ fn source_forwarding_preserves_exact_positional_terminal_evidence_identities() {
         .as_str()
         .to_owned();
 
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::forward")
-        .expect("forwarded witness identity should cross terminal Psi");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::forward"),
+    )
+    .expect("forwarded witness identity should cross terminal Psi");
     assert_eq!(lowered.semantic_module.evidence_terms.len(), 2);
     let term = &lowered.semantic_module.evidence_terms[0];
     assert_eq!(term.interface.trait_identity, "Evidence");
@@ -408,8 +418,11 @@ fn source_forwarding_preserves_exact_positional_terminal_evidence_identities() {
 #[test]
 fn source_producer_provenance_is_separate_canonical_verified_proof_data() {
     let checked = check(PRODUCED_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::produce")
-        .expect("selected producer provenance should cross terminal Psi");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::produce"),
+    )
+    .expect("selected producer provenance should cross terminal Psi");
     assert_eq!(lowered.semantic_module.evidence_terms.len(), 1);
     assert_eq!(lowered.semantic_module.evidence_contract_lanes.len(), 1);
     assert_eq!(
@@ -617,8 +630,11 @@ fn source_producer_provenance_is_separate_canonical_verified_proof_data() {
 #[test]
 fn argumented_proof_output_retains_substitution_and_erased_input_identity() {
     let checked = check(ARGUMENTED_PROOF_OUTPUT_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::relay")
-        .expect("argumented proof-output call should cross terminal Psi");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::relay"),
+    )
+    .expect("argumented proof-output call should cross terminal Psi");
     let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
         panic!("one terminal proof-output invocation expected")
     };
@@ -743,12 +759,21 @@ fn generic_proof_output_target_identity_binds_the_closed_conformance_application
     );
     let first_commitment = commitment_hex(first_specialization.commitment);
     let second_commitment = commitment_hex(second_specialization.commitment);
-    let first_lowered = checked_trees_to_lowered_psi::lower_machine(&first, "Root::relay")
-        .expect("first closed generic proof output should lower");
-    let first_replay = checked_trees_to_lowered_psi::lower_machine(&first, "Root::relay")
-        .expect("the same exact specialization should lower deterministically");
-    let second_lowered = checked_trees_to_lowered_psi::lower_machine(&second, "Root::relay")
-        .expect("second closed generic proof output should lower");
+    let first_lowered = checked_trees_to_lowered_psi::lower_machine(
+        &first,
+        TerminalMachineSelection::Name("Root::relay"),
+    )
+    .expect("first closed generic proof output should lower");
+    let first_replay = checked_trees_to_lowered_psi::lower_machine(
+        &first,
+        TerminalMachineSelection::Name("Root::relay"),
+    )
+    .expect("the same exact specialization should lower deterministically");
+    let second_lowered = checked_trees_to_lowered_psi::lower_machine(
+        &second,
+        TerminalMachineSelection::Name("Root::relay"),
+    )
+    .expect("second closed generic proof output should lower");
     let [first_call] = first_lowered.semantic_module.proof_output_calls.as_slice() else {
         panic!("one first proof-output call expected")
     };
@@ -807,7 +832,10 @@ fn generic_proof_output_target_identity_binds_the_closed_conformance_application
     specialization.type_argument_identities[0].push_str("|substituted");
     assert_eq!(specialization.report_fingerprint, retained_report);
     assert_eq!(
-        checked_trees_to_lowered_psi::lower_machine(&changed_exact_specialization, "Root::relay",),
+        checked_trees_to_lowered_psi::lower_machine(
+            &changed_exact_specialization,
+            TerminalMachineSelection::Name("Root::relay"),
+        ),
         Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
             "evidence machine specialization commitment does not replay",
         )),
@@ -827,7 +855,10 @@ fn generic_proof_output_target_identity_binds_the_closed_conformance_application
     specialization.commitment = selected_specialization(&second).commitment;
     assert_eq!(specialization.report_fingerprint, retained_report);
     assert_eq!(
-        checked_trees_to_lowered_psi::lower_machine(&substituted_commitment, "Root::relay"),
+        checked_trees_to_lowered_psi::lower_machine(
+            &substituted_commitment,
+            TerminalMachineSelection::Name("Root::relay")
+        ),
         Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
             "evidence machine specialization commitment does not replay",
         )),
@@ -838,8 +869,11 @@ fn generic_proof_output_target_identity_binds_the_closed_conformance_application
 #[test]
 fn forwarded_proof_output_retains_the_exact_duplicate_input_lane() {
     let checked = check(DUPLICATE_ARGUMENTED_PROOF_OUTPUT_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::relay")
-        .expect("duplicate proof inputs should retain exact lane identity");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::relay"),
+    )
+    .expect("duplicate proof inputs should retain exact lane identity");
     let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
         panic!("one terminal proof-output invocation expected")
     };
@@ -859,8 +893,11 @@ fn forwarded_proof_output_retains_the_exact_duplicate_input_lane() {
 #[test]
 fn proof_output_is_canonical_verified_and_runtime_erased() {
     let checked = check(PROOF_OUTPUT_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::relay")
-        .expect("proof-output call should cross terminal Psi");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::relay"),
+    )
+    .expect("proof-output call should cross terminal Psi");
     let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
         panic!("one terminal proof-output invocation expected")
     };

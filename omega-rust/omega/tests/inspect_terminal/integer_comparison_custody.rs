@@ -1,6 +1,7 @@
 //! Integer-comparison custody through the inspection route.
 
 use super::{inspect, lower_source, remove_fixture, temporary_source};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;
 
 /// `inspect-terminal` runs the same integer-comparison custody join the
@@ -69,8 +70,11 @@ fn integer_comparison_custody_rejects_a_negated_recorded_triple() {
 
     let checked = compiler::compile_to_checked(CheckedCompileRequest::new(&source, None))
         .expect("check integer-comparison fixture");
-    let mut lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "may_crash")
-        .expect("lower the compared machine");
+    let mut lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("may_crash"),
+    )
+    .expect("lower the compared machine");
     remove_fixture(source);
 
     let [occurrence] = lowered.selected_integer_comparison_occurrences.as_slice() else {

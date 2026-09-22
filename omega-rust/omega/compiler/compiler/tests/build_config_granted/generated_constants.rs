@@ -3,6 +3,7 @@ use super::{
     FilesystemSponsor, Project, compile_to_checked, package_inputs,
     set_canonical_source_tree_permissions,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;
 
 #[test]
@@ -43,8 +44,11 @@ fn generated_bodies_use_retained_module_constants_after_build_execution() {
     .expect("generated bodies reuse the exact admitted base constants");
     checked.verify_current_source_consumption().unwrap();
     let artifacts = ["generated", "generated_row"].map(|name| {
-        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, name)
-            .expect("generated constant use lowers without a runtime constant owner");
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name(name),
+        )
+        .expect("generated constant use lowers without a runtime constant owner");
         (
             terminal_codec::encode_module(&lowered.semantic_module).unwrap(),
             terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)

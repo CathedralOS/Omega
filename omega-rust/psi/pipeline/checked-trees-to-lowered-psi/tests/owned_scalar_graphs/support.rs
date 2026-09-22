@@ -1,4 +1,5 @@
 use checked_trees::CheckedTrees;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
 use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
@@ -40,8 +41,11 @@ pub fn check(source: &str) -> CheckedTrees {
 
 pub fn publish(source: &str, entry: &str) -> (CheckedTrees, TerminalModule, Vec<u8>, Vec<u8>) {
     let checked = check(source);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
-        .unwrap_or_else(|error| panic!("lower owned scalar graph {entry}: {error:?}\n{source}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name(entry),
+    )
+    .unwrap_or_else(|error| panic!("lower owned scalar graph {entry}: {error:?}\n{source}"));
     let debug = lowered
         .debug_map
         .expect("source-backed graph has a debug map");

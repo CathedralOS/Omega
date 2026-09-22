@@ -1,7 +1,6 @@
-use checked_trees::{CheckedTerminalMachineSelection, CheckedTrees};
+use checked_trees::CheckedTrees;
 use checked_trees_to_lowered_psi::{
-    LoweringError, lower_machine, lower_machine_by_symbol, select_terminal_machine,
-    select_terminal_machine_by_symbol,
+    LoweringError, TerminalMachineSelection, lower_machine, select_terminal_machine,
 };
 use lowered_psi::{
     LoweredPsi, LoweredSelectedIeeeFloatComparisonOccurrence,
@@ -355,18 +354,6 @@ impl ProducedProgramEntryTerminalArtifact {
     }
 }
 
-/// How Terminal production rejoins the selected checked machine.
-///
-/// `Name` remains the legacy display-name lookup for ad hoc producers.
-/// `Symbol` rejoins an already-resolved exact checked machine, which is the
-/// only selection able to carry a lexically bound build product operand past
-/// a same-named declaration in another package.
-#[derive(Debug, Clone, Copy)]
-pub enum TerminalMachineSelection<'a> {
-    Name(&'a str),
-    Symbol(symbols::SymbolHandle),
-}
-
 /// Exact borrowed source inputs and target-neutral selection for Terminal production.
 /// Output methods retain their distinct evidence and recovery contracts.
 pub struct TerminalProductionRequest<'a> {
@@ -391,17 +378,6 @@ impl<'a> TerminalProductionRequest<'a> {
             checked,
             machine: TerminalMachineSelection::Symbol(machine),
             optimization_selections: optimization::PsiOptimizationSelections::default(),
-        }
-    }
-
-    fn selected_terminal_machine(
-        &self,
-    ) -> Result<&'a CheckedTerminalMachineSelection, LoweringError> {
-        match self.machine {
-            TerminalMachineSelection::Name(name) => select_terminal_machine(self.checked, name),
-            TerminalMachineSelection::Symbol(machine) => {
-                select_terminal_machine_by_symbol(self.checked, machine)
-            }
         }
     }
 
@@ -611,7 +587,7 @@ impl<'a> TerminalProductionRequest<'a> {
     > {
         let selection = timings
             .record_result(TerminalProductionStage::MachineSelection, || {
-                self.selected_terminal_machine()
+                select_terminal_machine(self.checked, self.machine)
             })
             .map_err(TerminalArtifactProductionError::Lowering)?;
         let source_machine_name = selection.name.clone();
@@ -695,11 +671,8 @@ impl<'a> TerminalProductionRequest<'a> {
             })
             .map_err(TerminalArtifactProductionError::Lowering)?;
         let lowered = timings
-            .record_result(TerminalProductionStage::Lowering, || match self.machine {
-                TerminalMachineSelection::Name(name) => lower_machine(self.checked, name),
-                TerminalMachineSelection::Symbol(machine) => {
-                    lower_machine_by_symbol(self.checked, machine)
-                }
+            .record_result(TerminalProductionStage::Lowering, || {
+                lower_machine(self.checked, self.machine)
             })
             .map_err(TerminalArtifactProductionError::Lowering)?;
         timings

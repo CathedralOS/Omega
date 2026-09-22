@@ -1,6 +1,7 @@
 //! Claim-bearing composed Unit control and independent corruption replay.
 
 use super::{CheckedTrees, LoweringError, checked_source, lower_machine};
+use crate::TerminalMachineSelection;
 use checked_trees::CheckedUnitEffectOperationPlan;
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{
@@ -51,7 +52,7 @@ fn linear_settlement_composes_after_a_state_handoff() {
             }
         "#,
     );
-    let lowered = lower_machine(&checked, "enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("enter"))
         .expect("linear settlement must not depend on the number of preceding states");
     terminal_verifier::verify_module(
         &lowered.semantic_module,
@@ -69,7 +70,7 @@ fn linear_settlement_composes_after_a_state_handoff() {
 #[test]
 fn lowers_one_whole_root_linear_claim_through_both_boundary_leaves() {
     let checked = checked_composed_claim();
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("the exclusive branches should lower one shared linear claim");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("linear composed route emits one machine")
@@ -159,7 +160,7 @@ fn claim_bearing_composed_unit_rejects_plan_and_fact_corruption() {
     let rejects = |checked: &CheckedTrees, corruption: &str| {
         assert!(
             matches!(
-                lower_machine(checked, "Root::enter"),
+                lower_machine(checked, TerminalMachineSelection::Name("Root::enter")),
                 Err(LoweringError::Unsupported(_))
             ),
             "{corruption}"

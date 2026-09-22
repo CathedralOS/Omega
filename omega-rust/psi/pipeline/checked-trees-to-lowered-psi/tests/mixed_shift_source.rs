@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::{AdmissionProfile, EvidenceRoute};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use source_files_to_tokens::Lexer;
@@ -58,8 +59,11 @@ fn exact_arithmetic_after_bitwise_computation_uses_one_verified_cleanup_join() {
         1,
         "the source-distributed fallback must not hide the missing shared composition",
     );
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::composed")
-        .expect("computed bitwise operand composes with exact addition");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::composed"),
+    )
+    .expect("computed bitwise operand composes with exact addition");
     let entry = lowered
         .semantic_module
         .machines
@@ -137,8 +141,11 @@ fn exact_arithmetic_after_bitwise_computation_uses_one_verified_cleanup_join() {
 #[test]
 fn erased_arithmetic_prefix_still_requires_its_own_certificate() {
     let checked = check_composition_source("(value + 1u8) * 0u8", "requires value <= 254u8");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::composed")
-        .expect("bounded prefix and erased suffix each have a proof");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::composed"),
+    )
+    .expect("bounded prefix and erased suffix each have a proof");
     terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
@@ -187,7 +194,10 @@ fn erased_arithmetic_prefix_without_a_bound_is_rejected() {
     if let Ok(checked) = lower_typed_trees(typed, &CheckingRequest::settled()) {
         assert!(
             matches!(
-                checked_trees_to_lowered_psi::lower_machine(&checked, "Root::composed"),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &checked,
+                    TerminalMachineSelection::Name("Root::composed")
+                ),
                 Err(checked_trees_to_lowered_psi::LoweringError::OperationProofUnavailable(_)),
             ),
             "an admitted source shape still needs the unbounded prefix's operation proof",
@@ -607,7 +617,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve mixed shifts");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type mixed shifts");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check mixed shifts");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name("Root::measure"))
         .expect("mixed shifts lower to Terminal Psi");
     let entry = lowered
         .semantic_module

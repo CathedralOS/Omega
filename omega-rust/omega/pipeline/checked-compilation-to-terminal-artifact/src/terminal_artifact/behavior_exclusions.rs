@@ -24,6 +24,7 @@ use build_evaluation::{
     AuthoredBehaviorExclusion, BehaviorExclusionReport, BehaviorExclusionVerdict, EvidenceGapKind,
     ProhibitedSite, authored_behavior_exclusion_set_in, establish_behavior_exclusions_with_owners,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::MachineId;
 use std::collections::BTreeMap;
@@ -225,9 +226,9 @@ pub(crate) fn verify_entry_behavior_exclusions(
     if checked.behavior_exclusions().is_empty() {
         return Ok(());
     }
-    let lowered = checked_trees_to_lowered_psi::lower_machine_by_symbol(
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
         checked,
-        entry_machine_symbol,
+        TerminalMachineSelection::Symbol(entry_machine_symbol),
     )
     .map_err(|error| {
         vec![Diagnostic::error(format!(

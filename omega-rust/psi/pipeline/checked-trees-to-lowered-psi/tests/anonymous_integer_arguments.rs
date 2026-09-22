@@ -1,5 +1,6 @@
 //! Scalar call destinations land complete anonymous values before serialization.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source_files_to_tokens::Lexer;
@@ -24,8 +25,11 @@ fn encoded(source: &str) -> (Vec<u8>, Vec<u8>) {
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "value")
-        .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("value"),
+    )
+    .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
     (
         encode_module(&lowered.semantic_module).expect("canonical semantic bytes"),
         encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)

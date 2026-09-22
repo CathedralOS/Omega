@@ -3,6 +3,7 @@ use super::{
     encode_module, encode_proof_section, interpret_terminal_artifact_measured,
     lower_symbol_resolved_trees, parse_syntax_trees, resolve,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::IntegerValue;
 use terminal_interpreter::TerminalScalarValue;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
@@ -50,21 +51,30 @@ fn an_initial_nonzero_argument_is_not_an_invariant_after_rebinding_to_zero() {
         data Root {}
         machine Root::enter() reaches Output { relay(1u64); }
     "#;
-    checked_trees_to_lowered_psi::lower_machine(&checked(source), "Root::enter")
-        .expect("the acyclic first arrival preserves its selected nonzero fact");
+    checked_trees_to_lowered_psi::lower_machine(
+        &checked(source),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("the acyclic first arrival preserves its selected nonzero fact");
     let cyclic = source.replace(
         "transition { _ -> done() }",
         "transition { _ -> divide(0u64) }",
     );
     assert!(matches!(
-        checked_trees_to_lowered_psi::lower_machine(&checked(&cyclic), "Root::enter"),
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked(&cyclic),
+            TerminalMachineSelection::Name("Root::enter")
+        ),
         Err(checked_trees_to_lowered_psi::LoweringError::OperationProofUnavailable(_))
     ));
 }
 
 fn effects(checked: &checked_trees::CheckedTrees) -> Vec<(Vec<u8>, i128)> {
-    let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Root::enter")
-        .expect("state-local values and selected successor operands lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("state-local values and selected successor operands lower");
     let execution = interpret_terminal_artifact_measured(
         &encode_module(&lowered.semantic_module).unwrap(),
         &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
@@ -236,8 +246,11 @@ fn scalar_prefix_cannot_drop_reorder_or_retarget_authored_writes() {
             }
             _ => unreachable!(),
         }
-        let error = checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter")
-            .expect_err("authored scalar writes must survive lowering");
+        let error = checked_trees_to_lowered_psi::lower_machine(
+            &changed,
+            TerminalMachineSelection::Name("Root::enter"),
+        )
+        .expect_err("authored scalar writes must survive lowering");
         assert!(
             matches!(
                 error,
@@ -298,8 +311,11 @@ fn expression_successors_rejoin_the_exact_selected_source_operand() {
         .source_bindings
         .get_mut(source_handle)
         .expression = unrelated;
-    let error = checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter")
-        .expect_err("successor source identity must be checked");
+    let error = checked_trees_to_lowered_psi::lower_machine(
+        &changed,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect_err("successor source identity must be checked");
     assert!(
         format!("{error:?}").contains("authored expression or destination"),
         "{error:?}"

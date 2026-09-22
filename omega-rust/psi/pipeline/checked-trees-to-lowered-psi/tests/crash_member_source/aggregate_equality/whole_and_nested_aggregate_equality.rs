@@ -2,6 +2,7 @@ use crate::crash_member_source::{
     MIXED_AGGREGATE_EQUALITY_SOURCE, NESTED_MIXED_AGGREGATE_EQUALITY_SOURCE,
     NESTED_PAYLOAD_SUM_EQUALITY_SOURCE, WHOLE_AGGREGATE_EQUALITY_SOURCE,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, Proposition, ScalarTerm, StructuralFieldId,
@@ -85,8 +86,11 @@ fn whole_aggregate_equality_expands_and_reconstructs_end_to_end() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("whole aggregate equality lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("whole aggregate equality lowers");
 
     let root = &lowered.semantic_module.machines[0];
     let helper = &lowered.semantic_module.machines[1];
@@ -322,8 +326,11 @@ fn nested_payload_sum_equality_retains_exact_record_case_payload_paths_end_to_en
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Whole::enter")
-        .expect("whole Envelope equality lowers through its sum field");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Whole::enter"),
+    )
+    .expect("whole Envelope equality lowers through its sum field");
 
     let root = &lowered.semantic_module.machines[0];
     let envelope = lowered
@@ -534,10 +541,16 @@ fn mixed_aggregate_equality_retains_common_fields_cases_and_call_rebasing_end_to
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let equal = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("mixed equality lowers through the direct call");
-    let different = checked_trees_to_lowered_psi::lower_machine(&checked, "Different::enter")
-        .expect("mixed inequality lowers through the direct call");
+    let equal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("mixed equality lowers through the direct call");
+    let different = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Different::enter"),
+    )
+    .expect("mixed inequality lowers through the direct call");
 
     for (lowered, is_different) in [(&equal, false), (&different, true)] {
         let machine = &lowered.semantic_module.machines[0];
@@ -858,10 +871,16 @@ fn nested_mixed_aggregate_equality_prefixes_every_path_and_rebases_whole_root_ca
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let equal = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("nested mixed equality lowers through the whole-root call");
-    let different = checked_trees_to_lowered_psi::lower_machine(&checked, "Different::enter")
-        .expect("nested mixed inequality lowers through the whole-root call");
+    let equal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("nested mixed equality lowers through the whole-root call");
+    let different = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Different::enter"),
+    )
+    .expect("nested mixed inequality lowers through the whole-root call");
 
     for (lowered, is_different) in [(&equal, false), (&different, true)] {
         let machine = &lowered.semantic_module.machines[0];

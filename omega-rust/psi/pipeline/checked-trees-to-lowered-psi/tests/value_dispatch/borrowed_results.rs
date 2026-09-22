@@ -8,6 +8,7 @@
 //! and projected path, keeps the referent pinned for the block that observes
 //! it, and the interpreter binds the same view without copying the payload.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use std::collections::BTreeMap;
 
 use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
@@ -256,7 +257,10 @@ fn planned_borrow_arms(source: &str) -> (Vec<(String, String)>, Option<String>) 
         })
         .collect();
     arms.sort();
-    let lowering = match checked_trees_to_lowered_psi::lower_machine(&checked, "choose") {
+    let lowering = match checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("choose"),
+    ) {
         Ok(_) => None,
         Err(error) => Some(format!("{error:?}")),
     };
@@ -269,8 +273,11 @@ fn planned_borrow_arms(source: &str) -> (Vec<(String, String)>, Option<String>) 
 fn verify_lowered(source: &str) -> TerminalModule {
     let checked =
         check_source(source).unwrap_or_else(|errors| panic!("checking {source}: {errors:#?}"));
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
-        .unwrap_or_else(|error| panic!("lowering {source}: {error:#?}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("choose"),
+    )
+    .unwrap_or_else(|error| panic!("lowering {source}: {error:#?}"));
     let semantic_bytes =
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode semantics");
     let proof_bytes =
@@ -1319,8 +1326,11 @@ fn borrowed_selection_indexed_replay_rejects_mutated_provenance() {
                 _ => source.access = checked_trees::CheckedStructuralAccess::Owned,
             }
         }
-        let error = checked_trees_to_lowered_psi::lower_machine(&changed, "choose")
-            .expect_err("mutated indexed provenance must reject before the verifier boundary");
+        let error = checked_trees_to_lowered_psi::lower_machine(
+            &changed,
+            TerminalMachineSelection::Name("choose"),
+        )
+        .expect_err("mutated indexed provenance must reject before the verifier boundary");
         assert!(
             matches!(
                 error,
@@ -1404,8 +1414,11 @@ fn borrowed_selection_replay_rejects_mutated_arm_provenance() {
                 _ => source.access = checked_trees::CheckedStructuralAccess::Owned,
             }
         }
-        let error = checked_trees_to_lowered_psi::lower_machine(&changed, "choose")
-            .expect_err("mutated borrowed provenance must reject before the verifier boundary");
+        let error = checked_trees_to_lowered_psi::lower_machine(
+            &changed,
+            TerminalMachineSelection::Name("choose"),
+        )
+        .expect_err("mutated borrowed provenance must reject before the verifier boundary");
         assert!(
             matches!(
                 error,

@@ -1,5 +1,6 @@
 use super::associate;
 use assembled_syntax_to_checked_compilation::{CheckedCompileRequest, compile_to_checked};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::IeeeFloatComparisonOperation;
 
 #[test]
@@ -8,8 +9,11 @@ fn comparison_association_rejects_incomplete_or_substituted_occurrences() {
         .join("../../../../tests/omega/pass/expressions/match_float_patterns/main.omg");
     let checked = compile_to_checked(CheckedCompileRequest::new(&root, Some("linux_x86_64")))
         .unwrap_or_else(|errors| panic!("{errors:#?}"));
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
-        .expect("selected Match comparison reaches Terminal");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("choose"),
+    )
+    .expect("selected Match comparison reaches Terminal");
     let occurrences = &lowered.selected_ieee_float_comparison_occurrences;
     assert_eq!(occurrences.len(), 2);
     let check = |rows: &[lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence]| {

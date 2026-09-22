@@ -1,4 +1,6 @@
 //! Source-authored natural slice ranking reaches the ordinary native pipeline.
+use super::native_function;
+use super::{AdmissionProfile, NativeTarget, OperationKind, calls};
 #[cfg(any(
     all(
         target_os = "linux",
@@ -6,8 +8,7 @@
     ),
     all(target_os = "macos", target_arch = "aarch64")
 ))]
-use super::native_function;
-use super::{AdmissionProfile, NativeTarget, OperationKind, calls};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 #[path = "natural_writer/optimization.rs"]
 mod optimization;
 use abstract_operations_to_target_operations::{
@@ -66,8 +67,11 @@ fn writer() -> lowered_psi::LoweredPsi {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("authored natural writer and caller produce their actual Terminal proof");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("authored natural writer and caller produce their actual Terminal proof");
     let verified = terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,

@@ -5,6 +5,7 @@ use super::{
     TerminalScalarValue, checked_source, interpret_terminal_artifact, reject,
 };
 use checked_trees::CheckedArrayConstructionSource;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 fn byte(value: u8) -> TerminalScalarValue {
     TerminalScalarValue::Integer {
@@ -15,8 +16,11 @@ fn byte(value: u8) -> TerminalScalarValue {
 
 fn execute(source: &str, arguments: &[TerminalScalarValue]) -> TerminalExecutionResult {
     let checked = checked_source(source);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "selected")
-        .unwrap_or_else(|error| panic!("literal argument source must lower: {error:?}\n{source}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .unwrap_or_else(|error| panic!("literal argument source must lower: {error:?}\n{source}"));
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
     assert_eq!(
         terminal_codec::decode_module(&semantic).unwrap(),
@@ -91,9 +95,12 @@ fn literal_array_scalar_graph_rejects_result_drift_without_closure_fallback() {
         "machine answer(row: [u8; 2], value: u8) -> u8 { value }
          machine selected() -> u8 { answer([7, 9], 42u8) }",
     );
-    let selected = checked_trees_to_lowered_psi::select_terminal_machine(&original, "selected")
-        .unwrap()
-        .machine;
+    let selected = checked_trees_to_lowered_psi::select_terminal_machine(
+        &original,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .unwrap()
+    .machine;
     assert!(
         original
             .facts
@@ -103,7 +110,11 @@ fn literal_array_scalar_graph_rejects_result_drift_without_closure_fallback() {
             .is_some(),
         "the overlapping operation-body plan must not rescue an invalid graph"
     );
-    checked_trees_to_lowered_psi::lower_machine(&original, "selected").unwrap();
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .unwrap();
     for mutation in ["type", "binding", "statement"] {
         let mut changed = original.clone();
         let state = &mut changed
@@ -137,9 +148,12 @@ fn literal_array_scalar_completion_rejects_forged_result_metadata() {
         "machine answer(row: [u8; 2], value: u8) -> u8 { value }
          machine selected() -> u8 { let row: [u8; 2] = [7, 9]; answer(row, 42u8) }",
     );
-    let selected = checked_trees_to_lowered_psi::select_terminal_machine(&original, "selected")
-        .unwrap()
-        .machine;
+    let selected = checked_trees_to_lowered_psi::select_terminal_machine(
+        &original,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .unwrap()
+    .machine;
     assert!(
         original
             .facts
@@ -149,8 +163,11 @@ fn literal_array_scalar_completion_rejects_forged_result_metadata() {
             .is_none(),
         "the operation-body result is selected, not a redundant graph plan"
     );
-    checked_trees_to_lowered_psi::lower_machine(&original, "selected")
-        .expect("scalar completion lowers before metadata corruption");
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .expect("scalar completion lowers before metadata corruption");
     for mutation in [
         "type",
         "binding",
@@ -420,8 +437,11 @@ fn computed_scalar_local_rejects_substituted_handle_and_source_root() {
              keep([first, second])
          }",
     );
-    checked_trees_to_lowered_psi::lower_machine(&original, "selected")
-        .expect("computed locals lower before source corruption");
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .expect("computed locals lower before source corruption");
     let (plan_index, plan) = original
         .facts
         .flow
@@ -535,8 +555,11 @@ fn computed_scalar_local_rejects_substituted_handle_and_source_root() {
 fn literal_array_constructor_sources_reject_forged_call_formal_and_empty_owners() {
     for empty in [false, true] {
         let original = custody_fixture(empty);
-        checked_trees_to_lowered_psi::lower_machine(&original, "selected")
-            .expect("literal constructors lower before owner corruption");
+        checked_trees_to_lowered_psi::lower_machine(
+            &original,
+            TerminalMachineSelection::Name("selected"),
+        )
+        .expect("literal constructors lower before owner corruption");
         for mutation in [
             "statement source",
             "call ordinal",
@@ -643,8 +666,11 @@ fn literal_array_nested_producers_cannot_impersonate_the_returned_call_result() 
             "machine keep(row: {array_type}) -> {array_type} {{ row }}
              machine selected() -> {array_type} {{ keep(keep({literal})) }}"
         ));
-        checked_trees_to_lowered_psi::lower_machine(&original, "selected")
-            .expect("nested literal argument lowers before return corruption");
+        checked_trees_to_lowered_psi::lower_machine(
+            &original,
+            TerminalMachineSelection::Name("selected"),
+        )
+        .expect("nested literal argument lowers before return corruption");
         for constructor in [true, false] {
             let mut changed = original.clone();
             let plan = changed
@@ -703,8 +729,11 @@ fn literal_array_argument_payload_cannot_change_under_retained_element_facts() {
         "machine keep(row: [u8; 2]) -> [u8; 2] { row }
          machine selected() -> [u8; 2] { keep([7, 9]) }",
     );
-    checked_trees_to_lowered_psi::lower_machine(&original, "selected")
-        .expect("literal argument payload lowers before corruption");
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .expect("literal argument payload lowers before corruption");
     let expression = original
         .facts
         .flow
@@ -768,8 +797,11 @@ fn literal_array_argument_payload_cannot_change_under_retained_element_facts() {
 #[test]
 fn literal_array_leaf_roots_reject_reassigned_call_formal_and_element_custody() {
     let original = custody_fixture(false);
-    checked_trees_to_lowered_psi::lower_machine(&original, "selected")
-        .expect("literal leaf roots lower before corruption");
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .expect("literal leaf roots lower before corruption");
     let pure = original
         .facts
         .values

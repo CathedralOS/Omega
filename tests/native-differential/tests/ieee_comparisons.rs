@@ -1,4 +1,5 @@
 //! Validated function-text execution, not native artifact or provider publication.
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;
 use std::path::Path;
 
@@ -32,7 +33,9 @@ fn text(
     target: NativeTarget,
     expected_comparisons: usize,
 ) -> (Vec<u8>, usize) {
-    let lowered = checked_trees_to_lowered_psi::lower_machine(checked, entry).unwrap();
+    let lowered =
+        checked_trees_to_lowered_psi::lower_machine(checked, TerminalMachineSelection::Name(entry))
+            .unwrap();
     compiler::validate_lowered_ieee_float_comparison_custody(checked, &lowered)
         .expect("source comparison joins exact selected provider and operands");
     let produced = terminal_production::TerminalProductionRequest::new(checked, entry)

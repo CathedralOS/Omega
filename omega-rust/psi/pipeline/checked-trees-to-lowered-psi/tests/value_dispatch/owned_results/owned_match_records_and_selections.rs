@@ -2,6 +2,7 @@ use super::{MIXED_SOURCE, RECORD_SOURCE, SOURCE};
 use crate::value_dispatch::{
     TerminalExecutionResult, TerminalScalarValue, check_source, execute, unsigned,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 #[test]
 fn owned_match_nested_record_replays_every_selected_payload() {
@@ -63,7 +64,11 @@ fn owned_match_record_rejects_hidden_moves_and_post_selection_reuse() {
 #[test]
 fn owned_match_record_frontier_rejects_missing_and_duplicate_disposal() {
     let checked = check_source(RECORD_SOURCE).unwrap();
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("choose"),
+    )
+    .unwrap();
     let module = lowered.semantic_module;
     for missing_discard in [true, false] {
         let mut changed = module.clone();
@@ -108,7 +113,11 @@ fn owned_match_record_frontier_rejects_missing_and_duplicate_disposal() {
 #[test]
 fn owned_match_record_shared_projection_rejects_substituted_custody() {
     let checked = check_source(RECORD_SOURCE).unwrap();
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("choose"),
+    )
+    .unwrap();
     for mutation in 0..4 {
         let mut changed = lowered.semantic_module.clone();
         let machine = changed
@@ -339,8 +348,11 @@ fn possibly_transferred_source_remains_unobservable_after_mixed_selection() {
 fn owned_selection_receipts_reject_changed_origin_arm_roster_and_death() {
     for source in [SOURCE, RECORD_SOURCE] {
         let original = check_source(source).expect("owned selection checks");
-        checked_trees_to_lowered_psi::lower_machine(&original, "choose")
-            .expect("original selection reaches independent lowering");
+        checked_trees_to_lowered_psi::lower_machine(
+            &original,
+            TerminalMachineSelection::Name("choose"),
+        )
+        .expect("original selection reaches independent lowering");
         for mutation in 0..6 {
             let mut changed = original.clone();
             let ownership = &mut changed.facts.flow.ownership;
@@ -383,7 +395,11 @@ fn owned_selection_receipts_reject_changed_origin_arm_roster_and_death() {
                 _ => unreachable!(),
             }
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "choose").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("choose")
+                )
+                .is_err(),
                 "selection receipt mutation {mutation}"
             );
         }
@@ -413,8 +429,11 @@ fn duplicate_prior_receipts_cannot_launder_a_fresh_origin_as_unknown() {
             result in Choice::Some
         }";
     let original = super::check_source(source).expect("fresh origin followed by selection checks");
-    checked_trees_to_lowered_psi::lower_machine(&original, "choose")
-        .expect("unmodified source reaches independent lowering");
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("choose"),
+    )
+    .expect("unmodified source reaches independent lowering");
 
     let mut changed = original.clone();
     let (_, selection) = changed
@@ -471,8 +490,11 @@ fn duplicate_prior_receipts_cannot_launder_a_fresh_origin_as_unknown() {
     incoming.provenance = language_semantics::PermissionProvenance::Unknown;
     incoming.origin_selection = bogus_handle;
 
-    let error = checked_trees_to_lowered_psi::lower_machine(&changed, "choose")
-        .expect_err("duplicate prior receipts cannot fabricate origin authority");
+    let error = checked_trees_to_lowered_psi::lower_machine(
+        &changed,
+        TerminalMachineSelection::Name("choose"),
+    )
+    .expect_err("duplicate prior receipts cannot fabricate origin authority");
     assert!(
         format!("{error:?}").contains("selected ownership lost its prior selection origin"),
         "expected duplicate-receipt rejection, got {error:?}"
@@ -529,8 +551,11 @@ fn chained_owned_selection_transfers_the_prior_result_once() {
 #[test]
 fn chained_owned_selection_rejects_mutated_join_arguments() {
     let checked = check_source(CHAINED_SOURCE).expect("chained selection checks");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
-        .expect("chained selection lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("choose"),
+    )
+    .expect("chained selection lowers");
     for mutation in 0..2 {
         let mut changed = lowered.semantic_module.clone();
         let machine = changed
@@ -621,7 +646,11 @@ fn chained_owned_selection_rejects_substituted_origin_receipt() {
             _ => source.origin_selection = second,
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "choose").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("choose")
+            )
+            .is_err(),
             "chained origin mutation {mutation}"
         );
     }
@@ -697,8 +726,11 @@ fn projected_move_of_a_prior_selection_result_executes_the_selected_child() {
 #[test]
 fn projected_chained_selection_carries_block_parameter_residual_evidence() {
     let checked = check_source(PROJECTED_CHAINED_SOURCE).expect("chained selection checks");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
-        .expect("chained projected selection lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("choose"),
+    )
+    .expect("chained projected selection lowers");
     let machine = lowered
         .semantic_module
         .machines
@@ -756,8 +788,11 @@ fn projected_chained_selection_carries_block_parameter_residual_evidence() {
 #[test]
 fn projected_chained_selection_rejects_mutated_residual_evidence() {
     let checked = check_source(PROJECTED_CHAINED_SOURCE).expect("chained selection checks");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
-        .expect("chained projected selection lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("choose"),
+    )
+    .expect("chained projected selection lowers");
     for mutation in 0..4 {
         let mut changed = lowered.semantic_module.clone();
         let machine = changed
@@ -819,8 +854,11 @@ fn projected_chained_selection_rejects_mutated_residual_evidence() {
 #[test]
 fn projected_chained_selection_rejects_mutated_join_arguments() {
     let checked = check_source(PROJECTED_CHAINED_SOURCE).expect("chained selection checks");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
-        .expect("chained projected selection lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("choose"),
+    )
+    .expect("chained projected selection lowers");
     for mutation in 0..2 {
         let mut changed = lowered.semantic_module.clone();
         let machine = changed
@@ -911,7 +949,11 @@ fn projected_chained_selection_rejects_substituted_origin_receipt() {
             _ => source.origin_selection = second,
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "choose").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("choose")
+            )
+            .is_err(),
             "projected chained origin mutation {mutation}"
         );
     }
@@ -955,8 +997,11 @@ fn borrowed_untouched_local_keeps_the_lowering_boundary_explicit() {
     // Both reject at the existing borrowed-local lowering boundary. This is
     // not evidence of address-stable transport, nor a language prohibition.
     for checked in [&baseline_checked, &selected_checked] {
-        let error = checked_trees_to_lowered_psi::lower_machine(checked, "choose")
-            .expect_err("borrowed-local lowering remains an implementation dependency");
+        let error = checked_trees_to_lowered_psi::lower_machine(
+            checked,
+            TerminalMachineSelection::Name("choose"),
+        )
+        .expect_err("borrowed-local lowering remains an implementation dependency");
         assert!(
             matches!(
                 error,

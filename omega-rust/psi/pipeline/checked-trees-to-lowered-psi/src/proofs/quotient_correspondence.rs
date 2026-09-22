@@ -116,6 +116,7 @@ mod tests {
     //! installed rows land beside a real selected machine, and the execution
     //! gate that route applies afterwards is asserted directly.
 
+    use crate::TerminalMachineSelection;
     use std::path::PathBuf;
     use std::sync::Arc;
 
@@ -310,9 +311,12 @@ machine unsupported(value: EquivalenceClass) -> EquivalenceClass {
     }
 
     fn baseline_module() -> terminal_psi::TerminalModule {
-        lower_machine(&baseline_checked(), "baseline")
-            .expect("lower baseline")
-            .semantic_module
+        lower_machine(
+            &baseline_checked(),
+            TerminalMachineSelection::Name("baseline"),
+        )
+        .expect("lower baseline")
+        .semantic_module
     }
 
     /// The checked baseline with a request-bearing typed program substituted
@@ -536,7 +540,7 @@ machine unsupported(value: EquivalenceClass) -> EquivalenceClass {
         // are program facts, so they join its module and the execution gate
         // refuses the nonempty table exactly as the published-correspondence
         // contract requires.
-        let error = lower_machine(&checked, "Main::main")
+        let error = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
             .expect_err("a nonempty proof-only table cannot publish an executable module");
         assert_eq!(
             error,
@@ -554,7 +558,7 @@ machine unsupported(value: EquivalenceClass) -> EquivalenceClass {
         // lowered machine of the program (see the test above).
         let checked = managed_checked_program();
         assert_eq!(
-            lower_machine(&checked, "admitted").unwrap_err(),
+            lower_machine(&checked, TerminalMachineSelection::Name("admitted")).unwrap_err(),
             LoweringError::Unsupported(
                 "machine has no source-independent checked scalar control plan"
             )

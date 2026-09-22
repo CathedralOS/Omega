@@ -4,6 +4,7 @@ use super::{
     encode_module, encode_proof_section, encoded, execute,
 };
 use checked_trees::CheckedScalarExpressionRole;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 fn assert_initializer_roots(
     checked: &checked_trees::CheckedTrees,
@@ -91,8 +92,11 @@ fn assert_selected_initializer_roots(
 fn encoded_initializers(source: &str, names: &[&str], state_count: usize) -> (Vec<u8>, Vec<u8>) {
     let checked = checked_arms(source, false);
     assert_initializer_roots(&checked, names, state_count);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "value")
-        .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("value"),
+    )
+    .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
     (
         encode_module(&lowered.semantic_module).expect("encode semantics"),
         encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -510,7 +514,8 @@ fn computed_initializer_custody_mutations_reject_before_publication() {
     "#;
     let checked = checked_arms(source, false);
     assert_initializer_roots(&checked, &["saved", "current"], 1);
-    checked_trees_to_lowered_psi::lower_machine(&checked, "value").unwrap();
+    checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name("value"))
+        .unwrap();
     let roots: Vec<_> = checked
         .facts
         .values
@@ -574,7 +579,11 @@ fn computed_initializer_custody_mutations_reject_before_publication() {
                 _ => unreachable!(),
             }
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "value").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("value")
+                )
+                .is_err(),
                 "mutation={mutation}, role={:?}",
                 root.role
             );
@@ -616,7 +625,11 @@ fn computed_initializer_custody_mutations_reject_before_publication() {
         binding.destination =
             checked_trees::CheckedScalarBindingDestination::StorageInitialize { symbol };
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "value").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("value")
+            )
+            .is_err(),
             "computed storage initializer rejects nonlocal destination {symbol:?}"
         );
     }
@@ -670,7 +683,11 @@ fn computed_initializer_custody_mutations_reject_before_publication() {
             .unwrap();
         binding.destination = destination;
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "value").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("value")
+            )
+            .is_err(),
             "coordinated graph and root-role change cannot alter authored mutability {:?}",
             root.role
         );

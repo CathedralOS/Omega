@@ -1,5 +1,6 @@
 //! Fixtures shared by the crash member source tests.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::TerminalStructuralInputs;
 #[path = "crash_member_source/aggregate_equality.rs"]
 mod aggregate_equality;
@@ -1929,10 +1930,16 @@ fn assert_nested_mixed_aggregate_equality_replays_every_prefixed_path(
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let equal = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("nested mixed equality lowers through the whole-root call");
-    let different = checked_trees_to_lowered_psi::lower_machine(&checked, "Different::enter")
-        .expect("nested mixed inequality lowers through the whole-root call");
+    let equal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("nested mixed equality lowers through the whole-root call");
+    let different = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Different::enter"),
+    )
+    .expect("nested mixed inequality lowers through the whole-root call");
 
     for (lowered, is_different) in [(&equal, false), (&different, true)] {
         let machine = &lowered.semantic_module.machines[0];
