@@ -1,10 +1,10 @@
-// Compile canary: the fixture compiles as an application package depending on
-// the ordinary std package, so the managed quotient request carries package
-// provenance rather than the standalone-source identity the admission refuses.
+// Compile canary: the fixture requests package identity through its
+// `builder.package` declaration, so the managed quotient request carries
+// package provenance rather than the standalone-source identity the
+// admission refuses — without depending on the ordinary std package.
 
 machine build(builder: &mut Build) {
-    builder.application("quotient-define-managed-compile");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    builder.package("quotient-define-managed-compile");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }
