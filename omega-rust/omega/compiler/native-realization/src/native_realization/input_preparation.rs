@@ -74,32 +74,15 @@ impl PreparedNativeRealizationInput {
 }
 
 /// Decode, verify, and lower one canonical Terminal artifact into the reusable
-/// target-neutral native input frontier.
-///
-/// The establishment-less entrance stays fail-closed for a declared roster;
-/// consumers holding one provider establishment per declared direct-entry row
-/// take [`prepare_native_realization_input_with_placed_view_establishments`].
+/// target-neutral native input frontier, binding the provider's placed-view
+/// supplies: each declared direct-entry roster row joins exactly one
+/// establishment, the bound set rides inside the reusable input, and every
+/// realization request that reopens this preparation sees the exact admitted
+/// loans. A program that declared no rows takes an empty supply. A supply
+/// answering no declared row, answering one twice, or carrying a referent
+/// that cannot rejoin the module's own catalogs rejects here rather than
+/// inside realization — a roster or a pointer is not this authority.
 pub fn prepare_native_realization_input(
-    artifact: &terminal_codec::CanonicalTerminalArtifact,
-    profile: &proof_admission::AdmissionProfile,
-    optimization_selections: &optimization_core::PostTerminalOptimizationSelections,
-) -> Result<PreparedNativeRealizationInput, Vec<Diagnostic>> {
-    prepare_native_realization_input_with_placed_view_establishments(
-        artifact,
-        profile,
-        optimization_selections,
-        &[],
-    )
-}
-
-/// The same preparation with the provider's placed-view supplies: each
-/// declared direct-entry roster row joins exactly one establishment, the bound
-/// set rides inside the reusable input, and every realization request that
-/// reopens this preparation sees the exact admitted loans. A supply answering
-/// no declared row, answering one twice, or carrying a referent that cannot
-/// rejoin the module's own catalogs rejects here rather than inside
-/// realization — a roster or a pointer is not this authority.
-pub fn prepare_native_realization_input_with_placed_view_establishments(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     profile: &proof_admission::AdmissionProfile,
     optimization_selections: &optimization_core::PostTerminalOptimizationSelections,
@@ -108,7 +91,7 @@ pub fn prepare_native_realization_input_with_placed_view_establishments(
     artifact
         .validate()
         .map_err(|error| realization_error("canonical artifact replay", error))?;
-    let input = lower_realization_input_with_placed_view_establishments(
+    let input = lower_realization_input(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),
         profile,
@@ -123,19 +106,6 @@ pub fn prepare_native_realization_input_with_placed_view_establishments(
 }
 
 pub(crate) fn lower_realization_input(
-    semantic_bytes: &[u8],
-    proof_bytes: &[u8],
-    profile: &proof_admission::AdmissionProfile,
-) -> Result<NativeRealizationInput, Vec<Diagnostic>> {
-    lower_realization_input_with_placed_view_establishments(
-        semantic_bytes,
-        proof_bytes,
-        profile,
-        &[],
-    )
-}
-
-pub(crate) fn lower_realization_input_with_placed_view_establishments(
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
     profile: &proof_admission::AdmissionProfile,
@@ -208,7 +178,7 @@ mod tests {
         let artifact = artifact_fixture();
         let profile = AdmissionProfile::default();
         let empty = optimization_core::PostTerminalOptimizationSelections::default();
-        let prepared = prepare_native_realization_input(&artifact, &profile, &empty)
+        let prepared = prepare_native_realization_input(&artifact, &profile, &empty, &[])
             .expect("prepare target-neutral input");
         assert!(!prepared.is_optimized());
         assert!(prepared.matches(artifact.manifest().identity(), &profile, &empty));
@@ -236,6 +206,7 @@ mod tests {
                 artifact.semantic_bytes(),
                 artifact.proof_bytes(),
                 &profile,
+                &[],
             )
             .expect("native input");
             let expected = terminal_psi_to_abstract_operations::lower_artifact(
@@ -277,16 +248,21 @@ mod tests {
     fn native_input_rejects_malformed_semantic_or_proof_sections() {
         let artifact = artifact_fixture();
         let profile = AdmissionProfile::default();
-        assert!(lower_realization_input(&[], artifact.proof_bytes(), &profile).is_err());
-        assert!(lower_realization_input(artifact.semantic_bytes(), &[], &profile).is_err());
+        assert!(lower_realization_input(&[], artifact.proof_bytes(), &profile, &[]).is_err());
+        assert!(lower_realization_input(artifact.semantic_bytes(), &[], &profile, &[]).is_err());
     }
 
     #[test]
     fn native_input_requires_the_sealed_proof_section() {
         let artifact = artifact_fixture();
         let profile = AdmissionProfile::default();
-        lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
-            .expect("the canonical sealed proof section is admitted");
+        lower_realization_input(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &profile,
+            &[],
+        )
+        .expect("the canonical sealed proof section is admitted");
         let bundle = terminal_codec::decode_proof_section(artifact.proof_bytes())
             .expect("canonical artifact proof bytes are a sealed section")
             .1;
@@ -299,7 +275,7 @@ mod tests {
             bare.starts_with(b"PSIPRF"),
             "the sealed section tail is the bare proof bundle"
         );
-        let error = lower_realization_input(artifact.semantic_bytes(), bare, &profile)
+        let error = lower_realization_input(artifact.semantic_bytes(), bare, &profile, &[])
             .expect_err("a bare proof bundle is not a sealed proof section");
         assert!(
             error
@@ -314,7 +290,7 @@ mod tests {
         )
         .expect("foreign-sealed section encodes");
         assert!(
-            lower_realization_input(artifact.semantic_bytes(), &foreign, &profile).is_err(),
+            lower_realization_input(artifact.semantic_bytes(), &foreign, &profile, &[]).is_err(),
             "a proof section sealed to another subject is rejected"
         );
     }
@@ -331,9 +307,9 @@ mod tests {
             .unwrap(),
         )
         .unwrap();
-        let ordinary = prepare_native_realization_input(&artifact, &profile, &empty).unwrap();
+        let ordinary = prepare_native_realization_input(&artifact, &profile, &empty, &[]).unwrap();
         let selected_input =
-            prepare_native_realization_input(&artifact, &profile, &selected).unwrap();
+            prepare_native_realization_input(&artifact, &profile, &selected, &[]).unwrap();
         assert_eq!(ordinary.input.plan(), selected_input.input.plan());
         assert!(!ordinary.is_optimized());
         assert!(selected_input.is_optimized());
@@ -357,7 +333,7 @@ mod tests {
             .expect("a different physical optimization"),
         )
         .expect("a different post-Terminal optimization");
-        let prepared = prepare_native_realization_input(&artifact, &profile, &selected)
+        let prepared = prepare_native_realization_input(&artifact, &profile, &selected, &[])
             .expect("prepare the unconditional native stage plus selected physical context");
 
         assert!(prepared.is_optimized());

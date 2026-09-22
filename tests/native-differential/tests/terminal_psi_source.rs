@@ -220,6 +220,7 @@ fn stage_terminal_component_with_policies(
             ieee_float_fma: &[],
             native_callbacks: &[],
             callback_thunks: &[],
+            behavior_exclusions: &build_evaluation::BehaviorExclusions::default(),
         },
     )
     .map_err(|error| error.into_parts().1)?

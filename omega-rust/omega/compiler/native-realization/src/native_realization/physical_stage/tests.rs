@@ -159,6 +159,7 @@ fn return_programs_publish_replayable_native_evidence_on_every_target() {
                 ieee_float_fma: &[],
                 native_callbacks: &[],
                 callback_thunks: &[],
+                behavior_exclusions: &build_evaluation::BehaviorExclusions::default(),
             },
         );
         if matches!(

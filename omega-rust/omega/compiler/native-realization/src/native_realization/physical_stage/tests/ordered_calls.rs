@@ -79,11 +79,13 @@ fn source_ordered_calls_reach_executable_publication() {
                 ieee_float_fma: &[],
                 native_callbacks: &[],
                 callback_thunks: &[],
+                behavior_exclusions: &build_evaluation::BehaviorExclusions::default(),
             };
             let input = lower_realization_input(
                 artifact.semantic_bytes(),
                 artifact.proof_bytes(),
                 &profile,
+                &[],
             )
             .unwrap();
             let optimization = lower_realization_optimization_stage(input, &request).unwrap();
@@ -172,11 +174,13 @@ fn terminal_scalar_returning_calls_reach_coordinated_native_artifact() {
                 ieee_float_fma: &[],
                 native_callbacks: &[],
                 callback_thunks: &[],
+                behavior_exclusions: &build_evaluation::BehaviorExclusions::default(),
             };
             let input = lower_realization_input(
                 artifact.semantic_bytes(),
                 artifact.proof_bytes(),
                 &profile,
+                &[],
             )
             .unwrap();
             let optimization = lower_realization_optimization_stage(input, &request).unwrap();
@@ -219,6 +223,7 @@ fn terminal_scalar_returning_calls_reach_coordinated_native_artifact() {
                 ieee_float_fma: &[],
                 native_callbacks: &[],
                 callback_thunks: &[],
+                behavior_exclusions: &build_evaluation::BehaviorExclusions::default(),
             };
             let replayed_artifact =
                 terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())

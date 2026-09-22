@@ -42,6 +42,7 @@ fn natural_countdown_native_preparation_preserves_ordinary_admission() {
             &artifact,
             &proof_admission::AdmissionProfile::default(),
             &selections,
+            &[],
         )
         .expect("ordinary Natural proof admission remains available");
     }

@@ -1889,14 +1889,13 @@ machine Inspector::inspect(
     // reopens it sees the exact loans. The establishment-less entrance and an
     // unanswered or stale supply keep failing closed at the same custody gate.
     let default_selections = optimization_core::PostTerminalOptimizationSelections::default();
-    let prepared =
-        native_realization::prepare_native_realization_input_with_placed_view_establishments(
-            &canonical_artifact(),
-            &profile,
-            &default_selections,
-            &establishments,
-        )
-        .expect("exact provider establishments bind the roster inside the prepared input");
+    let prepared = native_realization::prepare_native_realization_input(
+        &canonical_artifact(),
+        &profile,
+        &default_selections,
+        &establishments,
+    )
+    .expect("exact provider establishments bind the roster inside the prepared input");
     assert_eq!(
         prepared.placed_view_establishments(),
         establishments.as_slice(),
@@ -1911,31 +1910,19 @@ machine Inspector::inspect(
         &canonical_artifact(),
         &profile,
         &default_selections,
+        &[],
     )
-    .expect_err("the establishment-less entrance still rejects plan-laid input custody");
+    .expect_err("an unanswered roster row still fails custody");
     assert!(
         realization_error.iter().any(|diagnostic| diagnostic
             .message
             .contains("PlacedViewInputsRequireCustodyLowering")),
         "executable realization rejection names the custody boundary: {realization_error:?}"
     );
-    assert!(
-        native_realization::prepare_native_realization_input_with_placed_view_establishments(
-            &canonical_artifact(),
-            &profile,
-            &default_selections,
-            &[],
-        )
-        .expect_err("an unanswered roster row still fails custody")
-        .iter()
-        .any(|diagnostic| diagnostic
-            .message
-            .contains("PlacedViewInputsRequireCustodyLowering")),
-    );
     let mut stale_prepared_supply = establishments[0].clone();
     stale_prepared_supply.input.placement_commitment[0] ^= 1;
     assert!(
-        native_realization::prepare_native_realization_input_with_placed_view_establishments(
+        native_realization::prepare_native_realization_input(
             &canonical_artifact(),
             &profile,
             &default_selections,

@@ -2839,7 +2839,8 @@ fn retained_native_product_enters_only_terminal_realization() {
     for required in [
         "produce_program_entry_terminal_artifact(",
         "validate_native_program_entry_settlement(",
-        "realize_native_artifact_with_behavior_exclusions(",
+        "realize_native_artifact(artifact, request)",
+        "behavior_exclusions: &behavior_exclusions,",
         "checked_scope: Some(&checked_boundary_operator_scope)",
         "prepared_input: Some(prepared_input)",
         "from_retained_native_artifact(",
