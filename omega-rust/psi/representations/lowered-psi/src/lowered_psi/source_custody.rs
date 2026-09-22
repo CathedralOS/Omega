@@ -1,6 +1,5 @@
 //! Ephemeral source joins retained alongside, never inside, portable Terminal artifacts.
 
-use super::LoweredPsi;
 use semantic_vocabulary::{BlockId, MachineId, OperationId};
 use terminal_psi::ValueDeclaration;
 
@@ -141,13 +140,6 @@ pub struct CallbackTerminalLoweringReceipt {
     pub source_entry: symbols::SymbolHandle,
     pub terminal_machine: MachineId,
     pub terminal_entry: BlockId,
-}
-
-/// Isolated callback body and the exact checked coordinate that produced it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LoweredCallbackPsi {
-    pub terminal: LoweredPsi,
-    pub receipt: CallbackTerminalLoweringReceipt,
 }
 
 /// One exact checked source call joined to its emitted Terminal operation.

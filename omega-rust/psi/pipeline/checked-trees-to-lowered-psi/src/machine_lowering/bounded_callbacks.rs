@@ -1,45 +1,32 @@
-//! Bounded callback-body lowering for isolated entrance publication.
+//! The checked-to-Terminal coordinate join for an isolated callback body.
 //!
-//! The selected callback machine lowers through ordinary machine lowering
-//! rooted at the callback entry — the same plan-family dispatch and retained
-//! post-obligations as [`super::lower_machine`], not a list of admitted body
-//! shapes. The callback placement separately owns its satisfaction and ABI
-//! evidence and validates the lowered thunk against the requirement's
-//! signature and inbound entry plan; this producer owns only the lowering
-//! route and the checked-to-Terminal coordinate join.
+//! A callback machine lowers through the ordinary [`super::lower_machine`]
+//! route rooted at its entry — the same plan-family dispatch and retained
+//! post-obligations as every other selected machine, not a list of admitted
+//! body shapes — and is produced by the same Terminal production body as a
+//! program entry. The callback placement separately owns its satisfaction and
+//! ABI evidence and validates the produced thunk against the requirement's
+//! signature and inbound entry plan; this module owns only the join that
+//! reports which lowered machine and entry block the checked callback
+//! coordinate became.
 
 use checked_trees::CheckedTrees;
-use lowered_psi::{CallbackTerminalLoweringReceipt, LoweredCallbackPsi};
+use lowered_psi::{CallbackTerminalLoweringReceipt, LoweredPsi};
 
 use crate::lowering_error::{LoweringError, unsupported};
-use crate::machine_lowering::lower_terminal_selection;
 
-/// Lower the selected callback machine through ordinary machine lowering
-/// rooted at the callback entry.
+/// Join the checked callback coordinate onto `lowered`'s entry machine.
 ///
-/// `source_machine` must select exactly one checked Terminal machine, and
-/// `source_entry` must be that machine's checked entry state. The resulting
-/// module retains every obligation the ordinary route already discharges;
-/// the coordinate join reports the lowered module's entry machine and entry
-/// block so the callback placement can bind its own admission evidence.
-pub fn lower_bounded_callback_identity_machine(
+/// `source_machine` must be the machine `lowered` was selected from and
+/// `source_entry` must be that machine's checked entry state; the callback
+/// placement binds its own admission evidence to the reported Terminal
+/// machine and entry block.
+pub fn callback_lowering_receipt(
     checked: &CheckedTrees,
+    lowered: &LoweredPsi,
     source_machine: symbols::SymbolHandle,
     source_entry: symbols::SymbolHandle,
-) -> Result<LoweredCallbackPsi, LoweringError> {
-    let matching = checked
-        .facts
-        .flow
-        .terminal_machines
-        .machines
-        .iter()
-        .filter(|selection| selection.machine == source_machine)
-        .collect::<Vec<_>>();
-    let [selection] = matching.as_slice() else {
-        return unsupported(
-            "bounded callback body must name one exact checked Terminal machine selection",
-        );
-    };
+) -> Result<CallbackTerminalLoweringReceipt, LoweringError> {
     let machine_row = checked
         .machines()
         .iter()
@@ -59,7 +46,6 @@ pub fn lower_bounded_callback_identity_machine(
             "bounded callback entry must be the selected machine's checked entry state",
         );
     }
-    let lowered = lower_terminal_selection(checked, selection)?;
     let terminal_machine = lowered
         .semantic_module
         .machines
@@ -68,13 +54,10 @@ pub fn lower_bounded_callback_identity_machine(
         .ok_or(LoweringError::Unsupported(
             "lowered callback module does not contain its entry machine",
         ))?;
-    Ok(LoweredCallbackPsi {
-        receipt: CallbackTerminalLoweringReceipt {
-            source_machine,
-            source_entry,
-            terminal_machine: terminal_machine.id,
-            terminal_entry: terminal_machine.entry,
-        },
-        terminal: lowered,
+    Ok(CallbackTerminalLoweringReceipt {
+        source_machine,
+        source_entry,
+        terminal_machine: terminal_machine.id,
+        terminal_entry: terminal_machine.entry,
     })
 }
