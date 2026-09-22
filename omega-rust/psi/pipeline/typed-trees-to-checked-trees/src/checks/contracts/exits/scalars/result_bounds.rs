@@ -45,16 +45,20 @@ impl ExitScalars<'_, '_> {
             BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
             _ => return None,
         };
-        let result_on_left = is_result_reference(self.program, self.machine, binary.left);
-        let argument = if result_on_left {
-            binary.right
-        } else if is_result_reference(self.program, self.machine, binary.right) {
-            binary.left
-        } else {
-            return None;
-        };
+        // A result operand is the bare return reference or a member
+        // projection through it (`result.first`); both carry the selected
+        // constructor expression's immutable bounds in the same namespace.
+        let (result_operand, argument, result_on_left) =
+            if let Some(operand) = self.result_bound_operand(binary.left) {
+                (operand, binary.right, true)
+            } else if let Some(operand) = self.result_bound_operand(binary.right) {
+                (operand, binary.left, false)
+            } else {
+                return None;
+            };
+        let (result_expression, result_type) = result_operand;
         let entry = self.program.machine_states(self.machine).first()?;
-        let primitive = exact_integer_carrier(self.program, entry.return_type)?;
+        let primitive = exact_integer_carrier(self.program, result_type)?;
         let state = crate::semantic_calls::find_state_in_machine(
             self.program,
             self.exit.machine_symbol,
@@ -71,7 +75,7 @@ impl ExitScalars<'_, '_> {
             self.program,
             self.machine,
             state,
-            returned,
+            result_expression,
         )?;
         let argument_bounds = validation::immutable_integer_expression_bounds(
             self.program,
@@ -104,13 +108,13 @@ impl ExitScalars<'_, '_> {
             (
                 result_bounds,
                 argument_bounds,
-                [Some(entry.return_type), argument_type],
+                [Some(result_type), argument_type],
             )
         } else {
             (
                 argument_bounds,
                 result_bounds,
-                [argument_type, Some(entry.return_type)],
+                [argument_type, Some(result_type)],
             )
         };
         if !typed_trees::operator::has_builtin_spelled_expression_meaning(
@@ -140,6 +144,29 @@ impl ExitScalars<'_, '_> {
         } else {
             None
         }
+    }
+
+    /// The expression and declared type whose immutable bounds a result
+    /// operand carries: the whole return for a bare `result` reference, or
+    /// the constructor-selected member expression for a projected
+    /// `result.field` operand. Longer member paths stay unproven.
+    fn result_bound_operand(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<(ExpressionHandle, TypeReferenceHandle)> {
+        let entry = self.program.machine_states(self.machine).first()?;
+        if is_result_reference(self.program, self.machine, expression) {
+            return Some((
+                exit_return_expression(self.program, self.exit),
+                entry.return_type,
+            ));
+        }
+        let (selected, remaining) = self.result_projection(expression)?;
+        if !remaining.is_empty() {
+            return None;
+        }
+        let place = validation::reserved_result_place(self.program, expression)?;
+        Some((selected, place.type_reference))
     }
 }
 
