@@ -253,7 +253,16 @@ fn canonical_correspondence(
         return Err("direct result-flow certificate identity drifted".to_owned());
     }
 
-    if public_parameters.len() != plan.representative.parameters.len()
+    if transport_lift {
+        // A transport-backed `lift` may adapt arguments: runtime rows and
+        // input relations are indexed by representative position while the
+        // public telescope may be longer (omitted parameters).
+        if runtime_positions.len() != plan.representative.parameters.len()
+            || plan.input_relations.len() != plan.representative.parameters.len()
+        {
+            return Err("transport lift runtime correspondence arity drifted".to_owned());
+        }
+    } else if public_parameters.len() != plan.representative.parameters.len()
         || runtime_positions.len() != public_parameters.len()
         || plan.input_relations.len() != public_parameters.len()
     {
@@ -482,26 +491,50 @@ fn canonical_define_runtime_positions(
         .collect()
 }
 
+/// Retain the exact argument-adaptation map the runtime correspondence
+/// already judged.
+///
+/// Runtime rows stay in representative order, so `representative_position` is
+/// the row index. `public_position` resolves the source argument's position
+/// inside the public non-const telescope: the direct-lift judgment already
+/// permits selection, permutation, repetition, and omission of direct public
+/// parameters. A closed-literal source has no public position; retaining one
+/// on this pair-only row would erase the literal's evidence, so literal
+/// arguments still refuse canonical publication here.
 fn canonical_lift_runtime_positions(
     public: &[&typed_trees::signature::StateParameter],
     representative: &[super::representative::RepresentativeRuntimeParameter],
     runtime: &[super::runtime_correspondence::DirectLiftRuntimePosition],
 ) -> Result<Vec<QuotientDefineRuntimePosition>, String> {
-    if runtime.len() != public.len() || representative.len() != public.len() {
+    if runtime.len() != representative.len() {
         return Err("transport lift runtime correspondence arity drifted".to_owned());
     }
     runtime
         .iter()
         .enumerate()
         .map(|(position, runtime)| {
-            if !matches!(
-                runtime.source,
-                DirectLiftArgumentSource::PublicParameter(symbol) if symbol == public[position].symbol
-            ) || runtime.representative_parameter != representative[position].symbol
-            {
-                return Err("transport lift runtime correspondence is not position preserving".to_owned());
+            if runtime.representative_parameter != representative[position].symbol {
+                return Err(
+                    "transport lift runtime correspondence lost representative order".to_owned(),
+                );
             }
-            canonical_runtime_position(position)
+            let public_position = match &runtime.source {
+                DirectLiftArgumentSource::PublicParameter(symbol) => public
+                    .iter()
+                    .position(|parameter| parameter.symbol == *symbol)
+                    .ok_or_else(|| {
+                        "transport lift runtime source is not a public parameter".to_owned()
+                    })?,
+                DirectLiftArgumentSource::Literal(_) => {
+                    return Err(
+                        "the proof-only bridge retains no closed literal lift arguments".to_owned(),
+                    );
+                }
+            };
+            Ok(QuotientDefineRuntimePosition {
+                public_position: to_u32(public_position, "public parameter position")?,
+                representative_position: to_u32(position, "representative parameter position")?,
+            })
         })
         .collect()
 }

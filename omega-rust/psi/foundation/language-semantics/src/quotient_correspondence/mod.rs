@@ -53,6 +53,14 @@ pub enum QuotientPositionalRelation {
     },
 }
 
+/// One retained runtime-argument correspondence.
+///
+/// Rows are stored in representative order, so `representative_position`
+/// always equals the row index. A faithful `define` also keeps
+/// `public_position` equal to that index; a transport-backed `lift` records
+/// the actual argument-adaptation map, so `public_position` selects the
+/// public parameter feeding this representative position and may select,
+/// permute, repeat, or omit public parameters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct QuotientDefineRuntimePosition {
     pub public_position: u32,
@@ -210,8 +218,14 @@ pub struct CanonicalQuotientCorrespondence {
     pub operation_kind: QuotientCorrespondenceOperationKind,
     pub public_operation: QuotientCallableIdentity,
     pub representative: QuotientMachineApplication,
+    /// One retained input relation per `runtime_positions` row, indexed by
+    /// representative position for `lift` and by the shared faithful position
+    /// for `define`.
     pub input_relations: Vec<QuotientPositionalRelation>,
     pub result_relation: QuotientRelationIdentity,
+    /// The runtime-argument map in representative order; see
+    /// [`QuotientDefineRuntimePosition`] for `define` versus adapted `lift`
+    /// semantics.
     pub runtime_positions: Vec<QuotientDefineRuntimePosition>,
     pub theorem_evidence: Vec<QuotientTheoremEvidence>,
     pub representative_eligibility: QuotientRepresentativeEligibility,

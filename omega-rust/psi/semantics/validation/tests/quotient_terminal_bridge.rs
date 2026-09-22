@@ -532,6 +532,290 @@ fn missing_surplus_and_wrong_form_role_rosters_reject_before_validation() {
     );
 }
 
+/// Argument-adapted `lift`s with explicit congruence and transport theorems.
+///
+/// `admitted_swapped` permutes the public telescope, `admitted_shared` repeats
+/// one public parameter across two representative positions, and
+/// `admitted_omits` leaves one quotient-typed public parameter unconsumed.
+/// Each selected transport theorem carries the complete ordered roster the
+/// adapted runtime map implies.
+const ADAPTED_TRANSPORT_LIFT: &str = r#"
+use omega::language::core::relation;
+
+data Representative {
+    case Zero;
+    case Next(previous: Representative);
+}
+
+proposition equivalent(a: Representative, b: Representative) = a == b;
+
+machine equivalent_reflexive(a: Representative)
+ensures a == a
+{
+}
+
+machine equivalent_symmetric(a: Representative, b: Representative)
+requires
+    a == b
+ensures b == a
+{
+}
+
+machine equivalent_transitive(
+    a: Representative,
+    b: Representative,
+    c: Representative
+)
+requires
+    a == b
+    b == c
+ensures a == c
+{
+}
+
+RepresentativeEquivalence: satisfies Equivalence<Representative, equivalent> {
+    Reflexive::reflexive = equivalent_reflexive;
+    Symmetric::symmetric = equivalent_symmetric;
+    Transitive::transitive = equivalent_transitive;
+}
+
+data EquivalenceClass = Representative % equivalent
+where equivalent satisfies
+    Equivalence<Representative, equivalent>
+    as RepresentativeEquivalence;
+
+machine representative(left: Representative, right: Representative) -> Representative
+requires
+    left == left
+    right == right
+{
+    left
+}
+
+machine representative_respects(
+    left0: Representative,
+    right0: Representative,
+    left1: Representative,
+    right1: Representative
+)
+requires
+    equivalent(left0, right0)
+    equivalent(left1, right1)
+    left0 == left0
+    right0 == right0
+    left1 == left1
+    right1 == right1
+ensures equivalent(representative(left0, left1), representative(right0, right1))
+{
+}
+
+machine representative_transports(
+    left0: Representative,
+    right0: Representative,
+    left1: Representative,
+    right1: Representative
+)
+requires
+    left1 == left1
+    right1 == right1
+    left0 == left0
+    right0 == right0
+ensures
+    left0 == left0
+    right0 == right0
+    left1 == left1
+    right1 == right1
+{
+}
+
+machine admitted_swapped(first: EquivalenceClass, second: EquivalenceClass) -> EquivalenceClass
+requires
+    first == first
+    second == second
+{
+    Quotient::lift<
+        representative,
+        representative_respects,
+        representative_transports
+    >(second, first)
+}
+
+machine representative_shared(left: Representative, right: Representative) -> Representative {
+    left
+}
+
+machine representative_shared_respects(
+    left0: Representative,
+    right0: Representative,
+    left1: Representative,
+    right1: Representative
+)
+requires
+    equivalent(left0, right0)
+    equivalent(left1, right1)
+ensures
+    equivalent(
+        representative_shared(left0, left1),
+        representative_shared(right0, right1)
+    )
+{
+}
+
+machine representative_shared_transports(
+    left0: Representative,
+    right0: Representative,
+    left1: Representative,
+    right1: Representative
+)
+requires
+    left0 == left0
+    right0 == right0
+{
+}
+
+machine admitted_shared(value: EquivalenceClass) -> EquivalenceClass
+requires value == value
+{
+    Quotient::lift<
+        representative_shared,
+        representative_shared_respects,
+        representative_shared_transports
+    >(value, value)
+}
+
+machine representative_one(value: Representative) -> Representative
+requires value == value
+{
+    value
+}
+
+machine representative_one_respects(left: Representative, right: Representative)
+requires
+    equivalent(left, right)
+    left == left
+    right == right
+ensures equivalent(representative_one(left), representative_one(right))
+{
+}
+
+machine representative_one_transports(left: Representative, right: Representative)
+requires
+    left == left
+    right == right
+ensures
+    left == left
+    right == right
+{
+}
+
+machine admitted_omits(first: EquivalenceClass, second: EquivalenceClass) -> EquivalenceClass
+requires first == first
+{
+    Quotient::lift<
+        representative_one,
+        representative_one_respects,
+        representative_one_transports
+    >(first)
+}
+"#;
+
+fn row_for<'a>(
+    rows: &'a [language_semantics::quotient_correspondence::CanonicalQuotientCorrespondence],
+    operation: &str,
+) -> &'a language_semantics::quotient_correspondence::CanonicalQuotientCorrespondence {
+    rows.iter()
+        .find(|row| row.public_operation.declaration.ends_with(operation))
+        .unwrap_or_else(|| panic!("no retained correspondence for {operation}"))
+}
+
+#[test]
+fn transport_backed_lift_retains_the_exact_argument_adaptation_map() {
+    let program = lower(ADAPTED_TRANSPORT_LIFT);
+
+    let rows = extract_non_executable_quotient_correspondences(&program)
+        .expect("adapted transport-backed lifts should extract");
+    assert_eq!(rows.len(), 3, "one canonical row per adapted lift");
+    for row in rows.iter() {
+        assert_eq!(
+            row.operation_kind,
+            language_semantics::quotient_correspondence::QuotientCorrespondenceOperationKind::LiftWithForwardPreconditionTransport
+        );
+    }
+
+    let positions =
+        |row: &language_semantics::quotient_correspondence::CanonicalQuotientCorrespondence| {
+            row.runtime_positions
+                .iter()
+                .map(|position| (position.public_position, position.representative_position))
+                .collect::<Vec<_>>()
+        };
+    assert_eq!(
+        positions(row_for(&rows, "admitted_swapped")),
+        vec![(1, 0), (0, 1)],
+        "the permuted call retains its selection map in representative order"
+    );
+    assert_eq!(
+        positions(row_for(&rows, "admitted_shared")),
+        vec![(0, 0), (0, 1)],
+        "the repeated call retains both reads of the same public parameter"
+    );
+    assert_eq!(
+        positions(row_for(&rows, "admitted_omits")),
+        vec![(0, 0)],
+        "the omitted public parameter leaves the row at representative arity"
+    );
+
+    // Adaptation never weakens the retained evidence: every row still carries
+    // the complete congruence and transport theorem joins.
+    for row in rows.iter() {
+        let roles = row
+            .theorem_evidence
+            .iter()
+            .map(|evidence| evidence.role)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            roles,
+            vec![
+                language_semantics::quotient_correspondence::QuotientTheoremRole::Congruence,
+                language_semantics::quotient_correspondence::QuotientTheoremRole::ForwardPreconditionTransport,
+            ],
+        );
+    }
+}
+
+#[test]
+fn checked_admission_admits_adapted_transport_lifts() {
+    let program = try_lower_unmodified(ADAPTED_TRANSPORT_LIFT).expect("the adapted program types");
+
+    admit_checked_quotient_requests(&program, &checked_termination_proved(&program))
+        .expect("checked termination admits the adapted lift batch");
+
+    // With checked termination rendered into the typed summaries, ordinary
+    // validation rederives every adapted canonical row yet still keeps the
+    // executable fence on all three requests.
+    let messages = validation_messages(&lower(ADAPTED_TRANSPORT_LIFT));
+    assert_eq!(
+        messages
+            .iter()
+            .filter(|message| {
+                message.contains("plus rederived canonical Terminal correspondence")
+            })
+            .count(),
+        3,
+        "every adapted lift rederives its canonical row: {messages:#?}"
+    );
+    assert_eq!(
+        messages
+            .iter()
+            .filter(|message| message.contains(
+                "executable quotient operations are not admitted until executable quotient lowering exists"
+            ))
+            .count(),
+        3,
+        "adaptation does not weaken the executable fence: {messages:#?}"
+    );
+}
+
 #[test]
 fn a_congruence_only_lift_has_no_canonical_row_and_keeps_its_fence() {
     let congruence_only = TOTAL_DIRECT_DEFINE.replace(

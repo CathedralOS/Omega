@@ -254,6 +254,79 @@ fn transport_backed_lift_round_trips_all_source_and_theorem_coordinates() {
 }
 
 #[test]
+fn adapted_transport_lift_round_trips_the_argument_map() {
+    // A transport-backed `lift` retains the actual argument-adaptation map:
+    // rows stay in representative order while `public_position` may permute or
+    // repeat the public telescope.
+    let mut certificate = transport_correspondence("Public::lift").certificate;
+    certificate.runtime_positions = vec![
+        QuotientDefineRuntimePosition {
+            public_position: 1,
+            representative_position: 0,
+        },
+        // The single-position fixture gains a second representative row that
+        // repeats the same public source; its input relation must match.
+        QuotientDefineRuntimePosition {
+            public_position: 1,
+            representative_position: 1,
+        },
+    ];
+    let input = relation("Value");
+    certificate.input_relations = vec![
+        QuotientPositionalRelation::Quotient(input.clone()),
+        QuotientPositionalRelation::Quotient(input.clone()),
+    ];
+    let QuotientTheoremCorrespondence::Congruence(congruence) =
+        &mut certificate.theorem_evidence[0].correspondence
+    else {
+        panic!("congruence fixture")
+    };
+    congruence.parameters = vec![
+        QuotientTheoremParameter {
+            theorem_position: 0,
+            role: QuotientTheoremParameterRole::QuotientLeft { input_position: 0 },
+        },
+        QuotientTheoremParameter {
+            theorem_position: 1,
+            role: QuotientTheoremParameterRole::QuotientRight { input_position: 0 },
+        },
+        QuotientTheoremParameter {
+            theorem_position: 2,
+            role: QuotientTheoremParameterRole::QuotientLeft { input_position: 1 },
+        },
+        QuotientTheoremParameter {
+            theorem_position: 3,
+            role: QuotientTheoremParameterRole::QuotientRight { input_position: 1 },
+        },
+    ];
+    congruence.relation_premises = vec![
+        QuotientTheoremRelationPremise {
+            expected_position: 0,
+            actual: coordinate(0),
+            relation: input.relation.clone(),
+            left_parameter: 0,
+            right_parameter: 1,
+        },
+        QuotientTheoremRelationPremise {
+            expected_position: 1,
+            actual: coordinate(30),
+            relation: input.relation,
+            left_parameter: 2,
+            right_parameter: 3,
+        },
+    ];
+    congruence.conclusion.left.arguments = vec![0, 2];
+    congruence.conclusion.right.arguments = vec![1, 3];
+
+    let module = module_with(vec![retain_non_executable_quotient_correspondence(
+        certificate,
+    )]);
+    validate_module_representation(&module).expect("adapted correspondence replays");
+    let bytes = encode_module(&module).expect("adapted correspondence encodes");
+    assert_eq!(decode_module(&bytes), Ok(module));
+}
+
+#[test]
 fn decoding_rejects_unknown_quotient_theorem_role_tag() {
     let module = module_with(vec![correspondence("Public::apply")]);
     let mut bytes = encode_module(&module).expect("quotient correspondence encodes");
