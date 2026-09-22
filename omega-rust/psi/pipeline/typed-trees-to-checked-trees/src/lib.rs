@@ -34,6 +34,11 @@ pub use checking::{
     SelectedGenericOperatorProviderSpecialization, lower_typed_trees,
     normalize_open_index_identities, specialize_static_machine_calls,
 };
+// The borrow certificate ledgers published inside the checked fact arenas
+// replay independently for any consumer of the published record: the
+// producing pass keeps the checker itself public so post-publication
+// evidence is checkable, not just inspectable.
+pub use checks::replay_checked_borrow_certificates;
 pub use execution::selected_execution::{
     ExecutionSettlement, SelectedIeeeFloatFmaUnitApplication, SelectedOperatorApplication,
     SettledCallSite, SettledFloatIntrinsic, SettledFloatIntrinsicExecution,
