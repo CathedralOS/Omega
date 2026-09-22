@@ -7,6 +7,7 @@ use checked_trees::{
 };
 
 mod attached_receiver_shapes;
+mod borrowed_window_pairs;
 mod boundary_result_operands;
 mod call_argument_casts;
 mod callable_composed;
