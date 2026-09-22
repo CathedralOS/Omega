@@ -327,6 +327,18 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   do not depend on runtime-sized claims. Existing red-zone, probing, unwind,
   callee-save and call-alignment plans are not missing mechanisms.
 
+  Wave evidence (macw5): the upstream dependency is deeper than a missing
+  input. No claim roster reaches native lowering — no `ActivationClaim`/
+  claim-site field exists on `PostAllocationMachineFunction`, which is
+  wire-versioned, so the durable roster shape is upstream's decision. The
+  realization model is also unpinned: co-live claims must pack disjointly
+  while exclusive claims share storage, a tree-packing the spec does not
+  define, and whether committed extent equals the composed charge or a
+  larger physical extent is unspecified. `extents::activation_claims::
+  compose_claim_bounds` already implements the aligned-sum/maximum
+  composition rule and is directly reusable once the contract pins the
+  roster transport, coordinate assignment and extent semantics.
+
   Once exact claims reach native lowering, compose simultaneously live bounds
   with alignment and mutually exclusive bounds by maximum. Retain committed
   extent computation, activation provenance, release order and suspension
