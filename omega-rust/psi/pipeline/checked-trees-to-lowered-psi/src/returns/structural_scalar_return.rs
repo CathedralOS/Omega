@@ -14,9 +14,9 @@ use super::{
     allocate_dense, block_id, boolean_decision_block_count, contains_short_circuit, contract_id,
     edge_id, emit_direct_expression, emit_inlined_boolean_value_blocks, finalize_operation_proofs,
     lookup_type_id, lower_boolean_value_decision, lower_checked_scalar_expression_at,
-    lower_structural_type_plans, lower_unit_parameters, machine_id, operation_id,
-    terminal_scalar_type, unsupported, validate_boolean_parameter_types,
-    validate_direct_parameter_types, value_id,
+    lower_checked_scalar_expression_at_with_parameters, lower_structural_type_plans,
+    lower_unit_parameters, machine_id, operation_id, terminal_scalar_type, unsupported,
+    validate_boolean_parameter_types, validate_direct_parameter_types, value_id,
 };
 use crate::emission::boolean_control::LoweredBooleanDecisionExit;
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -525,6 +525,14 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
         ))?;
     let structural_parameters =
         lower_unit_parameters(&plan.structural_parameters, &type_ids, &[], &mut next_place)?;
+    // Expressions observe byte views through the authored source position;
+    // pair each with its emitted place so `source.len` resolves exactly.
+    let structural_namespace = plan
+        .structural_parameters
+        .iter()
+        .zip(&structural_parameters)
+        .map(|(source, emitted)| (source.position, emitted.clone()))
+        .collect::<Vec<_>>();
     let cleanup = plan
         .cleanup_actions
         .iter()
@@ -590,13 +598,14 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
                 "structural scalar return bindings are not a direct expression prefix",
             );
         }
-        let expression = lower_checked_scalar_expression_at(
+        let expression = lower_checked_scalar_expression_at_with_parameters(
             checked,
             plan.state,
             statement_ordinal,
             CheckedScalarExpressionRole::LocalInitializer {
                 binding_ordinal: statement_ordinal,
             },
+            &structural_namespace,
         )?;
         if let LoweredDirectExpression::Boolean { expression } = expression
             && contains_short_circuit(&expression)
@@ -631,13 +640,14 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
             );
         }
         let scalar_type = terminal_scalar_type(binding.primitive_type)?;
-        let expression = lower_checked_scalar_expression_at(
+        let expression = lower_checked_scalar_expression_at_with_parameters(
             checked,
             plan.state,
             statement_ordinal,
             CheckedScalarExpressionRole::LocalInitializer {
                 binding_ordinal: statement_ordinal,
             },
+            &structural_namespace,
         )?;
         if !is_branch_free_structural_scalar_expression(
             &expression,
@@ -680,11 +690,12 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
         &mut next_value,
         &mut operations,
     )?;
-    let expression = lower_checked_scalar_expression_at(
+    let expression = lower_checked_scalar_expression_at_with_parameters(
         checked,
         plan.state,
         plan.return_statement_ordinal,
         CheckedScalarExpressionRole::Return,
+        &structural_namespace,
     )?;
     if !is_structural_scalar_return_expression(
         &expression,
@@ -779,13 +790,14 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
                     LoweringError::Unsupported("structural scalar return binding index exceeds u32")
                 })?;
                 let scalar_type = terminal_scalar_type(binding.primitive_type)?;
-                let continuation_expression = lower_checked_scalar_expression_at(
+                let continuation_expression = lower_checked_scalar_expression_at_with_parameters(
                     checked,
                     plan.state,
                     statement_ordinal,
                     CheckedScalarExpressionRole::LocalInitializer {
                         binding_ordinal: statement_ordinal,
                     },
+                    &structural_namespace,
                 )?;
                 if !is_branch_free_structural_scalar_expression(
                     &continuation_expression,
