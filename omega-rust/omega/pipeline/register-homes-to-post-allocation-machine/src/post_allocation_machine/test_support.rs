@@ -1,4 +1,4 @@
-use super::model::StagedOptimizedPostAllocationMachinePlan;
+use super::StagedOptimizedPostAllocationMachinePlan;
 use crate::PostAllocationMachinePlanReceiptFieldForTest;
 
 /// One substitutable field of [`StagedOptimizedPostAllocationMachineCustodyReceipt`](super::StagedOptimizedPostAllocationMachineCustodyReceipt). The custody matrix
