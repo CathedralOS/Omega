@@ -18,6 +18,7 @@ use std::path::{Path, PathBuf};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::statement::StatementNode;
+use target::TargetProfile;
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -3920,41 +3921,49 @@ fn reviewed_repository_fixture_package_inputs(
         .any(|(identity, _)| identity == standard_library_identity);
     let standard_library_root = bundled_standard_library_root();
     let mut bindings = Vec::new();
-    if declares_standard_library {
-        if target_name == Some("macos_arm64") {
-            bindings.push(macos_entry_acceptance::candidate_macos_entry_binding(
-                &standard_library_root,
-                standard_library_identity,
-            )?);
-        }
-        if target_name == Some("linux_x86_64") {
-            bindings.push(
+    // Entry acceptance is decided by the target profile, not by spelling:
+    // every hosted profile with a reviewed ProgramEntry candidate binds it
+    // here, and a profile without one (macOS x86-64, the cross-platform and
+    // unchecked profiles) binds nothing rather than falling through a chain
+    // of string comparisons.
+    if declares_standard_library && let Some(target_name) = target_name {
+        let profile = TargetProfile::from_canonical_target_name(target_name)
+            .map_err(|diagnostic| vec![diagnostic])?;
+        let candidate = match profile {
+            TargetProfile::MacosArm64 => {
+                Some(macos_entry_acceptance::candidate_macos_entry_binding(
+                    &standard_library_root,
+                    standard_library_identity,
+                )?)
+            }
+            TargetProfile::LinuxX64 => Some(
                 linux_entry_acceptance::candidate_linux_x86_64_entry_binding(
                     &standard_library_root,
                     standard_library_identity,
                 )?,
-            );
-        }
-        if target_name == Some("linux_arm64") {
-            bindings.push(linux_entry_acceptance::candidate_linux_arm64_entry_binding(
-                &standard_library_root,
-                standard_library_identity,
-            )?);
-        }
-        if target_name == Some("windows_x86_64") {
-            bindings.push(
+            ),
+            TargetProfile::LinuxArm64 => {
+                Some(linux_entry_acceptance::candidate_linux_arm64_entry_binding(
+                    &standard_library_root,
+                    standard_library_identity,
+                )?)
+            }
+            TargetProfile::WindowsX64 => Some(
                 windows_entry_acceptance::candidate_windows_x86_64_entry_binding(
                     &standard_library_root,
                     standard_library_identity,
                 )?,
-            );
-        }
-        if target_name == Some("uefi_x86_64") {
-            bindings.push(uefi_entry_acceptance::candidate_uefi_entry_binding(
+            ),
+            TargetProfile::UefiX64 => Some(uefi_entry_acceptance::candidate_uefi_entry_binding(
                 &standard_library_root,
                 standard_library_identity,
-            )?);
-        }
+            )?),
+            TargetProfile::MacosX64
+            | TargetProfile::CrossPlatformCli
+            | TargetProfile::LocalUnchecked
+            | TargetProfile::AlphaBootstrap => None,
+        };
+        bindings.extend(candidate);
     }
     if !bindings.is_empty() {
         package_inputs = package_inputs
@@ -4081,14 +4090,18 @@ fn hosted_main_program_entry_build_for(canary: &Path, target: &str) -> String {
     )
 }
 
+/// The root-slot owner a scratch build binds `ProgramEntry` under, read from
+/// the target vocabulary. Only profiles with a native realization own a
+/// hosted ProgramEntry root; asking for any other profile is a harness
+/// defect, not a fixture outcome.
 fn hosted_program_entry_owner(target: &str) -> &'static str {
-    match target {
-        "windows_x86_64" => "windows_x86_64",
-        "linux_x86_64" => "linux_x86_64",
-        "macos_arm64" => "macos_arm64",
-        "linux_arm64" => "linux_arm64",
-        _ => panic!("no hosted ProgramEntry root owner for target `{target}`"),
-    }
+    let profile = TargetProfile::from_canonical_target_name(target)
+        .unwrap_or_else(|error| panic!("harness names an unknown target `{target}`: {error}"));
+    assert!(
+        profile.native_realization().is_some(),
+        "no hosted ProgramEntry root owner for target `{target}`"
+    );
+    profile.root_slot_owner_name()
 }
 
 /// The cross-target application build written for a fixture copied into a
@@ -4097,10 +4110,7 @@ fn hosted_program_entry_owner(target: &str) -> &'static str {
 /// dependencies the fixture authored through absolute paths, and mirrors the
 /// authored freestanding EFI profile for `uefi_x86_64`.
 fn cross_target_program_entry_build(canary: &Path, target: &str) -> String {
-    let root_owner = match target {
-        "uefi_x86_64" => "uefi_x86_64",
-        _ => hosted_program_entry_owner(target),
-    };
+    let root_owner = hosted_program_entry_owner(target);
     let mut build =
         "machine build(builder: &mut Build) {\n    builder.application(\"cross-target-canary\");\n"
             .to_owned();
