@@ -896,10 +896,7 @@ mod tests {
             ScalarTerm::boolean_not(a.clone()).expect("not a"),
             b.clone(),
         );
-        let goal = Proposition::Equal(
-            a,
-            ScalarTerm::boolean_not(b).expect("not b"),
-        );
+        let goal = Proposition::Equal(a, ScalarTerm::boolean_not(b).expect("not b"));
         let proof = ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::PredicateDenotation {
