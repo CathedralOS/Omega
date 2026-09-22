@@ -551,6 +551,18 @@ fn argument_sources<'program>(
             // Normalize before vacuity: even an impossible arm cannot manufacture
             // custody for a foreign symbol or an unsupported actual expression.
             let sources = if exact_integer_parameter(program, parameter.type_reference).is_some() {
+                // The actual may be a quotient or remainder tree over caller
+                // inputs: mint each division's operand-pair atom the same way
+                // the endpoints were bound, or normalization refuses the term
+                // and the slot loses even the evidence it does carry.
+                meanings::install_integer_division_terms(
+                    program,
+                    caller.machine,
+                    site,
+                    &mut engine,
+                    *argument,
+                    0,
+                )?;
                 let actual = engine.normalize(*argument)?;
                 source_values
                     .iter()

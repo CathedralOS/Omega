@@ -1,0 +1,21 @@
+data Main { observed: u64; }
+
+machine Main::main(&mut self) {}
+
+machine Main::first(&mut self, remaining: u64 [0..=5], cap: u64 [0..=20], step: u64 [1..=5], spare: u64)
+terminates by remaining in 0..(cap / step + 6);
+-> u64 {
+    transition remaining > 0 {
+        true -> self.second(cap % step, remaining - 1, step, cap)
+        false -> remaining
+    }
+}
+
+machine Main::second(&mut self, limit: u64 [0..=20], pending: u64 [0..=5], width: u64 [1..=5], extra: u64)
+terminates by pending in 0..(limit / width + 6);
+-> u64 {
+    transition pending > 0 {
+        true -> self.first(pending, limit, width, extra)
+        false -> pending
+    }
+}

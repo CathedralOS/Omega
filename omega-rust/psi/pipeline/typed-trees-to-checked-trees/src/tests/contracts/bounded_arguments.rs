@@ -248,6 +248,43 @@ fn statement_and_value_calls_must_establish_the_parameter_range() {
 }
 
 #[test]
+fn saved_division_observation_discharges_a_call_requirement() {
+    // An immutable local bound to a runtime remainder is a saved caller
+    // observation: the requirement reads the exact `cap % step` value, not a
+    // refused term.
+    let source = r#"
+        machine accept(delivered: u64) -> u64
+        requires delivered <= 4;
+        terminates;
+        { delivered }
+        machine run(cap: u64 [0..=20], step: u64 [1..=5]) -> u64 {
+            let rem: u64 = cap % step;
+            transition { _ -> accept(rem) }
+        }
+    "#;
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
+        .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
+    // A bound the remainder interval cannot meet still rejects, and the
+    // obligation names the transported operation.
+    let tightened = source.replace("delivered <= 4", "delivered <= 3");
+    let diagnostics = lower_typed_trees(parse_typed_trees(&tightened), &CheckingRequest::settled())
+        .expect_err("a bound past the remainder's interval must reject");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove requires")),
+        "{diagnostics:#?}"
+    );
+    // A zero modulus inside the saved initializer still fails its own
+    // formation rather than laundering through the observation.
+    let zeroed = source.replace("cap % step", "cap % (step - step)");
+    assert!(
+        lower_typed_trees(parse_typed_trees(&zeroed), &CheckingRequest::settled()).is_err(),
+        "an undefined saved operation must reject: {zeroed}"
+    );
+}
+
+#[test]
 fn strict_float_calls_retain_and_enforce_the_authored_endpoint() {
     for argument in ["1.0", "1.4999999", "0.0"] {
         let source = format!(
