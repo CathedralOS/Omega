@@ -319,13 +319,9 @@ fn fixed_view_recovery_publishes_the_same_owned_program_contract() {
         )
         .unwrap();
         let selected = stage_optimized_instruction_selection(target_input).unwrap();
-        let ranges =
-            stage_optimized_live_ranges(stage_optimized_liveness(selected).unwrap()).unwrap();
         let retained = stage_register_allocation(
-            selected_instructions_to_register_homes::optimize_analyzed_selected_instructions(
-                ranges,
-            )
-            .unwrap(),
+            selected_instructions_to_register_homes::optimize_selected_instructions(selected)
+                .unwrap(),
         )
         .unwrap();
         assert_owned_program(&retained);
@@ -372,13 +368,9 @@ fn allocation_phase_matches_explicit_recovery_on_both_targets() {
             .unwrap(),
         );
         let declared_budget = selected.optimized_target().optimized().budget_per_pass();
-        let ranges =
-            stage_optimized_live_ranges(stage_optimized_liveness(selected).unwrap()).unwrap();
         let allocation = stage_register_allocation(
-            selected_instructions_to_register_homes::optimize_analyzed_selected_instructions(
-                ranges,
-            )
-            .unwrap(),
+            selected_instructions_to_register_homes::optimize_selected_instructions(selected)
+                .unwrap(),
         )
         .unwrap();
         assert_owned_program(&allocation);

@@ -92,7 +92,7 @@ impl SelectedStageRuleCatalogSlice {
 
 /// The stage's one ordered catalog, in dispatch order: selected-lowering
 /// rules run before any allocation-recovery rule, matching
-/// `optimize_analyzed_selected_instructions`, which rejects a mixed
+/// `optimize_selected_instructions`, which rejects a mixed
 /// selection as an unsupported composition. Phases the stage does not carry
 /// (for example `PreAllocation`) have no slice: they admit no selectable rule
 /// here rather than listing an empty catalog.

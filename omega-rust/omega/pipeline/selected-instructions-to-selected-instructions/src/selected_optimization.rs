@@ -8,13 +8,16 @@ mod catalog_route_tests;
 use crate::{
     SELECTED_STAGE_RULE_CATALOG, SelectedInstructionOptimizationError,
     SelectedInstructionOptimizationEvidence, SelectedInstructionOptimizationOutput,
-    SelectedStageRuleRows, StagedOptimizedLiveRanges, run_selected_lowering_optimizations,
+    SelectedStageRuleRows, run_selected_lowering_optimizations,
     stage_optimized_allocation_legality_for_frameless_leaf, stage_optimized_live_ranges,
     stage_optimized_liveness,
 };
 use optimization_core::{OptimizationExecutionPhase, OptimizationSelections};
 use target_operations_to_selected_instructions::StagedOptimizedSelectedInstructions;
 
+/// Stage liveness and live ranges over the selected program, then execute
+/// the catalog slices this stage owns. Identity and nonempty selections both
+/// publish the same current-program carrier.
 pub fn optimize_selected_instructions(
     selected: StagedOptimizedSelectedInstructions,
 ) -> Result<SelectedInstructionOptimizationOutput, SelectedInstructionOptimizationError> {
@@ -22,14 +25,6 @@ pub fn optimize_selected_instructions(
         .map_err(SelectedInstructionOptimizationError::Liveness)?;
     let ranges = stage_optimized_live_ranges(liveness)
         .map_err(SelectedInstructionOptimizationError::LiveRanges)?;
-    optimize_analyzed_selected_instructions(ranges)
-}
-
-/// Reuse already checked analysis when driving this phase independently.
-/// Identity and nonempty selections both publish the same current-program carrier.
-pub fn optimize_analyzed_selected_instructions(
-    ranges: StagedOptimizedLiveRanges,
-) -> Result<SelectedInstructionOptimizationOutput, SelectedInstructionOptimizationError> {
     let selections = ranges.selections();
     if !has_executed_selections(selections) {
         return SelectedInstructionOptimizationOutput::from_evidence(
@@ -61,7 +56,7 @@ fn slice_executes_at_stage(rows: SelectedStageRuleRows) -> bool {
 }
 
 /// The catalog phases this entrance executes, in catalog order. This is the
-/// stage's one admission decision: `optimize_analyzed_selected_instructions`
+/// stage's one admission decision: `optimize_selected_instructions`
 /// composes and rejects through it, and identity replay in
 /// `optimization_output` reads the same set, so a family that gains a
 /// `SelectedStageRuleRows` arm also gains its missing-execution rejection

@@ -57,7 +57,7 @@ impl SelectedInstructionOptimizationEvidence {
                 // catalog slices; a selection under any phase the entrance
                 // executes without its rewrite run is a missing execution.
                 // The executed set comes from the same catalog admission
-                // `optimize_analyzed_selected_instructions` reads.
+                // `optimize_selected_instructions` reads.
                 if super::executed_slice_phases()
                     .any(|phase| !ranges.selections().for_phase(phase).is_empty())
                 {

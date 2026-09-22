@@ -48,9 +48,7 @@ pub use selected_optimization::optimization_output::{
     SelectedInstructionOptimizationError, SelectedInstructionOptimizationEvidence,
     SelectedInstructionOptimizationOutput,
 };
-pub use selected_optimization::{
-    optimize_analyzed_selected_instructions, optimize_selected_instructions,
-};
+pub use selected_optimization::optimize_selected_instructions;
 
 #[cfg(feature = "test-support")]
 pub use rewrites::test_support;
