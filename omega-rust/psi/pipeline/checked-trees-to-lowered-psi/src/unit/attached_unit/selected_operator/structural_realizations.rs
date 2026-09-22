@@ -4,9 +4,7 @@ use super::super::super::{
     LoweredSourceCallOccurrence, MachineId, ObligationEvidence, StructuralTypeDeclaration,
 };
 use super::super::{TERMINAL_MACHINE_IDENTITY_STRIDE, TerminalMachine, lookup_machine_id};
-use super::{
-    BTreeSet, CheckedTrees, LoweringError, Multiplicity, terminal_scalar_type, unsupported,
-};
+use super::{CheckedTrees, LoweringError, Multiplicity, terminal_scalar_type, unsupported};
 pub(in crate::unit::attached_unit) struct LoweredSelectedStructuralScalarRealizations {
     pub(in crate::unit::attached_unit) machines: Vec<TerminalMachine>,
     pub(in crate::unit::attached_unit) evidence: Vec<ObligationEvidence>,
@@ -20,18 +18,6 @@ pub(in crate::unit::attached_unit) fn lower_selected_structural_scalar_realizati
     machine_ids: &[(symbols::SymbolHandle, MachineId)],
     machine_index_base: usize,
 ) -> Result<LoweredSelectedStructuralScalarRealizations, LoweringError> {
-    let selected_type_identities = structural_types
-        .iter()
-        .map(|declaration| declaration.identity.as_str())
-        .collect::<BTreeSet<_>>();
-    let mut staged = checked.clone();
-    staged
-        .facts
-        .flow
-        .terminal_structural_scalar_returns
-        .structural_types
-        .retain(|plan| selected_type_identities.contains(plan.identity.as_str()));
-
     let mut machines = Vec::with_capacity(roots.len());
     let mut evidence = Vec::new();
     let mut source_calls = Vec::new();
@@ -97,7 +83,7 @@ pub(in crate::unit::attached_unit) fn lower_selected_structural_scalar_realizati
         let terminal_machine = lookup_machine_id(machine_ids, *source_machine)?;
         let mut lowered =
             crate::returns::structural_scalar_return::lower_structural_scalar_return_machine_in_namespace(
-                &staged,
+                checked,
                 realization,
                 terminal_machine,
                 identity_base,

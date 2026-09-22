@@ -6,9 +6,9 @@
 use super::{
     BTreeSet, Block, CheckedScalarBindingValue, CheckedScalarExpressionRole,
     CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
-    CheckedTrees, LoweredPsi, LoweringError, MachineContract, MachineId, Multiplicity, Operation,
-    OperationKind, PrimitiveType, ProofBundle, ScalarType, StructuralArgument,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration,
+    CheckedTrees, CheckedUnitStructuralTypePlan, LoweredPsi, LoweringError, MachineContract,
+    MachineId, Multiplicity, Operation, OperationKind, PrimitiveType, ProofBundle, ScalarType,
+    StructuralArgument, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration,
     TERMINAL_MACHINE_IDENTITY_STRIDE, TerminalAffineCleanupAction, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
     allocate_dense, block_id, boolean_decision_block_count, contains_short_circuit, contract_id,
@@ -343,10 +343,63 @@ pub(crate) fn lower_structural_scalar_return_machine(
             CheckedStructuralScalarReturnCleanupAction::InvokeNominal(_)
         )
     }) {
-        effects::validate(checked, plan)?;
+        effects::validate(
+            checked,
+            StructuralScalarReturnTypes::published(checked),
+            plan,
+        )?;
         return lower_nominal_structural_scalar_return_machine(checked, plan);
     }
     lower_structural_scalar_return_machine_in_namespace(checked, plan, machine_id(1), 0, None)
+}
+
+/// The structural-scalar-return shapes one callee lowering may resolve: the
+/// lane's published roster, restricted to the identities of a shared Unit
+/// catalog when the callee is rejoined in a caller's namespace. A callee
+/// lowered into a shared catalog can only name the shapes that catalog
+/// declares, so the view narrows the roster instead of the caller trimming a
+/// cloned copy of the checked trees.
+#[derive(Clone, Copy)]
+pub(crate) struct StructuralScalarReturnTypes<'a> {
+    published: &'a [CheckedUnitStructuralTypePlan],
+    shared: Option<&'a [StructuralTypeDeclaration]>,
+}
+
+impl<'a> StructuralScalarReturnTypes<'a> {
+    pub(crate) fn published(checked: &'a CheckedTrees) -> Self {
+        Self {
+            published: &checked
+                .facts
+                .flow
+                .terminal_structural_scalar_returns
+                .structural_types,
+            shared: None,
+        }
+    }
+
+    fn shared_with(
+        checked: &'a CheckedTrees,
+        shared: Option<&'a [StructuralTypeDeclaration]>,
+    ) -> Self {
+        Self {
+            shared,
+            ..Self::published(checked)
+        }
+    }
+
+    pub(crate) fn iter(self) -> impl Iterator<Item = &'a CheckedUnitStructuralTypePlan> {
+        self.published.iter().filter(move |plan| {
+            self.shared.is_none_or(|shared| {
+                shared
+                    .iter()
+                    .any(|declaration| declaration.identity == plan.identity)
+            })
+        })
+    }
+
+    pub(crate) fn find(self, identity: &str) -> Option<&'a CheckedUnitStructuralTypePlan> {
+        self.iter().find(|plan| plan.identity == identity)
+    }
 }
 
 /// Ordinary structural scalar callees currently use the closed primitive-reference
@@ -355,7 +408,11 @@ pub(crate) fn validate_scalar_callee(
     checked: &CheckedTrees,
     plan: &CheckedStructuralScalarReturnMachinePlan,
 ) -> Result<(), LoweringError> {
-    if !effects::validate(checked, plan)? {
+    if !effects::validate(
+        checked,
+        StructuralScalarReturnTypes::published(checked),
+        plan,
+    )? {
         return unsupported("structural scalar callee needs complete call and contract custody");
     }
     Ok(())
@@ -368,7 +425,8 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
     identity_base: u64,
     shared_structural_types: Option<&[StructuralTypeDeclaration]>,
 ) -> Result<LoweredPsi, LoweringError> {
-    let primitive_reference_return = effects::validate(checked, plan)?;
+    let types = StructuralScalarReturnTypes::shared_with(checked, shared_structural_types);
+    let primitive_reference_return = effects::validate(checked, types, plan)?;
     if plan.cleanup_actions.iter().any(|action| {
         matches!(
             action,
@@ -377,13 +435,8 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
     }) {
         return unsupported("namespaced structural scalar callees require direct root cleanup");
     }
-    let type_plans = &checked
-        .facts
-        .flow
-        .terminal_structural_scalar_returns
-        .structural_types;
     let (structural_types, type_ids) = if let Some(shared) = shared_structural_types {
-        shared_types::validate(type_plans, shared, plan)?;
+        shared_types::validate(types, shared, plan)?;
         (
             shared.to_vec(),
             shared
@@ -392,7 +445,7 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
                 .collect::<Vec<_>>(),
         )
     } else {
-        lower_structural_type_plans(type_plans)?
+        lower_structural_type_plans(types.published)?
     };
     if plan.structural_parameters.is_empty() {
         return unsupported("structural scalar return has no structural parameters");
