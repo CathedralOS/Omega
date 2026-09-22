@@ -49,7 +49,7 @@ verifies the tree. `record.json` carries the measured record:
   reject as `fragment-escape` (the completeness fragment has no fixpoint
   symbols); `lem`/`dne`/`classical_choice` reject as
   `classical-rule-import` per
-  [classicality.md](../spec/proofs/classicality.md) — importing classical
+  [classicality.md](../../spec/proofs/classicality.md) — importing classical
   reasoning would change the accepted foundation. Hypothesis carriers
   (`HYP`/`IMPI`/`GEN`/`ORE`) reject as `unsupported-external-rule`: this
   bounded importer covers the hypothesis-free subset only, which is all a

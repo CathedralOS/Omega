@@ -182,7 +182,7 @@ executed run. That ledger now selects the coupled provisions — the
 67,108,864-unit work counter, and the 3,387,293,850-pair arena — pending the
 Alpha extent-supply leg that realizes them.
 This is one straightforward producer shape, not a lower bound;
-the [cost review](../../../wiki/drafts/bootstrap_cost_review.md) records the
+the [cost review](../../../wiki/drafts/reference/bootstrap_cost_review.md) records the
 named reduction levers and confirms the remaining shortfall is structural.
 
 Windows runtime validation is unavailable in this session. The gate documents

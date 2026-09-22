@@ -1,6 +1,6 @@
 //! Proof-search cost measurement for one `check_proof_plan` run.
 //!
-//! `wiki/drafts/proof_search_cache.md` requires measured hit rate,
+//! `wiki/drafts/reference/proof_search_cache.md` requires measured hit rate,
 //! invalidation, total checking cost, and storage before any derivation
 //! store is chosen. `ProofPlanMeasurements` is the receiving-side record of
 //! that run: the obligation mix the checker loop dispatched, which route

@@ -220,7 +220,7 @@ Read these carefully, because two of them answer nothing.
 **The last three rows are uninformative for this question.** They fail INSIDE
 `omega-language-std`, so the root program is never reached — that is a
 separate defect, recorded in
-[toolchain_settled_plan_provenance_replay.md](toolchain_settled_plan_provenance_replay.md).
+[toolchain_settled_plan_provenance_replay.md](../designs/toolchain_settled_plan_provenance_replay.md).
 They do not tell you anything about `Main::add`.
 
 **The rows were not all taken on one binary, and that invalidated a

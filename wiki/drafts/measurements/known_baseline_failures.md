@@ -6,7 +6,7 @@ command, revision, and failure set — instead of re-running a stash baseline.
 Refresh or remove a row when its failures are fixed or when a task's diff could
 plausibly interact with them; a listed failure does not excuse an unexplained
 failure in affected behavior, and this file is not validation policy (see
-[AGENTS.md](../../AGENTS.md#validation-scope)). Delete this draft when no row
+[AGENTS.md](../../../AGENTS.md#validation-scope)). Delete this draft when no row
 survives — every listed failure fixed or re-attributed to a task diff.
 
 Rows verified by independent stash-baseline reproduction at revision
@@ -86,7 +86,7 @@ members of that cluster, all closed:
   `typed-trees/src/typed_trees/declarations/operator/indexing.rs::shared_collection_elements`
   adapts only slice shells (a `buffer: &Buffer` parameter operand passes; a
   `Buffer` place fails in every spelling). The settled
-  [indexing receiver rule](../spec/language/expressions.md#indexing-and-ranges)
+  [indexing receiver rule](../../spec/language/expressions.md#indexing-and-ranges)
   uses ordinary attached-receiver borrowing, not a new auto-borrow rule for
   ordinary first parameters. OPERATOR-MACHINE-SUPPLY owns expressing this
   fixture with an attached receiver, retaining a separate explicit-parameter
@@ -148,7 +148,7 @@ appeared:
   reports `proof-admission/src/mathematical_core/tests/strict_layer.rs` as
   an unregistered source file under a trusted root. This is revision-bound
   failure evidence, not a current failure claim. Ongoing revalidation belongs
-  to **PCC-CANONICAL-SEMANTIC-LEDGER** in [TASKS.md](../../TASKS.md): review
+  to **PCC-CANONICAL-SEMANTIC-LEDGER** in [TASKS.md](../../../TASKS.md): review
   changed entries' justifications before refreshing their source digests.
 - Repaired: `unranked_bindings::cyclic_scalar_targets_and_reachability_are_checked_before_dominance`
   and `unranked_views::every_cyclic_view_jump_checks_exact_arity` saw
@@ -167,8 +167,8 @@ appeared:
   field typed `ByteSequence(BorrowedView)` resolved by shape equality to the
   module's standalone declaration and satisfied a callee parameter directly,
   bypassing the inline presentation route that
-  [byte views](../spec/terminal-psi/byte_views.md) and
-  [structural access](../spec/terminal-psi/structural_access.md) make the
+  [byte views](../../spec/terminal-psi/byte_views.md) and
+  [structural access](../../spec/terminal-psi/structural_access.md) make the
   only way a field-projected byte argument reaches a parameter. It answers
   `None` now, which closes the same hole in terminal-codec's independent
   validation; all seven leaf-shape consumers were followed and none needed
@@ -276,7 +276,7 @@ older reading:
   arithmetic-policy lane (**ARITHMETIC-POLICY-REALIZATION**).
 - `atomics/atomic_field_declared`: "macOS hosted receiver bridge lost exact
   contract, storage, or entry custody" (**ENTRY-CONTENT-ROOTS**; migrate the bare
-  receiver field to the [intrinsically established service carrier](../spec/build/component_publication.md#bindings-and-era-entry)).
+  receiver field to the [intrinsically established service carrier](../../spec/build/component_publication.md#bindings-and-era-entry)).
   **Retired from this cluster as host-bound**: verified green on Linux
   x86-64 at 4607987316 and re-confirmed on bbfda8bc2e under
   `OMEGA_PASS_CANARY_FILTER=atomics/atomic_field_declared`; the recorded
@@ -1365,7 +1365,7 @@ legacy scalar range-annotation suffix, from an inferred extent; a
 generics checker gap (**STRUCTURAL-GENERIC-MATCHING** / **RUNTIME-VALUE-GENERICS**
 areas, both under live claims when recorded). This historical diagnosis does not
 endorse the removed source syntax. `REMOVE-BRACKETED-RANGE-ANNOTATIONS` on the
-[board](../../TASKS.md) tracks migration of the compiler and unchanged fixture;
+[board](../../../TASKS.md) tracks migration of the compiler and unchanged fixture;
 no replacement-syntax validation is claimed here.
 
 Closed at 7b224763615 (2026-09-21, linux x86-64):
@@ -1464,7 +1464,7 @@ not a fix to inline into a task.
 ## workspace `--lib` cluster (RC-REPOSITORY-CLOSURE)
 
 The `cargo nextest run --workspace --lib --no-fail-fast` leg of
-**RC-REPOSITORY-CLOSURE** ([TASKS.md](../../TASKS.md)) measured RED 13 of 16,169
+**RC-REPOSITORY-CLOSURE** ([TASKS.md](../../../TASKS.md)) measured RED 13 of 16,169
 on linux x86-64 at `5958706064` (2026-09-20, cargo, no mbx). That row owns the
 live measurement; the names are carried here so an exact-name search finds the
 attribution. Every member below reproduces at that revision without a task

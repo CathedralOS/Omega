@@ -2,7 +2,7 @@
 
 Board row: `TASKS.md` `**EVALUATED-FOREIGN-BINDINGS.**` — the evaluated
 locator values ride the
-[normalized-import settlement contract](../spec/terminal-psi/boundary_calls.md#consumer-owned-settlement).
+[normalized-import settlement contract](../../spec/terminal-psi/boundary_calls.md#consumer-owned-settlement).
 Recorded on linux x86-64 against `75650d2e94` (origin/main), claims snapshot
 ~2026-09-21T13:10Z.
 

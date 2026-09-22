@@ -96,7 +96,7 @@ Apply the [repository scope checkpoints](../AGENTS.md#scope-checkpoints) before
 expanding support machinery. A paused strategy does not block independent
 bootstrap work, authorize abandoning proof obligations, or permit a replacement
 rung. Comparative background belongs in
-[the comparison notes](../wiki/drafts/bootstrap_chain_alternatives.md),
+[the comparison notes](../wiki/drafts/reference/bootstrap_chain_alternatives.md),
 not beside the selected chain as another authority. A concrete proposed change
 belongs in proposals; an experiment alone does not ratify it.
 

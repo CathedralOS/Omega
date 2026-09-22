@@ -222,7 +222,7 @@ the whole chain.
 
 ### Slow builds
 
-Use [test-cycle measurements](wiki/drafts/test_cycle_measurements.md) to distinguish
+Use [test-cycle measurements](wiki/drafts/measurements/test_cycle_measurements.md) to distinguish
 compilation, test execution, and repeated landing validation. The Windows
 measurements did not establish a stable universal test-thread cap or a full-suite
 speedup from nextest alone; avoid unrelated test execution using the selector above.
@@ -796,4 +796,4 @@ what you mean. When a literal phrase is available, use it.
 - [Documentation index](wiki/README.md)
 - [Terminal Psi product contract](wiki/spec/terminal-psi/product.md)
 - [Optimization phases](wiki/spec/build/optimizations.md#phase-and-product-boundaries)
-- [Rust compiler completion](wiki/drafts/rust_compiler_completion.md)
+- [Rust compiler completion](wiki/drafts/reference/rust_compiler_completion.md)

@@ -5,7 +5,7 @@ placement, and the first Omega compiler. This is not a proposed change or an
 implementation request. Keep it while these comparisons are useful; delete it
 when superseded by concrete measured work or no longer relevant.
 
-The [selected chain](../../bootstrap/README.md) remains Alpha, Beta, Gamma,
+The [selected chain](../../../bootstrap/README.md) remains Alpha, Beta, Gamma,
 Delta, Epsilon, and Omega. Its functional Gamma evaluator is Beta-authored;
 the admitted Beta compiler and exact self-reconstruction remain part of the
 root argument. These notes neither reopen rejected prototypes nor change
@@ -38,7 +38,7 @@ combination. Terminal Psi is a product compiler boundary, not automatically a
 bootstrap rung; a comparison using it must count the required lowerer and
 authority contract.
 
-Use the [whole-chain comparison contract](../../bootstrap/MINIMIZATION.md#constraints-on-comparisons).
+Use the [whole-chain comparison contract](../../../bootstrap/MINIMIZATION.md#constraints-on-comparisons).
 For a serious candidate, independent reviewers receive the declared audit
 package and the same bounded mutation exercise: instruction decoding,
 arithmetic/allocation bounds, control transfer, parser acceptance, emission,
@@ -53,8 +53,8 @@ customer motivates a comparison, which admissions it removes, and whether its
 complete resource behavior is feasible must be answered before selection.
 Readable checker source alone does not prove its evaluator or compiler.
 
-The [owner-escalation rules](../../bootstrap/MINIMIZATION.md#owner-escalation)
-and [new-language approval boundary](../../AGENTS.md#scope-checkpoints) remain
+The [owner-escalation rules](../../../bootstrap/MINIMIZATION.md#owner-escalation)
+and [new-language approval boundary](../../../AGENTS.md#scope-checkpoints) remain
 binding, including for experimental replacement languages. A comparison is
 not advance permission for an opcode, axiom, accelerator, weakened observation,
 or parallel accepted chain. Rejected implementations and measurement diaries

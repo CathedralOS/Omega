@@ -3,8 +3,8 @@
 
 Implements the "one small external arithmetic proof with its exact source
 axiom closure and checked proof-object translation" leg drafted in
-``wiki/drafts/matching_logic.md`` and detailed in
-``wiki/drafts/matching_logic_external_proof_import.md``.
+``wiki/drafts/reference/matching_logic.md`` and detailed in
+``wiki/drafts/reference/matching_logic_external_proof_import.md``.
 
 An external producer exports a flat step list under its own rule vocabulary
 (``external-arithmetic-proof/1``). This tool translates that export into the
@@ -47,8 +47,8 @@ EXPORT_SCHEMA = "external-arithmetic-proof/1"
 CERT_SCHEMA = "omega-matching-logic-certificate/1"
 RECORD_SCHEMA = "omega-external-proof-import-record/1"
 FRAGMENT = "one-sorted finitary basic matching logic, no fixpoint symbols"
-SEMANTICS_DOC = "wiki/drafts/matching_logic_external_proof_import.md"
-SOURCE_DRAFT = "wiki/drafts/matching_logic.md"
+SEMANTICS_DOC = "wiki/drafts/reference/matching_logic_external_proof_import.md"
+SOURCE_DRAFT = "wiki/drafts/reference/matching_logic.md"
 SLICE_CHECKER = "tools/matching-logic-slice/slice_checker.py"
 
 # Bounded-fragment ceiling: translations beyond this node count are refused

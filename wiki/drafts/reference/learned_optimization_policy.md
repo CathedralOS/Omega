@@ -9,7 +9,7 @@ compiler and needs its own concrete justification. Delete these notes when a
 measured workload justifies a concrete proposal or the product compiler takes
 the question.
 
-Affected subject: [optimization selection and validation](../spec/build/optimizations.md).
+Affected subject: [optimization selection and validation](../../spec/build/optimizations.md).
 
 ## Motivation
 
@@ -55,7 +55,7 @@ multiversioned body would interact with code identity, deduplication, and
 component replacement:
 
 - **Slot identity is unchanged.** Under
-  [component publication](../spec/build/component_publication.md), slot
+  [component publication](../../spec/build/component_publication.md), slot
   identity is the exact closed requirement application — never an artifact
   generation. Variant selection is a realization/binding input inside one
   slot, not a new slot: a specialized variant satisfies the same requirement

@@ -392,7 +392,7 @@ def stale_check(sessions, hints_by_name):
     enforcement. Board-sweep vocabulary ("Resolved —", "already landed",
     "row consumed") means the board lagged landed reality — manifesting the
     slot pays a session to re-witness closure (the wave-6 loss pattern in
-    wiki/drafts/swarm_commit_signal.md). A coordinator who has verified the
+    wiki/drafts/measurements/swarm_commit_signal.md). A coordinator who has verified the
     item still names unfinished work manifests it as probe_only or drops it.
     """
     failures = []
@@ -614,7 +614,7 @@ def local_host_block():
             "has no matching cfg arm: host-profiled tests panic with "
             "`unsupported host profile for Omega native planning` and the "
             "canary target does not compile here. See "
-            "wiki/drafts/known_baseline_failures.md. Route omega invocations "
+            "wiki/drafts/measurements/known_baseline_failures.md. Route omega invocations "
             "through `--target linux_x86_64` (or another declared target) and "
             "report native-host coverage as unavailable, never as passing.")
     if system == "Darwin":

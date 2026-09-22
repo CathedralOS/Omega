@@ -21,10 +21,10 @@ must not erase meaningful distinctions. Dependency changes invalidate affected
 entries. A key computed from the proof term can identify a stored proof, but
 does not alone provide the lookup key for finding it from an obligation.
 
-Published [proof evidence](../spec/proofs/contracts.md) is a distinct reuse path:
+Published [proof evidence](../../spec/proofs/contracts.md) is a distinct reuse path:
 its producer publishes a checked contract rather than substituting for search
 still owned by the current consumer. Evaluator-result caches retain logical
-usage under the [evaluation contract](../spec/language/evaluation.md).
+usage under the [evaluation contract](../../spec/language/evaluation.md).
 
 ## Alternatives and unresolved choices
 

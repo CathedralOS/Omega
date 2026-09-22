@@ -1,7 +1,7 @@
 # Matching-logic comparison metrics
 
 Produces the metrics record that
-[wiki/drafts/matching_logic.md](../../wiki/drafts/matching_logic.md#possible-bounded-comparison)
+[wiki/drafts/reference/matching_logic.md](../../wiki/drafts/reference/matching_logic.md#possible-bounded-comparison)
 requires before any matching-logic comparison: **checker, translation, and
 theory size; certificate size and checking time; and every imported rule,
 assumption, or trusted bridge** — measured over identical pinned positive and

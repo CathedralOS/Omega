@@ -110,7 +110,7 @@ beside code; completed work belongs in Git, not current reference material.
 Bootstrap language and proof contracts live beside the chain; start at
 [edge contracts](../bootstrap/CONTRACT.md) and
 [minimization](../bootstrap/MINIMIZATION.md). Alternative-chain tradeoffs are
-[reference notes](drafts/bootstrap_chain_alternatives.md), not a proposed replacement.
+[reference notes](drafts/reference/bootstrap_chain_alternatives.md), not a proposed replacement.
 
 [Execution tasks](../TASKS.md) track implementation;
 [owner questions](../OWNER_QUESTIONS.md) hold unresolved decisions.

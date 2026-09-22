@@ -7,7 +7,7 @@ This is not a language specification or a claim of implemented support.
 
 Cathedral (`../Cathedral`) is Omega's first operating-system customer. This page
 records the cross-repository ownership and dependency map. It is not an
-implementation-status log: [TASKS.md](../../TASKS.md) owns Omega's current
+implementation-status log: [TASKS.md](../../../TASKS.md) owns Omega's current
 queue, while Cathedral's `wiki/design/gap_register.md` owns Cathedral work.
 
 ## Ownership boundary
@@ -137,8 +137,8 @@ acceptance tests.
 When either repository changes the boundary, update this ownership/dependency
 map and the owning task or design page. Do not append milestone history here.
 
-Current public contracts live in [Terminal Psi](../spec/terminal-psi/product.md),
-[content custody](../spec/resources/content_custody.md),
-[placed access](../spec/resources/placed_access.md), and
-[component publication](../spec/build/component_publication.md).
+Current public contracts live in [Terminal Psi](../../spec/terminal-psi/product.md),
+[content custody](../../spec/resources/content_custody.md),
+[placed access](../../spec/resources/placed_access.md), and
+[component publication](../../spec/build/component_publication.md).
 This customer map does not replace those contracts.

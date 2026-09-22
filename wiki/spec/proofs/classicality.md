@@ -2,7 +2,7 @@
 
 This document is the audit of every proof rule an accepted certificate can
 cite against the classical/constructive boundary that the
-[matching-logic exploration](../../drafts/matching_logic.md) requires:
+[matching-logic exploration](../../drafts/reference/matching_logic.md) requires:
 classical reasoning must not be silently imported into the accepted
 foundation or disguised as translation.
 

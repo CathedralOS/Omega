@@ -123,7 +123,7 @@ waits on the named runtime environment; `unavailable (<reason>)` carries
 the structural gap — `uefi_x86_64` keeps its runtime leg
 unavailable (QEMU or hardware acceptance) even before a host
 participates. The rendered table is embedded in
-`wiki/drafts/benchmarks.md`; regenerate and repaste it when rows land.
+`wiki/drafts/measurements/benchmarks.md`; regenerate and repaste it when rows land.
 
 ## Host coverage
 

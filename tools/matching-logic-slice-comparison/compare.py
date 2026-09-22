@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Bounded comparison record for a matching-logic slice versus the current
-Omega proof route, per wiki/drafts/matching_logic.md ("Possible bounded
+Omega proof route, per wiki/drafts/reference/matching_logic.md ("Possible bounded
 comparison").
 
 The comparison checklist asks for: checker size, translation size, theory
@@ -28,7 +28,7 @@ Standard library only. Run from the repository root or the crate directory:
     python3 tools/matching-logic-slice-comparison/compare.py \
         --omega target/debug/omega \
         --record tools/matching-logic-slice-comparison/record.json \
-        --report wiki/drafts/matching_logic_slice_comparison.md
+        --report wiki/drafts/reference/matching_logic_slice_comparison.md
 
 `--skip-run` measures only the static surfaces (no case execution).
 `--native-sidecar <path>` records the size of a produced `.proof` or
@@ -772,7 +772,7 @@ def main() -> int:
     record = {
         "record": "matching-logic-slice-comparison/v1",
         "generated_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "checklist_source": "wiki/drafts/matching_logic.md#possible-bounded-comparison",
+        "checklist_source": "wiki/drafts/reference/matching_logic.md#possible-bounded-comparison",
         "versions": versions,
         "omega_route": {
             "surface_lines": surfaces,

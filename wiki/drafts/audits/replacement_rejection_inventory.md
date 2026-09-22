@@ -1,7 +1,7 @@
 # Replacement rejection inventory
 
 Catalog of every rejection obligation
-[component publication](../spec/build/component_publication.md) and the linked
+[component publication](../../spec/build/component_publication.md) and the linked
 boundary specs name for component replacement, mapped to the site that enforces
 it at `340e2b5ca4`. Each row is either enforced (site + test) or residual
 (owner item on TASKS.md). Delete this draft when the residual rows have landed

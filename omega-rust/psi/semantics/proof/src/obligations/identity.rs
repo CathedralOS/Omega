@@ -1,7 +1,7 @@
 //! Canonical semantic identity for proof obligations.
 //!
 //! `proof_obligation_key` renders one obligation as a canonical string. The
-//! proof-search draft (`wiki/drafts/proof_search_cache.md`) requires keys to
+//! proof-search draft (`wiki/drafts/reference/proof_search_cache.md`) requires keys to
 //! carry normalized semantic identity -- exact retained content plus
 //! schema/checker compatibility -- while a rename that does not change
 //! meaning must not invalidate a semantically identical obligation.

@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[2]
 BENCHMARK = ROOT / "tools" / "benchmark" / "benchmark.py"
 README = ROOT / "tools" / "benchmark" / "README.md"
 RECORDS = ROOT / "tools" / "benchmark" / "records"
-MATRIX_DOC = ROOT / "wiki" / "drafts" / "benchmarks.md"
+MATRIX_DOC = ROOT / "wiki" / "drafts" / "measurements" / "benchmarks.md"
 TARGET_SOURCE = (
     ROOT / "omega-rust" / "omega" / "representations" / "target"
     / "src" / "target_profile.rs"

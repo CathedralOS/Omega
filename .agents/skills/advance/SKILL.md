@@ -56,7 +56,7 @@ can be a useful checkpoint, but does not automatically complete that assignment.
 This does not require finishing an entire large sample in one invocation; keep
 the chosen scope bounded and the existing proof-obligation and pause rules intact.
 
-Read the owning design and [completion plan](../../../wiki/drafts/rust_compiler_completion.md).
+Read the owning design and [completion plan](../../../wiki/drafts/reference/rust_compiler_completion.md).
 For bootstrap work, also read [whole-chain minimization](../../../bootstrap/MINIMIZATION.md).
 Apply [scope checkpoints](../../../AGENTS.md#scope-checkpoints) using recent
 milestones across invocations and delegated work. Required customer behavior and
@@ -158,7 +158,7 @@ and source-reader evidence. Confirmed unrelated failures remain outside the repa
 scope; retain their command, revision, and attribution. New or unexplained affected
 failures block landing. A new worktree does not require a full baseline. Use
 [testing](../../../tools/testing.md) for coverage and
-[test-cycle measurements](../../../wiki/drafts/test_cycle_measurements.md) for build diagnosis.
+[test-cycle measurements](../../../wiki/drafts/measurements/test_cycle_measurements.md) for build diagnosis.
 Avoid concurrent host builds and duplicate checks.
 
 ## Preserve reasoning on the common reading path

@@ -19,7 +19,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "tools" / "release" / "release_record.py"
-CONTRACT = ROOT / "wiki" / "drafts" / "rust_compiler_completion.md"
+CONTRACT = ROOT / "wiki" / "drafts" / "reference" / "rust_compiler_completion.md"
 RECORDS = ROOT / "tools" / "release" / "records"
 
 

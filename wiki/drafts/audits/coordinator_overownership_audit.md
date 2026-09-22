@@ -2,7 +2,7 @@
 
 Sweep of every sequencing owner at `4a6bd936dc` (2026-09-20, Linux x86_64)
 against the coordinator rule in
-[omega-rust/pipeline.md](../../omega-rust/pipeline.md):
+[omega-rust/pipeline.md](../../../omega-rust/pipeline.md):
 
 > A coordinator forwards complete typed results rather than owning package
 > loading, build evaluation, stage algorithms, artifact formatting, or a

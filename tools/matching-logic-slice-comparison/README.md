@@ -2,7 +2,7 @@
 
 Board item: `MATCHING-LOGIC-SLICE-COMPARISON`. Implements the bounded
 comparison described in
-[wiki/drafts/matching_logic.md](../../wiki/drafts/matching_logic.md)
+[wiki/drafts/reference/matching_logic.md](../../wiki/drafts/reference/matching_logic.md)
 ("Possible bounded comparison") for the side of the comparison that exists
 today, and defines the record both sides fill.
 
@@ -11,7 +11,7 @@ today, and defines the record both sides fill.
 `compare.py` writes two artifacts:
 
 - `record.json` — the machine-readable comparison record
-- `wiki/drafts/matching_logic_slice_comparison.md` — the rendered report
+- `wiki/drafts/reference/matching_logic_slice_comparison.md` — the rendered report
 
 Measured on the current route:
 
@@ -46,7 +46,7 @@ Measured on the current route:
 ```bash
 python3 tools/matching-logic-slice-comparison/compare.py \
     --omega target/debug/omega \
-    --report wiki/drafts/matching_logic_slice_comparison.md
+    --report wiki/drafts/reference/matching_logic_slice_comparison.md
 ```
 
 Flags: `--skip-run` (static surfaces only), `--include-heavy`,

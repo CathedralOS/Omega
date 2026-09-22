@@ -1,6 +1,6 @@
 //! Opt-in wall-clock attribution for the package-review route's stages.
 //!
-//! `wiki/drafts/test_cycle_measurements.md` attributes the checked-passes
+//! `wiki/drafts/measurements/test_cycle_measurements.md` attributes the checked-passes
 //! route but leaves the manager-side review work between compilations
 //! undivided (~250 s there). Setting `OMEGA_REVIEW_TIMINGS` prints one
 //! `stage=<name> micros=<elapsed>` line per instrumented stage to stderr —

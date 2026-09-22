@@ -93,7 +93,7 @@ The pause does not abandon P1, authorize a new language/checker rule or host
 producer, or block independent bootstrap work. Ordinary engineering choices
 remain engineering choices, not unresolved language decisions.
 
-The [cost review](../../../wiki/drafts/bootstrap_cost_review.md) now carries a
+The [cost review](../../../wiki/drafts/reference/bootstrap_cost_review.md) now carries a
 derived integrated ledger for this candidate against the current 47,756-byte
 subject. Measured there: the state census (17,130 distinct leaf states with
 count in state, 1,521 without), the shared successor counter at 2,122,796

@@ -7,9 +7,9 @@ next slice". This draft fixes the mode's shape; it authorizes the slices
 enumerated in "Implementation surfaces" and nothing else.
 
 Spec anchors:
-[unknown members and remainder custody](../spec/layouts/codecs.md#unknown-members-and-remainder-custody),
-[compact binary policy](../spec/layouts/codecs.md#compact-binary-policy),
-[the codec contract file](../spec/layouts/codecs.md) generally.
+[unknown members and remainder custody](../../spec/layouts/codecs.md#unknown-members-and-remainder-custody),
+[compact binary policy](../../spec/layouts/codecs.md#compact-binary-policy),
+[the codec contract file](../../spec/layouts/codecs.md) generally.
 
 Delete when the preserving-decode mode and its demand/report surface land,
 or when the board retires the `PreserveUnknown` leg.

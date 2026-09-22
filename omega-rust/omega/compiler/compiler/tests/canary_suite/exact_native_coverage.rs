@@ -11,7 +11,7 @@ pub(super) const EXPECTED_UNIQUE_CROSS_TARGET_COVERAGE: usize = 31;
 pub(super) const EXPECTED_UNIQUE_ROOTED_TARGET_COVERAGE: usize = 3;
 
 /// Product identities of the release matrix's required platform runs
-/// (wiki/drafts/rust_compiler_completion.md, "Required platform runs").
+/// (wiki/drafts/reference/rust_compiler_completion.md, "Required platform runs").
 pub(super) const REQUIRED_PLATFORM_RUNNER_TARGETS: &[&str] = &[
     "linux_x86_64",
     "linux_arm64",

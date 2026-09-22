@@ -2,7 +2,7 @@
 """Encode a typed subject schema into one-sorted finitary basic matching logic.
 
 Implements the bounded typed-to-one-sorted encoding leg drafted in
-``wiki/drafts/matching_logic_sort_encoding.md``: Omega's typed carriers are
+``wiki/drafts/reference/matching_logic_sort_encoding.md``: Omega's typed carriers are
 emitted as membership/refinement patterns over a single sort, with explicit
 disjointness, definedness, junk-model, revision, and loan clauses.
 
@@ -35,7 +35,7 @@ import sys
 SCHEMA = "omega-sort-encoding-record/1"
 CASE_SCHEMA = "omega-sort-encoding-case/1"
 FRAGMENT = "one-sorted finitary basic matching logic, no fixpoint symbols"
-SEMANTICS_DOC = "wiki/drafts/matching_logic_sort_encoding.md"
+SEMANTICS_DOC = "wiki/drafts/reference/matching_logic_sort_encoding.md"
 
 EXCLUSIVE_LOAN_KINDS = ("mut", "write")
 
