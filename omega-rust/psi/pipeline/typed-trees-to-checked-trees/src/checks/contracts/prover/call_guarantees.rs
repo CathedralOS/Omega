@@ -315,10 +315,33 @@ fn stable_value(
     } else {
         super::scalars::literal(program, expression).is_some()
             || direct_place(program, expression)
+                .or_else(|| exclusive_borrow_place(program, expression))
                 .is_some_and(|place| matches!(place.root, PlaceRoot::Symbol(_)))
     };
     pending.pop();
     stable
+}
+
+/// An exclusive-borrow actual resolves through canonical place spelling: the
+/// attached-field identity the write frame carries, which the authored member
+/// gate in `checked_place` deliberately does not keep.
+fn exclusive_borrow_place(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<CanonicalPlace> {
+    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if !borrow.access.is_exclusive() {
+        return None;
+    }
+    let place = crate::flow::canonical_place_from_expression(program, expression)?;
+    (matches!(place.root, PlaceRoot::Symbol(symbol) if symbol.is_valid())
+        && !place.segments.iter().any(|segment| {
+            matches!(segment, facts::PlaceSegment::Index { .. })
+                || crate::flow::place_segment_has_unresolved_identity(*segment)
+        }))
+    .then_some(place)
 }
 
 pub(in crate::checks) fn direct_place(

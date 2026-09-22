@@ -774,6 +774,14 @@ pub(super) fn projected_bound(
 ) -> Option<NormalizedBound> {
     let (symbol, field, is_mutable) =
         validation::projected_integer_bound_root(program, expression)?;
+    // The bound names the canonical attached-field identity the write frame
+    // carries; the authored member spelling can disagree for `self` members.
+    let field = match program.expression_table.expression(expression) {
+        ExpressionNode::Member(member) => {
+            crate::flow::effective_member_symbol(program, member.receiver, member)
+        }
+        _ => field,
+    };
     let segment = facts::PlaceSegment::Field { symbol: field };
     Some(if is_mutable {
         NormalizedBound::StorageProjected { symbol, segment }

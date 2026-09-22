@@ -557,6 +557,100 @@ const PROJECTED_RESULT_WINDOW: &str = r#"
     }
 "#;
 
+/// The same statement-site guarantee holds when the exclusive-borrow actual
+/// is a member of `self`: `ordain(&mut self.cut)` establishes `self.cut >= 2`
+/// through the arg. The attached field's canonical identity — not the authored
+/// member spelling — is what both the write frame and the bound must carry.
+const STATEMENT_CALL_MEMBER_WINDOW: &str = r#"
+    data Main { items: [i32; 4]; cut: u64 [0..=4]; score: u64 [0..=4]; }
+    machine ordain(slot: &mut u64 [0..=4]) ensures slot >= 2 { slot = 2; }
+    machine Main::main(&mut self) -> u64 {
+        self.cut = 0;
+        ordain(&mut self.cut);
+        let held: &mut [i32] = self.items[self.cut..4];
+        self.items[0] = 3;
+        held.len
+    }
+"#;
+
+#[test]
+fn statement_call_member_actual_certifies_disjoint_window_write() {
+    let mut checked = checked_program(STATEMENT_CALL_MEMBER_WINDOW);
+    let certificate = checked
+        .facts
+        .borrow
+        .mutation_certificates
+        .iter()
+        .map(|(_, certificate)| certificate)
+        .next()
+        .expect("one mutation certificate");
+    assert_eq!(
+        certificate.derivation,
+        checked_trees::BorrowCompatibilityDerivation::Premised
+    );
+    assert!(
+        certificate.premises.iter().any(|premise| matches!(
+            premise.right,
+            checked_trees::BorrowCompatibilitySelectorValue::Segmented { .. }
+        )),
+        "the member-actual premise records a segmented bound: {:?}",
+        certificate.premises
+    );
+    crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+        .expect("member-actual certificate replays its exact tokens");
+}
+
+#[test]
+fn statement_call_member_actual_rejects_foreign_weakened_or_rebound() {
+    for predicate in ["", "ensures slot >= 0 ", "ensures slot >= 2 || slot == 0 "] {
+        assert_conflict(&STATEMENT_CALL_MEMBER_WINDOW.replace("ensures slot >= 2 ", predicate));
+    }
+    // A guarantee established on a different member does not describe `cut`.
+    assert_conflict(
+        &STATEMENT_CALL_MEMBER_WINDOW.replace("ordain(&mut self.cut)", "ordain(&mut self.score)"),
+    );
+    // Re-establishing or rebinding the member retires the call's assertion.
+    assert_conflict(&STATEMENT_CALL_MEMBER_WINDOW.replace("let held:", "self.cut = 0; let held:"));
+    assert_conflict(
+        &STATEMENT_CALL_MEMBER_WINDOW.replace("let held:", "self.cut = self.score; let held:"),
+    );
+}
+
+#[test]
+fn statement_call_member_actual_tokens_reject_changed_coordinates() {
+    for change in 0..4 {
+        let mut checked = checked_program(STATEMENT_CALL_MEMBER_WINDOW);
+        let handle = checked
+            .facts
+            .borrow
+            .mutation_certificates
+            .iter()
+            .find_map(|(handle, certificate)| (!certificate.premises.is_empty()).then_some(handle))
+            .expect("premised mutation");
+        let certificate = checked.facts.borrow.mutation_certificates.get_mut(handle);
+        if change == 0 {
+            certificate.premises.clear();
+        } else {
+            let checked_trees::BorrowCompatibilityPremiseSource::CallEnsures {
+                fact,
+                statement_index,
+                call_ordinal,
+                ..
+            } = &mut certificate.premises[0].source
+            else {
+                panic!("call token");
+            };
+            match change {
+                1 => *fact = arena::Handle::invalid(),
+                2 => *statement_index += 1,
+                3 => *call_ordinal += 1,
+                _ => unreachable!(),
+            }
+        }
+        assert_replay_rejects(&mut checked);
+    }
+}
+
 #[test]
 fn projected_result_guarantee_certifies_disjoint_window_write() {
     let mut checked = checked_program(PROJECTED_RESULT_WINDOW);

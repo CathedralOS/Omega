@@ -329,14 +329,7 @@ pub fn mutable_integer_bound_storage_symbol(
     }
     let (symbol, is_mutable, type_reference) =
         if path.symbol.is_valid() && path.head_symbol == path.symbol {
-            match local_by_symbol(program, path.symbol) {
-                LocalLookup::Found(local) => (local.symbol, local.is_mutable, local.type_reference),
-                LocalLookup::Missing => {
-                    let parameter = parameter_by_symbol(program, path.symbol)?;
-                    (path.symbol, parameter.is_mutable, parameter.type_reference)
-                }
-                LocalLookup::Invalid => return None,
-            }
+            bound_name_receiver(program, path)?
         } else {
             match local_by_name(program, members[0].as_str()) {
                 LocalLookup::Found(local) => (local.symbol, local.is_mutable, local.type_reference),
@@ -380,10 +373,10 @@ pub fn mutable_integer_bound_storage_symbol(
 /// receiver the value currently stored under the projected coordinate,
 /// which stated evidence can only claim under the version-pin evidence the
 /// storage vocabulary already requires.
-fn projected_integer_bound_field<'program>(
-    program: &'program TypedTrees,
+fn projected_integer_bound_field(
+    program: &TypedTrees,
     expression: ExpressionHandle,
-) -> Option<(SymbolHandle, &'program typed_trees::data::DataField, bool)> {
+) -> Option<(SymbolHandle, &typed_trees::data::DataField, bool)> {
     let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -399,14 +392,7 @@ fn projected_integer_bound_field<'program>(
     }
     let (symbol, is_mutable, type_reference) =
         if path.symbol.is_valid() && path.head_symbol == path.symbol {
-            match local_by_symbol(program, path.symbol) {
-                LocalLookup::Found(local) => (local.symbol, local.is_mutable, local.type_reference),
-                LocalLookup::Missing => {
-                    let parameter = parameter_by_symbol(program, path.symbol)?;
-                    (path.symbol, parameter.is_mutable, parameter.type_reference)
-                }
-                LocalLookup::Invalid => return None,
-            }
+            bound_name_receiver(program, path)?
         } else {
             match local_by_name(program, members[0].as_str()) {
                 LocalLookup::Found(local) => (local.symbol, local.is_mutable, local.type_reference),
@@ -424,19 +410,45 @@ fn projected_integer_bound_field<'program>(
     else {
         return None;
     };
-    if !type_symbol.is_valid()
-        || program.symbols.get(*type_symbol).kind != symbols::SymbolKind::Data
-    {
+    if !type_symbol.is_valid() {
         return None;
     }
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == *type_symbol)?;
+    // A `self` receiver names the machine; its members live on the attached
+    // data definition, the same resolution `effective_member_symbol` uses.
+    let (data, authored_matches_field) = match program.symbols.get(*type_symbol).kind {
+        symbols::SymbolKind::Data => (
+            program
+                .data_definitions()
+                .iter()
+                .find(|data| data.symbol == *type_symbol)?,
+            true,
+        ),
+        symbols::SymbolKind::Machine => {
+            let machine = program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == *type_symbol)?;
+            let attached = machine.attached_data.as_deref()?;
+            // Attached members resolve by name: the authored member symbol
+            // is interned against the machine's spelling, not the field's.
+            (
+                program
+                    .data_definitions()
+                    .iter()
+                    .find(|data| data.name.as_str() == attached)?,
+                false,
+            )
+        }
+        _ => return None,
+    };
     let field = crate::value_custody::places::exact_data_member_field(
         program,
         data,
-        member.member_symbol,
+        if authored_matches_field {
+            member.member_symbol
+        } else {
+            SymbolHandle::invalid()
+        },
         member.member.as_str(),
         None,
     )?;
@@ -557,6 +569,38 @@ fn normalize_local(
     };
     seen_aliases.pop();
     normalized
+}
+
+/// The mutability and declared type of one resolved bound name: a unique
+/// local, a state parameter, or — when the name resolves to the machine
+/// itself — the machine's `self` receiver parameter.
+fn bound_name_receiver(
+    program: &TypedTrees,
+    path: &typed_trees::expression::TableNamePath,
+) -> Option<(SymbolHandle, bool, typed_trees::types::TypeReferenceHandle)> {
+    match local_by_symbol(program, path.symbol) {
+        LocalLookup::Found(local) => Some((local.symbol, local.is_mutable, local.type_reference)),
+        LocalLookup::Missing => {
+            if let Some(parameter) = parameter_by_symbol(program, path.symbol) {
+                Some((path.symbol, parameter.is_mutable, parameter.type_reference))
+            } else {
+                let parameter = program
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == path.symbol)
+                    .and_then(|machine| {
+                        program.machine_states(machine).iter().find_map(|state| {
+                            program
+                                .state_parameters(state)
+                                .iter()
+                                .find(|parameter| parameter.is_self)
+                        })
+                    })?;
+                Some((path.symbol, parameter.is_mutable, parameter.type_reference))
+            }
+        }
+        LocalLookup::Invalid => None,
+    }
 }
 
 fn local_by_symbol(program: &TypedTrees, symbol: SymbolHandle) -> LocalLookup<'_> {
