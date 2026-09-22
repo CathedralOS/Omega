@@ -3,6 +3,7 @@
 
 use crate::provider_planning::provenance_replay::SelectedTargetMachineOrigin;
 use crate::provider_planning::{ProviderBinding, TypedTrees};
+use target::HostedIntrinsicBundle;
 
 pub fn satisfied_requirement_identity(
     typed: &TypedTrees,
@@ -191,8 +192,7 @@ pub(crate) fn inferred_hosted_console_compiler_intrinsic(
 ) -> Option<(ProviderBinding, SelectedTargetMachineOrigin)> {
     let (provider_name, trait_name, requirement_name) =
         inferred_hosted_catalog_leaf(machine.name.as_str())?;
-    let supports_target =
-        |target: &str| matches!(target, "linux_x86_64" | "linux_arm64" | "macos_arm64");
+    let supports_target = |target: &str| HostedIntrinsicBundle::from_target_name(target).is_some();
     if selected_target.is_some_and(|target| !supports_target(target))
         || machine.supply_mode != language_semantics::MachineSupplyMode::Boundary
         || machine.body_is_present
@@ -281,7 +281,7 @@ pub(crate) fn inferred_selected_target_compiler_leaf(
     target_machine_origins: &[SelectedTargetMachineOrigin],
 ) -> Option<(ProviderBinding, SelectedTargetMachineOrigin)> {
     let hosted = selected_target
-        .is_none_or(|target| matches!(target, "linux_x86_64" | "linux_arm64" | "macos_arm64"));
+        .is_none_or(|target| HostedIntrinsicBundle::from_target_name(target).is_some());
     if hosted
         || inferred_hosted_catalog_leaf(machine.name.as_str()).is_some()
         || machine.supply_mode != language_semantics::MachineSupplyMode::Boundary

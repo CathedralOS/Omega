@@ -6,8 +6,10 @@
 //! (`ProgramEntrySlotDeclaration`, `TargetRequiredRootSlotDeclaration`):
 //! which environment-to-program root each profile requires, which closed
 //! toolchain package owns its physical entry, and which calling conventions
-//! the arrival and semantic continuation use. `NativeTarget` is the plain
-//! architecture/object-format/pointer triple a realized profile maps to.
+//! the arrival and semantic continuation use. `HostedIntrinsicBundle` is the
+//! closed set of bundled target packages whose console and process-exit
+//! leaves this compiler realizes as hosted syscalls. `NativeTarget` is the
+//! plain architecture/object-format/pointer triple a realized profile maps to.
 //!
 //! Recognition is not realization: the catalog admits profiles this compiler
 //! does not realize (the bootstrap `alpha_bootstrap`, the not-yet-run
@@ -145,6 +147,79 @@ impl ProgramEntryPhysicalContractPackage {
             Self::LinuxArm64 => "Linux ARM64",
             Self::WindowsX64 => "Windows x86-64",
         }
+    }
+}
+
+/// Closed identity of a bundled standard-library target package whose
+/// console and process-exit leaves close as hosted compiler intrinsics.
+///
+/// "Hosted" here means the bundle's bodyless `boundary machine` leaves
+/// (`ConsoleNativeProvider::{read_byte, write_byte, exit_process}` and
+/// `ProcessExitNativeProvider::exit_process`) bind by exact realization
+/// identity and this compiler emits the kernel syscall itself through
+/// `image-emission`'s hosted encoders (`HostedReadByte`, hosted byte output,
+/// `HostedExitProcessI32`). A target joins that catalog by gaining a variant
+/// here and nowhere else: provider-planning derives hosted candidates and
+/// selected-dispatch closes them against the bundled source through
+/// `from_target_name`, so widening this enum is the product decision.
+///
+/// Two bundles exist under `source/library/std/targets/` but are not
+/// admitted. `windows_x86_64` records in its own `process_exit_impl.omg`
+/// that the hosted exit catalog does not yet close a native lowering for
+/// Windows, so realization stays an explicit unsupported-target diagnostic;
+/// the `Process-exit contract` on TASKS.md owns that realization.
+/// `macos_x86_64` is authored in the inferred `boundary machine` form, but
+/// `image-emission` has no x86-64 Darwin syscall encoder and the profile's
+/// host run is still tracked under MACOS-X64-HOST-PROFILE. Source paths
+/// prove membership in this identity; they never define it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HostedIntrinsicBundle {
+    LinuxArm64,
+    LinuxX64,
+    MacosArm64,
+}
+
+impl HostedIntrinsicBundle {
+    /// Every admitted bundle in canonical target-profile identity order.
+    pub const ALL: [Self; 3] = [Self::LinuxArm64, Self::LinuxX64, Self::MacosArm64];
+
+    pub const fn target_profile(self) -> TargetProfile {
+        match self {
+            Self::LinuxArm64 => TargetProfile::LinuxArm64,
+            Self::LinuxX64 => TargetProfile::LinuxX64,
+            Self::MacosArm64 => TargetProfile::MacosArm64,
+        }
+    }
+
+    /// Canonical target name, shared with the owning [`TargetProfile`].
+    pub const fn target_name(self) -> &'static str {
+        self.target_profile().target_name()
+    }
+
+    /// Package-relative path of the bundled console provider closure.
+    pub const fn console_source(self) -> &'static str {
+        match self {
+            Self::LinuxArm64 => "targets/linux_arm64/console_impl.omg",
+            Self::LinuxX64 => "targets/linux_x86_64/console_impl.omg",
+            Self::MacosArm64 => "targets/macos_arm64/console_impl.omg",
+        }
+    }
+
+    /// Package-relative path of the bundled process-exit provider closure.
+    pub const fn process_exit_source(self) -> &'static str {
+        match self {
+            Self::LinuxArm64 => "targets/linux_arm64/process_exit_impl.omg",
+            Self::LinuxX64 => "targets/linux_x86_64/process_exit_impl.omg",
+            Self::MacosArm64 => "targets/macos_arm64/process_exit_impl.omg",
+        }
+    }
+
+    /// The admitted bundle a canonical target name selects, or `None` for
+    /// every other target, including the bundled-but-unadmitted ones.
+    pub fn from_target_name(target_name: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|bundle| bundle.target_name() == target_name)
     }
 }
 
@@ -707,9 +782,47 @@ fn host_object_format() -> ObjectFormat {
 #[cfg(test)]
 mod tests {
     use super::{
-        NativeTarget, ProgramEntryPhysicalContractPackage, ProgramEntrySchema,
-        ProgramEntryVisibleParameters, TargetProfile, TargetRequiredRootSlotDeclaration,
+        HostedIntrinsicBundle, NativeTarget, ProgramEntryPhysicalContractPackage,
+        ProgramEntrySchema, ProgramEntryVisibleParameters, TargetProfile,
+        TargetRequiredRootSlotDeclaration,
     };
+
+    #[test]
+    fn hosted_intrinsic_bundles_round_trip_through_their_target_names() {
+        for bundle in HostedIntrinsicBundle::ALL {
+            let name = bundle.target_name();
+            assert_eq!(HostedIntrinsicBundle::from_target_name(name), Some(bundle));
+            assert_eq!(
+                TargetProfile::from_canonical_target_name(name).ok(),
+                Some(bundle.target_profile())
+            );
+            let prefix = format!("targets/{name}/");
+            assert_eq!(bundle.console_source(), format!("{prefix}console_impl.omg"));
+            assert_eq!(
+                bundle.process_exit_source(),
+                format!("{prefix}process_exit_impl.omg")
+            );
+        }
+    }
+
+    #[test]
+    fn bundled_but_unadmitted_targets_select_no_hosted_intrinsic_bundle() {
+        for unadmitted in [
+            TargetProfile::MacosX64,
+            TargetProfile::WindowsX64,
+            TargetProfile::UefiX64,
+        ] {
+            assert_eq!(
+                HostedIntrinsicBundle::from_target_name(unadmitted.target_name()),
+                None,
+                "{unadmitted:?} must not be admitted by spelling alone"
+            );
+        }
+        assert_eq!(
+            HostedIntrinsicBundle::from_target_name("linux-x86_64"),
+            None
+        );
+    }
 
     #[test]
     fn hosted_program_entry_slot_hides_physical_storage_roots() {

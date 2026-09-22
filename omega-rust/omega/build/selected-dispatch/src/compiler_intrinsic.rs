@@ -12,6 +12,7 @@ use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use language_semantics::MachineSupplyMode;
 use provider_planning::{CompilerIntrinsicExecutionIdentity, ProviderSchemaDeclaration};
 use symbols::{BuiltinTypeAtom, SymbolHandle};
+use target::HostedIntrinsicBundle;
 use typed_trees::types::TypeReferenceNode;
 
 /// Rederive one selected compiler-intrinsic row from exact checked declaration
@@ -216,7 +217,7 @@ fn hosted_console_write_byte_row(
     accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
     accepted_declaration_symbol: Option<SymbolHandle>,
 ) -> Result<bool, Diagnostic> {
-    console_row_for_targets(
+    console_row_on_hosted_bundle(
         checked,
         plan,
         row,
@@ -226,7 +227,6 @@ fn hosted_console_write_byte_row(
         selected_target,
         accepted_binding,
         accepted_declaration_symbol,
-        &["linux_x86_64", "linux_arm64", "macos_arm64"],
         "write_byte",
         "ConsoleNativeProvider::write_byte",
         ConsoleIntrinsicShape::I32ToUnit,
@@ -244,7 +244,7 @@ fn hosted_console_read_byte_row(
     accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
     accepted_declaration_symbol: Option<SymbolHandle>,
 ) -> Result<bool, Diagnostic> {
-    console_row_for_targets(
+    console_row_on_hosted_bundle(
         checked,
         plan,
         row,
@@ -254,7 +254,6 @@ fn hosted_console_read_byte_row(
         selected_target,
         accepted_binding,
         accepted_declaration_symbol,
-        &["linux_x86_64", "linux_arm64", "macos_arm64"],
         "read_byte",
         "ConsoleNativeProvider::read_byte",
         ConsoleIntrinsicShape::UnitToByteRead,
@@ -272,7 +271,7 @@ fn hosted_console_exit_row(
     accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
     accepted_declaration_symbol: Option<SymbolHandle>,
 ) -> Result<bool, Diagnostic> {
-    console_row_for_targets(
+    console_row_on_hosted_bundle(
         checked,
         plan,
         row,
@@ -282,7 +281,6 @@ fn hosted_console_exit_row(
         selected_target,
         accepted_binding,
         accepted_declaration_symbol,
-        &["linux_x86_64", "linux_arm64", "macos_arm64"],
         "exit_process",
         "ConsoleNativeProvider::exit_process",
         ConsoleIntrinsicShape::I32ToUnit,
@@ -295,8 +293,11 @@ enum ConsoleIntrinsicShape {
     UnitToByteRead,
 }
 
+/// Canonical std `Console` rows on a hosted target. The selected target must
+/// name an admitted [`HostedIntrinsicBundle`]; every other target, including
+/// the bundled-but-unadmitted ones, earns no hosted console row here.
 #[allow(clippy::too_many_arguments)]
-fn console_row_for_targets(
+fn console_row_on_hosted_bundle(
     checked: &CheckedTrees,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
@@ -306,13 +307,11 @@ fn console_row_for_targets(
     selected_target: Option<&str>,
     accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
     accepted_declaration_symbol: Option<SymbolHandle>,
-    supported_targets: &[&str],
     requirement_name: &str,
     realization_name: &str,
     shape: ConsoleIntrinsicShape,
 ) -> Result<bool, Diagnostic> {
-    let Some(selected_target) = selected_target.filter(|target| supported_targets.contains(target))
-    else {
+    let Some((selected_target, bundle)) = selected_hosted_bundle(selected_target) else {
         return Ok(false);
     };
     if plan.target != selected_target {
@@ -324,7 +323,7 @@ fn console_row_for_targets(
         trait_symbol,
         requirement_symbol,
         realization_symbol,
-        selected_target,
+        bundle,
     );
     let accepted_package_binding = accepted_binding.is_some_and(|binding| {
         accepted_binding_matches_selected_row_identity(
@@ -355,42 +354,76 @@ fn console_row_for_targets(
     )
 }
 
-fn exact_bundled_console_binding(
-    typed: &typed_trees::TypedTrees,
-    trait_symbol: SymbolHandle,
-    requirement_symbol: SymbolHandle,
-    realization_symbol: SymbolHandle,
-    selected_target: &str,
-) -> bool {
-    const CONSOLE: &[u8] = include_bytes!(concat!(
+/// The selected canonical target together with the hosted bundle it admits.
+fn selected_hosted_bundle(selected_target: Option<&str>) -> Option<(&str, HostedIntrinsicBundle)> {
+    let selected_target = selected_target?;
+    let bundle = HostedIntrinsicBundle::from_target_name(selected_target)?;
+    Some((selected_target, bundle))
+}
+
+/// Compile-time copy of one admitted bundle's console provider closure. The
+/// path each constant reads is the bundle's `console_source()`; the test
+/// module holds the two in agreement with the checked-in file.
+fn bundled_console_source(bundle: HostedIntrinsicBundle) -> &'static [u8] {
+    const LINUX_ARM64: &[u8] = include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../source/library/std/console.omg"
+        "/../../../../source/library/std/targets/linux_arm64/console_impl.omg"
     ));
     const LINUX_X64: &[u8] = include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../../../source/library/std/targets/linux_x86_64/console_impl.omg"
     ));
-    const LINUX_ARM64: &[u8] = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../source/library/std/targets/linux_arm64/console_impl.omg"
-    ));
     const MACOS_ARM64: &[u8] = include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../../../source/library/std/targets/macos_arm64/console_impl.omg"
     ));
-    let (realization_path, realization_source) = match selected_target {
-        "linux_x86_64" => ("targets/linux_x86_64/console_impl.omg", LINUX_X64),
-        "linux_arm64" => ("targets/linux_arm64/console_impl.omg", LINUX_ARM64),
-        "macos_arm64" => ("targets/macos_arm64/console_impl.omg", MACOS_ARM64),
-        _ => return false,
-    };
+    match bundle {
+        HostedIntrinsicBundle::LinuxArm64 => LINUX_ARM64,
+        HostedIntrinsicBundle::LinuxX64 => LINUX_X64,
+        HostedIntrinsicBundle::MacosArm64 => MACOS_ARM64,
+    }
+}
+
+/// Compile-time copy of one admitted bundle's process-exit provider closure,
+/// paired with `process_exit_source()` the same way as the console copy.
+fn bundled_process_exit_source(bundle: HostedIntrinsicBundle) -> &'static [u8] {
+    const LINUX_ARM64: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../source/library/std/targets/linux_arm64/process_exit_impl.omg"
+    ));
+    const LINUX_X64: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../source/library/std/targets/linux_x86_64/process_exit_impl.omg"
+    ));
+    const MACOS_ARM64: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../source/library/std/targets/macos_arm64/process_exit_impl.omg"
+    ));
+    match bundle {
+        HostedIntrinsicBundle::LinuxArm64 => LINUX_ARM64,
+        HostedIntrinsicBundle::LinuxX64 => LINUX_X64,
+        HostedIntrinsicBundle::MacosArm64 => MACOS_ARM64,
+    }
+}
+
+fn exact_bundled_console_binding(
+    typed: &typed_trees::TypedTrees,
+    trait_symbol: SymbolHandle,
+    requirement_symbol: SymbolHandle,
+    realization_symbol: SymbolHandle,
+    bundle: HostedIntrinsicBundle,
+) -> bool {
+    const CONSOLE: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../source/library/std/console.omg"
+    ));
     exact_bundled_standalone_source(typed, trait_symbol, "console.omg", CONSOLE)
         && exact_bundled_standalone_source(typed, requirement_symbol, "console.omg", CONSOLE)
         && exact_bundled_standalone_source(
             typed,
             realization_symbol,
-            realization_path,
-            realization_source,
+            bundle.console_source(),
+            bundled_console_source(bundle),
         )
 }
 
@@ -423,7 +456,7 @@ fn hosted_process_exit_row(
     accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
     accepted_declaration_symbol: Option<SymbolHandle>,
 ) -> Result<bool, Diagnostic> {
-    process_exit_row_for_targets(
+    process_exit_row_on_hosted_bundle(
         checked,
         plan,
         row,
@@ -433,7 +466,6 @@ fn hosted_process_exit_row(
         selected_target,
         accepted_binding,
         accepted_declaration_symbol,
-        &["linux_x86_64", "linux_arm64", "macos_arm64"],
     )
 }
 
@@ -443,7 +475,7 @@ fn hosted_process_exit_row(
 /// exact `ProcessExitNativeProvider::exit_process` realization closes as the
 /// hosted process-exit builtin.
 #[allow(clippy::too_many_arguments)]
-fn process_exit_row_for_targets(
+fn process_exit_row_on_hosted_bundle(
     checked: &CheckedTrees,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
@@ -453,10 +485,8 @@ fn process_exit_row_for_targets(
     selected_target: Option<&str>,
     accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
     accepted_declaration_symbol: Option<SymbolHandle>,
-    supported_targets: &[&str],
 ) -> Result<bool, Diagnostic> {
-    let Some(selected_target) = selected_target.filter(|target| supported_targets.contains(target))
-    else {
+    let Some((selected_target, bundle)) = selected_hosted_bundle(selected_target) else {
         return Ok(false);
     };
     if plan.target != selected_target {
@@ -468,7 +498,7 @@ fn process_exit_row_for_targets(
         trait_symbol,
         requirement_symbol,
         realization_symbol,
-        selected_target,
+        bundle,
     );
     let accepted_package_binding = accepted_binding.is_some_and(|binding| {
         accepted_binding_matches_process_exit_row_identity(
@@ -504,37 +534,19 @@ fn exact_bundled_process_exit_binding(
     trait_symbol: SymbolHandle,
     requirement_symbol: SymbolHandle,
     realization_symbol: SymbolHandle,
-    selected_target: &str,
+    bundle: HostedIntrinsicBundle,
 ) -> bool {
     const CORE: &[u8] = include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../../../source/library/core/process_exit.omg"
     ));
-    const LINUX_X64: &[u8] = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../source/library/std/targets/linux_x86_64/process_exit_impl.omg"
-    ));
-    const LINUX_ARM64: &[u8] = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../source/library/std/targets/linux_arm64/process_exit_impl.omg"
-    ));
-    const MACOS_ARM64: &[u8] = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../source/library/std/targets/macos_arm64/process_exit_impl.omg"
-    ));
-    let (realization_path, realization_source) = match selected_target {
-        "linux_x86_64" => ("targets/linux_x86_64/process_exit_impl.omg", LINUX_X64),
-        "linux_arm64" => ("targets/linux_arm64/process_exit_impl.omg", LINUX_ARM64),
-        "macos_arm64" => ("targets/macos_arm64/process_exit_impl.omg", MACOS_ARM64),
-        _ => return false,
-    };
     exact_bundled_standalone_source(typed, trait_symbol, "process_exit.omg", CORE)
         && exact_bundled_standalone_source(typed, requirement_symbol, "process_exit.omg", CORE)
         && exact_bundled_standalone_source(
             typed,
             realization_symbol,
-            realization_path,
-            realization_source,
+            bundle.process_exit_source(),
+            bundled_process_exit_source(bundle),
         )
 }
 
@@ -974,4 +986,65 @@ fn exact_i32_parameter(
         return false;
     };
     typed.symbols.builtin_type_atom(*symbol) == Some(BuiltinTypeAtom::I32) && name.as_str() == "i32"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{bundled_console_source, bundled_process_exit_source, selected_hosted_bundle};
+    use std::path::{Path, PathBuf};
+    use target::HostedIntrinsicBundle;
+
+    /// `source/library/std` resolved the same way the `include_bytes!`
+    /// constants resolve it: four ancestors above this crate's manifest.
+    fn bundled_std_root() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(4)
+            .expect("selected-dispatch sits four directories below the repository root")
+            .join("source/library/std")
+    }
+
+    #[test]
+    fn every_admitted_bundle_ships_the_source_its_constants_were_read_from() {
+        let std_root = bundled_std_root();
+        for bundle in HostedIntrinsicBundle::ALL {
+            let console = std_root.join(bundle.console_source());
+            let process_exit = std_root.join(bundle.process_exit_source());
+            let console_on_disk = std::fs::read(&console)
+                .unwrap_or_else(|error| panic!("{}: {error}", console.display()));
+            let process_exit_on_disk = std::fs::read(&process_exit)
+                .unwrap_or_else(|error| panic!("{}: {error}", process_exit.display()));
+            assert_eq!(
+                bundled_console_source(bundle),
+                console_on_disk.as_slice(),
+                "{bundle:?} console constant must be read from {}",
+                console.display()
+            );
+            assert_eq!(
+                bundled_process_exit_source(bundle),
+                process_exit_on_disk.as_slice(),
+                "{bundle:?} process-exit constant must be read from {}",
+                process_exit.display()
+            );
+        }
+    }
+
+    #[test]
+    fn bundled_but_unadmitted_targets_select_no_hosted_row() {
+        let std_root = bundled_std_root();
+        for unadmitted in ["macos_x86_64", "windows_x86_64"] {
+            assert!(
+                std_root
+                    .join(format!("targets/{unadmitted}/console_impl.omg"))
+                    .is_file(),
+                "{unadmitted} bundle must still exist on disk for this control to mean anything"
+            );
+            assert_eq!(selected_hosted_bundle(Some(unadmitted)), None);
+        }
+        assert_eq!(selected_hosted_bundle(None), None);
+        assert_eq!(
+            selected_hosted_bundle(Some("linux_x86_64")),
+            Some(("linux_x86_64", HostedIntrinsicBundle::LinuxX64))
+        );
+    }
 }
