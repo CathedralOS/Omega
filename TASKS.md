@@ -3719,8 +3719,7 @@ but report the missing runtime leg explicitly; it does not close that host row.
   do not exclude failing crates. Owners: repository gates and each failing
   crate. Repair attributed failures through their capability owners, then
   record the complete result through RC-RELEASE-RECORD-AND-CLOSURE.
-  [Prior baseline](wiki/drafts/rc_repository_baseline_linux_x86_64.md) and
-  [failure attribution](wiki/drafts/known_baseline_failures.md) are dated
+  [Failure attribution](wiki/drafts/known_baseline_failures.md) is dated
   starting evidence, not a reason to repeat fixed lint/fixture repairs or
   combine results across revisions/hosts. Acceptance: all five commands pass
   at the release commit, with failures and skips accounted for by exact test
@@ -3733,10 +3732,9 @@ but report the missing runtime leg explicitly; it does not close that host row.
   `build_target_activation`, `checked_build_machine_identity`,
   `evaluated_via_binding`, `package_compilation_inputs`).
   Owners: build evaluation, package resolution/review/manager and compiler
-  handoff. The [retained record](wiki/drafts/rc_build_and_packages_linux_x86_64.md)
-  at `75650d2e94` supersedes the board's old 107+12-failure census:
-  its remaining families include FMA transport, exact checked-call/review
-  identity, provider-schema agreement and fixture rosters. Reproduce a named
+  handoff. The remaining failure families are FMA transport, exact
+  checked-call/review identity, provider-schema agreement and fixture
+  rosters. Reproduce a named
   remaining failure on the selected base before assigning its repair; do not
   suppress review requirements or stale-service diagnostics to make fixtures
   pass. Acceptance: all three complete blocks pass and retain their evidence
@@ -3754,10 +3752,9 @@ but report the missing runtime leg explicitly; it does not close that host row.
   independently checked. Run nextest and doctests for
   `checked-trees-to-lowered-psi`, `terminal-codec`, `terminal-verifier`,
   `terminal-interpreter` and `terminal-psi-to-abstract-operations` as specified
-  by the completion contract. The
-  [prior record](wiki/drafts/rc_pcc_replay_linux_x86_64.md) is red and includes
-  a terminated proof-search case; a harness returning after killing a test is
-  not successful termination of that test.
+  by the completion contract. The block is red and includes a terminated
+  proof-search case; a harness returning after killing a test is not
+  successful termination of that test.
   C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT owns that resource defect; package tests
   and capability owners repair their remaining attributed failures.
   Acceptance: complete successful commands at the release commit, including
@@ -3779,12 +3776,19 @@ deliverable host runs, not four implementations of the gate.
 
 - **RC-NATIVE-MATRIX-LINUX-X86-64.** Execute the complete native, source and
   sample gates above on Linux x86-64 and resolve remaining failures through
-  their owning capability tasks. The
-  [host record](wiki/drafts/rc_native_matrix_linux_x86_64.md) is a bounded
-  subset, not the full gate. The
-  [sample record](wiki/drafts/rc_representative_programs_linux_x86_64.md) and
-  [print_number control](wiki/drafts/rc_representative_programs_closure_0f75a0.md)
-  preserve entry/provider, lowering and default-domain failure leads.
+  their owning capability tasks.
+
+  One attributed defect blocks emitted execution. `9e20e91559` emits an
+  unconditional `DT_RELA` plus `DT_RELASZ=0` pair for the empty general
+  relocation table but never `DT_RELAENT` (tag 9, `sizeof(Elf64_Rela)` = 24),
+  and glibc dereferences `l_info[DT_RELAENT]` whenever `DT_RELA` is present,
+  so the image faults in `ld-linux-x86-64.so.2` before `_start`. Masking the
+  `DT_RELA` row in the emitted bytes makes the same image exit 70, which
+  isolates it. `ElfDynamicTag`
+  (`image-elf/src/dynamic_executable/dynamic_table/dynamic_tags.rs`) skips
+  from tag 8 to tag 10; emit the entry size beside the pair, or emit neither
+  when the table is empty. Verification needs a Linux host.
+
   **SAMPLE-CORPUS** owns current shared sample failures;
   **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** owns the canonical filesystem plan's
   package-review replay gap. Attribute failures against current code rather
@@ -3796,26 +3800,23 @@ deliverable host runs, not four implementations of the gate.
   for emitted AArch64 ELF programs. A Linux AArch64 runner or named/versioned
   emulation may satisfy the contract, but must execute the target runtime
   legs: an x86-64-built harness that cfg-excludes them does not.
-  The [retained record](wiki/drafts/rc_native_matrix_linux_arm64.md) combines
-  cross-target checks and a single `cli_mvp` QEMU execution; neither closes
+  Cross-target checks plus a single `cli_mvp` QEMU execution do not close
   the full row. Acceptance: required native/source/sample gates pass with
   actual AArch64 execution and explicit, justified skips.
   Include Linux host, time/filesystem and `IntegerAt` projection/write paths;
   checked-target fixtures and cross-emission do not establish runtime behavior.
 
 - **RC-NATIVE-MATRIX-MACOS-ARM64.** Run the complete native/source/sample
-  gates on macOS AArch64, executing emitted Mach-O products. The
-  [host draft](wiki/drafts/rc_native_matrix_macos_arm64.md) records procedure
-  and cross-target coverage, not a completed matching-host run. Use the
-  corrected recorder procedure, not its stale `--all` command.
+  gates on macOS AArch64, executing emitted Mach-O products. Procedure and
+  cross-target coverage do not establish a completed matching-host run. Use
+  the recorder procedure in `tools/release/README.md`; it takes no `--all`.
   Acceptance: same-commit full-gate results with native observations and exact
   expected skips; Linux emission evidence cannot close this task.
 
 - **RC-NATIVE-MATRIX-WINDOWS-X64.** Run the complete native/source/sample
   gates on Windows x86-64, executing emitted PE products, including the
-  hosted receiver. The
-  [host draft](wiki/drafts/rc_native_matrix_windows_x86_64.md) is procedure
-  evidence, not an executed release row. Use the corrected recorder procedure.
+  hosted receiver. Procedure evidence is not an executed release row. Use
+  the recorder procedure in `tools/release/README.md`.
   Acceptance: same-commit full-gate results with native observations and exact
   expected skips; cross-emission or compiler-only success is insufficient.
   Include `windows_set_file_time_exit_canary_runs`: SetFileTime followed by

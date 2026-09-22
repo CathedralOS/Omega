@@ -134,7 +134,7 @@ GATES = {
         "commands": [
             "mbx nextest run -p compiler --test canary_suite --no-fail-fast "
             "--no-tests fail "
-            "-E 'test(=proof_and_float_suites::"
+            "-E 'test(=proof_and_float_suites::proof_and_domain_canaries::"
             "fail_canaries_reject_with_expected_diagnostic_fragment)'",
         ],
     },
