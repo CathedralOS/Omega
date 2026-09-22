@@ -15,6 +15,10 @@ use crate::execution::terminal_unit::calls::computation_arguments;
 use crate::execution::terminal_unit::calls::reference_forwarding;
 use crate::execution::terminal_unit::calls::result_arguments;
 use crate::execution::terminal_unit::types::{
+    ShapeCollector, attached_data_identity, base_type_identity, byte_sequence_type_identity,
+    is_unit, parameter_root_symbol, structural_access_for_type_reference,
+};
+use crate::execution::terminal_unit::types::{
     borrowed_slice_view_element, borrowed_slice_view_type_identity, byte_sequence_carrier,
 };
 use crate::execution::terminal_unit::{
@@ -23,10 +27,8 @@ use crate::execution::terminal_unit::{
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan, MachineSupplyMode,
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
-    PermissionEventSource, PrimitiveType, ShapeCollector, StatementNode, SymbolHandle, TypedTrees,
-    attached_data_identity, base_type_identity, byte_sequence_type_identity, is_reference, is_unit,
-    parameter_root_symbol, scalar_targets, strips_erased_parameter,
-    structural_access_for_type_reference,
+    PermissionEventSource, PrimitiveType, StatementNode, SymbolHandle, TypedTrees, is_reference,
+    scalar_targets, strips_erased_parameter,
 };
 
 pub(crate) fn structural_call_arguments(

@@ -1,13 +1,14 @@
 //! Nominal cleanup boolean, scalar and caller requirements with their
 //! diagnostics.
 
+use crate::execution::terminal_unit::types::{parameter_root_symbol, terminal_field_identity};
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedStructuralScalarIntegerBoundKind, CheckedStructuralScalarIntegerBoundPlan,
     CheckedStructuralScalarIntegerBoundRequirementPlan, CheckedStructuralScalarParameterPlan,
     CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupRequirementPlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape, ContractProofFactKind,
     ContractProofFactOwner, DataMember, Diagnostic, ExpressionNode, PrimitiveType, ProofFact,
-    StateParameter, SymbolHandle, TypedTrees, parameter_root_symbol, terminal_field_identity,
+    StateParameter, SymbolHandle, TypedTrees,
 };
 
 pub(crate) fn nominal_cleanup_boolean_requirements(

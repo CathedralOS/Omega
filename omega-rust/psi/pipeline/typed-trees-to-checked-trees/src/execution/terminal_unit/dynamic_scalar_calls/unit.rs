@@ -16,7 +16,7 @@ use crate::execution::terminal_unit::dynamic_scalar_calls::realization_bodies::c
 use crate::execution::terminal_unit::dynamic_scalar_calls::scalar_call_plans::{
     checked_rebound_dynamic_selection, checked_self_attachment_source, checked_source_argument,
 };
-use crate::execution::terminal_unit::{
+use crate::execution::terminal_unit::types::{
     ShapeCollector, is_unit, machine_binders, state_flow, structural_access_for_type_reference,
 };
 

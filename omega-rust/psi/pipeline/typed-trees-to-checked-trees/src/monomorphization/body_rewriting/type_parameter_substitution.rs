@@ -1,6 +1,7 @@
 //! Substituting cloned type parameters and rejecting runtime-bound static
 //! occurrences.
 
+use crate::monomorphization::body_cloning::copy_type_reference;
 use crate::monomorphization::body_rewriting::const_substitution::{
     collect_statement_expression_trees, fixed_array_const_replacements,
     substitute_const_index_expression_parameters, substitute_fixed_array_const_parameters,
@@ -9,7 +10,7 @@ use crate::monomorphization::body_rewriting::machine_arguments::substitute_machi
 use crate::monomorphization::{
     Candidate, Diagnostic, ExpressionHandle, ExpressionNode, ProofFact, StatementNode,
     SymbolHandle, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
-    collect_expression_tree, copy_type_reference,
+    collect_expression_tree,
 };
 
 pub(crate) fn substitute_cloned_type_parameters(

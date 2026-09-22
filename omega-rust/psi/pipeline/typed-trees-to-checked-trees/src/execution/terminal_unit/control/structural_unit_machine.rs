@@ -1,15 +1,17 @@
 //! Building the control machine of one structural unit.
 
 use crate::execution::terminal_unit::calls::structural_scalar_signature;
+use crate::execution::terminal_unit::types::{
+    ShapeCollector, checked_no_code_affine_discard_positions, is_unit, machine_binders, state_flow,
+};
 use crate::execution::terminal_unit::{
     BTreeSet, CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole,
     CheckedStructuralAccess, CheckedStructuralControlSuccessorPlan,
     CheckedStructuralControlTransferPlan, CheckedStructuralScalarArgumentPlan,
     CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlStatePlan,
     CheckedStructuralUnitControlTerminatorPlan, Multiplicity, PermissionAccess,
-    PermissionEventKind, PermissionEventSource, PrimitiveType, ShapeCollector, StatementNode,
-    TransitionExit, TransitionGuardNode, TransitionTargetNode, TypedTrees,
-    checked_no_code_affine_discard_positions, is_unit, machine_binders, state_flow,
+    PermissionEventKind, PermissionEventSource, PrimitiveType, StatementNode, TransitionExit,
+    TransitionGuardNode, TransitionTargetNode, TypedTrees,
 };
 use checked_trees::{
     CheckedStructuralRankedArgumentPlan, CheckedStructuralRankedGuardPlan,
@@ -85,7 +87,7 @@ pub(crate) fn build_structural_unit_control_machine(
                 }
             })
             || parameters.len() + scalar_parameters.len()
-                != crate::execution::terminal_unit::abi_parameter_count(
+                != crate::execution::terminal_unit::types::abi_parameter_count(
                     program.state_parameters(state),
                 )
         {

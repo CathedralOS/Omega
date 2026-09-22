@@ -3,9 +3,10 @@ use super::super::{
     CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
     CheckedProviderAttachmentRequirementPlan, MachineSupplyMode, TypedTrees,
 };
+use crate::execution::terminal_unit::types::ShapeCollector;
 
 use crate::execution::terminal_unit::ScalarCalleePlans;
-use crate::execution::terminal_unit::ShapeCollector;
+
 use crate::execution::terminal_unit::control;
 use checked_trees::CheckedUnitPlanOmissionStage;
 use std::collections::BTreeMap;

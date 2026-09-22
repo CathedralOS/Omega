@@ -1,9 +1,8 @@
 //! Selected successors partition existing local obligations, not value storage.
 
-use super::super::{
-    CheckedUnitStructuralResultBindingPlan, SymbolHandle, type_graph_requires_nominal_drop,
-};
+use super::super::{CheckedUnitStructuralResultBindingPlan, SymbolHandle};
 use super::{CheckedStructuralControlSuccessorPlan, Multiplicity, StatementNode, TypedTrees};
+use crate::execution::terminal_unit::types::type_graph_requires_nominal_drop;
 /// A state-exit receipt permits disposal only on successors that do not move
 /// this local. Keep the operation's global discard flag false: scalar edge
 /// operands still observe its original home before selected-edge cleanup.

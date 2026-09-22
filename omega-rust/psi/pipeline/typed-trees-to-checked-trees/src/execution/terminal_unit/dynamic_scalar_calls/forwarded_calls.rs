@@ -2,9 +2,9 @@
 
 use crate::execution::terminal_unit::dynamic_scalar_calls::receivers::CheckedDynamicScalarCall;
 use crate::execution::terminal_unit::dynamic_scalar_calls::scalar_call_plans::build_checked_dynamic_scalar_call;
+use crate::execution::terminal_unit::types::{ShapeCollector, state_flow};
 use crate::execution::terminal_unit::{
-    CheckFacts, CheckedBoundaryMachinePlan, CheckedUnitCallCoordinate, ShapeCollector,
-    StatementNode, TypedTrees, state_flow,
+    CheckFacts, CheckedBoundaryMachinePlan, CheckedUnitCallCoordinate, StatementNode, TypedTrees,
 };
 
 pub(crate) fn build_checked_forwarded_dynamic_scalar_calls(
@@ -193,14 +193,16 @@ fn resolve_forwarded_dynamic_scalar_call<'program, 'facts>(
                     primitive_type,
                 });
             } else {
-                scalar_locals.push(crate::execution::terminal_unit::scalar_expression_local_at(
-                    program,
-                    facts,
-                    target_state,
-                    coordinate,
-                    coordinate,
-                    local,
-                )?);
+                scalar_locals.push(
+                    crate::execution::terminal_unit::scalar_locals::scalar_expression_local_at(
+                        program,
+                        facts,
+                        target_state,
+                        coordinate,
+                        coordinate,
+                        local,
+                    )?,
+                );
             }
         }
         let StatementNode::LocalData(helper_result) = &statements[inner_call.statement_index]

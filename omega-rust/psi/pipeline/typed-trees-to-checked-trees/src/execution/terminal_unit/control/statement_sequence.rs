@@ -26,11 +26,13 @@ use crate::execution::terminal_unit::control::call_occurrences;
 use crate::execution::terminal_unit::control::call_results::bind_scalar_call_result;
 use crate::execution::terminal_unit::control::call_results::bind_structural_call_result;
 use crate::execution::terminal_unit::control::call_results::checked_structural_result_type;
+use crate::execution::terminal_unit::control::structural_operands;
 use crate::execution::terminal_unit::returns::checked_boolean_contains_short_circuit;
-use crate::execution::terminal_unit::{
+use crate::execution::terminal_unit::scalar_locals::scalar_expression_local_at;
+use crate::execution::terminal_unit::types::{
     ShapeCollector, base_type_identity, is_unit, machine_binders, parameter_qualifications,
-    scalar_expression_local_at, structural_operands,
 };
+
 use checked_trees::CheckedUnitStructuralReturnPlan;
 
 /// Completion forwards a whole parameter only when its exact output contract

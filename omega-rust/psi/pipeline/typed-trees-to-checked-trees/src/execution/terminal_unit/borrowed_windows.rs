@@ -13,7 +13,8 @@ use super::{
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan, Multiplicity,
     StatementNode, SymbolHandle, TypedTrees,
 };
-use crate::execution::terminal_unit::ShapeCollector;
+use crate::execution::terminal_unit::types::ShapeCollector;
+
 use crate::execution::terminal_unit::types::terminal_field_identity;
 use crate::flow::CanonicalPlace;
 use facts::{PlaceRoot, PlaceSegment};

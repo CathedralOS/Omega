@@ -11,8 +11,10 @@ use crate::execution::terminal_unit::PrimitiveType;
 use crate::execution::terminal_unit::TypeReferenceHandle;
 use crate::execution::terminal_unit::TypeReferenceNode;
 use crate::execution::terminal_unit::TypedTrees;
-use crate::execution::terminal_unit::byte_sequence_type_identity;
-use crate::execution::terminal_unit::structural_access_for_type_reference;
+use crate::execution::terminal_unit::types::{
+    byte_sequence_type_identity, structural_access_for_type_reference,
+};
+
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
 use typed_trees::expression::ExpressionHandle;
 

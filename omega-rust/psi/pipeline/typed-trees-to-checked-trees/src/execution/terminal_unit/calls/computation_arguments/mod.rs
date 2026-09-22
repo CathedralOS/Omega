@@ -9,18 +9,20 @@ use crate::execution::terminal_unit::CheckedUnitStructuralTypeShape;
 use crate::execution::terminal_unit::ExpressionNode;
 use crate::execution::terminal_unit::Multiplicity;
 use crate::execution::terminal_unit::PrimitiveType;
-use crate::execution::terminal_unit::ShapeCollector;
+use crate::execution::terminal_unit::types::{
+    ShapeCollector, base_type_identity, parameter_qualifications,
+    structural_access_for_type_reference,
+};
+
 use crate::execution::terminal_unit::StateParameter;
 use crate::execution::terminal_unit::StatementNode;
 use crate::execution::terminal_unit::SymbolHandle;
 use crate::execution::terminal_unit::TypeReferenceHandle;
 use crate::execution::terminal_unit::TypeReferenceNode;
 use crate::execution::terminal_unit::TypedTrees;
-use crate::execution::terminal_unit::base_type_identity;
+
 use crate::execution::terminal_unit::calls::projected_argument_path;
 use crate::execution::terminal_unit::calls::structural_arguments::exact_structural_borrow_access;
-use crate::execution::terminal_unit::parameter_qualifications;
-use crate::execution::terminal_unit::structural_access_for_type_reference;
 
 #[cfg(test)]
 mod tests;

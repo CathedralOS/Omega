@@ -1,10 +1,12 @@
 //! Binding scalar and structural call results to checked unit locals.
 
+use crate::execution::terminal_unit::types::{
+    ShapeCollector, is_unit, parameter_qualifications, type_graph_requires_nominal_drop,
+};
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedUnitEffectOperationPlan, CheckedUnitScalarResultBindingPlan,
-    CheckedUnitStructuralResultBindingPlan, ExpressionNode, Multiplicity, ShapeCollector,
-    StatementNode, SymbolHandle, TypeReferenceHandle, TypedTrees, is_reference, is_unit,
-    parameter_qualifications, type_graph_requires_nominal_drop,
+    CheckedUnitStructuralResultBindingPlan, ExpressionNode, Multiplicity, StatementNode,
+    SymbolHandle, TypeReferenceHandle, TypedTrees, is_reference,
 };
 
 pub(crate) fn bind_scalar_call_result(

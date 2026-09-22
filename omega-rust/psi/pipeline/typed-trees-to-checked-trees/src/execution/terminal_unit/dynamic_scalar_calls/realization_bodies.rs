@@ -1,10 +1,11 @@
 //! Realization scalar bodies, field store plans and service reach.
 
+use crate::execution::terminal_unit::types::terminal_field_identity;
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,
     CheckedUnitCallCoordinate, CheckedUnitStructuralPathSegment, PrimitiveType, StatementNode,
     SymbolHandle, TransitionExit, TransitionGuardNode, TransitionTargetNode, TypeReferenceNode,
-    TypedTrees, terminal_field_identity,
+    TypedTrees,
 };
 
 pub(crate) struct CheckedRealizationScalarBody {

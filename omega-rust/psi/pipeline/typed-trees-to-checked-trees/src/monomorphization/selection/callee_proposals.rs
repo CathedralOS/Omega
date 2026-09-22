@@ -1,6 +1,8 @@
 //! Callee resolution, machine proposals, contract facts and expression
 //! trees.
 
+#[cfg(test)]
+use crate::monomorphization::selection::collect_call_selections;
 use crate::monomorphization::selection::static_bindings::infer_static_bindings;
 use crate::monomorphization::{
     CallSite, CalleeState, Candidate, ExpressionHandle, ExpressionNode, ProofFact,
@@ -8,9 +10,7 @@ use crate::monomorphization::{
     collect_statement_expression_trees, const_arguments,
 };
 #[cfg(test)]
-use crate::monomorphization::{
-    candidate, collect_call_selections, materialize_static_argument_types,
-};
+use crate::monomorphization::{candidate, materialize_static_argument_types};
 #[cfg(test)]
 use crate::tests::front_end::typed_program;
 

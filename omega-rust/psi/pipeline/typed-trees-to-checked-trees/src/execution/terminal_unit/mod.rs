@@ -1,4 +1,16 @@
 use crate::execution::terminal_unit::calls::free_structural_scalar_signature;
+use crate::execution::terminal_unit::cleanup::build_nominal_affine_unit_cleanup_machine;
+#[cfg(test)]
+use crate::execution::terminal_unit::composed_control::build_checked_composed_unit_control_machines;
+use crate::execution::terminal_unit::composed_control::build_checked_composed_unit_control_machines_traced;
+use crate::execution::terminal_unit::control::{
+    LocalConstructionTrace, build_boundary_machine, build_checked_machine_traced,
+    build_static_boundary_requirements,
+};
+use crate::execution::terminal_unit::dynamic_scalar_calls::build_checked_dynamic_dispatch_plans;
+use crate::execution::terminal_unit::types::{
+    ShapeCollector, is_unit, type_graph_requires_nominal_drop,
+};
 /*
 We build executable source plans from already-checked ownership, control, and
 call facts. A typed body can be legal without fitting a Terminal producer yet;
@@ -185,18 +197,9 @@ pub(crate) mod types;
 
 use crate::execution::terminal_unit::cleanup::build_partial_affine_unit_cleanup_machine;
 pub(crate) use calls::structural_computation_argument;
-use cleanup::*;
-use composed_control::*;
-use control::*;
-use dynamic_scalar_calls::*;
 use primitive_store::build_write_only_primitive_store;
-use providers::*;
-use returns::*;
-use scalar_locals::*;
-use selected_operator::*;
 use shared_convergence::checked_shared_boolean_convergence;
 pub(super) use structural_scalar_store::build_local_scalar_field_store;
-use types::*;
 pub(crate) use types::{is_reference, strips_erased_parameter, structural_parameter_candidate};
 
 /// Scalar callees available to this planning pass, independent of published facts.

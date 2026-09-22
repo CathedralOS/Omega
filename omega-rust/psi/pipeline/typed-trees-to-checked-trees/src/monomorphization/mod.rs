@@ -21,6 +21,12 @@
 //! the live generic span. Template commitments protect its stable contract axes;
 //! application commitments also protect each exact retained-call binding.
 
+use crate::monomorphization::body_cloning::clone_specialized_machine;
+use crate::monomorphization::body_rewriting::rewrite_selected_call;
+use crate::monomorphization::identities::{
+    accepted_template_commitment, canonical_template_contract_bytes, fnv1a_report_fingerprint,
+    machine_template_commitment,
+};
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use sha2::Sha256;
@@ -38,12 +44,9 @@ pub(crate) use attached_methods::validate_selected_attached_method_bounds;
 mod candidate;
 mod selection;
 pub(crate) use selection::collect_expression_tree;
-use selection::*;
 mod body_rewriting;
 pub(crate) use body_rewriting::collect_statement_expression_trees;
-use body_rewriting::*;
 pub(crate) mod identities;
-use identities::*;
 pub(crate) use identities::{
     bind_specialization_contract_identities, canonical_state_signature_bytes,
 };
@@ -51,7 +54,6 @@ pub use identities::{
     generic_machine_template_commitment, generic_machine_template_report_fingerprint,
 };
 mod body_cloning;
-use body_cloning::*;
 mod const_arguments;
 mod dynamic_families;
 pub(crate) use dynamic_families::generate_dynamic_family_specializations;

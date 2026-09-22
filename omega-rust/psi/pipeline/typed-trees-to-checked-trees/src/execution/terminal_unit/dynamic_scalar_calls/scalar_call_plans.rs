@@ -13,12 +13,14 @@ use crate::execution::terminal_unit::dynamic_scalar_calls::realization_bodies::{
 use crate::execution::terminal_unit::dynamic_scalar_calls::receivers::{
     CheckedDynamicScalarCall, dynamic_receiver_place,
 };
+use crate::execution::terminal_unit::types::{
+    ShapeCollector, machine_binders, structural_access_for_type_reference, terminal_field_identity,
+};
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedBoundaryMachinePlan, CheckedScalarExpression, CheckedScalarExpressionRole,
     CheckedStructuralAccess, CheckedUnitCallCoordinate, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralPathSegment, ExpressionNode, MachineSupplyMode, ServiceReachSummary,
-    ShapeCollector, StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees, machine_binders,
-    structural_access_for_type_reference, terminal_field_identity,
+    StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
 };
 use typed_trees::name::Identifier;
 use typed_trees::type_identity::TypeIdentityRequest;

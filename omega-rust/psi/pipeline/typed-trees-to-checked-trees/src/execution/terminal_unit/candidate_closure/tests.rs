@@ -3,7 +3,8 @@ use super::{
     CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedUnitEffectMachinePlan,
     CheckedUnitEffectOperationPlan, SymbolHandle, TypedTrees,
 };
-use crate::execution::terminal_unit::ShapeCollector;
+use crate::execution::terminal_unit::types::ShapeCollector;
+
 use crate::execution::terminal_unit::build_checked_composed_unit_control_machines;
 use crate::execution::terminal_unit::candidate_closure::CandidateClosure;
 use crate::execution::terminal_unit::candidate_closure::retain_available;

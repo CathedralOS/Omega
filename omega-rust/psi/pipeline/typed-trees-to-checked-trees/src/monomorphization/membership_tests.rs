@@ -1,5 +1,6 @@
 use super::{HandleSpan, ProofFact, TypeConstraintNode, TypeReferenceNode};
-use crate::monomorphization::contract_fact_text;
+use crate::monomorphization::identities::contract_fact_text;
+
 use crate::monomorphization::monomorphize_generic_machine_value_calls_with_selections;
 use crate::monomorphization::refresh_closed_domain_instance_identities;
 use crate::tests::front_end::{checked_program_result, typed_program};

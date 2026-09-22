@@ -9,7 +9,12 @@ pub(super) fn replay(source: &mut TypedTrees, program: &TypedTrees, machine: &Ma
     let candidates = super::candidate::collect(source);
     let callees = super::candidate::callees(source, &candidates);
     let contracts = crate::monomorphization::selection::contract_expression_handles(source);
-    let selections = super::collect_call_selections(source, &candidates, &callees, &contracts);
+    let selections = crate::monomorphization::selection::collect_call_selections(
+        source,
+        &candidates,
+        &callees,
+        &contracts,
+    );
     let mut sites = Vec::new();
     let mut expressions = Vec::new();
     for state in source.machine_states(machine) {
@@ -62,7 +67,7 @@ pub(super) fn replay(source: &mut TypedTrees, program: &TypedTrees, machine: &Ma
             .flatten()
             .filter_map(|argument| Some((argument.path.first()?.clone(), argument.symbol)))
             .collect::<Vec<_>>();
-        super::rewrite_selected_call_with_name(
+        crate::monomorphization::body_rewriting::rewrite_selected_call_with_name(
             source,
             selection.site,
             state.symbol,

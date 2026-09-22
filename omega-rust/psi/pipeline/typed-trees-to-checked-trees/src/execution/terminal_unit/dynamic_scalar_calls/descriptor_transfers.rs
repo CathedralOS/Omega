@@ -1,8 +1,9 @@
 //! Descriptor selections carried through checked dynamic parameter transfers.
 
+use crate::execution::terminal_unit::types::state_flow;
 use crate::execution::terminal_unit::{
     BTreeMap, CheckFacts, CheckedUnitCallCoordinate, ExpressionNode, SymbolHandle,
-    TypeReferenceNode, TypedTrees, state_flow,
+    TypeReferenceNode, TypedTrees,
 };
 
 pub(super) fn build_checked_dynamic_descriptor_transfers(

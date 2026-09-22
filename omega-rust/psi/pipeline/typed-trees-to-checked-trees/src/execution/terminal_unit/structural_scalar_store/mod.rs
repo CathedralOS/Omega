@@ -8,7 +8,8 @@ use super::{
     TypeReferenceNode, TypedTrees,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
-use crate::execution::terminal_unit::terminal_field_identity;
+use crate::execution::terminal_unit::types::terminal_field_identity;
+
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
 
 mod frame;
@@ -491,7 +492,7 @@ pub(super) fn build_whole_record_store_sequence(
     if !matches!(frame.complete_paths(), Some([path]) if path == &mutation_root) {
         return None;
     }
-    if crate::execution::terminal_unit::abi_parameter_count(source_parameters)
+    if crate::execution::terminal_unit::types::abi_parameter_count(source_parameters)
         != scalar_parameters.len() + structural_parameters.len()
     {
         return None;
@@ -630,7 +631,7 @@ fn build_record_literal_field_store_sequence(
         language_semantics::ReferenceAccess::Shared => return None,
     };
     if destination.access != expected_access
-        || crate::execution::terminal_unit::abi_parameter_count(source_parameters)
+        || crate::execution::terminal_unit::types::abi_parameter_count(source_parameters)
             != scalar_parameters.len() + structural_parameters.len()
     {
         return None;
@@ -902,7 +903,7 @@ fn build_structural_field_store_at(
         return None;
     }
     trace.phase("structural field store: parameter access");
-    if crate::execution::terminal_unit::abi_parameter_count(source_parameters)
+    if crate::execution::terminal_unit::types::abi_parameter_count(source_parameters)
         != scalar_parameters.len() + structural_parameters.len()
         || parameter.is_self != destination.is_self
         || parameter.is_const

@@ -92,7 +92,6 @@ const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[
         "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees",
         3,
     ),
-    ("omega-rust/psi/pipeline/typed-trees-to-checked-trees", 2),
     ("omega-rust/psi/representations/symbol-resolved-trees", 1),
     ("omega-rust/psi/semantics/build-time-evaluation", 1),
 ];

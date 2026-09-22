@@ -3,10 +3,12 @@ use super::{
     CheckFacts, CheckedStructuralAccess, ExpressionNode, StatementNode, SymbolHandle,
     TypeReferenceHandle, TypeReferenceNode, TypedTrees,
 };
-use crate::execution::terminal_unit::base_type_identity;
+use crate::execution::terminal_unit::types::{
+    base_type_identity, state_flow, structural_access_for_type_reference,
+};
+
 use crate::execution::terminal_unit::calls;
-use crate::execution::terminal_unit::state_flow;
-use crate::execution::terminal_unit::structural_access_for_type_reference;
+
 use checked_trees::{
     BorrowAccessKind, BorrowLoanLineage, FlowBorrowWeakeningReason, FlowInvalidationSource,
 };

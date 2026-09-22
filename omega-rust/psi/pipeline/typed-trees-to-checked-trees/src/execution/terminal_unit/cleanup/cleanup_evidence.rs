@@ -1,8 +1,9 @@
 //! Content evidence, empty service reach and exact affine discards.
 
+use crate::execution::terminal_unit::types::parameter_root_symbol;
 use crate::execution::terminal_unit::{
     CheckFacts, Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
-    PermissionEventSource, StateParameter, SymbolHandle, parameter_root_symbol,
+    PermissionEventSource, StateParameter, SymbolHandle,
 };
 
 pub(crate) fn machine_has_content_evidence(

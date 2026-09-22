@@ -2,6 +2,11 @@
 //! paths, projected call support, contract mentions and crash expressions.
 
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
+use crate::execution::terminal_unit::types::{
+    base_type_identity, byte_sequence_type_identity, parameter_root_symbol,
+    structural_access_for_type_reference, terminal_field_identity,
+    type_graph_requires_nominal_drop,
+};
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedStructuralScalarParameterPlan, CheckedUnitCallCoordinate,
@@ -9,10 +14,7 @@ use crate::execution::terminal_unit::{
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, ExpressionNode,
     MachineSupplyMode, Multiplicity, PermissionAccess, PermissionClaimIdentity,
     PermissionEventKind, PermissionEventSource, ProofFact, SignatureContractKind, StateParameter,
-    SymbolHandle, TypeReferenceHandle, TypeReferenceNode, TypedTrees, base_type_identity,
-    byte_sequence_type_identity, is_reference, parameter_root_symbol,
-    structural_access_for_type_reference, terminal_field_identity,
-    type_graph_requires_nominal_drop,
+    SymbolHandle, TypeReferenceHandle, TypeReferenceNode, TypedTrees, is_reference,
 };
 
 pub(crate) fn checked_call_scalar_arguments(

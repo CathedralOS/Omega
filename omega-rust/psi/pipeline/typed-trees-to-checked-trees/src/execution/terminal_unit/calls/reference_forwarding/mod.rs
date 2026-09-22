@@ -3,7 +3,8 @@ use crate::execution::terminal_unit::CheckedStructuralAccess;
 use crate::execution::terminal_unit::ExpressionNode;
 use crate::execution::terminal_unit::SymbolHandle;
 use crate::execution::terminal_unit::TypedTrees;
-use crate::execution::terminal_unit::structural_access_for_type_reference;
+use crate::execution::terminal_unit::types::structural_access_for_type_reference;
+
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
 
 pub(super) fn preserves_mutable_referent(

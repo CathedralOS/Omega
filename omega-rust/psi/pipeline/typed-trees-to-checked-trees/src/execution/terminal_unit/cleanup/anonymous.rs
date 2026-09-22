@@ -12,7 +12,7 @@ use crate::execution::terminal_unit::cleanup::cleanup_evidence::{
     machine_has_content_evidence, service_reach_is_empty, service_reach_plan_is_empty,
 };
 use crate::execution::terminal_unit::cleanup::partial_affine_cleanup::partial_affine_residuals;
-use crate::execution::terminal_unit::{
+use crate::execution::terminal_unit::types::{
     ShapeCollector, base_type_identity, machine_binders, state_flow,
 };
 

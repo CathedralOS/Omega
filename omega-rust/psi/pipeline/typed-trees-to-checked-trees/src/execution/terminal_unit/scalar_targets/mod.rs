@@ -10,14 +10,13 @@ use super::{
     TypedTrees, is_reference, returns,
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
-use crate::execution::terminal_unit::ShapeCollector;
+use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders, state_flow};
+
 use crate::execution::terminal_unit::calls::{
     call_claim_transfers, entry_claims, free_structural_scalar_signature,
     structural_scalar_signature, structural_signature,
 };
 
-use crate::execution::terminal_unit::machine_binders;
-use crate::execution::terminal_unit::state_flow;
 use crate::execution::terminal_unit::structural_scalar_graph_signature;
 
 #[cfg(test)]

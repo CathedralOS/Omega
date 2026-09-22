@@ -39,7 +39,7 @@ use super::{
     PermissionEventSource, StatementNode, SymbolHandle, TypeReferenceHandle, TypeReferenceNode,
     TypedTrees,
 };
-use crate::execution::terminal_unit::ShapeCollector;
+use crate::execution::terminal_unit::types::ShapeCollector;
 
 pub(crate) fn build_checked_structural_unit_control_plans(
     program: &TypedTrees,

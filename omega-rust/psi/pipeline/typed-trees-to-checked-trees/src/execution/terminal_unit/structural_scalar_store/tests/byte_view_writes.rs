@@ -11,7 +11,8 @@
 //! `StructuralByteSequenceFieldByteStore` plan variant is unreachable from
 //! source today; if it ever becomes reachable these pins must be re-derived.
 use super::CheckedUnitEffectOperationPlan;
-use crate::execution::terminal_unit::ShapeCollector;
+use crate::execution::terminal_unit::types::ShapeCollector;
+
 use crate::execution::terminal_unit::structural_scalar_store::build_structural_scalar_field_store_sequence;
 use crate::tests::front_end::checked_program_result;
 

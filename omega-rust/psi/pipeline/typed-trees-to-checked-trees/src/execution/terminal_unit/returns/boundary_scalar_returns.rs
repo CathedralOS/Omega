@@ -5,12 +5,15 @@ use crate::execution::terminal_unit::calls::{
     structural_signature,
 };
 use crate::execution::terminal_unit::cleanup::machine_has_content_evidence;
+use crate::execution::terminal_unit::control::outer_calls;
+use crate::execution::terminal_unit::types::{
+    ShapeCollector, checked_structural_signature_contract_supported, machine_binders, state_flow,
+};
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedBoundaryMachinePlan, CheckedBoundaryScalarReturnMachinePlan,
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralParameterPlan, ExpressionNode, PrimitiveType, ProofFact, ShapeCollector,
+    CheckedUnitStructuralParameterPlan, ExpressionNode, PrimitiveType, ProofFact,
     SignatureContractKind, StatementNode, TypedTrees,
-    checked_structural_signature_contract_supported, machine_binders, outer_calls, state_flow,
 };
 
 fn boundary_scalar_contracts_supported(

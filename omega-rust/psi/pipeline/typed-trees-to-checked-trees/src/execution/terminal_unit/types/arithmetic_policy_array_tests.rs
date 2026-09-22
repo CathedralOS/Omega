@@ -3,7 +3,8 @@
 use super::{
     CheckedUnitStructuralTypeShape, DataMember, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
 };
-use crate::execution::terminal_unit::ShapeCollector;
+use crate::execution::terminal_unit::types::ShapeCollector;
+
 use crate::tests::front_end::typed_program;
 
 fn field_program(spelling: &str) -> (TypedTrees, TypeReferenceHandle) {
