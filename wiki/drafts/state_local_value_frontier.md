@@ -19,11 +19,11 @@ exists".
 The producing surface is upstream in `typed-trees-to-checked-trees`:
 `facts.rs:200` populates `flow.terminal_scalar_graphs` via
 `execution/finalize_execution.rs:19`, with producers in
-`execution/scalar/unit_operations.rs` (:13, :156) and
-`execution/unit/state_graph/returns.rs` (:184, :194). That territory is
+`execution/terminal_scalar/unit_operations.rs` (:13, :156) and
+`execution/terminal_unit/state_graph/returns.rs` (:184, :194). That territory is
 live-fenced this wave:
 
-- `execution/unit/providers.rs` + neighbors — PROVIDER-ATTACHMENT-MACHINE-PLAN
+- `execution/terminal_unit/providers.rs` + neighbors — PROVIDER-ATTACHMENT-MACHINE-PLAN
   (z200, exp 09:49Z)
 - `checks/multiplicity` + — BLOCKEXEC (z27, exp 10:18Z)
 - `checks/termination/{progress,ranking}` — TPR6 / TERMINATION-RANKING-CHECKS

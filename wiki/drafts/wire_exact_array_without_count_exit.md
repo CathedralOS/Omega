@@ -20,7 +20,7 @@ The failure belongs to the same moved-failure family as
 CANARY-RUNTIME-LITERAL-DISPATCH-EXIT: the unit-effects plan emits no
 `attachment_type_identity` for the bound (`Main::main`, entry state) once the
 entry machine calls a generated codec. The producing surfaces
-(`typed-trees-to-checked-trees/src/execution/unit/*`, terminal-production
+(`typed-trees-to-checked-trees/src/execution/terminal_unit/*`, terminal-production
 receiver eligibility) sit in GENERAL-CYCLIC-EXECUTION's unit-plan lane and
 ENTRY-CONTENT-ROOTS' live claim — outside this item's fence. No independent
 slice exists under this name; the canary waits on the upstream repair.

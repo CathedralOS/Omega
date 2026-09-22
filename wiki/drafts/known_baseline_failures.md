@@ -532,7 +532,7 @@ Service<R> family). The current failure set attributes to six families:
   Fails after 121 s with "selected ProgramEntry establishment rejoins 0 Terminal
   attachment identities; expected one", the unit plan omitted at
   `state graph: state signature: parameter signature: attached data shape`
-  (state 0). Producer site is `t2c/src/execution/unit/calls/signatures.rs`, the
+  (state 0). Producer site is `t2c/src/execution/terminal_unit/calls/signatures.rs`, the
   attached-data-shape guard — a different phase from the record-literal store
   guard repaired at `238ff31237c0c`, which is why that repair leaves this red.
   Board row: CANARY-NATIVE-WRAPPER-WRITE-ALL-RESULT.
@@ -547,12 +547,12 @@ Service<R> family). The current failure set attributes to six families:
   shape, state 0`, all surfacing as `InvalidUnitMachinePlan` "attached Unit
   closure is missing a checked transitive machine plan" / `` `X` has no
   admitted body (local construction stopped at <phase>) ``. The `signature`
-  phase site is `execution/unit/control/checked_machine.rs` and the
-  attached-data-shape guard is `execution/unit/calls/signatures.rs`, both in
+  phase site is `execution/terminal_unit/control/checked_machine.rs` and the
+  attached-data-shape guard is `execution/terminal_unit/calls/signatures.rs`, both in
   typed-trees-to-checked-trees unit construction; the fixtures pass source
   checking (already migrated in 0e1977994b) and stop while admitting the
-  attached closure's bodies. Fences: `execution/unit/{control,state_graph,composed_control}`
-  is under GENERAL-CYCLIC-EXECUTION and `execution/unit/{mod.rs,candidate_closure,calls}`
+  attached closure's bodies. Fences: `execution/terminal_unit/{control,state_graph,composed_control}`
+  is under GENERAL-CYCLIC-EXECUTION and `execution/terminal_unit/{mod.rs,candidate_closure,calls}`
   plus `checked-trees-to-lowered-psi/src/unit` under UEFI-OS-HANDOFF.
 
   **Cross-suite span, measured 2026-09-21 on macOS arm64 once
@@ -635,7 +635,7 @@ Service<R> family). The current failure set attributes to six families:
   plan": these name implementation-coverage rosters inside the compiler, not
   language constructs, and the producer says so itself -- "these catalogs
   describe implementation coverage, not additional language rules"
-  (`t2c/src/execution/unit/mod.rs:2-5`). The features involved are settled
+  (`t2c/src/execution/terminal_unit/mod.rs:2-5`). The features involved are settled
   affirmatively: `dynamic_dispatch.md` specifies dynamic-call lowering in full,
   and `assembly.md` says every accepted instruction has a compiler-owned
   contract and assembly remains valid source surface. The one asm question

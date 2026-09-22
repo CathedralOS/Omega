@@ -33,7 +33,7 @@ All are mechanical `clippy`/`fmt` conformance fixes — zero behavior change:
 | `checked-trees-to-lowered-psi/src/emission/expression_validation.rs:48` | `needless_return` | tail expression |
 | `checked-trees-to-lowered-psi/.../composed_control/state_graph/emission/state.rs:534,598` | `unwrap_or_default` | `or_insert_with(Vec::new)` → `or_default()` |
 | `typed-trees-to-checked-trees/src/checks/contracts/writes.rs:1241` | `unnecessary_to_owned` | `&segments.to_vec()` → `segments` |
-| `typed-trees-to-checked-trees/src/execution/unit/calls/structural_arguments.rs:1086` | `question_mark` | `let-else return None` → `?` |
+| `typed-trees-to-checked-trees/src/execution/terminal_unit/calls/structural_arguments.rs:1086` | `question_mark` | `let-else return None` → `?` |
 | `omega/tests/package_commands/inspection.rs` | fmt drift | `cargo fmt` reflow |
 
 ## 1. fmt

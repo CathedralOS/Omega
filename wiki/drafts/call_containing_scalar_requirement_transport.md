@@ -158,14 +158,14 @@ refuted_requires,call_requirements}.rs` + signature_call test dirs, exp
 ~14:09Z), RC-GATE-STABILITY-REPAIR (c2l
 `tests/nominal_affine_source/integer_comparison.rs`, ~12:15Z), and
 NEW-BSR-CONDITIONAL-ARM-AGREEMENT-PRODUCER (t2c
-`execution/unit/borrowed_windows.rs`, ~16:41Z).
+`execution/terminal_unit/borrowed_windows.rs`, ~16:41Z).
 
 Drained since `661a4d50c0af`: STRUCTURAL-UNIT-LOWERING (c2l `src/unit` is
 free), CUSTODY-MATRIX-HARNESS-MIGRATION (terminal-codec artifact tests),
 ARITHMETIC-POLICY-REALIZATION (c2l `expression_preparation`),
 NEW-CC-BOUNDARY-CRASH-SOURCE-TO-EXECUTION-CONTROLS (c2l
 `tests/scalar_boundary_arguments.rs`), and the t2c cluster —
-PROVIDER-ATTACHMENT-MACHINE-PLAN (`execution/unit/providers.rs`), BLOCKEXEC
+PROVIDER-ATTACHMENT-MACHINE-PLAN (`execution/terminal_unit/providers.rs`), BLOCKEXEC
 (`checks/multiplicity`, lease expired), CALL-REQUIRES-INDEXED-WRITE-FACTS
 (`flow/transfers.rs`), FLOW-LITERAL-THRESHOLD-MEMOIZATION (`flow/context.rs`),
 NEW-BPC-SLICE-START-BOUND-CANDIDATE (`checks/ranges/indexes/validation.rs`).

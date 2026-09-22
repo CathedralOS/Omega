@@ -23,19 +23,19 @@ optimizer rows, not a separate item.
 
 Every implementing surface for that leg is inside a live claim:
 
-- `typed-trees-to-checked-trees/src/execution/unit/{types,calls,control,mod.rs}`,
+- `typed-trees-to-checked-trees/src/execution/terminal_unit/{types,calls,control,mod.rs}`,
   `checked-trees-to-lowered-psi/src/unit`, `lowered-psi-to-terminal-psi/src`,
   `terminal-psi-to-abstract-operations/src`,
   `abstract-operations-to-target-operations/src/lowering`,
   `terminal-psi`/`target-operations` representations →
   **PLACED-ACCESS-NATIVE-OPS** (Devin / z152, expires 2026-09-21T00:56Z)
-- `execution/unit/receiver_calls`, `tests/borrow`,
+- `execution/terminal_unit/receiver_calls`, `tests/borrow`,
   `lowering/unit/structural_call.rs` → **STRUCTURAL-BORROW-IDENTITY**
   (expires 2026-09-20T21:38Z)
-- `execution/unit/mod.rs` → **UEFI-OS-HANDOFF** (expires 2026-09-20T20:00Z)
+- `execution/terminal_unit/mod.rs` → **UEFI-OS-HANDOFF** (expires 2026-09-20T20:00Z)
 - `abstract-operations-to-target-operations/src/lowering/control_flow{,.rs}`
   → **STRUCTURAL-UNIT-CALL-GRAPH-JOINS** (expires 2026-09-20T20:13Z)
-- `execution/unit/structural_scalar_store` → **PSI-NATIVE-FIELD-STORES**
+- `execution/terminal_unit/structural_scalar_store` → **PSI-NATIVE-FIELD-STORES**
   (expires 2026-09-21T02:12Z)
 
 The `RANKED-PROJECTED-RECEIVER-COMPOSITION` row (verified `6ef64f6dd6`)

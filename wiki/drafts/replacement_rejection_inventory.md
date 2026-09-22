@@ -84,7 +84,7 @@ carrier and rejects; a record literal cannot manufacture a binding; zeroed
 storage/equal bits/injection/proof alone cannot create one. Enforcement:
 `typed-trees-to-checked-trees/src/checking/program_validation.rs` (bare
 boundary trait rejection, "not a service carrier" diagnostic) and the service
-custody checks under `execution/unit/`.
+custody checks under `execution/terminal_unit/`.
 
 ## Residual — no rejection site yet
 

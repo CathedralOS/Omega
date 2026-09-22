@@ -51,7 +51,7 @@ Claim-fenced residual (4) — left untouched:
 
 - `typed-trees-to-checked-trees/src/checks/multiplicity/{borrowed_windows,
   linear_obligations}.rs` → ADDRESS-TRANSLATION-CANARY (lease to 00:18Z)
-- `typed-trees-to-checked-trees/src/execution/unit/
+- `typed-trees-to-checked-trees/src/execution/terminal_unit/
   structural_scalar_store/tests/mod.rs` → PSI-NATIVE-FIELD-STORES (02:12Z)
 - `checked-interpreter/tests/trait_operators.rs` → NAMED-TRAIT-OPERATORS
   (01:45Z)

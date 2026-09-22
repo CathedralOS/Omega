@@ -150,7 +150,7 @@ the complete product bar; focused successes below do not establish that baseline
   match. Preserve signatures, receiver storage, rendering and effects under
   [provider selection](wiki/spec/build/provider_selection.md).
 
-  Compiler dependencies: `typed-trees-to-checked-trees/src/execution/unit/providers.rs`
+  Compiler dependencies: `typed-trees-to-checked-trees/src/execution/terminal_unit/providers.rs`
   admits one provider field, while this entry needs four; lowered
   `attached_unit/providers.rs` excludes scalar-result provider candidates
   needed by window/input/clock operations. Retain one occurrence-owned concrete
@@ -244,7 +244,7 @@ the complete product bar; focused successes below do not establish that baseline
 
   Current integration targets:
   - `text/runtime_stdin_command_branch_exit`: owned `Command` result-to-field
-    assignment in `parsed_input`; `execution/unit/control/statement_sequence.rs`
+    assignment in `parsed_input`; `execution/terminal_unit/control/statement_sequence.rs`
     still limits that call-result path to primitives. **STATE-LOCAL-VALUE-FRONTIER**
     owns structural result storage and independent lowering. Keep the reader's
     algorithm and run `runtime_stdin_command_branch_exit_canary_runs`.
@@ -1233,7 +1233,7 @@ syntax and other terminal services are not prerequisites.
   [safety/progress checking](wiki/spec/language/termination.md) for the unchanged
   decimal/Console loop and `print_squares`.
   Owners: `terminal-verifier/src/validation/control_flow/`, Psi's
-  `execution/unit/`, `checked-trees-to-lowered-psi/src/unit/attached_unit/`
+  `execution/terminal_unit/`, `checked-trees-to-lowered-psi/src/unit/attached_unit/`
   and expression preparation. The same-name optimizer-board task owns native
   receiving/replay coverage. Unit/scalar/aggregate functions already share the
   common native graph; no countdown or whole-Unit fallback.
@@ -2103,7 +2103,7 @@ syntax and other terminal services are not prerequisites.
   and [Terminal restoration](wiki/spec/terminal-psi/ownership.md#borrowed-storage-restoration).
   The guide move-out/restore body already produces checked Move/Store rows and
   verified Terminal operations, including reference-local aliases. Reuse
-  `execution/unit/borrowed_windows.rs`, emission's `BorrowedWindowLedger`
+  `execution/terminal_unit/borrowed_windows.rs`, emission's `BorrowedWindowLedger`
   and Omega's `lowering/machine/operation/borrowed_windows.rs`.
 
   Replace the producer's leading move-local/restore-only recognizer with
@@ -2446,7 +2446,7 @@ syntax and other terminal services are not prerequisites.
 
   Remaining work:
 
-  - In `execution/unit/dynamic_scalar_calls/`, replace the static-only
+  - In `execution/terminal_unit/dynamic_scalar_calls/`, replace the static-only
     `dynamic_family_tuple` path for runtime-capable calls with checked roster
     membership and generated selection among the closed bodies. Begin with
     one scalar binder, one common concrete result and dispatch around a
@@ -2754,7 +2754,7 @@ syntax and other terminal services are not prerequisites.
   reverse establishment order, as the [language rule](wiki/spec/language/ownership.md#construction-and-disposal-order) requires.
   Crash/abort/process-exit abandonment has no cleanup successor.
   Owners: `typed-trees-to-checked-trees/src/execution/control_cleanup.rs`
-  and `execution/unit/cleanup/`, `checked-trees-to-lowered-psi/src/unit/unit_cleanup/`,
+  and `execution/terminal_unit/cleanup/`, `checked-trees-to-lowered-psi/src/unit/unit_cleanup/`,
   and Omega's `abstract-operations-to-target-operations/src/lowering/`.
 
   Bounded parameter/local/result partial moves already reach encoded Terminal
@@ -2772,7 +2772,7 @@ syntax and other terminal services are not prerequisites.
     Update the encoding contract and representation, producer, codec,
     independent verifier/interpreter and native consumers together.
   - Fix whole/residual scheduling across dying roots. The multi-temporary
-    path in `execution/unit/cleanup/anonymous.rs::append_continuation`
+    path in `execution/terminal_unit/cleanup/anonymous.rs::append_continuation`
     appends residuals in operand order, and the test above expects that
     order; it does not establish the required cleanup schedule.
     Complete construction-local roots, partial construction and mixed dying
@@ -2856,7 +2856,7 @@ syntax and other terminal services are not prerequisites.
     nested sums, borrowed case observation and whole nominal receiver
     replacement, including match-assigned values. The customer is
     `filesystem/windows_canonicalize_exit`'s stored `UnitResult`.
-    `execution/unit/structural_scalar_store/tests/record_literal_fields.rs`
+    `execution/terminal_unit/structural_scalar_store/tests/record_literal_fields.rs`
     pins rejection of nonliteral records and structural members; scalar-field
     decomposition is not aggregate replacement. `borrowed_windows.rs`'s
     `StoreStructuralField` repairs an opened hole, not general overwrites.
@@ -2929,7 +2929,7 @@ syntax and other terminal services are not prerequisites.
   - Compose contextual requirements and dying local owners through ordinary
     cleanup edges. `checked-trees-to-lowered-psi/src/unit/unit_cleanup.rs::patch_nominal_cleanup_member`
     still excludes nonempty caller/hook prerequisites, and
-    `typed-trees-to-checked-trees/src/execution/unit/control/checked_machine.rs`
+    `typed-trees-to-checked-trees/src/execution/terminal_unit/control/checked_machine.rs`
     rejects nominal-drop locals left owned at return. Retain independently
     checked exact-place prerequisites; never infer new caller demands.
   - Complete erased-bearing record construction without runtime evidence

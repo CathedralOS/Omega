@@ -24,7 +24,7 @@ surface is landed end to end.
 ## Live sibling legs on adjacent surfaces
 
 - EXACT-PROGRAM-ENTRY-MULTIPLICITY (devin-w9, 04:43Z) —
-  `typed-trees-to-checked-trees/src/execution/unit/{returns,
+  `typed-trees-to-checked-trees/src/execution/terminal_unit/{returns,
   composed_control,scalar_targets}` + `selected-dispatch/service_custody`
   (upstream selection surface).
 - DIVISION-CANARY-ENTRY-BINDING (Jarod, 03:05Z) — runtime entry-binding

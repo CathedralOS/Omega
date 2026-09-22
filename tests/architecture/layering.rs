@@ -1924,8 +1924,8 @@ fn direct_add_proof_search_exposes_its_semantic_owners() {
 #[test]
 fn composed_unit_lowering_exposes_its_semantic_owners() {
     let root = workspace_root();
-    let typed =
-        root.join("omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/unit");
+    let typed = root
+        .join("omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/terminal_unit");
     let terminal =
         root.join("omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/attached_unit");
     for (entrance, modules) in [

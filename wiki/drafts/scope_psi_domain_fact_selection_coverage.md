@@ -76,7 +76,7 @@ new item.
 ## Fences observed at audit time
 
 Live claims adjacent to — but not covering — this surface at
-`891eb5c5844c`: `typed-trees-to-checked-trees/src/execution/unit` under
+`891eb5c5844c`: `typed-trees-to-checked-trees/src/execution/terminal_unit` under
 PROVIDER-ATTACHMENT-MACHINE-PLAN (~09:49Z) and
 CANARY-RUNTIME-LITERAL-DISPATCH-EXIT (~14:32Z); `facts/field_domain.rs`
 itself unfenced. Re-check `tools/claims.py status` before any code leg.

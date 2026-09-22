@@ -67,7 +67,7 @@ Execution mechanism per host:
 
 - Do not weaken fixtures to force a green leg; a failure here is a real
   structural-borrow-identity defect and routes to the owning lanes
-  (`execution/unit/receiver_calls`, `src/tests/borrow`, the call-operation
+  (`execution/terminal_unit/receiver_calls`, `src/tests/borrow`, the call-operation
   and reconciliation surfaces are claimed under the item's own claim
   ledger).
 - A checked-only pass, object publication, or cross-emission is not the

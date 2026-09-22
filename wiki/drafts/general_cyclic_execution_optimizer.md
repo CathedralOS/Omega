@@ -31,7 +31,7 @@ Probing `checked.facts.flow.terminal_unit_effects` omissions on the authored
 source gives the full chain:
 
 - `Cursor::step` — `LocalConstruction { phase: "state graph: result
-  signature" }`: `execution/unit/state_graph/returns.rs::signature` admits
+  signature" }`: `execution/terminal_unit/state_graph/returns.rs::signature` admits
   only `CheckedControlResultPlan::Unit | Structural`; a bounded scalar
   `u64 [0..=8]` result on a multi-state machine returns `None`, so no plan is
   built. (Source-read inference, not witnessed: `TerminalMachineResult::Scalar`
@@ -76,7 +76,7 @@ production.
 
 ## Ordered next legs (ownership per the board rows, not this item)
 
-1. Psi half (`execution/unit/state_graph` + `composed_control` + c2l
+1. Psi half (`execution/terminal_unit/state_graph` + `composed_control` + c2l
    emission): admit scalar results into `CheckedControlResultPlan` and carry
    them through composed-control emission — first blocker for both spellings.
 2. Psi half: ranked runtime call-cycle admission (tail self-call fold to
@@ -92,7 +92,7 @@ production.
 ## Live-claim state at re-verification (11:30Z)
 
 The previously recorded fences have all drained: GENERAL-CYCLIC-EXECUTION's
-claims on `execution/unit/state_graph` + `composed_control`, the
+claims on `execution/terminal_unit/state_graph` + `composed_control`, the
 `artifact_admission` claim, and STRUCTURAL-UNIT-CALL-GRAPH-JOINS's
 `lowering/control_flow` claim are expired. Currently live near the surface:
 
@@ -102,9 +102,9 @@ claims on `execution/unit/state_graph` + `composed_control`, the
   `tests/crash_member_source/fenced_and_float_equality.rs` (exp 13:03Z).
 - NEW-GCE-CYCLIC-CONTROLS-SPEC-STATUS — `wiki/spec/terminal-psi/
   verification.md` (exp 18:31Z).
-- RUNTIME-DISPATCH-HELPER-LOCAL-ALIAS-ADD — `execution/unit/control/
+- RUNTIME-DISPATCH-HELPER-LOCAL-ALIAS-ADD — `execution/terminal_unit/control/
   {statement_sequence,checked_machine}.rs` (exp 18:19Z).
-- NEW-BSR-CONDITIONAL-ARM-AGREEMENT-PRODUCER — `execution/unit/
+- NEW-BSR-CONDITIONAL-ARM-AGREEMENT-PRODUCER — `execution/terminal_unit/
   borrowed_windows.rs` (exp 16:41Z).
 
 `state_graph`, `composed_control`, `receiver_calls`, `call_closure.rs`,

@@ -47,7 +47,7 @@ Every implementing surface it would touch is inside a live claim at
 - `native-realization/providers`, `terminal-psi/src`,
   `lowered-psi-to-terminal-psi/src`,
   `abstract-operations-to-target-operations/src/lowering`,
-  t2c `execution/unit`, c2l `unit` → **PLACED-ACCESS-NATIVE-OPS**
+  t2c `execution/terminal_unit`, c2l `unit` → **PLACED-ACCESS-NATIVE-OPS**
   (Devin / z152, expires 2026-09-21T00:56Z)
 - `task-plans`/`provider-planning` are unclaimed, but the runtime leg they
   would serve is fenced.
@@ -82,7 +82,7 @@ Fence rotation since z142: PLACED-ACCESS-NATIVE-OPS' wholesale claim on
 `lowered-psi-to-terminal-psi/src`, and
 `abstract-operations-to-target-operations/src/lowering` has drained; those
 surfaces are unfenced at 07:35Z. The shallow dependencies stay fenced:
-t2c `execution/unit/{providers.rs,types/mod.rs}` under
+t2c `execution/terminal_unit/{providers.rs,types/mod.rs}` under
 PROVIDER-ATTACHMENT-MACHINE-PLAN (09:49Z) and c2l `src/unit` under
 STRUCTURAL-UNIT-LOWERING (09:16Z). `task-plans` and `provider-planning`
 remain unclaimed — the blocker is the leg's scale, not its fences.

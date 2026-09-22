@@ -173,19 +173,19 @@ const JUSTIFIED_LOOKUP_MAP_FILES: &[(&str, &str)] = &[
     // One checked unit's structural type plans keyed by their authored type
     // spelling — a unit-local plan environment, not declaration lookup.
     (
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/unit/types/mod.rs",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/terminal_unit/types/mod.rs",
         "one unit's type spellings bound to structural type plans",
     ),
     (
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/unit/cleanup/partial_affine_cleanup.rs",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/terminal_unit/cleanup/partial_affine_cleanup.rs",
         "one unit's type spellings bound to structural type plans",
     ),
     (
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/unit/cleanup/residuals.rs",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/terminal_unit/cleanup/residuals.rs",
         "one unit's type spellings bound to structural type plans",
     ),
     (
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/scalar/mod.rs",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/terminal_scalar/mod.rs",
         "one unit's type spellings bound to structural type plans",
     ),
     // Canonical-identity rejoins and package registries — keys are normalized

@@ -30,7 +30,7 @@ Unclaimed (8) — **formatted by this leg** (commit on branch
 `compiler/tests/module_machine_indices.rs`,
 `compiler/tests/package_compilation_inputs/module_constants/lexical_aggregate_values.rs`,
 `checked-trees-to-lowered-psi/tests/integer_policy_realization.rs`,
-`typed-trees-to-checked-trees/src/execution/scalar/tests/record_locals.rs`,
+`typed-trees-to-checked-trees/src/execution/terminal_scalar/tests/record_locals.rs`,
 `validation/src/declarations/operators/applications/tests.rs`,
 `validation/src/proof_contracts/contract_entailment/specification_calls.rs`.
 
@@ -47,7 +47,7 @@ Claim-fenced residual (16) — left untouched:
   → RANKED-NATIVE-ADMISSION
 - t2c2 `checks/multiplicity/{borrowed_windows,linear_obligations}.rs`
   → ADDRESS-TRANSLATION-CANARY
-- t2c2 `execution/unit/structural_scalar_store/tests/mod.rs`
+- t2c2 `execution/terminal_unit/structural_scalar_store/tests/mod.rs`
   → PSI-NATIVE-FIELD-STORES
 - t2c2 `tests/token_bound_machine_calls.rs`
   → CORPUS-RED-FAMILY-CASTSEED

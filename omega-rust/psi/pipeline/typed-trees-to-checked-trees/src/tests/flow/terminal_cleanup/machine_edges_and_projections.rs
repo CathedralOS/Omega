@@ -973,7 +973,7 @@ fn projected_transition_shape_helper_rejects_nominal_root_cleanup() {
         })
         .expect("left field");
     assert!(
-        crate::execution::exact_two_field_record_projection_for_test(
+        crate::execution::terminal_unit::exact_two_field_record_projection(
             &typed,
             source_parameter.type_reference,
             moved_field,
