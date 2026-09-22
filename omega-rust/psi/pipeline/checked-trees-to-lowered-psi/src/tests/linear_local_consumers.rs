@@ -1,6 +1,6 @@
-//! A linear parameter consumed by a by-value `self` callee lowers as an
-//! ordinary claim transfer and verifies independently; a plan that drops the
-//! transfer its consumer needs is refused rather than lowered.
+//! Locals holding linear or affine values lower into the calls that consume
+//! them, and the module verifies independently; a plan that drops the
+//! claim transfer its consumer needs is refused rather than lowered.
 use super::lower_machine;
 use crate::TerminalMachineSelection;
 use crate::front_end::checked_program;
@@ -40,6 +40,57 @@ fn a_linear_parameter_receiver_lowers_and_verifies() {
         "run",
         "parameter",
     );
+}
+
+#[test]
+fn local_bound_receivers_plan_but_stop_at_named_source_custody_rules() {
+    // Each body composes into a Unit plan; the receiver's source custody is
+    // what this stage still refuses, and the refusal names the rule so the
+    // next repair lands against it rather than against a missing plan.
+    for (label, source, expected) in [
+        (
+            "whole linear local move",
+            format!(
+                "{RECEIPT}machine run(issued: Receipt) -> i32 {{ let forwarded: Receipt = issued; forwarded.ack(); 0 }}"
+            ),
+            "Unit structural result use is not a whole affine move or shared borrow",
+        ),
+        (
+            "linear call result bound by a local",
+            format!(
+                "{RECEIPT}machine issue(r: Receipt) -> Receipt {{ r }}
+                 machine run(r: Receipt) -> i32 {{ let returned: Receipt = issue(r); returned.ack(); 0 }}"
+            ),
+            "Unit structural result use is not a whole affine move or shared borrow",
+        ),
+        (
+            "affine literal local",
+            "data Token { code: i32; }
+             machine Token::ack(self) {}
+             machine run() -> i32 { let issued: Token = Token { code: 7 }; issued.ack(); 0 }"
+                .to_owned(),
+            "structural local changed its ownership event",
+        ),
+    ] {
+        let checked = checked_program(&source);
+        let run = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "run")
+            .unwrap()
+            .symbol;
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(run)
+                .is_some(),
+            "{label}: the body plans"
+        );
+        let error = produce(&source, "run").expect_err(label);
+        assert!(error.contains(expected), "{label}: {error}");
+    }
 }
 
 #[test]
