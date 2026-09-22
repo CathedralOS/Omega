@@ -6,6 +6,7 @@
 //! that the placement describes the named device. It performs no device read,
 //! placement admission, content establishment, or field access.
 
+use crate::access_plan::diagnostic::into_validated_access;
 use crate::placements::placement_admission::validate_placement_admission;
 use crate::placements::placement_authority::PlacementAuthorityRef;
 use crate::primitive_access::field_projection::project_placed_field;
@@ -534,17 +535,18 @@ impl<'extent> SchemaCorrespondedPlacedView<'extent> {
         (ExtentLoan<'extent>, AdmittedSchemaDeviceCorrespondence),
         SchemaCorrespondedPlaceRetirementError<'extent>,
     > {
-        if let Err(diagnostic) = self.validate_retirement() {
-            return Err(SchemaCorrespondedPlaceRetirementError {
-                view: self,
-                diagnostic,
-            });
-        }
-        let Self {
-            view,
-            correspondence,
-        } = self;
-        Ok((view.loan, correspondence))
+        into_validated_access(
+            self,
+            |placed| placed.validate_retirement(),
+            |placed, ()| {
+                let Self {
+                    view,
+                    correspondence,
+                } = placed;
+                (view.loan, correspondence)
+            },
+            |view, diagnostic| SchemaCorrespondedPlaceRetirementError { view, diagnostic },
+        )
     }
 
     /// Project one field while retaining this exact admitted correspondence
@@ -713,18 +715,21 @@ pub fn bind_schema_correspondence_to_placement<'extent>(
     SchemaCorrespondedPlacementAdmission<'extent>,
     SchemaCorrespondencePlacementBindingError<'extent>,
 > {
-    let diagnostic = validate_schema_correspondence_placement_binding(&admission, &correspondence);
-    if let Err(diagnostic) = diagnostic {
-        return Err(SchemaCorrespondencePlacementBindingError {
+    into_validated_access(
+        (admission, correspondence),
+        |(admission, correspondence)| {
+            validate_schema_correspondence_placement_binding(admission, correspondence)
+        },
+        |(admission, correspondence), ()| SchemaCorrespondedPlacementAdmission {
+            admission,
+            correspondence,
+        },
+        |(admission, correspondence), diagnostic| SchemaCorrespondencePlacementBindingError {
             admission,
             correspondence,
             diagnostic,
-        });
-    }
-    Ok(SchemaCorrespondedPlacementAdmission {
-        admission,
-        correspondence,
-    })
+        },
+    )
 }
 
 fn validate_schema_correspondence_placement_binding(

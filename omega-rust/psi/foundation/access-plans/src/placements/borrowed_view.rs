@@ -2,6 +2,7 @@ use extents::{ExtentLoan, LoanPolarity};
 
 use crate::AdmittedResourceProfile;
 use crate::ResourceProfileReceiptId;
+use crate::access_plan::diagnostic::into_validated_access;
 use crate::placements::placement_admission::validate_placement_admission;
 use crate::placements::placement_authority::PlacementAuthorityRef;
 use crate::primitive_access::field_projection::project_placed_field;
@@ -48,13 +49,12 @@ impl<'extent> PlacedView<'extent> {
     /// Success returns the original loan; rejection returns this complete view
     /// for repair and retry. No content, vacancy, or destruction is claimed.
     pub fn retire(self) -> Result<ExtentLoan<'extent>, PlacedViewRetirementError<'extent>> {
-        if let Err(diagnostic) = self.validate_authority("borrowed placed-view retirement") {
-            return Err(PlacedViewRetirementError {
-                view: self,
-                diagnostic,
-            });
-        }
-        Ok(self.loan)
+        into_validated_access(
+            self,
+            |view| view.validate_authority("borrowed placed-view retirement"),
+            |view, ()| view.loan,
+            |view, diagnostic| PlacedViewRetirementError { view, diagnostic },
+        )
     }
 
     /// Purely project one accepted field through a shared view borrow.

@@ -10,6 +10,7 @@
 
 #[cfg(test)]
 use crate::PlacementPlanId;
+use crate::access_plan::diagnostic::into_validated_access;
 use crate::{
     AccessPlanDiagnostic, AdmittedSchemaDeviceCorrespondence, ExternalPrimitiveAccessRequest,
 };
@@ -108,19 +109,18 @@ impl<'view, 'extent> ExternalPrimitiveAccessRequest<'view, 'extent> {
         CorrespondedExternalPrimitiveAccessRequest<'view, 'extent>,
         CorrespondedExternalPrimitiveAccessRejection<'view, 'extent>,
     > {
-        let correspondence = match validate_corresponded_external_access(&self) {
-            Ok(correspondence) => correspondence,
-            Err(diagnostic) => {
-                return Err(CorrespondedExternalPrimitiveAccessRejection {
-                    access: self,
-                    diagnostic,
-                });
-            }
-        };
-        Ok(CorrespondedExternalPrimitiveAccessRequest {
-            access: self,
-            correspondence,
-        })
+        into_validated_access(
+            self,
+            validate_corresponded_external_access,
+            |access, correspondence| CorrespondedExternalPrimitiveAccessRequest {
+                access,
+                correspondence,
+            },
+            |access, diagnostic| CorrespondedExternalPrimitiveAccessRejection {
+                access,
+                diagnostic,
+            },
+        )
     }
 }
 

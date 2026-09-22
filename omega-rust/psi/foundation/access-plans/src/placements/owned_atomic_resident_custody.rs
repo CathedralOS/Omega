@@ -10,6 +10,7 @@ use extents::{
     ProviderExistingContentGrant, ResidentClaimId,
 };
 
+use crate::access_plan::diagnostic::into_validated_access;
 use crate::placements::owned_resident_custody::replay_owned_admission_resources;
 use crate::placements::owned_resident_custody::validate_owned_content_binding;
 use crate::placements::owned_resident_custody::validate_resident_observation;
@@ -113,16 +114,18 @@ pub fn adopt_owned_atomic(
     admission: OwnedPlacementAdmission,
     content: ProviderExistingContentGrant,
 ) -> Result<DormantOwnedAtomicResident, OwnedAtomicAdoptionError> {
-    if let Err(diagnostic) =
-        validate_owned_atomic_resident_authority(&admission, &content, "Atomic adoption")
-    {
-        return Err(OwnedAtomicAdoptionError {
+    into_validated_access(
+        (admission, content),
+        |(admission, content)| {
+            validate_owned_atomic_resident_authority(admission, content, "Atomic adoption")
+        },
+        |(admission, content), ()| DormantOwnedAtomicResident { admission, content },
+        |(admission, content), diagnostic| OwnedAtomicAdoptionError {
             admission,
             content,
             diagnostic,
-        });
-    }
-    Ok(DormantOwnedAtomicResident { admission, content })
+        },
+    )
 }
 
 impl DormantOwnedAtomicResident {
@@ -164,22 +167,26 @@ impl DormantOwnedAtomicResident {
         self,
         occurrence: PlacedOccurrenceId,
     ) -> Result<EstablishedOwnedAtomicPlacement, OwnedAtomicResidentViewEstablishmentError> {
-        if let Err(diagnostic) = validate_owned_atomic_resident_authority(
-            &self.admission,
-            &self.content,
-            "Atomic resident view",
-        ) {
-            return Err(OwnedAtomicResidentViewEstablishmentError {
-                resident: self,
+        into_validated_access(
+            self,
+            |resident| {
+                validate_owned_atomic_resident_authority(
+                    &resident.admission,
+                    &resident.content,
+                    "Atomic resident view",
+                )
+            },
+            |resident, ()| EstablishedOwnedAtomicPlacement {
+                admission: resident.admission,
+                content: resident.content,
+                occurrence,
+            },
+            |resident, diagnostic| OwnedAtomicResidentViewEstablishmentError {
+                resident,
                 occurrence,
                 diagnostic,
-            });
-        }
-        Ok(EstablishedOwnedAtomicPlacement {
-            admission: self.admission,
-            content: self.content,
-            occurrence,
-        })
+            },
+        )
     }
 }
 
@@ -249,20 +256,24 @@ impl EstablishedOwnedAtomicPlacement {
     pub fn retire_resident(
         self,
     ) -> Result<DormantOwnedAtomicResident, OwnedAtomicResidentRetirementError> {
-        if let Err(diagnostic) = validate_owned_atomic_resident_authority(
-            &self.admission,
-            &self.content,
-            "Atomic resident-preserving retirement",
-        ) {
-            return Err(OwnedAtomicResidentRetirementError {
-                established: self,
+        into_validated_access(
+            self,
+            |resident| {
+                validate_owned_atomic_resident_authority(
+                    &resident.admission,
+                    &resident.content,
+                    "Atomic resident-preserving retirement",
+                )
+            },
+            |resident, ()| DormantOwnedAtomicResident {
+                admission: resident.admission,
+                content: resident.content,
+            },
+            |established, diagnostic| OwnedAtomicResidentRetirementError {
+                established,
                 diagnostic,
-            });
-        }
-        Ok(DormantOwnedAtomicResident {
-            admission: self.admission,
-            content: self.content,
-        })
+            },
+        )
     }
 }
 

@@ -4,6 +4,7 @@ use extents::{
 };
 
 use crate::AdmittedResourceProfile;
+use crate::access_plan::diagnostic::into_validated_access;
 use crate::placements::owned_resident_custody::validate_owned_resident_authority;
 use crate::placements::placement_authority::PlacementAuthorityRef;
 use crate::primitive_access::field_projection::project_placed_field;
@@ -186,20 +187,26 @@ impl DormantOwnedResident {
         self,
         occurrence: PlacedOccurrenceId,
     ) -> Result<EstablishedOwnedPlacement, OwnedResidentViewEstablishmentError> {
-        if let Err(diagnostic) =
-            validate_owned_resident_authority(&self.admission, &self.content, "owned resident view")
-        {
-            return Err(OwnedResidentViewEstablishmentError {
-                resident: self,
+        into_validated_access(
+            self,
+            |resident| {
+                validate_owned_resident_authority(
+                    &resident.admission,
+                    &resident.content,
+                    "owned resident view",
+                )
+            },
+            |resident, ()| EstablishedOwnedPlacement {
+                admission: resident.admission,
+                content: resident.content,
+                occurrence,
+            },
+            |resident, diagnostic| OwnedResidentViewEstablishmentError {
+                resident,
                 occurrence,
                 diagnostic,
-            });
-        }
-        Ok(EstablishedOwnedPlacement {
-            admission: self.admission,
-            content: self.content,
-            occurrence,
-        })
+            },
+        )
     }
 }
 
@@ -254,20 +261,24 @@ impl EstablishedOwnedPlacement {
     /// content. The exact resident claim and provider receipts return to the
     /// dormant carrier; the active occurrence ends here.
     pub fn retire_resident(self) -> Result<DormantOwnedResident, OwnedResidentRetirementError> {
-        if let Err(diagnostic) = validate_owned_resident_authority(
-            &self.admission,
-            &self.content,
-            "resident-preserving retirement",
-        ) {
-            return Err(OwnedResidentRetirementError {
-                established: self,
+        into_validated_access(
+            self,
+            |resident| {
+                validate_owned_resident_authority(
+                    &resident.admission,
+                    &resident.content,
+                    "resident-preserving retirement",
+                )
+            },
+            |resident, ()| DormantOwnedResident {
+                admission: resident.admission,
+                content: resident.content,
+            },
+            |established, diagnostic| OwnedResidentRetirementError {
+                established,
                 diagnostic,
-            });
-        }
-        Ok(DormantOwnedResident {
-            admission: self.admission,
-            content: self.content,
-        })
+            },
+        )
     }
 
     /// Purely project one accepted Stable field through a shared borrow of
