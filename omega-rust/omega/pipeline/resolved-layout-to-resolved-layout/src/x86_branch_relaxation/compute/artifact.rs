@@ -5,9 +5,9 @@ use optimization_core::OptimizationWorkBudget;
 use crate::StagedOptimizedResolvedSelectedFormLayout;
 
 use super::super::{
+    StagedOptimizedX86BranchRelaxation, X86BranchRelaxationPolicy,
     error::OptimizedX86BranchRelaxationError,
     identity::{RevisionRoots, artifact_identity, revision_identity},
-    model::{StagedOptimizedX86BranchRelaxation, X86BranchRelaxationPolicy},
 };
 use super::RelaxationTrace;
 

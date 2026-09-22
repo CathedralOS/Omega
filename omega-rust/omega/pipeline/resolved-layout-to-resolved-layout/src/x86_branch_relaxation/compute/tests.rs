@@ -24,12 +24,10 @@ use super::{
 };
 
 use super::super::{
+    X86BranchRelaxationAction, X86BranchRelaxationAttempt, X86BranchRelaxationAttemptOutcome,
+    X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
     error::{OptimizedX86BranchRelaxationError, X86BranchRelaxationWorkAxis},
     identity::{RevisionRoots, artifact_identity, revision_identity},
-    model::{
-        X86BranchRelaxationAction, X86BranchRelaxationAttempt, X86BranchRelaxationAttemptOutcome,
-        X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
-    },
     validation::{compare_replayed_action_evidence, ensure_x86_target},
 };
 

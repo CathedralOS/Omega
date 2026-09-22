@@ -19,10 +19,8 @@ use register_model::ValidatedPhysicalRegisterModel;
 use crate::{ResolvedSelectedFunctionLayout, StagedOptimizedResolvedSelectedFormLayout};
 
 use super::{
+    StagedOptimizedX86BranchRelaxation, X86BranchRelaxationAction, X86BranchRelaxationAttempt,
     error::OptimizedX86BranchRelaxationError,
-    model::{
-        StagedOptimizedX86BranchRelaxation, X86BranchRelaxationAction, X86BranchRelaxationAttempt,
-    },
 };
 
 struct RelaxationTrace {
