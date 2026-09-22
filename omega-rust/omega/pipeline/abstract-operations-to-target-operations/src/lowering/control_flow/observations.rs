@@ -1,11 +1,20 @@
 //! Once-only scalar observations and live immutable descriptor establishments.
 
 use super::{KnownUnitInteger, LiveDefinitions};
+use crate::LoweringError;
 use crate::lowering::scalar::{
     KnownInteger, KnownScalar, byte_views, equal_boolean, equal_integer, order_integer,
     scalar_parameter_location,
 };
-use crate::lowering::shared::*;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use abstract_operations::{AbstractFunction, AbstractOperation, AbstractParameter};
+use calling_conventions::ValueShape;
+use semantic_vocabulary::{ScalarType, ValueId};
+use std::collections::BTreeMap;
+use target_operations::{
+    ScalarAbiValue, TargetBooleanExpression, TargetIntegerExpression, TargetScalarExpression,
+    TargetUnitOperation, TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
+};
 #[cfg(test)]
 mod tests;
 

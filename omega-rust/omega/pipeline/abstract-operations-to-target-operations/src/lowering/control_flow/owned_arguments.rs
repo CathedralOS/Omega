@@ -1,7 +1,14 @@
 //! Owned aggregate actuals retain exact type, custody, and current value backing.
 //! Arrays, records, and completed sums share transport, not semantic identity.
 use super::LiveDefinitions;
-use crate::lowering::shared::*;
+use crate::LoweringError;
+use abstract_operations::AbstractFunction;
+use semantic_vocabulary::StructuralTypeId;
+use std::collections::{BTreeMap, BTreeSet};
+use target_operations::{TargetStructuralArgument, TargetStructuralParameter};
+use terminal_psi::{
+    StructuralAccess, StructuralMultiplicity, StructuralTypeDeclaration, StructuralTypeShape,
+};
 
 pub(super) fn is_owned_parameter(
     parameter: &terminal_psi::StructuralParameterDeclaration,

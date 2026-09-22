@@ -1,7 +1,19 @@
 //! Ordered graph operations and their durable scalar result homes.
 use super::LiveDefinitions;
 use super::observations;
-use crate::lowering::shared::*;
+use crate::LoweringError;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use abstract_operations::{AbstractFunction, AbstractOperation};
+use calling_conventions::ValueShape;
+use installation_evidence::InstalledProviderCallEvidence;
+use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, PlaceId, ScalarType};
+use std::collections::{BTreeMap, BTreeSet};
+use target::NativeTarget;
+use target_operations::{
+    BoundaryRealization, BoundarySettlementBinding, ScalarFunctionAbi, TargetStructuralParameter,
+    TargetUnitOperation, TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
+};
+use terminal_psi::{StructuralAccess, StructuralTypeShape};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_operation(

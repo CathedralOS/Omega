@@ -1,10 +1,20 @@
 //! Exact target lowering for non-observing primitive storage projections.
 
 use super::super::scalar_abi::fixed_native_integer_shape;
-use super::super::shared::*;
 use super::scalar_call::KnownUnitInteger;
+use crate::LoweringError;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use abstract_operations::{AbstractFunction, AbstractOperation};
+use calling_conventions::ValueShape;
 use semantic_vocabulary::IeeeFloatValue;
+use semantic_vocabulary::{IeeeFloatFormat, OperationId, PlaceId, ScalarType, ValueId};
+use std::collections::{BTreeMap, BTreeSet};
 use target_operations::TargetUnitWriteOnlyPrimitiveStoreSource;
+use target_operations::{
+    TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarHomeRequirement,
+    TerminalPsiProvenance,
+};
+use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::lowering) fn lower_write_only_primitive_store(

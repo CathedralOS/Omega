@@ -1,7 +1,10 @@
 //! Stored ordinary results remain distinct roots after whole-input transfer.
 
-use super::super::shared::*;
+use calling_conventions::{ValueClass, ValueLocation, ValuePlacement};
+use semantic_vocabulary::PlaceId;
+use target_operations::TargetUnitOperation;
 use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
+use terminal_psi::StructuralMultiplicity;
 
 /// A direct register fragment contains at most eight logical bytes. Native
 /// packing must not round up the fragment's memory extent.

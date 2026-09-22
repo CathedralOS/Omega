@@ -1,10 +1,17 @@
 //! Sum inspection retains declared order, layout, and edge-produced parameters.
-use super::super::shared::*;
 use super::LiveDefinitions;
+use crate::LoweringError;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use abstract_operations::{AbstractFunction, AbstractOperation};
+use semantic_vocabulary::{ScalarType, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{
     TargetControlCasePayload, TargetControlCaseSuccessor, TargetControlTerminator,
     TargetScalarBlockValue,
 };
+use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
+use terminal_psi::StructuralAccess;
+use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
 
 pub(super) fn observe(
     operation: &AbstractOperation,
@@ -199,10 +206,11 @@ pub(super) fn lower(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        ScalarType, StructuralFieldId, StructuralFieldType, StructuralPathSegment,
-        StructuralTypeDeclaration, StructuralTypeId, StructuralTypeLookup, StructuralTypeShape,
-        case_projection,
+    use super::case_projection;
+    use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+    use semantic_vocabulary::{ScalarType, StructuralFieldId, StructuralTypeId};
+    use terminal_psi::{
+        StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
     };
 
     #[test]

@@ -1,6 +1,21 @@
 //! Ordinary control graphs; available definitions belong to dominating blocks.
-use super::shared::*;
 use super::unit::scalar_call::KnownUnitInteger;
+use crate::LoweringError;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOperation};
+use installation_evidence::InstalledProviderCallEvidence;
+use semantic_vocabulary::{
+    BoundaryMachineId, MachineId, OperationId, PlaceId, StructuralTypeId, ValueId,
+};
+use std::collections::{BTreeMap, BTreeSet};
+use target::NativeTarget;
+use target_operations::{
+    BoundarySettlementBinding, ScalarFunctionAbi, TargetFunction, TargetUnitScalarHomeRequirement,
+    TerminalPsiProvenance,
+};
+use terminal_psi::{
+    StructuralAccess, StructuralMultiplicity, StructuralPathSegment, TerminalAffineCleanupAction,
+};
 mod aggregate_borrows;
 pub(super) mod aggregate_results;
 mod borrowed_calls;

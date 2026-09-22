@@ -1,7 +1,11 @@
 //! Exact scalar sources retained by the dominating graph environment.
 use super::LiveDefinitions;
-use crate::lowering::shared::*;
+use crate::LoweringError;
 use crate::lowering::unit::scalar_call::KnownUnitInteger;
+use abstract_operations::AbstractFunction;
+use semantic_vocabulary::{OperationId, ValueId};
+use std::collections::BTreeMap;
+use target_operations::{TargetUnitScalarArgumentSource, TargetUnitScalarHomeRequirement};
 
 /// Borrowed view over the scalar maps a live graph carries, so sibling
 /// lowering modules replay the same dominance precedence without naming the

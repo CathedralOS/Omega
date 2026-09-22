@@ -10,13 +10,16 @@ use super::super::super::structural_layout::{
 use super::KnownUnitInteger;
 use super::{
     AbstractFunction, BTreeMap, BTreeSet, BoundaryMachineId, CallSignature, LoweringError,
-    MachineId, NativeTarget, OperationId, PlaceId, StructuralAccess, StructuralPathSegment,
-    StructuralTypeId, StructuralTypeLookup, StructuralTypeShape, TargetStructuralArgument,
-    TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarArgumentSource,
-    TargetUnitScalarHomeRequirement, ValueClass, ValueId, ValueLocation, ValueShape,
+    NativeTarget, OperationId, PlaceId, StructuralTypeId, StructuralTypeLookup,
+    StructuralTypeShape, TargetStructuralParameter, TargetUnitOperation,
+    TargetUnitScalarHomeRequirement, ValueId, ValueLocation, ValueShape,
 };
+use calling_conventions::ValueClass;
 #[cfg(test)]
 use semantic_vocabulary::BlockId;
+use semantic_vocabulary::MachineId;
+use target_operations::{TargetStructuralArgument, TargetUnitScalarArgumentSource};
+use terminal_psi::{StructuralAccess, StructuralPathSegment};
 
 /// Lower source-rooted borrowed structural arguments for one evaluated
 /// normalized foreign call, preserving the exact caller place, semantic field

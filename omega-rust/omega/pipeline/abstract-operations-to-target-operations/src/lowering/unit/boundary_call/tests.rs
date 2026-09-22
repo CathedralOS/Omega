@@ -1,16 +1,19 @@
 //! Focused normalized foreign-scalar boundary-call lowering tests.
 use super::{
     BTreeMap, BTreeSet, BoundaryMachineId, CallSignature, CallingPolicy, IntegerSign, IntegerType,
-    IntegerValue, KnownUnitInteger, LoweringError, MachineId, NativeTarget, OperationId, PlaceId,
-    ScalarType, StructuralTypeId, StructuralTypeLookup, TargetStructuralParameter,
-    TargetUnitScalarArgumentSource, TargetUnitScalarHomeRequirement, ValueId, ValueLocation,
-    ValuePlacement, ValueShape, lower_normalized_foreign_scalar_arguments,
+    KnownUnitInteger, LoweringError, NativeTarget, OperationId, PlaceId, ScalarType,
+    StructuralTypeId, StructuralTypeLookup, TargetStructuralParameter,
+    TargetUnitScalarHomeRequirement, ValueId, ValueLocation, ValuePlacement, ValueShape,
+    lower_normalized_foreign_scalar_arguments,
     lower_normalized_foreign_scalar_arguments_with_result, lower_normalized_foreign_scalar_result,
     lower_normalized_foreign_structural_arguments,
 };
 use crate::lowering::control_flow::scalar_sources::ScalarSources;
 use calling_conventions::MachineRegister;
+use semantic_vocabulary::IntegerValue;
+use semantic_vocabulary::MachineId;
 use semantic_vocabulary::{BlockId, IeeeFloatFormat, IeeeFloatValue};
+use target_operations::TargetUnitScalarArgumentSource;
 
 #[derive(Default)]
 struct Sources {

@@ -2,7 +2,13 @@
 //! each admitted registrar row to its exact boundary call and require the
 //! lowered target roster to retain it.
 
-use super::super::shared::*;
+use crate::LoweringError;
+use abstract_operations::{AbstractOperation, AbstractOperationPlan};
+use calling_conventions::{CallSignature, ValueShape};
+use semantic_vocabulary::OperationId;
+use std::collections::BTreeMap;
+use target::NativeTarget;
+use target_operations::{TargetOperationPlan, TargetUnitOperation};
 
 pub(crate) fn bind_native_callback_arguments(
     plan: &AbstractOperationPlan,

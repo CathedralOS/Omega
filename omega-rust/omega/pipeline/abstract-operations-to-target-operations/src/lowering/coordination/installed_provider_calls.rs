@@ -3,7 +3,14 @@
 //! boundary calls, then rejoin each installed call's recorded evidence
 //! against the exact boundary operation and its declaration.
 
-use super::super::shared::*;
+use crate::LoweringError;
+use abstract_operations::{AbstractOperation, AbstractOperationPlan};
+use installation_evidence::{
+    InstalledProviderCallEvidence, InstalledProviderCompletionClaimSource,
+    ProviderInstallationEvidence,
+};
+use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
+use std::collections::BTreeMap;
 
 /// Identity of one boundary call occurrence: the caller machine, the Terminal
 /// operation, and the boundary machine it enters.

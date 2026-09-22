@@ -7,7 +7,12 @@
 //! original BoundaryCall in the abstract plan. The target origin keeps that
 //! distinction available to independent legalization and physical replay.
 
-use crate::lowering::shared::*;
+use crate::LoweringError;
+use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOperation};
+use installation_evidence::InstalledProviderCallEvidence;
+use semantic_vocabulary::MachineId;
+use std::collections::BTreeMap;
+use target_operations::TargetUnitOperation;
 
 pub(super) fn resolve(
     operation: &AbstractOperation,

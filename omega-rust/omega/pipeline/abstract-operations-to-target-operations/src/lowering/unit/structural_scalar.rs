@@ -1,11 +1,23 @@
 //! Exact projected integer store and structural-scalar call lowering for an
 //! attached Unit body.
 
+use crate::LoweringError;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use abstract_operations::{AbstractFunction, AbstractOperation};
+use calling_conventions::ValueShape;
+use semantic_vocabulary::{
+    IeeeFloatFormat, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
+};
+use std::collections::{BTreeMap, BTreeSet};
+use target_operations::{
+    TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarArgumentSource,
+    TerminalPsiProvenance,
+};
+use terminal_psi::StructuralAccess;
 mod dynamic_arguments;
 
 use super::super::scalar::scalar_shape;
 use super::super::scalar_abi::fixed_native_integer_shape;
-use super::super::shared::*;
 use super::super::structural_layout::{
     direct_boolean_field_offset, direct_integer_field_offset, direct_scalar_field_offset,
     resolve_structural_field_path, resolve_structural_projection_path, structural_shape,

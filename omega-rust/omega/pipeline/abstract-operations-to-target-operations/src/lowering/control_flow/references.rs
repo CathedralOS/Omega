@@ -2,7 +2,18 @@
 //! loan permission, never its referent's storage; every origin and parent is
 //! reconstructed from operations and signatures, never from pointer bits.
 use super::LiveDefinitions;
-use crate::lowering::shared::*;
+use crate::LoweringError;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use abstract_operations::{AbstractFunction, AbstractOperation};
+use semantic_vocabulary::{OperationId, PlaceId, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
+use target_operations::{
+    TargetStructuralArgument, TargetStructuralParameter, TargetUnitOperation, TerminalPsiProvenance,
+};
+use terminal_psi::{
+    StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
+    StructuralTypeShape,
+};
 use terminal_psi::{StructuralArgument, StructuralOperationResult};
 
 /// One outstanding loan tracked during lowering: which carrier leaf holds it,

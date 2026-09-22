@@ -1,12 +1,27 @@
 //! Ordinary structural call operands and Unit-call orchestration.
 
 use super::super::scalar_abi::fixed_native_integer_shape;
-use super::super::shared::*;
 use super::super::structural_layout::{
     bounded_byte_field_geometry, checked_align_up_u32, resolve_structural_field_path,
     resolve_structural_projection_path, structural_parameter_shape, structural_shape,
 };
 use super::super::structural_signature::StructuralCallSignature;
+use crate::LoweringError;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOperation};
+use calling_conventions::{ValuePlacement, ValueShape};
+use semantic_vocabulary::{
+    IeeeFloatFormat, MachineId, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
+};
+use std::collections::{BTreeMap, BTreeSet};
+use target::NativeTarget;
+use target_operations::{
+    TargetStructuralArgument, TargetStructuralParameter, TargetUnitOperation,
+    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TerminalPsiProvenance,
+};
+use terminal_psi::{
+    StructuralAccess, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
+};
 
 #[derive(Debug, Clone)]
 pub(in crate::lowering) struct StructuralCallLocalSource {

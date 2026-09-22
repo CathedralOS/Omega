@@ -1,10 +1,12 @@
 use super::{
-    BTreeMap, BTreeSet, BlockId, CallSignature, CallingPolicy, IntegerSign, IntegerType,
-    KnownScalar, KnownUnitInteger, LiveDefinitions, LoweringError, NativeTarget, OperationId,
-    ScalarAbiValue, ScalarType, TargetBooleanExpression, TargetIntegerExpression,
-    TargetScalarExpression, TargetUnitScalarHomeRequirement, ValueId, ValueShape,
-    evaluate_call_plan, scalar_values,
+    BTreeMap, KnownScalar, KnownUnitInteger, LiveDefinitions, LoweringError, ScalarAbiValue,
+    ScalarType, TargetBooleanExpression, TargetIntegerExpression, TargetScalarExpression,
+    TargetUnitScalarHomeRequirement, ValueId, ValueShape, scalar_values,
 };
+use calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
+use semantic_vocabulary::{BlockId, IntegerSign, IntegerType, OperationId};
+use std::collections::BTreeSet;
+use target::NativeTarget;
 #[test]
 fn graph_scalar_projection_retains_boolean_sources_beside_integer_homes() {
     let value = |raw| ValueId::new(raw).unwrap();

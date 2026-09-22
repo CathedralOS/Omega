@@ -3,8 +3,14 @@
 //! stays unobserved so the graph suppresses its storage home. Edge cleanup no
 //! longer consults it — each action admits by its root's own home or arrival
 //! declaration where the edge commits the discard.
-use super::shared::*;
 
+use abstract_operations::{AbstractFunction, AbstractOperation};
+use semantic_vocabulary::{PlaceId, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::{
+    StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
+};
 pub(super) fn parameter(parameter: &terminal_psi::StructuralParameterDeclaration) -> bool {
     parameter.access == StructuralAccess::Owned
         && matches!(

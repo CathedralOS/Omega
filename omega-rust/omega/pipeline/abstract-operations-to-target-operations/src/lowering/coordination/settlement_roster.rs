@@ -5,8 +5,12 @@
 //! exactly once, none settled twice, none unused, and no overlap with an
 //! installed provider.
 
-use super::super::shared::*;
 use super::installed_provider_calls::{BoundaryCallsByKey, InstalledCallsByCall};
+use crate::LoweringError;
+use abstract_operations::AbstractOperationPlan;
+use semantic_vocabulary::BoundaryMachineId;
+use std::collections::{BTreeMap, BTreeSet};
+use target_operations::BoundarySettlementBinding;
 
 /// Caller-supplied settlements indexed by the boundary they settle.
 pub(super) type SettlementsByBoundary = BTreeMap<BoundaryMachineId, BoundarySettlementBinding>;

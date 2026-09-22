@@ -1,7 +1,17 @@
 //! Aggregate results use the ordinary graph's values, calls and durable homes.
 use super::LiveDefinitions;
-use crate::lowering::shared::*;
+use crate::LoweringError;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use abstract_operations::{AbstractFunction, AbstractOperation};
+use semantic_vocabulary::{MachineId, OperationId, ScalarType, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
+use target::NativeTarget;
+use target_operations::{
+    TargetStructuralArgument, TargetUnitOperation, TargetUnitScalarCallArgument,
+    TerminalPsiProvenance,
+};
 use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
+use terminal_psi::{StructuralFieldType, StructuralMultiplicity, StructuralTypeShape};
 
 fn sum_layout(
     structural_type: StructuralTypeId,

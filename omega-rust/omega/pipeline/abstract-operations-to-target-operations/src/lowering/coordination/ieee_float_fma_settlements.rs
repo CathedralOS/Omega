@@ -3,7 +3,11 @@
 //! and rejoins the exact slot, requirement identity, provider, and
 //! compiler-intrinsic plan row before lowering accepts it.
 
-use super::super::shared::*;
+use crate::LoweringError;
+use abstract_operations::{AbstractOperation, AbstractOperationPlan};
+use semantic_vocabulary::IeeeFloatFormat;
+use std::collections::{BTreeMap, BTreeSet};
+use target::{Architecture, NativeTarget};
 
 pub(super) fn validate_ieee_float_fma_settlements(
     plan: &AbstractOperationPlan,
