@@ -20,6 +20,7 @@ pub(crate) use contract_facts::validate_callable_contract_refinement;
 use nominal_admission::validate_nominal_machine_selection;
 
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::BuildOperation;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::data::{MachineParameterContract, TypeParameter, TypeParameterKind};
@@ -275,10 +276,16 @@ fn validate_call_selection(
     nominal_uses: &mut Vec<ValidatedNominalMachineUse>,
     specializations: &mut Vec<ValidatedRequirementCallSpecialization>,
 ) {
+    // The build operations whose static operands name declarations, not
+    // machine requirements, carry no requirement calls to validate.
     if !target_symbol.is_valid()
         && matches!(
-            target_name,
-            "select_provider" | "select_representation" | "exclude_service"
+            BuildOperation::from_call_target(target_name),
+            Some(
+                BuildOperation::ProviderSelection
+                    | BuildOperation::RepresentationSelection
+                    | BuildOperation::ServiceExclusion
+            )
         )
     {
         return;

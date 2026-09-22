@@ -1,4 +1,5 @@
 use super::type_references::{OperatorResultOwnership, classify_operator_result_ownership};
+use crate::authored_selections::is_boundary_acceptance_marker;
 use crate::flow::FlowOwnershipEventSource;
 use crate::flow::canonical_place_from_expression_in_state;
 use crate::flow::canonical_place_from_symbol;
@@ -381,7 +382,7 @@ fn expression_call_is_owned_by_call_flow(
     state_symbol: SymbolHandle,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
-    if call.target.as_str().starts_with("accept_boundary#") {
+    if is_boundary_acceptance_marker(call.target.as_str()) {
         return false;
     }
     let Some(state) = crate::semantic_calls::find_state(program, state_symbol) else {

@@ -5,7 +5,7 @@ use super::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionFinalizationError,
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding,
     AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError,
-    AuthoredDeclarationSelectionSuffixRebaseError, AuthoredDeclarationSelections,
+    AuthoredDeclarationSelectionSuffixRebaseError, AuthoredDeclarationSelections, BuildOperation,
     CollectionMeasure, CollectionViewOperation, CompilerDerivedSelectionPartition, SourceSpan,
     SymbolHandle,
 };
@@ -350,5 +350,104 @@ fn collection_measures_map_onto_their_intrinsic_selection_targets() {
     assert_eq!(
         CollectionMeasure::Capacity.intrinsic(),
         AuthoredDeclarationSelectionIntrinsic::CollectionCapacity
+    );
+}
+
+#[test]
+fn build_operation_spellings_round_trip() {
+    for operation in BuildOperation::ALL {
+        let target = if operation.carries_marker_operands() {
+            format!(
+                "{}{}pkg::symbol",
+                operation.authored_spelling(),
+                BuildOperation::MARKER_OPERAND_SEPARATOR
+            )
+        } else {
+            operation.authored_spelling().to_owned()
+        };
+        assert_eq!(
+            BuildOperation::from_call_target(&target),
+            Some(operation),
+            "`{target}` must select the operation it spells"
+        );
+    }
+}
+
+#[test]
+fn build_operation_spellings_are_the_exact_authored_vocabulary() {
+    assert_eq!(
+        BuildOperation::ALL.map(BuildOperation::authored_spelling),
+        [
+            "select_provider",
+            "select_representation",
+            "exclude_service",
+            "enable",
+            "emit_report",
+            "accept_boundary",
+            "wire_compatibility",
+            "include_source",
+            "write_line",
+        ]
+    );
+    assert_eq!(
+        BuildOperation::ALL.map(BuildOperation::carries_marker_operands),
+        [false, false, false, false, false, true, true, false, false]
+    );
+    assert_eq!(
+        BuildOperation::from_call_target("accept_boundary#pkg::Console"),
+        Some(BuildOperation::BoundaryAcceptance)
+    );
+    assert_eq!(
+        BuildOperation::from_call_target("wire_compatibility#Edge#Lineage#Local#Peer#Readable"),
+        Some(BuildOperation::WireCompatibilityRequest)
+    );
+    for spelling in [
+        // A marker operation is never selected by its bare spelling, nor by
+        // the authored method name the parser desugars, nor by a marker with
+        // the wrong separator or a foreign spelling before it.
+        "accept_boundary",
+        "wire_compatibility",
+        "require_wire_compatibility",
+        "accept_boundary::Console",
+        "select_provider#Console",
+        "enable#Fast",
+        // Neighbouring spellings from other vocabularies and near misses.
+        "exclude_crash",
+        "depend",
+        "depend_as",
+        "as_slice",
+        "len",
+        "select_providers",
+        "Select_Provider",
+        "SELECT_PROVIDER",
+        "select_provider ",
+        "write",
+        "write_error_line",
+        "",
+    ] {
+        assert_eq!(
+            BuildOperation::from_call_target(spelling),
+            None,
+            "`{spelling}` names no toolchain-owned build operation"
+        );
+    }
+}
+
+#[test]
+fn build_operations_map_onto_their_intrinsic_selection_targets() {
+    use AuthoredDeclarationSelectionIntrinsic as Intrinsic;
+    assert_eq!(
+        BuildOperation::ALL.map(BuildOperation::intrinsic),
+        [
+            Intrinsic::BuildProviderSelection,
+            Intrinsic::BuildRepresentationSelection,
+            Intrinsic::BuildServiceExclusion,
+            Intrinsic::BuildOptimizationSelection,
+            Intrinsic::BuildOptimizationReportRequest,
+            Intrinsic::BuildBoundaryAcceptance,
+            Intrinsic::BuildWireCompatibilityRequest,
+            Intrinsic::BuildIncludedSourceHandoff,
+            Intrinsic::BuildLogWriteLine,
+        ]
     );
 }

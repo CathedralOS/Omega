@@ -1,6 +1,7 @@
 //! Typed authority for designated product operands of Build provider selection.
 
 use super::intrinsic_calls::exact_build_prelude_data;
+use language_semantics::declaration_selection::BuildOperation;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
@@ -21,7 +22,9 @@ pub(crate) fn provider_selection_expressions(
     }
     expressions.retain(|expression| {
         matches!(program.expression_table.expression(*expression), ExpressionNode::Call(call)
-            if call.target.as_str() == "select_provider" && !call.target_symbol.is_valid())
+            if BuildOperation::from_call_target(call.target.as_str())
+                == Some(BuildOperation::ProviderSelection)
+                && !call.target_symbol.is_valid())
     });
     expressions
 }
@@ -33,7 +36,8 @@ pub(crate) fn is_build_provider_selection(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return false;
     };
-    call.target.as_str() == "select_provider"
+    BuildOperation::from_call_target(call.target.as_str())
+        == Some(BuildOperation::ProviderSelection)
         && !call.target_symbol.is_valid()
         && exact_mutable_build_receiver(program, call.receiver)
 }

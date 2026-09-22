@@ -8,6 +8,7 @@ use super::{
     trap,
 };
 use crate::{ExecutedProviderSelection, ExecutedProviderSelectionSite};
+use language_semantics::declaration_selection::BuildOperation;
 
 impl<'program> Evaluator<'program> {
     pub(super) fn try_provider_selection_statement(
@@ -16,7 +17,10 @@ impl<'program> Evaluator<'program> {
         call: &TableCall,
         frame: &Frame,
     ) -> EvalResult<Option<Value>> {
-        if call.target.as_str() != "select_provider" || call.target_symbol.is_valid() {
+        if BuildOperation::from_call_target(call.target.as_str())
+            != Some(BuildOperation::ProviderSelection)
+            || call.target_symbol.is_valid()
+        {
             return Ok(None);
         }
         let receiver = self.statement_receiver_cell(call.receiver, frame)?;
@@ -41,7 +45,10 @@ impl<'program> Evaluator<'program> {
         call: &typed_trees::expression::TableCallExpression,
         frame: &Frame,
     ) -> EvalResult<Option<Value>> {
-        if call.target.as_str() != "select_provider" || call.target_symbol.is_valid() {
+        if BuildOperation::from_call_target(call.target.as_str())
+            != Some(BuildOperation::ProviderSelection)
+            || call.target_symbol.is_valid()
+        {
             return Ok(None);
         }
         // Evaluate a returned reborrow once; speculative place lookup must not

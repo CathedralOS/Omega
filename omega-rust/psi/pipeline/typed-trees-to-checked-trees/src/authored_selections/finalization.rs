@@ -25,7 +25,7 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelection, AuthoredDeclarationSelectionFinalizationError,
     AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind,
     AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionOccurrenceId,
-    AuthoredDeclarationSelectionTarget,
+    AuthoredDeclarationSelectionTarget, BuildOperation,
 };
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
@@ -169,7 +169,9 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedStaticArgument,
                     ExpressionNode::Call(call),
-                ) if call.target.as_str() == "select_provider" => {
+                ) if BuildOperation::from_call_target(call.target.as_str())
+                    == Some(BuildOperation::ProviderSelection) =>
+                {
                     let argument_index = late_binding_ordinal(program, &occurrences[..occurrence_offset], binding);
                     let argument = call.machine_arguments.get(argument_index);
                     if super::provider_selection::is_build_provider_selection(program, expression) {

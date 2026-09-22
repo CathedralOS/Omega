@@ -17,6 +17,7 @@ use super::{
 use crate::{
     ExecutedBehaviorExclusion, ExecutedBehaviorExclusionKind, ExecutedBehaviorExclusionSite,
 };
+use language_semantics::declaration_selection::BuildOperation;
 use typed_trees::statement::StatementHandle;
 
 impl<'program> Evaluator<'program> {
@@ -37,7 +38,10 @@ impl<'program> Evaluator<'program> {
         // name. The name gates first: `exact_build_facet_method` admits an
         // unresolved target by name alone, so ordering by name keeps an
         // unrelated unresolved call out of the crash branch.
-        let kind = if call.target.as_str() == "exclude_service" && !call.target_symbol.is_valid() {
+        let kind = if BuildOperation::from_call_target(call.target.as_str())
+            == Some(BuildOperation::ServiceExclusion)
+            && !call.target_symbol.is_valid()
+        {
             ExecutedBehaviorExclusionKind::Service
         } else if call.target.as_str() == "exclude_crash"
             && self.exact_build_facet_method("Build", "exclude_crash", call.target_symbol)
@@ -94,7 +98,10 @@ impl<'program> Evaluator<'program> {
         call: &typed_trees::expression::TableCallExpression,
         frame: &Frame,
     ) -> EvalResult<Option<Value>> {
-        let kind = if call.target.as_str() == "exclude_service" && !call.target_symbol.is_valid() {
+        let kind = if BuildOperation::from_call_target(call.target.as_str())
+            == Some(BuildOperation::ServiceExclusion)
+            && !call.target_symbol.is_valid()
+        {
             ExecutedBehaviorExclusionKind::Service
         } else if call.target.as_str() == "exclude_crash"
             && self.exact_build_facet_method("Build", "exclude_crash", call.target_symbol)

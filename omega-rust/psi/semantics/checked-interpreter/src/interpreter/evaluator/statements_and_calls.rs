@@ -3,6 +3,26 @@ use super::{
     Machine, MutableScalarRecast, State, StatementNode, SymbolHandle, TableCall, TableTransition,
     TransitionDecision, TransitionGuardNode, TransitionTargetNode, TypeReferenceNode, Value, trap,
 };
+use language_semantics::declaration_selection::BuildOperation;
+
+/// Whether a call target is a build declaration the build-config pass
+/// harvests statically, which evaluation serves as a no-op so the build
+/// machine runs through it: the CH10 root grant marker
+/// (`b.accept_boundary<path>();` desugars to `accept_boundary#<path>`),
+/// representation selection, and the wire-compatibility request marker.
+/// Provider selections and behavior exclusions are not among them: those
+/// are evaluated selections which record only when the call actually runs.
+pub(super) fn is_statically_harvested_build_declaration(call_target: &str) -> bool {
+    matches!(
+        BuildOperation::from_call_target(call_target),
+        Some(
+            BuildOperation::BoundaryAcceptance
+                | BuildOperation::RepresentationSelection
+                | BuildOperation::WireCompatibilityRequest
+        )
+    )
+}
+
 impl<'program> Evaluator<'program> {
     pub(super) fn exec_statement(
         &mut self,
@@ -461,14 +481,8 @@ impl<'program> Evaluator<'program> {
         {
             return Ok(Value::Unit);
         }
-        // CH10 root grant (GR3): `b.accept_boundary<path>();` desugars to
-        // the `accept_boundary#<path>` marker call. Grants are DECLARATIONS
-        // harvested statically by the build-config pass; evaluation serves
-        // the marker as a no-op so the build machine runs through it.
-        if call.target.as_str().starts_with("accept_boundary#")
-            || call.target.as_str() == "select_representation"
-            || call.target.as_str().starts_with("wire_compatibility#")
-        {
+        // CH10 root grant (GR3) and its statically harvested siblings.
+        if is_statically_harvested_build_declaration(call.target.as_str()) {
             return Ok(Value::Unit);
         }
         if let Some(value) = self.try_provider_selection_statement(statement, call, frame)? {
