@@ -248,6 +248,21 @@ const SINGLE_LOWERING_ENTRANCES: [(&str, &str, &str); 1] = [(
     "CheckingRequest",
 )];
 
+/// Root-exported function-name prefixes a stage crate may not expose: the
+/// post-check `rebuild_*` plan and `refresh_settled_*` fact entrances that
+/// once let the Omega build layer re-plan a cloned `CheckedTrees` after
+/// editing its typed program. Provider settlement is the one
+/// checked->checked link, `settle_checked_execution`, which takes the
+/// planned rewrites and applications as one request; a second re-planning
+/// entrance is a second route back into the stage. (The monomorphization
+/// helper `refresh_closed_domain_instance_identities` is a typed-program
+/// normalization step orchestration runs before checking, not a post-check
+/// re-planning entrance, so the prefix is the narrower `refresh_settled_`.)
+const FORBIDDEN_ENTRANCE_PREFIXES: [(&str, &[&str]); 1] = [(
+    "typed-trees-to-checked-trees",
+    &["rebuild_", "refresh_settled_"],
+)];
+
 /// Root `pub mod`s that are deliberately not stage entrances: module-level
 /// surfaces the orphan audit catalogs rather than wires, with the audit
 /// disposition per entry. `source-files-to-assembled-syntax::source` stays
@@ -919,6 +934,22 @@ fn stage_entrances_stay_connected_to_external_callers() {
                 "{ident}::{entrance} must take a &{request}: the mode and the \
                  settled selections are request data, not entrance variants"
             );
+        }
+        if let Some((_, prefixes)) = FORBIDDEN_ENTRANCE_PREFIXES
+            .iter()
+            .find(|(stage, _)| stage == &name)
+        {
+            let returned: Vec<&String> = exported
+                .iter()
+                .filter(|item| prefixes.iter().any(|prefix| item.starts_with(prefix)))
+                .collect();
+            if !returned.is_empty() {
+                violations.push(format!(
+                    "{ident} re-exports post-check re-planning entrances {returned:?}; \
+                     provider settlement goes through settle_checked_execution with \
+                     its request, not a rebuild or refresh entrance"
+                ));
+            }
         }
         let reachers = external_reachers(&sources, &path, &ident);
         let reexporters: Vec<(Vec<&str>, Vec<&str>)> = glob_reexporting_crates(&root, &ident)
