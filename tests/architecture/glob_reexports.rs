@@ -29,11 +29,6 @@ const GLOB_REEXPORT_CEILINGS: &[(&str, usize)] = &[
         "omega-rust/omega/backend/instruction_set_architectures/isa-aarch64",
         7,
     ),
-    (
-        "omega-rust/omega/backend/instruction_set_architectures/isa-x86_64",
-        8,
-    ),
-    ("omega-rust/omega/backend/layout", 1),
     ("omega-rust/omega/backend/machine-emission", 22),
     ("omega-rust/omega/backend/plans/program-entry-plan", 8),
     ("omega-rust/omega/backend/register-environment", 1),
@@ -88,7 +83,6 @@ const GLOB_REEXPORT_CEILINGS: &[(&str, usize)] = &[
         "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees",
         15,
     ),
-    ("omega-rust/psi/representations/symbol-resolved-trees", 1),
 ];
 
 fn workspace_root() -> PathBuf {

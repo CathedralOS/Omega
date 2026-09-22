@@ -208,7 +208,16 @@ fn render_admissions(rows: &BTreeMap<String, TrustAdmissionDigest>) -> String {
 #[cfg(test)]
 mod tests {
     use super::{TrustAdmission, accept_trust_admissions, parse_admissions, read_trust_admissions};
-    use crate::admission_policy_test_support::*;
+    use crate::admission_policy_test_support::{
+        AdmissionEncodingCase, AdmissionFileEncodingFieldForTest, InstalledAdmissionCase,
+        InstalledAdmissionRowFieldForTest, admission_encoding_joined_replay,
+        admission_encoding_outcome, canonical_required_admissions, check_admission_encoding,
+        check_installed_admission_custody, corrupt_admission_encoding_for_test,
+        corrupt_installed_admission_for_test, derived, foreign_admission_encoding_donor,
+        foreign_installed_admission_donor, honest_admission_encoding_case,
+        honest_installed_admission_case, installed_admission_row_outcome, persisted,
+        substitution_root,
+    };
     use optimization_core::OneFieldSubstitutionMatrix;
     use trust_model::settle_trust_admissions;
 

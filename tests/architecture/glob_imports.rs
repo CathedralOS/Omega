@@ -26,13 +26,7 @@ const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[
         "omega-rust/omega/backend/instruction_set_architectures/isa-aarch64",
         2,
     ),
-    (
-        "omega-rust/omega/backend/instruction_set_architectures/isa-x86_64",
-        2,
-    ),
-    ("omega-rust/omega/backend/layout", 1),
     ("omega-rust/omega/backend/machine-emission", 23),
-    ("omega-rust/omega/backend/object/object-file", 1),
     ("omega-rust/omega/backend/plans/program-entry-plan", 3),
     ("omega-rust/omega/backend/register-environment", 1),
     (
@@ -40,10 +34,8 @@ const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[
         1,
     ),
     ("omega-rust/omega/backend/runtime/runtime-abi", 1),
-    ("omega-rust/omega/build/trust-ledger", 1),
     ("omega-rust/omega/packages/manager", 3),
     ("omega-rust/omega/packages/review/evidence", 52),
-    ("omega-rust/omega/packages/topology", 1),
     (
         "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations",
         1,
@@ -80,8 +72,6 @@ const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[
         "omega-rust/omega/pipeline/target-operations-to-selected-instructions",
         1,
     ),
-    ("omega-rust/omega/representations/legalized-operations", 2),
-    ("omega-rust/omega/representations/register-homes", 1),
     ("omega-rust/omega/representations/register-model", 1),
     (
         "omega-rust/omega/representations/representation-selections",
@@ -92,8 +82,6 @@ const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[
         "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees",
         3,
     ),
-    ("omega-rust/psi/representations/symbol-resolved-trees", 1),
-    ("omega-rust/psi/semantics/build-time-evaluation", 1),
 ];
 
 fn workspace_root() -> PathBuf {

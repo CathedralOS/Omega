@@ -1,5 +1,8 @@
 use super::encoding::{encode_fuel, encode_ids, encode_len, encode_option_id};
-use super::structural_types::*;
+use crate::legalized_operations::identity::structural_types::{
+    encode_access, encode_entry_claim, encode_multiplicity, encode_string,
+    encode_structural_argument, encode_structural_path,
+};
 use crate::legalized_operations::{LegalizedBoundarySettlement, NativeCallOrigin};
 use abstract_operations::CompletionClaimSource;
 use optimization_unit::{EffectLink, OwnershipEvent};
