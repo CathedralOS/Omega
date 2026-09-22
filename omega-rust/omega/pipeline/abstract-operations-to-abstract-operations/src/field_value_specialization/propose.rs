@@ -4,8 +4,11 @@
 //! foldable when the stored value it reads is proven by the unit itself. At
 //! an empty path an `EstablishRecord` producer proves the field's
 //! initializer; at a lone `Case` path an `EstablishScalarCase` producer
-//! whose `result_case` matches proves the payload field's initializer — each
-//! folds when that initializer scalar is a same-function constant. At any
+//! whose `result_case` matches proves the payload field's initializer. An
+//! initializer that is a same-function constant folds the read to a literal;
+//! a nonconstant initializer instead substitutes itself at every use of the
+//! read's result and retires the observation node when the substitution
+//! lane covers every use and the initializer dominates them all. At any
 //! resolvable path a field declared `BoundedInteger` with a singleton bound
 //! proves the value independently of producer. `Field` segments descend
 //! through `Record`/`Mixed` common fields and case-payload fields by
@@ -71,12 +74,13 @@ pub(crate) fn plan(
     place: PlaceId,
 ) -> Option<FieldValuePlan> {
     let evidence = admission::field_evidence(function, place)?;
+    let analysis = admission::function_analysis(function);
     let mut reads = Vec::new();
     for block in &function.blocks {
         for (node_index, node) in block.nodes.iter().enumerate() {
-            let Some(row) =
-                admission::admit_field_node(unit, &evidence, function, block.id, node_index, node)
-            else {
+            let Some(row) = admission::admit_field_node(
+                unit, &evidence, function, &analysis, block, node_index, node,
+            ) else {
                 continue;
             };
             reads.push(row);

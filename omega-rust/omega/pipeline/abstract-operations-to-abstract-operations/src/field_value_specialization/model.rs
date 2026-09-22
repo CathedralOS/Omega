@@ -5,16 +5,22 @@ use super::{
     PlaceId, ProvenanceRewrite, PsiOptimizationUnit, PsiTransformationLedger,
     VerifiedPsiOptimizationSession,
 };
-use optimization_unit::FoldedFieldValue;
-use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralFieldId, ValueId};
+use optimization_unit::{FieldValueResolution, FoldedFieldValue};
+use semantic_vocabulary::{
+    CanonicalStructuralPathSegment, IntegerCarrier, IntegerSign, ScalarType, StructuralFieldId,
+    ValueId,
+};
 
 /// One admitted field observation: the read node's exact site, operation
 /// custody identity, result value, observed place, canonical path, field,
-/// proof witness, and proven stored value. `producer` is `Some` when the
-/// row's proof draws on the place's establishing operation — an
-/// `EstablishRecord` at an empty path or an `EstablishScalarCase` whose
-/// `result_case` matches at a lone `Case` path — and `None` when the field's
-/// declared `BoundedInteger` bound closes over exactly one value.
+/// proof witness, and resolution. `producer` is `Some` when the row's proof
+/// draws on the place's establishing operation — an `EstablishRecord` at an
+/// empty path or an `EstablishScalarCase` whose `result_case` matches at a
+/// lone `Case` path — and `None` when the field's declared `BoundedInteger`
+/// bound closes over exactly one value. A `Constant` resolution folds the
+/// read in place; a `Forward` resolution substitutes the proven nonconstant
+/// initializer at every use of the read's result and retires the observation
+/// node.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedFieldValue {
     pub(crate) site: NodeLocation,
@@ -24,7 +30,7 @@ pub struct ResolvedFieldValue {
     pub(crate) path: Vec<CanonicalStructuralPathSegment>,
     pub(crate) field: StructuralFieldId,
     pub(crate) producer: Option<OperationId>,
-    pub(crate) value: FoldedFieldValue,
+    pub(crate) resolution: FieldValueResolution,
 }
 
 impl ResolvedFieldValue {
@@ -56,8 +62,8 @@ impl ResolvedFieldValue {
         self.producer
     }
 
-    pub const fn value(&self) -> FoldedFieldValue {
-        self.value
+    pub const fn resolution(&self) -> &FieldValueResolution {
+        &self.resolution
     }
 }
 
@@ -263,12 +269,12 @@ pub(super) fn candidate_identity(
                 .unwrap_or(0)
                 .to_le_bytes(),
         );
-        match row.value {
-            FoldedFieldValue::Boolean(constant) => {
+        match &row.resolution {
+            FieldValueResolution::Constant(FoldedFieldValue::Boolean(constant)) => {
                 canonical.push(1);
-                canonical.push(u8::from(constant));
+                canonical.push(u8::from(*constant));
             }
-            FoldedFieldValue::Integer(constant) => {
+            FieldValueResolution::Constant(FoldedFieldValue::Integer(constant)) => {
                 canonical.push(2);
                 match constant {
                     semantic_vocabulary::IntegerValue::Signed(value) => {
@@ -281,7 +287,49 @@ pub(super) fn candidate_identity(
                     }
                 }
             }
+            FieldValueResolution::Forward(forwarded) => {
+                canonical.push(3);
+                canonical.extend_from_slice(&forwarded.initializer.get().to_le_bytes());
+                encode_scalar_type(forwarded.scalar_type, &mut canonical);
+                canonical.extend_from_slice(
+                    &u64::try_from(forwarded.uses.len())
+                        .expect("use count fits u64")
+                        .to_le_bytes(),
+                );
+                for use_site in &forwarded.uses {
+                    canonical.extend_from_slice(&use_site.machine.get().to_le_bytes());
+                    canonical.extend_from_slice(&use_site.block.get().to_le_bytes());
+                    canonical.extend_from_slice(&use_site.node.to_le_bytes());
+                }
+            }
         }
     }
     OptimizationCandidateIdentity::from_canonical_bytes(&canonical)
+}
+
+/// Appends `scalar_type`'s canonical encoding — the same fixed-width scheme
+/// the rewrite codec uses — to `canonical`.
+fn encode_scalar_type(scalar_type: ScalarType, canonical: &mut Vec<u8>) {
+    match scalar_type {
+        ScalarType::Boolean => canonical.push(1),
+        ScalarType::Integer(integer) => {
+            canonical.push(2);
+            canonical.push(match integer.carrier() {
+                IntegerCarrier::Fixed => 1,
+                IntegerCarrier::Address => 2,
+            });
+            canonical.push(match integer.sign() {
+                IntegerSign::Signed => 1,
+                IntegerSign::Unsigned => 2,
+            });
+            canonical.extend_from_slice(&integer.bits().to_le_bytes());
+        }
+        ScalarType::IeeeFloat(format) => {
+            canonical.push(3);
+            canonical.push(match format {
+                semantic_vocabulary::IeeeFloatFormat::Binary32 => 1,
+                semantic_vocabulary::IeeeFloatFormat::Binary64 => 2,
+            });
+        }
+    }
 }
