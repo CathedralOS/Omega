@@ -27,7 +27,7 @@ and explanatory source roles.
 ## Record
 
 `record/` is the source-handle-free review vocabulary. Begin with
-`record/mod.rs`; its children group package identity, public signatures and
+`record.rs`; its children group package identity, public signatures and
 contracts, authority and behavior, representation commitments, complete
 package records, and canonical rows. It does not inspect compiler state or
 encode persistence bytes.
@@ -52,7 +52,7 @@ certified `PackageInstance` or lock-promotion stage.
 
 ## Capture
 
-`capture/` is the only compiler-facing branch. Begin with `capture/mod.rs`,
+`capture/` is the only compiler-facing branch. Begin with `capture.rs`,
 then follow `package/` for whole-package assembly, `api/` for public
 declarations, `callables/` for machines and realizations, `providers/` for
 selection, `behavior/` for operational facts, `contracts/` for checked facts,

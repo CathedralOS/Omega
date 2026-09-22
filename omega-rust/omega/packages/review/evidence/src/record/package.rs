@@ -1,3 +1,7 @@
+//! Package-level review records: the package itself, its source, callables
+//! and providers, and the boundary, callable, provider and terminal
+//! permission policies it publishes.
+
 mod boundary_policy;
 pub(in crate::record) mod callable_policy;
 pub use boundary_policy::{

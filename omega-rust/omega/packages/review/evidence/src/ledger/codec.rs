@@ -1,3 +1,6 @@
+//! The ordinary package obligation ledger's byte encoding, its decoding,
+//! and the fingerprint over the encoded bytes.
+
 mod decoding;
 mod encoding;
 
