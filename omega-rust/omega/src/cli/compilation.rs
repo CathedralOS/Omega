@@ -64,14 +64,14 @@ pub(crate) fn compile_project_command(arguments: CompileArguments) {
             std::process::exit(1);
         }
     };
-    if let Some(path) = &report_file {
-        if let Err(error) = write_report_file(path, report_target_name.as_deref(), &outcome) {
-            eprintln!(
-                "cannot write compile report to `{}`: {error}",
-                path.display()
-            );
-            std::process::exit(1);
-        }
+    if let Some(path) = &report_file
+        && let Err(error) = write_report_file(path, report_target_name.as_deref(), &outcome)
+    {
+        eprintln!(
+            "cannot write compile report to `{}`: {error}",
+            path.display()
+        );
+        std::process::exit(1);
     }
     if let Some(path) = outcome.executable_path {
         if let Some(receipt) = outcome.report.optimization_rollback_receipt() {

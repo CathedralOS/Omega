@@ -9,7 +9,7 @@
 use super::native_function;
 use super::{
     AdmissionProfile, CanonicalTerminalArtifact, NativeTarget, OptimizationSelections,
-    compiler_baseline_request_v1, optimize_artifact_sections, produce, produce_source, publish,
+    compiler_baseline_request_v1, optimize_artifact_sections, produce, produce_source,
 };
 use semantic_vocabulary::{
     OperationId, PlaceId, ScalarType, StructuralCaseId, StructuralPlaceKind, ValueId,

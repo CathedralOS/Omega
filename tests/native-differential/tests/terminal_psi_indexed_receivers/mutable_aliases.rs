@@ -1,6 +1,6 @@
 //! Mutable alias descent preserves original storage when the child attenuates to write-only.
 
-use super::{NativeTarget, native_function, primitive_stores};
+use super::{NativeTarget, primitive_stores};
 #[test]
 fn mutable_parent_alias_captures_projected_write_child_through_publication() {
     let source = "data Record [copy] { before: u8; value: u16; after: u8; }

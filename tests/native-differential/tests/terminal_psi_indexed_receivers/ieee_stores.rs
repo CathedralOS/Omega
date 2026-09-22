@@ -1,6 +1,6 @@
 //! IEEE stores preserve runtime payload bits in the original borrowed storage.
 
-use super::{NativeTarget, artifact, native_function, primitive_stores};
+use super::{NativeTarget, artifact, primitive_stores};
 #[test]
 fn ieee_field_store_reaches_canonical_terminal() {
     for scalar in ["f32", "f64"] {

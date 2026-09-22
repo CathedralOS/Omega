@@ -42,9 +42,7 @@ pub(crate) struct StageTiming {
 /// set; does nothing otherwise. Stages are named for the operation their
 /// entry point performs (`candidate_compilation`, `policy_comparison`, ...).
 pub(crate) fn stage(name: &'static str) -> Option<StageTiming> {
-    if std::env::var_os(TIMINGS_VARIABLE).is_none() {
-        return None;
-    }
+    std::env::var_os(TIMINGS_VARIABLE)?;
     Some(StageTiming::start(name))
 }
 

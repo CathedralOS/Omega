@@ -111,7 +111,7 @@ fn compose(workspace: &Path) -> Result<PathBuf, String> {
     let closure = resolve_workspace_project_closure(
         &SourceLineage::git("https://example.com/topology-build-fixture.git").unwrap(),
         SourceRelativePath::parse("root").unwrap(),
-        workspace.to_path_buf(),
+        workspace,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
@@ -151,9 +151,7 @@ fn compose(workspace: &Path) -> Result<PathBuf, String> {
     )
     .map_err(|diagnostics| format!("{diagnostics:?}"))?;
     let publication = workspace.join("published");
-    let report = report
-        .publish_completed_build_outputs(&publication)
-        .map_err(|error| error)?;
+    let report = report.publish_completed_build_outputs(&publication)?;
     let outputs = report
         .build_outputs()
         .ok_or_else(|| "no retained build outputs".to_owned())?;

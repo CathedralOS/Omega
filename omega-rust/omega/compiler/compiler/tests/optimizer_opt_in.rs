@@ -88,10 +88,13 @@ fn exact_optimization_vocabulary_build(optimization: Optimization) -> String {
     .expect("writing an optimization enable call to a String cannot fail");
     // Checked-tree phase members require an authored product root; every other
     // phase member evaluates on the unrooted default product.
-    let root_binding = (optimization.execution_phase()
-        == optimization_core::OptimizationExecutionPhase::CheckedTrees)
-        .then_some("    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n")
-        .unwrap_or("");
+    let root_binding = if optimization.execution_phase()
+        == optimization_core::OptimizationExecutionPhase::CheckedTrees
+    {
+        "    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n"
+    } else {
+        ""
+    };
     format!(
         "machine build(builder: &mut Build) {{\n    builder.application(\"optimizer-exact-vocabulary\");\n{root_binding}{enable_call}    builder.optimizations.emit_report();\n}}\n"
     )
@@ -276,14 +279,16 @@ fn checked_tree_pruning_project(label: &str, pruning: bool, roots: bool) -> Path
              builder.application(\"{label}\");\n\
              {binding}\
              {optimization}}}\n",
-            binding = roots
-                .then_some("    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n")
-                .unwrap_or(""),
-            optimization = pruning
-                .then_some(
-                    "    builder.optimizations.enable(Optimization::CheckedTreeProductPruning);\n",
-                )
-                .unwrap_or(""),
+            binding = if roots {
+                "    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n"
+            } else {
+                ""
+            },
+            optimization = if pruning {
+                "    builder.optimizations.enable(Optimization::CheckedTreeProductPruning);\n"
+            } else {
+                ""
+            },
         )),
     );
     std::fs::write(

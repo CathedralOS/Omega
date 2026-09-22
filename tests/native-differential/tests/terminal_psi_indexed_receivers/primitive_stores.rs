@@ -1,7 +1,7 @@
 //! Whole-replacement stores use their original referent through calls:
 //! scalars and decomposed whole aggregates alike.
 
-use super::{NativeTarget, native_function, native_text};
+use super::{NativeTarget, native_text};
 const FORWARDED_SCALAR: &str = "machine replace(destination: &write i32, value: i32) {
     destination = value;
 }

@@ -250,8 +250,7 @@ fn build_package_target_must_match_its_admitted_execution_profile() {
         build_execution_profile: Some(target::TargetProfile::LinuxX64),
         ..CheckedCompileRequest::new(&root.join("main.omg"), Some("windows_x86_64"))
     })
-    .err()
-    .expect("a build helper cannot be compiled for a different product profile");
+    .expect_err("a build helper cannot be compiled for a different product profile");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message

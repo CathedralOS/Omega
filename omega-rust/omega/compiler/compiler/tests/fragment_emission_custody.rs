@@ -342,10 +342,10 @@ fn span_at(plan: &FunctionFragmentEmissionPlan, at: SpanAt) -> &FunctionFragment
     &plan.functions[at.0].blocks[at.1].instructions[at.2]
 }
 
-fn span_mut<'a>(
-    plan: &'a mut FunctionFragmentEmissionPlan,
+fn span_mut(
+    plan: &mut FunctionFragmentEmissionPlan,
     at: SpanAt,
-) -> &'a mut FunctionFragmentInstructionSpan {
+) -> &mut FunctionFragmentInstructionSpan {
     &mut plan.functions[at.0].blocks[at.1].instructions[at.2]
 }
 

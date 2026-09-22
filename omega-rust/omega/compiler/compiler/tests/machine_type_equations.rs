@@ -264,7 +264,7 @@ fn receiver_machine_equation_updates_the_original_record() {
     assert_native_execution(&artifact, 7);
 }
 
-fn assert_native_execution(artifact: &terminal_codec::CanonicalTerminalArtifact, expected: u64) {
+fn assert_native_execution(artifact: &terminal_codec::CanonicalTerminalArtifact, _expected: u64) {
     for target in [
         target::NativeTarget::linux_x64(),
         target::NativeTarget::linux_arm64(),

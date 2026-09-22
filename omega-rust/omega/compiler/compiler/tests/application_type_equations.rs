@@ -754,7 +754,7 @@ fn assert_native_seven(artifact: &terminal_codec::CanonicalTerminalArtifact) {
     );
 }
 
-fn assert_native_result(artifact: &terminal_codec::CanonicalTerminalArtifact, driver: &str) {
+fn assert_native_result(artifact: &terminal_codec::CanonicalTerminalArtifact, _driver: &str) {
     let selections = optimization_core::OptimizationSelections::new([]).unwrap();
     let optimized = native_realization::optimize_artifact_sections(
         artifact.semantic_bytes(),

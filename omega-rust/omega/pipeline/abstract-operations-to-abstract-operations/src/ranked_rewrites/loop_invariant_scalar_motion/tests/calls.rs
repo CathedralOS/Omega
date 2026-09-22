@@ -3520,9 +3520,7 @@ fn forged_structural_call_argument_is_rejected_by_the_freeze_fence() {
     // drifted spelling.
     let forged = find_operation_mut(&mut unit, call_operation);
     if let AbstractOperation::CallStructural { arguments, .. } = &mut forged.operation {
-        for argument in arguments {
-            *argument = member_argument;
-        }
+        arguments.fill(member_argument);
     }
     for value_use in &mut forged.uses {
         value_use.value = member_argument;

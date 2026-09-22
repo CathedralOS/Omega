@@ -1682,7 +1682,7 @@ fn assert_selected_external_requirement_terminal_call(
         })
         .collect::<Vec<_>>();
     assert!(
-        boundary_calls.iter().any(|id| *id == boundary.id),
+        boundary_calls.contains(&boundary.id),
         "{label} entry keeps an exact BoundaryCall into the requirement boundary",
     );
 

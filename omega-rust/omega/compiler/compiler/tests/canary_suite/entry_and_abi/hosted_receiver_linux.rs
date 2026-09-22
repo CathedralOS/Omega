@@ -6,8 +6,8 @@
 //! continuation, and completes through exit_group.
 
 use crate::{
-    CanaryCompileProduct, CanaryCompileSpec, Command, CompileReport, PathBuf, Stdio, compile, fs,
-    repo_root, unique_no_output_build_dir,
+    CanaryCompileProduct, CanaryCompileSpec, CompileReport, PathBuf, compile, fs, repo_root,
+    unique_no_output_build_dir,
 };
 
 struct HostedProject(PathBuf);

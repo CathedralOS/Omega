@@ -63,7 +63,6 @@ pub use field_value_specialization::{
 };
 // Proposal helpers have no consumer outside this crate; they are internal
 // plumbing, not stage entrances.
-pub(crate) use field_value_specialization::propose_field_value_specializations;
 pub use pass_manager::{
     CandidateContractAxis, ExternalDecisionContextAxis, ExternalDecisionReplayError,
     OptimizationRun, OptimizationRunError, OptimizationRunUsage, PsiOptimizationCommit,
@@ -81,7 +80,6 @@ pub use ranked_rewrites::{
     propose_loop_invariant_scalar_motion, validate_countdown_invariant_constant_relocation,
     validate_loop_invariant_scalar_motion,
 };
-pub(crate) use representation_specialization::propose_case_membership_specializations;
 pub use representation_specialization::{
     AppliedCaseMembershipSpecialization, CaseMembershipSpecializationCandidate,
     CaseMembershipSpecializationError, ResolvedCaseMembership,
@@ -139,7 +137,4 @@ pub use state_specialization::{
     AppliedStateArgumentSpecialization, SpecializedStateEdge, StateArgumentSpecializationCandidate,
     StateArgumentSpecializationError, ValidatedStateArgumentSpecialization,
     apply_state_argument_specialization,
-};
-pub(crate) use state_specialization::{
-    propose_state_argument_specializations, validate_state_argument_specialization,
 };

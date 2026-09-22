@@ -1,5 +1,3 @@
-use crate::support;
-
 #[path = "proposition_contracts/domains_and_declarations.rs"]
 mod domains_and_declarations;
 #[path = "proposition_contracts/machine_arguments.rs"]

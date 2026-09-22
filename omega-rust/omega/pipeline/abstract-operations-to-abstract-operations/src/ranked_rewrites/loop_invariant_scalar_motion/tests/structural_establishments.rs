@@ -778,9 +778,7 @@ fn forged_scalar_array_element_is_rejected_by_the_freeze_fence() {
     // drifted spelling.
     let forged = find_operation_mut(&mut unit, array_operation);
     if let AbstractOperation::EstablishScalarArray { elements, .. } = &mut forged.operation {
-        for element in elements {
-            *element = member_element;
-        }
+        elements.fill(member_element);
     }
     for value_use in &mut forged.uses {
         value_use.value = member_element;

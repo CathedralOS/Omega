@@ -2,7 +2,7 @@
 //! the captured referent, calls forward the erased loan's authority, and a
 //! live subloan does not block the parent's later receiver calls.
 
-use super::{NativeTarget, native_function, primitive_stores};
+use super::{NativeTarget, primitive_stores};
 
 fn published_entry(source: &str, target: NativeTarget) -> (Vec<u8>, usize) {
     primitive_stores::published_text(source, target)

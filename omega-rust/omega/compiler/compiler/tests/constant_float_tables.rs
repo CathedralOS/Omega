@@ -181,8 +181,7 @@ fn floating_aggregate_leaves_cannot_change_their_landed_carrier() {
             &sources.0.join("main.omg"),
             None,
         ))
-        .err()
-        .expect("unused table still owes exact floating carrier");
+        .expect_err("unused table still owes exact floating carrier");
         assert!(
             error
                 .iter()
@@ -211,8 +210,7 @@ fn floating_declaration_values_remain_ineligible_as_indices() {
             &sources.0.join("main.omg"),
             None,
         ))
-        .err()
-        .expect("floating fields cannot become static indices, even in an inactive case");
+        .expect_err("floating fields cannot become static indices, even in an inactive case");
         assert!(
             error
                 .iter()

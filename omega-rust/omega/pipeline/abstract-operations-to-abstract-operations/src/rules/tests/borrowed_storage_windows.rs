@@ -27,11 +27,12 @@ use terminal_psi::{
 use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
 use terminal_verifier::ProofBundle;
 
+use crate::representation_specialization::propose_case_membership_specializations;
 use crate::{
     VerifiedPsiOptimizationSession, apply_loop_invariant_scalar_motion,
-    optimize_abstract_operations, propose_case_membership_specializations,
-    propose_countdown_invariant_constant_relocations, propose_loop_invariant_scalar_motion,
-    publish_optimization_run, run_psi_pipeline, validate_loop_invariant_scalar_motion,
+    optimize_abstract_operations, propose_countdown_invariant_constant_relocations,
+    propose_loop_invariant_scalar_motion, publish_optimization_run, run_psi_pipeline,
+    validate_loop_invariant_scalar_motion,
 };
 
 fn id<Identity: PsiSemanticId>(raw: u64) -> Identity {

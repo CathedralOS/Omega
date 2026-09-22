@@ -1,6 +1,6 @@
 //! Owned callers observe writes through projected exclusive subloans.
 
-use super::{NativeTarget, native_function, native_text, primitive_stores};
+use super::{NativeTarget, native_text, primitive_stores};
 
 fn source(access: &str, record_first: bool) -> String {
     let fields = if record_first {

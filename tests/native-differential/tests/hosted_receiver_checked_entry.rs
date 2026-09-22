@@ -10,7 +10,6 @@
 //! same field must refuse before any binding is admitted.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use compiler::{
