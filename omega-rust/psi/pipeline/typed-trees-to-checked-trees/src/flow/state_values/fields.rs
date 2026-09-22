@@ -151,6 +151,11 @@ pub(super) struct FieldValue {
     /// to authored thresholds or the primitive carrier. Unchanged deliveries
     /// preserve that widening; genuinely changed evidence can retighten it.
     bounds_growth: u8,
+    /// Joins that narrowed the accumulated interval. Repeated shrinking on a
+    /// bound that is being recomputed one step per join -- a loop clamping a
+    /// counter feeds each pass a slightly tighter endpoint -- holds the
+    /// shrunken axis so the slide cannot take one pass per integer.
+    bounds_shrink: u8,
 }
 
 pub(super) fn height(fields: &[FieldValue]) -> usize {
@@ -316,6 +321,7 @@ pub(super) fn meet(
             edge_potential: Vec::new(),
             predicate_ceiling: Vec::new(),
             bounds_growth: 0,
+            bounds_shrink: 0,
         };
         field.rejoin(program, machine, thresholds);
         previous.push(field);
@@ -421,24 +427,58 @@ impl FieldValue {
                     // still covers the fresh bound rather than straight to
                     // the carrier: loop counters keep re-extending by their
                     // step until the bound is useless, but the authored
-                    // comparisons name the values that actually occur, and
-                    // the sequence stays monotone and bounded by the literal
-                    // count before it can reach the carrier.
+                    // comparisons name the values that actually occur.
+                    // That hypothesis earns only a few rungs: a counter that
+                    // keeps exceeding each widened bound is not settling on
+                    // an authored comparison -- its cap is a runtime value
+                    // or none, and the join's fixed point is the carrier
+                    // itself. Climbing the whole literal ladder would cost
+                    // one pass per authored literal to reach the same end.
+                    let exhausted = self.bounds_growth >= 8;
                     if extends_minimum {
-                        widened.minimum = thresholds
-                            .iter()
-                            .rev()
-                            .find(|literal| **literal <= widened.minimum)
-                            .cloned()
-                            .unwrap_or_else(|| carrier.minimum.clone());
+                        widened.minimum = if exhausted {
+                            carrier.minimum.clone()
+                        } else {
+                            thresholds
+                                .iter()
+                                .rev()
+                                .find(|literal| **literal <= widened.minimum)
+                                .cloned()
+                                .unwrap_or_else(|| carrier.minimum.clone())
+                        };
                     }
                     if extends_maximum {
-                        widened.maximum = thresholds
-                            .iter()
-                            .find(|literal| **literal >= widened.maximum)
-                            .cloned()
-                            .unwrap_or_else(|| carrier.maximum.clone());
+                        widened.maximum = if exhausted {
+                            carrier.maximum.clone()
+                        } else {
+                            thresholds
+                                .iter()
+                                .find(|literal| **literal >= widened.maximum)
+                                .cloned()
+                                .unwrap_or_else(|| carrier.maximum.clone())
+                        };
                     }
+                }
+            }
+        }
+        if let (Some(stored), Some(fresh)) = (&self.integer_bounds, &mut joined)
+            && (fresh.minimum > stored.minimum || fresh.maximum < stored.maximum)
+        {
+            self.bounds_shrink = self.bounds_shrink.saturating_add(1);
+            if self.bounds_shrink >= 8 {
+                // Widening's mirror: a bound that keeps shrinking on the
+                // same axis is re-deriving the fixed point one endpoint at
+                // a time -- a counter clamped by a runtime value nudges the
+                // held bound by its step each pass, so taking every step
+                // costs one pass per integer of the climb. Holding the
+                // shrunken axis keeps a bound that still covers every
+                // delivery, while the starved drift stops producing fresh
+                // endpoints for the next join.
+                if fresh.minimum > stored.minimum {
+                    fresh.minimum = stored.minimum.clone();
+                }
+                if fresh.maximum < stored.maximum {
+                    fresh.maximum = stored.maximum.clone();
                 }
             }
         }
@@ -653,6 +693,7 @@ pub(super) fn capture(
                     edge_potential: Vec::new(),
                     predicate_ceiling: Vec::new(),
                     bounds_growth: 0,
+                    bounds_shrink: 0,
                 });
             }
         }
