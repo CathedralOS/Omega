@@ -25,7 +25,6 @@ use crate::execution::terminal_unit::control::call_occurrences;
 use crate::execution::terminal_unit::control::call_results::bind_scalar_call_result;
 use crate::execution::terminal_unit::control::call_results::bind_structural_call_result;
 use crate::execution::terminal_unit::control::call_results::checked_structural_result_type;
-use crate::execution::terminal_unit::control::call_results::checked_unit_structural_result_local;
 use crate::execution::terminal_unit::returns::checked_boolean_contains_short_circuit;
 use crate::execution::terminal_unit::{
     ExpectedCallValueResult, ShapeCollector, base_type_identity, build_call_operation, is_unit,
@@ -332,6 +331,13 @@ pub(super) fn first_unsupported_statement(
                     .primitive_type_reference(local.type_reference)
                     .is_some()
                     || has_structural_result(program, facts, machine, statement)
+                    // A structural local initialized by a call is admitted by
+                    // kind; whether its result type has a Unit shape is the
+                    // sequence's own decision at that statement.
+                    || matches!(
+                        program.expression_table.expression(local.initial_value),
+                        ExpressionNode::Call(_)
+                    )
                     // A whole read of an existing place into an owning local
                     // has the borrowed-window route by kind; the sequence
                     // decides whether that place can be moved out of.
@@ -844,16 +850,29 @@ pub(in crate::execution::terminal_unit) fn build(
                         primitive_type,
                     })
                 } else {
+                    // A structural local that is not a constructed value binds
+                    // the whole result of the call its initializer performs;
+                    // any other initializer has no producer here. The binding
+                    // is then admitted or refused by the result type's Unit
+                    // shape, which is the same classifier a discarded
+                    // structural call answers to.
                     local_phase("statement sequence: local data: structural call binding");
-                    let (mut result, symbol) = checked_unit_structural_result_local(
+                    if !matches!(
+                        program.expression_table.expression(local.initial_value),
+                        ExpressionNode::Call(_)
+                    ) {
+                        return None;
+                    }
+                    local_phase("statement sequence: local data: structural result shape");
+                    let mut result = checked_structural_result_type(
                         program,
                         shapes,
-                        std::slice::from_ref(statement),
+                        local.type_reference,
                         &binders,
                     )?;
                     result.statement_index = statement_index;
                     result.binding_ordinal = u32::try_from(structural_count).ok()?;
-                    structural_result = Some((result, Some(symbol)));
+                    structural_result = Some((result, Some(local.symbol)));
                     None
                 }
             }

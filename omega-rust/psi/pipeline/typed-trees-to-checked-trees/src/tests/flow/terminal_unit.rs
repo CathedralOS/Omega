@@ -38,6 +38,7 @@ mod state_graph_guarded_jumps;
 mod state_graph_literals;
 mod state_graph_scalars;
 mod state_graph_subslices;
+mod structural_local_bindings;
 mod tail_calls;
 
 use checked_trees::{
