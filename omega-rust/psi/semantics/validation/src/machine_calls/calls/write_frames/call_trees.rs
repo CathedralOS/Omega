@@ -322,7 +322,6 @@ fn complete_expression_tree(
                 call.target.as_str(),
                 &receiver_members,
                 super::caller_aliases::CallerWriteSite::Expression(expression),
-                machine_symbols,
                 symbols,
             );
             pending.extend(arguments.iter().enumerate().rev().map(|(index, argument)| {

@@ -1,6 +1,5 @@
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::types::TypeReferenceNode;
 
 /// The literal upper bound the incoming edges place on `offset` at this
 /// state's entry: the PER-EDGE MEET (M2 gap 4a) -- EVERY incoming edge
@@ -230,9 +229,10 @@ fn boundary_ensures_argument_bound(
 }
 
 /// `call`'s `ensures <param> <= K`/`< K` INCLUSIVE bound for the `&mut`
-/// argument place spelled `argument_label`, resolved through the receiver
-/// field's declared boundary trait. None for non-boundary callees, other
-/// spellings, or params without a literal upper bound.
+/// argument place spelled `argument_label`, resolved through the receiver's
+/// declared boundary trait by the shared boundary-call signature resolver.
+/// None for non-boundary callees, other spellings, or params without a
+/// literal upper bound.
 fn boundary_call_ensures_bound(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -243,47 +243,7 @@ fn boundary_call_ensures_bound(
 ) -> Option<i64> {
     use typed_trees::domain::ProofFact;
     use typed_trees::signature::SignatureContractKind;
-    let receiver = program
-        .statement_table
-        .name_path_members(call.receiver)
-        .last()?;
-    let attached = machine.attached_data.as_ref()?;
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == attached.as_str())?;
-    let field_type = program
-        .data_members(data)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field)
-                if field.name.as_str() == receiver.as_str() =>
-            {
-                field
-                    .type_reference
-                    .is_valid()
-                    .then_some(field.type_reference)
-            }
-            _ => None,
-        })?;
-    let mut type_node = program.type_reference_table.type_reference(field_type);
-    let trait_name = loop {
-        match type_node {
-            TypeReferenceNode::Named { name, .. } => break name,
-            TypeReferenceNode::Reference { referee, .. } => {
-                type_node = program.type_reference_table.type_reference(*referee);
-            }
-            _ => return None,
-        }
-    };
-    let trait_definition = program
-        .traits()
-        .iter()
-        .find(|definition| definition.name.as_str() == trait_name.as_str())?;
-    let signature = program
-        .trait_machine_signatures(trait_definition)
-        .iter()
-        .find(|signature| signature.name == call.target)?;
+    let signature = crate::machine_calls::calls::boundary_trait_signature(program, machine, call)?;
     let arguments = program.statement_table.expression_handles(call.arguments);
     // Which non-self param position holds our place as a `&mut` argument?
     let position = arguments.iter().position(|argument| {

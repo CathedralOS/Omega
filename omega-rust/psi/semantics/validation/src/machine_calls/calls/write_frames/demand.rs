@@ -366,7 +366,6 @@ impl<'program> CallFrameResolver<'program> {
                             call.target.as_str(),
                             &receiver,
                             CallerWriteSite::Call(call),
-                            &machine_symbols,
                             &self.symbols,
                         );
                         let argument_origins = prefix.argument_origins(
@@ -909,7 +908,6 @@ pub(super) fn collect_expression_call_written_paths(
                 call.target.as_str(),
                 &receiver_members,
                 CallerWriteSite::Expression(expression),
-                machine_symbols,
                 symbols,
             );
             let argument_origins = origins.argument_origins(

@@ -616,7 +616,6 @@ fn statement_call_preserves_transparent_result(
         call.target.as_str(),
         &receiver_members,
         CallerWriteSite::Call(call),
-        &machine_symbols,
         symbols,
     );
     // Every sibling must independently preserve the returned-place origin.
