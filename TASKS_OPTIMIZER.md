@@ -44,6 +44,19 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   and retained plans constrain the physical operations they describe.
   An isolated validator or retained-but-unused plan does not close the join.
 
+- **REVIEW-RESEAL-ELIMINATION.** Remove repeated identity serialization of the
+  same unchanged in-memory UEFI semantic-wrapper object across construction,
+  encoding and staging validation in
+  `native-realization/src/optimized_semantic_wrapper_object`.
+  Construction already uses `validate_object_preserving_seal`; encoding and
+  trailing staging validation still invoke full object validation. Trace those
+  repeated computations before changing them. Preserve independent decoding,
+  shape/target/template checks and honest-reseal mutation controls. Acceptance:
+  demonstrate fewer duplicate identity computations on the actual staging route,
+  identical valid artifacts and unchanged rejection of corrupted/substituted
+  encoded objects. Do not remove decode-boundary checking or introduce
+  package-acceptance receipts.
+
 - **REPRESENTATION-OWNERSHIP.** Finish durable representation ownership for
   the semantic-wrapper record and codec under
   `native-realization/src/optimized_semantic_wrapper_object/`, coordinated

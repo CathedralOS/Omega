@@ -145,8 +145,10 @@ appeared:
   `kernel.rs`, `lib.rs`, `evidence.rs`) that have since changed; the ledger
   needs re-recording by the lane that changed them, after review. It also
   reports `proof-admission/src/mathematical_core/tests/strict_layer.rs` as
-  an unregistered source file under a trusted root. Fix leaf: the standing
-  **TRUSTED-SURFACE-DIGEST-RE-RECORDING** item on the board.
+  an unregistered source file under a trusted root. This is revision-bound
+  failure evidence, not a current failure claim. Ongoing revalidation belongs
+  to **PCC-CANONICAL-SEMANTIC-LEDGER** in [TASKS.md](../../TASKS.md): review
+  changed entries' justifications before refreshing their source digests.
 - Repaired: `unranked_bindings::cyclic_scalar_targets_and_reachability_are_checked_before_dominance`
   and `unranked_views::every_cyclic_view_jump_checks_exact_arity` saw
   `InvalidPartialAffineCleanup` in place of `UnknownTargetBlock(BlockId(99))`
