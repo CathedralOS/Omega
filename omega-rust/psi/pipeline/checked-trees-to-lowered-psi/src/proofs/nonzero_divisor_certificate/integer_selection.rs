@@ -169,7 +169,7 @@ fn build_with_definitions(
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
-    if let Some(proof) = exact::prove(goal, assumptions, semantic_axioms) {
+    if let Some(proof) = exact::prove(context, goal, assumptions, semantic_axioms) {
         return Some(proof);
     }
     if let Some(proof) =

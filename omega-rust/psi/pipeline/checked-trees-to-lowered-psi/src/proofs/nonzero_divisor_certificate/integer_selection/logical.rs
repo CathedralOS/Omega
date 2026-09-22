@@ -29,6 +29,7 @@ pub(super) fn prove_contradiction(
             .map(|fact| fact.proof())
             .or_else(|| {
                 super::exact::prove(
+                    context,
                     &Proposition::Equal(ScalarTerm::Boolean(false), ScalarTerm::Boolean(true)),
                     assumptions,
                     semantic_axioms,

@@ -40,7 +40,7 @@ fn closed_bounds_cross_each_cited_result_alias() {
         Proposition::LessOrEqual(value(1), literal(255)),
         Proposition::LessOrEqual(literal(0), value(1)),
     ] {
-        let proof = prove(&goal, &[], &semantic_axioms).expect("literal result bound");
+        let proof = prove(&context(), &goal, &[], &semantic_axioms).expect("literal result bound");
         check_certificate(&context(), &goal, &[], &semantic_axioms, &proof).unwrap();
         assert!(check_certificate(&context(), &goal, &[], &semantic_axioms[..2], &proof).is_err());
     }
@@ -63,7 +63,8 @@ fn conjoined_bounds_keep_projection_and_alias_custody() {
         Proposition::LessOrEqual(value(3), literal(255)),
         Proposition::LessOrEqual(literal(0), value(3)),
     ] {
-        let proof = prove(&goal, &assumptions, &semantic_axioms).expect("projected result bound");
+        let proof = prove(&context(), &goal, &assumptions, &semantic_axioms)
+            .expect("projected result bound");
         check_certificate(&context(), &goal, &assumptions, &semantic_axioms, &proof).unwrap();
         assert!(
             check_certificate(
@@ -87,9 +88,10 @@ fn both_symbolic_endpoints_need_their_own_equality() {
         Proposition::Equal(value(4), value(2)),
     ];
     let goal = Proposition::LessOrEqual(value(3), value(4));
-    let proof = prove(&goal, &assumptions, &semantic_axioms).expect("two endpoint substitutions");
+    let proof = prove(&context(), &goal, &assumptions, &semantic_axioms)
+        .expect("two endpoint substitutions");
     check_certificate(&context(), &goal, &assumptions, &semantic_axioms, &proof).unwrap();
-    assert!(prove(&goal, &assumptions, &semantic_axioms[..1]).is_none());
+    assert!(prove(&context(), &goal, &assumptions, &semantic_axioms[..1]).is_none());
 }
 
 #[test]
@@ -101,7 +103,7 @@ fn unrelated_literals_and_strict_facts_do_not_mint_order_rules() {
         vec![Proposition::LessThan(value(1), literal(256))],
     ] {
         assert!(
-            prove(&goal, &[], &semantic_axioms).is_none(),
+            prove(&context(), &goal, &[], &semantic_axioms).is_none(),
             "{semantic_axioms:?}"
         );
     }

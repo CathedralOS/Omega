@@ -83,7 +83,7 @@ pub(super) fn prove(
             _ => {}
         }
     }
-    if let Some(proof) = closed_falsehood(&legs, assumptions, semantic_axioms) {
+    if let Some(proof) = closed_falsehood(context, &legs, assumptions, semantic_axioms) {
         return Some(proof);
     }
     derived_legs(
@@ -93,7 +93,7 @@ pub(super) fn prove(
         semantic_axioms,
         definitions,
     );
-    closed_falsehood(&legs, assumptions, semantic_axioms)
+    closed_falsehood(context, &legs, assumptions, semantic_axioms)
 }
 
 /// Bounds transported through the checked definition words can contradict a
@@ -119,7 +119,7 @@ fn derived_legs(
             }
         }
     }
-    let mut roots = wrapping::rooted_bounds(assumptions, semantic_axioms);
+    let mut roots = wrapping::rooted_bounds(context, assumptions, semantic_axioms);
     for value in value_terms(assumptions, semantic_axioms) {
         let ScalarType::Integer(integer_type) = value.scalar_type() else {
             continue;
@@ -210,6 +210,7 @@ fn derived_legs(
 /// derived legs share exactly this search; exhaustion leaves the goal
 /// unproved and never changes the reconstructed question.
 fn closed_falsehood(
+    context: &PropositionContext,
     legs: &[OrderLeg],
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
@@ -249,6 +250,7 @@ fn closed_falsehood(
                 upper.proof.clone()
             } else {
                 let Some(equality) = super::super::exact::prove(
+                    context,
                     &Proposition::Equal(lower.right.clone(), upper.left.clone()),
                     assumptions,
                     semantic_axioms,

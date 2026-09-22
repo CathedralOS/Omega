@@ -48,6 +48,7 @@ pub(super) struct RootedBound {
 }
 
 pub(super) fn rooted_bounds(
+    context: &PropositionContext,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> Vec<RootedBound> {
@@ -66,7 +67,7 @@ pub(super) fn rooted_bounds(
             ) {
                 continue;
             }
-            for (root, equality) in value_aliases(endpoint, assumptions, semantic_axioms) {
+            for (root, equality) in value_aliases(context, endpoint, assumptions, semantic_axioms) {
                 let (proposition, proof) = if root == *endpoint {
                     (fact.proposition.clone(), fact.proof())
                 } else {
@@ -107,6 +108,7 @@ pub(super) fn rooted_bounds(
 /// `value == endpoint` partner. Each alias carries the equality certificate the
 /// endpoint substitution must cite.
 fn value_aliases(
+    context: &PropositionContext,
     endpoint: &ScalarTerm,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
@@ -129,6 +131,7 @@ fn value_aliases(
             continue;
         }
         let Some(equality) = exact::prove(
+            context,
             &Proposition::Equal(endpoint.clone(), alias.clone()),
             assumptions,
             semantic_axioms,
@@ -162,7 +165,7 @@ fn prove_uncached(
         Proposition::LessThan(left, right) | Proposition::LessOrEqual(left, right) => (left, right),
         _ => return None,
     };
-    for bound in rooted_bounds(assumptions, semantic_axioms) {
+    for bound in rooted_bounds(context, assumptions, semantic_axioms) {
         for target in [goal_left, goal_right] {
             if bound.root == *target || !matches!(target, ScalarTerm::Value { .. }) {
                 continue;

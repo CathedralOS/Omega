@@ -1,12 +1,13 @@
 //! Explicit conjunction projection and equality transport for integer bounds.
 
 use proof_admission::{ProofNode, ProofRule};
-use semantic_vocabulary::{Proposition, ScalarTerm};
+use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm};
 
 use super::super::super::integer_evidence::{cited_facts, closed_integer_relation};
 use super::super::exact;
 
 pub(super) fn prove(
+    context: &PropositionContext,
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
@@ -31,7 +32,7 @@ pub(super) fn prove(
                 }
             }
             Proposition::LessOrEqual(_, _) => {
-                if let Some(proof) = complete(goal, proof, assumptions, semantic_axioms) {
+                if let Some(proof) = complete(context, goal, proof, assumptions, semantic_axioms) {
                     return Some(proof);
                 }
             }
@@ -42,7 +43,8 @@ pub(super) fn prove(
                         relation: Box::new(proof),
                     },
                 };
-                if let Some(proof) = complete(goal, weakened, assumptions, semantic_axioms) {
+                if let Some(proof) = complete(context, goal, weakened, assumptions, semantic_axioms)
+                {
                     return Some(proof);
                 }
             }
@@ -59,7 +61,7 @@ pub(super) fn prove(
                     ] {
                         if let Some(closed) = closed_integer_relation(relation)
                             && let Some(proof) =
-                                complete(goal, closed, assumptions, semantic_axioms)
+                                complete(context, goal, closed, assumptions, semantic_axioms)
                         {
                             return Some(proof);
                         }
@@ -73,6 +75,7 @@ pub(super) fn prove(
 }
 
 fn complete(
+    context: &PropositionContext,
     goal: &Proposition,
     mut relation: ProofNode,
     assumptions: &[Proposition],
@@ -82,12 +85,20 @@ fn complete(
         return None;
     };
     for (endpoint, target) in [goal_left, goal_right].into_iter().enumerate() {
-        relation = replace_endpoint(relation, endpoint, target, assumptions, semantic_axioms)?;
+        relation = replace_endpoint(
+            context,
+            relation,
+            endpoint,
+            target,
+            assumptions,
+            semantic_axioms,
+        )?;
     }
     (relation.conclusion == *goal).then_some(relation)
 }
 
 fn replace_endpoint(
+    context: &PropositionContext,
     relation: ProofNode,
     endpoint: usize,
     target: &ScalarTerm,
@@ -107,6 +118,7 @@ fn replace_endpoint(
         Proposition::LessOrEqual(left.clone(), target.clone())
     };
     if let Some(equality) = exact::prove(
+        context,
         &Proposition::Equal(target.clone(), old.clone()),
         assumptions,
         semantic_axioms,

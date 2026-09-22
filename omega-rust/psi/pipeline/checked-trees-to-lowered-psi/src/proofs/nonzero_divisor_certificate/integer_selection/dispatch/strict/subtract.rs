@@ -40,6 +40,7 @@ pub(super) fn prove(
         // Positivity uses existing exact/discrete order rules, not recursive
         // subtraction search through potentially cyclic asserted equations.
         let Some(positive) = super::prove_without_subtract(
+            context,
             &Proposition::LessThan(zero, right.as_ref().clone()),
             assumptions,
             semantic_axioms,
@@ -56,7 +57,13 @@ pub(super) fn prove(
         // Successor bindings preserve values through cited SSA equalities.
         // Prove the actual subtraction first, then transport its two endpoints
         // with the existing checked substitution rule, never by renaming them.
-        if let Some(proof) = super::complete(goal, decrease.clone(), assumptions, semantic_axioms) {
+        if let Some(proof) = super::complete(
+            context,
+            goal,
+            decrease.clone(),
+            assumptions,
+            semantic_axioms,
+        ) {
             return Some(proof);
         }
         // The same decrease still bounds the difference when the minuend
@@ -80,7 +87,7 @@ pub(super) fn prove(
                 middle_to_right: Box::new(bound),
             },
         };
-        if let Some(proof) = super::complete(goal, chained, assumptions, semantic_axioms) {
+        if let Some(proof) = super::complete(context, goal, chained, assumptions, semantic_axioms) {
             return Some(proof);
         }
     }

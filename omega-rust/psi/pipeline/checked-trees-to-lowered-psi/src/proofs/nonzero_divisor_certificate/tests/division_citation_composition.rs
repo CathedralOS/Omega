@@ -1401,18 +1401,43 @@ fn exact_division_goal_lands_affine_root_literal_through_one_alias() {
         .is_none(),
         "a redirected landing cannot establish the root alias",
     );
+    // A second value alias still reaches the literal, just not through the
+    // affine literal-landing family: value-equality transport rewrites the
+    // divisor to `0 + 1` and the kernel's closed integer relation decides
+    // `1 == 0 + 1` itself. Every hop stays cited, so the receiver replays the
+    // same certificate.
+    let two_alias_facts = [
+        root_alias,
+        Proposition::Equal(value(4, signed), value(5, signed)),
+        Proposition::Equal(value(5, signed), integer(signed, 0)),
+    ];
+    let proof = prove_canonical_integer_proposition(
+        &context,
+        &goal,
+        &two_alias_facts,
+        std::slice::from_ref(&positive_definition),
+    )
+    .expect("a second alias lands the literal through value-equality transport");
+    proof_admission::check_certificate(
+        &context,
+        &goal,
+        &two_alias_facts,
+        std::slice::from_ref(&positive_definition),
+        &proof,
+    )
+    .expect("the transported certificate rechecks under the kernel");
+
     assert!(
         prove_canonical_integer_proposition(
             &context,
             &goal,
             &[
-                root_alias,
+                Proposition::Equal(value(3, signed), value(4, signed)),
                 Proposition::Equal(value(4, signed), value(5, signed)),
-                Proposition::Equal(value(5, signed), integer(signed, 0)),
             ],
             &[positive_definition],
         )
         .is_none(),
-        "a second value alias is outside the fixed literal-landing family",
+        "an alias chain that never lands a literal cannot close the divisor bound",
     );
 }
