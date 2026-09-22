@@ -1,4 +1,8 @@
-use super::shared::*;
+use super::encoding::encode_len;
+use abstract_operations::ValueBinding;
+use optimization_unit::ValueDefinitionSite;
+use semantic_vocabulary::{IntegerType, IntegerValue};
+use target_operations::MachineRegister;
 
 pub(super) fn encode_integer(bytes: &mut Vec<u8>, value: IntegerValue) {
     match value {

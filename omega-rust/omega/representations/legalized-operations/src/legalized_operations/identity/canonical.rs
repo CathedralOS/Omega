@@ -1,6 +1,7 @@
 //! Canonical legalized-plan roster encoding shared by current and legacy identities.
 
-use super::shared::*;
+use super::encoding::{encode_len, encode_target};
+use crate::legalized_operations::{LegalizedOperationPlan, LegalizedOperationPlanIdentity};
 
 pub(super) fn identity(plan: &LegalizedOperationPlan) -> LegalizedOperationPlanIdentity {
     let mut bytes = Vec::new();

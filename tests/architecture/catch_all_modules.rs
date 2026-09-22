@@ -37,7 +37,6 @@ const CATCH_ALL_NAMES: &[&str] = &[
 /// its `src/` tree whose name is one of [`CATCH_ALL_NAMES`]).
 const CATCH_ALL_MODULE_CEILINGS: &[(&str, usize)] = &[
     ("omega-rust/omega/backend/machine-emission", 1),
-    ("omega-rust/omega/representations/legalized-operations", 1),
     ("omega-rust/psi/pipeline/typed-trees-to-checked-trees", 1),
     ("omega-rust/psi/representations/checked-trees", 1),
     ("omega-rust/psi/semantics/terminal-verifier", 1),

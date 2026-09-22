@@ -1,8 +1,12 @@
 //! Exact current semantic contracts shared by graph and selected identities.
 use super::calling::{encode_call_plan, encode_placement};
-use super::shared::*;
+use super::encoding::{encode_ids, encode_len};
 use super::structural::encode_call_source;
 use super::structural_types::{encode_structural_argument, encode_target_structural_argument};
+use crate::legalized_operations::{
+    LegalizedBoundarySettlement, LegalizedScalarArgument, LegalizedScalarCall,
+    LegalizedStructuralContract,
+};
 
 pub(super) fn encode_call(bytes: &mut Vec<u8>, call: &LegalizedScalarCall) {
     match &call.structural_result {

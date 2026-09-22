@@ -1,5 +1,12 @@
-use super::shared::*;
+use super::encoding::{encode_fuel, encode_ids, encode_len, encode_option_id};
 use super::structural_types::*;
+use crate::legalized_operations::{LegalizedBoundarySettlement, NativeCallOrigin};
+use abstract_operations::CompletionClaimSource;
+use optimization_unit::{EffectLink, OwnershipEvent};
+use semantic_vocabulary::{
+    ContentAlgebra, ContentAlgebraKind, ContentPlaceSegment, ContentPlaceVersion,
+};
+use terminal_psi::{ClaimContentProjection, ProviderCandidateConformance};
 
 pub(super) fn encode_boundary_settlement(
     bytes: &mut Vec<u8>,

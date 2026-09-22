@@ -1,5 +1,5 @@
 //! Canonical structural result identities shared by ordinary graph operations.
-use super::shared::*;
+use super::encoding::{encode_ids, encode_len};
 use super::structural_types::{
     encode_multiplicity, encode_projected_qualifications, encode_structural_argument,
     encode_structural_path,
@@ -40,12 +40,12 @@ pub(super) fn encode_result(bytes: &mut Vec<u8>, result: &StructuralResultDeclar
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralPathSegment,
-        StructuralResultDeclaration, encode_result,
-    };
+    use super::{StructuralResultDeclaration, encode_result};
     use semantic_vocabulary::{PlaceId, StructuralTypeId};
-    use terminal_psi::StructuralReferenceResultSource;
+    use terminal_psi::{
+        StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralPathSegment,
+        StructuralReferenceResultSource,
+    };
 
     #[test]
     fn reference_result_identity_retains_exact_origin_and_leaf_path() {

@@ -3,9 +3,10 @@
 //! row, the erased adapter plan, the slot offset, and the result home encode
 //! as one indivisible custody row.
 use super::calling::{encode_call_plan, encode_placement, encode_shape};
+use super::encoding::{encode_ids, encode_len};
 use super::scalar::encode_scalar_type;
-use super::shared::*;
 use super::structural_types::{encode_access, encode_string};
+use crate::legalized_operations::LegalizedDynamicParameterCall;
 use target_operations::TargetUnitScalarHomeRequirement;
 use terminal_psi::{TerminalDynamicDescriptorParameter, TerminalDynamicRequirement};
 

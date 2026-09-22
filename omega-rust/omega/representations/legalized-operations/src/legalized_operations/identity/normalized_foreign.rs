@@ -2,10 +2,11 @@
 //! provider execution, boundary-entry plan, and exact argument/result homes
 //! encode as one indivisible row.
 use super::calling::{encode_call_plan, encode_native_place, encode_placement, encode_shape};
+use super::encoding::encode_len;
 use super::scalar::{encode_integer, encode_integer_type, encode_scalar_type};
-use super::shared::*;
 use super::structural::encode_provider_execution;
 use super::structural_types::{encode_string, encode_target_structural_argument};
+use crate::legalized_operations::LegalizedNormalizedForeignCall;
 use calling_conventions::{EntryStack, MachineRegime, Preemption, StatePlan};
 use target::ForeignLocatorCandidate;
 use target_operations::{

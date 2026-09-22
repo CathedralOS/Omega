@@ -1,5 +1,6 @@
-use super::shared::*;
+use super::encoding::{encode_ids, encode_len};
 use super::structural_types::*;
+use crate::legalized_operations::LegalizedStructuralContract;
 
 pub(super) fn encode_structural_contract(
     bytes: &mut Vec<u8>,
