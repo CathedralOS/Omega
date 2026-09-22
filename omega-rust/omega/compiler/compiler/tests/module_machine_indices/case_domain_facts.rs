@@ -5,7 +5,13 @@
 
 use super::{Sources, compile, compile_to_checked, root_inputs};
 use compiler::CheckedCompileRequest;
-use typed_trees::expression::ExpressionNode;
+use terminal_interpreter::{
+    TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
+};
+use terminal_production::{
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+};
+use typed_trees::expression::{BinaryOperator, ExpressionNode};
 
 const CHOICE: &str = "module choice; pub data Choice [copy] { case Empty; case Some(value: u32); }
      pub domain Choice::NonEmpty requires self in Choice::Some;";
@@ -134,6 +140,88 @@ fn case_membership_obligation_discharges_through_a_case_guard() {
          }",
     );
     compile(&root, root_inputs(&root));
+}
+
+/// `value in D` replays `D`'s declared facts into the machine body. When the
+/// fact is a case membership (`self in T::C`), the replay is a generated tag
+/// observation — the `CaseMembership` operation structural equality synthesis
+/// also uses — carrying the exact selected owner and case symbols, not an
+/// authored `==` that would demand the domain site's occurrence roster or a
+/// payload constructor.
+#[test]
+fn executable_domain_membership_replays_the_case_fact_as_a_tag_test() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("shapes.omg"),
+        "module shapes; pub data Choice [copy] { case Empty; case Some(value: u32); }",
+    );
+    Sources::write(
+        root.join("policy.omg"),
+        "module policy; use shapes::Choice; domain Choice::NonEmpty requires self in shapes::Choice::Some;",
+    );
+    Sources::write(
+        root.join("main.omg"),
+        "use policy; use shapes;
+         machine some_verdict() -> bool {
+             let value: shapes::Choice = shapes::Choice::Some { value: 3 };
+             value in policy::Choice::NonEmpty
+         }
+         machine empty_verdict() -> bool {
+             let value: shapes::Choice = shapes::Choice::Empty;
+             value in policy::Choice::NonEmpty
+         }",
+    );
+    let checked = compile(&root, root_inputs(&root));
+    // Each replayed copy is one generated tag test bound to the exact foreign
+    // owner and case; the domain's own lowered fact keeps the authored `==`
+    // roster instead.
+    let mut replayed = 0;
+    for (_, node) in checked.typed.expression_table.expression_entries() {
+        let ExpressionNode::Binary(binary) = node else {
+            continue;
+        };
+        if binary.operator != BinaryOperator::CaseMembership {
+            continue;
+        }
+        let ExpressionNode::Name(case) = checked.typed.expression_table.expression(binary.right)
+        else {
+            panic!("a generated tag test names its selected case");
+        };
+        assert_eq!(
+            checked.symbols.display_path(case.symbol, "::"),
+            "shapes::Choice::Some"
+        );
+        replayed += 1;
+    }
+    assert_eq!(
+        replayed, 2,
+        "both verdict machines replay the domain's fact"
+    );
+    for (machine, expected) in [("some_verdict", true), ("empty_verdict", false)] {
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name(machine),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("replayed domain case fact reaches Terminal")
+        .into_artifact();
+        // Independent decode, verification, and interpretation: no producer
+        // state crosses the artifact boundary.
+        assert_eq!(
+            interpret_terminal_artifact(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &proof_admission::AdmissionProfile::default(),
+                &[],
+            )
+            .expect("tag test executes without source"),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(expected)),
+            "{machine}"
+        );
+    }
 }
 
 #[test]
