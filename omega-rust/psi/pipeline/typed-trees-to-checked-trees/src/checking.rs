@@ -34,6 +34,8 @@ pub struct CheckingRequest<'a> {
     selected_generic_operator_providers: &'a [SelectedGenericOperatorProviderSpecialization],
     selected_boundary_families: &'a [SelectedBoundaryFamilySpecialization],
     opaque_property_receipts: &'a [validation::OpaqueDataPropertyReceipt],
+    selected_operator_applications: &'a [crate::SelectedOperatorApplication],
+    selected_ieee_float_fma_unit_applications: &'a [crate::SelectedIeeeFloatFmaUnitApplication],
 }
 
 impl<'a> CheckingRequest<'a> {
@@ -43,6 +45,8 @@ impl<'a> CheckingRequest<'a> {
             selected_generic_operator_providers: &[],
             selected_boundary_families: &[],
             opaque_property_receipts: &[],
+            selected_operator_applications: &[],
+            selected_ieee_float_fma_unit_applications: &[],
         }
     }
 
@@ -91,6 +95,27 @@ impl<'a> CheckingRequest<'a> {
         self.opaque_property_receipts = receipts;
         self
     }
+
+    /// Exact joins from authored operator uses to the checked machines
+    /// selected to realize them; the Terminal plan lanes plan those uses as
+    /// calls to the realizations.
+    pub const fn with_selected_operator_applications(
+        mut self,
+        applications: &'a [crate::SelectedOperatorApplication],
+    ) -> Self {
+        self.selected_operator_applications = applications;
+        self
+    }
+
+    /// Compiler-intrinsic nearest IEEE FMA selections for attached Unit local
+    /// initializers.
+    pub const fn with_selected_ieee_float_fma_unit_applications(
+        mut self,
+        applications: &'a [crate::SelectedIeeeFloatFmaUnitApplication],
+    ) -> Self {
+        self.selected_ieee_float_fma_unit_applications = applications;
+        self
+    }
 }
 
 /// Check typed trees under one explicit request: the checkpoint mode plus
@@ -106,6 +131,8 @@ pub fn lower_typed_trees(
         selected_generic_operator_providers,
         selected_boundary_families,
         opaque_property_receipts,
+        selected_operator_applications,
+        selected_ieee_float_fma_unit_applications,
     } = *request;
     // Mathematical `let`/`boundary let` declarations elaborate into
     // `CheckedMathematicalDeclaration` records and then into a kernel
@@ -279,7 +306,14 @@ pub fn lower_typed_trees(
     }
     crate::facts::refresh_realized_contract_envelopes(&mut facts);
 
-    let mut facts = crate::execution::finalize_execution::finalize_execution(&program, facts)?;
+    let mut facts = crate::execution::finalize_execution::finalize_execution(
+        &program,
+        facts,
+        crate::execution::finalize_execution::SelectedExecution {
+            operator_applications: selected_operator_applications,
+            ieee_float_fma_unit_applications: selected_ieee_float_fma_unit_applications,
+        },
+    )?;
     facts.flow.semantic_dependencies =
         crate::flow::derive_checked_semantic_dependencies(&program, &facts);
 

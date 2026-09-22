@@ -2,9 +2,19 @@ use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 
+/// The provider-settled execution the Terminal plan lanes plan against:
+/// empty for ordinary checking, the exact selected applications when the
+/// orchestration owner settles execution.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct SelectedExecution<'a> {
+    pub(crate) operator_applications: &'a [crate::SelectedOperatorApplication],
+    pub(crate) ieee_float_fma_unit_applications: &'a [crate::SelectedIeeeFloatFmaUnitApplication],
+}
+
 pub(crate) fn finalize_execution(
     program: &TypedTrees,
     mut facts: CheckFacts,
+    selected: SelectedExecution<'_>,
 ) -> Result<CheckFacts, Vec<Diagnostic>> {
     // Execution planning runs in its own immutable window, after the
     // contract-identity mutation that ends the check pass's resolver lifetime.
@@ -54,8 +64,8 @@ pub(crate) fn finalize_execution(
         program,
         &facts,
         None,
-        &[],
-        &[],
+        selected.operator_applications,
+        selected.ieee_float_fma_unit_applications,
         call_frames.as_ref(),
     );
     facts.flow.terminal_partial_affine_unit_cleanups =
