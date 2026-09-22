@@ -1,5 +1,5 @@
 use super::super::prelude::*;
-use super::super::{error::*, model::*};
+use super::super::{FunctionRelativeOptimizationRealizationStatistics, error::*};
 
 pub(crate) fn function_relative_statistics(
     layout: &ResolvedMachineLayout,

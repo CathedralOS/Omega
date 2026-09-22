@@ -1,8 +1,8 @@
-use super::super::model::{
+use super::super::prelude::*;
+use super::super::{
     FunctionRelativeFrameDisposition, FunctionRelativeOptimizationRealizationManifest,
     FunctionRelativeOptimizationRealizationStatistics,
 };
-use super::super::prelude::*;
 use super::super::{
     FunctionRelativeOptimizationRealizationScope, FunctionRelativeOptimizationRealizationStage,
     FunctionRelativeOptimizationUnavailableData,

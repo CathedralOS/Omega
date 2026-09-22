@@ -2,10 +2,10 @@ use crate::validate_fixed_frame_function_relative_realization;
 use machine_code::FunctionFragmentEmissionPlan;
 
 use super::error::FunctionFragmentEmissionError;
-use super::model::{
+use super::source::StagedOptimizedFunctionFragmentEmissionSource;
+use super::{
     StagedFunctionFragmentEmissionCustodyReceipt, ValidatedFunctionFragmentEmissionManifest,
 };
-use super::source::StagedOptimizedFunctionFragmentEmissionSource;
 
 pub(super) fn validate_source(
     source: &StagedOptimizedFunctionFragmentEmissionSource,

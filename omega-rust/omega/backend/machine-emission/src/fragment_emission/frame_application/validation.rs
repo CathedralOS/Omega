@@ -24,7 +24,7 @@ pub(super) fn validate(
         staged.source.source().register_environment().physical(),
         &staged.application,
     )?;
-    let receipt = super::model::seal(&staged.application);
+    let receipt = super::seal(&staged.application);
     if staged.receipt != receipt {
         return Err(FunctionFragmentFrameApplicationError::ReceiptMismatch);
     }

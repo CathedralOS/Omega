@@ -13,9 +13,9 @@ use selected_form_encoding_to_resolved_layout::{
 };
 
 use super::{
+    ValidatedWholeFunctionExitContract, WholeFunctionExitLayoutCustody,
     compute::{compute, compute_with_frame},
     error::WholeFunctionExitContractError,
-    model::{ValidatedWholeFunctionExitContract, WholeFunctionExitLayoutCustody},
 };
 
 /// Establish a baseline-layout exit contract whose otherwise-forbidden call,

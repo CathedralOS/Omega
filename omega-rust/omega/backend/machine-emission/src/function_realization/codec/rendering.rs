@@ -1,7 +1,7 @@
-use super::super::model::{
+use super::super::prelude::*;
+use super::super::{
     FunctionRelativeFrameDisposition, FunctionRelativeOptimizationRealizationManifest,
 };
-use super::super::prelude::*;
 use super::target::{architecture_name, object_format_name};
 
 pub(super) fn render_manifest(

@@ -8,7 +8,7 @@ mod post_allocation;
 mod rendering;
 mod target;
 
-use super::model::FunctionRelativeOptimizationRealizationManifest;
+use super::FunctionRelativeOptimizationRealizationManifest;
 use super::prelude::*;
 
 use cursor::Cursor;

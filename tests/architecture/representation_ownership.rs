@@ -377,7 +377,7 @@ fn frame_records_are_data_and_backend_validation_remains_sealed() {
     assert!(!allocation.contains("pub struct ValidatedAllocated"));
     let backend = root.join("omega-rust/omega/backend/machine-emission/src/frame_layout");
     assert!(
-        std::fs::read_to_string(backend.join("model.rs"))
+        std::fs::read_to_string(backend.join("mod.rs"))
             .unwrap()
             .contains("pub struct ValidatedTargetFrameLayout")
     );

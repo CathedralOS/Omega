@@ -1,4 +1,4 @@
-use super::model::*;
+use super::ValidatedFunctionRelativeOptimizationRealizationManifest;
 use super::prelude::*;
 use selected_instructions_to_register_homes::{AllocationEvidence, RetainedAllocation};
 

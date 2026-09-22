@@ -11,13 +11,11 @@ use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFo
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
 use super::{
+    WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity,
+    WholeFunctionExitEvidence, WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy,
+    WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy,
     error::WholeFunctionExitContractError,
     identity::contract_identity,
-    model::{
-        WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity,
-        WholeFunctionExitEvidence, WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy,
-        WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy,
-    },
     validation_rules::{
         EntryAssumptionKind, frame_permissions, target_contract_inputs,
         transformed_implicit_writes_any, unique_encoding_rows, unique_layout_rows,
