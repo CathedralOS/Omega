@@ -15,7 +15,7 @@ mod tests {
         X86BranchRelaxationIdentity,
     };
 
-    use super::super::model::{
+    use super::super::{
         WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity,
         WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy, WholeFunctionFrameDisposition,
         WholeFunctionHardeningPolicy,

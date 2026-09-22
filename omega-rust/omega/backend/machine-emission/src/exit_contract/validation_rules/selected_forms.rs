@@ -19,10 +19,8 @@ use machine_code::ResolvedMachineLayout;
 use machine_code::SelectedFormEncoding;
 
 use super::super::{
+    WholeFunctionReturnEvidence, WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
     error::WholeFunctionExitContractError,
-    model::{
-        WholeFunctionReturnEvidence, WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
-    },
 };
 
 pub(in crate::exit_contract) fn unique_encoding_rows<'a>(

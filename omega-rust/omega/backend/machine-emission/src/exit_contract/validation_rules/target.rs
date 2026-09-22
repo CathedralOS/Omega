@@ -3,7 +3,7 @@ use isa_x86_64::x86_64_preservation_convention_for_target;
 use register_model::{PreservationConvention, ValidatedPhysicalRegisterModel};
 use target::{Architecture, NativeTarget, ObjectFormat};
 
-use super::super::{error::WholeFunctionExitContractError, model::WholeFunctionExitPolicy};
+use super::super::{WholeFunctionExitPolicy, error::WholeFunctionExitContractError};
 
 #[derive(Clone, Copy)]
 pub(in crate::exit_contract) enum EntryAssumptionKind {

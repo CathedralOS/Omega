@@ -1,6 +1,8 @@
 use super::super::{
+    FunctionRelativeFrameDisposition, FunctionRelativeOptimizationRealizationManifest,
     FunctionRelativeOptimizationRealizationScope, FunctionRelativeOptimizationRealizationStage,
-    FunctionRelativeOptimizationUnavailableData, carriers::*, error::*, model::*, prelude::*,
+    FunctionRelativeOptimizationUnavailableData,
+    ValidatedFunctionRelativeOptimizationRealizationManifest, carriers::*, error::*, prelude::*,
 };
 use super::statistics::function_relative_statistics;
 use selected_instructions_to_register_homes::{

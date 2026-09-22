@@ -1,5 +1,5 @@
 //! Reject retired machine-rewrite custody at the common exit boundary.
-use super::super::{error::WholeFunctionExitContractError, model::WholeFunctionExitLayoutCustody};
+use super::super::{WholeFunctionExitLayoutCustody, error::WholeFunctionExitContractError};
 use machine_code::ResolvedMachineLayout;
 use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;

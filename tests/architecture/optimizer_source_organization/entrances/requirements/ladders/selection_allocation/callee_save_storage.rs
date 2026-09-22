@@ -4,7 +4,6 @@ pub(super) const PRODUCTION: SemanticLadder = SemanticLadder {
     family: "non-authoritative callee-save storage planning",
     paths: &[
         "omega-rust/omega/backend/machine-emission/src/frame_layout/save_storage/mod.rs",
-        "omega-rust/omega/backend/machine-emission/src/frame_layout/save_storage/model.rs",
         "omega-rust/omega/backend/machine-emission/src/frame_layout/save_storage/error.rs",
         "omega-rust/omega/backend/machine-emission/src/frame_layout/save_storage/identity.rs",
         "omega-rust/omega/backend/machine-emission/src/frame_layout/save_storage/custody.rs",
