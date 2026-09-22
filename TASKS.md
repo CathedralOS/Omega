@@ -598,6 +598,22 @@ the implementation migration actually lands.
   require removing OS assembly or promise an emulator. Simulation is evidence
   under the selected environment model, not native timing/hardware correctness.
 
+  Before using Cathedral's own canaries as evidence: measured 3 passed / 15
+  failed at `894b3a910a` with a current binary, and **the 15 cannot be
+  repaired by migration.** They assert with `jq` over
+  `$BUILD_DIR/04_typed_trees.json` and `05_machine_contracts.json`, and Omega
+  emits neither -- deliberately, pinned by
+  `default_checked_compilation_does_not_emit_debug_dumps`
+  (`assert!(!build_dir.exists())`). `--report-file` writes three lines and
+  `omega inspect-terminal` reports terminal-PSI structure, neither carrying the
+  statement kinds those assertions walk; the data survives in-process at
+  `typed-trees/.../inspection/snapshot/machine_snapshots.rs`. Either Omega
+  re-exposes a typed-tree introspection surface or Cathedral re-expresses the
+  assertions behaviourally -- engineering, not language design. The five layers
+  of build-API drift beneath that wall are migrated on unpushed Cathedral
+  branch `omega-build-api-migration`; that repo carries the owner's own
+  unpushed commits, so do not push it.
+
 ## Requirement-based tests
 
 Implement [the settled testing contract](wiki/spec/build/testing.md) through
@@ -1981,8 +1997,14 @@ syntax and other terminal services are not prerequisites.
   PLAN-LAID-VIEWS, and fixture range migration on REMOVE-BRACKETED-RANGE-ANNOTATIONS.
 
   Validate target-correct Cathedral entry encoding and geometry before execution:
-  `cathedral/tables.omg::FRAME_MASK` is currently `2^52`, not the documented
-  `2^52 - 2^12`, so it discards ordinary frame-address bits. Select authority,
+  `cathedral/tables.omg::FRAME_MASK` was `2^52`, not the documented
+  `2^52 - 2^12`, so it discarded every frame-address bit at all three use
+  sites; corrected to `4503599627366400` (`0x000FFFFFFFFFF000`) at
+  `8fa6f340b6`, the value Cathedral's own `source/core/x86_page_table.omg`
+  declares as `X86_MAX_ALIGNED_PHYSICAL_FRAME_ADDRESS`. Note the fixture is
+  checked-only, so NO gate distinguishes this value -- the canary compiles
+  identically either way, and a shift spelling is unavailable because
+  build-time evaluation rejects `<<`. Select authority,
   hardware and shootdown realizations on a freestanding image through
   UEFI-PHYSICAL-SEMANTIC-ENTRY and UEFI-OS-HANDOFF, with a QEMU harness.
 
@@ -3766,6 +3788,54 @@ deliverable host runs, not four implementations of the gate.
   failure must not be removed by weakening the field's domain.
   Acceptance: actual emitted ELF execution and all required full commands
   pass, not merely a selected ABI cohort.
+
+  Census of `samples_compile` at `894b3a910a` (macOS arm64, checking only;
+  members run 600-2400s each, so this is a partial sweep of 33). **The Windows
+  authored-entry rejection this row names as a probe is repaired and was a
+  HARNESS gap, not a compiler one** (`cef9613f9c`): `windows_x86_64` is the
+  first entry in `HOSTED_SAMPLE_TARGETS`, so every cohort member reached it
+  first, and `sample_native_package_inputs` supplied an accepted entry binding
+  for macos_arm64/linux_x86_64/linux_arm64 while Windows fell to `_ => None`.
+  The harness stamps the standard library with a fixture package identity,
+  which is exactly what disqualifies the bundled-contract branch of physical
+  entry admission, so every target needs its package-owned binding.
+  `support/windows_entry_acceptance.rs` already existed and was already wired
+  into `canary_suite.rs`. Four members went red-to-green on that one arm:
+  proof_samples (15s FAIL -> 414s PASS), caesar_cipher, format_number,
+  print_squares.
+
+  What remains is **not one cause**. Measured red after that fix:
+  `interpreter_samples` 20 failures, every one
+  `unit plan was omitted at an unavailable callee (Main::add)` on EVERY target;
+  `algorithm_samples` 29 failures over at least six causes -- four distinct
+  local-construction phases (`structural field store: record literal field` at
+  states 4 and 0, `statement sequence: local data: scalar local: pure
+  initializer`, `state graph: terminator: conditional successors: guard
+  expression`), plus `authored Operator declaration selection occurrence 108
+  remained unresolved`, plus this row's own `render_col` default-domain
+  failure. A local-construction phase is a breadcrumb, not a cause: it records
+  the LAST phase entered, and 123 distinct phase strings span 23 families.
+  Four phase strings are not evidence of four causes, nor of fewer.
+
+  The `UnavailableCallee` message now names the callee's OWN recorded reason
+  (`d782d2a5ee`), because it previously named the caller's and sent the reader
+  one hop wrong. On a reduction it resolves to
+  `let a: i32 in Saturating = self.stack.slots[0]` -- a ranged scalar local
+  initialised from an indexed read of a nested field. Evidence, reductions and
+  the two traps that cost the most time are in
+  [the checking-cost record](wiki/drafts/checking_contract_exit_fact_cost.md):
+  a CLI reduction that fails inside `omega-language-std` never reaches the
+  program under test and answers nothing, and a bisection long enough to be
+  useful is long enough to straddle a rebase -- pin one binary and re-run every
+  row against it.
+
+  Separately blocking any std-dependent program on this host and NOT owned
+  here: minting the canonical FilesystemHost plan records invalid realization
+  symbols by design while provenance replay demands they resolve, so
+  `omega-language-std` fails its own review projection with 11 diagnostics.
+  Diagnosed with the reason the obvious one-line skip is wrong in
+  [the provenance record](wiki/drafts/toolchain_settled_plan_provenance_replay.md);
+  the repair is a design choice for the provider-settlement lane.
 
 - **RC-NATIVE-MATRIX-LINUX-ARM64.** Supply the same complete gate evidence
   for emitted AArch64 ELF programs. A Linux AArch64 runner or named/versioned
