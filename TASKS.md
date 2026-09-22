@@ -3761,28 +3761,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   covered — drained; census closed into known_baseline_failures.md, families owned by their named lanes
 
 
-- **BUILD-DEPEND-PURPOSE-AWARE-LOCKS.** — mined candidate; scope verified,
-  resolved — the purpose-aware lock landed at `748b07f622` ("packages: split
-  dependency declarations into product and build purposes"). Purpose rides
-  every resolved edge and the lock record: the canonical source-closure
-  subject writes purpose-split authored rows and purpose-tagged edges (text
-  v2; legacy v1 decodes as product-only), and locked recovery/comparison in
-  `resolution/graph/resolve/locked/comparison.rs` keys every edge by
-  (requester, purpose, ordinal), so a `build_depend` row resolves only
-  against a selection recorded under Build purpose — a wrong-purpose lock
-  edge or a dropped/repurposed row rejects instead of widening scope.
-  Witnessed green at `20a11975b8` (linux x86-64): `cargo nextest run -p
-  package-manager --test suite -E 'test(~purpose)'` — all 5
-  `dependency_purposes` tests pass, incl.
-  `purpose_tagged_edges_survive_acquisition_review_lock_and_recovery`,
-  `a_wrong_purpose_edge_in_the_lock_text_rejects`, and
-  `dropping_or_repurposing_a_build_row_rejects_locked_recovery`. Adjacent
-  unrelated failure recorded under unrelated_failures:
-  `source_diff_commands::cases::update_to_retargets_both_scope_rows_of_a_dual_purpose_package`
-  fails since `3cf600bbe3` (one-integration-binary consolidation) — the
-  fixture's child re-runs the suite binary with `--exact cases::<test>`,
-  which no longer matches the `source_diff_commands::cases::*` names, so the
-  child runs 0 tests.
 - **C2L-BASELINE-FAILURE-ATTRIBUTION.** Inserted owner row — the name other rows cite as the owner of the checked-trees-to-lowered-psi residual families (scalar-return custody / provider attachment / attached-unit sets); no `**NAME.**` row previously existed. The attribution leg itself is landed: the member-by-member census `wiki/drafts/c2l_failure_census_d936717f.md` (landed `54e321bdf00`) records 2199 members / 24 failures, every one inside an already-owned `known_baseline_failures.md` family, and the §checked-trees-to-lowered-psi ledger re-read stands at `6ef64f6dd6` (2152 run, 2093 passed, 59 failed, 1 SIGTERM). The repair legs the name covers are separately owned and live: scalar-return custody → C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES (live claim, `tests/owned_record_return_source.rs`, 10:35Z); provider attachment / attached-unit sets → C2L-RESIDUAL-FAILURE-ATTRIBUTION's lane plus WRITE-ONLY-BORROW fences; bare fixture spellings → ENTRY-CONTENT-ROOTS; the unattributed tail → C2L-UNATTRIBUTED-FAILURE-TAIL (verified empty at `f43b4e8869c`). No unowned slice remains under this name — it is a ledger-owning umbrella, not a repair row.
   Claim freshness at `7a62e962b2a7` (zergling-168): the recorded scalar-return
   custody claim (~10:35Z) has drained — that family is currently unfenced on
@@ -4773,151 +4751,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **NATIVE-DIFF-HOSTED-RECEIVER-HARNESS-MIGRATION** — mined candidate; verify scope then implement.
 - **NATIVE-I32-REMAINDER-LEGALIZATION** — mined candidate; verify scope then implement.
 - **OBLIGATION-NORMALIZED-IDENTITY** — mined candidate; verify scope then implement.
-- **PACKAGE-ADMISSION-PROJECTION-EARLIEST-FACTS** — mined candidate; scope
-  verified, covered — re-mines the review-projection input-resolution clause
-  in `wiki/spec/packages/review.md` ("read each fact from the earliest
-  coherent compiler-owned representation that establishes its meaning... only
-  final findings enter comparison"). The admission projection already
-  satisfies it: `packages/review/evidence/src/capture/` is exclusively
-  `project_checked_*` — every projected fact (callable, calling, package,
-  boundary-application, selected-provider, representation, conformance, and
-  terminal-permission policies) consumes the checked representation, and
-  `capture/package/mod.rs` refuses standalone/target-free compilations and
-  missing checked facts rather than sourcing them late. Typed/resolved state
-  owns structural identity on the same rows as the resolved
-  PACKAGE-EVIDENCE-* siblings; the genuinely unfinished ledger joins
-  (certificates, transitive open obligations, schema migration, admission
-  decisions in `src/ledger/obligation_ledger.rs`) stay named under
-  PACKAGE-PROJECTION-EVIDENCE-MIGRATION, not here. No independent slice.
-- **PACKAGE-ADMISSION-PROJECTION-EARLIEST-FACTS.** Scope verified at
-  `d7f3c43e302` — re-mines the fact-source rule of
-  `wiki/spec/packages/review.md:46` + `acceptance.md:126` ("read each
-  fact from the earliest coherent compiler-owned representation that
-  establishes its meaning; typed/resolved state owns structural identity,
-  checked facts own acceptance/effects/proof/witnesses/assumptions").
-  That rule is landed in `packages/review/evidence`'s capture joins:
-  `src/capture/` reads authored spans from the earliest owning stage and
-  rejoins checked custody (Source roles in `capture.md` — e.g.
-  `body_call` keeps the authored occurrence joined to checked flow
-  "before provider settlement rewrites identity", `trait_parent` keeps
-  the typed parent application). Witnessed at `d7f3c43e302`:
-  `cargo nextest run -p package-evidence` — 360/373 run passed before
-  the 540s bound; the 13 failures are the recorded `Service<R>`-spelling
-  fixture-drift family (`callable_policy` fixtures reject `in Bound` on
-  `Service<ClockHost>` — "the core `Service` carrier is closed"), owned
-  by the ENTRY-CONTENT-ROOTS cluster, not this surface. Write surface
-  fenced at verification time: `review/evidence/src/capture` is claimed
-  by PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION (dev-88738, exp 04:50Z) and
-  the crate dir by PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION (z112).
-  No independent slice exists.
-- **PACKAGE-ADMISSION-PROJECTION-EARLIEST-FACTS.** Mined candidate —
-  scope verified, covered (same verdict recorded on origin/main):
-  re-mines the review-projection input-resolution clause in
-  `wiki/spec/packages/review.md` ("read each fact from the earliest
-  coherent compiler-owned representation that establishes its meaning…
-  only final findings enter comparison"). The admission projection
-  already satisfies it: `packages/review/evidence/src/capture/` is
-  exclusively `project_checked_*` — every projected fact (callable,
-  calling, package, boundary-application, selected-provider,
-  representation, conformance, and terminal-permission policies)
-  consumes the checked representation, and `capture/package/mod.rs`
-  refuses standalone/target-free compilations and missing checked facts
-  rather than sourcing them late. Typed/resolved state owns structural
-  identity on the same rows as the resolved PACKAGE-EVIDENCE-* siblings;
-  the genuinely unfinished ledger joins (certificates, transitive open
-  obligations, schema migration, admission decisions in
-  `src/ledger/obligation_ledger.rs`) stay named under
-  PACKAGE-PROJECTION-EVIDENCE-MIGRATION, not here. No independent
-  slice.
-- **PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE** — mined candidate; scope verified, covered — same package-evidence contract surface as resolved siblings PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION and PACKAGE-PROJECTION-EVIDENCE-MIGRATION (this section). The resolution-scope leg is already implemented and pinned in `omega-rust/omega/packages/review/evidence/src/capture/`: unique-trait selection rejects non-unique/absent cases at each leg (`provider_schema.rs`, `services/authority.rs`, `calling/application/signature.rs`, `providers/policy/rows.rs`, `terminal_authority_permissions/declarations.rs` — each "has no unique exact declaring trait"), scoped per subject ordinal + selected application + lifetimes + structural arguments. The genuinely unfinished ledger joins (certificates, transitive open obligations, schema migration, admission decisions in `src/ledger/obligation_ledger.rs`) are named under PACKAGE-PROJECTION-EVIDENCE-MIGRATION, not here. Sibling stubs on the same surface: PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION.
-- **PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION.** — mined candidate; scope
-  verified, covered at `c267df86ac` (linux x86-64, claim a8d7bd21 on
-  `packages/review/evidence/src/capture` until 04:50Z). The scope-collision
-  rejection is already implemented and pinned inside
-  `capture/semantics/declarations/provider_schema.rs`: a second
-  `TraitDefinition` bound to the reviewed trait's symbol is the scope
-  collision, and `provider_requirement_schema` rejects it with "selected
-  schema has no unique exact declaring trait" instead of picking one
-  (`provider_requirement_rejects_a_scope_colliding_declaring_trait` PASS,
-  alongside `provider_requirement_rejoins_its_unique_declaring_trait`).
-  Same covered contract surface as resolved siblings
-  PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE and
-  PACKAGE-PROJECTION-EVIDENCE-MIGRATION — the genuinely unfinished joins
-  (certificates, transitive open obligations, schema migration, admission
-  decisions in `src/ledger/obligation_ledger.rs`) are named under
-  PACKAGE-PROJECTION-EVIDENCE-MIGRATION, not here. No independent slice
-  exists under this stub. Unrelated base red observed in-filter:
-  `calling_policy_source::inherited_requirement_retains_declaring_trait_and_concrete_parent_application`
-  expects `pub boundary trait ProcedureBase<Value>` in rendered fixture
-  source — preexisting drift on the base commit, outside this claim.
-- **PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.** Mined candidate;
-  scope verified, covered — the name re-mines the package-evidence contract
-  pair in `omega-rust/omega/packages/review/evidence/EVIDENCE_SCHEMA.md`:
-  uniqueness ("Every provider conformance demand matches a distinct
-  requirement demand, preserving evidence-binder presence, subject ordinal,
-  trait, selected application, lifetimes, and structural arguments") and the
-  overcollection bound ("Equal applications deduplicate only after complete
-  equality while retaining all" distinctions). Both halves are already
-  implemented and pinned in `src/capture/`: unique-trait selection rejects
-  non-unique/absent cases ("selected schema has no unique exact declaring
-  trait" — `semantics/declarations/provider_schema.rs`; "service authority
-  has no unique declaring trait" — `semantics/services/authority.rs`;
-  "calling application has no unique exact boundary trait" —
-  `calling/application/signature.rs`; "lifetime partition has no unique
-  declaring-trait application" — `providers/policy/rows.rs`; "accepted
-  service has no unique exact trait" —
-  `terminal_authority_permissions/declarations.rs`), and deduplication runs
-  only on completely-projected sorted rows
-  (`providers/application_realizations.rs` "deduplicates only equal complete
-  semantic rows", `contracts/facts.rs`, `contracts/propositions/evidence.rs`,
-  `representation.rs` dedup keyed on full row + declaration identity).
-  Tests pin both directions: `tests/boundary_supply/static_telescopes.rs`
-  rejects a duplicated provider demand refining one requirement demand, and
-  `src/capture/calling/application/signature/inheritance/tests.rs` keeps
-  distinct trait lifetime binders collecting. The genuinely unfinished
-  ledger joins (certificates, transitive open obligations, schema migration,
-  admission decisions — `src/ledger/obligation_ledger.rs`) are named under
-  the sibling resolved stub PACKAGE-PROJECTION-EVIDENCE-MIGRATION, not
-  here. Sibling stubs on this surface:
-  PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION.
-- **PACKAGE-PROJECTION-EVIDENCE-MIGRATION.** — mined candidate; scope verified, no independent slice — the name conflates two owned surfaces: the ordinary package-review obligation ledger's unfinished **schema migration** join (`omega-rust/omega/packages/review/evidence/src/ledger/obligation_ledger.rs` lists it beside certificates, subjects, and admission decisions as a separate unfinished join of the ledger row set), and the **contract/bundle encoding migration** that `EVIDENCE_SCHEMA.md` reserves to PROOF-CONTRACT-MIGRATION ("Contract/bundle migration must preserve exact occurrence, substitution, law/member, and witness joins; replacement encodings remain `PROOF-CONTRACT-MIGRATION` work"). Executable evidence projections and nested executable machine applications are explicitly not admitted by adding a review row, so no local implementable slice exists here. Sibling stubs on the same surface: PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION, PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.
-- **PACKAGE-PROJECTION-EVIDENCE-MIGRATION** — mined candidate; scope verified, no independent slice — the name conflates two owned surfaces: the ordinary package-review obligation ledger's unfinished **schema migration** join (`omega-rust/omega/packages/review/evidence/src/ledger/obligation_ledger.rs` lists it beside certificates, subjects, and admission decisions as a separate unfinished join of the ledger row set), and the **contract/bundle encoding migration** that `EVIDENCE_SCHEMA.md` reserves to PROOF-CONTRACT-MIGRATION ("Contract/bundle migration must preserve exact occurrence, substitution, law/member, and witness joins; replacement encodings remain `PROOF-CONTRACT-MIGRATION` work"). Executable evidence projections and nested executable machine applications are explicitly not admitted by adding a review row, so no local implementable slice exists here. Sibling stubs on the same surface: PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION, PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.
-- **PACKAGE-REVIEW-HOTSPOT-ATTRIBUTION** — mined candidate; verify scope then implement.
-- **PACKAGE-PROJECTION-EVIDENCE-MIGRATION** — mined candidate; scope verified, no independent slice — the name conflates two owned surfaces: the ordinary package-review obligation ledger's unfinished **schema migration** join (`omega-rust/omega/packages/review/evidence/src/ledger/obligation_ledger.rs` lists it beside certificates, subjects, and admission decisions as a separate unfinished join of the ledger row set), and the **contract/bundle encoding migration** that `EVIDENCE_SCHEMA.md` reserves to PROOF-CONTRACT-MIGRATION ("Contract/bundle migration must preserve exact occurrence, substitution, law/member, and witness joins; replacement encodings remain `PROOF-CONTRACT-MIGRATION` work"). Executable evidence projections and nested executable machine applications are explicitly not admitted by adding a review row, so no local implementable slice exists here. Re-witnessed at `00f36e8cfa` (linux x86-64): `obligation_ledger.rs:116` still lists certificates, transitive open obligations, schema migration, and local admission decisions as separate unfinished joins, and `EVIDENCE_SCHEMA.md` still reserves replacement encodings to PROOF-CONTRACT-MIGRATION. Sibling stubs on the same surface: PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION, PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.
 
-- **PACKAGE-REVIEW-ROUTE-ATTRIBUTION.** Mined candidate; scope verified at
-  `0977a4249e`: the open reading is dependency-route attribution on the
-  restricted-build grant join —
-  [acceptance.md](wiki/spec/packages/acceptance.md#restricted-build-acceptance)
-  requires each request's originating package *and dependency path*, and
-  `UngrantedRestrictedBuildRequest`
-  (`manager/src/review/restricted_build_grants.rs`) reports package identity,
-  purpose, and request meaning but not the occurrence's route. The machinery
-  exists: `resolution/graph/reconcile/dependency_paths.rs` computes BFS
-  shortest paths with requester/purpose/alias/target steps,
-  `decision/policy/document/render.rs` already renders `- path`/`+ path`
-  per package, and all three join call-sites hold the source closure
-  (`check_project.rs`, `compile_project.rs`, `check_locked_sources.rs`
-  under `operations/`). Slice: thread the `DependencyRequestPath` through
-  the gap record and its `Display`. **Landed (z103):**
-  `UngrantedRestrictedBuildRequest` now carries
-  `request_path: Option<DependencyRequestPath>` — the occurrence's
-  shortest root-to-package route from `dependency_paths.rs`'s BFS — and
-  its `Display` renders `path <root-hex> -> "alias" <target-hex> …` in
-  the decision document's form. `ungranted_restricted_build_requests`
-  takes the joining `ResolvedPackageSourceClosure`; all four call sites
-  (check_project, compile_project, check_locked_sources, and the
-  in-compile checkpoint in package_pass.rs) supply it. Pinned by
-  `supplied_host_scope_requires_exact_retained_request_and_occurrence`'s
-  new route assertions; the four grant-join tests pass at this commit.
-  Historical fence record: every touch point sat under live claims —
-  `review/restricted_build_grants.rs`,
-  `review/candidate`, and `review/decision` are fenced by Zergling-79's
-  BUILD-ADMISSION-CHECKPOINT (expires ~2026-09-21T00:05Z), `operations/` by
-  Jarod's TWO-AXIS-TERMINAL-AUTHORITY-REVIEW, and `manager/src/lock` +
-  `manager/tests/locked_source_checking` by Devin's
-  PACKAGE-LOCK-SOURCE-IDENTITY. Coordinate with those owners before working
-  it.
 - **PHYSICAL-ACCESS-PROFILES.** Resolved — scope verified, already landed. The
   stub names the physical-lane access-profile surface covered at `9ced81e046`
   ("backend: cover every access profile through the mixed structural rejoin"):
@@ -5280,44 +5114,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   nine fail at clean `origin/main` with no local commits. Their assertions are correct as
   written and were deliberately left unrelaxed — relaxing them would mask the regression.
 
-- **REVIEW-INSTANTIATION-CLONE-FREE-SCRATCH.** Mined candidate; scope verified
-  at `d8041919ad`, owned — names the residual the evidence README already
-  records: "Operator and top-level requirement signature capture borrows the
-  checked compilation when there are no static parameters to instantiate;
-  nonempty static parameter lists retain clone-local instantiation"
-  (`omega-rust/omega/packages/review/evidence/README.md`). The clone path is
-  `capture/calling/application/signature/instantiation.rs`: `instantiate`
-  clones each `type_reference` node, `plan_laid_layouts` rows, and full
-  `data_definitions()` entries per recursion. A clone-free slice would read
-  those through borrows and route substitutions/lifetimes through the
-  bounded scratch the surrounding capture already declares. Claim evidence
-  (z181): the item is already claimed — Devin / z36-review-instantiation-
-  clone-free-scratch fences
-  `review/evidence/src/capture/calling/application/signature` until
-  2026-09-21T02:04Z; claim returned exit 2 (same item). Coordinate on the
-  owner's branch; no in-fence work attempted. Re-verified at
-  `9e3edc7be9` (z137): the z36 fence has expired, but the implementing
-  surface stays covered — `review/evidence/src/capture` by
-  PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION (04:50Z) and the whole
-  `omega-rust/omega/packages/review/evidence` tree by
-  PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION (01:23Z). The slice
-  remains owned and unfenced-work-free; coordinate after those leases.
-  owner's branch; no in-fence work attempted. Implemented by that owner
-  (z36): `signature/scratch.rs` now builds an invocation-local `TypedTrees`
-  that seeds only the arenas signature/type-identity reads can index —
-  trait/data/domain/const/proposition/operator declaration tables, state
-  parameters, expression and type-reference arenas, `plan_laid_layouts`,
-  `placed_view_plans`, `semantic_domains`, `external_bindings`,
-  `machine_specializations`, `open_index_normalizations`, and authored
-  declaration-selection custody — while statement, machine-body, measure,
-  wire, and proof arenas stay uncloned. `project_application`,
-  `declaration_parameters`, and `project_declaration` reify into it instead
-  of `compilation.typed.clone()`; `instantiate`'s per-node row writes land
-  in the scratch arena while `Ok(*actual)` passthroughs keep source handles.
-  The remaining whole-tree clone sites under `capture/callables` and
-  `capture/semantics/signatures/policy.rs` belong to their own owners'
-  fences.
-- **REVIEW-RESEAL-ELIMINATION** — mined candidate; verify scope then implement.
+- **REVIEW-RESEAL-ELIMINATION.** Remove repeated identity serialization of the
+  same unchanged in-memory UEFI semantic-wrapper object across construction,
+  encoding and staging validation in
+  `native-realization/src/optimized_semantic_wrapper_object`.
+  Construction already uses `validate_object_preserving_seal`; encoding and
+  trailing staging validation still invoke full object validation. Trace those
+  repeated computations before changing them. Preserve independent decoding,
+  shape/target/template checks and honest-reseal mutation controls. Acceptance:
+  demonstrate fewer duplicate identity computations on the actual staging route,
+  identical valid artifacts and unchanged rejection of corrupted/substituted
+  encoded objects. Do not remove decode-boundary checking or introduce
+  package-acceptance receipts.
 - **ROOT-FILE-DISCIPLINE.** — mined candidate; verify scope then implement.
 - **RUNTIME-SIZED-ACTIVATION-CONTRACT.** Connect the ratified
   [bounded activation claim](wiki/spec/resources/activation_storage.md) to
