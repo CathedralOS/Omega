@@ -3,7 +3,7 @@
 Mechanical sweep at `c2ccb2a202` of every name-keyed map beside the scoped
 symbol tree, under the pipeline ownership rule: "Scoped symbol-tree lookup is
 the baseline; extra lookup maps require a measured reason"
-([pipeline.md](../../omega-rust/pipeline.md)). A name-keyed lookup map here
+([pipeline.md](../../../omega-rust/pipeline.md)). A name-keyed lookup map here
 means a `HashMap`/`BTreeMap` keyed by a `str`/`String`/identifier that resolves
 program declarations — the role the scoped `SymbolTable` already owns. Maps
 keyed by handles, source coordinates, canonical identities, or runtime binder

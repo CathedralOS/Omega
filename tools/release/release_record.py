@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Release-record substrate for the Rust compiler completion matrix.
 
-`wiki/drafts/rust_compiler_completion.md` defines eight named gates and four
+`wiki/drafts/reference/rust_compiler_completion.md` defines eight named gates and four
 required platform runs, and requires the release record to contain the commit,
 pinned Rust toolchain, host OS and architecture, commands, results, elapsed
 time, and the exact list of expected skips. This tool is that record's
@@ -52,7 +52,7 @@ TOOLCHAIN_FILE = ROOT / "rust-toolchain.toml"
 RECORDS_DIR = Path(__file__).resolve().parent / "records"
 
 # The eight gates of the release matrix, verbatim from
-# wiki/drafts/rust_compiler_completion.md. Each gate runs its command block
+# wiki/drafts/reference/rust_compiler_completion.md. Each gate runs its command block
 # through the resolved `mbx`/`cargo` wrapper. A test in
 # tools/tests/test_release_record.py pins this manifest against the document
 # so the substrate cannot silently diverge from the contract it records.

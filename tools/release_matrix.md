@@ -1,7 +1,7 @@
 # Release matrix runner
 
 [release_matrix.py](release_matrix.py) drives the
-[release matrix](../wiki/drafts/rust_compiler_completion.md#release-matrix) —
+[release matrix](../wiki/drafts/reference/rust_compiler_completion.md#release-matrix) —
 the eight named `RC-*` gates plus the four hosted platform rows — and writes
 the release record the contract's closure rule requires. It exists so a gate
 row is exercised by the exact published commands and an incomplete run can

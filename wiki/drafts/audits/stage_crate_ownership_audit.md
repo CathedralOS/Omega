@@ -1,7 +1,7 @@
 # Stage-crate ownership audit
 
 Audit of every pipeline stage crate against the ownership rules in
-[AGENTS.md](../../AGENTS.md) — pipeline crates (`X-to-Y` / `X-to-X`) own
+[AGENTS.md](../../../AGENTS.md) — pipeline crates (`X-to-Y` / `X-to-X`) own
 transformations and private working state, not public program structs
 containing previous stage objects; representations hold durable IR; semantics
 crates hold meaning and independent verification; backends own only
@@ -25,7 +25,7 @@ supersedes it.
 
 Enumerate `src/` top-level files and module directories for all 21 stage
 crates under `omega-rust/{psi,omega}/pipeline/` (the two route tables in
-[omega-rust/pipeline.md](../../omega-rust/pipeline.md)). For each module, read
+[omega-rust/pipeline.md](../../../omega-rust/pipeline.md)). For each module, read
 its entry file and classify the resident code. Foreign-classified modules are
 read further to distinguish a real violation from sanctioned ownership. Grep
 sweeps cover the discriminators the rule names: ISA/OS tokens (`x86`,

@@ -2,7 +2,7 @@
 """Run the Rust product release matrix and write its release record.
 
 Drives the eight named gates and the hosted platform rows of
-wiki/drafts/rust_compiler_completion.md (the "Release matrix" contract) from a
+wiki/drafts/reference/rust_compiler_completion.md (the "Release matrix" contract) from a
 clean checkout, then writes a JSON release record carrying the commit, pinned
 toolchain, host OS/architecture, exact commands, per-command results and elapsed
 time, and the expected-skip list the closure rule requires. A skipped or failed
@@ -31,7 +31,7 @@ from pathlib import Path
 MBX = "mbx"
 CARGO = "cargo"
 
-# Gate table transcribed from wiki/drafts/rust_compiler_completion.md
+# Gate table transcribed from wiki/drafts/reference/rust_compiler_completion.md
 # "Release matrix". Commands keep the contract's exact invocations; the leading
 # "mbx" resolves to the installed mbx or falls back to cargo at run time.
 PACKAGE_AND_BUILD_PACKAGES = [
@@ -320,7 +320,7 @@ def main():
         return 2
 
     record = {
-        "contract": "wiki/drafts/rust_compiler_completion.md#release-matrix",
+        "contract": "wiki/drafts/reference/rust_compiler_completion.md#release-matrix",
         "commit": commit,
         "toolchain": toolchain,
         "host": {"system": platform.system(), "machine": platform.machine()},

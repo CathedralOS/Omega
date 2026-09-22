@@ -232,7 +232,7 @@ inventory or the closed sets stop moving.
 
 ### `std::calling` policy vocabulary
 
-Source: [calling_plans.md](../spec/build/calling_plans.md) — "policies choose
+Source: [calling_plans.md](../../spec/build/calling_plans.md) — "policies choose
 from closed primitives; they cannot emit instructions, supply relocation
 bytes, inspect private carriers, or bypass validation. Extending the
 primitive register, placement, control, or machine-state vocabulary requires
@@ -272,7 +272,7 @@ rather than by a named diagnostic.
 
 ### Checked-assembly catalog
 
-Source: [assembly.md](../spec/language/assembly.md) +
+Source: [assembly.md](../../spec/language/assembly.md) +
 hardware_materialization.md §Checked instructions — entry/exit operations
 (`iretq`, `sysret`, `eret`) are deriver-only; provider-only checked `lidt`
 requires consumer CPU/table publication authority; "the compiler owns that
@@ -291,7 +291,7 @@ source contract are `Refused`, not silently absent.
 
 ### Hardware materialization sealed sources
 
-Source: [hardware_materialization.md](../spec/build/hardware_materialization.md)
+Source: [hardware_materialization.md](../../spec/build/hardware_materialization.md)
 — "a closed symbolic vocabulary distinguishes sealed data symbols and
 entry-stub identities"; "no numeric entry address or arbitrary-offset
 writer is exposed"; a field consumed by the loader must fit the format's
@@ -314,7 +314,7 @@ policy correctness is a separate validation surface, e.g.
 
 ### Installation-bound reach vocabulary
 
-Source: [external_roots.md](../spec/build/external_roots.md) §Installation-bound
+Source: [external_roots.md](../../spec/build/external_roots.md) §Installation-bound
 reach — `reaches <= Bound` is one bounded abstract row; ordinary callable
 contracts cannot carry an unresolved row; installation rejects any remaining
 unresolved row after bound substitution.

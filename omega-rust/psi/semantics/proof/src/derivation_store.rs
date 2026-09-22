@@ -1,6 +1,6 @@
 //! Semantic index over retained proof derivations.
 //!
-//! `wiki/drafts/proof_search_cache.md` explores retaining a successful
+//! `wiki/drafts/reference/proof_search_cache.md` explores retaining a successful
 //! derivation so an unchanged obligation does not repeat proof search. This
 //! module is the lookup substrate that draft requires: untrusted derivations
 //! stored in a content arena, indexed by each obligation's canonical

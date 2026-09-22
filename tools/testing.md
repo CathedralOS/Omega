@@ -87,14 +87,14 @@ Unlike the selector, this command does not add source-reader edges or audits.
 [Nextest configuration](../.config/nextest.toml) disables retries, reserves the
 whole test pool for process resource-limit cases, and schedules long package
 fixtures early without a universal thread cap. Doctests remain a separate Cargo
-test mode. [Temporary Windows measurements](../wiki/drafts/test_cycle_measurements.md)
+test mode. [Temporary Windows measurements](../wiki/drafts/measurements/test_cycle_measurements.md)
 explain why neither a thread cap nor nextest alone has an established full-suite
 speedup.
 
 ## Release matrix
 
 [release_matrix.py](release_matrix.py) runs the
-[release matrix](../wiki/drafts/rust_compiler_completion.md#release-matrix):
+[release matrix](../wiki/drafts/reference/rust_compiler_completion.md#release-matrix):
 the eight `RC-*` gates with their exact contract invocations plus the hosted
 platform rows, and writes the release record (`commit`, toolchain, host,
 commands, results, elapsed time, expected skips). It does not substitute for

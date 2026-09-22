@@ -1,7 +1,7 @@
 # Pipeline placement audit
 
 Mechanical sweep at `37d18e2104` of code placement against the
-[placement and semantic ownership](../../omega-rust/pipeline.md) table. Scope:
+[placement and semantic ownership](../../../omega-rust/pipeline.md) table. Scope:
 which ownership bucket each retained construct sits in, not whether the
 construct itself is correct. A finding means the code lives in the wrong
 bucket; it does not mean the code is wrong. Delete this audit once every open

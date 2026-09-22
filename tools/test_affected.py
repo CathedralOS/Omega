@@ -50,7 +50,7 @@ DOCUMENTATION_TEST = (
 )
 
 # Measured multi-minute library tests by owning package
-# (wiki/drafts/test_cycle_selection_remeasurement.md), and the routine-diff
+# (wiki/drafts/measurements/test_cycle_selection_remeasurement.md), and the routine-diff
 # exclusion list decided for them. A reverse-dependency selection that picks up
 # native-realization otherwise drags ~800 s of runtime stress cases its diff
 # cannot affect; a diff under the owner's own src/ keeps its tail because that

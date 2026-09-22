@@ -1,8 +1,8 @@
 # Matching-logic external proof import
 
 Checked importer for the "external proof import" leg of the matching-logic
-bounded comparison ([source draft](../../wiki/drafts/matching_logic.md),
-[design record](../../wiki/drafts/matching_logic_external_proof_import.md)).
+bounded comparison ([source draft](../../wiki/drafts/reference/matching_logic.md),
+[design record](../../wiki/drafts/reference/matching_logic_external_proof_import.md)).
 It consumes a foreign flat-step proof export
 (`external-arithmetic-proof/1`), translates each step into the bounded
 slice checker's tree certificate

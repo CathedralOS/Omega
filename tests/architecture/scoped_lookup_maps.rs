@@ -2,7 +2,7 @@
 //!
 //! `omega-rust/pipeline.md` owns the rule: "Scoped symbol-tree lookup is the
 //! baseline; extra lookup maps require a measured reason."
-//! `wiki/drafts/lookup_map_justification.md` ran the census at `c2ccb2a202`:
+//! `wiki/drafts/audits/lookup_map_justification.md` ran the census at `c2ccb2a202`:
 //! every `HashMap`/`BTreeMap` keyed by an authored-spelling token beside the
 //! scoped symbol tree resolves a key domain the tree cannot serve — a
 //! substitution environment, an activated evaluation frame, a canonical

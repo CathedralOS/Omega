@@ -4,8 +4,8 @@ Purpose: retain research background and possible comparison methods for matching
 logic. This is not a concrete integration proposal or authorization for a new
 calculus, kernel replacement, or implementation experiment. Delete these notes
 when superseded by a concrete design or no longer useful. Related subjects:
-[proof contracts](../spec/proofs/contracts.md) and
-[artifact verification](../spec/terminal-psi/verification.md).
+[proof contracts](../../spec/proofs/contracts.md) and
+[artifact verification](../../spec/terminal-psi/verification.md).
 
 ## Motivation
 

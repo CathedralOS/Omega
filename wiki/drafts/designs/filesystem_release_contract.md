@@ -7,7 +7,7 @@ stop.
 
 ## What the item owns
 
-The [bounded occurrence-specific release proof](wiki/spec/build/permissions.md#bounded-occurrence-specific-release-proof)
+The [bounded occurrence-specific release proof](../../spec/build/permissions.md#bounded-occurrence-specific-release-proof)
 for a program's own open/query/close occurrence:
 
 1. Program-side derivation as retained Terminal evidence through checked flow —

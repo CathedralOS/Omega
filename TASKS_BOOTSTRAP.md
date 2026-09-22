@@ -74,7 +74,7 @@ it does not close a proof edge. Do not redirect all effort to execution merely b
 checker has a longer acceptance path.
 
 Full self-hosting remains dependent on settled exercised Omega behavior, the
-[Rust product completion plan](wiki/drafts/rust_compiler_completion.md),
+[Rust product completion plan](wiki/drafts/reference/rust_compiler_completion.md),
 complete D, and `OMEGA-PRODUCT-COMPILER-SOURCE` in [TASKS.md](TASKS.md).
 Rust remains a comparator, not bootstrap authority. Optimization matters where
 measured execution or audit feasibility requires it, not as an unbounded

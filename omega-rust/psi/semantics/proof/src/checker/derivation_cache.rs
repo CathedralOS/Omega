@@ -1,7 +1,7 @@
 //! Retained-derivation recheck cache consulted by the bounded certificate
 //! routes inside `check_proof_plan`.
 //!
-//! `wiki/drafts/proof_search_cache.md` explores retaining a successful
+//! `wiki/drafts/reference/proof_search_cache.md` explores retaining a successful
 //! derivation so an unchanged obligation does not repeat proof search; the
 //! `derivation_store` index is the lookup substrate and this module is the
 //! consultation policy the draft requires: before a certificate route

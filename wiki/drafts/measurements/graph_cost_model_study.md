@@ -1,7 +1,7 @@
 # Graph cost-model study
 
 Status: exploratory study of the question
-[learned_optimization_policy.md](learned_optimization_policy.md) poses — whether
+[learned_optimization_policy.md](../reference/learned_optimization_policy.md) poses — whether
 features of the compiler's typed operation/state graphs could rank optimization
 candidates before expensive measurement. This study authorizes no
 implementation and no model; it inventories the existing structural seams and
@@ -11,7 +11,7 @@ candidate and validation boundaries, not a second compiler path. Delete this
 study once a measured workload corpus shows whether graph features beat
 `predicted_cost_delta`, or when the learned-policy question closes.
 
-Affected subject: [optimization selection and validation](../spec/build/optimizations.md).
+Affected subject: [optimization selection and validation](../../spec/build/optimizations.md).
 
 ## The question
 

@@ -2,8 +2,8 @@
 
 Deterministic encoder for the "typed-to-one-sorted encoding" leg of the
 matching-logic bounded comparison ([source
-draft](../../wiki/drafts/matching_logic_sort_encoding.md), motivated by
-[matching_logic.md](../../wiki/drafts/matching_logic.md)). It turns a typed
+draft](../../wiki/drafts/reference/matching_logic_sort_encoding.md), motivated by
+[matching_logic.md](../../wiki/drafts/reference/matching_logic.md)). It turns a typed
 subject schema (`cases/*.json`) into the one-sorted finitary basic fragment's
 clause inventory: membership predicates and range refinements, disjointness
 and definedness preconditions, pair-constructor injectivity, revision

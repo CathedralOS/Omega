@@ -2,7 +2,7 @@
 
 Audit of coordinator and entry files against the two rules they answer to:
 "Coordinators stay boring — sequence typed phases and stop"
-([AGENTS.md](../../AGENTS.md)) and the discoverability rule that an entry
+([AGENTS.md](../../../AGENTS.md)) and the discoverability rule that an entry
 file owns "input preparation, phase ordering or dispatch, subordinate work,
 and result/error handling" — not the domain computation itself. Audited at
 `210ffe3c93` (post `tools: release-record substrate`).

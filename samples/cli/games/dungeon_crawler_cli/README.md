@@ -20,7 +20,7 @@ This is a language pressure test, not a working-native-support claim.
 do not establish that the current compiler can produce or execute this sample
 on any of them. The verified Terminal/native route still has unsupported
 constructs; see [native realization](../../../../omega-rust/omega/compiler/native-realization/README.md)
-and the [compiler completion plan](../../../../wiki/drafts/rust_compiler_completion.md).
+and the [compiler completion plan](../../../../wiki/drafts/reference/rust_compiler_completion.md).
 
 The intended interactive path accepts commands at a live terminal. The closed-
 stdin acceptance case instead reaches EOF at the first prompt and should exit

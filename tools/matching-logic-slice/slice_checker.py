@@ -2,7 +2,7 @@
 """Bounded vertical-slice checker for one-sorted finitary basic matching logic.
 
 Implements the candidate side of the bounded comparison drafted in
-``wiki/drafts/matching_logic.md``: one real vertical slice with scalar
+``wiki/drafts/reference/matching_logic.md``: one real vertical slice with scalar
 propositions, equality, quantification, a Terminal state transition, and a
 refinement obligation the checker reconstructs from the canonical subject.
 
@@ -54,7 +54,7 @@ CASE_SCHEMA = "omega-matching-logic-slice-case/1"
 CERT_SCHEMA = "omega-matching-logic-certificate/1"
 RECORD_SCHEMA = "omega-matching-logic-slice-record/1"
 FRAGMENT = "one-sorted finitary basic matching logic, no fixpoint symbols"
-SEMANTICS_DOC = "wiki/drafts/matching_logic.md"
+SEMANTICS_DOC = "wiki/drafts/reference/matching_logic.md"
 
 RULES = (
     "axiom", "assumption", "hypothesis", "implies_intro", "modus_ponens",

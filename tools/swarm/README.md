@@ -233,7 +233,7 @@ Pick items that are:
 
 - runnable on the assigned host — Linux x86-64 for cloud sessions; a local
   session takes this machine's host, including its gaps (Intel macOS has no
-  host profile; see `wiki/drafts/known_baseline_failures.md`),
+  host profile; see `wiki/drafts/measurements/known_baseline_failures.md`),
 - non-overlapping: the launcher rejects parent/child `owning_paths` overlaps
   inside a manifest and conflicts with live claims; still review shared
   dependencies, since path checks cannot catch every semantic coupling,

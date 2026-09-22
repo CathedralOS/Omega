@@ -208,7 +208,7 @@ Do not build a trainer, training corpus pipeline, model evaluator, or inference
 integration in the Rust reference compiler. A future learned policy belongs to
 separately justified work on the Omega-written product compiler and would choose
 through these same candidate and validation boundaries, not a second compiler
-path. [Learned search](../../drafts/learned_optimization_policy.md) remains
+path. [Learned search](../../drafts/reference/learned_optimization_policy.md) remains
 exploratory background, not a current implementation requirement.
 
 ## Release rollback and promotion

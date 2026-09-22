@@ -6,7 +6,7 @@ The revoked spelling is the bracketed scalar range annotation — `u64 [1..=8]`,
 `tokens-to-syntax-trees/src/type_syntax/parse_type.rs` (~:779) as
 `TypeConstraintNode::Range`, both inclusive and exclusive forms. The owner
 decision is settled in
-[domains](../spec/language/domains.md#declaration-and-membership): scalar types
+[domains](../../spec/language/domains.md#declaration-and-membership): scalar types
 have no bracketed range-annotation suffix; bounds come from `requires`,
 `ensures`, guards and arithmetic as ordinary proof facts, and a published
 reusable bound is declared as a predicate domain and spelled `T in Domain`.

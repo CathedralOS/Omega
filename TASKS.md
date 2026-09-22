@@ -1,7 +1,7 @@
 # Tasks
 
 Unfinished product and language work for the Rust reference compiler. The
-[completion plan](wiki/drafts/rust_compiler_completion.md) defines acceptance;
+[completion plan](wiki/drafts/reference/rust_compiler_completion.md) defines acceptance;
 this board identifies remaining work, not a passing baseline.
 
 | Start here | Purpose |
@@ -40,7 +40,7 @@ build authority, and artifact verification remain separate obligations.
 
 Prioritize unchanged customer programs reaching native execution over additional
 evidence carriers without an exercising program. The
-[Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md) defines
+[Rust compiler completion plan](wiki/drafts/reference/rust_compiler_completion.md) defines
 the complete product bar; focused successes below do not establish that baseline.
 
 - **REMOVE-BRACKETED-RANGE-ANNOTATIONS.** (new-scope) Delete the revoked
@@ -53,7 +53,7 @@ the complete product bar; focused successes below do not establish that baseline
   Owners: Psi's `tokens-to-syntax-trees/src/type_syntax/parse_type.rs`,
   syntax/resolved/typed Range variants, range-shell generic matching, endpoint
   folding, and `validation/src/proof_contracts/arithmetic_domains/`.
-  Use the [migration recipe](wiki/drafts/range_suffix_migration.md). Libraries
+  Use the [migration recipe](wiki/drafts/designs/range_suffix_migration.md). Libraries
   still need migration, including scalar fields in `std/calling.omg`; this is
   distinct from the Binding carrier rename. Migrate compiler source, tests and
   samples too, including Epsilon's
@@ -175,7 +175,7 @@ the complete product bar; focused successes below do not establish that baseline
   do not silently change working directories.
 
 - **SAMPLE-CORPUS.** Close maintained `samples/cli|gui|uefi` through the
-  [Rust product gates](wiki/drafts/rust_compiler_completion.md#release-matrix):
+  [Rust product gates](wiki/drafts/reference/rust_compiler_completion.md#release-matrix):
   checked semantics, native products for authored targets, and documented
   exit/output on matching hosts. `compiler/tests/samples_compile.rs`, sample
   commands and the actual failing stage own integration; application submodules
@@ -201,7 +201,7 @@ the complete product bar; focused successes below do not establish that baseline
   | `calculator_rpn` | Reproduce `Main::add`'s indexed nested-field initialization failure with the actual Console-bearing receiver; the recorded std-free reduction passes. **STATE-LOCAL-VALUE-FRONTIER** owns ordinary indexed reads/local construction. Follow the callee's recorded omission, not just the caller's `UnavailableCallee` label, and preserve the full sample's storage and arithmetic. |
   | Bounded Console input | Finish selected-dispatch/provider/call transport under [bounded input](wiki/spec/resources/bounded_input.md): exact prefix/destination, once-only effects, cleanup, blocking/crash contracts, zero-capacity non-consumption, LF/EOF/Full, untouched tails, alias rejection, caller continuation, failure and invalid-result controls. Keep prefix guards until count-to-extent evidence exists. |
 
-  The [sample reductions](wiki/drafts/checking_contract_exit_fact_cost.md#the-unavailablecallee-chain-and-why-it-misleads)
+  The [sample reductions](wiki/drafts/measurements/checking_contract_exit_fact_cost.md#the-unavailablecallee-chain-and-why-it-misleads)
   locate the `calculator_rpn` failure at
   `let a: i32 in Saturating = self.stack.slots[0]`. Reproduce comparisons on
   one binary with equivalent package/entry inputs; a dependency-review failure
@@ -1717,7 +1717,7 @@ syntax and other terminal services are not prerequisites.
   migration owned by REMOVE-BRACKETED-RANGE-ANNOTATIONS. Route mutable dynamic
   dispatch through FINITE-GENERIC-DISPATCH, common reference identity through
   STRUCTURAL-BORROW-IDENTITY, and sequencing through STATE-LOCAL-VALUE-FRONTIER.
-  Consult the [parked IEEE recovery record](wiki/drafts/write_only_borrow_ieee_store_branch.md)
+  Consult the [parked IEEE recovery record](wiki/drafts/designs/write_only_borrow_ieee_store_branch.md)
   before duplicating work; its unpublished tip is not available in this checkout.
 
   Acceptance: move repaired `terminal_psi_indexed_receivers/frontier_pins`
@@ -2221,7 +2221,7 @@ syntax and other terminal services are not prerequisites.
     **MATCH-SELECTIVE-LOWERING**, retaining the checked/lowered selected-call joins.
   - Migrate library/corpus/embedded-test declarations and remove the old parser
     and representation consumers. Use the
-    [retirement inventory](wiki/drafts/operator_introducer_retirement_inventory.md)
+    [retirement inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md)
     for navigation, not as a current census. Tokenless boundary rows depend on
     **TOP-LEVEL-BOUNDARY-REQUIREMENTS**, including generic requirements.
     Trait/domain token signatures need ordinary `machine` grammar: the trait
@@ -2536,7 +2536,7 @@ syntax and other terminal services are not prerequisites.
     `packages/review/evidence/src/capture/providers/policy/replay.rs::validate`
     currently reconstructs these plans as authored candidates and rejects
     their deliberately invalid realization symbols. See the
-    [source-backed diagnosis](wiki/drafts/toolchain_settled_plan_provenance_replay.md).
+    [source-backed diagnosis](wiki/drafts/designs/toolchain_settled_plan_provenance_replay.md).
     Validate the settled target/schema/rows; do not exempt ordinary
     `UniqueCoveringCandidate` plans. Require successful review projection of
     the accepted Linux plan, plus rejection of changed settlement identity,
@@ -3646,7 +3646,7 @@ syntax and other terminal services are not prerequisites.
 
 ## Rust compiler release closure
 
-The [completion contract](wiki/drafts/rust_compiler_completion.md) requires
+The [completion contract](wiki/drafts/reference/rust_compiler_completion.md) requires
 eight passing gates at one clean commit and the four matching-host runs.
 The tasks below own evidence closure; capability repairs stay with their
 implementation owners. Historical records are attribution leads, not current
@@ -3692,14 +3692,14 @@ but report the missing runtime leg explicitly; it does not close that host row.
   do not exclude failing crates. Owners: repository gates and each failing
   crate. Repair attributed failures through their capability owners, then
   record the complete result through RC-RELEASE-RECORD-AND-CLOSURE.
-  [Failure attribution](wiki/drafts/known_baseline_failures.md) is dated
+  [Failure attribution](wiki/drafts/measurements/known_baseline_failures.md) is dated
   starting evidence, not a reason to repeat fixed lint/fixture repairs or
   combine results across revisions/hosts. Acceptance: all five commands pass
   at the release commit, with failures and skips accounted for by exact test
   names rather than another chronology on this board.
 
 - **RC-BUILD-AND-PACKAGES.** Close all three build/package command blocks in
-  the [completion contract](wiki/drafts/rust_compiler_completion.md#release-matrix):
+  the [completion contract](wiki/drafts/reference/rust_compiler_completion.md#release-matrix):
   the seven-package nextest run, those packages' doctests, and the six compiler
   integration targets (`build_config_granted`, `build_log_facet`,
   `build_target_activation`, `checked_build_machine_identity`,
@@ -3809,7 +3809,7 @@ deliverable host runs, not four implementations of the gate.
 
 ## Omega-written compiler (after Rust completion)
 
-Finish the Rust [completion contract](wiki/drafts/rust_compiler_completion.md)
+Finish the Rust [completion contract](wiki/drafts/reference/rust_compiler_completion.md)
 before starting the product-language migration. Rust can remain a differential
 implementation afterward, but neither Rust agreement nor Rust-specific machinery
 is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.

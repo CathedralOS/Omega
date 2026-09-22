@@ -18,8 +18,8 @@ served board clause (TASKS.md "Remaining work" — the `&dyn` erased-lane
 refusal) is unchanged. The three-leg channel stands as designed; the item
 resolves only when the canary flips, per the evidence clause.
 
-Affected subjects: [relevance and erased parameters](../spec/terminal-psi/structural_access.md),
-[dynamic dispatch custody](../spec/terminal-psi/dynamic_dispatch.md).
+Affected subjects: [relevance and erased parameters](../../spec/terminal-psi/structural_access.md),
+[dynamic dispatch custody](../../spec/terminal-psi/dynamic_dispatch.md).
 
 ## Current state
 

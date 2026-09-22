@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Comparison metrics record for the proof-checking route.
 
-``wiki/drafts/matching_logic.md#possible-bounded-comparison`` requires that
+``wiki/drafts/reference/matching_logic.md#possible-bounded-comparison`` requires that
 any matching-logic comparison measure checker, translation, and theory size;
 certificate size and checking time; and every imported rule, assumption, or
 trusted bridge — over identical pinned positive and negative cases. This tool

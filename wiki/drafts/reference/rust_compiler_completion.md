@@ -62,7 +62,7 @@ mbx nextest run -p compiler --test build_config_granted --test build_log_facet -
 ```
 
 Commands work in PowerShell and a POSIX shell as written. Use Cargo if `mbx` is
-unavailable; follow [testing prerequisites](../../AGENTS.md#cargo-wrapper).
+unavailable; follow [testing prerequisites](../../../AGENTS.md#cargo-wrapper).
 Unset canary/sample filters for release coverage and retain the exact selected
 test set. Nextest does not run doctests; the separate invocations above preserve
 that coverage. A filtered or empty run cannot satisfy a full gate.

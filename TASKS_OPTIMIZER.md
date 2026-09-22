@@ -528,7 +528,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
 - **BENCHMARKS.** Complete missing subject/selection/target measurements
   through [tools/benchmark](tools/benchmark/README.md), using the existing
-  record schema and generated [benchmark matrix](wiki/drafts/benchmarks.md).
+  record schema and generated [benchmark matrix](wiki/drafts/measurements/benchmarks.md).
   Linux native and enabled/disabled selection rows, cross-target compile rows,
   a measured macOS ARM64 selected row, and a compile-only structural-proofs
   row already exist; do not rebuild the harness or repeat first-row work.

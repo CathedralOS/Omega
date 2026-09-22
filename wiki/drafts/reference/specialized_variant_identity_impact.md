@@ -7,8 +7,8 @@ analysis of existing identity machinery, not an authorization for a
 variant-emitting pass or a new identity kind. Delete these notes when a
 producer that emits variants lands or the referenced machinery changes.
 
-Affected subjects: [optimization selection and validation](../spec/build/optimizations.md)
-and [artifact verification](../spec/terminal-psi/verification.md).
+Affected subjects: [optimization selection and validation](../../spec/build/optimizations.md)
+and [artifact verification](../../spec/terminal-psi/verification.md).
 
 ## What exists today
 

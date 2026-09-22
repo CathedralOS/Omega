@@ -3,7 +3,7 @@
 Board items: `MATCHING-LOGIC-VERTICAL-SLICE` (candidate checker leg of
 `MATCHING-LOGIC-BOUNDED-SLICE`). Implements the bounded vertical slice
 drafted in
-[wiki/drafts/matching_logic.md](../../wiki/drafts/matching_logic.md)
+[wiki/drafts/reference/matching_logic.md](../../wiki/drafts/reference/matching_logic.md)
 ("Possible bounded comparison"): one slice with scalar propositions,
 equality, quantification, a Terminal state transition, and a refinement
 obligation the checker reconstructs from the canonical subject.

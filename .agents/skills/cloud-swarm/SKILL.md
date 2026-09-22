@@ -310,7 +310,7 @@ flight. When unfenced items run out, do NOT park the pool:
 - **Surplus work order.** When unfenced board items run out, route the reserve
   in this order: (1) split multi-path items, (2) retry waves on lapsed fences,
   (3) **mine legs** — a worker reads a doc/board section
-  (`wiki/drafts/known_baseline_failures.md`, `rust_compiler_completion.md`,
+  (`wiki/drafts/measurements/known_baseline_failures.md`, `rust_compiler_completion.md`,
   remaining OPTIMIZER/BOOTSTRAP legs, `samples/apps/*/TASKS.md`) and returns
   `mine_report` with candidate items; the coordinator dedupes them into real
   board items (commit to TASKS.md is authorized), (4) **fuzz legs** — a worker

@@ -75,7 +75,7 @@ is a weakening of a soundness-adjacent check, not a fix.
 `omega --check` on a reduction that fails *inside* `omega-language-std` never
 reaches the root program, so such a run cannot answer any question about the
 root program. Several bisection variants in the sibling record
-([checking_contract_exit_fact_cost.md](checking_contract_exit_fact_cost.md))
+([checking_contract_exit_fact_cost.md](../measurements/checking_contract_exit_fact_cost.md))
 are uninformative for exactly this reason.
 
 Worse, a long bisection can straddle a rebase. Two runs of one unchanged

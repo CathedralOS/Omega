@@ -24,7 +24,7 @@ spines require `4*N+13` work: index3, two row checks, two comparisons costing
 `4*N+4`, and four final-root transitions. These expectations are derived before
 execution, not learned from output. This measures one full-size prerequisite,
 not certificate production, Beta semantics, or full encoding-proof feasibility.
-See the [cost investigation](../../../wiki/drafts/bootstrap_cost_review.md).
+See the [cost investigation](../../../wiki/drafts/reference/bootstrap_cost_review.md).
 
 `sh tests/gamma/beta-encoding-theory/run.sh --counter-cost` selects the separate
 [counter recipe probe](counter_cost.py). It reuses the existing literal successor
@@ -296,4 +296,4 @@ evaluator measures 3,182,484 rows and 135,451,492 request bytes — 16.1 times
 the request provision — so it is produced and measured but not admissible.
 Accepted artifact custody remains outside this gate's claim. See the
 [complete encoding acceptance](../../../bootstrap/proofs/beta_encoding/ACCEPTANCE.md)
-and the [cost review](../../../wiki/drafts/bootstrap_cost_review.md).
+and the [cost review](../../../wiki/drafts/reference/bootstrap_cost_review.md).

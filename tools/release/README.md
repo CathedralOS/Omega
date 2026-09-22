@@ -1,7 +1,7 @@
 # Release-record substrate
 
 `release_record.py` is the substrate for the release record required by
-[the completion contract](../../wiki/drafts/rust_compiler_completion.md#closure-rule):
+[the completion contract](../../wiki/drafts/reference/rust_compiler_completion.md#closure-rule):
 the record must contain the commit, pinned Rust toolchain, host OS and
 architecture, commands, results, elapsed time, and the exact list of expected
 skips. The tool owns the eight-gate manifest verbatim, runs a gate's command

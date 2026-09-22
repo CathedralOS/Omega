@@ -1,7 +1,7 @@
 # Bootstrap cost investigation
 
 Temporary evidence for P1 encoder feasibility and bounded Delta simplification
-on [the bootstrap board](../../TASKS_BOOTSTRAP.md). This is engineering evidence,
+on [the bootstrap board](../../../TASKS_BOOTSTRAP.md). This is engineering evidence,
 not an owner ruling, admitted artifact, or complete-chain proof. Both named
 comparisons are now decided; each section records its decision above the
 retained measurements. The Delta section persists because its numbers back the
@@ -11,7 +11,7 @@ account for the paused consolidated candidate: delete it when the complete
 definition package and integrated recipe replace its extrapolations with actual
 full-subject costs, or when an owner ruling retires the route. Delete this
 draft when both sections are absorbed or superseded.
-The [minimization contract](../../bootstrap/MINIMIZATION.md) owns the review rules.
+The [minimization contract](../../../bootstrap/MINIMIZATION.md) owns the review rules.
 
 ## Delta simplification
 
@@ -40,7 +40,7 @@ than simplifying the chain:
   pre-normalization expectations. Removing either summary removes its
   consumer's evidence, not only private metadata.
 - The shared-prefix name cursor stays without expansion, as its
-  [owner README](../../bootstrap/3_delta/implementation/checking/names/README.md)
+  [owner README](../../../bootstrap/3_delta/implementation/checking/names/README.md)
   already records; the measured removal cost below bought no conformance or
   failure-behavior improvement.
 
@@ -57,7 +57,7 @@ At `59e73ffef81b550c0eac4946b0e40970dc90942b`, normalization left 724
 definitions at maximum Gamma height 69 and generated no helpers. This does
 not establish that normalization is unnecessary for Delta's deeper admitted
 sources. The [normalization gate](../../tests/delta/normalization/run.sh) and
-[Gamma containment argument](../../bootstrap/2_gamma/EVALUATOR_PROFILE.md#containment-argument)
+[Gamma containment argument](../../../bootstrap/2_gamma/EVALUATOR_PROFILE.md#containment-argument)
 own that separate obligation. Compare exact complete emission from the
 original plan before proposing removal; do not remove height/extent metadata
 also consumed by emission or narrow the language to fit this customer.
@@ -69,7 +69,7 @@ on that subject. Both receipts matched the selected evaluator's exact
 this is cumulative allocation, not live memory or host RSS. Both fit the
 selected provision. Single-run timings do not establish a throughput gain.
 The decision above retains the
-[existing cursor](../../bootstrap/3_delta/implementation/checking/names/README.md)
+[existing cursor](../../../bootstrap/3_delta/implementation/checking/names/README.md)
 without expansion; neither customer fit nor
 this isolated comparison closes full parameter, constructor, or match limits.
 Both investigations ran on macOS arm64; no Windows result is claimed.
@@ -77,11 +77,11 @@ Both investigations ran on macOS arm64; no Windows result is claimed.
 ## P1 complete-route feasibility
 
 The next unit and scope pause belong to the
-[complete encoder candidate](../../bootstrap/proofs/beta_encoding/ENCODER_CANDIDATE.md).
+[complete encoder candidate](../../../bootstrap/proofs/beta_encoding/ENCODER_CANDIDATE.md).
 Its customer is the exact selected evaluator source/tape in
-[the Gamma profile](../../bootstrap/2_gamma/EVALUATOR_PROFILE.md), not another
+[the Gamma profile](../../../bootstrap/2_gamma/EVALUATOR_PROFILE.md), not another
 literal instruction proof. The
-[complete encoding subject](../../bootstrap/proofs/beta_encoding/ACCEPTANCE.md)
+[complete encoding subject](../../../bootstrap/proofs/beta_encoding/ACCEPTANCE.md)
 requires complete error-valued Beta definitions, independently constructed
 source/tape/limits/theory ownership, and a source-owned untrusted producer.
 An encoding certificate would still leave evaluator correctness separately
@@ -272,8 +272,8 @@ Do not select a larger profile from these costs.
 ## Coherent provisions
 
 Compare the integrated recipe against the
-[checker checking/allocation ledger](../../bootstrap/proofs/checker/CHECKING.md),
-[comparison argument](../../bootstrap/proofs/checker/COMPARISON.md#amortized-allocation-argument),
+[checker checking/allocation ledger](../../../bootstrap/proofs/checker/CHECKING.md),
+[comparison argument](../../../bootstrap/proofs/checker/COMPARISON.md#amortized-allocation-argument),
 and Gamma's enclosing frame and arena, not a work-limit constant alone.
 The current request/work provisions are 8 MiB and 655,360 work; larger private
 provisions are candidates, not demonstrated fits or changes to language laws.
@@ -297,7 +297,7 @@ A larger Gamma frame requires a coherent memory layout and exact/adjacent
 failure controls. Tighter allocation accounting must cover accepted, rejected,
 and interrupted requests, not only cheap successful branches. If full costs
 justify more native backing, compare a fixed zeroed startup allocation against
-the [static image constraints](../../bootstrap/0_alpha/README.md), preserving
+the [static image constraints](../../../bootstrap/0_alpha/README.md), preserving
 the same monotone arena and auditing both host realizations and allocation
 failure. No new allocator, opcode, or accelerator is authorized by this option.
 
