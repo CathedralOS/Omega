@@ -33,7 +33,7 @@ use super::{
     ValidatedConditionMaterialization,
 };
 use crate::ValidatedSelectedAnalysis;
-use crate::peepholes::condition_flow;
+use crate::rewrites::unexecuted::peepholes::condition_flow;
 
 /// Independently consume the proposed program: the replay re-derives the
 /// decided materialization and its reconstructed `MaterializeI64` from the

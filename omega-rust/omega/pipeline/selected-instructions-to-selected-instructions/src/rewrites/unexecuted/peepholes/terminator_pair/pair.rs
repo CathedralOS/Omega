@@ -39,7 +39,7 @@ use selected_instructions::{
 };
 
 use crate::analyses::machine_effects::machine_semantic_kind;
-use crate::peepholes::condition_flow::ConditionOperandResolution;
+use crate::rewrites::unexecuted::peepholes::condition_flow::ConditionOperandResolution;
 
 /// The implicit physical-unit relationship the rewrite asserts between the
 /// producer's definitions and the consumer's uses — the unit roles the
@@ -269,7 +269,7 @@ impl TerminatorPairRule {
     ) -> bool {
         match self.unit_flow() {
             TerminatorPairUnitFlow::ConditionStateResolved => {
-                crate::peepholes::condition_flow::resolved_unit_surface(
+                crate::rewrites::unexecuted::peepholes::condition_flow::resolved_unit_surface(
                     flag_uses, plain_uses, consumer, rewritten,
                 )
             }

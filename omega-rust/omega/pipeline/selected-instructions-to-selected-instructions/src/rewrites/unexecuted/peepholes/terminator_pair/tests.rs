@@ -1,9 +1,9 @@
-use crate::TerminatorPairError;
-use crate::TerminatorPairReceipt;
 use crate::ValidatedSelectedAnalysis;
-use crate::ValidatedTerminatorPair;
-use crate::fold_selected_terminator_pair;
-use crate::validate_terminator_pair_fold;
+use crate::rewrites::unexecuted::peepholes::TerminatorPairError;
+use crate::rewrites::unexecuted::peepholes::TerminatorPairReceipt;
+use crate::rewrites::unexecuted::peepholes::ValidatedTerminatorPair;
+use crate::rewrites::unexecuted::peepholes::fold_selected_terminator_pair;
+use crate::rewrites::unexecuted::peepholes::validate_terminator_pair_fold;
 use crate::validated_machine_effect_catalog;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};

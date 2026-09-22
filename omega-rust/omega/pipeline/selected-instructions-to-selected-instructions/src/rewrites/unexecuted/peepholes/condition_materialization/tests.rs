@@ -1,9 +1,9 @@
-use crate::ConditionMaterializationError;
-use crate::ConditionMaterializationReceipt;
-use crate::ValidatedConditionMaterialization;
 use crate::ValidatedSelectedAnalysis;
-use crate::fold_selected_condition_materialization;
-use crate::validate_condition_materialization_fold;
+use crate::rewrites::unexecuted::peepholes::ConditionMaterializationError;
+use crate::rewrites::unexecuted::peepholes::ConditionMaterializationReceipt;
+use crate::rewrites::unexecuted::peepholes::ValidatedConditionMaterialization;
+use crate::rewrites::unexecuted::peepholes::fold_selected_condition_materialization;
+use crate::rewrites::unexecuted::peepholes::validate_condition_materialization_fold;
 use crate::validated_machine_effect_catalog;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::ValueDefinitionSite;
@@ -1231,7 +1231,7 @@ fn validated_results_compose_with_terminator_pair() {
     let materialization_fold = fold(&source, &environment).unwrap();
     materialized(&materialization_fold, 0, 3, 0);
     let effect_catalog = catalog(&source, &environment);
-    let result = crate::fold_selected_terminator_pair(
+    let result = crate::rewrites::unexecuted::peepholes::fold_selected_terminator_pair(
         &materialization_fold,
         0,
         SelectedInstructionId(6),

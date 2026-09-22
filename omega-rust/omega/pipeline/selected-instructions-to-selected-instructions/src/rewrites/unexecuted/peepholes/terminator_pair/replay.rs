@@ -26,7 +26,7 @@ use target_operations_to_selected_instructions::selected_instruction_plan_identi
 
 use super::{TerminatorPairError, TerminatorPairReceipt, ValidatedTerminatorPair};
 use crate::ValidatedSelectedAnalysis;
-use crate::peepholes::condition_flow;
+use crate::rewrites::unexecuted::peepholes::condition_flow;
 
 /// Independently consume the proposed program: the replay re-derives the
 /// decided branch and its reconstructed `Jump` from the source records —

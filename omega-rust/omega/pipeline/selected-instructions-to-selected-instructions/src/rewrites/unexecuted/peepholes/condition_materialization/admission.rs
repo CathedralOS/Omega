@@ -29,7 +29,7 @@ use super::pair::{
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::analyses::machine_effects::machine_semantic_kind;
-use crate::peepholes::condition_flow;
+use crate::rewrites::unexecuted::peepholes::condition_flow;
 
 /// One admitted condition-materialization pair: everything `rewrite` needs
 /// to rebuild the consumer instruction and everything `replay` needs to
