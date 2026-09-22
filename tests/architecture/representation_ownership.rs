@@ -1344,8 +1344,9 @@ fn resolved_layout_data_and_identity_do_not_require_a_producing_stage() {
     assert!(machine.contains("omega.terminal.resolved-selected-form-layout.v16"));
     assert!(!pipeline.contains("omega.terminal.resolved-selected-form-layout.v16"));
 
-    let stage = root.join("omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout");
-    let wrapper = std::fs::read_to_string(stage.join("model.rs")).unwrap();
+    let stage =
+        root.join("omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout");
+    let wrapper = std::fs::read_to_string(stage.with_extension("rs")).unwrap();
     assert!(wrapper.contains("program: Arc<ResolvedMachineLayout>"));
     assert!(wrapper.contains("Arc::clone(&self.program)"));
     assert!(!wrapper.contains("pub(super) functions:"));

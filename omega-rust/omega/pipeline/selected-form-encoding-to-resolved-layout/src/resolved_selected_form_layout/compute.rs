@@ -9,8 +9,8 @@ use post_allocation_machine_to_selected_form_encoding::{
 };
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
+use super::StagedOptimizedResolvedSelectedFormLayout;
 use super::error::OptimizedResolvedSelectedFormLayoutError;
-use super::model::StagedOptimizedResolvedSelectedFormLayout;
 use super::ordinary::{instructions, layout, select};
 use machine_code::{ResolvedMachineLayout, resolved_machine_layout_identity as layout_identity};
 
