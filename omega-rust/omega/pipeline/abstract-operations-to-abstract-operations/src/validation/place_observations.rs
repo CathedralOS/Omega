@@ -10,8 +10,11 @@ use super::member_blocks::{
     member_scalar_operand_substitution, shared_entry_source, value_definition_sites,
 };
 use abstract_operations::AbstractOperation as O;
-use optimization_unit::*;
-use semantic_vocabulary::*;
+use optimization_unit::{
+    OptimizationBlock, OptimizationNode, OptimizerCycleComponent, OwnershipEvent,
+    PsiOptimizationFunction, PsiProvenance, ValueDefinitionSite,
+};
+use semantic_vocabulary::{BlockId, EdgeId, PlaceId, StructuralPlaceKind, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// The storage root an admitted place observation, byte read, or subslice

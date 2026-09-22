@@ -1,15 +1,18 @@
 //! Verified context, identity, frontier, and proof-catalog tests.
-use super::super::{
-    BlockId, ClaimId, EdgeId, MachineId, OwnershipFrontierFact, OwnershipFrontierOwnedPlace,
-    PlaceId, ProofQuestion, ProofQuestionAdmissionKind, ProofQuestionClass, ProofQuestionOwner,
-    Proposition, ScalarType, ValueDefinition, ValueDefinitionSite, ValueId, ValueUse,
-    recompute_psi_optimization_unit_identity, validate_psi_optimization_unit,
-};
+use semantic_vocabulary::{ClaimId, Proposition, ScalarType};
+
 use super::{
     OptimizationUnitValidationError, PsiOptimizationUnit,
     validate_transformed_psi_optimization_unit, validate_verified_psi_optimization_unit,
 };
 use abstract_operations::{AbstractFunctionResult, AbstractOperation, AbstractResult};
+use optimization_unit::{
+    OwnershipFrontierFact, OwnershipFrontierOwnedPlace, ProofQuestion, ProofQuestionAdmissionKind,
+    ProofQuestionClass, ProofQuestionOwner, ValueDefinition, ValueDefinitionSite, ValueUse,
+    recompute_psi_optimization_unit_identity,
+};
+use optimization_unit_semantics::validate_psi_optimization_unit;
+use semantic_vocabulary::{BlockId, EdgeId, MachineId, PlaceId, ValueId};
 use terminal_fuel::TerminalFuelSchedule;
 use terminal_psi::VocabularyMarker;
 

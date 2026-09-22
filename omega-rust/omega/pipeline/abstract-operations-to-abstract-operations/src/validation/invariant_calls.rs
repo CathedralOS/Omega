@@ -11,8 +11,11 @@ use super::place_observations::{
 };
 use super::relocation_rewrites::scalar_case_result_contained;
 use abstract_operations::AbstractOperation as O;
-use optimization_unit::*;
-use semantic_vocabulary::*;
+use optimization_unit::{
+    OptimizationBlock, OptimizationNode, OptimizerCycleComponent, OwnershipEvent,
+    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
+};
+use semantic_vocabulary::{MachineId, PlaceId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// The source-owned node shape both scalar-call lanes share: an exact

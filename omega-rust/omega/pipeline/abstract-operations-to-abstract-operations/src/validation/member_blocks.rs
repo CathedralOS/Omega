@@ -4,8 +4,10 @@
 //! operand substitution a relocated computation needs.
 
 use super::invariant_operations::admissible_invariant_scalar_computation;
-use optimization_unit::*;
-use semantic_vocabulary::*;
+use optimization_unit::{
+    OptimizationNode, OptimizerCycleComponent, PsiOptimizationFunction, ValueDefinitionSite,
+};
+use semantic_vocabulary::{BlockId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Every scalar value definition site in `function`: function parameters,

@@ -1,7 +1,6 @@
-use super::super::super::{
-    EvidenceIdentity, IntegerSign, IntegerType, ObligationId, OperationId, StructuralPlaceKind,
-    StructuralTypeId,
-};
+use semantic_vocabulary::{EvidenceIdentity, IntegerSign, IntegerType, ObligationId, OperationId};
+
+use semantic_vocabulary::{StructuralPlaceKind, StructuralTypeId};
 
 use super::{
     AbstractOperation, BlockId, EdgeId, OptimizationUnitValidationError, PlaceId, ScalarType,

@@ -1,8 +1,8 @@
 //! Optimizer module role: reconstruction leaf. Location-independent countdown constants.
 
-use super::super::super::super::super::{
-    IntegerType, NodeLocation, OperationId, PsiProvenance, ValueDefinitionSite,
-};
+use semantic_vocabulary::{IntegerType, OperationId};
+
+use optimization_unit::{NodeLocation, PsiProvenance, ValueDefinitionSite};
 
 use super::{
     BlockId, IntegerValue, O, OptimizerCycleComponent, PsiOptimizationFunction, ScalarType, ValueId,

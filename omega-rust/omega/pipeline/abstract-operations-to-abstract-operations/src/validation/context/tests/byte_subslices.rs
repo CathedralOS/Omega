@@ -1,6 +1,7 @@
 //! Subslice result, bounds, source, and execution custody after optimization.
 
-use super::super::super::StructuralTypeId;
+use semantic_vocabulary::StructuralTypeId;
+
 use super::{
     AbstractOperation, OptimizationUnitValidationError, PlaceId, ValueId, byte_reads, id,
     refresh_identity, validate_transformed_psi_optimization_unit,

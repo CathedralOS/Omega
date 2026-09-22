@@ -1,6 +1,8 @@
 //! Optimizer module role: projection leaf. Canonical edge graphs from Terminal and current optimizer bodies.
 
-use super::super::super::{BTreeMap, BTreeSet, BlockId, O, PsiOptimizationFunction};
+use super::super::super::{BTreeMap, BTreeSet, O};
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::BlockId;
 
 use super::{CycleComponentEdge, MachineId};
 #[derive(Debug, Clone, PartialEq, Eq)]
