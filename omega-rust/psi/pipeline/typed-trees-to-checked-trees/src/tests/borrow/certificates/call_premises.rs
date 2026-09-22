@@ -651,6 +651,111 @@ fn statement_call_member_actual_tokens_reject_changed_coordinates() {
     }
 }
 
+/// The same statement-site guarantee holds when the exclusive-borrow actual
+/// selects one fixed element: `ordain(&mut pivot[2])` establishes
+/// `pivot[2] >= 2`. A fixed index is a canonical coordinate, so the bound
+/// names the projected element place like a member projection does.
+const STATEMENT_CALL_INDEXED_WINDOW: &str = r#"
+    data Main { items: [i32; 4]; }
+    machine ordain(slot: &mut u64 [0..=4]) ensures slot >= 2 { slot = 2; }
+    machine Main::main(&mut self, mut pivot: [u64 [0..=4]; 4]) -> u64 {
+        pivot[2] = 0;
+        ordain(&mut pivot[2]);
+        let held: &mut [i32] = self.items[pivot[2]..4];
+        self.items[0] = 3;
+        held.len
+    }
+"#;
+
+#[test]
+fn statement_call_indexed_actual_certifies_disjoint_window_write() {
+    let mut checked = checked_program(STATEMENT_CALL_INDEXED_WINDOW);
+    let certificate = checked
+        .facts
+        .borrow
+        .mutation_certificates
+        .iter()
+        .map(|(_, certificate)| certificate)
+        .next()
+        .expect("one mutation certificate");
+    assert_eq!(
+        certificate.derivation,
+        checked_trees::BorrowCompatibilityDerivation::Premised
+    );
+    assert!(
+        certificate.premises.iter().any(|premise| matches!(
+            premise.right,
+            checked_trees::BorrowCompatibilitySelectorValue::Segmented { .. }
+        )),
+        "the indexed-actual premise records a segmented bound: {:?}",
+        certificate.premises
+    );
+    crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+        .expect("indexed-actual certificate replays its exact tokens");
+}
+
+#[test]
+fn statement_call_indexed_actual_rejects_foreign_weakened_or_rebound() {
+    for predicate in ["", "ensures slot >= 0 ", "ensures slot >= 2 || slot == 0 "] {
+        assert_conflict(&STATEMENT_CALL_INDEXED_WINDOW.replace("ensures slot >= 2 ", predicate));
+    }
+    // A guarantee established on a different element does not describe
+    // `pivot[2]`.
+    assert_conflict(
+        &STATEMENT_CALL_INDEXED_WINDOW.replace("ordain(&mut pivot[2])", "ordain(&mut pivot[1])"),
+    );
+    // Re-establishing or rebinding the element retires the call's assertion.
+    assert_conflict(&STATEMENT_CALL_INDEXED_WINDOW.replace("let held:", "pivot[2] = 0; let held:"));
+    assert_conflict(
+        &STATEMENT_CALL_INDEXED_WINDOW.replace("let held:", "pivot[2] = pivot[1]; let held:"),
+    );
+    // A runtime (non-fixed) index is handle identity, not a coordinate the
+    // bound vocabulary can name; it stays unbound.
+    assert_conflict(
+        &STATEMENT_CALL_INDEXED_WINDOW
+            .replace(
+                "mut pivot: [u64 [0..=4]; 4]",
+                "mut pivot: [u64 [0..=4]; 4], at: u64 [2..=3]",
+            )
+            .replace("ordain(&mut pivot[2])", "ordain(&mut pivot[at])"),
+    );
+}
+
+#[test]
+fn statement_call_indexed_actual_tokens_reject_changed_coordinates() {
+    for change in 0..4 {
+        let mut checked = checked_program(STATEMENT_CALL_INDEXED_WINDOW);
+        let handle = checked
+            .facts
+            .borrow
+            .mutation_certificates
+            .iter()
+            .find_map(|(handle, certificate)| (!certificate.premises.is_empty()).then_some(handle))
+            .expect("premised mutation");
+        let certificate = checked.facts.borrow.mutation_certificates.get_mut(handle);
+        if change == 0 {
+            certificate.premises.clear();
+        } else {
+            let checked_trees::BorrowCompatibilityPremiseSource::CallEnsures {
+                fact,
+                statement_index,
+                call_ordinal,
+                ..
+            } = &mut certificate.premises[0].source
+            else {
+                panic!("call token");
+            };
+            match change {
+                1 => *fact = arena::Handle::invalid(),
+                2 => *statement_index += 1,
+                3 => *call_ordinal += 1,
+                _ => unreachable!(),
+            }
+        }
+        assert_replay_rejects(&mut checked);
+    }
+}
+
 #[test]
 fn projected_result_guarantee_certifies_disjoint_window_write() {
     let mut checked = checked_program(PROJECTED_RESULT_WINDOW);
