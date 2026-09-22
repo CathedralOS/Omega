@@ -70,11 +70,13 @@ fn segment_row_comparison_binds_every_identity_endpoint_and_ceiling() {
 mod machine_bounds {
     use super::super::outcome_bounds::{
         boundary_call_candidates, dynamic_call_targets, maximum_machine_outcomes,
+        used_contract_premises,
     };
     use super::super::segment_partition::{PreparedFuelModule, PreparedSegments};
     use super::super::{
-        derive_fixed_safe_point_segments, derive_fixed_segment_fuel, derive_maximum_entry_bound,
-        derive_validated_fixed_safe_point_segments, retain_validated_fixed_safe_point_segments,
+        derive_fixed_entry_fuel, derive_fixed_safe_point_segments, derive_fixed_segment_fuel,
+        derive_maximum_entry_bound, derive_validated_fixed_safe_point_segments,
+        retain_validated_fixed_safe_point_segments, validate_fixed_entry_fuel,
         validate_fixed_segment_fuel, validate_retained_fixed_safe_point_segments,
     };
     use super::{
@@ -83,7 +85,7 @@ mod machine_bounds {
         TerminalRankedScc, Terminator, identity,
     };
     use semantic_vocabulary::{
-        ContractId, IntegerSign, IntegerType, IntegerValue, ScalarType, ValueId,
+        ContractId, IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId,
     };
     use std::collections::{BTreeMap, BTreeSet};
     use terminal_psi::{
@@ -1368,6 +1370,493 @@ mod machine_bounds {
                 .ceiling_units,
             1 + 4 * 256,
             "entry edge plus the rank-bounded interior"
+        );
+    }
+
+    /// Scalar-term operands for contract `requires` clauses:
+    /// `parameter_term` names a machine parameter at the rank carrier's
+    /// type and `integer_literal` is a same-type unsigned literal — the
+    /// only operand shapes an entry-rank ceiling recognizes.
+    fn parameter_term(parameter: u64, rank_type: IntegerType) -> ScalarTerm {
+        ScalarTerm::Value {
+            id: id(parameter),
+            scalar_type: ScalarType::Integer(rank_type),
+        }
+    }
+
+    fn integer_literal(rank_type: IntegerType, value: u128) -> ScalarTerm {
+        ScalarTerm::Integer {
+            scalar_type: rank_type,
+            value: IntegerValue::Unsigned(value),
+        }
+    }
+
+    /// A jump carrying explicit scalar arguments — the shape an entry edge
+    /// needs to bind a component member's rank parameter.
+    fn jump_arguments(edge: u64, target: u64, arguments: Vec<ValueId>) -> Terminator {
+        Terminator::Jump {
+            edge: id(edge),
+            target: id(target),
+            arguments,
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        }
+    }
+
+    /// A `requires` clause capping the machine parameter that supplies the
+    /// component's initial rank tightens the visit multiplier below the
+    /// carrier maximum: `initial <= 5` admits at most six rank
+    /// observations at the {2,3} countdown's first entry, so its four
+    /// member-visit units bill six traversals rather than 256 — and the
+    /// certificate binds the exact clause row as its premise.
+    #[test]
+    fn contract_requires_bound_tightens_the_rank_visit_ceiling() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let mut walk = ranked_countdown_machine(8);
+        let clause = Proposition::LessOrEqual(
+            parameter_term(100, rank_type),
+            integer_literal(rank_type, 5),
+        );
+        walk.contract.requires = vec![clause.clone()];
+        let tightened = module(1, vec![walk]);
+        // member visits: header 2 (bconst + conditional) + work 3
+        // (iconst + jump) = 4; the clause admits 6 visits -> 4 * 6 = 24;
+        // bound = entry edge + 24 + exit edge.
+        assert_eq!(
+            derive_maximum_entry_bound(&tightened, id(1)),
+            Ok(1 + 4 * 6 + 1)
+        );
+        assert_eq!(
+            used_contract_premises(tightened.machines.first().expect("one machine")),
+            vec![clause],
+            "the certificate binds exactly the consulted premise"
+        );
+
+        // The same clause rescues a carrier whose type maximum cannot fit
+        // the u64 ceiling at all: a u64 rank overflows without it.
+        let wide = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+        let mut walk = ranked_countdown_machine(64);
+        walk.contract.requires = vec![Proposition::LessOrEqual(
+            parameter_term(100, wide),
+            integer_literal(wide, 5),
+        )];
+        let rescued = module(1, vec![walk]);
+        assert_eq!(
+            derive_maximum_entry_bound(&rescued, id(1)),
+            Ok(1 + 4 * 6 + 1),
+            "the tightened rank ceiling bounds what the carrier's own \
+             maximum could not"
+        );
+    }
+
+    /// `p < k` binds `k - 1` and `p == k` binds `k` — including the
+    /// literal-on-the-left equality form — while an unsatisfiable
+    /// `p < 0` places no usable ceiling and leaves the carrier maximum
+    /// standing rather than fabricating a zero bound.
+    #[test]
+    fn contract_requires_strict_less_than_and_equality_forms_tighten() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        for (clause, expected) in [
+            (
+                Proposition::LessThan(
+                    parameter_term(100, rank_type),
+                    integer_literal(rank_type, 5),
+                ),
+                1 + 4 * 5 + 1,
+            ),
+            (
+                Proposition::Equal(
+                    parameter_term(100, rank_type),
+                    integer_literal(rank_type, 5),
+                ),
+                1 + 4 * 6 + 1,
+            ),
+            (
+                Proposition::Equal(
+                    integer_literal(rank_type, 5),
+                    parameter_term(100, rank_type),
+                ),
+                1 + 4 * 6 + 1,
+            ),
+            (
+                // `p < 1` admits exactly one rank observation.
+                Proposition::LessThan(
+                    parameter_term(100, rank_type),
+                    integer_literal(rank_type, 1),
+                ),
+                1 + 4 + 1,
+            ),
+        ] {
+            let mut walk = ranked_countdown_machine(8);
+            walk.contract.requires = vec![clause];
+            let module = module(1, vec![walk]);
+            assert_eq!(derive_maximum_entry_bound(&module, id(1)), Ok(expected));
+        }
+        let mut walk = ranked_countdown_machine(8);
+        walk.contract.requires = vec![Proposition::LessThan(
+            parameter_term(100, rank_type),
+            integer_literal(rank_type, 0),
+        )];
+        let module = module(1, vec![walk]);
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Ok(1 + 4 * 256 + 1),
+            "an unsatisfiable strict bound keeps the carrier maximum"
+        );
+    }
+
+    /// Only an unconditional literal ceiling binds: a disjunctive or
+    /// implied ceiling is conditional, a literal on the left of `<=` is a
+    /// lower bound, a wrong-typed or signed literal cannot cap the
+    /// unsigned carrier, a clause naming another value binds nothing,
+    /// and a clause that merely restates the carrier maximum adds no
+    /// premise.
+    #[test]
+    fn contract_requires_non_ceiling_forms_do_not_tighten() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let wide = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+        let clauses = [
+            Proposition::Disjunction(vec![
+                Proposition::LessOrEqual(
+                    parameter_term(100, rank_type),
+                    integer_literal(rank_type, 5),
+                ),
+                Proposition::Truth,
+            ]),
+            Proposition::Implication {
+                premise: Box::new(Proposition::Truth),
+                conclusion: Box::new(Proposition::LessOrEqual(
+                    parameter_term(100, rank_type),
+                    integer_literal(rank_type, 5),
+                )),
+            },
+            Proposition::LessOrEqual(
+                integer_literal(rank_type, 5),
+                parameter_term(100, rank_type),
+            ),
+            Proposition::LessOrEqual(parameter_term(100, rank_type), integer_literal(wide, 5)),
+            Proposition::LessOrEqual(
+                parameter_term(100, rank_type),
+                ScalarTerm::Integer {
+                    scalar_type: rank_type,
+                    value: IntegerValue::Signed(5),
+                },
+            ),
+            Proposition::LessOrEqual(
+                parameter_term(9_999, rank_type),
+                integer_literal(rank_type, 5),
+            ),
+            Proposition::LessOrEqual(
+                parameter_term(100, rank_type),
+                integer_literal(rank_type, 255),
+            ),
+        ];
+        for clause in clauses {
+            let mut walk = ranked_countdown_machine(8);
+            walk.contract.requires = vec![clause];
+            let module = module(1, vec![walk]);
+            assert_eq!(
+                derive_maximum_entry_bound(&module, id(1)),
+                Ok(1 + 4 * 256 + 1)
+            );
+            assert!(
+                used_contract_premises(module.machines.first().expect("one machine")).is_empty(),
+                "a clause the bound never rests on is not a premise"
+            );
+        }
+    }
+
+    /// A ceiling nested inside a `Conjunction` clause still binds —
+    /// conjuncts are unconditional — and the certificate names the whole
+    /// contract row the ceiling arrived under, in canonical order.
+    #[test]
+    fn contract_requires_conjunction_row_binds_verbatim() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let conjunction = Proposition::Conjunction(vec![
+            Proposition::LessOrEqual(
+                parameter_term(100, rank_type),
+                integer_literal(rank_type, 9),
+            ),
+            Proposition::LessOrEqual(
+                parameter_term(100, rank_type),
+                integer_literal(rank_type, 5),
+            ),
+        ]);
+        let mut walk = ranked_countdown_machine(8);
+        walk.contract.requires = vec![Proposition::Truth, conjunction.clone()];
+        let module = module(1, vec![walk]);
+        // The tightest conjunct wins: 4 * (5 + 1) = 24.
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Ok(1 + 4 * 6 + 1)
+        );
+        assert_eq!(
+            used_contract_premises(module.machines.first().expect("one machine")),
+            vec![conjunction],
+            "the premise is the contract row, not its flattened conjunct"
+        );
+    }
+
+    /// Every first-entry arrival must reduce to a clause-bound machine
+    /// parameter: an entry edge passing a computed value or a second
+    /// unbounded parameter, or one supplying no argument at the rank
+    /// parameter's position, leaves the carrier maximum in place rather
+    /// than guessing at the arrivals it could not bind.
+    #[test]
+    fn contract_requires_bound_needs_every_entry_arrival_covered() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let clause = Proposition::LessOrEqual(
+            parameter_term(100, rank_type),
+            integer_literal(rank_type, 5),
+        );
+
+        // The entry edge passes a computed constant, not the parameter.
+        let mut walk = ranked_countdown_machine(8);
+        walk.contract.requires = vec![clause.clone()];
+        walk.blocks[0].operations = vec![integer_constant(15, 500, 0)];
+        walk.blocks[0].terminator = jump_arguments(1, 2, vec![id(500)]);
+        let computed = module(1, vec![walk]);
+        assert_eq!(
+            derive_maximum_entry_bound(&computed, id(1)),
+            Ok(2 + 4 * 256 + 1),
+            "a computed arrival has no contract ceiling — the entry \
+             block's extra operation is the only added charge"
+        );
+        assert!(used_contract_premises(computed.machines.first().expect("one machine")).is_empty());
+
+        // The entry edge passes a second machine parameter no clause caps.
+        let mut walk = ranked_countdown_machine(8);
+        walk.contract.requires = vec![clause.clone()];
+        walk.parameters.push(ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(101),
+            scalar_type: ScalarType::Integer(rank_type),
+        });
+        walk.blocks[0].terminator = jump_arguments(1, 2, vec![id(101)]);
+        let unbounded = module(1, vec![walk]);
+        assert_eq!(
+            derive_maximum_entry_bound(&unbounded, id(1)),
+            Ok(1 + 4 * 256 + 1),
+            "an unbounded parameter arrival keeps the carrier maximum"
+        );
+        assert!(
+            used_contract_premises(unbounded.machines.first().expect("one machine")).is_empty()
+        );
+
+        // The entry edge supplies no argument at the rank parameter's
+        // position at all.
+        let mut walk = ranked_countdown_machine(8);
+        walk.contract.requires = vec![clause];
+        walk.blocks[0].terminator = jump_arguments(1, 2, Vec::new());
+        let missing = module(1, vec![walk]);
+        assert_eq!(
+            derive_maximum_entry_bound(&missing, id(1)),
+            Ok(1 + 4 * 256 + 1),
+            "an unbound argument position keeps the carrier maximum"
+        );
+        assert!(used_contract_premises(missing.machines.first().expect("one machine")).is_empty());
+    }
+
+    /// When the machine entry is itself a member, the arriving rank is the
+    /// machine-parameter observation the rank row names — a contract
+    /// ceiling on that parameter tightens the visit bound exactly as an
+    /// edge arrival does.
+    #[test]
+    fn contract_requires_bound_applies_at_a_member_machine_entry() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let mut walk = machine(
+            1,
+            2,
+            vec![
+                block(2, Vec::new(), conditional(2, 3, 3, 4)),
+                block(3, vec![integer_constant(10, 11, 0)], jump(4, 2)),
+                block(4, Vec::new(), return_unit(5)),
+            ],
+            None,
+        );
+        walk.parameters = vec![ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(100),
+            scalar_type: ScalarType::Integer(rank_type),
+        }];
+        walk.ranked_scc = Some(TerminalRankedScc::Natural(vec![TerminalNaturalCycle {
+            rank_type,
+            ranks: vec![
+                TerminalBlockNaturalRank {
+                    block: id(2),
+                    value: id(100),
+                },
+                TerminalBlockNaturalRank {
+                    block: id(3),
+                    value: id(7_000),
+                },
+            ],
+            edges: vec![
+                rank_edge(2, 2, 3, TerminalNaturalRankComparison::Preserving),
+                rank_edge(4, 3, 2, TerminalNaturalRankComparison::Strict),
+            ],
+        }]));
+        let clause = Proposition::LessOrEqual(
+            parameter_term(100, rank_type),
+            integer_literal(rank_type, 5),
+        );
+        walk.contract.requires = vec![clause.clone()];
+        let module = module(1, vec![walk]);
+        // member_units = visit2(1) + visit3(1 op + 1 jump) = 3;
+        // 3 * 6 = 18, plus the exit edge.
+        assert_eq!(derive_maximum_entry_bound(&module, id(1)), Ok(19));
+        assert_eq!(
+            used_contract_premises(module.machines.first().expect("one machine")),
+            vec![clause]
+        );
+    }
+
+    /// A contract ceiling on a component the entry cannot reach is no
+    /// premise of the whole-entry bound: the condensed derivation never
+    /// visits it, so the certificate binds no clause.
+    #[test]
+    fn contract_premises_stay_off_unreachable_components() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let mut walk = cyclic_machine(8, Vec::new());
+        walk.parameters = vec![ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(100),
+            scalar_type: ScalarType::Integer(rank_type),
+        }];
+        walk.contract.requires = vec![Proposition::LessOrEqual(
+            parameter_term(100, rank_type),
+            integer_literal(rank_type, 5),
+        )];
+        // Unreachable blocks 8 -> 9 feed member 9's rank parameter the
+        // boundable machine parameter, but nothing from entry reaches
+        // them.
+        walk.blocks
+            .push(block(8, Vec::new(), jump_arguments(80, 9, vec![id(100)])));
+        walk.blocks.push(Block {
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            structural_parameters: Vec::new(),
+            id: id(9),
+            parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
+                id: id(900),
+                scalar_type: ScalarType::Integer(rank_type),
+            }],
+            operations: Vec::new(),
+            terminator: jump_arguments(81, 9, vec![id(900)]),
+        });
+        let Some(TerminalRankedScc::Natural(components)) = &mut walk.ranked_scc else {
+            unreachable!("cyclic_machine is Natural-ranked")
+        };
+        components.push(TerminalNaturalCycle {
+            rank_type,
+            ranks: vec![TerminalBlockNaturalRank {
+                block: id(9),
+                value: id(900),
+            }],
+            edges: vec![rank_edge(81, 9, 9, TerminalNaturalRankComparison::Strict)],
+        });
+        let module = module(1, vec![walk]);
+        // member_units = visit2(1) + visit3(1) = 2 at the carrier maximum.
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Ok(1 + 2 * 256 + 1)
+        );
+        assert!(
+            used_contract_premises(module.machines.first().expect("one machine")).is_empty(),
+            "an unreachable component's clause is not a bound premise"
+        );
+    }
+
+    /// A segment row binds only the clauses its own bound consulted: the
+    /// endpoint on the start block's own terminator and the acyclic
+    /// interior pass to a member's committing edge never touch the rank
+    /// bound, while a surviving interior cycle bills the tightened
+    /// ceiling and binds the clause.
+    #[test]
+    fn segment_certificate_binds_only_the_clauses_its_interior_consulted() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let clause = Proposition::LessOrEqual(
+            parameter_term(100, rank_type),
+            integer_literal(rank_type, 5),
+        );
+        let mut walk = ranked_countdown_machine(8);
+        walk.contract.requires = vec![clause.clone()];
+        let module = module(1, vec![walk]);
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+
+        let per_traversal = prepared
+            .segment_certificate(id(1), id(1), &mut BTreeMap::new())
+            .expect("entry-edge row derives");
+        assert_eq!(per_traversal.ceiling_units, 1);
+        assert!(
+            per_traversal.relevant_preconditions.is_empty(),
+            "a per-traversal row consults no rank bound"
+        );
+
+        // Endpoint edge 4 rides member 3's terminator; excluding it leaves
+        // 2 -> 3 acyclic, so the interior is one pass — no rank bound is
+        // consulted and no premise is bound.
+        let interior_pass = prepared
+            .segment_certificate(id(1), id(4), &mut BTreeMap::new())
+            .expect("entry-to-backedge row derives");
+        assert_eq!(interior_pass.ceiling_units, 5);
+        assert!(interior_pass.relevant_preconditions.is_empty());
+
+        // Endpoint edge 3 exits through member 2 with the surviving
+        // 2 -> 3 -> 2 cycle billed at the tightened rank ceiling.
+        let cyclic = prepared
+            .segment_certificate(id(1), id(3), &mut BTreeMap::new())
+            .expect("entry-to-exit row derives");
+        assert_eq!(cyclic.ceiling_units, 1 + 4 * 6);
+        assert_eq!(cyclic.relevant_preconditions, vec![clause.clone()]);
+        let mid_component = prepared
+            .segment_certificate(id(3), id(3), &mut BTreeMap::new())
+            .expect("mid-component cyclic row derives");
+        assert_eq!(mid_component.ceiling_units, 4 * 6);
+        assert_eq!(mid_component.relevant_preconditions, vec![clause]);
+    }
+
+    /// An acyclic machine consults no component rank bound, so its entry
+    /// certificate binds no premise even when the contract carries
+    /// `requires` clauses — and validation rejects a certificate that
+    /// claims one.
+    #[test]
+    fn entry_certificate_on_acyclic_machine_binds_no_premises() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let mut walk = machine(1, 1, vec![block(1, Vec::new(), return_unit(2))], None);
+        walk.parameters = vec![ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(100),
+            scalar_type: ScalarType::Integer(rank_type),
+        }];
+        walk.contract.requires = vec![Proposition::LessOrEqual(
+            parameter_term(100, rank_type),
+            integer_literal(rank_type, 5),
+        )];
+        let module = module(1, vec![walk]);
+        let verified = terminal_verifier::verify_module(
+            &module,
+            &terminal_verifier::ProofBundle::default(),
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("acyclic machine with a requires clause verifies");
+        let certificate =
+            derive_fixed_entry_fuel(&verified, id(1)).expect("entry certificate derives");
+        assert_eq!(certificate.ceiling_units, 1);
+        assert!(certificate.relevant_preconditions.is_empty());
+        validate_fixed_entry_fuel(&verified, &certificate)
+            .expect("independent replay reaches the same certificate");
+        let mut tampered = certificate.clone();
+        tampered.relevant_preconditions = vec![Proposition::Truth];
+        assert_eq!(
+            validate_fixed_entry_fuel(&verified, &tampered),
+            Err(FixedFuelError::CertificateMismatch),
+            "a claimed premise the derivation never used must mismatch"
         );
     }
 

@@ -2,13 +2,13 @@
 
 use super::outcome_bounds::{
     NaturalGeometry, NaturalGraphNode, OutcomeBounds, boundary_call_candidates,
-    compose_cleanup_outcomes, dynamic_call_targets, maximum_machine_outcomes, maximum_optional,
-    natural_component_geometry, operation_callees, terminator_cleanup_machines,
-    terminator_edge_targets, unbounded_cycle_report,
+    component_entry_rank_bound, compose_cleanup_outcomes, dynamic_call_targets,
+    maximum_machine_outcomes, maximum_optional, natural_component_geometry, operation_callees,
+    terminator_cleanup_machines, terminator_edge_targets, unbounded_cycle_report,
 };
 use crate::{FixedFuelError, FixedSegmentFuelCertificate};
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, EdgeId, IntegerValue, MachineId, OperationId,
+    BlockId, BoundaryMachineId, EdgeId, IntegerValue, MachineId, OperationId, Proposition,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_codec::{TerminalPsiIdentity, terminal_psi_identity};
@@ -189,14 +189,15 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
         memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
     ) -> Result<FixedSegmentFuelCertificate, FixedFuelError> {
         let terminal_psi = self.subject.identity()?;
-        let ceiling_units = self.segment_bound(start_block, end_edge, memoized_machines)?;
+        let (ceiling_units, relevant_preconditions) =
+            self.segment_bound(start_block, end_edge, memoized_machines)?;
         Ok(FixedSegmentFuelCertificate {
             terminal_psi,
             schedule: TerminalFuelSchedule::CURRENT.identity(),
             machine: self.machine.id,
             start_block,
             end_edge,
-            relevant_preconditions: Vec::new(),
+            relevant_preconditions,
             ceiling_units,
         })
     }
@@ -209,13 +210,16 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
     /// another terminal edge never commits `end_edge`; that execution is
     /// covered by the other edge's own segment certificate. When no walk
     /// commits the endpoint, the first dead end observed in traversal order
-    /// is the reported displacement.
+    /// is the reported displacement. The returned premises are the
+    /// `machine.contract.requires` clauses the bound consulted — a cyclic
+    /// component interior charged at a contract-tightened rank ceiling —
+    /// in canonical contract order.
     fn segment_bound(
         &self,
         start_block: BlockId,
         end_edge: EdgeId,
         memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
-    ) -> Result<u64, FixedFuelError> {
+    ) -> Result<(u64, Vec<Proposition>), FixedFuelError> {
         if !self.blocks.contains_key(&start_block) {
             return Err(FixedFuelError::UnknownBlock(start_block));
         }
@@ -238,7 +242,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
             first_dead_end: None,
         };
         match self.block_to_edge_bound(start_block, &mut walk)? {
-            Some(units) => Ok(units),
+            Some(units) => Ok((units, Vec::new())),
             None => Err(walk
                 .first_dead_end
                 .unwrap_or(FixedFuelError::NoTerminalPath(self.machine.id))),
@@ -434,7 +438,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
         components: &[TerminalNaturalCycle],
         memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
         active_machines: &mut BTreeSet<MachineId>,
-    ) -> Result<u64, FixedFuelError> {
+    ) -> Result<(u64, Vec<Proposition>), FixedFuelError> {
         let start = self
             .blocks
             .get(&start_block)
@@ -451,7 +455,9 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
             // is an ordinary per-traversal row, not authority to charge every
             // member visit the cycle could take. Taking the acyclic path here
             // also keeps the catalog derivable when the rank carrier's type
-            // maximum itself overflows the whole-component bound.
+            // maximum itself overflows the whole-component bound. No
+            // component rank bound is consulted, so no contract premise is
+            // bound.
             let mut walk = SegmentWalk {
                 end_edge,
                 memoized_machines,
@@ -461,7 +467,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
                 first_dead_end: None,
             };
             return match self.block_to_edge_bound(start_block, &mut walk)? {
-                Some(units) => Ok(units),
+                Some(units) => Ok((units, Vec::new())),
                 None => Err(walk
                     .first_dead_end
                     .unwrap_or(FixedFuelError::NoTerminalPath(self.machine.id))),
@@ -484,9 +490,16 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
             active_nodes: BTreeSet::new(),
             settled: BTreeMap::new(),
             first_dead_end: None,
+            used_clauses: BTreeSet::new(),
         };
         match self.node_to_edge_bound(start_block, components, &geometry, &mut walk)? {
-            Some(units) => u64::try_from(units).map_err(|_| FixedFuelError::BoundOverflow),
+            Some(units) => Ok((
+                u64::try_from(units).map_err(|_| FixedFuelError::BoundOverflow)?,
+                walk.used_clauses
+                    .iter()
+                    .filter_map(|index| self.machine.contract.requires.get(*index).cloned())
+                    .collect(),
+            )),
             None => Err(walk
                 .first_dead_end
                 .unwrap_or(FixedFuelError::NoTerminalPath(self.machine.id))),
@@ -1060,8 +1073,10 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
 
     /// The interior member split both component bounds share. A member that
     /// can still be re-entered through the surviving internal edges may be
-    /// visited up to the rank carrier's type maximum plus one times before
-    /// the walk leaves the component — the same per-member visit ceiling the
+    /// visited up to the component's entry-rank bound plus one times before
+    /// the walk leaves the component — the carrier's type maximum, or the
+    /// lower literal ceiling a `requires` clause places on every rank
+    /// arriving at first entry, the same per-member visit ceiling the
     /// whole-component charge uses — while a member left off every surviving
     /// cycle is crossed at most once, since the walk cannot return to it.
     /// The bound is therefore the rank-multiplied sum over the re-enterable
@@ -1080,6 +1095,15 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
         let IntegerValue::Unsigned(rank_maximum) = component.rank_type.maximum_value() else {
             return Err(FixedFuelError::InvalidRankedScc(self.machine.id));
         };
+        let entry_bound =
+            component_entry_rank_bound(self.machine, component, &self.blocks, rank_maximum);
+        if let Some(entry) = &entry_bound {
+            // The rank ceiling this split bills rests on the contract
+            // clauses that derived it; the certificate binds them as its
+            // relevant preconditions.
+            walk.used_clauses.extend(entry.clauses.iter().copied());
+        }
+        let rank_bound = entry_bound.map(|entry| entry.bound).unwrap_or(rank_maximum);
         let mut reenterable_units = 0_u128;
         let mut once_units = 0_u128;
         for &member in reaching {
@@ -1128,7 +1152,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
                     .ok_or(FixedFuelError::BoundOverflow)?;
             }
         }
-        rank_maximum
+        rank_bound
             .checked_add(1)
             .and_then(|visits| visits.checked_mul(reenterable_units))
             .and_then(|bound| bound.checked_add(once_units))
@@ -1189,7 +1213,10 @@ impl SegmentWalk<'_> {
 /// arrival, `active_nodes` is a defensive depth-first stack on a graph
 /// the verified partition already makes acyclic, and the first dead end
 /// is retained so a wholly unreachable request still reports a terminal
-/// edge or all-crash call.
+/// edge or all-crash call. `used_clauses` records the
+/// `machine.contract.requires` positions a cyclic interior bound rested
+/// on, so the certificate's `relevant_preconditions` names exactly the
+/// premises the derivation consulted.
 struct NaturalSegmentWalk<'a> {
     end_edge: EdgeId,
     memoized_machines: &'a mut BTreeMap<MachineId, OutcomeBounds>,
@@ -1197,6 +1224,7 @@ struct NaturalSegmentWalk<'a> {
     active_nodes: BTreeSet<BlockId>,
     settled: BTreeMap<BlockId, Option<u128>>,
     first_dead_end: Option<FixedFuelError>,
+    used_clauses: BTreeSet<usize>,
 }
 
 impl NaturalSegmentWalk<'_> {

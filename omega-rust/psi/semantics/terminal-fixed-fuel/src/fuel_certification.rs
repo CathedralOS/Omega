@@ -4,7 +4,7 @@ use crate::{
     FixedEntryFuelCertificate, FixedFuelError, FixedSegmentFuelCertificate,
     ValidatedFixedSafePointFuelSegments,
 };
-use outcome_bounds::derive_maximum_entry_bound;
+use outcome_bounds::{derive_maximum_entry_bound, used_contract_premises};
 use segment_partition::{PreparedFuelModule, PreparedSegments};
 use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 use std::collections::BTreeMap;
@@ -36,10 +36,12 @@ pub fn derive_fixed_entry_fuel(
         terminal_psi,
         schedule: TerminalFuelSchedule::CURRENT.identity(),
         entry,
-        // Current control and operation costs do not depend on values. The
-        // theorem therefore holds for every invocation admitted by the
-        // machine contract and needs no additional premise subset.
-        relevant_preconditions: Vec::new(),
+        // Control and operation costs are value-independent, so a machine
+        // without a contract-tightened component entry rank binds no
+        // premise. When a `requires` clause caps the rank arriving at a
+        // `Natural` component's first entry, the visit bound rests on that
+        // clause and the certificate binds exactly the consulted premises.
+        relevant_preconditions: used_contract_premises(machine),
         ceiling_units,
     })
 }

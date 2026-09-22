@@ -2,7 +2,8 @@
 
 use crate::{FixedFuelError, UnboundedCycleCause};
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, EdgeId, IntegerValue, MachineId, OperationId,
+    BlockId, BoundaryMachineId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId,
+    Proposition, ScalarTerm, ScalarType, ValueId,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_fuel::TerminalFuelSchedule;
@@ -251,9 +252,11 @@ pub(super) fn maximum_machine_outcomes(
 /// charges commit-reachable visits and reports `None` when no normal-return
 /// walk exists, and the crashed derivation charges crash-terminal walks and
 /// reports `None` when no execution can crash. The rank bound is the
-/// carrier's type maximum, covering every input the admitted ranking can
-/// take, and the certificate's merged bound is the maximum of the two
-/// outcome classes rather than a single ceiling billed against both.
+/// carrier's type maximum unless the machine contract places a lower
+/// literal ceiling on every rank arriving at the component's first entry —
+/// `used_contract_premises` names the consulted clauses — and the
+/// certificate's merged bound is the maximum of the two outcome classes
+/// rather than a single ceiling billed against both.
 fn natural_machine_outcomes(
     machine: &TerminalMachine,
     components: &[TerminalNaturalCycle],
@@ -404,6 +407,13 @@ pub(super) fn natural_component_geometry(
         let IntegerValue::Unsigned(rank_maximum) = component.rank_type.maximum_value() else {
             return Err(FixedFuelError::InvalidRankedScc(machine.id));
         };
+        // A `requires` clause that caps every rank arriving at the
+        // component's first entry tightens the visit bound below the
+        // carrier maximum; the consulted clauses enter the certificate's
+        // `relevant_preconditions` through `used_contract_premises`.
+        let rank_bound = component_entry_rank_bound(machine, component, &blocks, rank_maximum)
+            .map(|entry| entry.bound)
+            .unwrap_or(rank_maximum);
         let interior = component_interior(
             component,
             index,
@@ -411,7 +421,7 @@ pub(super) fn natural_component_geometry(
             &member_of,
             &visit_units_returned,
             &visit_units_crashed,
-            rank_maximum,
+            rank_bound,
         )?;
         component_units_returned.push(interior.returned);
         component_units_crashed.push(interior.crashed);
@@ -448,9 +458,10 @@ struct ComponentInterior {
 /// crashing visit while its completing predecessors stay in the interior.
 /// A member reached only through a member that can never complete is never
 /// visited by a walk of the outcome at all. The bound multiplies the
-/// members a surviving completing cycle can still re-enter by the rank
-/// carrier's type maximum plus one — the same per-member visit ceiling the
-/// old whole-component charge used — while a member left off every
+/// members a surviving completing cycle can still re-enter by the
+/// component's entry-rank bound plus one — the carrier's type maximum, or
+/// the lower literal ceiling a `requires` clause places on every rank
+/// arriving at first entry — while a member left off every
 /// surviving cycle is crossed at most once, rather than billing every live
 /// member at the rank ceiling.
 fn component_interior(
@@ -460,7 +471,7 @@ fn component_interior(
     member_of: &BTreeMap<BlockId, usize>,
     visit_units_returned: &BTreeMap<BlockId, Option<u64>>,
     visit_units_crashed: &BTreeMap<BlockId, Option<u64>>,
-    rank_maximum: u128,
+    rank_bound: u128,
 ) -> Result<ComponentInterior, FixedFuelError> {
     let live: BTreeSet<BlockId> = component
         .ranks
@@ -535,7 +546,7 @@ fn component_interior(
             &return_frontier,
             &live,
             visit_units_returned,
-            rank_maximum,
+            rank_bound,
         )?,
         crashed: interior_visit_bound(
             &adjacency,
@@ -543,7 +554,7 @@ fn component_interior(
             &crash_frontier,
             &live,
             visit_units_returned,
-            rank_maximum,
+            rank_bound,
         )?,
     })
 }
@@ -562,7 +573,7 @@ fn interior_visit_bound(
     frontier: &BTreeSet<BlockId>,
     live: &BTreeSet<BlockId>,
     visit_units: &BTreeMap<BlockId, Option<u64>>,
-    rank_maximum: u128,
+    rank_bound: u128,
 ) -> Result<Option<u128>, FixedFuelError> {
     let mut reaching: BTreeSet<BlockId> = frontier.iter().copied().collect();
     let mut pending: Vec<BlockId> = frontier.iter().copied().collect();
@@ -611,12 +622,239 @@ fn interior_visit_bound(
                 .ok_or(FixedFuelError::BoundOverflow)?;
         }
     }
-    rank_maximum
+    rank_bound
         .checked_add(1)
         .and_then(|visits| visits.checked_mul(reenterable_units))
         .and_then(|bound| bound.checked_add(once_units))
         .map(Some)
         .ok_or(FixedFuelError::BoundOverflow)
+}
+
+/// A `Natural` component's contract-derived ceiling on the rank observed at
+/// first entry, together with the `machine.contract.requires` clause
+/// positions that ceiling rests on.
+pub(super) struct EntryRankBound {
+    pub(super) bound: u128,
+    pub(super) clauses: BTreeSet<usize>,
+}
+
+/// The contract ceiling on one component's initial rank, or `None` when the
+/// carrier's type maximum must stand. The verifier discharges the machine's
+/// `requires` propositions as assumptions, so every admitted invocation
+/// satisfies them; a clause that caps the value arriving as a member's rank
+/// observation therefore bounds the component's initial rank directly.
+/// Every way control first enters the component must be covered: the
+/// machine entry itself when it is a member — the entry block declares no
+/// parameters, so only a machine-parameter observation can be bounded —
+/// and each edge arriving from outside the component, whose arriving rank
+/// is the argument at the target's rank-parameter position. An arrival
+/// reduces to a boundable value only when it is a machine parameter some
+/// `requires` clause caps by a literal; an argument threaded through
+/// another block's parameters, a computed value, an observed view, or a
+/// structural-case payload has no contract ceiling, so one unbounded
+/// arrival leaves the carrier maximum in place rather than guessing. The
+/// result is `Some` only when the derived ceiling genuinely tightens the
+/// type maximum — a clause that merely restates it binds nothing new.
+pub(super) fn component_entry_rank_bound(
+    machine: &TerminalMachine,
+    component: &TerminalNaturalCycle,
+    blocks: &BTreeMap<BlockId, &terminal_psi::Block>,
+    rank_maximum: u128,
+) -> Option<EntryRankBound> {
+    let member_rank: BTreeMap<BlockId, ValueId> = component
+        .ranks
+        .iter()
+        .map(|rank| (rank.block, rank.value))
+        .collect();
+    let mut arrivals = Vec::new();
+    if let Some(&rank) = member_rank.get(&machine.entry) {
+        arrivals.push(rank);
+    }
+    for source in &machine.blocks {
+        if member_rank.contains_key(&source.id) {
+            continue;
+        }
+        for (target, arguments) in successor_arguments(&source.terminator) {
+            let Some(&target_rank) = member_rank.get(&target) else {
+                continue;
+            };
+            let target_block = blocks.get(&target)?;
+            // The edge binds the target's parameters positionally, so the
+            // rank arriving at a parameter-observed member is that edge's
+            // argument at the rank's position; a non-parameter observation —
+            // a machine parameter or an observed view — is not rebound by
+            // the edge and reduces to the observed value itself, which the
+            // machine-parameter check below then accepts or rejects.
+            let arrival = match target_block
+                .parameters
+                .iter()
+                .position(|parameter| parameter.id == target_rank)
+            {
+                Some(position) => *arguments?.get(position)?,
+                None => target_rank,
+            };
+            arrivals.push(arrival);
+        }
+    }
+    if arrivals.is_empty() {
+        return None;
+    }
+    let mut bound = 0_u128;
+    let mut clauses = BTreeSet::new();
+    for arrival in arrivals {
+        if !machine.parameters.iter().any(|parameter| {
+            parameter.id == arrival
+                && parameter.scalar_type == ScalarType::Integer(component.rank_type)
+        }) {
+            return None;
+        }
+        let (candidate, clause) = parameter_requires_bound(machine, arrival, component.rank_type)?;
+        bound = bound.max(candidate);
+        clauses.insert(clause);
+    }
+    (bound < rank_maximum).then_some(EntryRankBound { bound, clauses })
+}
+
+/// Each successor's target and the scalar argument list binding its
+/// parameters positionally. A `StructuralCase` successor carries `None`:
+/// its payload-field bindings cannot name a machine parameter directly.
+fn successor_arguments(terminator: &Terminator) -> Vec<(BlockId, Option<&[ValueId]>)> {
+    match terminator {
+        Terminator::Jump {
+            target, arguments, ..
+        } => vec![(*target, Some(arguments.as_slice()))],
+        Terminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => vec![
+            (when_true.target, Some(when_true.arguments.as_slice())),
+            (when_false.target, Some(when_false.arguments.as_slice())),
+        ],
+        Terminator::StructuralCase { cases, .. } => {
+            cases.iter().map(|case| (case.target, None)).collect()
+        }
+        Terminator::Return { .. }
+        | Terminator::ReturnUnit { .. }
+        | Terminator::ReturnUnitPartialAffine { .. }
+        | Terminator::ReturnUnitNominalAffine { .. }
+        | Terminator::ReturnStructural { .. }
+        | Terminator::Crash { .. } => Vec::new(),
+    }
+}
+
+/// The tightest literal ceiling the machine contract's `requires` clauses
+/// place on `parameter`, paired with the clause index that supplied it.
+/// Clauses flatten through `Conjunction` only: a disjunctive or implied
+/// bound is not an unconditional ceiling on the parameter's value.
+fn parameter_requires_bound(
+    machine: &TerminalMachine,
+    parameter: ValueId,
+    rank_type: IntegerType,
+) -> Option<(u128, usize)> {
+    let mut best: Option<(u128, usize)> = None;
+    for (index, clause) in machine.contract.requires.iter().enumerate() {
+        let mut pending = vec![clause];
+        while let Some(proposition) = pending.pop() {
+            match proposition {
+                Proposition::Conjunction(children) => pending.extend(children),
+                _ => {
+                    if let Some(candidate) =
+                        literal_parameter_ceiling(proposition, parameter, rank_type)
+                        && best.is_none_or(|(current, _)| candidate < current)
+                    {
+                        best = Some((candidate, index));
+                    }
+                }
+            }
+        }
+    }
+    best
+}
+
+/// The literal ceiling one proposition places on `parameter` — a direct
+/// `p <= k`, `p < k`, or `p == k` over an unsigned literal of the rank
+/// carrier's type. Anything else — another parameter or erased formal, a
+/// math term, a field observation, or a signed literal — places no ceiling
+/// the derivation can trust.
+fn literal_parameter_ceiling(
+    proposition: &Proposition,
+    parameter: ValueId,
+    rank_type: IntegerType,
+) -> Option<u128> {
+    let is_parameter = |term: &ScalarTerm| {
+        matches!(
+            term,
+            ScalarTerm::Value { id, scalar_type }
+                if *id == parameter && *scalar_type == ScalarType::Integer(rank_type)
+        )
+    };
+    let literal = |term: &ScalarTerm| match term {
+        ScalarTerm::Integer {
+            scalar_type,
+            value: IntegerValue::Unsigned(value),
+        } if *scalar_type == rank_type => Some(*value),
+        _ => None,
+    };
+    match proposition {
+        Proposition::LessOrEqual(left, right) if is_parameter(left) => literal(right),
+        Proposition::LessThan(left, right) if is_parameter(left) => {
+            literal(right).and_then(|bound| bound.checked_sub(1))
+        }
+        Proposition::Equal(left, right) if is_parameter(left) => literal(right),
+        Proposition::Equal(left, right) if is_parameter(right) => literal(left),
+        _ => None,
+    }
+}
+
+/// The machine-contract premises a whole-entry certificate's bound
+/// derivation used: the `requires` clauses that tighten a reachable cyclic
+/// component's entry rank below its carrier maximum. The condensed bound
+/// only consumes the interiors of components reachable from the machine
+/// entry, so an unreachable component's clauses stay out. Callee contracts
+/// never appear here — their premises are discharged as ordinary call
+/// obligations at each call site rather than becoming premises on the
+/// entry machine's inputs. Clauses surface in canonical contract order.
+pub(super) fn used_contract_premises(machine: &TerminalMachine) -> Vec<Proposition> {
+    let Some(TerminalRankedScc::Natural(components)) = &machine.ranked_scc else {
+        return Vec::new();
+    };
+    let blocks: BTreeMap<BlockId, &terminal_psi::Block> = machine
+        .blocks
+        .iter()
+        .map(|block| (block.id, block))
+        .collect();
+    let mut reachable = BTreeSet::from([machine.entry]);
+    let mut pending = vec![machine.entry];
+    while let Some(current) = pending.pop() {
+        let Some(block) = blocks.get(&current) else {
+            continue;
+        };
+        for target in terminator_targets(&block.terminator) {
+            if reachable.insert(target) {
+                pending.push(target);
+            }
+        }
+    }
+    let mut used = BTreeSet::new();
+    for component in components {
+        if !component
+            .ranks
+            .iter()
+            .any(|rank| reachable.contains(&rank.block))
+        {
+            continue;
+        }
+        let IntegerValue::Unsigned(rank_maximum) = component.rank_type.maximum_value() else {
+            continue;
+        };
+        if let Some(entry) = component_entry_rank_bound(machine, component, &blocks, rank_maximum) {
+            used.extend(entry.clauses);
+        }
+    }
+    used.into_iter()
+        .filter_map(|index| machine.contract.requires.get(index).cloned())
+        .collect()
 }
 
 /// One condensed node: an ordinary block or a complete cyclic component.
