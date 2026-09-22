@@ -154,7 +154,7 @@ mod tests {
             name: "evidence-provider".into(),
             provider_type: "EvidenceProvider".into(),
             provider_type_package_identity: None,
-            target: "windows_x64".into(),
+            target: "windows_x86_64".into(),
             schema: ServiceSchema {
                 trait_name: "EvidenceService".into(),
                 trait_package_identity: None,

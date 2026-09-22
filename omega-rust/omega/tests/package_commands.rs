@@ -70,7 +70,7 @@ fn explicit_alias_imports_and_project_and_multiple_targets_reach_manager() {
             "--project",
             ".",
             "--target",
-            "linux_x64",
+            "linux_x86_64",
             "--target",
             "macos_arm64",
         ]),

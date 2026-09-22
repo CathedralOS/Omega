@@ -42,7 +42,7 @@ static tracking was not refreshed).
 ## Building
 
 ```
-mbx run -p omega -- --build-dir samples/cli/interpreters/calculator_rpn/build --target windows_x64 samples/cli/interpreters/calculator_rpn/main.omg
+mbx run -p omega -- --build-dir samples/cli/interpreters/calculator_rpn/build --target windows_x86_64 samples/cli/interpreters/calculator_rpn/main.omg
 ./samples/cli/interpreters/calculator_rpn/build/omega-program.exe
 echo $?   # 70
 ```

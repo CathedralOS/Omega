@@ -580,34 +580,33 @@ fn macos_console_publication_stays_flat() {
 }
 
 #[test]
-fn legacy_and_canonical_cli_spellings_select_the_same_canonical_profile() {
+fn canonical_spelling_selects_the_profile_and_retired_aliases_reject() {
     let project = TempProject::new(&exact_target_build(""));
-    let legacy = compile_to_checked(CheckedCompileRequest::new(
-        &project.main(),
-        Some("windows_x64"),
-    ))
-    .expect("legacy CLI alias should normalize before source selection");
     let canonical = compile_to_checked(CheckedCompileRequest::new(
         &project.main(),
         Some("windows_x86_64"),
     ))
     .expect("canonical CLI spelling should compile");
-
     assert_eq!(
-        legacy.selected_target_profile(),
-        canonical.selected_target_profile()
-    );
-    assert_eq!(
-        legacy.selected_native_target(),
-        canonical.selected_native_target()
-    );
-    assert_eq!(
-        legacy
+        canonical
             .selected_target_profile()
             .expect("selected profile")
             .target_name(),
         "windows_x86_64"
     );
+    assert!(canonical.selected_native_target().is_some());
+
+    for retired in ["windows_x64", "linux_x64", "uefi_x64"] {
+        let diagnostics =
+            compile_to_checked(CheckedCompileRequest::new(&project.main(), Some(retired)))
+                .expect_err("retired CLI alias must reject before source selection");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains(&format!("unknown target profile `{retired}`"))),
+            "{retired} should reject as an unknown target profile: {diagnostics:?}"
+        );
+    }
 }
 
 #[test]

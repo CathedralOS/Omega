@@ -6,7 +6,7 @@ and verifies every field. Exercises wire schemas with nested messages and
 repeated fields end-to-end. Runs to exit **70**.
 
 ```
-omega --target windows_x64 --build-dir build samples/cli/systems/wire_protocol/main.omg
+omega --target windows_x86_64 --build-dir build samples/cli/systems/wire_protocol/main.omg
 ./build/omega-program.exe   # exit 70
 ```
 

@@ -15,11 +15,13 @@ pub(crate) fn encode_representation_target(
     let _ = encoder.field("profile", |encoder| {
         match target.profile() {
             PackageReviewRepresentationTargetProfile::LinuxArm64 => encoder.tag("linux_arm64", 0),
-            PackageReviewRepresentationTargetProfile::LinuxX64 => encoder.tag("linux_x64", 1),
+            PackageReviewRepresentationTargetProfile::LinuxX64 => encoder.tag("linux_x86_64", 1),
             PackageReviewRepresentationTargetProfile::MacosArm64 => encoder.tag("macos_arm64", 2),
             PackageReviewRepresentationTargetProfile::MacosX64 => encoder.tag("macos_x86_64", 7),
-            PackageReviewRepresentationTargetProfile::WindowsX64 => encoder.tag("windows_x64", 3),
-            PackageReviewRepresentationTargetProfile::UefiX64 => encoder.tag("uefi_x64", 4),
+            PackageReviewRepresentationTargetProfile::WindowsX64 => {
+                encoder.tag("windows_x86_64", 3)
+            }
+            PackageReviewRepresentationTargetProfile::UefiX64 => encoder.tag("uefi_x86_64", 4),
             PackageReviewRepresentationTargetProfile::CrossPlatformCli => {
                 encoder.tag("cross_platform_cli", 5)
             }

@@ -496,7 +496,7 @@ fn install_terminal_object(
 fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
     let checked = compile_to_checked(CheckedCompileRequest::new(
         &progress_free_selected_source_canary(),
-        Some("linux_x64"),
+        Some("linux_x86_64"),
     ))
     .expect("selected progress-free source entry should compile");
     let candidate = stage_terminal_component(
@@ -521,7 +521,7 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
         CompileRequest::new(CompileOptions {
             root_path: progress_free_selected_source_canary(),
             build_dir: None,
-            target_name: Some("linux_x64".into()),
+            target_name: Some("linux_x86_64".into()),
         })
         .with_requested_product(RequestedCompileProduct::NativeArtifact),
     )
@@ -663,7 +663,7 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
         let blocked_options = CompileOptions {
             root_path: progress_free_selected_source_canary(),
             build_dir: Some(blocked_parent),
-            target_name: Some("linux_x64".into()),
+            target_name: Some("linux_x86_64".into()),
         };
         let error = write_finalized_terminal_component_output(&blocked_options, runnable)
             .expect_err("filesystem rejection must preserve runnable deployment custody");
@@ -675,7 +675,7 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
         let output_options = CompileOptions {
             root_path: progress_free_selected_source_canary(),
             build_dir: Some(scratch.0.join("published")),
-            target_name: Some("linux_x64".into()),
+            target_name: Some("linux_x86_64".into()),
         };
         let output_path = output_options.build_dir().join(&file_name);
         let published = write_finalized_terminal_component_output(&output_options, runnable)
@@ -730,7 +730,7 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
 fn selected_preterminal_optimizers_rejoin_one_native_pipeline() {
     let checked = compile_to_checked(CheckedCompileRequest::new(
         &selected_optimizer_source_canary(),
-        Some("linux_x64"),
+        Some("linux_x86_64"),
     ))
     .expect("selected optimizer source should reach checked compilation");
     let candidate = stage_terminal_component(
@@ -753,7 +753,7 @@ fn selected_preterminal_optimizers_rejoin_one_native_pipeline() {
 fn unimplemented_post_terminal_phase_rejects_before_native_publication() {
     let checked = compile_to_checked(CheckedCompileRequest::new(
         &selected_lowering_optimizer_source_canary(),
-        Some("linux_x64"),
+        Some("linux_x86_64"),
     ))
     .expect("post-terminal-optimized source remains valid through checking");
     let entry = checked
@@ -794,7 +794,7 @@ fn unimplemented_post_terminal_phase_rejects_before_native_publication() {
 fn control_flow_cleanup_source_reaches_the_publication_gate() {
     let checked = compile_to_checked(CheckedCompileRequest::new(
         &unsupported_optimizer_source_canary(),
-        Some("linux_x64"),
+        Some("linux_x86_64"),
     ))
     .expect("explicit optimizer selection is retained through checking");
     let candidate = stage_terminal_component(
@@ -817,7 +817,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
     let target = NativeTarget::linux_x64();
     let checked = compile_to_checked(CheckedCompileRequest::new(
         &progress_source_canary(),
-        Some("linux_x64"),
+        Some("linux_x86_64"),
     ))
     .expect("selected progress-bearing source entry should compile");
     assert_eq!(checked.selected_program_entry_machine(), Some("Main::main"));
@@ -886,7 +886,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         CompileRequest::new(CompileOptions {
             root_path: progress_source_canary(),
             build_dir: None,
-            target_name: Some("linux_x64".into()),
+            target_name: Some("linux_x86_64".into()),
         })
         .with_requested_product(RequestedCompileProduct::NativeArtifact),
     )
@@ -1164,7 +1164,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         let output_options = CompileOptions {
             root_path: progress_source_canary(),
             build_dir: Some(scratch.0.clone()),
-            target_name: Some("linux_x64".into()),
+            target_name: Some("linux_x86_64".into()),
         };
         let published = write_finalized_terminal_component_output(&output_options, runnable)
             .expect("progress-bearing deployment should authorize exact flat output");
@@ -1319,7 +1319,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         let options = CompileOptions {
             root_path: progress_source_canary(),
             build_dir: Some(scratch.0.clone()),
-            target_name: Some("linux_x64".into()),
+            target_name: Some("linux_x86_64".into()),
         };
         let expected_path = options
             .build_dir()

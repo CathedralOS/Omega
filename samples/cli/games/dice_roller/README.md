@@ -42,7 +42,7 @@ inline form sidesteps this entirely.
 ## Building
 
 ```
-mbx run -p omega -- --build-dir samples/cli/games/dice_roller/build --target windows_x64 samples/cli/games/dice_roller/main.omg
+mbx run -p omega -- --build-dir samples/cli/games/dice_roller/build --target windows_x86_64 samples/cli/games/dice_roller/main.omg
 ./samples/cli/games/dice_roller/build/omega-program.exe
 echo $?   # 70
 ```

@@ -32,7 +32,7 @@ fn offline_combines_with_existing_compilation_options() {
             "--build-dir",
             "build directory",
             "--target",
-            "linux_x64",
+            "linux_x86_64",
             "--disable-optimization",
             "ControlFlowCleanup",
             "main.omg",
@@ -45,7 +45,7 @@ fn offline_combines_with_existing_compilation_options() {
     assert!(parsed.accept_admissions);
     assert!(parsed.timings);
     assert_eq!(parsed.build_dir, Some(PathBuf::from("build directory")));
-    assert_eq!(parsed.target_name.as_deref(), Some("linux_x64"));
+    assert_eq!(parsed.target_name.as_deref(), Some("linux_x86_64"));
     assert!(!parsed.optimization_rollback.is_empty());
     assert_eq!(parsed.root_path, PathBuf::from("main.omg"));
 }
