@@ -308,6 +308,21 @@ impl BuildOperation {
         })
     }
 
+    /// The operands a marker-carrying operation retained after its spelling
+    /// and [`Self::MARKER_OPERAND_SEPARATOR`] in `target`, or `None` when the
+    /// target does not select this operation or the operation carries no
+    /// marker operands. Consumers that read the operands (a root grant path,
+    /// a wire-compatibility demand) ask here instead of stripping the prefix
+    /// themselves, so the spelling stays in one place.
+    pub fn marker_operands(self, target: &str) -> Option<&str> {
+        if !self.carries_marker_operands() {
+            return None;
+        }
+        target
+            .strip_prefix(self.authored_spelling())?
+            .strip_prefix(Self::MARKER_OPERAND_SEPARATOR)
+    }
+
     /// The intrinsic selection target checking records for this operation.
     pub const fn intrinsic(self) -> AuthoredDeclarationSelectionIntrinsic {
         match self {
