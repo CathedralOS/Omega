@@ -495,8 +495,10 @@ struct ReplayedMachineSpecializationIdentity {
 }
 
 /// Independently replay the authoritative commitment of one retained machine
-/// specialization from its exact typed custody and checked contract plans.
-pub fn recompute_machine_specialization_commitment(
+/// specialization from its exact typed custody and checked contract plans;
+/// the test-side control against the producer's own commitment.
+#[cfg(test)]
+pub(crate) fn recompute_machine_specialization_commitment(
     program: &TypedTrees,
     contracts: &checked_trees::MachineContractPlans,
     specialization: &typed_trees::typed_trees::MachineSpecialization,

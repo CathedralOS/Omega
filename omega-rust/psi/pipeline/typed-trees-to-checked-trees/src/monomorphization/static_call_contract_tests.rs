@@ -224,12 +224,13 @@ fn deleting_static_call_binders_changes_the_specialization_commitment() {
         call.static_machine_parameter = symbols::SymbolHandle::invalid();
     }
     for specialization in &missing.typed.machine_specializations {
-        let replay = crate::recompute_machine_specialization_commitment(
-            &missing.typed,
-            &missing.facts.contract_plans,
-            specialization,
-        )
-        .expect("remaining joins are individually valid");
+        let replay =
+            crate::monomorphization::identities::recompute_machine_specialization_commitment(
+                &missing.typed,
+                &missing.facts.contract_plans,
+                specialization,
+            )
+            .expect("remaining joins are individually valid");
         assert_ne!(
             replay, specialization.commitment,
             "deleting custody must change the application commitment"

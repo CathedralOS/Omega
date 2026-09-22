@@ -76,7 +76,6 @@ pub use ::validation::{
 pub use conformance::conformance_applications::close_conformance_application;
 pub use monomorphization::{
     generic_machine_template_commitment, generic_machine_template_report_fingerprint,
-    recompute_machine_specialization_commitment, refresh_closed_domain_instance_identities,
 };
 
 mod semantic;

@@ -526,7 +526,7 @@ fn specialization_commitment_replays_and_rejects_compact_equal_substitution() {
         1
     );
     assert_eq!(
-        crate::recompute_machine_specialization_commitment(
+        crate::monomorphization::identities::recompute_machine_specialization_commitment(
             &checked.typed,
             &checked.facts.contract_plans,
             specialization,

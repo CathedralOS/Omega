@@ -42,14 +42,13 @@ use selection::*;
 mod body_rewriting;
 pub(crate) use body_rewriting::collect_statement_expression_trees;
 use body_rewriting::*;
-mod identities;
+pub(crate) mod identities;
 use identities::*;
 pub(crate) use identities::{
     bind_specialization_contract_identities, canonical_state_signature_bytes,
 };
 pub use identities::{
     generic_machine_template_commitment, generic_machine_template_report_fingerprint,
-    recompute_machine_specialization_commitment,
 };
 mod body_cloning;
 use body_cloning::*;
@@ -723,7 +722,7 @@ fn normalized_machine_identity(
 /// semantic ID is derived data, so refresh every affected constraint and cast
 /// before validation or checked-fact construction observes the specialized
 /// graph.
-pub fn refresh_closed_domain_instance_identities(
+pub(crate) fn refresh_closed_domain_instance_identities(
     program: &mut TypedTrees,
 ) -> Result<(), Diagnostic> {
     let mut constraint_updates = Vec::new();
