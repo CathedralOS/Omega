@@ -1778,9 +1778,6 @@ syntax and other terminal services are not prerequisites.
   Coordinate those fixtures' bracketed-range migration with
   REMOVE-BRACKETED-RANGE-ANNOTATIONS. Owned-root and construction-local admission
   remain separate obligations; reuse `terminal-semantics::static_path`.
-  Parked WIP: branch `swarm/linw3-structural-borrow-identity` @ `53ce1f70ff`
-  holds a `scalar_window_probe` diagnosis for the unread borrowed-receiver
-  scalar-graph leg below.
 
   Acceptance: repair the omission pins and execute caller-visible
   projected/forwarded writes, owned-field mutable/write-only subloans, legal
