@@ -847,6 +847,7 @@ fn prove_edge(
         if let Some(field) = &field_rank {
             coordinate_matched |= field.substitute(
                 program,
+                machine,
                 state,
                 entry_parameters,
                 destination,
@@ -934,9 +935,14 @@ fn prove_edge(
         let actual = match fields::integer_leaf_coordinate(program, parameter) {
             // The destination slot is a record carrier: the role's produced
             // value is the leaf its declaration names, read off the actual.
-            Some(coordinate) => {
-                coordinate.actual(program, state, &mut engine, *argument, coordinate.borrowed)?
-            }
+            Some(coordinate) => coordinate.actual(
+                program,
+                machine,
+                state,
+                &mut engine,
+                *argument,
+                coordinate.borrowed,
+            )?,
             // A scalar destination's actual may itself be a quotient or
             // remainder tree: bind each division's exact-integer meaning the
             // same way the endpoints were bound above, so normalization keeps

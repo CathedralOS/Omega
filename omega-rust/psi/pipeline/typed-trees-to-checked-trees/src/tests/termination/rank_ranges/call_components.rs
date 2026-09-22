@@ -190,6 +190,53 @@ fn runtime_division_actuals_substitute_through_call_sites() {
     }
 }
 
+const REMAINDER_LITERAL: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../tests/omega/pass/termination/remainder_literal_call_component/main.omg"
+));
+
+#[test]
+fn record_literal_remainder_leaves_discharge_field_requirements() {
+    // The `spare` leaf of the rebuilt `Limits` literal is the runtime
+    // remainder `limits.bound % limits.step`: `walk`'s
+    // `requires held.spare <= 4` is discharged against that transported
+    // term through the record actual, not the destination formal's name.
+    prove(REMAINDER_LITERAL);
+    // A quotient leaf keeps the same path while its interval stays inside
+    // the requirement.
+    prove(&REMAINDER_LITERAL.replace("% limits.step", "/ 5"));
+    // Rebinding `spare` to a different transported value still discharges,
+    // but only when the requirement can be proven against it: each changed
+    // leaf rejects and the diagnostic names the transported term.
+    for leaf in ["limits.bound / limits.step", "limits.bound % 6"] {
+        let source = REMAINDER_LITERAL.replace("limits.bound % limits.step", leaf);
+        let diagnostics =
+            lower_typed_trees(typed_program(&source), &CheckingRequest::settled()).expect_err(leaf);
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("cannot prove requires")
+                && diagnostic.message.contains(leaf)),
+            "{leaf}\n{diagnostics:#?}"
+        );
+    }
+    // A requirement tighter than the remainder's live interval rejects the
+    // same way: `limits.bound % limits.step` only proves `<= 4`.
+    let tightened =
+        REMAINDER_LITERAL.replace("requires held.spare <= 4;", "requires held.spare <= 3;");
+    let diagnostics = lower_typed_trees(typed_program(&tightened), &CheckingRequest::settled())
+        .expect_err(&tightened);
+    assert!(
+        diagnostics.iter().any(
+            |diagnostic| diagnostic.message.contains("cannot prove requires")
+                && diagnostic.message.contains("limits.bound % limits.step")
+        ),
+        "{tightened}\n{diagnostics:#?}"
+    );
+    // The cycle still owes strict descent on its carried rank.
+    reject(&REMAINDER_LITERAL.replace("pending - 1", "pending"));
+}
+
 const PAIR: &str = r#"
 data Main { observed: u64; }
 machine Main::first(&mut self, floor: u64, remaining: u64, ceiling: u64)

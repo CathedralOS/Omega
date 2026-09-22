@@ -586,6 +586,7 @@ fn argument_sources<'program>(
                     };
                     let carried = coordinate.arrived(
                         program,
+                        caller.machine,
                         site,
                         &mut engine,
                         *argument,
