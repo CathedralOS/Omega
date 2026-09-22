@@ -73,7 +73,9 @@ impl PackagePolicyProviderBinding {
                 machine_package_identity,
             } => {
                 if machine_identity.is_empty()
-                    || !matches_owner(row.realization.owner, *machine_package_identity)
+                    || !row.realization.as_ref().is_some_and(|realization| {
+                        matches_owner(realization.owner, *machine_package_identity)
+                    })
                 {
                     return Err("provider adapter has inconsistent exact ownership");
                 }

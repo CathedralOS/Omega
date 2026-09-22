@@ -16,7 +16,22 @@ pub(super) fn project(
     binding: &ProviderBinding,
     requirement: SymbolHandle,
     realization: SymbolHandle,
+    toolchain_settled: bool,
 ) -> Result<PackagePolicyProviderBinding, Vec<Diagnostic>> {
+    if toolchain_settled {
+        // A toolchain-settled row's binding comes from the settlement table:
+        // only positional syscalls exist there, and they carry no evaluated
+        // `via` receipt because no authored machine realized the row.
+        return match binding {
+            ProviderBinding::Syscall { number } => Ok(PackagePolicyProviderBinding::Syscall {
+                number: *number,
+                evaluated: None,
+            }),
+            _ => Err(rejected(
+                "toolchain-settled row binds a non-syscall realization",
+            )),
+        };
+    }
     Ok(match binding {
         ProviderBinding::Import { evaluated } => {
             let row = evaluated_row(compilation, requirement, realization)?.ok_or_else(|| {

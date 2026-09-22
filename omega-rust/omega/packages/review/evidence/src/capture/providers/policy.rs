@@ -4,6 +4,7 @@ mod bindings;
 mod families;
 mod replay;
 mod rows;
+mod toolchain_settled;
 
 use crate::capture::PackageReviewInput;
 use crate::capture::providers::selection::validate_selected_provider_declaration_owner;
@@ -89,6 +90,14 @@ fn project_plan(
     retained: &SelectedProviderReviewProvenance,
 ) -> Result<PackagePolicyProviderPlan, Vec<Diagnostic>> {
     let plan = &retained.plan;
+    // A toolchain-settled plan (e.g. the canonical `FilesystemHost` mint)
+    // names no authored provider type and deliberately covers only the
+    // leaves the toolchain can bind honestly; its settled identity was
+    // already validated by the replay above.
+    let toolchain_settled = compilation
+        .custody
+        .selected_provider_plans()
+        .is_toolchain_settled(plan);
     let schema_declaration = nominal_identity(compilation, retained.provider.schema.symbol())?;
     validate_selected_provider_declaration_owner(
         &schema_declaration,
@@ -108,7 +117,8 @@ fn project_plan(
             &plan.name,
             "provider type",
         )?,
-        None if plan.provider_type.is_empty() && plan.provider_type_package_identity.is_none() => {}
+        None if plan.provider_type_package_identity.is_none()
+            && (plan.provider_type.is_empty() || toolchain_settled) => {}
         None => return Err(rejected("provider type has no exact declaration")),
     }
     let mut methods = Vec::with_capacity(plan.schema.methods.len());
@@ -120,6 +130,9 @@ fn project_plan(
             .filter(|(_, row)| row.requirement_identity == method.requirement_identity)
             .map(|(index, _)| index)
             .collect::<Vec<_>>();
+        if matching_rows.is_empty() && toolchain_settled {
+            continue;
+        }
         let [index] = matching_rows.as_slice() else {
             return Err(rejected(
                 "service method has no unique selected realization row",
@@ -133,7 +146,7 @@ fn project_plan(
             method,
         )?);
     }
-    let mut rows = rows::project(compilation, target, retained)?;
+    let mut rows = rows::project(compilation, target, retained, toolchain_settled)?;
     rows.sort_by(|left, right| left.requirement.cmp(&right.requirement));
     let mut grants = compilation
         .custody

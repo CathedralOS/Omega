@@ -40,9 +40,7 @@
 
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
-use package_compilation::{
-    AcceptedSemanticBinding, AcceptedSemanticBindingRole, PackageCompilationInputs,
-};
+use package_compilation::AcceptedSemanticBinding;
 use typed_trees::TypedTrees;
 
 /// Nominal provider identity for toolchain-settled canonical-host plans.
@@ -195,16 +193,16 @@ pub struct MintedFilesystemHostPlan {
 /// The returned plan is candidate-shaped but toolchain-settled: the caller
 /// joins it into the selected facts, the fused-service erasure binding, and
 /// the post-derivation review provenance, and deliberately excludes it from
-/// candidate plans and pre-selection provenance replay.
+/// candidate plans and pre-selection provenance replay. Package review
+/// replays the same mint against the consumed `FilesystemHostService`
+/// binding to validate a retained toolchain-settled plan's exact identity.
 pub fn mint_canonical_filesystem_host_plan(
     typed: &TypedTrees,
-    package_inputs: Option<&PackageCompilationInputs>,
+    accepted_binding: Option<&AcceptedSemanticBinding>,
     target_name: Option<&'static str>,
     already_selected: &[ProviderPlan],
 ) -> Result<Option<MintedFilesystemHostPlan>, Vec<Diagnostic>> {
-    let Some(binding) = package_inputs.and_then(|inputs| {
-        inputs.accepted_semantic_binding(AcceptedSemanticBindingRole::FilesystemHostService)
-    }) else {
+    let Some(binding) = accepted_binding else {
         return Ok(None);
     };
     let Some(target_name) = target_name else {
