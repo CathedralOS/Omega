@@ -20,9 +20,7 @@ mod structural_return_machine;
 mod structural_scalar_returns;
 
 pub(crate) use boundary_scalar_returns::build_boundary_scalar_return_machine;
-pub(crate) use primitive_effects::{
-    build_checked_primitive_store_scalar_return_plans, reconcile_primitive_store_scalar_returns,
-};
+pub(crate) use primitive_effects::build_checked_primitive_store_scalar_return_plans;
 pub(crate) use scalar_return_expressions::checked_boolean_contains_short_circuit;
 pub(crate) use structural_return_machine::build_structural_return_machine;
 pub(crate) use structural_scalar_returns::build_structural_scalar_return_machine;

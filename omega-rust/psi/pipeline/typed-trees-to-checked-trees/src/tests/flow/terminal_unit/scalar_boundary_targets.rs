@@ -429,7 +429,8 @@ fn unit_scalar_call_retains_registered_boundary_return_target() {
             .unwrap()
             .commitment
     );
-    crate::rebuild_checked_terminal_plans_with_selected_execution(&mut checked, &[], &[]).unwrap();
+    checked =
+        crate::settle_checked_execution(checked, &crate::ExecutionSettlement::default()).unwrap();
     assert!(
         checked
             .facts

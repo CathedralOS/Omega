@@ -2,7 +2,6 @@ use super::{CheckedStructuralAccess, Multiplicity};
 use crate::execution::terminal_unit::CheckedStructuralScalarReturnCleanupAction;
 use crate::execution::terminal_unit::primitive_effects::is_primitive_reference_plan;
 use crate::execution::terminal_unit::returns::build_checked_primitive_store_scalar_return_plans;
-use crate::execution::terminal_unit::returns::reconcile_primitive_store_scalar_returns;
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
@@ -102,49 +101,6 @@ fn pure_primitive_reference_returns_keep_restrictions_on_contracts_and_ranges() 
 }
 
 #[test]
-fn pure_primitive_reference_return_refresh_removes_stale_zero_effect_bodies() {
-    let checked = checked("machine hold(value: &u64) -> u64 { 11 }");
-    let plan = &checked
-        .facts
-        .flow
-        .terminal_structural_scalar_returns
-        .machines[0];
-    let mut facts = checked.facts.clone();
-    facts
-        .values
-        .scalar_expressions
-        .expressions
-        .retain(|expression| expression.state != plan.state);
-    let primitive_returns =
-        build_checked_primitive_store_scalar_return_plans(&checked.typed, &facts);
-    let returns = reconcile_primitive_store_scalar_returns(
-        &facts.flow.terminal_structural_scalar_returns,
-        primitive_returns,
-    );
-    assert!(returns.for_machine(plan.machine).is_none());
-}
-
-#[test]
-fn primitive_return_reconciliation_replaces_in_place_and_appends_new_callees() {
-    let checked = checked(
-        "machine first(value: &u64) -> u64 { 11 }\n\
-         machine second(value: &u64) -> u64 { 12 }",
-    );
-    let fresh = build_checked_primitive_store_scalar_return_plans(&checked.typed, &checked.facts);
-    assert_eq!(fresh.machines.len(), 2);
-    let mut previous = fresh.clone();
-    previous.machines.pop();
-    previous.machines[0].return_statement_ordinal = u32::MAX;
-    let published = previous.clone();
-    let reconciled = reconcile_primitive_store_scalar_returns(&previous, fresh.clone());
-    assert_eq!(reconciled, fresh);
-    assert_eq!(
-        previous, published,
-        "reconciliation leaves published facts intact"
-    );
-}
-
-#[test]
 fn primitive_reference_return_discovery_does_not_absorb_affine_cleanup() {
     let checked = checked(
         r#"
@@ -189,11 +145,13 @@ fn primitive_reference_return_discovery_does_not_absorb_affine_cleanup() {
             .machines
             .is_empty()
     );
-    let primitive_returns =
-        build_checked_primitive_store_scalar_return_plans(&checked.typed, &checked.facts);
-    let returns = reconcile_primitive_store_scalar_returns(
-        &checked.facts.flow.terminal_structural_scalar_returns,
-        primitive_returns,
+    assert_eq!(
+        checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(retained.machine),
+        Some(&retained),
+        "the complete roster still publishes the nominal return"
     );
-    assert_eq!(returns.for_machine(retained.machine), Some(&retained));
 }

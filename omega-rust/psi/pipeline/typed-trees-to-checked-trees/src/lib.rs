@@ -5,8 +5,9 @@
 //! the settled selections. It also owns the open-index normalization and
 //! static machine-call specialization steps that package orchestration reuses
 //! on typed snapshots.
-//! `execution::selected_execution` owns rebuilding plans after provider
-//! settlement; `execution::finalize_execution` owns initial plan completion.
+//! `execution::selected_execution` owns `settle_checked_execution`, the
+//! checked->checked settlement link that applies a provider settlement;
+//! `execution::finalize_execution` owns initial plan completion.
 //! Executable builders live under execution, separately from temporal flow.
 //! Fact population lives in `facts`, flow and value analysis in
 //! `flow` and `values`, and the remaining folders each own one checking
@@ -37,7 +38,6 @@ pub use execution::selected_execution::{
     ExecutionSettlement, SelectedIeeeFloatFmaUnitApplication, SelectedOperatorApplication,
     SettledCallSite, SettledFloatIntrinsic, SettledFloatIntrinsicExecution,
     SettledOperatorAdapterCall, SettledOperatorAdapterSource, SettledRequirementCall,
-    rebuild_checked_terminal_plans_with_selected_execution, refresh_settled_state_write_frames,
     settle_checked_execution,
 };
 

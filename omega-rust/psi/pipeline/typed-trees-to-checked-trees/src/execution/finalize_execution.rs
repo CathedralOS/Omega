@@ -63,7 +63,6 @@ pub(crate) fn finalize_execution(
     } = crate::execution::execution_plans::build_execution_plans(
         program,
         &facts,
-        None,
         selected.operator_applications,
         selected.ieee_float_fma_unit_applications,
         call_frames.as_ref(),
