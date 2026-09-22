@@ -4,6 +4,7 @@ use super::{
     Frame, Halt, HashSet, Machine, PrimitiveType, SemanticFloatClass, SemanticFloatFormat, State,
     SymbolHandle, Value, trap, unsupported,
 };
+use language_semantics::declaration_selection::{CollectionMeasure, CollectionViewOperation};
 use symbols::BuiltinFunction;
 mod match_dispatch;
 
@@ -848,7 +849,13 @@ impl<'program> Evaluator<'program> {
         // Slice/array view builtins on an array-valued receiver. `.as_slice()` /
         // `.as_mut_slice()` produce a slice that SHARES the array's element cells (so a
         // write through the slice aliases the array); `.len()` returns the element count.
-        if matches!(target, "as_slice" | "as_mut_slice" | "len")
+        let array_length_call =
+            CollectionMeasure::from_authored_spelling(target) == Some(CollectionMeasure::Length);
+        let array_view_call = matches!(
+            CollectionViewOperation::from_authored_spelling(target),
+            Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
+        );
+        if (array_length_call || array_view_call)
             && call.receiver.is_valid()
             && let Ok(cell) = self.resolve_place(call.receiver, frame)
         {
@@ -858,10 +865,11 @@ impl<'program> Evaluator<'program> {
                 _ => None,
             };
             if let Some(elements) = elements {
-                return Ok(match target {
-                    "len" => Value::Int(elements.len() as i64),
+                return Ok(if array_length_call {
+                    Value::Int(elements.len() as i64)
+                } else {
                     // A slice view shares the same element `Rc`s.
-                    _ => Value::Array(elements),
+                    Value::Array(elements)
                 });
             }
         }

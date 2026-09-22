@@ -21,6 +21,7 @@ use super::{
     BigInt, Engine, ExpressionHandle, ExpressionNode, Machine, Polynomial, State, TypedTrees,
     lengths,
 };
+use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -197,7 +198,9 @@ fn bind_local_lengths(
         let ExpressionNode::Member(member) = program.expression_table.expression(node) else {
             continue;
         };
-        if member.member.as_str() != "len" {
+        if CollectionMeasure::from_authored_spelling(member.member.as_str())
+            != Some(CollectionMeasure::Length)
+        {
             continue;
         }
         let Some(receiver) = plain_name(program, member.receiver) else {

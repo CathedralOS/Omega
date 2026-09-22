@@ -1,4 +1,5 @@
 use language_core::operator_spelling::OperatorSpelling;
+use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
@@ -160,7 +161,8 @@ fn operand(
                     .position(|symbol| symbol.is_valid() && *symbol == path.symbol)
                     .map(Operand::Position)
             } else if members.len() == 2
-                && members[1].as_str() == "len"
+                && CollectionMeasure::from_authored_spelling(members[1].as_str())
+                    == Some(CollectionMeasure::Length)
                 && path.head_symbol == parameters[0]
             {
                 Some(Operand::CollectionLength)
@@ -169,7 +171,8 @@ fn operand(
             }
         }
         ExpressionNode::Member(member)
-            if member.member.as_str() == "len"
+            if CollectionMeasure::from_authored_spelling(member.member.as_str())
+                == Some(CollectionMeasure::Length)
                 && operand(program, member.receiver, parameters, depth + 1)
                     == Some(Operand::Position(0)) =>
         {

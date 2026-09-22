@@ -1,11 +1,13 @@
 //! Declaration selection tests.
 
+use super::AuthoredDeclarationSelectionIntrinsic;
 use super::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionFinalizationError,
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding,
     AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError,
     AuthoredDeclarationSelectionSuffixRebaseError, AuthoredDeclarationSelections,
-    CollectionViewOperation, CompilerDerivedSelectionPartition, SourceSpan, SymbolHandle,
+    CollectionMeasure, CollectionViewOperation, CompilerDerivedSelectionPartition, SourceSpan,
+    SymbolHandle,
 };
 use source::{SourceId, Span};
 
@@ -310,4 +312,43 @@ fn collection_view_spellings_are_the_exact_authored_vocabulary() {
             "`{spelling}` names no compiler-owned view"
         );
     }
+}
+
+#[test]
+fn collection_measure_spellings_round_trip() {
+    for measure in CollectionMeasure::ALL {
+        assert_eq!(
+            CollectionMeasure::from_authored_spelling(measure.authored_spelling()),
+            Some(measure),
+            "{} must select the measure it spells",
+            measure.authored_spelling()
+        );
+    }
+}
+
+#[test]
+fn collection_measure_spellings_are_the_exact_authored_vocabulary() {
+    assert_eq!(
+        CollectionMeasure::ALL.map(CollectionMeasure::authored_spelling),
+        ["len", "capacity"]
+    );
+    for spelling in ["length", "Len", "LEN", "as_slice", "bytes", "cap", ""] {
+        assert_eq!(
+            CollectionMeasure::from_authored_spelling(spelling),
+            None,
+            "`{spelling}` names no compiler-owned measure"
+        );
+    }
+}
+
+#[test]
+fn collection_measures_map_onto_their_intrinsic_selection_targets() {
+    assert_eq!(
+        CollectionMeasure::Length.intrinsic(),
+        AuthoredDeclarationSelectionIntrinsic::CollectionLength
+    );
+    assert_eq!(
+        CollectionMeasure::Capacity.intrinsic(),
+        AuthoredDeclarationSelectionIntrinsic::CollectionCapacity
+    );
 }

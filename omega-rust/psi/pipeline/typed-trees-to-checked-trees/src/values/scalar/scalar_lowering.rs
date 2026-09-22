@@ -15,6 +15,7 @@ use checked_trees::{
     CheckedIntegerRange, CheckedOperatorFacts, CheckedOperatorResolutionStatus,
     CheckedScalarExpression,
 };
+use language_semantics::declaration_selection::CollectionMeasure;
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::literals::{IntegerLanding, LandedIntegerType};
 use typed_trees::TypedTrees;
@@ -804,7 +805,8 @@ fn exact_inline_literal_subslice_length(
     let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
         return None;
     };
-    if member.member.as_str() != "len"
+    if CollectionMeasure::from_authored_spelling(member.member.as_str())
+        != Some(CollectionMeasure::Length)
         || member.member_symbol.is_valid()
         || member.case_variant.is_some()
     {

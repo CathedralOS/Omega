@@ -30,6 +30,7 @@
 //! distinct. This is source provenance, not a Terminal certificate.
 
 use checked_trees::CrashPredicateExpression;
+use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableNamePath};
@@ -383,8 +384,10 @@ fn member_hop_path(
 ) -> Option<(SymbolHandle, Vec<PlaceSegment>)> {
     let symbol = crate::flow::effective_member_symbol(program, member.receiver, member);
     if !symbol.is_valid() {
-        return (member.case_variant.is_none() && member.member.as_str() == "len")
-            .then(|| (SymbolHandle::invalid(), vec![PlaceSegment::Opaque]));
+        return (member.case_variant.is_none()
+            && CollectionMeasure::from_authored_spelling(member.member.as_str())
+                == Some(CollectionMeasure::Length))
+        .then(|| (SymbolHandle::invalid(), vec![PlaceSegment::Opaque]));
     }
     let mut path = Vec::with_capacity(2);
     if let Some(variant) = facts::payload_variant_for_field(program, symbol) {

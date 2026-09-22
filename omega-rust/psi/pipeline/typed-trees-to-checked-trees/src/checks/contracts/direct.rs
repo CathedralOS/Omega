@@ -1,4 +1,5 @@
 use facts::FactPlace;
+use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
 
 use super::labels::{ContractTargetParameters, instantiate_call_contract_expression_label};
@@ -285,7 +286,8 @@ fn projected_formal_leaf_value(
     if let ExpressionNode::Member(member) = program.expression_table.expression(leaf)
         && member.case_variant.is_none()
         && !member.member_symbol.is_valid()
-        && member.member.as_str() == "len"
+        && CollectionMeasure::from_authored_spelling(member.member.as_str())
+            == Some(CollectionMeasure::Length)
     {
         return projected_collection_extent(program, parameters, member.receiver);
     }

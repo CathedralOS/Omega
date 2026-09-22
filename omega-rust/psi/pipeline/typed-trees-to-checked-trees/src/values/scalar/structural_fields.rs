@@ -5,6 +5,7 @@ use checked_trees::CheckedOperatorFacts;
 use checked_trees::CheckedOperatorResolutionStatus;
 use checked_trees::CheckedScalarExpression;
 use checked_trees::CheckedStructuralPredicatePathSegment;
+use language_semantics::declaration_selection::CollectionMeasure;
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
@@ -25,7 +26,8 @@ pub(super) fn structural_sequence_length(
     let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
         return None;
     };
-    if member.member.as_str() != "len"
+    if CollectionMeasure::from_authored_spelling(member.member.as_str())
+        != Some(CollectionMeasure::Length)
         || member.member_symbol.is_valid()
         || member.case_variant.is_some()
     {

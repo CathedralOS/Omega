@@ -1,4 +1,5 @@
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::CollectionMeasure;
 use language_semantics::{MachineSupplyMode, ReferenceAccess};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -263,7 +264,10 @@ fn is_write_only_length_metadata(
     member: &typed_trees::expression::TableMemberExpression,
     roots: &[WriteOnlyRoot],
 ) -> bool {
-    if member.case_variant.is_some() || member.member.as_str() != "len" {
+    if member.case_variant.is_some()
+        || CollectionMeasure::from_authored_spelling(member.member.as_str())
+            != Some(CollectionMeasure::Length)
+    {
         return false;
     }
 

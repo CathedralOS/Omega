@@ -4,6 +4,7 @@ use crate::checker::diagnostics::expression_display_name;
 use crate::obligations::{
     BoundedCallArgumentObligation, BoundedTransitionArgumentObligation, ProofConstraint, ProofPlan,
 };
+use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::name::Identifier;
 use typed_trees::statement::TransitionGuardNode;
@@ -622,7 +623,9 @@ fn len_of_expression_bound(
     let ExpressionNode::Member(member) = table.expression(len_expr) else {
         return None;
     };
-    if member.member.as_str() != "len" {
+    if CollectionMeasure::from_authored_spelling(member.member.as_str())
+        != Some(CollectionMeasure::Length)
+    {
         return None;
     }
     let receiver_label = expression_display_name(proof_plan, member.receiver);

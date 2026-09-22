@@ -19,6 +19,7 @@ use checked_trees::{
     CheckedScalarComputationHandle, CheckedScalarComputationKind as Computation,
     CheckedScalarExpression as Scalar, CheckedTrees,
 };
+use language_semantics::declaration_selection::CollectionMeasure;
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
 
@@ -1144,7 +1145,8 @@ impl Context<'_> {
         else {
             return None;
         };
-        if member.member.as_str() != "len"
+        if CollectionMeasure::from_authored_spelling(member.member.as_str())
+            != Some(CollectionMeasure::Length)
             || member.member_symbol.is_valid()
             || member.case_variant.is_some()
         {
