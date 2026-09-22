@@ -234,15 +234,14 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
   Remaining work:
 
-  - Logical-to-physical join. `assignment/runtime_spill/recovery.rs` calls
-    `sequenced_logical_operations` to choose logical victims and plan their
-    operations; recovery retains the result and replay recomputes it. The
-    actual candidate loop still selects and rewrites victims independently.
-    Connect the plan to the emitted spill/reload or frame obligations where it
-    is needed, or remove redundant planning. Preserve executable recovery and
-    independent checking; retaining another plan is not completion. A mismatch
-    with the actual emitted operations must reject, not merely a changed copy
-    of the retained plan.
+  - Logical-to-physical join. Resolved by removal: the retained logical
+    spill-operation plan never described an emitted operation. The logical
+    boundary models an evicted active resident with current/reclaimed views,
+    while executable recovery spills the failed register — frequently the
+    incoming value — directly; the planner rejected every observed runtime
+    choice as `UnsupportedVictimRole` and no recovery retained a plan. The
+    redundant plan, its coloring, and their replay comparisons were removed;
+    physical candidate, rewrite, and rebuilt-fact replay is unchanged.
   - Victim and use admission (`rewrites/runtime_spill/admission.rs`). A
     foreign-class IEEE scalar reaches its slot through the frame rows'
     shared carrier class: stores prepend `Float*ToBits`, reloads append

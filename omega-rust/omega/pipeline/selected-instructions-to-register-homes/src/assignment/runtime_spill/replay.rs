@@ -1,8 +1,5 @@
 use super::RuntimeSpillStepRewrite;
-use super::recovery::{
-    analyze, assign, candidates, overlaps_pressure, sequenced_logical_operations,
-    sequenced_slot_coloring, transformations,
-};
+use super::recovery::{analyze, assign, candidates, overlaps_pressure, transformations};
 use super::{RuntimeSpillAllocation, RuntimeSpillAllocationError};
 
 pub(super) fn inadmissible(error: &crate::RuntimeSpillError) -> bool {
@@ -205,30 +202,6 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
         || manifest != staged.manifest
     {
         return Err(RuntimeSpillAllocationError::ReceiptMismatch);
-    }
-    let rederived_operations = sequenced_logical_operations(&staged.source);
-    if rederived_operations
-        .as_ref()
-        .map(crate::ValidatedLogicalSpillOperations::receipt)
-        != staged
-            .logical_operations
-            .as_ref()
-            .map(crate::ValidatedLogicalSpillOperations::receipt)
-    {
-        return Err(RuntimeSpillAllocationError::LogicalOperationsMismatch);
-    }
-    let rederived_coloring = rederived_operations.as_ref().and_then(|operations| {
-        sequenced_slot_coloring(operations, staged.source.budget_per_pass())
-    });
-    if rederived_coloring
-        .as_ref()
-        .map(crate::ValidatedStackSlotColoring::receipt)
-        != staged
-            .slot_coloring
-            .as_ref()
-            .map(crate::ValidatedStackSlotColoring::receipt)
-    {
-        return Err(RuntimeSpillAllocationError::SlotColoringMismatch);
     }
     Ok(())
 }
