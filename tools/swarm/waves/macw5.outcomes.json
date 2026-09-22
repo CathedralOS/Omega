@@ -1,0 +1,75 @@
+{
+  "wave": "macw5",
+  "host": "local",
+  "host_note": "macOS x86_64 (i9-9880H); native macOS Omega target unsupported",
+  "drained_utc": "2026-09-22T11:35:00Z",
+  "base": "fb59ce436a66b3b307968b55d025cfc83730377b",
+  "slots": [
+    {
+      "slot": "coordinator-cml4",
+      "item": "CML4",
+      "result": "landed",
+      "commits": ["fc0fc7746309051cb7e840667270ba1584d482fc"],
+      "item_closed": false,
+      "note": "Shared Unit-consumer residual groups now emit latest-established first across producer, lowering validator and terminal verifier; per-root complement order unchanged. Item remains open for construction-local/mixed roots and successor-edge transport."
+    },
+    {
+      "slot": "module-namespaces",
+      "item": "MODULE-NAMESPACE-RESOLUTION",
+      "result": "landed",
+      "commits": ["1fc2f4cdd289efdd1d434cabf129a0f0a5305666"],
+      "item_closed": false,
+      "note": "Declared-domain case facts replay as generated CaseMembership tag tests; exact symbol-based multiplicity matching. Remaining transports open."
+    },
+    {
+      "slot": "frame-layout",
+      "item": "FRAME-LAYOUT",
+      "result": "blocked",
+      "commits": [],
+      "item_closed": false,
+      "note": "Gated on RUNTIME-SIZED-ACTIVATION-CONTRACT: no claim roster reaches native lowering, realization model (claim packing, committed-vs-physical extent) unpinned upstream. Findings folded into TASKS_OPTIMIZER.md."
+    },
+    {
+      "slot": "finite-dispatch",
+      "item": "FINITE-GENERIC-DISPATCH",
+      "result": "wip-parked",
+      "commits": [],
+      "wip_branch": "swarm/macw5-finite-dispatch",
+      "item_closed": false,
+      "note": "Rate-limit death mid-work; ~600-line draft WIP-committed on the branch (unvalidated)."
+    },
+    {
+      "slot": "macos-app-pub",
+      "item": "MACOS-APPLICATION-PUBLICATION",
+      "result": "wip-parked",
+      "commits": [],
+      "wip_branch": "swarm/macw5-macos-app-pub",
+      "item_closed": false,
+      "note": "Rate-limit death; three commits on branch (provider-candidate catalog + nested call-source custody, unvalidated)."
+    },
+    {
+      "slot": "general-licm",
+      "item": "GENERAL-LICM",
+      "result": "dead",
+      "commits": [],
+      "item_closed": false,
+      "note": "Rate-limit death before any edits; clean worktree, claim released."
+    },
+    {
+      "slot": "plan-laid-views",
+      "item": "PLAN-LAID-VIEWS",
+      "result": "dead",
+      "commits": [],
+      "item_closed": false,
+      "note": "Rate-limit death before claim/edits; clean worktree."
+    }
+  ],
+  "board_sweep_commit": "df162d3ae88",
+  "friction": [
+    "Mass rate-limit die-off killed 3 workers simultaneously; refill paused per runbook.",
+    "Disk filled to 130 MiB: mbx incremental/ held 155 GiB of orphaned entries not covered by `mbx gc`; `mbx clean` across 125 stale worktrees plus manual incremental removal freed ~180 GiB.",
+    "landing.py publish uses the queue ticket as --claim, not the claims-registry ticket; first publish attempt confused the two.",
+    "claims.py sweep is global (marks every pending note); skipped to preserve other live waves' evidence.",
+    "frame-layout first spawn died silently; respawn produced the blocked report."
+  ]
+}
