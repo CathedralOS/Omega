@@ -1540,6 +1540,14 @@ syntax and other terminal services are not prerequisites.
   Complete matching-host coverage, especially the unrecorded Linux AArch64 and
   Windows legs; another callee observing a staged copy is not caller writeback.
 
+  Preserve declared borrowed-receiver custody when an attached scalar-returning
+  callee does not read `self`: the scalar Graph signature still omits it, while
+  call selection prefers Graph over Operations. The Operations receiver fix
+  therefore does not close this route. Caller operands and selected callee
+  signatures must agree without a dummy field read. Exercise unread and observed
+  receiver bodies through Terminal production and native execution, retaining
+  duplicate-overload rejection.
+
 - **BORROW-PROOF-CONVERGENCE.** Carry ordinary borrow compatibility from
   checked certificates to independent portable replay under
   [loans](wiki/spec/terminal-psi/loans.md).
@@ -3811,25 +3819,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   residual.
 - **CANARY-ACQUIRES-THROUGH-HELPER-RETURN** — mined candidate; scope verified, real residual — the canary exists and is rostered (`tests/omega/pass/capabilities/acquires_through_helper_return`, in `tests/canary_suite.rs` + `tests/fixture_rosters/reports_and_capabilities.rs`), but the rostered fixture is red on `1fc01bb690`: `pass_canaries_compile` filtered to it fails at native-artifact Terminal production — `InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: "`Main::main` has no admitted body (local construction stopped at signature)" }`. The remaining leg is the checked/lowering gap that stops `Main::main`'s local construction at the signature (authority-propagating helper-return shape reaches no admitted body), not a missing corpus member. Fixture path is under a live same-item claim (Devin / cathr-acquires-helper-return).
 - **CANARY-CORE-NAME-COLLISION** — mined candidate; verify scope then implement.
-- **CANARY-DUPLICATE-OVERLOAD-DECLARATIONS.** Resolved — the
-  duplicate-overload canary corpus exists and is driven. Re-verified green
-  on linux x86-64 at `d648f6862e47`:
-  `cargo nextest run -p compiler --test canary_suite -E
-  'test(=surface_and_targets::duplicate_overload_and_visibility_
-  admissions_reject) or test(=surface_and_targets::repeated_exact_
-  declaration_selection_compiles)'` → 2/2 PASS.
-  `surface_and_targets.rs:1016` pins five duplicate-admission fixtures
-  with `expected.txt` fragments through checked semantics
-  (`duplicate_named_machine_overload_rejected`,
-  `duplicate_imported_machine_overload_rejected`,
-  `duplicate_trait_requirement_overload_rejected`,
-  `imported_name_collides_with_local_data_rejected`,
-  `recursive_argument_imported_name_collision_rejected`), and the legal
-  half is pinned by `repeated_exact_declaration_selection_compiles`;
-  remaining fail-corpus overload rejections (operators/domains) are
-  covered by `fail_canaries_reject_with_expected_diagnostic_fragment`.
-  Adjacent surface: DUPLICATE-OVERLOAD-RESOLUTION mines the resolution
-  rule itself, not this canary-coverage row. No independent slice exists.
 - **C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES.** The slice this row was opened
   for has landed; what remains is one dead negative control and two reds owned
   elsewhere. `source_replay_requires_the_exact_affine_return_transfer` passes
@@ -4353,38 +4342,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   test(~predicate)'` → 52/52 PASS on linux x86-64, including all seven
   `predicate_domain_initializer_*` pins. `checks/contracts/exits/` stays
   under PROOF-CERTIFICATION-BRIDGE.
-- **DUPLICATE-OVERLOAD-RESOLUTION.** Resolved — the duplicate-overload
-  resolution rule is landed and pinned. Re-verified at `7b2594090733`
-  (linux x86-64): `validate_named_callable_overload_declarations`
-  (`validation/src/machine_calls/callable_overloads.rs:19-70`) resolves
-  overload identity by `NormalizedNamedCallableIdentity` (path + parameter
-  signature + result dispatch set) for both machines and trait
-  requirements; same identity in non-separate scopes rejects with
-  "duplicate named {kind} overload ... predicate-only result refinements
-  do not distinguish overloads", while scope-separated or identity-
-  distinct declarations coexist. Pinned by
-  `surface_and_targets::duplicate_overload_and_visibility_admissions_reject`
-  (five fixtures green at `00e1da7ae2a`) plus the legal-half
-  `repeated_exact_declaration_selection_compiles`. Sibling stub
-  CANARY-DUPLICATE-OVERLOAD-DECLARATIONS covers the corpus row. No
-  independent slice exists.
-- **DUPLICATE-NAMED-MACHINE-OVERLOAD.** — implemented on
-  `zergling/z197-duplicate-named-machine-overload`: member calls through an
-  attached result-overload family (`self.helper.pick()` with same-named
-  `Helper::pick` overloads) no longer fail-closed at the unresolved-value-call
-  fence. `MachineScope::attached_call_target` treated the family's ambiguous
-  same-name lookup as invisible; it now accepts membership in the ambiguity set
-  and keeps the first visible member as the provisional binding, which
-  `resolve_named_result_overloads` rebinds to the destination's dispatch set.
-  Pins: pass `domains/runtime_result_domain_attached_overload_exit` (native run,
-  exit 70 only when each member call binds the matching overload), fail
-  `calls/duplicate_attached_machine_overload_rejected` (identical attached
-  duplicates still reject at declaration validation). Surfaced but NOT fixed
-  (pre-existing, overload-independent): a `&self` member call whose callee body
-  never touches `self` lowers with the receiver operand present but the callee's
-  scalar-graph signature drops it ("computed borrow disagrees with its selected
-  callee signature", checked-trees-to-lowered-psi structural_arguments gate) —
-  the run fixture reads `self.seed` so both overloads retain the receiver.
 
 
 - **NEW-TPV-DECLARATION-ORDER-NORMALIZATION-PIN.** Mined candidate; slice
@@ -5446,15 +5403,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   tail-overrun diagnosis never forms. Verified pre-existing, not test drift: the same
   nine fail at clean `origin/main` with no local commits. Their assertions are correct as
   written and were deliberately left unrelaxed — relaxing them would mask the regression.
-- **RECURSIVE-ARGUMENT-OVERLOAD-DECL-DEDUP** — mined candidate; scope verified, resolved — same re-mine of the `calls/statement_call_recursive_{argument,overload}_compile` dedup surface the resolved sibling rows carry: `e5912f303a` renamed the argument fixture's local `Nat`/`add` to `Peano`/`peano_add` ending the `core/nat.omg` collision, both pass canaries re-witnessed green on linux x86-64 at `a1daf35f2e` (`OMEGA_PASS_CANARY_FILTER=statement_call_recursive_argument_compile,statement_call_recursive_overload_compile cargo nextest run -p compiler --test canary_suite entry_and_abi::pass_canary_coverage::pass_canaries_compile`, 74s), and the dedup's negative half stays pinned by `surface_and_targets::duplicate_overload_and_visibility_admissions_reject` covering `duplicate_named_machine_overload_rejected` + `recursive_argument_imported_name_collision_rejected`. No independent slice exists; this closes the name-surface sibling set the resolved rows name.
-  and `boundary_witness_survives_transitive_disjoint_boundary_frame` — a
-  precision loss (refusals no longer reached the footprint diagnosis), not an
-  admission hole; boundary-ensures witness transport has since been restored
-  upstream so the bounded-offset reasoning forms again.
-- **RECURSIVE-ARGUMENT-OVERLOAD-DECL-DEDUP** — mined candidate; scope verified, resolved — same re-mine of the `calls/statement_call_recursive_{argument,overload}_compile` dedup surface the resolved sibling rows carry: `e5912f303a` renamed the argument fixture's local `Nat`/`add` to `Peano`/`peano_add` ending the `core/nat.omg` collision, both pass canaries re-witnessed green on linux x86-64 at `a1daf35f2e` (`OMEGA_PASS_CANARY_FILTER=statement_call_recursive_argument_compile,statement_call_recursive_overload_compile cargo nextest run -p compiler --test canary_suite entry_and_abi::pass_canary_coverage::pass_canaries_compile`, 74s), and the dedup's negative half stays pinned by `surface_and_targets::duplicate_overload_and_visibility_admissions_reject` covering `duplicate_named_machine_overload_rejected` + `recursive_argument_imported_name_collision_rejected`. No independent slice exists; this closes the name-surface sibling set the resolved rows name.
 
-- **RECURSIVE-ARGUMENT-OVERLOAD-DEDUP.** Mined candidate — resolved as an alias of RECURSIVE-ARGUMENT-OVERLOAD-DECL-DEDUP: the name re-mines the same `calls/statement_call_recursive_{argument,overload}_compile` dedup surface that row carries (Peano/peano_add rename at `e5912f303a` ended the `core/nat.omg` collision; negative half pinned by `duplicate_overload_and_visibility_admissions_reject`). Re-witnessed at `9e3edc7be9a3` on Linux x86-64: `OMEGA_PASS_CANARY_FILTER=statement_call_recursive_argument_compile,statement_call_recursive_overload_compile cargo nextest run -p compiler --test canary_suite entry_and_abi::pass_canary_coverage::pass_canaries_compile` → pass (94.6s), and `OMEGA_FAIL_CANARY_FILTER=duplicate_named_machine_overload_rejected,recursive_argument_imported_name_collision_rejected ... surface_and_targets::duplicate_overload_and_visibility_admissions_reject` → pass. No independent slice exists.
-- **RECURSIVE-ARGUMENT-OVERLOAD-DECL-DEDUP** — mined candidate; scope verified, resolved — same re-mine of the `calls/statement_call_recursive_{argument,overload}_compile` dedup surface the resolved sibling rows carry: `e5912f303a` renamed the argument fixture's local `Nat`/`add` to `Peano`/`peano_add` ending the `core/nat.omg` collision, both pass canaries re-witnessed green on linux x86-64 at `a1daf35f2e` (`OMEGA_PASS_CANARY_FILTER=statement_call_recursive_argument_compile,statement_call_recursive_overload_compile cargo nextest run -p compiler --test canary_suite entry_and_abi::pass_canary_coverage::pass_canaries_compile`, 74s), and the dedup's negative half stays pinned by `surface_and_targets::duplicate_overload_and_visibility_admissions_reject` covering `duplicate_named_machine_overload_rejected` + `recursive_argument_imported_name_collision_rejected`. No independent slice exists; this closes the name-surface sibling set the resolved rows name.
 - **REVIEW-INSTANTIATION-CLONE-FREE-SCRATCH.** Mined candidate; scope verified
   at `d8041919ad`, owned — names the residual the evidence README already
   records: "Operator and top-level requirement signature capture borrows the
@@ -5813,7 +5762,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   final-image validation). No placeholder mechanics survive to sweep —
   no independent slice exists.
 - **STARTUP-ENTRY-RUNTIME-MECHANICS** — mined candidate; verify scope then implement.
-- **STATEMENT-CALL-RECURSIVE-OVERLOAD** — mined candidate; verify scope then implement.
 - **T2C-RANK-RANGE-FIELD-ENDPOINTS.** Mined candidate — resolved:
   rank-range endpoints expressed as field chains are landed and green.
   `typed-trees-to-checked-trees/src/checks/termination/ranking/ranges/endpoints.rs`
@@ -5904,91 +5852,29 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   computed_field_limits. Re-verified green at `bbffdafe0498` (z116,
   linux x86-64): same command, same 49/49. No independent slice remains.
   covered — alias of landed T2C-RANK-RANGE-FIELD-ENDPOINTS
-- **TRANSPARENT-TRAIT-REFINEMENTS.** — in progress (branch
-  `zergling/z137-transparent-trait-refinements`); parser through typed trees
-  land on that branch: `trait Local = Base { machine * reaches; suspends
-  false; blocks false; terminates; machine Base::req ...; }` declares a
-  transparent refinement — a structural bound over existing base conformance,
-  never a conformance target (`satisfies Local` and `C: T satisfies Local`
-  conformance positions reject; bound carriers `L satisfies Local` are the
-  legal consumer). Clause axes narrow-only: named requirements must name a
-  base machine, duplicate names reject, `suspends`/`blocks` may only be
-  turned off, and a non-empty clause `reaches` over an empty base row is
-  widening. Remaining frontier for the next slice: per-clause `reaches`
-  subset checking against the base row's normalized names (clause reach
-  names are retained on `TraitRefinementClause.service_reaches`, pending a
-  clause-location variant of the reach-row table), `_` reach wildcards, and
-  the evidence-binder fit check that consumes the refinement bound.
+- **TRANSPARENT-TRAIT-REFINEMENTS.** Complete refinement application and exact
+  requirement selection under
+  [transparent refinements](wiki/spec/language/conformances.md#transparent-refinements).
+  Reach-subset checking, independent clause-local `_` rows, requirement
+  forwarding and concrete evidence-binder fit already exist; do not rebuild
+  them from the obsolete claim that refinements have no checked consumers.
 
-  **The evidence-binder fit check landed 2026-09-21.** A binder carrying a
-  refinement carrier now resolves the carrier through `refines` and checks the
-  explicitly selected base conformance against the refinement's clauses, per
-  `conformances.md:168-171` ("a static evidence binder may require it and
-  receive an explicitly selected `Logger` conformance whose complete contract
-  fits"). New module
-  `typed-trees-to-checked-trees/src/monomorphization/selection/refinement_fit.rs`;
-  7 tests in `src/tests/generics/conformance_binders/refinement_binders.rs`.
+  Instantiate `refines.arguments`, including reordered/partially applied
+  heads, before comparing the selected conformance. Typed trait lowering retains
+  them, but `monomorphization/selection/refinement_fit.rs::resolve_bound_carrier`
+  keeps only the base symbol and `candidate_bounds.rs` compares the unexpanded
+  bound arguments. Targeted signature-free paths must resolve one exact
+  requirement, rejecting ambiguity instead of refining every same-named overload.
+  Also reconcile `covering_clause` and its targeted-replaces-wildcard test with
+  the specified rule that `machine *` applies to every base requirement; a
+  targeted clause must not silently discard those constraints.
 
-  Carrier resolution alone was NOT enough, and shipping it alone would have
-  been unsound — it would admit non-fitting conformances silently. Three
-  further sites had to resolve the requirement namespace through `refines`,
-  because a refinement's own `machines`/`requires` are empty:
-  `validation/.../generic_requirement.rs` (call resolution),
-  `syntax-trees-to-symbol-resolved-trees/.../children/machines.rs` (the
-  binder's child placeholder symbols) and its positional mirror in
-  `monomorphization/body_rewriting/evidence_rewrites.rs` — the last two must
-  visit in the same order (own machines, refined base, parents). All three are
-  guarded on `refines.is_some()`, so ordinary traits are untouched.
-
-  Three readings the spec does not settle, recorded so they can be revisited:
-  (1) `terminates;` demands a *published* guarantee — at this stage
-  `termination_plan.checked_summary` is still `NoGuarantee`, so `interface`
-  identity is the only honest signal, and `effects.md:228-229` ("observing a
-  non-waiting run does not" remove a marker) backs declaration over
-  observation. **Consequence worth noting: the corpus fixture
-  `tests/omega/pass/traits/transparent_refinement_declaration` authors
-  `machine * ... terminates;` over a `Sink::write` with no `terminates`, so a
-  binder over that trait would now reject. It still passes because nothing
-  binds it, but the shipped example would not work if used.**
-  (2) A targeted clause REPLACES the wildcard for its own requirement rather
-  than meeting with it ("unmentioned ... inherit the base", and the
-  order-independent meet is specified only for combining multiple
-  refinements). (3) `suspends true` / `blocks true` bind nothing, since they
-  only restate what the base already permits.
-
-  Still out of scope: parameterized refinements whose `refines.arguments` are
-  not pass-through (`conformance_application_arguments_match_candidate` would
-  mis-compare a reordered or partially applied head, and nothing rejects it
-  loudly), and the `bound.selected_conformance` branch, which checks subject
-  identity but never trait identity — a pre-existing hole of the same shape.
-
-  Verified: `typed-trees-to-checked-trees --lib` 5107/5107; `validation` +
-  `syntax-trees-to-symbol-resolved-trees` + `symbol-resolved-trees-to-typed-trees`
-  1749/1749. Sentinel: disabling only the fit check fails the five rejection
-  tests by name while the two admission tests still pass. **The `.omg` corpus
-  fixtures have since been run, once the ElementView legs unblocked
-  `-p compiler`: all four `fail/traits/transparent_refinement_*` fixtures still
-  reject with their pinned fragments and
-  `pass/traits/transparent_refinement_declaration` still compiles — 5/5, no
-  regression.**
-  Fresh audit at `c3dd8016a74d` (zergling-168, linux x86-64): the z137
-  branch is gone from the remote — parser through typed trees landed on
-  main — and two of the three frontier items have since closed:
-  per-clause `reaches` subset checking against the base row's normalized
-  names landed at `75f8215cf9b10` ("check refinement clause reaches
-  names against the base reach row") and clause-location binding plus
-  `_` wildcard abstract rows landed at `612061f5b694d` ("refinement
-  clause reaches bind at clause location, wildcard mints abstract
-  rows"). Re-verified green on this chain: `nextest -p
-  symbol-resolved-trees-to-typed-trees -E 'test(~refinement) |
-  test(~transparent)'` -> 10/10 PASS (subset rejection, wildcard minting,
-  empty-row narrowing, inheritance). The surviving leg is the
-  evidence-binder fit check alone: `refines`/`refinement_clauses` still
-  have zero consumers below s2t — no reads in checked-trees,
-  typed-trees-to-checked-trees, lowered/terminal representations, or the
-  verifier (the `refines` hits under semantics/ are English comments).
-  Bound carriers `L satisfies Local` remain the legal consumer to
-  implement.
+  Preserve structural-bound (not nominal-target) semantics, inherited axes,
+  independent bounded rows, complete-contract fit and the order-independent
+  meet of combined refinements before normalization/fingerprinting. Acceptance:
+  fitting/nonfitting parameterized applications, exact/ambiguous targets,
+  wildcard-plus-targeted constraints and consumed binder fixtures. A declaration
+  fixture that never instantiates its binder does not establish usable fit.
 - **TRUSTED-SURFACE-DIGEST-RE-RECORDING.** Standing duty, not a one-off: keep
   the trusted-surface digest ledger
   (`omega-rust/psi/semantics/terminal-verifier/src/trusted_surface/sites.rs`)
