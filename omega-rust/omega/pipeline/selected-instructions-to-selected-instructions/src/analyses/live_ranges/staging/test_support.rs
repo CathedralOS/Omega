@@ -1,4 +1,4 @@
-use super::model::StagedOptimizedLiveRanges;
+use super::StagedOptimizedLiveRanges;
 
 /// One substitutable field of [`StagedOptimizedLiveRangeCustodyReceipt`](super::StagedOptimizedLiveRangeCustodyReceipt). The custody matrix
 /// substitutes exactly one field per leg so a rejection attributes to that

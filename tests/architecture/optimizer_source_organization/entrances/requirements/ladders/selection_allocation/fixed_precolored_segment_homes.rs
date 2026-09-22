@@ -4,7 +4,6 @@ pub(super) const PRODUCTION: SemanticLadder = SemanticLadder {
     family: "fixed/precolored segmented homes",
     paths: &[
         "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_segment_homes/mod.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_segment_homes/model.rs",
         "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_segment_homes/error.rs",
         "omega-rust/omega/representations/register-homes/src/register_homes/storage/fixed_precolored_segment_homes.rs",
         "omega-rust/omega/representations/register-homes/src/register_homes/storage/fixed_precolored_segment_homes/identity.rs",

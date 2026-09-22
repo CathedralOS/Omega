@@ -139,7 +139,7 @@ fn selected_analysis_validation_seals_stay_in_the_transform() {
         ),
     ] {
         let model =
-            std::fs::read_to_string(owner.join(format!("analyses/{module}/model.rs"))).unwrap();
+            std::fs::read_to_string(owner.join(format!("analyses/{module}/mod.rs"))).unwrap();
         for declaration in [
             format!("pub struct {validated} {{"),
             format!("pub struct {receipt} {{"),

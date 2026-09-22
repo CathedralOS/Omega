@@ -4,7 +4,6 @@ pub(super) const PRODUCTION: SemanticLadder = SemanticLadder {
     family: "fixed/precolored split requirements",
     paths: &[
         "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_split_requirements/mod.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_split_requirements/model.rs",
         "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_split_requirements/error.rs",
         "omega-rust/omega/representations/register-homes/src/register_homes/constraints/fixed_precolored_split_requirements.rs",
         "omega-rust/omega/representations/register-homes/src/register_homes/constraints/fixed_precolored_split_requirements/identity.rs",

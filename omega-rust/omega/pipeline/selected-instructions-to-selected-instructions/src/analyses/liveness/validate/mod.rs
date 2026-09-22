@@ -9,7 +9,7 @@ mod replay;
 #[cfg(test)]
 mod tests;
 
-use crate::analyses::liveness::model::{LivenessError, ValidatedLiveness};
+use crate::analyses::liveness::{LivenessError, ValidatedLiveness};
 use function_contract::validate_function;
 use replay::replay_function;
 use selected_instructions::LivenessPlan;

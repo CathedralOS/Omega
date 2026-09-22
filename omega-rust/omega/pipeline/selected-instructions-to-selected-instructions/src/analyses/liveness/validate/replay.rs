@@ -2,7 +2,7 @@
 
 use super::constraints::reject_v1_unsupported;
 use super::instruction_order::ordered_instructions;
-use crate::analyses::liveness::model::LivenessError;
+use crate::analyses::liveness::LivenessError;
 use register_model::{RegisterOperandAccess, RegisterUnitId};
 use selected_instructions::{
     BlockLiveness, EntryDefinition, FunctionLiveness, InstructionLiveness, LivenessPosition,

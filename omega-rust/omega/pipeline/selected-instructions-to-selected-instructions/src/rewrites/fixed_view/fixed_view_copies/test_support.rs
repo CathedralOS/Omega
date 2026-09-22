@@ -1,4 +1,4 @@
-use super::model::StagedOptimizedFixedViewCopies;
+use super::StagedOptimizedFixedViewCopies;
 use crate::FixedViewCopyPolicy;
 
 fn other_fixed_view_copy_policy(policy: FixedViewCopyPolicy) -> FixedViewCopyPolicy {

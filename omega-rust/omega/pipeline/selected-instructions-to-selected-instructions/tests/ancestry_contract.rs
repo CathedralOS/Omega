@@ -45,7 +45,7 @@ const CUSTODY_HOP_FILES: &[(&str, &[&str])] = &[
     (
         "source_legality_stage()",
         &[
-            "rewrites/fixed_view/fixed_view_copies/model.rs",
+            "rewrites/fixed_view/fixed_view_copies/mod.rs",
             "rewrites/fixed_view/fixed_view_copies/validation.rs",
         ],
     ),

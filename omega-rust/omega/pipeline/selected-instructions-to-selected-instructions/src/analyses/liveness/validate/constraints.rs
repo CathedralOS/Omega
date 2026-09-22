@@ -1,7 +1,7 @@
 //! Independent admission of supported operand-constraint shapes.
 
 use super::instruction_order::ordered_instructions;
-use crate::analyses::liveness::model::LivenessError;
+use crate::analyses::liveness::LivenessError;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{SelectedFunction, VirtualRegisterId};
 use std::collections::BTreeSet;

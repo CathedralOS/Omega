@@ -178,7 +178,7 @@ fn allocation_analysis_admission_stays_sealed_in_the_transform() {
     );
     for family in FAMILIES {
         let model =
-            std::fs::read_to_string(stage.join(format!("{}/model.rs", family.source))).unwrap();
+            std::fs::read_to_string(stage.join(format!("{}/mod.rs", family.source))).unwrap();
         for name in [family.validated, family.receipt] {
             let declaration = format!("pub struct {name} {{");
             assert!(model.contains(&declaration));

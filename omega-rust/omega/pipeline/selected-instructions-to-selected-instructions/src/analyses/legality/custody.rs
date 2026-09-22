@@ -3,7 +3,7 @@ use register_homes::AllocatorAvailabilityIdentity;
 
 use crate::StagedOptimizedLiveRangeCustodyReceipt;
 
-use super::model::StagedOptimizedAllocationLegalityCustodyReceipt;
+use super::StagedOptimizedAllocationLegalityCustodyReceipt;
 
 pub(super) fn custody_receipt(
     upstream: StagedOptimizedLiveRangeCustodyReceipt,

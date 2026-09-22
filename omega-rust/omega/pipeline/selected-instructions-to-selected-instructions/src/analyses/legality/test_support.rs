@@ -1,4 +1,4 @@
-use super::model::StagedOptimizedAllocationLegality;
+use super::StagedOptimizedAllocationLegality;
 
 /// One substitutable field of [`StagedOptimizedAllocationLegalityCustodyReceipt`](super::StagedOptimizedAllocationLegalityCustodyReceipt). The custody matrix
 /// substitutes exactly one field per leg so a rejection attributes to that

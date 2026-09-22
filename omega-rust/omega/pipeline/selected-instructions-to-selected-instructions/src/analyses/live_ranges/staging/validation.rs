@@ -4,7 +4,7 @@ use crate::StagedOptimizedLiveness;
 use crate::analyses::validate_staged_optimized_liveness_custody;
 
 use super::custody::live_range_custody_receipt;
-use super::model::{OptimizedLiveRangeCustodyError, StagedOptimizedLiveRangeCustodyReceipt};
+use super::{OptimizedLiveRangeCustodyError, StagedOptimizedLiveRangeCustodyReceipt};
 
 pub fn validate_optimized_live_range_custody(
     liveness: &StagedOptimizedLiveness,

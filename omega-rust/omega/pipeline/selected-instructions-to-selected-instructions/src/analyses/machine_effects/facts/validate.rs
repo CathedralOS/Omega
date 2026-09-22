@@ -10,7 +10,7 @@ use selected_instructions::{
 };
 
 use super::compute::machine_semantic_kind;
-use super::model::receipt;
+use super::receipt;
 use super::{MachineEffectError, ValidatedPreAllocationMachineEffects};
 use selected_instructions::{
     FunctionMachineEffects, InstructionMachineEffects, PreAllocationMachineEffectPlan,

@@ -1,6 +1,6 @@
 use crate::ValidatedAllocationLegality;
 
-use super::model::OptimizedSelectedReanalysisError;
+use super::OptimizedSelectedReanalysisError;
 
 pub(super) fn require_no_transitions(
     legality: &ValidatedAllocationLegality,

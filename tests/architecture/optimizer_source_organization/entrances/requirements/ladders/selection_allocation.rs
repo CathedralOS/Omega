@@ -315,7 +315,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "fixed/precolored point intervals",
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_intervals/mod.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_intervals/model.rs",
             "omega-rust/omega/representations/register-homes/src/register_homes/constraints/fixed_precolored_intervals.rs",
             "omega-rust/omega/representations/register-homes/src/register_homes/constraints/fixed_precolored_intervals/identity.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_intervals/compute.rs",
@@ -387,7 +386,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "fixed-view-copy segment evidence",
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/evidence/mod.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/evidence/model.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/evidence/compute.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/evidence/replay.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/work.rs",
@@ -397,7 +395,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "fixed/precolored segment-home pipeline custody",
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/fixed_view/fixed_precolored_segment_homes/mod.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/fixed_view/fixed_precolored_segment_homes/model.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/fixed_view/fixed_precolored_segment_homes/compute.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/fixed_view/fixed_precolored_segment_homes/validation.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/fixed_view/fixed_precolored_segment_homes/custody.rs",

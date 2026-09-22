@@ -5,7 +5,7 @@ use target_operations_to_selected_instructions::{
 };
 
 use super::custody::liveness_custody_receipt;
-use super::model::{
+use super::{
     OptimizedLivenessCustodyError, StagedOptimizedLiveness, StagedOptimizedLivenessCustodyReceipt,
 };
 

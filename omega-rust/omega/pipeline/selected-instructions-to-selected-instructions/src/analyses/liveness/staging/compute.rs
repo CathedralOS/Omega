@@ -2,7 +2,7 @@ use crate::{ValidatedLiveness, analyze_liveness};
 
 use target_operations_to_selected_instructions::StagedOptimizedSelectedInstructions;
 
-use super::model::OptimizedLivenessCustodyError;
+use super::OptimizedLivenessCustodyError;
 
 pub(super) fn compute_liveness(
     selected: &StagedOptimizedSelectedInstructions,

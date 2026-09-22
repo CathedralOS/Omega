@@ -1,6 +1,6 @@
 //! Exact comparison of proposed and independently replayed function liveness.
 
-use crate::analyses::liveness::model::LivenessError;
+use crate::analyses::liveness::LivenessError;
 use selected_instructions::FunctionLiveness;
 
 pub(super) fn validate_function(
