@@ -302,7 +302,7 @@ fn graph_result_call_cannot_substitute_a_same_typed_mutable_input() {
     )
     .unwrap_err();
     assert!(
-        format!("{error:?}").contains("differs from its authored destination"),
+        format!("{error:?}").contains("differs from its authored backing"),
         "{error:?}"
     );
 }
