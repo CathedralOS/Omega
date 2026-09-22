@@ -440,6 +440,104 @@ fn borrow_compatibility_does_not_discharge_callee_preconditions_or_false_guarant
     }
 }
 
+/// A call in statement position also mints the guarantees its args satisfy:
+/// `ordain(&mut cut)` establishes `cut >= 2` through the arg, so the window it
+/// heads is provably disjoint from the element before it. Statement-site
+/// calls were previously invisible to establishment replay.
+const STATEMENT_CALL_WINDOW: &str = r#"
+    data Main { items: [i32; 4]; }
+    machine ordain(slot: &mut u64 [0..=4]) ensures slot >= 2 { slot = 2; }
+    machine Main::main(&mut self) -> u64 {
+        let mut cut: u64 [0..=4] = 0;
+        ordain(&mut cut);
+        let held: &mut [i32] = self.items[cut..4];
+        self.items[0] = 3;
+        held.len
+    }
+"#;
+
+#[test]
+fn statement_call_guarantee_certifies_disjoint_window_write() {
+    let mut checked = checked_program(STATEMENT_CALL_WINDOW);
+    let certificate = checked
+        .facts
+        .borrow
+        .mutation_certificates
+        .iter()
+        .map(|(_, certificate)| certificate)
+        .next()
+        .expect("one mutation certificate");
+    assert_eq!(
+        certificate.derivation,
+        checked_trees::BorrowCompatibilityDerivation::Premised
+    );
+    crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+        .expect("statement-established certificate replays its exact tokens");
+}
+
+#[test]
+fn statement_call_premises_reject_weakened_changed_or_foreign_args() {
+    for predicate in ["", "ensures slot >= 0 ", "ensures slot >= 2 || slot == 0 "] {
+        assert_conflict(&STATEMENT_CALL_WINDOW.replace("ensures slot >= 2 ", predicate));
+    }
+    // A guarantee established on a different actual does not describe `cut`.
+    assert_conflict(
+        &STATEMENT_CALL_WINDOW
+            .replace(
+                "let mut cut: u64 [0..=4] = 0;",
+                "let mut cut: u64 [0..=4] = 0; let mut spare: u64 [0..=4] = 0;",
+            )
+            .replace("ordain(&mut cut)", "ordain(&mut spare)"),
+    );
+    // Re-establishing the storage retires the call's assertion of its state.
+    assert_conflict(&STATEMENT_CALL_WINDOW.replace("let held:", "cut = 0; let held:"));
+    // Rebinding the storage to an unknown value must also retire the premise:
+    // a stale `cut >= 2` must not prove `0 < cut` for arbitrary contents.
+    assert_conflict(
+        &STATEMENT_CALL_WINDOW
+            .replace(
+                "items: [i32; 4]; }",
+                "items: [i32; 4]; score: u64 [0..=4]; }",
+            )
+            .replace("let held:", "cut = self.score; let held:"),
+    );
+}
+
+#[test]
+fn statement_call_premise_tokens_reject_changed_coordinates() {
+    for change in 0..4 {
+        let mut checked = checked_program(STATEMENT_CALL_WINDOW);
+        let handle = checked
+            .facts
+            .borrow
+            .mutation_certificates
+            .iter()
+            .find_map(|(handle, certificate)| (!certificate.premises.is_empty()).then_some(handle))
+            .expect("premised mutation");
+        let certificate = checked.facts.borrow.mutation_certificates.get_mut(handle);
+        if change == 0 {
+            certificate.premises.clear();
+        } else {
+            let checked_trees::BorrowCompatibilityPremiseSource::CallEnsures {
+                fact,
+                statement_index,
+                call_ordinal,
+                ..
+            } = &mut certificate.premises[0].source
+            else {
+                panic!("call token");
+            };
+            match change {
+                1 => *fact = arena::Handle::invalid(),
+                2 => *statement_index += 1,
+                3 => *call_ordinal += 1,
+                _ => unreachable!(),
+            }
+        }
+        assert_replay_rejects(&mut checked);
+    }
+}
+
 /// A field projection of a returned structural result carries the
 /// establishment premise: `ensures result.first >= 2` mints the same
 /// segmented bound the callee's own proof must also discharge. The borrow
