@@ -100,5 +100,9 @@ name = "glob_reexports"
 path = "glob_reexports.rs"
 
 [[test]]
+name = "catch_all_modules"
+path = "catch_all_modules.rs"
+
+[[test]]
 name = "integration_test_suites"
 path = "integration_test_suites.rs"
