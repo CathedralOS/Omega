@@ -1828,6 +1828,34 @@ syntax and other terminal services are not prerequisites.
 
 ## Parallel language and compiler lanes
 
+- **DISPATCHED-CALL-RECOGNIZER-GAP.** Three call recognizers exclude quotient
+  and private-layout requests but still accept a call whose
+  `static_requirement_dispatch` is set, so a satisfier's private closed
+  realization (the rewritten `target_symbol`) flows through them as if it were
+  the plain application the call spells:
+  `typed-trees-to-checked-trees/src/execution/unit/returns/guarded_call_returns.rs`
+  (guarded value-call return plans),
+  `validation/src/proof_contracts/proof_embeddings/calls.rs` (`embed` sources)
+  and `validation/src/proof_contracts/quotients/relation_plan/theorem_schema_verification.rs`
+  (theorem-schema verification, which also compares `machine_arguments` against
+  the representative telescope). Every other recognizer in those crates now
+  uses `TableCallExpression::selects_only_nominal_route`
+  (`6f9a563e19`) and rejects such calls; these three were
+  left as authored because narrowing them is a semantic change. Decide per
+  site whether a dispatched call is admissible there (the public requirement,
+  not the rewritten symbol, is the contract and proof interface per the
+  predicate's doc) and either adopt the predicate or document why the
+  dispatched realization is the right operand.
+
+  Acceptance: each of the three sites either uses `selects_only_nominal_route`
+  with a fixture in which a static-requirement-dispatched call is rejected (or
+  handled through the requirement's contract) at that site, or carries a
+  comment naming why the dispatched realization is admissible there, with a
+  test pinning that admission; the residue grep
+  `grep -rn 'private_layout_operation.is_some()' omega-rust --include='*.rs' | grep -v tests`
+  then lists only the fingerprint writer in `proof/mathematical_signature.rs`
+  and the resolution-stage producer.
+
 - **BORROWED-STORAGE-RESTORATION.** (split-of:OMEGA-PRODUCT-COMPILER-SOURCE)
   Complete consuming-transform/replacement execution under
   [borrowed-storage invariant windows](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows)
