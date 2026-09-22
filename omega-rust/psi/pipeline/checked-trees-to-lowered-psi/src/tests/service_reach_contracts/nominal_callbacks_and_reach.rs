@@ -147,6 +147,7 @@ fn closed_nominal_callback_transfers_both_claims_to_its_selected_body() {
         terminal_production::TerminalMachineSelection::Name("Root::enter"),
     )
     .produce(TerminalProductionCustody {
+        retain_unoptimized: false,
         entry_identity: Some([0xa5; 32]),
         callback_custody: (),
         timings: &mut TerminalProductionTimings::default(),

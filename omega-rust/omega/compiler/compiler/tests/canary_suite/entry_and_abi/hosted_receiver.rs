@@ -522,6 +522,7 @@ fn assert_erased_service_settlement_requires_its_source_row(root: &Path) {
         TerminalMachineSelection::Symbol(source.machine_symbol()),
     )
     .produce(TerminalProductionCustody {
+        retain_unoptimized: false,
         entry_identity: Some(source.identity().bytes()),
         callback_custody: (),
         timings: &mut TerminalProductionTimings::default(),

@@ -208,10 +208,6 @@ fn produce_retained_terminal_artifact(
         checked,
         checked.selected_provider_provenance(),
     )?;
-    // The root and provider selections are now fixed; the authored behavior
-    // exclusions must hold in the unoptimized composition before the product
-    // is produced and admitted.
-    behavior_exclusions::verify_entry_behavior_exclusions(checked, entry_machine_symbol)?;
     let psi_optimizations = selections.project_psi();
     // The accumulator steps out of the checked record across the measured
     // legs below so each closure may borrow the record while it is timed; it
@@ -230,6 +226,9 @@ fn produce_retained_terminal_artifact(
             .produce(TerminalProductionCustody {
                 entry_identity: Some(source_signature_identity),
                 callback_custody: callback_placements,
+                // The authored behavior exclusions are judged against the
+                // unoptimized composition the artifact was published from.
+                retain_unoptimized: true,
                 timings: &mut production_timings,
             })
         })
@@ -243,6 +242,7 @@ fn produce_retained_terminal_artifact(
     let (
         artifact,
         checked_program_entry,
+        unoptimized,
         checked_boundary_operator_scope,
         callback_placements,
         source_call_occurrences,
@@ -255,6 +255,14 @@ fn produce_retained_terminal_artifact(
             "terminal-artifact production retained no checked ProgramEntry receipt",
         )]
     })?;
+    // The root and provider selections are fixed; the authored behavior
+    // exclusions must hold in the unoptimized composition before the product
+    // is admitted.
+    behavior_exclusions::verify_entry_behavior_exclusions(
+        checked,
+        unoptimized.as_ref(),
+        entry_machine_symbol,
+    )?;
     stage_timings.record_result(TERMINAL_VERIFICATION_STAGE, || {
         verification::verify_terminal_artifact(&artifact, profile)
     })?;
@@ -348,13 +356,9 @@ pub fn produce_program_entry_terminal_artifact(
 ) -> Result<ProgramEntryTerminalArtifact, Vec<Diagnostic>> {
     // Same admission requirement as the retained product: a settled
     // `Independent` edge has no product carrier, and the authored exclusions
-    // are verified against the unoptimized composition before the direct
-    // native route's artifact is produced.
+    // are verified against the unoptimized composition the direct native
+    // route's artifact is published from.
     composition_modes::verify_selected_compositions_are_realized(checked)?;
-    behavior_exclusions::verify_entry_behavior_exclusions(
-        checked,
-        program_entry.source_signature().machine_symbol(),
-    )?;
     let psi_optimizations = optimization_selections.project_psi();
     let terminal_trees = checked.terminal_production_trees();
     let mut stage_timings = checked.timings().clone();
@@ -371,6 +375,7 @@ pub fn produce_program_entry_terminal_artifact(
             .produce(TerminalProductionCustody {
                 entry_identity: Some(program_entry.source_signature().identity().bytes()),
                 callback_custody: (),
+                retain_unoptimized: true,
                 timings: &mut production_timings,
             })
         })
@@ -383,6 +388,7 @@ pub fn produce_program_entry_terminal_artifact(
     let (
         artifact,
         checked_program_entry,
+        unoptimized,
         checked_boundary_operator_scope,
         (),
         _source_call_occurrences,
@@ -395,6 +401,11 @@ pub fn produce_program_entry_terminal_artifact(
             "native-artifact Terminal production retained no checked ProgramEntry receipt",
         )]
     })?;
+    behavior_exclusions::verify_entry_behavior_exclusions(
+        checked,
+        unoptimized.as_ref(),
+        program_entry.source_signature().machine_symbol(),
+    )?;
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).map_err(|error| {
         vec![Diagnostic::error(format!(
             "native comparison custody could not decode Terminal semantics: {error}"

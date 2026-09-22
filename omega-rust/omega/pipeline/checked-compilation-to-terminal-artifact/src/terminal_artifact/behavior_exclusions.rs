@@ -24,7 +24,6 @@ use build_evaluation::{
     AuthoredBehaviorExclusion, BehaviorExclusionReport, BehaviorExclusionVerdict, EvidenceGapKind,
     ProhibitedSite, authored_behavior_exclusion_set_in, establish_behavior_exclusions_with_owners,
 };
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::MachineId;
 use std::collections::BTreeMap;
@@ -217,25 +216,25 @@ fn call_callee(kind: &terminal_psi::OperationKind) -> Option<MachineId> {
     }
 }
 
-/// Re-lower the selected program entry without optional optimization and
-/// verify the authored exclusions against that exact composition.
+/// Verify the authored exclusions against the selected program entry's
+/// unoptimized composition: the lowered module Terminal production retained
+/// before its selected optimization ran, the same lowering the artifact was
+/// published from. `unoptimized` is `None` only when production was not
+/// asked to retain it, which is a production-request fault, not an admission.
 pub(crate) fn verify_entry_behavior_exclusions(
     checked: &CheckedCompilation,
+    unoptimized: Option<&lowered_psi::LoweredPsi>,
     entry_machine_symbol: symbols::SymbolHandle,
 ) -> Result<(), Vec<Diagnostic>> {
     if checked.behavior_exclusions().is_empty() {
         return Ok(());
     }
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        checked,
-        TerminalMachineSelection::Symbol(entry_machine_symbol),
-    )
-    .map_err(|error| {
-        vec![Diagnostic::error(format!(
-            "behavior-exclusion admission could not replay the unoptimized Terminal lowering: {error}"
-        ))]
+    let lowered = unoptimized.ok_or_else(|| {
+        vec![Diagnostic::error(
+            "behavior-exclusion admission needs the unoptimized Terminal lowering retained by production",
+        )]
     })?;
-    let provenance = MachineProvenance::from_lowering(checked, &lowered, entry_machine_symbol);
+    let provenance = MachineProvenance::from_lowering(checked, lowered, entry_machine_symbol);
     verify_module_behavior_exclusions(checked, &lowered.semantic_module, &provenance)
 }
 

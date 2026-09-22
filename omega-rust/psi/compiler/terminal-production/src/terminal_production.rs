@@ -36,6 +36,7 @@ mod receiver_eligibility;
 pub struct ProducedTerminalArtifact<C> {
     artifact: terminal_codec::CanonicalTerminalArtifact,
     receipt: Option<CheckedProgramEntryTerminalReceipt>,
+    unoptimized: Option<LoweredPsi>,
     boundary_operator_scope: CheckedBoundaryOperatorApplicationScope,
     callback_custody: C,
     source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
@@ -53,6 +54,13 @@ impl<C> ProducedTerminalArtifact<C> {
     /// carried an entry identity.
     pub const fn receipt(&self) -> Option<&CheckedProgramEntryTerminalReceipt> {
         self.receipt.as_ref()
+    }
+
+    /// The lowered module before selected optimization, present exactly when
+    /// the custody asked to retain it: the composition an admission check
+    /// that must not see optimization reads, without lowering again.
+    pub const fn unoptimized(&self) -> Option<&LoweredPsi> {
+        self.unoptimized.as_ref()
     }
 
     pub const fn boundary_operator_scope(&self) -> &CheckedBoundaryOperatorApplicationScope {
@@ -97,6 +105,7 @@ impl<C> ProducedTerminalArtifact<C> {
     ) -> (
         terminal_codec::CanonicalTerminalArtifact,
         Option<CheckedProgramEntryTerminalReceipt>,
+        Option<LoweredPsi>,
         CheckedBoundaryOperatorApplicationScope,
         C,
         Vec<LoweredSourceCallOccurrence>,
@@ -107,6 +116,7 @@ impl<C> ProducedTerminalArtifact<C> {
         (
             self.artifact,
             self.receipt,
+            self.unoptimized,
             self.boundary_operator_scope,
             self.callback_custody,
             self.source_call_occurrences,
@@ -163,6 +173,11 @@ impl<C: std::fmt::Debug> std::error::Error for CallbackCustodyTerminalArtifactPr
 pub struct TerminalProductionCustody<'t, C> {
     pub entry_identity: Option<[u8; 32]>,
     pub callback_custody: C,
+    /// Retain the lowered module as it was before selected optimization,
+    /// beside the artifact. An admission that must judge the unoptimized
+    /// composition (the authored behavior exclusions) reads it from the
+    /// product instead of lowering the entry a second time.
+    pub retain_unoptimized: bool,
     pub timings: &'t mut TerminalProductionTimings,
 }
 
@@ -173,6 +188,7 @@ impl<'t> TerminalProductionCustody<'t, ()> {
         Self {
             entry_identity: None,
             callback_custody: (),
+            retain_unoptimized: false,
             timings,
         }
     }
@@ -212,12 +228,14 @@ impl<'a> TerminalProductionRequest<'a> {
         let TerminalProductionCustody {
             entry_identity,
             callback_custody,
+            retain_unoptimized,
             timings,
         } = custody;
-        match self.produce_retained(entry_identity, timings) {
+        match self.produce_retained(entry_identity, retain_unoptimized, timings) {
             Ok(produced) => Ok(ProducedTerminalArtifact {
                 artifact: produced.artifact,
                 receipt: produced.receipt,
+                unoptimized: produced.unoptimized,
                 boundary_operator_scope: produced.boundary_operator_scope,
                 callback_custody,
                 source_call_occurrences: produced.source_call_occurrences,
@@ -237,6 +255,7 @@ impl<'a> TerminalProductionRequest<'a> {
     fn produce_retained(
         self,
         entry_identity: Option<[u8; 32]>,
+        retain_unoptimized: bool,
         timings: &mut TerminalProductionTimings,
     ) -> Result<ProducedTerminalArtifact<()>, TerminalArtifactProductionError> {
         let checked = self.checked;
@@ -252,7 +271,7 @@ impl<'a> TerminalProductionRequest<'a> {
             ),
             None => None,
         };
-        let optimized = self.lower_and_optimize(timings)?;
+        let (unoptimized, optimized) = self.lower_and_optimize(retain_unoptimized, timings)?;
         let entry_receipt = match (entry_identity, entry_selection) {
             (Some(source_signature_identity), Some(selection)) => Some(prepare_entry_receipt(
                 checked,
@@ -286,6 +305,7 @@ impl<'a> TerminalProductionRequest<'a> {
         Ok(ProducedTerminalArtifact {
             artifact,
             receipt,
+            unoptimized,
             boundary_operator_scope,
             callback_custody: (),
             source_call_occurrences: lowered.source_call_occurrences,
@@ -297,10 +317,14 @@ impl<'a> TerminalProductionRequest<'a> {
         })
     }
 
+    /// Lower once, retain the unoptimized module when asked, then run the
+    /// selected optimization on the same lowering.
     fn lower_and_optimize(
         self,
+        retain_unoptimized: bool,
         timings: &mut TerminalProductionTimings,
-    ) -> Result<PsiOptimizationStageResult, TerminalArtifactProductionError> {
+    ) -> Result<(Option<LoweredPsi>, PsiOptimizationStageResult), TerminalArtifactProductionError>
+    {
         timings
             .record_result(TerminalProductionStage::LedgerCheck, || {
                 crate::checked_ledger::verify(self.checked)
@@ -311,11 +335,13 @@ impl<'a> TerminalProductionRequest<'a> {
                 lower_machine(self.checked, self.machine)
             })
             .map_err(TerminalArtifactProductionError::Lowering)?;
-        timings
+        let unoptimized = retain_unoptimized.then(|| lowered.clone());
+        let optimized = timings
             .record_result(TerminalProductionStage::Optimization, || {
                 run_psi_optimization(lowered, self.optimization_selections)
             })
-            .map_err(TerminalArtifactProductionError::Optimization)
+            .map_err(TerminalArtifactProductionError::Optimization)?;
+        Ok((unoptimized, optimized))
     }
 }
 
@@ -465,6 +491,7 @@ mod tests {
         let produced =
             TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("Main::run"))
                 .produce(TerminalProductionCustody {
+                    retain_unoptimized: false,
                     entry_identity: Some([7; 32]),
                     callback_custody: (),
                     timings: &mut TerminalProductionTimings::default(),
@@ -510,6 +537,7 @@ mod tests {
         let produced =
             TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("Main::run"))
                 .produce(TerminalProductionCustody {
+                    retain_unoptimized: false,
                     entry_identity: None,
                     callback_custody: 42u8,
                     timings: &mut callback_timings,
@@ -527,6 +555,7 @@ mod tests {
         let produced =
             TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("Main::run"))
                 .produce(TerminalProductionCustody {
+                    retain_unoptimized: false,
                     entry_identity: Some([9; 32]),
                     callback_custody: (),
                     timings: &mut entry_timings,
