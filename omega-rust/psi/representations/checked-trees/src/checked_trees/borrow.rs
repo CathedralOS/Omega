@@ -145,9 +145,10 @@ pub enum BorrowCompatibilitySelectorPosition {
 
 /// Value retained by the checked structural selector tactic.
 ///
-/// An exact folded integer, exact symbolic constant offset, or the exact sum
-/// of two immutable symbols plus a constant may enter this vocabulary.
-/// Mutable names and unresolved computed values never do.
+/// An exact folded integer, exact symbolic constant offset, the exact sum of
+/// two immutable symbols plus a constant, or one resolved member projection
+/// of a storage symbol may enter this vocabulary. Mutable names and
+/// unresolved computed values never do.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BorrowCompatibilitySelectorValue {
     Integer(i64),
@@ -165,6 +166,14 @@ pub enum BorrowCompatibilitySelectorValue {
         first: SymbolHandle,
         second: SymbolHandle,
         offset: i64,
+    },
+    /// The value at one projected member place of a storage symbol
+    /// (`pair.first`). Mutability cannot be spelled here: a mutable
+    /// receiver's projection serializes through the same row, like `Symbol`
+    /// for `Storage`.
+    Segmented {
+        symbol: SymbolHandle,
+        segment: facts::PlaceSegment,
     },
 }
 

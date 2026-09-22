@@ -935,3 +935,186 @@ fn rejects_retained_sum_operand_retarget() {
 
     assert_recording_rejects(&mut checked, "premise tokens drifted");
 }
+
+/// A member projection of an immutable parameter contributes its own exact
+/// bound: `pair.first >= 2` certifies the same disjoint-window conclusion a
+/// whole-value bound carries.
+const PROJECTED_WINDOWS: &str = r#"
+    data Pair { first: u64 [0..=4]; second: u64; }
+    data Main { items: [i32; 4]; }
+
+    machine Main::split(&mut self, pair: Pair) -> u64
+        requires pair.first >= 2;
+    {
+        let held: &mut [i32] = self.items[pair.first..4];
+        self.items[0] = 3;
+        held.len
+    }
+"#;
+
+/// A premise stated on the other member never reaches the held window's
+/// own projection.
+const SECOND_MEMBER_WINDOWS: &str = r#"
+    data Pair { first: u64 [0..=4]; second: u64; }
+    data Main { items: [i32; 4]; }
+
+    machine Main::split(&mut self, pair: Pair) -> u64
+        requires pair.second >= 2;
+    {
+        let held: &mut [i32] = self.items[pair.first..4];
+        self.items[0] = 3;
+        held.len
+    }
+"#;
+
+/// Projections deeper than one member place stay outside the premise
+/// vocabulary.
+const DEEPER_PROJECTION_WINDOWS: &str = r#"
+    data Inner { first: u64 [0..=4]; }
+    data Outer { inner: Inner; }
+    data Main { items: [i32; 4]; }
+
+    machine Main::split(&mut self, outer: Outer) -> u64
+        requires outer.inner.first >= 2;
+    {
+        let held: &mut [i32] = self.items[outer.inner.first..4];
+        self.items[0] = 3;
+        held.len
+    }
+"#;
+
+fn field_symbol(checked: &checked_trees::CheckedTrees, name: &str) -> SymbolHandle {
+    checked
+        .typed
+        .data_definitions()
+        .iter()
+        .flat_map(|data| checked.typed.data_members(data))
+        .find_map(|member| match member {
+            typed_trees::data::DataMember::Field(field) if field.name.as_str() == name => {
+                Some(field.symbol)
+            }
+            _ => None,
+        })
+        .expect("fixture field")
+}
+
+fn segmented_value(
+    checked: &checked_trees::CheckedTrees,
+    name: &str,
+    member: &str,
+) -> checked_trees::BorrowCompatibilitySelectorValue {
+    checked_trees::BorrowCompatibilitySelectorValue::Segmented {
+        symbol: parameter_symbol(checked, name),
+        segment: facts::PlaceSegment::Field {
+            symbol: field_symbol(checked, member),
+        },
+    }
+}
+
+fn assert_mutation_conflict(source: &str) {
+    let Err(diagnostics) = checked_program_result(source) else {
+        panic!("premise-insufficient windows must reject: {source}");
+    };
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("mutates") && diagnostic.message.contains("is still active")
+        }),
+        "expected a mutation conflict, not an earlier failure: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn projected_stated_premise_certifies_disjoint_window_write() {
+    let checked = checked_program(PROJECTED_WINDOWS);
+    let certificate = sole_mutation_certificate(&checked);
+
+    assert_eq!(
+        certificate.derivation,
+        checked_trees::BorrowCompatibilityDerivation::Premised
+    );
+    assert_eq!(
+        certificate
+            .premises
+            .iter()
+            .map(|premise| (premise.relation, premise.left, premise.right))
+            .collect::<Vec<_>>(),
+        vec![(
+            checked_trees::BorrowCompatibilityPremiseRelation::LessOrEqual,
+            integer_value(2),
+            segmented_value(&checked, "pair", "first"),
+        )],
+        "the retained premise is the stated `pair.first >= 2` projection",
+    );
+    assert_eq!(
+        certificate.premises[0].source,
+        checked_trees::BorrowCompatibilityPremiseSource::Requires(requires_fact(&checked))
+    );
+    // The held window's range-start row froze the projected bound, not the
+    // receiver's whole-value symbol.
+    assert!(
+        certificate.selector_snapshot.iter().any(|row| row.position
+            == checked_trees::BorrowCompatibilitySelectorPosition::RangeStart
+            && row.value == Some(segmented_value(&checked, "pair", "first"))),
+        "the range-start snapshot keeps the `pair.first` projection"
+    );
+    assert!(
+        checked
+            .facts
+            .borrow
+            .mutation_certificate_matches_resources(&certificate)
+    );
+}
+
+#[test]
+fn projected_premise_certificate_replays_through_checked_recording() {
+    let mut checked = checked_program(PROJECTED_WINDOWS);
+    let before = checked.facts.borrow.mutation_certificates.clone();
+
+    crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+        .expect("retained projected-premise certificate must replay its exact tokens");
+    assert_eq!(
+        checked.facts.borrow.mutation_certificates, before,
+        "idempotent replay republishes the identical projected-premise certificate",
+    );
+}
+
+#[test]
+fn rejects_retained_projection_retargeted_to_the_other_member() {
+    let mut checked = checked_program(PROJECTED_WINDOWS);
+    let other = field_symbol(&checked, "second");
+    let row = checked
+        .facts
+        .borrow
+        .mutation_certificates
+        .iter()
+        .next()
+        .expect("certificate")
+        .0;
+    let certificate = checked.facts.borrow.mutation_certificates.get_mut(row);
+    let checked_trees::BorrowCompatibilitySelectorValue::Segmented { segment, .. } =
+        &mut certificate.premises[0].right
+    else {
+        panic!("the projected premise records a segmented bound");
+    };
+    *segment = facts::PlaceSegment::Field { symbol: other };
+
+    assert_recording_rejects(&mut checked, "premise tokens drifted");
+}
+
+#[test]
+fn premise_on_the_other_member_does_not_prove_the_window() {
+    assert_mutation_conflict(SECOND_MEMBER_WINDOWS);
+}
+
+#[test]
+fn projected_premise_does_not_mint_through_mutable_storage() {
+    // A `mut` receiver's projection is a storage coordinate, not a stated
+    // premise operand: the premise about the entry contents cannot claim
+    // the current projection, so the write still conflicts.
+    assert_mutation_conflict(&PROJECTED_WINDOWS.replacen("pair: Pair", "mut pair: Pair", 1));
+}
+
+#[test]
+fn projections_deeper_than_one_member_stay_conservative() {
+    assert_mutation_conflict(DEEPER_PROJECTION_WINDOWS);
+}
