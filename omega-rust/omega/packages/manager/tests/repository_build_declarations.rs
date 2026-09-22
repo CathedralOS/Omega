@@ -115,10 +115,15 @@ const DEPENDENCY_FREE_SAMPLES: &[&str] = &[
     "uefi/uefi_hello",
 ];
 
-/// Corpus roots that are package members of a sibling case rather than
-/// applications, keyed like `DECLARATION_REJECTION_CASES` with their declared
-/// package names.
+/// Corpus roots that declare `builder.package` rather than
+/// `builder.application`, keyed like `DECLARATION_REJECTION_CASES` with their
+/// declared package names. A root-level package declaration requests package
+/// identity under the managed harness without a dependency edge.
 const PACKAGE_MEMBER_CASES: &[(&str, &str)] = &[
+    (
+        "pass/proofs/quotient_define_managed_compile",
+        "quotient-define-managed-compile",
+    ),
     ("pass/build/runtime-depend-mapping-exit/lib", "mylib"),
     ("pass/modules/package-bare-cases", "package-bare-cases"),
     ("pass/modules/package-bare-cases/leaf", "bare-case-values"),
@@ -424,15 +429,13 @@ fn assert_mixed_canary_category_standard_library_edges(
             .iter()
             .filter(|dependency| *dependency == &expected_dependency)
             .count();
-        // The managed `Quotient::define` admission refuses the
-        // standalone-source identity a fixture compiles under without a
-        // package dependency, so this canary's std edge is load-bearing
-        // provenance rather than an import. No other packaged canary declares
-        // an edge it does not name through `omega_language_std`.
-        let provenance_only_edge = root.ends_with("pass/proofs/quotient_define_managed_compile");
+        // Every packaged canary names its std edge through
+        // `omega_language_std`; a package-mode fixture like
+        // `quotient_define_managed_compile` requests package identity through
+        // its `builder.package` declaration instead of an unused edge.
         assert_eq!(
             standard_library_edges,
-            usize::from(uses_dependency_alias || provenance_only_edge),
+            usize::from(uses_dependency_alias),
             "std import/dependency mismatch in {}",
             root.display()
         );
@@ -485,11 +488,11 @@ fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
     }
 }
 
-/// `proofs` holds both std-free kernel canaries and std consumers, plus the
-/// one packaged root whose std edge carries package provenance instead of an
-/// import: `quotient_define_managed_compile` compiles under the
-/// standalone-source identity its managed `Quotient::define` admission
-/// refuses when the edge is absent.
+/// `proofs` holds both std-free kernel canaries and std consumers, plus one
+/// package-mode root with no dependency at all:
+/// `quotient_define_managed_compile` carries package identity through its
+/// `builder.package` declaration for the managed `Quotient::define`
+/// admission, which refuses the standalone-source identity.
 #[test]
 fn proof_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(

@@ -325,18 +325,6 @@ pub fn fixture_dependency_declarations(project_root: &Path) -> String {
         .collect()
 }
 
-/// Package inputs for a repository fixture, or `None` when it authored no
-/// dependency at all.
-///
-/// Identities: the compilation root takes marker 1 and the bundled standard
-/// library marker 2 — pinned so entry and dangerous-service acceptance can
-/// name it — and every other package takes the next free marker in the order
-/// the walk reaches it. Edges project transitively: a dependency's own
-/// authored rows join the same inputs. Product edges authorize imports for
-/// every package in scope, while a build edge authorizes only the compilation
-/// root's build entry, exactly as the package manager's compiler input does,
-/// because a dependency's build context resolves in its own compilation where
-
 /// The root package a fixture's own build declaration names, with its role.
 fn fixture_root_declaration(project_root: &Path) -> (BuildDeclarationKind, String) {
     let declaration = extract_build_declaration(project_root)
@@ -356,7 +344,10 @@ fn fixture_root_declaration(project_root: &Path) -> (BuildDeclarationKind, Strin
 }
 
 /// Package inputs for a repository fixture, or `None` when it authored no
-/// dependency at all.
+/// dependency at all and did not request package identity. A fixture that
+/// declares `builder.package` compiles in package mode even with an empty
+/// dependency set; an `application` fixture without a dependency row stays
+/// standalone.
 ///
 /// Identities: the compilation root takes marker 1 and the bundled standard
 /// library marker 2 — pinned so entry and dangerous-service acceptance can
@@ -377,7 +368,8 @@ pub fn repository_fixture_package_inputs(root_path: &Path) -> Option<PackageComp
 /// Package inputs for a copy of a repository fixture staged under another
 /// directory: the rows are read from the fixture's authored project, where
 /// their relative locations resolve, and the root package is bound to the
-/// copy. `None` when the fixture authored no dependency.
+/// copy. `None` when the fixture authored no dependency and does not declare
+/// `builder.package`.
 pub fn copied_fixture_package_inputs(
     authored_project_root: &Path,
     copied_project_root: &Path,
@@ -392,6 +384,15 @@ pub fn dependency_free_fixture_package_inputs(root_path: &Path) -> PackageCompil
         .parent()
         .expect("fixture source has a project root");
     let (root_role, root_name) = fixture_root_declaration(project_root);
+    dependency_free_inputs(project_root, project_root, root_role, root_name)
+}
+
+fn dependency_free_inputs(
+    authored_root: &Path,
+    bound_root: &Path,
+    root_role: BuildDeclarationKind,
+    root_name: String,
+) -> PackageCompilationInputs {
     let root_identity = fixture_package_identity(1);
     PackageCompilationInputs::new(
         root_identity,
@@ -399,11 +400,30 @@ pub fn dependency_free_fixture_package_inputs(root_path: &Path) -> PackageCompil
         vec![PackageSourceBinding::new(
             root_identity,
             root_name,
-            project_root.to_path_buf(),
+            bound_root.to_path_buf(),
         )],
         Vec::new(),
     )
-    .unwrap_or_else(|errors| panic!("fixture {}: {errors:#?}", project_root.display()))
+    .unwrap_or_else(|errors| panic!("fixture {}: {errors:#?}", authored_root.display()))
+}
+
+/// A fixture that declares `builder.package` requests package identity even
+/// with an empty dependency set; an `application` fixture without a
+/// dependency row stays standalone.
+fn dependency_free_package_inputs_bound_to(
+    authored_root: &Path,
+    bound_root: &Path,
+) -> Option<PackageCompilationInputs> {
+    let Ok(BuildDeclaration::Package(package)) = extract_build_declaration(authored_root)
+    else {
+        return None;
+    };
+    Some(dependency_free_inputs(
+        authored_root,
+        bound_root,
+        BuildDeclarationKind::Package,
+        package.name.into_string(),
+    ))
 }
 
 /// Package inputs binding `project_root` as the compilation root and one
@@ -444,7 +464,7 @@ fn fixture_package_inputs_bound_to(
     bound_root: &Path,
 ) -> Option<PackageCompilationInputs> {
     if fixture_path_dependencies(authored_root).is_empty() {
-        return None;
+        return dependency_free_package_inputs_bound_to(authored_root, bound_root);
     }
 
     let (root_role, root_name) = fixture_root_declaration(authored_root);
@@ -560,8 +580,8 @@ pub fn candidate_program_entry_binding(
 /// The package graph plus this repository's test acceptance for a fixture
 /// that authored a dependency on the bundled standard library: the target
 /// profile's reviewed entry candidate, then the dangerous services the
-/// preliminary checked graph requires. `None` for a fixture that authored no
-/// dependency at all.
+/// preliminary checked graph requires. `None` for a fixture that stays
+/// standalone.
 pub fn reviewed_repository_fixture_package_inputs(
     root_path: &Path,
     target_name: Option<&str>,
