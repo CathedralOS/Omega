@@ -1,51 +1,25 @@
 use legalized_operations::{LegalizedOperationPlan, LegalizedOperationPlanIdentity};
 use optimization_core::OptimizationValidatorIdentity;
 
-pub fn legalization_validator_identity() -> OptimizationValidatorIdentity {
+pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity {
     OptimizationValidatorIdentity::from_canonical_bytes(
         b"omega.terminal-target-legalization-independent-replay.v53",
     )
 }
 
-#[doc(hidden)]
-pub fn legalization_validator_identity_v22_legacy() -> OptimizationValidatorIdentity {
+/// The v22 validator identity, kept as a test control against the current one.
+#[cfg(test)]
+pub(crate) fn legalization_validator_identity_v22_legacy() -> OptimizationValidatorIdentity {
     OptimizationValidatorIdentity::from_canonical_bytes(
         b"omega.terminal-target-legalization-independent-replay.v22",
     )
 }
 
-#[doc(hidden)]
-pub fn legalization_validator_identity_v21_legacy() -> OptimizationValidatorIdentity {
+/// The v21 validator identity, kept as a test control against the current one.
+#[cfg(test)]
+pub(crate) fn legalization_validator_identity_v21_legacy() -> OptimizationValidatorIdentity {
     OptimizationValidatorIdentity::from_canonical_bytes(
         b"omega.terminal-target-legalization-independent-replay.v21",
-    )
-}
-
-#[doc(hidden)]
-pub fn legalization_validator_identity_v20_legacy() -> OptimizationValidatorIdentity {
-    OptimizationValidatorIdentity::from_canonical_bytes(
-        b"omega.terminal-target-legalization-independent-replay.v20",
-    )
-}
-
-#[doc(hidden)]
-pub fn legalization_validator_identity_v19_legacy() -> OptimizationValidatorIdentity {
-    OptimizationValidatorIdentity::from_canonical_bytes(
-        b"omega.terminal-target-legalization-independent-replay.v19",
-    )
-}
-
-#[doc(hidden)]
-pub fn legalization_validator_identity_v18_legacy() -> OptimizationValidatorIdentity {
-    OptimizationValidatorIdentity::from_canonical_bytes(
-        b"omega.terminal-target-legalization-independent-replay.v18",
-    )
-}
-
-#[doc(hidden)]
-pub fn legalization_validator_identity_v17_legacy() -> OptimizationValidatorIdentity {
-    OptimizationValidatorIdentity::from_canonical_bytes(
-        b"omega.terminal-target-legalization-independent-replay.v17",
     )
 }
 

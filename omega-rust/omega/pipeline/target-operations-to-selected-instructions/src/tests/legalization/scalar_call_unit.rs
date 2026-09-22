@@ -246,7 +246,7 @@ fn register_calls_retain_the_target_abi_home_area() {
         assert!(validate_legalized_operations(&target, &abstract_plan, &unit, changed).is_err());
     }
     assert_ne!(
-        crate::legalization_validator_identity(),
+        crate::legalization::legalization_validator_identity(),
         optimization_core::OptimizationValidatorIdentity::from_canonical_bytes(
             b"omega.terminal-target-legalization-independent-replay.v25"
         )
@@ -394,8 +394,8 @@ fn substituted_register_call_plan_and_memory_effectful_callee_reject() {
 #[test]
 fn ordered_call_custody_has_a_current_validator() {
     assert_ne!(
-        crate::legalization_validator_identity(),
-        crate::legalization_validator_identity_v22_legacy()
+        crate::legalization::legalization_validator_identity(),
+        crate::legalization::legalization_validator_identity_v22_legacy()
     );
 }
 
