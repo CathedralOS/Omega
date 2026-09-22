@@ -591,7 +591,7 @@ const UNSEQUENCED_SPILL_FAMILIES: [(&str, &str); 16] = [
 /// disposition rosters below when their areas moved under a named module
 /// path; the five register-homes rows that remain are rematerialization and
 /// post-allocation-manifest helpers on the sequenced route.
-const INTERNALLY_CALLED_REEXPORTS: [(&str, &str); 39] = [
+const INTERNALLY_CALLED_REEXPORTS: [(&str, &str); 37] = [
     (
         "abstract-operations-to-abstract-operations",
         "analysis_dependencies",
@@ -739,14 +739,6 @@ const INTERNALLY_CALLED_REEXPORTS: [(&str, &str); 39] = [
     (
         "target-operations-to-selected-instructions",
         "legalization_validator_identity_v22_legacy",
-    ),
-    (
-        "typed-trees-to-checked-trees",
-        "recompute_machine_specialization_commitment",
-    ),
-    (
-        "typed-trees-to-checked-trees",
-        "refresh_closed_domain_instance_identities",
     ),
 ];
 
