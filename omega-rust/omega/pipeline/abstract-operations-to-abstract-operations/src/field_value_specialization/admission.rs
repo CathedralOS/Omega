@@ -8,15 +8,19 @@
 //! that resolves one field observation's proven stored value.
 
 use super::{
-    FoldedFieldValue, NodeLocation, O, OperationId, PlaceId, PsiOptimizationFunction,
-    PsiOptimizationUnit, ResolvedFieldValue, ScalarType, StructuralPlaceKind,
+    FieldValueResolution, FoldedFieldValue, NodeLocation, O, OperationId, PlaceId,
+    PsiOptimizationFunction, PsiOptimizationUnit, ResolvedFieldValue, ScalarType,
+    StructuralPlaceKind,
 };
 use crate::representation_specialization::admission::declared_structural_type;
-use optimization_unit::OptimizationNode;
+use optimization_unit::{
+    ForwardedFieldValue, OptimizationBlock, OptimizationNode, ValueDefinition, ValueDefinitionSite,
+};
 use semantic_vocabulary::{
     BlockId, CanonicalStructuralPathSegment, StructuralCaseId, StructuralFieldId, StructuralTypeId,
     ValueId,
 };
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     RecordFieldValue, StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
     StructuralPlaceDeclaration, StructuralTypeShape,
@@ -105,7 +109,92 @@ fn root_producer(
     RootProducer::None
 }
 
-/// The scalar kind a folded observation must carry: `Boolean` for a
+/// The per-function value graph a forward admission resolves against: every
+/// value's defining site and scalar type, plus the block dominator tree the
+/// initializer must dominate each rewritten use under.
+pub(super) struct FunctionAnalysis {
+    definitions: BTreeMap<ValueId, ValueDefinition>,
+    dominators: BTreeMap<BlockId, BTreeSet<BlockId>>,
+}
+
+/// Independently derived value definitions and block dominators for
+/// `function`, matching the shape unit validation itself reconstructs.
+pub(super) fn function_analysis(function: &PsiOptimizationFunction) -> FunctionAnalysis {
+    let mut predecessors: BTreeMap<BlockId, BTreeSet<BlockId>> = function
+        .blocks
+        .iter()
+        .map(|block| (block.id, BTreeSet::new()))
+        .collect();
+    let mut definitions: BTreeMap<ValueId, ValueDefinition> = BTreeMap::new();
+    for parameter in &function.parameters {
+        definitions.insert(parameter.value, *parameter);
+    }
+    for block in &function.blocks {
+        for parameter in &block.parameters {
+            definitions.insert(parameter.value, *parameter);
+        }
+        for node in &block.nodes {
+            for definition in &node.definitions {
+                definitions.insert(definition.value, *definition);
+            }
+            for edge in &node.successors {
+                predecessors
+                    .get_mut(&edge.target)
+                    .expect("validated successor target")
+                    .insert(block.id);
+            }
+        }
+    }
+    FunctionAnalysis {
+        definitions,
+        dominators: block_dominators(function, &predecessors),
+    }
+}
+
+/// The block dominator tree for `function`: the iterative meet-over-all-
+/// predecessors fixpoint with the entry block dominating only itself.
+fn block_dominators(
+    function: &PsiOptimizationFunction,
+    predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+) -> BTreeMap<BlockId, BTreeSet<BlockId>> {
+    let all: BTreeSet<BlockId> = function.blocks.iter().map(|block| block.id).collect();
+    let mut result: BTreeMap<BlockId, BTreeSet<BlockId>> = all
+        .iter()
+        .copied()
+        .map(|block| {
+            let initial = if block == function.entry {
+                [function.entry].into_iter().collect()
+            } else {
+                all.clone()
+            };
+            (block, initial)
+        })
+        .collect();
+    loop {
+        let mut changed = false;
+        for block in all.iter().copied().filter(|block| *block != function.entry) {
+            let incoming = &predecessors[&block];
+            let mut next = if let Some(first) = incoming.first() {
+                result[first].clone()
+            } else {
+                BTreeSet::new()
+            };
+            for predecessor in incoming.iter().skip(1) {
+                next = next.intersection(&result[predecessor]).copied().collect();
+            }
+            next.insert(block);
+            if result[&block] != next {
+                result.insert(block, next);
+                changed = true;
+            }
+        }
+        if !changed {
+            return result;
+        }
+    }
+}
+
+/// The scalar kind a resolved observation must carry: `Boolean` for a
 /// `BooleanStructuralField` result, `Integer` for an `IntegerStructuralField`
 /// result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -115,12 +204,13 @@ pub(super) enum ObservedFieldKind {
 }
 
 /// The proven stored value of one field observation plus the witness it was
-/// proven under: `Some(producer)` for an establishment basis, `None` for a
-/// declared singleton bound.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// proven under: `Some(producer)` for an establishment basis — whether the
+/// initializer folds to a literal or forwards as a substitution — `None` for
+/// a declared singleton bound.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ProvenFieldValue {
     pub(super) producer: Option<OperationId>,
-    pub(super) value: FoldedFieldValue,
+    pub(super) resolution: FieldValueResolution,
 }
 
 /// The admissibility of one node under `evidence`: a `BooleanStructuralField`
@@ -130,11 +220,12 @@ pub(super) fn admit_field_node(
     unit: &PsiOptimizationUnit,
     evidence: &FieldEvidence<'_>,
     function: &PsiOptimizationFunction,
-    block: BlockId,
+    analysis: &FunctionAnalysis,
+    block: &OptimizationBlock,
     node_index: usize,
     node: &OptimizationNode,
 ) -> Option<ResolvedFieldValue> {
-    let (psi_operation, result, source, path, field, kind) = match &node.operation {
+    let (psi_operation, result, scalar_type, source, path, field, kind) = match &node.operation {
         O::BooleanStructuralField {
             psi_operation,
             result,
@@ -144,6 +235,7 @@ pub(super) fn admit_field_node(
         } => (
             psi_operation,
             *result,
+            ScalarType::Boolean,
             source,
             path,
             field,
@@ -162,6 +254,7 @@ pub(super) fn admit_field_node(
             (
                 psi_operation,
                 result.value,
+                result.scalar_type,
                 source,
                 path,
                 field,
@@ -173,11 +266,24 @@ pub(super) fn admit_field_node(
     if *source != evidence.declaration.id {
         return None;
     }
-    let proven = proven_field_value(unit, evidence, function, path, *field, kind)?;
+    let proven = proven_field_value(
+        unit,
+        evidence,
+        function,
+        analysis,
+        block,
+        node_index,
+        node,
+        result,
+        scalar_type,
+        path,
+        *field,
+        kind,
+    )?;
     Some(ResolvedFieldValue {
         site: NodeLocation {
             machine: function.machine,
-            block,
+            block: block.id,
             node: u32::try_from(node_index).ok()?,
         },
         psi_operation: *psi_operation,
@@ -186,23 +292,31 @@ pub(super) fn admit_field_node(
         path: path.clone(),
         field: *field,
         producer: proven.producer,
-        value: proven.value,
+        resolution: proven.resolution,
     })
 }
 
 /// The stored value the unit proves for `field` at `path` under `place`'s
-/// evidence, or `None` when no basis applies. The establishment basis is
-/// tried first — an `EstablishRecord` producer at an empty path or an
-/// `EstablishScalarCase` producer whose `result_case` matches a lone `Case`
-/// path, each proving the value when the field's initializer scalar resolves
-/// through block-parameter bindings to a same-function constant — then the
-/// declared `BoundedInteger` singleton
-/// bound, which proves the value at any resolvable path independently of
-/// producer.
+/// evidence, or `None` when no basis applies. An establishment basis — an
+/// `EstablishRecord` producer at an empty path or an `EstablishScalarCase`
+/// producer whose `result_case` matches a lone `Case` path — proves the
+/// field's initializer scalar directly: a same-function constant folds the
+/// read to a literal, while a nonconstant initializer forwards to the read's
+/// uses when the substitution lane covers every use site and the initializer
+/// dominates them all. A declared `BoundedInteger` singleton bound proves a
+/// literal at any resolvable path independently of producer and outranks a
+/// nonconstant initializer — the literal is strictly more resolved.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn proven_field_value(
     unit: &PsiOptimizationUnit,
     evidence: &FieldEvidence<'_>,
     function: &PsiOptimizationFunction,
+    analysis: &FunctionAnalysis,
+    block: &OptimizationBlock,
+    node_index: usize,
+    node: &OptimizationNode,
+    result: ValueId,
+    scalar_type: ScalarType,
     path: &[CanonicalStructuralPathSegment],
     field: StructuralFieldId,
     kind: ObservedFieldKind,
@@ -211,10 +325,34 @@ pub(super) fn proven_field_value(
     if !matches_observed_kind(declaration, kind) {
         return None;
     }
-    if let Some(proven) = establishment_value(evidence, function, path, field, kind) {
+    let establishment = establishment_scalar(evidence, function, path, field);
+    if let Some((producer, initializer)) = establishment
+        && let Some(value) = constant_definition(function, initializer)
+        && matches_constant_kind(value, kind)
+    {
+        return Some(ProvenFieldValue {
+            producer: Some(producer),
+            resolution: FieldValueResolution::Constant(value),
+        });
+    }
+    if let Some(proven) = bound_value(declaration, kind) {
         return Some(proven);
     }
-    bound_value(declaration, kind)
+    let (producer, initializer) = establishment?;
+    forwarded_resolution(
+        function,
+        analysis,
+        block,
+        node_index,
+        node,
+        result,
+        scalar_type,
+        initializer,
+    )
+    .map(|forwarded| ProvenFieldValue {
+        producer: Some(producer),
+        resolution: FieldValueResolution::Forward(forwarded),
+    })
 }
 
 /// The declared field the observation resolves to: the `path` descends from
@@ -345,27 +483,25 @@ fn matches_observed_kind(
 }
 
 /// The establishment basis: the place's producer proves the field's stored
-/// scalar and that scalar is a same-function constant. `None` when the
-/// producer does not establish the observed position or the initializer is
-/// not a constant.
-fn establishment_value(
+/// scalar by name. `Some((producer, initializer))` when the producer
+/// establishes the observed position and the field's initializer is a scalar;
+/// `None` when the producer does not establish the observed position. The
+/// caller decides what the initializer proves — a literal fold when it
+/// resolves to a same-function constant, a use substitution when it does
+/// not.
+fn establishment_scalar(
     evidence: &FieldEvidence<'_>,
     function: &PsiOptimizationFunction,
     path: &[CanonicalStructuralPathSegment],
     field: StructuralFieldId,
-    kind: ObservedFieldKind,
-) -> Option<ProvenFieldValue> {
+) -> Option<(OperationId, ValueId)> {
     match (evidence.root_producer, path) {
         (RootProducer::Record(producer), []) => {
             // An `EstablishRecord` proves its declaration-ordered field
             // initializers: the observed field's scalar initializer fixes
             // the stored value permanently.
-            let value = record_initializer(function, producer, evidence, field)
-                .and_then(|value| constant_definition(function, value))?;
-            matches_constant_kind(value, kind).then_some(ProvenFieldValue {
-                producer: Some(producer),
-                value,
-            })
+            record_initializer(function, producer, evidence, field)
+                .map(|initializer| (producer, initializer))
         }
         (
             RootProducer::Variant(producer, result_case),
@@ -373,15 +509,130 @@ fn establishment_value(
         ) if result_case == *observed_case => {
             // An `EstablishScalarCase` proves its scalar case-field
             // initializers for exactly the case it establishes.
-            let value = case_field_initializer(function, producer, evidence, field)
-                .and_then(|value| constant_definition(function, value))?;
-            matches_constant_kind(value, kind).then_some(ProvenFieldValue {
-                producer: Some(producer),
-                value,
-            })
+            case_field_initializer(function, producer, evidence, field)
+                .map(|initializer| (producer, initializer))
         }
         _ => None,
     }
+}
+
+/// The `Forward` resolution for one nonconstant-initialized read, or `None`
+/// when the substitution cannot retire the observation exactly: the
+/// initializer must resolve to a same-function definition of the read's own
+/// scalar type and dominate every use site, every scalar-operand use of the
+/// read's result must sit in an operation the substitution lane rewrites,
+/// and the observation node itself must be cleanly removable — exactly its
+/// result definition, no successors, no ownership events, a following node
+/// to absorb its custody, and no shared provenance with that receiver. Field
+/// observations emit no optimization facts, so no fact custody is owed.
+fn forwarded_resolution(
+    function: &PsiOptimizationFunction,
+    analysis: &FunctionAnalysis,
+    block: &OptimizationBlock,
+    node_index: usize,
+    node: &OptimizationNode,
+    result: ValueId,
+    scalar_type: ScalarType,
+    initializer: ValueId,
+) -> Option<ForwardedFieldValue> {
+    if initializer == result {
+        return None;
+    }
+    let definition = analysis.definitions.get(&initializer)?;
+    if definition.scalar_type != scalar_type {
+        return None;
+    }
+    let node_index_u32 = u32::try_from(node_index).ok()?;
+    if node.definitions
+        != [ValueDefinition {
+            value: result,
+            scalar_type,
+            site: ValueDefinitionSite::Node {
+                block: block.id,
+                node: node_index_u32,
+            },
+        }]
+        || !node.successors.is_empty()
+        || !node.ownership.is_empty()
+    {
+        return None;
+    }
+    let receiver = block.nodes.get(node_index.checked_add(1)?)?;
+    if receiver
+        .provenance
+        .iter()
+        .any(|source| node.provenance.contains(source))
+    {
+        return None;
+    }
+    // Every site that references the read's result: the tracked scalar-operand
+    // uses plus `WriteOnlyIndexedPrimitiveStore` operands — the substitution
+    // lane rewrites those positions even though the use index does not track
+    // them. A use inside a byte-sequence operation is outside the lane, so
+    // the row is inadmissible rather than partially substituted.
+    let mut uses = BTreeSet::new();
+    for use_block in &function.blocks {
+        for (use_index, use_node) in use_block.nodes.iter().enumerate() {
+            let referenced = use_node
+                .uses
+                .iter()
+                .any(|use_site| use_site.value == result)
+                || matches!(
+                    &use_node.operation,
+                    O::WriteOnlyIndexedPrimitiveStore { index, value, .. }
+                        if index.value == result || value.value == result
+                );
+            if !referenced {
+                continue;
+            }
+            if matches!(
+                &use_node.operation,
+                O::ByteSequenceRead { .. }
+                    | O::ByteSequenceWrite { .. }
+                    | O::ByteSequenceSubslice { .. }
+                    | O::StructuralByteSequenceFieldStore { .. }
+                    | O::StructuralByteSequenceFieldByteStore { .. }
+            ) {
+                return None;
+            }
+            let site = NodeLocation {
+                machine: function.machine,
+                block: use_block.id,
+                node: u32::try_from(use_index).ok()?,
+            };
+            let dominates = match definition.site {
+                ValueDefinitionSite::FunctionParameter(_) => true,
+                ValueDefinitionSite::BlockParameter {
+                    block: defining, ..
+                } => analysis
+                    .dominators
+                    .get(&use_block.id)
+                    .is_some_and(|set| set.contains(&defining)),
+                ValueDefinitionSite::Node {
+                    block: defining,
+                    node: defined_at,
+                } => {
+                    if defining == use_block.id {
+                        defined_at < site.node
+                    } else {
+                        analysis
+                            .dominators
+                            .get(&use_block.id)
+                            .is_some_and(|set| set.contains(&defining))
+                    }
+                }
+            };
+            if !dominates {
+                return None;
+            }
+            uses.insert(site);
+        }
+    }
+    Some(ForwardedFieldValue {
+        initializer,
+        scalar_type,
+        uses: uses.into_iter().collect(),
+    })
 }
 
 /// The `ValueId` the `EstablishRecord` producer stores into `field`, or
@@ -530,6 +781,6 @@ fn bound_value(
     };
     (bound.minimum() == bound.maximum()).then_some(ProvenFieldValue {
         producer: None,
-        value: FoldedFieldValue::Integer(bound.minimum()),
+        resolution: FieldValueResolution::Constant(FoldedFieldValue::Integer(bound.minimum())),
     })
 }

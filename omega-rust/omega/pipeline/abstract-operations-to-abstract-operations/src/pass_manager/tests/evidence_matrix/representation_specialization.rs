@@ -2,14 +2,15 @@
 
 use super::super::{
     verified_cyclic_field_value_unit, verified_cyclic_membership_unit,
-    verified_field_value_decline_unit, verified_field_value_unit, verified_membership_decline_unit,
+    verified_field_value_decline_unit, verified_field_value_unit,
+    verified_forwarded_field_value_unit, verified_membership_decline_unit,
     verified_representation_specialization_unit,
 };
 use super::{
     SelectionMatrix, VerifiedPsiOptimizationSession, assert_boundary_leg, assert_corruption_legs,
     assert_determinism_leg, assert_disabled_leg, assert_fixed_point_leg, assert_full_entrance_leg,
     assert_malformed_carrier_legs, assert_measured_budget_leg, assert_negative_leg,
-    assert_positive_leg, budget, run_psi_pipeline, selections_of,
+    assert_positive_leg, budget, publish_optimization_run, run_psi_pipeline, selections_of,
 };
 use crate::rules::{CaseMembershipSpecializationRule, FieldValueSpecializationRule};
 use optimization_core::{Optimization, OptimizationRuleIdentity};
@@ -184,6 +185,86 @@ fn malformed_field_value_carriers_fail_admission() {
 #[test]
 fn full_entrance_optimizes_and_publishes_field_values() {
     assert_full_entrance_leg(&FIELD);
+}
+
+/// The forwarded-initializer leg: `p.x`'s `EstablishRecord` initializer is
+/// the nonconstant `x` machine parameter, so the read substitutes the
+/// parameter at its compare use and retires while `p.flag` folds — one
+/// mixed-resolution candidate, one commit.
+const FORWARDED_FIELD: SelectionMatrix = SelectionMatrix {
+    selection: Optimization::RepresentationSpecialization,
+    expected_rule: expected_field_rule,
+    expected_commits: 1,
+    positive: verified_forwarded_field_value_unit,
+    boundary: verified_field_value_decline_unit,
+    sibling: Optimization::DeadPureScalarElimination,
+};
+
+#[test]
+fn positive_forwards_the_proven_nonconstant_initializer() {
+    assert_positive_leg(&FORWARDED_FIELD);
+}
+
+/// The forwarding commit carries exactly the candidate's `result →
+/// initializer` substitution, and the published unit holds no remaining
+/// structural-field observation for the established place.
+#[test]
+fn forwarded_field_value_commit_substitutes_and_retires_the_read() {
+    let unit = verified_forwarded_field_value_unit();
+    let input_identity = unit.unit().identity;
+    let run =
+        run_psi_pipeline(unit, &selections_of(FORWARDED_FIELD.selection), budget(64)).unwrap();
+    let [commit] = run.commits() else {
+        panic!("one commit")
+    };
+    assert_eq!(commit.rule, expected_field_rule());
+    let [substitution] = commit.declaration.substitutions() else {
+        panic!("one scalar substitution")
+    };
+    let optimization_unit::PsiRewritePatch::SpecializeFieldValue(patch) =
+        commit.declaration.patch()
+    else {
+        panic!("a field-value patch")
+    };
+    assert!(patch.reads.iter().any(|row| {
+        matches!(
+            &row.resolution,
+            optimization_unit::FieldValueResolution::Forward(forwarded)
+                if row.result == substitution.from && forwarded.initializer == substitution.to
+        )
+    }));
+    let plan = publish_optimization_run(run).unwrap();
+    assert_ne!(plan.unit().identity, input_identity);
+    let remaining = plan
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.nodes)
+        .filter(|node| {
+            matches!(
+                node.operation,
+                abstract_operations::AbstractOperation::IntegerStructuralField { .. }
+                    | abstract_operations::AbstractOperation::BooleanStructuralField { .. }
+            )
+        })
+        .count();
+    assert_eq!(remaining, 0, "both proven reads resolve");
+}
+
+#[test]
+fn forwarded_field_value_runs_are_deterministic() {
+    assert_determinism_leg(&FORWARDED_FIELD);
+}
+
+#[test]
+fn published_forwarded_field_value_unit_is_a_legal_second_input_fixed_point() {
+    assert_fixed_point_leg(&FORWARDED_FIELD);
+}
+
+#[test]
+fn forged_forwarded_field_value_run_axes_fail_publication_replay() {
+    assert_corruption_legs(&FORWARDED_FIELD);
 }
 
 /// Frozen territory for field values: a bound-proven field read inside a

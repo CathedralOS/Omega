@@ -6,8 +6,9 @@ use super::{
     rule_identity, validator_identity,
 };
 mod realize;
+mod substitution;
 
-pub(super) use realize::{folded_node, realize, refresh_facts};
+pub(super) use realize::{realize, transform_function};
 
 pub(super) fn validated(
     session: VerifiedPsiOptimizationSession,

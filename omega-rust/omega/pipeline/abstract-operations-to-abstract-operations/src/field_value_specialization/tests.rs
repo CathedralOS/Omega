@@ -9,8 +9,9 @@ use crate::{FieldValueSpecializationCandidate, FieldValueSpecializationError};
 use abstract_operations::AbstractOperation;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_unit::{
-    FoldedFieldValue, NodeLocation, ProvenanceDisposition, PsiOptimizationUnit, PsiProvenance,
-    PsiRealizationSite, recompute_psi_optimization_unit_identity,
+    FieldValueResolution, FoldedFieldValue, NodeLocation, ProvenanceDisposition,
+    PsiOptimizationUnit, PsiProvenance, PsiRealizationSite,
+    recompute_psi_optimization_unit_identity,
 };
 use semantic_vocabulary::{MachineId, PlaceId, StructuralPlaceKind};
 
@@ -68,6 +69,18 @@ const NESTED_UNPROVEN_SOURCE: &str = r#"
     }
 "#;
 
+/// A scalar machine establishes `Point` once with the nonconstant `x`
+/// parameter and a constant flag: the `EstablishRecord` basis proves both
+/// stored fields, so `p.x` forwards the parameter to its compare use and
+/// retires while `p.flag` folds to `true` in one mixed candidate.
+const FORWARDED_FIELD_SOURCE: &str = r#"
+    data Point { x: u32; flag: bool; }
+    machine probe(x: u32) -> bool {
+        let p: Point = Point { x: x, flag: true };
+        (p.x == 7) == p.flag
+    }
+"#;
+
 /// No field read observes the established place at all: no candidate exists.
 const NO_READS_SOURCE: &str = r#"
     data Point { x: u32; flag: bool; }
@@ -104,13 +117,15 @@ fn established_record_fields_fold_to_proven_values() {
     assert_eq!(second.source(), place);
     assert_eq!(first.producer(), Some(producer));
     assert_eq!(second.producer(), Some(producer));
-    let mut values = [first.value(), second.value()];
+    let mut values = [first.resolution(), second.resolution()];
     values.sort();
     assert_eq!(
         values,
         [
-            FoldedFieldValue::Boolean(true),
-            FoldedFieldValue::Integer(semantic_vocabulary::IntegerValue::Unsigned(37)),
+            &FieldValueResolution::Constant(FoldedFieldValue::Boolean(true)),
+            &FieldValueResolution::Constant(FoldedFieldValue::Integer(
+                semantic_vocabulary::IntegerValue::Unsigned(37),
+            )),
         ]
     );
 
@@ -137,8 +152,8 @@ fn established_record_fields_fold_to_proven_values() {
             .find(|block| block.id == row.site().block)
             .expect("block retained")
             .nodes[usize::try_from(row.site().node).expect("index")];
-        match row.value() {
-            FoldedFieldValue::Boolean(constant) => {
+        match row.resolution() {
+            FieldValueResolution::Constant(FoldedFieldValue::Boolean(constant)) => {
                 let AbstractOperation::BooleanConstant {
                     psi_operation,
                     result,
@@ -149,9 +164,9 @@ fn established_record_fields_fold_to_proven_values() {
                 };
                 assert_eq!(*psi_operation, row.psi_operation());
                 assert_eq!(*result, row.result());
-                assert_eq!(*value, constant);
+                assert_eq!(value, constant);
             }
-            FoldedFieldValue::Integer(constant) => {
+            FieldValueResolution::Constant(FoldedFieldValue::Integer(constant)) => {
                 let AbstractOperation::IntegerConstant {
                     psi_operation,
                     result,
@@ -163,8 +178,9 @@ fn established_record_fields_fold_to_proven_values() {
                 };
                 assert_eq!(*psi_operation, row.psi_operation());
                 assert_eq!(*result, row.result());
-                assert_eq!(*value, constant);
+                assert_eq!(value, constant);
             }
+            FieldValueResolution::Forward(_) => panic!("constant rows never forward"),
         }
         assert_eq!(
             folded.provenance,
@@ -262,8 +278,10 @@ fn bounded_parameter_field_folds_without_producer() {
     assert_eq!(row.source(), place);
     assert_eq!(row.producer(), None);
     assert_eq!(
-        row.value(),
-        FoldedFieldValue::Integer(semantic_vocabulary::IntegerValue::Signed(5))
+        row.resolution(),
+        &FieldValueResolution::Constant(FoldedFieldValue::Integer(
+            semantic_vocabulary::IntegerValue::Signed(5)
+        ))
     );
 
     let validated =
@@ -315,8 +333,246 @@ fn nested_bounded_field_folds_at_path_depth() {
     assert_eq!(row.path().len(), 1, "the read descends one record field");
     assert_eq!(row.field(), read.2);
     assert_eq!(
-        row.value(),
-        FoldedFieldValue::Integer(semantic_vocabulary::IntegerValue::Signed(7))
+        row.resolution(),
+        &FieldValueResolution::Constant(FoldedFieldValue::Integer(
+            semantic_vocabulary::IntegerValue::Signed(7)
+        ))
+    );
+}
+
+#[test]
+fn nonconstant_initializer_forwards_to_uses() {
+    let session = lowered_session_entry(FORWARDED_FIELD_SOURCE, "forwarded field value", "probe");
+    let unit = session.unit().clone();
+    let machine = unit.functions[0].machine;
+    let function = &unit.functions[0];
+    let (place, producer) = established_record_place(&unit, machine);
+
+    let candidates = propose_field_value_specializations(&session, 4).expect("proposal runs");
+    let [candidate] = candidates.as_slice() else {
+        panic!("exactly one specialization candidate")
+    };
+    assert_eq!(candidate.machine(), machine);
+    assert_eq!(candidate.place(), place);
+    assert_eq!(candidate.producer(), Some(producer));
+
+    let forward_row = candidate
+        .reads()
+        .iter()
+        .find(|row| matches!(row.resolution(), FieldValueResolution::Forward(_)))
+        .expect("one forwarded read");
+    let FieldValueResolution::Forward(forwarded) = forward_row.resolution() else {
+        unreachable!()
+    };
+    // The front end routes the `x` machine parameter through a block
+    // parameter binding, so the proven initializer is parameter-sourced
+    // rather than a computed node — that is exactly why it is nonconstant.
+    let definition = function
+        .parameters
+        .iter()
+        .chain(function.blocks.iter().flat_map(|block| &block.parameters))
+        .find(|definition| definition.value == forwarded.initializer)
+        .expect("the proven initializer is parameter-sourced");
+    assert_eq!(forwarded.scalar_type, definition.scalar_type);
+    assert_ne!(forwarded.initializer, forward_row.result());
+    assert_eq!(forward_row.producer(), Some(producer));
+    assert!(
+        !forwarded.uses.is_empty(),
+        "the forwarded read has covered uses"
+    );
+    for site in &forwarded.uses {
+        assert_eq!(site.machine, machine);
+        let use_node = &function
+            .blocks
+            .iter()
+            .find(|block| block.id == site.block)
+            .expect("use block exists")
+            .nodes[usize::try_from(site.node).expect("use index")];
+        assert!(
+            use_node
+                .uses
+                .iter()
+                .any(|use_site| use_site.value == forward_row.result()),
+            "each listed use site references the read's result"
+        );
+    }
+    let constant_row = candidate
+        .reads()
+        .iter()
+        .find(|row| matches!(row.resolution(), FieldValueResolution::Constant(_)))
+        .expect("one folded read");
+    assert_eq!(
+        constant_row.resolution(),
+        &FieldValueResolution::Constant(FoldedFieldValue::Boolean(true))
+    );
+    assert_eq!(constant_row.producer(), Some(producer));
+
+    // The proposal is deterministic.
+    let replayed = propose_field_value_specializations(&session, 4).expect("replay runs");
+    assert_eq!(replayed, candidates);
+
+    let validated =
+        validate_field_value_specialization(&session, candidate).expect("independent replay");
+    let applied = apply_field_value_specialization(session, validated).expect("apply");
+    let output_function = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine retained");
+    let input_block = function
+        .blocks
+        .iter()
+        .find(|block| block.id == forward_row.site().block)
+        .expect("input block");
+    let output_block = output_function
+        .blocks
+        .iter()
+        .find(|block| block.id == forward_row.site().block)
+        .expect("block retained");
+    assert_eq!(
+        output_block.nodes.len(),
+        input_block.nodes.len() - 1,
+        "the forwarded read retires"
+    );
+
+    // The node inheriting the vacated index absorbs the read's custody.
+    let receiver = &output_block.nodes[usize::try_from(forward_row.site().node).expect("index")];
+    assert!(
+        receiver
+            .provenance
+            .contains(&PsiProvenance::Operation(forward_row.psi_operation()))
+    );
+    assert!(receiver.fuel.iter().any(|settlement| {
+        settlement.site == PsiProvenance::Operation(forward_row.psi_operation())
+    }));
+
+    // No surviving node defines or uses the retired result; every listed use
+    // now references the proven initializer at its shifted coordinate.
+    for node in output_function.blocks.iter().flat_map(|block| &block.nodes) {
+        assert!(
+            !node
+                .definitions
+                .iter()
+                .any(|definition| definition.value == forward_row.result())
+        );
+        assert!(
+            !node
+                .uses
+                .iter()
+                .any(|use_site| use_site.value == forward_row.result())
+        );
+    }
+    for site in &forwarded.uses {
+        let shift = usize::from(
+            site.block == forward_row.site().block && site.node > forward_row.site().node,
+        );
+        let output_index = usize::try_from(site.node).expect("index") - shift;
+        let node = &output_function
+            .blocks
+            .iter()
+            .find(|block| block.id == site.block)
+            .expect("use block retained")
+            .nodes[output_index];
+        assert!(
+            node.uses
+                .iter()
+                .any(|use_site| use_site.value == forwarded.initializer),
+            "the substituted use references the initializer"
+        );
+    }
+
+    // The folded sibling still lands at its (shifted) site as a constant.
+    let folded_site = constant_row.site();
+    let folded_shift = usize::from(
+        folded_site.block == forward_row.site().block && folded_site.node > forward_row.site().node,
+    );
+    let folded = &output_function
+        .blocks
+        .iter()
+        .find(|block| block.id == folded_site.block)
+        .expect("fold block retained")
+        .nodes[usize::try_from(folded_site.node).expect("index") - folded_shift];
+    assert!(matches!(
+        folded.operation,
+        AbstractOperation::BooleanConstant { value: true, .. }
+    ));
+
+    // The ledger records the retired site's custody landing on the node that
+    // inherited its index.
+    let [record] = applied.ledger().records() else {
+        panic!("one transformation record")
+    };
+    let retired = PsiRealizationSite::Node(forward_row.site());
+    assert!(record.provenance.iter().any(|rewrite| {
+        rewrite.input == retired
+            && rewrite.disposition == ProvenanceDisposition::RealizedAt(retired)
+            && rewrite.sources == vec![PsiProvenance::Operation(forward_row.psi_operation())]
+    }));
+
+    // The applied session is an exact fixed point for this family.
+    assert!(
+        propose_field_value_specializations(applied.session(), 4)
+            .expect("fixed-point proposal runs")
+            .is_empty(),
+        "the specialization reaches a fixed point"
+    );
+}
+
+#[test]
+fn replay_rejects_forged_forward_rows() {
+    let session = lowered_session_entry(FORWARDED_FIELD_SOURCE, "forwarded field value", "probe");
+    let candidates = propose_field_value_specializations(&session, 4).expect("proposal runs");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one specialization candidate")
+    };
+    let forward_index = candidate
+        .reads
+        .iter()
+        .position(|row| matches!(row.resolution, FieldValueResolution::Forward(_)))
+        .expect("one forwarded read");
+
+    // A forged initializer — replay re-derives the establishment's stored
+    // scalar rather than trusting the claimed substitution.
+    let mut forged = candidate.clone();
+    let result = forged.reads[forward_index].result;
+    let FieldValueResolution::Forward(forwarded) = &mut forged.reads[forward_index].resolution
+    else {
+        unreachable!()
+    };
+    forwarded.initializer = result;
+    assert_eq!(
+        validate_field_value_specialization(&session, &forged).err(),
+        Some(FieldValueSpecializationError::CandidateMismatch)
+    );
+
+    // A forged use roster — replay recomputes the complete covered set.
+    let mut forged = candidate.clone();
+    let FieldValueResolution::Forward(forwarded) = &mut forged.reads[forward_index].resolution
+    else {
+        unreachable!()
+    };
+    forwarded.uses.pop();
+    assert_eq!(
+        validate_field_value_specialization(&session, &forged).err(),
+        Some(FieldValueSpecializationError::CandidateMismatch)
+    );
+
+    // A forged constant claim on the forwarded read.
+    let mut forged = candidate.clone();
+    forged.reads[forward_index].resolution = FieldValueResolution::Constant(
+        FoldedFieldValue::Integer(semantic_vocabulary::IntegerValue::Unsigned(7)),
+    );
+    assert_eq!(
+        validate_field_value_specialization(&session, &forged).err(),
+        Some(FieldValueSpecializationError::CandidateMismatch)
+    );
+
+    // The untampered candidate still validates.
+    assert!(
+        validate_field_value_specialization(&session, candidate).is_ok(),
+        "the exact candidate still validates"
     );
 }
 
@@ -426,8 +682,9 @@ fn replay_rejects_forged_field_rows() {
 
     // A forged folded value.
     let mut forged = candidate.clone();
-    forged.reads[0].value =
-        FoldedFieldValue::Integer(semantic_vocabulary::IntegerValue::Unsigned(41));
+    forged.reads[0].resolution = FieldValueResolution::Constant(FoldedFieldValue::Integer(
+        semantic_vocabulary::IntegerValue::Unsigned(41),
+    ));
     assert_eq!(
         validate_field_value_specialization(&session, &forged).err(),
         Some(FieldValueSpecializationError::CandidateMismatch)
