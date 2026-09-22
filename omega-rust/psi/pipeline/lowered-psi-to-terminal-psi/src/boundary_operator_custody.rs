@@ -1,14 +1,9 @@
 //! Reconstruct boundary-operator applications and bind their custody to the published artifact.
 
-#[path = "dynamic_calls.rs"]
 mod dynamic_calls;
-#[path = "float_comparisons.rs"]
 mod float_comparisons;
-#[path = "integer_comparisons.rs"]
 mod integer_comparisons;
-#[path = "local_initializers.rs"]
 mod local_initializers;
-#[path = "structural_returns.rs"]
 mod structural_returns;
 
 use checked_trees::CheckedTrees;
