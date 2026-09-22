@@ -49,12 +49,30 @@ const PROJECTED_PREMISED_WRITE: &str = r#"
     }
 "#;
 
+// A guarantee established on a statement-site call's exclusive-borrow arg
+// (the callee's write is the establishment) must replay post-publication
+// like the expression-site spellings.
+const STATEMENT_CALL_PREMISED_WRITE: &str = r#"
+    data Main { items: [i32; 4]; }
+
+    machine ordain(slot: &mut u64 [0..=4]) ensures slot >= 2 { slot = 2; }
+
+    machine Main::main(&mut self) -> u64 {
+        let mut cut: u64 [0..=4] = 0;
+        ordain(&mut cut);
+        let held: &mut [i32] = self.items[cut..4];
+        self.items[0] = 3;
+        held.len
+    }
+"#;
+
 #[test]
 fn published_borrow_certificates_replay_at_the_lowering_boundary() {
     for source in [
         PREMISED_WRITE,
         MUTABLE_RESULT_PREMISED_WRITE,
         PROJECTED_PREMISED_WRITE,
+        STATEMENT_CALL_PREMISED_WRITE,
     ] {
         let checked = checked_source(source);
         assert!(

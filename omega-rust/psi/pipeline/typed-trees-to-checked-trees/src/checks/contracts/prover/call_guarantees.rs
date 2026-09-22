@@ -119,11 +119,10 @@ fn capture_preserved(
     borrow: &checked_trees::BorrowFacts,
     caller: &Machine,
     supplied: &Invocation<'_>,
-    produced: ExpressionHandle,
+    frame: facts::NormalizedWriteFrame,
     guarantee: ExpressionHandle,
     frames: &validation::CallFrameResolver<'_>,
 ) -> bool {
-    let frame = frames.expression_write_frame(caller, produced);
     let Some(mut writes) = crate::flow::frame_storage_writes(
         program,
         caller.symbol,
@@ -185,7 +184,7 @@ fn capture_preserved(
         ) else {
             return false;
         };
-        !writes.iter().any(|write| {
+        if !writes.iter().any(|write| {
             crate::flow::normalized_event_place_root(program, write.root)
                 == crate::flow::normalized_event_place_root(program, place.root)
                 && crate::flow::canonical_place_segments_may_overlap(
@@ -193,7 +192,19 @@ fn capture_preserved(
                     &write.segments,
                     &place.segments,
                 )
-        })
+        }) {
+            return true;
+        }
+        // An operand bound through an exclusive-borrow actual is written by the
+        // callee's own contract — that write is the establishment the
+        // guarantee describes, not capture.
+        let Some((actual, _)) = actual_projection(program, supplied, occurrence) else {
+            return false;
+        };
+        matches!(
+            program.expression_table.expression(actual),
+            ExpressionNode::Borrow(borrow) if borrow.access.is_exclusive()
+        )
     })
 }
 
