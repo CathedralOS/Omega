@@ -35,8 +35,19 @@ pub(crate) use reconstruction::reconstruct_validated_control_edge_axioms;
 mod substitution;
 
 use evidence_provenance::validate_evidence_producer_provenance;
-pub use float_meaning_projection::*;
-pub use proof_bundle::*;
+pub use float_meaning_projection::{
+    FloatMeaningProjectionVerificationError, ReconstructedFloatMeaningProjection,
+    reconstruct_float_meaning_projection,
+};
+pub(crate) use float_meaning_projection::{
+    verify_direct_block_float_parameter, verify_direct_call_float_result,
+    verify_direct_float_parameter, verify_direct_float_result,
+    verify_direct_operation_float_result, verify_direct_structural_float_leaf,
+};
+pub use proof_bundle::{
+    ControlCycleEvidence, EvidenceProducerProvenance, EvidenceProducerRealization,
+    EvidenceProducerRowSource, ObligationEvidence, ProofBundle, RecursiveComponentEvidence,
+};
 pub(crate) use reconstruction::reconstruct_validated_crash_site_facts;
 use reconstruction::reconstruct_validated_terminal_obligations;
 pub use reconstruction::{
