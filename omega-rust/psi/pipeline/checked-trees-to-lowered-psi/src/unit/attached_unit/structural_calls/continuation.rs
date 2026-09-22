@@ -131,8 +131,8 @@ pub(crate) fn validate_cleanup(
         return Ok(());
     }
     // Each projected owned operand names one dying temporary; one consumer
-    // may end several temporaries at once, each keeping its own residual rows
-    // in operand order.
+    // may end several temporaries at once, each keeping its own residual
+    // group while the groups run latest-established first.
     let projected = structural_arguments
         .iter()
         .filter(|argument| {
@@ -222,14 +222,16 @@ pub(crate) fn validate_cleanup(
     ) {
         return unsupported("partial cleanup has no authored call statement");
     }
-    let mut expected = Vec::new();
+    let mut residual_runs = Vec::new();
+    let mut consumed = 0;
     for argument in &projected {
         let binding_ordinal = argument.source_structural_result_binding_ordinal().ok_or(
             LoweringError::Unsupported("call cleanup requires an expression-owned result"),
         )?;
         let mut producers = caller.operations[..operation_index]
             .iter()
-            .filter_map(|operation| match operation {
+            .enumerate()
+            .filter_map(|(producer_index, operation)| match operation {
                 CheckedUnitEffectOperationPlan::StructuralCall {
                     coordinate,
                     result,
@@ -241,14 +243,19 @@ pub(crate) fn validate_cleanup(
                     result,
                     discard_result_on_return,
                     ..
-                } if result.binding_ordinal == binding_ordinal => {
-                    Some((operation, *coordinate, result, *discard_result_on_return))
-                }
+                } if result.binding_ordinal == binding_ordinal => Some((
+                    producer_index,
+                    operation,
+                    *coordinate,
+                    result,
+                    *discard_result_on_return,
+                )),
                 _ => None,
             });
-        let (producer_operation, producer, result, discard_on_return) = producers.next().ok_or(
-            LoweringError::Unsupported("call cleanup has no result producer"),
-        )?;
+        let (producer_index, producer_operation, producer, result, discard_on_return) =
+            producers.next().ok_or(LoweringError::Unsupported(
+                "call cleanup has no result producer",
+            ))?;
         if producers.next().is_some()
             || discard_on_return
             || producer.call_ordinal == 0
@@ -265,8 +272,9 @@ pub(crate) fn validate_cleanup(
             &argument.source,
             &result.type_identity,
             &[(argument.path.as_slice(), argument.type_identity.as_str())],
-            affine_discards.len() - expected.len(),
+            affine_discards.len() - consumed,
         )?;
+        consumed += residuals.len();
         crate::unit::unit_cleanup::validate_anonymous_partial_permissions(
             checked,
             caller,
@@ -274,8 +282,16 @@ pub(crate) fn validate_cleanup(
             consumer,
             &residuals,
         )?;
-        expected.extend(residuals);
+        residual_runs.push((producer_index, residuals));
     }
+    // Producer position in this unit's operation list is establishment order;
+    // the residual groups run latest-established first while each root's own
+    // complement keeps its checked path order.
+    residual_runs.sort_by(|left, right| right.0.cmp(&left.0));
+    let expected: Vec<_> = residual_runs
+        .into_iter()
+        .flat_map(|(_, residuals)| residuals)
+        .collect();
     if expected != *affine_discards {
         return unsupported("partial call continuation residual partition drifted");
     }
