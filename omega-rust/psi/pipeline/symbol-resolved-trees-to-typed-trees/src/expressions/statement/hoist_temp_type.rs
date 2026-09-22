@@ -15,6 +15,7 @@ use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use symbol_resolved_trees::types::{TypeConstraint, TypeReference};
+use symbols::BuiltinFunction;
 use typed_trees as typed;
 
 use resolved::expression::{ExpressionHandle, ExpressionNode};
@@ -59,7 +60,8 @@ pub(super) fn infer_hoist_temp_type(
     {
         ExpressionNode::Call(call)
             if !call.receiver.is_valid()
-                && matches!(call.target.as_str(), "min" | "max" | "sqrt") =>
+                && BuiltinFunction::from_name(call.target.as_str())
+                    .is_some_and(BuiltinFunction::is_scalar_computation) =>
         {
             Some(
                 expressions

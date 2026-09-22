@@ -4,6 +4,7 @@ use super::{
     Frame, Halt, HashSet, Machine, PrimitiveType, SemanticFloatClass, SemanticFloatFormat, State,
     SymbolHandle, Value, trap, unsupported,
 };
+use symbols::BuiltinFunction;
 mod match_dispatch;
 
 #[cfg(test)]
@@ -586,7 +587,9 @@ impl<'program> Evaluator<'program> {
         if target == "asm#pushfq" && !call.receiver.is_valid() {
             return Ok(Value::Int(2));
         }
-        if matches!(target, "max" | "min") {
+        if let Some(builtin @ (BuiltinFunction::Max | BuiltinFunction::Min)) =
+            BuiltinFunction::from_name(target)
+        {
             let args = self
                 .program
                 .expression_table
@@ -601,7 +604,7 @@ impl<'program> Evaluator<'program> {
                 // MaxUnsigned/MinUnsigned for unsigned targets.
                 let unsigned = self.expression_is_unsigned64(args[0], frame)
                     || self.expression_is_unsigned64(args[1], frame);
-                return self.eval_min_max(target, left, right, unsigned);
+                return self.eval_min_max(builtin, left, right, unsigned);
             }
         }
         if matches!(
@@ -701,7 +704,9 @@ impl<'program> Evaluator<'program> {
         // Builtin: sqrt over a single float operand. The interpreter consumes
         // the same exact semantic function used as the native
         // sqrtsd/sqrtss contract oracle.
-        if target == "sqrt" && call.receiver == ExpressionHandle::invalid() {
+        if BuiltinFunction::from_name(target) == Some(BuiltinFunction::Sqrt)
+            && call.receiver == ExpressionHandle::invalid()
+        {
             let args = self
                 .program
                 .expression_table

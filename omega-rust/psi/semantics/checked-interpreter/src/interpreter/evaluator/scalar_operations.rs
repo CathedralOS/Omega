@@ -4,6 +4,7 @@ use super::{
     SemanticFloatFormat, SymbolHandle, UnaryOperator, Value, integer_bounds, primitive_bit_width,
     primitive_is_unsigned64, project_landed_float, trap, unsupported, wrap_to_width,
 };
+use symbols::BuiltinFunction;
 #[cfg(test)]
 mod sequence_equality_tests;
 
@@ -680,13 +681,17 @@ impl<'program> Evaluator<'program> {
         })
     }
 
+    /// Two-operand pick for the `max`/`min` builtins. The caller's dispatch
+    /// pattern admits only `Max` and `Min`; `Max` picks the greater operand
+    /// and everything else the lesser.
     pub(super) fn eval_min_max(
         &self,
-        name: &str,
+        builtin: BuiltinFunction,
         left: Value,
         right: Value,
         unsigned: bool,
     ) -> EvalResult<Value> {
+        let pick_max = builtin == BuiltinFunction::Max;
         if matches!(left, Value::Float(_)) || matches!(right, Value::Float(_)) {
             let l = left
                 .as_float()
@@ -702,7 +707,7 @@ impl<'program> Evaluator<'program> {
             // from the backend on a NaN second operand.
             let left_meaning = FloatMeaning::from_f64(l);
             let right_meaning = FloatMeaning::from_f64(r);
-            let pick_left = if name == "max" {
+            let pick_left = if pick_max {
                 FloatSemantics::greater(&left_meaning, &right_meaning)
             } else {
                 FloatSemantics::less(&left_meaning, &right_meaning)
@@ -723,12 +728,8 @@ impl<'program> Evaluator<'program> {
         // operand (u64::MAX reads as -1 under signed compare).
         let picked = if unsigned {
             let (lu, ru) = (l as u64, r as u64);
-            (if name == "max" {
-                lu.max(ru)
-            } else {
-                lu.min(ru)
-            }) as i64
-        } else if name == "max" {
+            (if pick_max { lu.max(ru) } else { lu.min(ru) }) as i64
+        } else if pick_max {
             l.max(r)
         } else {
             l.min(r)
