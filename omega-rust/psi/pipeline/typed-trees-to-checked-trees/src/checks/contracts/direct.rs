@@ -4,7 +4,7 @@ use symbols::SymbolHandle;
 
 use super::labels::{ContractTargetParameters, instantiate_call_contract_expression_label};
 use super::places::{expression_is_boolean_place_like, expression_place_matches};
-use crate::labels::{canonical_place_label, semantic_boolean_fact_label};
+use crate::labels::semantic_boolean_fact_label;
 
 mod guard_values;
 mod match_patterns;
@@ -155,11 +155,7 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
                         call_site,
                         target_state,
                         expression,
-                ) == canonical_place_label(
-                    program,
-                    semantic,
-                    semantic.places.get(candidate_place),
-                )))
+                ) == semantic.place_label(program, candidate_place)))
     })
 }
 

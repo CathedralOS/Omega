@@ -20,8 +20,8 @@ pub use atomic::{AtomicOrderingPlan, MemoryOrdering};
 pub use cast_form::CastForm;
 pub use operator_spelling::OperatorSpelling;
 pub use source_semantics::receiver_binding::{
-    self, SELF_RECEIVER, is_receiver_rooted, is_self_receiver, receiver_place_field,
-    receiver_place_label,
+    self, PLACE_MEMBER_SEPARATOR, SELF_RECEIVER, is_receiver_rooted, is_self_receiver,
+    receiver_place_field, receiver_place_label,
 };
 pub use source_semantics::{
     BindingRelevance, CallOperationalAcknowledgement, CallOperationalAcknowledgementOrigin,

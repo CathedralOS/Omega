@@ -9,7 +9,7 @@ use crate::flow::{StateMutationSummaryCache, call_write_accesses, statement_muta
 use crate::labels::symbol_name;
 use crate::semantic_calls::find_state_in_machine;
 
-use super::details::{active_loan_detail, canonical_place_label};
+use super::details::active_loan_detail;
 use super::overlap::{
     CompatibilityReplayDrift, StatedOrderingPremise,
     borrow_loan_compatibility_from_selector_snapshot,
@@ -361,7 +361,7 @@ pub(super) fn check_statement_borrows(
             diagnostics.push(Diagnostic::error(format!(
                 "statement {} mutates `{}` while local borrow `{}` is still active ({})",
                 statement.statement_index,
-                canonical_place_label(program, &mutated_place),
+                mutated_place.label(program),
                 symbol_name(program, loan.owner_symbol),
                 active_loan_detail(state_flow, facts, loan_handle, statement.statement_index)
                     .unwrap_or_else(|| format!("borrowed at statement {}", loan.statement_index)),
@@ -474,7 +474,7 @@ fn check_call_mutation_borrows(
                 diagnostics.push(Diagnostic::error(format!(
                     "statement {} mutates `{}` while local borrow `{}` is still active ({})",
                     borrow_call.statement_index,
-                    canonical_place_label(program, mutated_place),
+                    mutated_place.label(program),
                     symbol_name(program, loan.owner_symbol),
                     active_loan_detail(
                         state_flow,

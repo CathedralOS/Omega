@@ -64,12 +64,7 @@ impl ClaimCarryContext<'_> {
                 let FactPlace::Place(place) = fact.place else {
                     continue;
                 };
-                if crate::labels::canonical_place_label(
-                    program,
-                    self.semantic,
-                    self.semantic.places.get(place),
-                ) != value_name
-                {
+                if self.semantic.place_label(program, place) != value_name {
                     continue;
                 }
 
@@ -136,7 +131,7 @@ impl ClaimCarryContext<'_> {
             ) else {
                 continue;
             };
-            let label = crate::labels::canonical_place_label_from_parts(
+            let label = facts::canonical_place_label_from_parts(
                 program,
                 event.root,
                 self.ownership.segments.span_or_empty(event.segments),

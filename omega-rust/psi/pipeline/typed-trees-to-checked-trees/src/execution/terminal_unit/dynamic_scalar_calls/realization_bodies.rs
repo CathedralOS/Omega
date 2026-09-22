@@ -247,11 +247,8 @@ fn checked_realization_structural_scalar_field_store_plan(
         return None;
     }
 
-    let expected_mutation_path = crate::labels::canonical_place_label_from_parts(
-        program,
-        destination.root,
-        &destination.segments,
-    );
+    let expected_mutation_path =
+        facts::canonical_place_label_from_parts(program, destination.root, &destination.segments);
     let value = facts.values.scalar_expressions.expression_at(
         realization_state.symbol,
         u32::try_from(statement_index).ok()?,

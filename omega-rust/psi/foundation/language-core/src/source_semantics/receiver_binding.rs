@@ -19,9 +19,11 @@
 /// The spelling of the receiver binding.
 pub const SELF_RECEIVER: &str = "self";
 
-/// The separator between a rendered place path's root and its first member,
-/// as the typed-tree member renderer spells it (`self.field`).
-const PLACE_MEMBER_SEPARATOR: char = '.';
+/// The separator between a rendered place path's root and its first member
+/// (`self.field`). The typed-tree member renderer and the facts place
+/// renderer spell their `.` from here, so a rendered member expression and
+/// the canonical label of the place it names agree by construction.
+pub const PLACE_MEMBER_SEPARATOR: char = '.';
 
 /// Whether `name` spells the receiver binding of an attached machine or state.
 ///

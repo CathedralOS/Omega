@@ -39,8 +39,7 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, 
 use typed_trees::signature::StateParameter;
 
 use crate::labels::{
-    canonical_place_label, instantiate_operator_contract_expression_label_with_labels,
-    semantic_boolean_fact_label,
+    instantiate_operator_contract_expression_label_with_labels, semantic_boolean_fact_label,
 };
 
 /// Whether the selected operator's published route guard is provably false at
@@ -405,8 +404,7 @@ fn context_proves_boolean_label(
                 let FactPlace::Place(place) = fact.place else {
                     return false;
                 };
-                let canonical_base =
-                    canonical_place_label(program, semantic, semantic.places.get(place));
+                let canonical_base = semantic.place_label(program, place);
                 let display_base = program.expression_table.display_name(value);
                 crate::checks::contracts::labels::domain_proves_expression_label(
                     program,

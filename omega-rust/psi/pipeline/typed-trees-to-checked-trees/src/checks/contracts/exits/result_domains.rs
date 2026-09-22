@@ -1312,7 +1312,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                 "cannot prove default-domain field requirement for return from {} at statement {}: {} requires {}",
                 crate::labels::machine_name(program, exit.machine_symbol),
                 exit.statement_index,
-                crate::labels::canonical_place_label_from_parts(program, root, &segments),
+                facts::canonical_place_label_from_parts(program, root, &segments),
                 crate::labels::symbol_name(program, domain_symbol),
             )));
         }
@@ -1556,7 +1556,7 @@ pub(in crate::checks::contracts) fn check_mutable_referent_field_domains(
             "cannot prove default-domain field requirement for return from {} at statement {}: {} requires {}",
             crate::labels::machine_name(program, exit.machine_symbol),
             exit.statement_index,
-            crate::labels::canonical_place_label_from_parts(
+            facts::canonical_place_label_from_parts(
                 program,
                 place.root,
                 facts.semantic.place_segments.span_or_empty(place.segments),

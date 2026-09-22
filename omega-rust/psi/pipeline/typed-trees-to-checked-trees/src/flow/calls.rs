@@ -300,11 +300,7 @@ fn append_one_to_one_call_carry_facts<'plans>(
             let FactPlace::Place(fact_place) = fact.place else {
                 continue;
             };
-            let fact_label = crate::labels::canonical_place_label(
-                program,
-                semantic,
-                semantic.places.get(fact_place),
-            );
+            let fact_label = semantic.place_label(program, fact_place);
             if !semantic.places_match(program, fact_place, source_place)
                 && fact_label != source_label
             {

@@ -724,9 +724,8 @@ fn build_record_literal_field_store_sequence(
         .span(fields)?
         .to_vec();
     trace.phase("structural field store: record literal frame");
-    let source_path =
-        crate::labels::canonical_place_label_from_parts(program, place.root, &place.segments);
-    let source_root = crate::labels::canonical_place_label_from_parts(program, place.root, &[]);
+    let source_path = facts::canonical_place_label_from_parts(program, place.root, &place.segments);
+    let source_root = facts::canonical_place_label_from_parts(program, place.root, &[]);
     // Mutation summaries name the receiver separately from the ordinary
     // parameter roster, even when it occupies structural position zero.
     let mutation_root = if destination.is_self {
@@ -1060,9 +1059,8 @@ fn build_structural_field_store_at(
     }
     let field = exact_relevant_field(program, field_owner, *field_symbol)?;
     trace.phase("structural field store: write frame");
-    let source_path =
-        crate::labels::canonical_place_label_from_parts(program, place.root, &place.segments);
-    let source_root = crate::labels::canonical_place_label_from_parts(program, place.root, &[]);
+    let source_path = facts::canonical_place_label_from_parts(program, place.root, &place.segments);
+    let source_root = facts::canonical_place_label_from_parts(program, place.root, &[]);
     // Mutation summaries name the receiver separately from the ordinary
     // parameter roster, even when it occupies structural position zero.
     let mutation_root = if destination.is_self {
@@ -1077,7 +1075,7 @@ fn build_structural_field_store_at(
         .iter()
         .position(|segment| matches!(segment, facts::PlaceSegment::FixedIndex { .. }))
         .and_then(|first_index| {
-            let collection_path = crate::labels::canonical_place_label_from_parts(
+            let collection_path = facts::canonical_place_label_from_parts(
                 program,
                 place.root,
                 &place.segments[..first_index],

@@ -106,9 +106,12 @@ pub(crate) fn instantiate_operator_contract_expression_label_with_labels(
             (false, false) => "..".to_owned(),
         },
         ExpressionNode::Integer(value) => value.to_string(),
-        ExpressionNode::Member(member) => {
-            format!("{}.{}", instantiate(member.receiver), member.member)
-        }
+        ExpressionNode::Member(member) => format!(
+            "{}{}{}",
+            instantiate(member.receiver),
+            language_core::PLACE_MEMBER_SEPARATOR,
+            member.member
+        ),
         ExpressionNode::Borrow(inner) => match inner.access {
             language_semantics::ReferenceAccess::Shared => instantiate(inner.target),
             language_semantics::ReferenceAccess::Mutable => {

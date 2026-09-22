@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 arena = { path = "../../foundation/arena" }
+language-core = { path = "../../foundation/language-core" }
 language-semantics = { path = "../../foundation/language-semantics" }
 numerics = { path = "../../foundation/numerics" }
 symbols = { path = "../../foundation/symbols" }

@@ -56,8 +56,8 @@ use typed_trees::types::PrimitiveType;
 
 use super::super::contracts::labels::domain_proves_expression_label;
 use crate::labels::{
-    canonical_place_label, instantiate_operator_contract_expression_label_with_labels,
-    semantic_boolean_fact_label, symbol_name,
+    instantiate_operator_contract_expression_label_with_labels, semantic_boolean_fact_label,
+    symbol_name,
 };
 
 mod invocation;
@@ -749,8 +749,7 @@ fn context_proves_boolean_label(
                 let FactPlace::Place(place) = fact.place else {
                     return false;
                 };
-                let canonical_base =
-                    canonical_place_label(program, semantic, semantic.places.get(place));
+                let canonical_base = semantic.place_label(program, place);
                 let display_base = program.expression_table.display_name(value);
                 domain_proves_expression_label(
                     program,
@@ -826,7 +825,7 @@ fn context_proves_membership_label(
             return false;
         }
         let place_matches = matches!(fact.place, FactPlace::Place(place)
-            if canonical_place_label(program, semantic, semantic.places.get(place)) == value_label);
+            if semantic.place_label(program, place) == value_label);
         place_matches || program.expression_table.display_name(fact_value) == value_label
     })
 }

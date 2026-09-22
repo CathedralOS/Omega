@@ -7,7 +7,7 @@ pub(crate) fn borrow_access_label(
     borrow: &checked_trees::BorrowFacts,
     access: &checked_trees::BorrowArgumentAccessFact,
 ) -> String {
-    canonical_place_label_from_parts(
+    facts::canonical_place_label_from_parts(
         program,
         facts::PlaceRoot::Symbol(access.root_symbol),
         borrow.access_segments(access),
@@ -34,7 +34,6 @@ pub(crate) fn semantic_fact_requirement_label(
                 facts::FactPlace::Place(place) => place,
                 _ => return "unknown domain membership".to_owned(),
             };
-            let place = semantic.places.get(place);
             let domain = if program.domain_definitions().iter().any(|domain| {
                 domain.symbol == domain_symbol
                     && !typed_trees::domain::index_parameters(program, domain).is_empty()
@@ -47,11 +46,7 @@ pub(crate) fn semantic_fact_requirement_label(
             } else {
                 symbol_name(program, domain_symbol)
             };
-            format!(
-                "{} in {}",
-                requirement_place_label(program, semantic, place),
-                domain
-            )
+            format!("{} in {}", semantic.place_label(program, place), domain)
         }
         FactPayload::ContractCarryPermission { permission, .. }
         | FactPayload::CarryPermission { permission, .. } => {
@@ -59,10 +54,9 @@ pub(crate) fn semantic_fact_requirement_label(
                 facts::FactPlace::Place(place) => place,
                 _ => return "unknown carry permission".to_owned(),
             };
-            let place = semantic.places.get(place);
             format!(
                 "{} in {}",
-                requirement_place_label(program, semantic, place),
+                semantic.place_label(program, place),
                 permission.name()
             )
         }
@@ -89,26 +83,6 @@ pub(crate) fn semantic_boolean_fact_label(
     semantic.boolean_fact_label(program, fact)
 }
 
-pub(crate) fn requirement_place_label(
-    program: &typed_trees::TypedTrees,
-    semantic: &FactPlan,
-    place: &facts::Place,
-) -> String {
-    canonical_place_label(program, semantic, place)
-}
-
-pub(crate) fn canonical_place_label(
-    program: &typed_trees::TypedTrees,
-    semantic: &FactPlan,
-    place: &facts::Place,
-) -> String {
-    canonical_place_label_from_parts(
-        program,
-        place.root,
-        semantic.place_segments.span_or_empty(place.segments),
-    )
-}
-
 pub(crate) fn joined_place_label(
     program: &typed_trees::TypedTrees,
     semantic: &FactPlan,
@@ -120,54 +94,5 @@ pub(crate) fn joined_place_label(
         .span_or_empty(place.segments)
         .to_vec();
     segments.extend(extra_segments.iter().copied());
-    canonical_place_label_from_parts(program, place.root, &segments)
-}
-
-pub(crate) fn canonical_place_label_from_parts(
-    program: &typed_trees::TypedTrees,
-    root: facts::PlaceRoot,
-    segments: &[facts::PlaceSegment],
-) -> String {
-    let mut label = match root {
-        facts::PlaceRoot::Unknown => "unknown".to_owned(),
-        facts::PlaceRoot::Symbol(symbol) => symbol_name(program, symbol),
-        facts::PlaceRoot::Expression(expression) => {
-            program.expression_table.display_name(expression)
-        }
-        facts::PlaceRoot::TypeReference(type_reference) => {
-            program.display_type_reference(type_reference)
-        }
-    };
-
-    for segment in segments {
-        match segment {
-            facts::PlaceSegment::Field { symbol } => {
-                label.push('.');
-                label.push_str(&symbol_name(program, *symbol));
-            }
-            facts::PlaceSegment::Case { variant } => {
-                label.push_str("::");
-                label.push_str(&symbol_name(program, *variant));
-            }
-            facts::PlaceSegment::FixedIndex { index } => {
-                label.push('[');
-                label.push_str(&index.to_string());
-                label.push(']');
-            }
-            facts::PlaceSegment::FixedRange { start, end } => {
-                label.push('[');
-                label.push_str(&start.to_string());
-                label.push_str("..");
-                label.push_str(&end.to_string());
-                label.push(']');
-            }
-            facts::PlaceSegment::Index { expression } => {
-                label.push('[');
-                label.push_str(&program.expression_table.display_name(*expression));
-                label.push(']');
-            }
-        }
-    }
-
-    label
+    facts::canonical_place_label_from_parts(program, place.root, &segments)
 }
