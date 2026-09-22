@@ -1,6 +1,15 @@
 //! Ordinary looping callees keep projected receiver storage and caller continuation.
 
-use super::{NativeTarget, artifact, native_function, native_text, optimize, primitive_stores};
+// `native_function` is only mounted on the hosts that can execute the text.
+#[cfg(any(
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
+    all(target_os = "macos", target_arch = "aarch64")
+))]
+use super::native_function;
+use super::{NativeTarget, artifact, native_text, optimize, primitive_stores};
 fn source(ranking: &str) -> String {
     format!(
         "data Child {{ value: u64; }}

@@ -1,7 +1,16 @@
 //! Reference values carried through call results and record fields keep the
 //! caller's original referent through publication.
 
-use super::{NativeTarget, borrowed_arguments, native_function};
+// `native_function` is only mounted on the hosts that can execute the text.
+#[cfg(any(
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
+    all(target_os = "macos", target_arch = "aarch64")
+))]
+use super::native_function;
+use super::{NativeTarget, borrowed_arguments};
 
 /// A `&mut` returned by one call feeds a second call's argument; the write
 /// lands on the caller's original referent and the entry reads it back.

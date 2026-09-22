@@ -23,8 +23,10 @@ use target::TargetProfile;
 mod git;
 #[path = "locked_source_recovery/local.rs"]
 mod local;
+// The three sibling topics that share these fixtures reach them through
+// `crate::locked_source_recovery::support`; the file is mounted only here.
 #[path = "locked_source_recovery/support.rs"]
-mod support;
+pub(crate) mod support;
 #[path = "locked_source_recovery/workspace.rs"]
 mod workspace;
 use support::*;

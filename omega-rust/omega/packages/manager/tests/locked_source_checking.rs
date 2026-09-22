@@ -12,11 +12,10 @@ use package_manager::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, PackageRootSourceRequest,
     PackageSourceClosureLimits, ResolvedPackageSourceClosure,
 };
-use package_manager::resolution::package_compilation_inputs;
 use package_manager::review::compile_resolved_package_reviews;
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use target::TargetProfile;
 
 #[path = "locked_source_checking/generated.rs"]
@@ -25,8 +24,6 @@ mod generated;
 mod ordinary;
 #[path = "locked_source_checking/restricted_build_grants.rs"]
 mod restricted_build_grants;
-#[path = "locked_source_recovery/support.rs"]
-mod support;
-use support::*;
+use crate::locked_source_recovery::support::*;
 
 const TARGET: TargetProfile = TargetProfile::WindowsX64;

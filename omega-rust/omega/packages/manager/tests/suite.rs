@@ -4,6 +4,11 @@
 
 mod capability_conflicts;
 
+// Support shared across topics is mounted here exactly once; a topic reaches it
+// with `use crate::<name>` rather than a second `#[path]` mount of the file.
+#[path = "support/accepted_policy.rs"]
+mod accepted_policy_fixture;
+
 mod build_named_inputs;
 mod build_scope_topology_confinement;
 mod candidate_policy_retention;

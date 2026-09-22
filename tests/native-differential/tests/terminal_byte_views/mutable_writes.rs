@@ -1,7 +1,6 @@
 //! Source-proved fixed-extent writes retain ordinary native descriptor custody.
 
-use super::native_function;
-use super::{AdmissionProfile, NativeTarget, calls};
+// `native_function` is only mounted on the hosts that can execute the text.
 #[cfg(any(
     all(
         target_os = "linux",
@@ -9,6 +8,8 @@ use super::{AdmissionProfile, NativeTarget, calls};
     ),
     all(target_os = "macos", target_arch = "aarch64")
 ))]
+use super::native_function;
+use super::{AdmissionProfile, NativeTarget, calls};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 #[path = "mutable_writes/admission.rs"]
 mod admission;

@@ -22,6 +22,14 @@ use terminal_production::{
 mod native_function;
 
 const ROUNDTRIP: &str = include_str!("asm_memory_transfer/roundtrip.omg");
+// The C driver only runs where the produced text can execute on this host.
+#[cfg(any(
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
+    all(target_os = "macos", target_arch = "aarch64")
+))]
 const ROUNDTRIP_DRIVER: &str = include_str!("asm_memory_transfer/roundtrip.c");
 
 fn produce(source: &str, entry: &str) -> CanonicalTerminalArtifact {

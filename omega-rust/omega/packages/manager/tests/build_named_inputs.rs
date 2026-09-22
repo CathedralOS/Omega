@@ -1,6 +1,5 @@
 //! Captured dependency slots feed generated source and ordinary accepted publication.
-#[path = "support/accepted_policy.rs"]
-mod accepted_policy_fixture;
+use crate::accepted_policy_fixture;
 
 use package_compilation::{
     BuildDependencyOccurrence, BuildSourceCaptureObligation, BuildSourceCaptureRequest,

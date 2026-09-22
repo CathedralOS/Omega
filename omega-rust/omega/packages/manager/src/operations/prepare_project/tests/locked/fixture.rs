@@ -140,6 +140,11 @@ fn writable(path: &Path) {
     #[cfg(windows)]
     {
         let mut permissions = metadata.permissions();
+        // Windows carries no permission mode bits, so clearing the read-only
+        // attribute is the only way to make the fixture writable again. The
+        // lint's world-writable concern is a Unix one, and the Unix arm above
+        // widens only the owner bits through `PermissionsExt::set_mode`.
+        #[allow(clippy::permissions_set_readonly_false)]
         permissions.set_readonly(false);
         fs::set_permissions(path, permissions).unwrap();
     }

@@ -697,14 +697,11 @@ pub(super) fn build_traced(
                     let [retained] = retained.as_slice() else {
                         return None;
                     };
-                    let Some(exits) = facts
+                    let exits = facts
                         .flow
                         .terminal_scalar_graphs
                         .guarded_exits
-                        .span(retained.arms)
-                    else {
-                        return None;
-                    };
+                        .span(retained.arms)?;
                     // The shared scalar roster owns this tail's guard order,
                     // coverage and selected destinations; the composed edges
                     // must agree with it exactly.

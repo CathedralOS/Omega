@@ -2,9 +2,10 @@
 
 use super::super::native_hosted_target;
 use super::fixture_roster;
-use crate::{
-    Command, PathBuf, compile_rooted_backend_canary_without_output_for_target, fs, pass_canary,
-};
+use crate::{compile_rooted_backend_canary_without_output_for_target, pass_canary};
+// Only the Unix leg runs the retained image and reads its presented status.
+#[cfg(unix)]
+use crate::{Command, PathBuf, fs};
 #[test]
 fn hosted_exit_normalizes_source_i32_status_through_selected_custody() {
     let canary = pass_canary(fixture_roster::RUNTIME_CONSOLE_EXIT_I32_STATUS);

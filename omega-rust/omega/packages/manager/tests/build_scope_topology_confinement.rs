@@ -11,10 +11,7 @@
 //! input confinement; the expected outcome is evaluation refusal with the
 //! canonical-spelling diagnostic before any byte is read.
 
-#[path = "support/accepted_policy.rs"]
-mod accepted_policy_fixture;
-
-use accepted_policy_fixture::accepted_policy;
+use crate::accepted_policy_fixture::accepted_policy;
 use package_manager::admission::{
     AcceptedNativeInput, AcceptedNativeRealizationRequest, accept_ordinary_closure_evidence,
     realize_accepted_native_report,

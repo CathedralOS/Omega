@@ -1,6 +1,5 @@
 //! Source-authored natural slice ranking reaches the ordinary native pipeline.
-use super::native_function;
-use super::{AdmissionProfile, NativeTarget, OperationKind, calls};
+// `native_function` is only mounted on the hosts that can execute the text.
 #[cfg(any(
     all(
         target_os = "linux",
@@ -8,6 +7,8 @@ use super::{AdmissionProfile, NativeTarget, OperationKind, calls};
     ),
     all(target_os = "macos", target_arch = "aarch64")
 ))]
+use super::native_function;
+use super::{AdmissionProfile, NativeTarget, OperationKind, calls};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 #[path = "natural_writer/optimization.rs"]
 mod optimization;

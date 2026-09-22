@@ -130,9 +130,7 @@ fn requires_contents(
         let mut fields = Vec::new();
         match &declaration.shape {
             StructuralTypeShape::Reference { .. } => return true,
-            StructuralTypeShape::PrimitiveScalar(_)
-            | StructuralTypeShape::ByteSequence(_)
-            | StructuralTypeShape::ElementView { .. } => {
+            StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {
                 continue;
             }
             StructuralTypeShape::FixedArray { element, length } => {

@@ -1,6 +1,15 @@
 //! Publication retains borrowed pointer transport and the realized spill frame.
 use super::super::native_text_for;
-use super::{NativeTarget, native_function, native_text, receiver_source, register_prefix, source};
+use super::{NativeTarget, native_text, receiver_source, register_prefix, source};
+// The C-text assertion only runs where this host can execute the produced text.
+#[cfg(any(
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
+    all(target_os = "macos", target_arch = "aarch64")
+))]
+use super::native_function;
 use machine_code::StructuralSourceLocation;
 
 fn container(

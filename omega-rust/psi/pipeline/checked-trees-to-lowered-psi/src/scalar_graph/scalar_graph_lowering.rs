@@ -45,7 +45,7 @@ use super::{
     LoweringError, Multiplicity, PlaceId, QualifiedScalarType, ScalarType, StructuralAccess,
     StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPathSegment, StructuralTypeDeclaration, build_scalar_graph_module,
-    finalize_operation_proofs, lower_checked_crash_exit, machine_id, scalar_carriers, unsupported,
+    lower_checked_crash_exit, machine_id, scalar_carriers, unsupported,
 };
 use crate::expression_preparation::qualifications::PreparedScalarQualifications;
 
@@ -85,40 +85,5 @@ pub(crate) fn lower_scalar_graph_machine(
     )?;
     // The root assembler installs the complete proof vocabulary before
     // allocating invariant obligations and finalizing executable certificates.
-    Ok(lowered)
-}
-
-/// Lower one scalar realization while preserving its ordinary scalar contract.
-/// The enclosing target owns satisfaction/ABI evidence, not a replacement for
-/// the callee's authored requirements and normal guarantees.
-pub(crate) fn lower_selected_scalar_graph_machine(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    graph: &CheckedScalarMachineGraph,
-) -> Result<LoweredPsi, LoweringError> {
-    let qualifications = PreparedScalarQualifications::prepare(checked, &[machine])?;
-    if !qualifications.catalog().domains.is_empty() {
-        return unsupported(
-            "selected scalar qualifications require an enclosing catalog namespace",
-        );
-    }
-    let prepared = prepare_scalar_graph_machine(checked, &qualifications, machine, graph)?;
-    let machine_ids = [(machine, machine_id(1))];
-    let requirement_counts = [(machine, prepared.contract.requirement_count())];
-    let mut lowered = build_scalar_graph_module(
-        &prepared.states,
-        prepared.result_type,
-        &prepared.scalar_qualifications,
-        prepared.contract,
-        prepared.crash_routes,
-        prepared.identity_reshuffles,
-        prepared.partition_compositions,
-        machine_id(1),
-        0,
-        &machine_ids,
-        &requirement_counts,
-        prepared.loop_plan.as_ref(),
-    )?;
-    finalize_operation_proofs(&mut lowered)?;
     Ok(lowered)
 }

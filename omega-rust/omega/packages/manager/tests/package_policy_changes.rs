@@ -6,11 +6,9 @@ use package_manager::lock::{
     PackageLockRecoveryLimits, PackageLockTarget,
 };
 use package_manager::resolution::graph::{
-    CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, PackageRootSourceRequest,
-    PackageSourceClosureLimits, ResolvedPackageSourceClosure,
-    resolve_external_local_project_closure,
+    CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, PackageSourceClosureLimits,
+    ResolvedPackageSourceClosure, resolve_external_local_project_closure,
 };
-use package_manager::resolution::package_compilation_inputs;
 use package_manager::review::{
     CompilerIssuedPackageReviewSet, PackagePolicyChangeKind, PackagePolicyChangeLimits,
     compare_package_policy_changes, compile_resolved_package_reviews,
@@ -38,9 +36,7 @@ mod initial;
 mod operation;
 #[path = "package_policy_changes/replacements.rs"]
 mod replacements;
-#[path = "locked_source_recovery/support.rs"]
-mod support;
+use crate::locked_source_recovery::support::*;
 use fixtures::*;
-use support::*;
 
 const TARGET: TargetProfile = TargetProfile::WindowsX64;

@@ -350,7 +350,7 @@ linux_x86_64 machine ConsoleNativeProvider::provider_defaults(defaults: &mut Con
 machine build(builder: &mut Build) {{
     builder.application("receiving-admission-app");
     builder.depend(Source::Path {{ location: "{dependency}" }});
-    builder.select_provider<Console, ConsoleNativeProvider>();
+    builder.select_provider<console_provider::Console, console_provider::ConsoleNativeProvider>();
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }}
 "#,

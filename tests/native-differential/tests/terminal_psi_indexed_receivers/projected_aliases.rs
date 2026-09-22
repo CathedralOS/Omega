@@ -1,6 +1,15 @@
 //! Captured alias projections preserve the original caller storage.
 
-use super::{NativeTarget, native_function, primitive_stores};
+// `native_function` is only mounted on the hosts that can execute the text.
+#[cfg(any(
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
+    all(target_os = "macos", target_arch = "aarch64")
+))]
+use super::native_function;
+use super::{NativeTarget, primitive_stores};
 const PROJECTED_RECEIVER: &str = "data Record [copy] { value: u16; }
     machine Record::replace(&write self, value: u16) { self.value = value; }
     machine forward(records: &write [Record; 2], value: u16) {

@@ -1,8 +1,14 @@
-use super::super::super::{Path, PreparedLocalProject};
+use super::super::super::PreparedLocalProject;
+// Only the Unix Git-transport leg drives a real repository through paths.
+#[cfg(unix)]
+use super::super::super::Path;
+#[cfg(unix)]
 use super::super::PathBuf;
+#[cfg(unix)]
+use super::LocalSourceLimits;
 use super::{
-    LocalProjectPreparationOptions, LocalSourceLimits, PrepareLocalProjectError, Project, fs,
-    preparation_target, prepare_local_project_in_storage,
+    LocalProjectPreparationOptions, PrepareLocalProjectError, Project, fs, preparation_target,
+    prepare_local_project_in_storage,
 };
 fn prepare(project: &Project) -> Result<Option<PreparedLocalProject>, PrepareLocalProjectError> {
     prepare_local_project_in_storage(

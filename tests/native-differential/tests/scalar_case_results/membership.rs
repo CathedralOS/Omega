@@ -7,9 +7,18 @@
     all(target_os = "macos", target_arch = "aarch64")
 ))]
 use super::native_function;
+// The published image is only built where this host can execute it.
+#[cfg(any(
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
+    all(target_os = "macos", target_arch = "aarch64")
+))]
+use super::publish;
 use super::{
     AdmissionProfile, CanonicalTerminalArtifact, NativeTarget, OptimizationSelections,
-    compiler_baseline_request_v1, optimize_artifact_sections, produce, produce_source, publish,
+    compiler_baseline_request_v1, optimize_artifact_sections, produce, produce_source,
 };
 use semantic_vocabulary::{
     OperationId, PlaceId, ScalarType, StructuralCaseId, StructuralPlaceKind, ValueId,

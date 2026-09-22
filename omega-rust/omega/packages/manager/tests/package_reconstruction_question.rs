@@ -1,8 +1,6 @@
 //! Fixtures shared by the package reconstruction question tests: workspace
 //! roots, closures, questions and the frame helpers.
 
-#[path = "support/accepted_policy.rs"]
-mod accepted_policy_fixture;
 #[path = "package_reconstruction_question/association_paths_and_questions.rs"]
 mod association_paths_and_questions;
 #[path = "package_reconstruction_question/dependency_claims_and_recovery.rs"]
