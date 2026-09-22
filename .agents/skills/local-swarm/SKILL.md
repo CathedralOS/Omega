@@ -43,6 +43,44 @@ coordinator's procedure — the agents get rendered prompts, not this file.
    board text names — fix the paths so the fence protects the real surface;
    `scale_hint` means the item is a multi-layer decomposition, not a slice.
 
+## Chain legs (the small-wave shape, end to end)
+
+At 6+1 slots the wave runs chain-ownership, not leaf handoffs: each manifest
+row is a whole endgame chain (`scale_hint` items are chains, not slices),
+and its subagent works the chain's leaves in order inside its own worktree.
+The leaf-handoff churn machinery only pays at hundreds of workers; at this
+width, amortizing orientation and build warmth across a whole endgame wins.
+
+The operating loop mirrors the cloud small-pool mode:
+
+- **Slice-first on fat legs.** An agent whose item turns out chunk-sized
+  lands its first verifiable slice and names residuals in its report, rather
+  than holding the slot for hours; the residual goes back into the manifest
+  as the next assignment. Right-sized legs ran ~7-45min; multi-hour legs
+  usually meant the acceptance hid a mini-endgame or a toolchain prerequisite
+  that did not exist on main yet — pre-flight that before assigning.
+- **Never park a slot on a `blocked` report.** The item stays claimed or is
+  released for later retry; the slot immediately takes the next unblocked
+  path-disjoint item. Parking the slot on a chain dep was the largest
+  measured loss on the cloud side (~10 worker-hours on a 6-pool).
+- **Residual treadmill.** Prefer re-dispatching a settled slot onto the
+  smallest same-domain residual its own report names — reuse the same
+  worktree (`launch.py local` resume prompt on the same branch keeps its
+  `target/` warm); observed fastest sustained rate vs cold-domain starts.
+- **Notification-driven drain.** Every completion notification is one pass:
+  handle the report → release the claim ticket → `git pull` main → merge or
+  land the worktree's lane → spawn the replacement into the same turn.
+  A blocked coordinator silently leaves settled slots idle.
+- **Merge discipline.** Local merges happen in the coordinator's checkout:
+  pull fresh main first, merge the slot's branch, and resolve clerical
+  conflicts (import-naming / module-move churn) by keeping BOTH intents —
+  union signatures and import lists, never drop a side. Substantive
+  conflicts escalate per the README conflict rules.
+- **Coordinator slot.** The coordinator works its own reserved item serially
+  in its checkout or a dedicated worktree — claim, edits, scoped gates,
+  land through `tools/landing.py` like every other slot. Between drains,
+  keep the next micro-step named so no turn ends in "waiting".
+
 ## Launch
 
 Pull the coordinator's main checkout (`git pull origin main`) before running
