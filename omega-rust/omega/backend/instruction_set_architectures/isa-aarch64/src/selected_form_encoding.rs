@@ -56,12 +56,28 @@ pub use hosted_write_byte::{
     encode_aarch64_selected_hosted_write_byte_form,
     validate_aarch64_selected_hosted_write_byte_form,
 };
-pub use jump::*;
-pub use memory::*;
+pub use jump::{encode_aarch64_selected_jump_form, validate_aarch64_selected_jump_form};
+pub use memory::{encode_aarch64_selected_memory_form, validate_aarch64_selected_memory_form};
 pub use movn_materialization::{
     aarch64_shortest_movn_materialization_recipe, encode_aarch64_shortest_movn_materialization,
     validate_aarch64_shortest_movn_materialization,
 };
-pub use normalized_foreign_call::*;
-pub use scalar_call::*;
+pub use normalized_foreign_call::{
+    AARCH64_NORMALIZED_FOREIGN_CALL_OPCODE_OFFSET, AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_OFFSET,
+    AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_WIDTH, AARCH64_NORMALIZED_FOREIGN_CALL_REFERENCE_OFFSET,
+    AARCH64_NORMALIZED_FOREIGN_CALL_TEMPLATE_BYTE_COUNT, Aarch64NormalizedForeignCallFixup,
+    Aarch64NormalizedForeignCallFixupKind, Aarch64NormalizedForeignCallFixupState,
+    Aarch64NormalizedForeignCallTemplateError,
+    ValidatedAarch64SelectedNormalizedForeignCallTemplate,
+    encode_aarch64_selected_normalized_foreign_call_template,
+    validate_aarch64_selected_normalized_foreign_call_template,
+};
+pub use scalar_call::{
+    AARCH64_SCALAR_CALL_OPCODE_OFFSET, AARCH64_SCALAR_CALL_PATCH_OFFSET,
+    AARCH64_SCALAR_CALL_PATCH_WIDTH, AARCH64_SCALAR_CALL_REFERENCE_OFFSET,
+    AARCH64_SCALAR_CALL_TEMPLATE_BYTE_COUNT, Aarch64ScalarCallFixup, Aarch64ScalarCallFixupKind,
+    Aarch64ScalarCallFixupState, Aarch64ScalarCallTemplateError,
+    ValidatedAarch64SelectedScalarCallTemplate, encode_aarch64_selected_scalar_call_template,
+    validate_aarch64_selected_scalar_call_template,
+};
 pub use selected_forms::{encode_aarch64_selected_form, validate_aarch64_selected_form_encoding};

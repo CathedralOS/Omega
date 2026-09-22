@@ -30,9 +30,12 @@ pub use constraint_catalog::{
     Aarch64RegisterConstraintCatalogValidationError, aarch64_register_constraint_catalog,
     aarch64_register_constraint_catalog_for, validate_aarch64_register_constraint_catalog,
 };
-pub use float_scalar_calls::*;
-pub use indirect_results::*;
-pub use mixed_calls::*;
+pub use float_scalar_calls::{aarch64_float_scalar_call_keys, aarch64_float_scalar_return_keys};
+pub use indirect_results::aarch64_indirect_aggregate_call_keys;
+pub use mixed_calls::{
+    aarch64_aapcs64_mixed_unit_call_keys, aarch64_darwin_mixed_unit_call_keys,
+    aarch64_mixed_aggregate_call_keys,
+};
 pub use operation_keys::{
     AARCH64_ADD_I64, AARCH64_ADD_I64_IMMEDIATE, AARCH64_ADDRESS_OFFSET, AARCH64_BITS_TO_FLOAT32,
     AARCH64_BITS_TO_FLOAT64, AARCH64_COMPARE_I64, AARCH64_COMPARE_I64_IMMEDIATE,

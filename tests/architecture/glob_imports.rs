@@ -22,10 +22,6 @@ use std::path::{Path, PathBuf};
 /// `src/` tree carrying a glob import).
 const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[
     ("omega-rust/omega/backend/artifacts/native-artifact", 3),
-    (
-        "omega-rust/omega/backend/instruction_set_architectures/isa-aarch64",
-        2,
-    ),
     ("omega-rust/omega/backend/machine-emission", 23),
     ("omega-rust/omega/backend/plans/program-entry-plan", 3),
     ("omega-rust/omega/backend/register-environment", 1),
@@ -72,10 +68,6 @@ const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[
         1,
     ),
     ("omega-rust/omega/representations/register-model", 1),
-    (
-        "omega-rust/omega/representations/representation-selections",
-        1,
-    ),
     ("omega-rust/omega/semantics/optimization-unit-semantics", 16),
     (
         "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees",
