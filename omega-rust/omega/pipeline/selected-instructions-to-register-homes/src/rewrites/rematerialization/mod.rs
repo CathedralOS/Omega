@@ -65,7 +65,7 @@ pub fn stage_optimized_active_resident_rematerialization_pressure(
 /// successful assignment over the rebuilt facts produced. Custody is granted
 /// only after independent replay reconstructs the complete chain, exactly as
 /// the one-shot entrance requires.
-pub fn complete_optimized_active_resident_rematerialization(
+pub(crate) fn complete_optimized_active_resident_rematerialization(
     pressure: StagedOptimizedActiveResidentRematerializationPressure,
     homes: crate::ValidatedRegisterHomes,
 ) -> Result<
@@ -448,7 +448,7 @@ pub fn corrupt_active_resident_rematerialization_custody_for_test(
 
 #[cfg(feature = "test-support")]
 #[doc(hidden)]
-pub fn corrupt_active_resident_rematerialization_pressure_custody_for_test(
+pub(crate) fn corrupt_active_resident_rematerialization_pressure_custody_for_test(
     staged: &mut StagedOptimizedActiveResidentRematerializationPressure,
 ) {
     staged.custody.rewritten_use_count += 1;

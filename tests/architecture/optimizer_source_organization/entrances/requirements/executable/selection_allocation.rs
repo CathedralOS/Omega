@@ -55,7 +55,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/post_allocation_manifest/mod.rs",
-        coordination_marker: "pub fn project_post_allocation_optimization_manifest",
+        coordination_marker: "pub(crate) fn project_post_allocation_optimization_manifest",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/source/mod.rs",
@@ -247,7 +247,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/mod.rs",
-        coordination_marker: "pub fn materialize_fixed_view_copies",
+        coordination_marker: "pub(crate) fn materialize_fixed_view_copies",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/validate/mod.rs",

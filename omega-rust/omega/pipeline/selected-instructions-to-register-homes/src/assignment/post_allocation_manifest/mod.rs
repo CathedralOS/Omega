@@ -17,7 +17,7 @@ use crate::{ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedRegisterH
 
 pub use register_homes::post_allocation_manifest::*;
 
-pub fn project_post_allocation_optimization_manifest(
+pub(crate) fn project_post_allocation_optimization_manifest(
     pre_physical: PrePhysicalOptimizationManifestIdentity,
     selected_transformations: &[PostAllocationSelectedTransformation],
     ranges: &ValidatedLiveRanges,
@@ -34,7 +34,7 @@ pub fn project_post_allocation_optimization_manifest(
     )
 }
 
-pub fn project_post_allocation_optimization_manifest_after_selected_lowering(
+pub(crate) fn project_post_allocation_optimization_manifest_after_selected_lowering(
     pre_physical: PrePhysicalOptimizationManifestIdentity,
     completion: SelectedLoweringOptimizationCompletionIdentity,
     selected_transformations: &[PostAllocationSelectedTransformation],
@@ -71,7 +71,7 @@ pub fn validate_post_allocation_optimization_manifest(
     )
 }
 
-pub fn validate_post_allocation_optimization_manifest_after_selected_lowering(
+pub(crate) fn validate_post_allocation_optimization_manifest_after_selected_lowering(
     candidate: &PostAllocationOptimizationManifest,
     pre_physical: PrePhysicalOptimizationManifestIdentity,
     completion: SelectedLoweringOptimizationCompletionIdentity,

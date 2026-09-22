@@ -1,8 +1,5 @@
-use crate::{
-    validate_post_allocation_optimization_manifest,
-    validate_post_allocation_optimization_manifest_after_selected_lowering,
-    validate_register_homes,
-};
+use crate::assignment::post_allocation_manifest::validate_post_allocation_optimization_manifest_after_selected_lowering;
+use crate::{validate_post_allocation_optimization_manifest, validate_register_homes};
 
 use crate::{
     validate_optimized_literal_fold_custody, validate_selected_lowering_optimization_custody,

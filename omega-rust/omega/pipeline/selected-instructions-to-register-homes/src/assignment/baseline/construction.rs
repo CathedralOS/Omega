@@ -1,7 +1,5 @@
-use crate::{
-    PostAllocationSelectedTransformation, assign_register_homes,
-    project_post_allocation_optimization_manifest, validate_register_homes,
-};
+use crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest;
+use crate::{PostAllocationSelectedTransformation, assign_register_homes, validate_register_homes};
 
 use crate::{StagedOptimizedAllocationLegality, validate_optimized_allocation_legality_custody};
 use crate::{StagedOptimizedSelectedReanalysis, validate_optimized_selected_reanalysis_custody};

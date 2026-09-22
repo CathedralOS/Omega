@@ -42,7 +42,9 @@ impl RuntimeSpillAllocation {
         let RuntimeSpillSource::ActiveResidentRematerialization(pressure) = &mut self.source else {
             return false;
         };
-        crate::corrupt_active_resident_rematerialization_pressure_custody_for_test(pressure);
+        crate::rewrites::corrupt_active_resident_rematerialization_pressure_custody_for_test(
+            pressure,
+        );
         true
     }
 }
