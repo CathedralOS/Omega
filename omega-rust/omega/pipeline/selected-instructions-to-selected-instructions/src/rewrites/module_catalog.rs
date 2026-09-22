@@ -1,15 +1,19 @@
 //! Optimizer module role: module catalog. One row per `mod` declared in
-//! `rewrites/mod.rs` — the stage's complete rewrite-module inventory.
+//! `rewrites/mod.rs` and then in `rewrites/unexecuted/mod.rs` — the stage's
+//! complete rewrite-module inventory and its disposition roster.
 //!
 //! `optimize_selected_instructions` executes the `Routed` rows through the
-//! named production caller; `Orphaned` rows are invoked only from their own
-//! tests and name the board item that owns the retain-or-delete decision
-//! (a catalog row executed by the stage entrance, or removal). `Shared`
-//! rows are audit and vocabulary helpers the rewrite modules read; they
-//! carry no rewrite entrance of their own. The table below is the audit the
-//! row counts and family owners on the optimizer board quote; the unit test
-//! at the bottom reconciles it against `mod.rs`, so a rewrite module cannot
-//! be added, renamed, or change status without a catalog row.
+//! named production caller; every `Routed` row lives directly under
+//! `rewrites/`. `Orphaned` rows are invoked only from their own tests and
+//! name the board item that owns the retain-or-delete decision (a catalog
+//! row executed by the stage entrance, or removal); every `Orphaned` row
+//! lives under `rewrites/unexecuted/`, so the tree states the disposition
+//! the roster records. `Shared` rows are audit and vocabulary helpers the
+//! rewrite modules read; they carry no rewrite entrance of their own. The
+//! table below is the audit the row counts and family owners on the
+//! optimizer board quote; the unit tests at the bottom reconcile it against
+//! both `mod.rs` files, so a rewrite module cannot be added, renamed, moved
+//! between areas, or change status without a catalog row.
 
 /// How a rewrite module reaches — or fails to reach — the production route.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,10 +45,6 @@ pub(crate) struct RewriteModuleRow {
 
 pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
     RewriteModuleRow {
-        module: "address_fold",
-        route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
-    },
-    RewriteModuleRow {
         module: "allocation_recovery",
         // `selected_allocation_recovery_rule` is consulted during native
         // phase selection and its `fixed_view_copy` materialization runs
@@ -55,12 +55,83 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         },
     },
     RewriteModuleRow {
-        module: "arm_relocation",
+        module: "block_edges",
+        route: RewriteModuleRoute::Shared,
+    },
+    RewriteModuleRow {
+        module: "catalog",
+        route: RewriteModuleRoute::Shared,
+    },
+    RewriteModuleRow {
+        module: "fixed_view",
+        // Register allocation stages `stage_optimized_fixed_precolored_
+        // segment_homes` and `stage_optimized_fixed_view_copies` from its
+        // assignment recovery.
+        route: RewriteModuleRoute::Routed {
+            caller: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/recovery.rs",
+            evidence: "stage_optimized_fixed_view_copies",
+        },
+    },
+    RewriteModuleRow {
+        module: "literal_folds",
+        // The selected-lowering executor: `run_selected_lowering_
+        // optimizations` is the only rewrite the stage entrance runs.
+        route: RewriteModuleRoute::Routed {
+            caller: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/selected_optimization.rs",
+            evidence: "run_selected_lowering_optimizations",
+        },
+    },
+    RewriteModuleRow {
+        module: "module_catalog",
+        route: RewriteModuleRoute::Shared,
+    },
+    RewriteModuleRow {
+        module: "runtime_rematerialization",
+        // Register allocation replays `rematerialize_selected_runtime_value`
+        // through its runtime-spill route.
+        route: RewriteModuleRoute::Routed {
+            caller: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/runtime_spill/replay.rs",
+            evidence: "rematerialize_selected_runtime_value",
+        },
+    },
+    RewriteModuleRow {
+        module: "runtime_spill",
+        // Register allocation's `assignment/runtime_spill` executes and
+        // replays `spill_selected_runtime_value`.
+        route: RewriteModuleRoute::Routed {
+            caller: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/runtime_spill/recovery.rs",
+            evidence: "spill_selected_runtime_value",
+        },
+    },
+    RewriteModuleRow {
+        module: "selected_lowering",
+        // Its rule catalog is resolved by the `literal_folds` executor and
+        // consulted during native phase selection.
+        route: RewriteModuleRoute::Routed {
+            caller: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_folds/mod.rs",
+            evidence: "resolve_selected_lowering_rules",
+        },
+    },
+    RewriteModuleRow {
+        module: "test_support",
+        route: RewriteModuleRoute::TestSupport,
+    },
+    RewriteModuleRow {
+        module: "unexecuted",
+        // The catalogued-but-unexecuted area; its own rows follow.
+        route: RewriteModuleRoute::Shared,
+    },
+    RewriteModuleRow {
+        module: "window_hazards",
+        route: RewriteModuleRoute::Shared,
+    },
+    RewriteModuleRow {
+        module: "address_fold",
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
     RewriteModuleRow {
-        module: "block_edges",
-        route: RewriteModuleRoute::Shared,
+        module: "arm_relocation",
+        route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
     RewriteModuleRow {
         module: "boundary_boolean",
@@ -77,10 +148,6 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
     RewriteModuleRow {
         module: "bypass_run_relocation",
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
-    },
-    RewriteModuleRow {
-        module: "catalog",
-        route: RewriteModuleRoute::Shared,
     },
     RewriteModuleRow {
         module: "commuting_accesses",
@@ -159,16 +226,6 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
     RewriteModuleRow {
-        module: "fixed_view",
-        // Register allocation stages `stage_optimized_fixed_precolored_
-        // segment_homes` and `stage_optimized_fixed_view_copies` from its
-        // assignment recovery.
-        route: RewriteModuleRoute::Routed {
-            caller: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/recovery.rs",
-            evidence: "stage_optimized_fixed_view_copies",
-        },
-    },
-    RewriteModuleRow {
         module: "fork_relocation",
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
@@ -185,15 +242,6 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
     RewriteModuleRow {
-        module: "literal_folds",
-        // The selected-lowering executor: `run_selected_lowering_
-        // optimizations` is the only rewrite the stage entrance runs.
-        route: RewriteModuleRoute::Routed {
-            caller: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/selected_optimization.rs",
-            evidence: "run_selected_lowering_optimizations",
-        },
-    },
-    RewriteModuleRow {
         module: "load_forwarding",
         route: RewriteModuleRoute::Orphaned("ALIAS-AWARE-MEMORY"),
     },
@@ -208,10 +256,6 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
     RewriteModuleRow {
         module: "member_run_interchange",
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
-    },
-    RewriteModuleRow {
-        module: "module_catalog",
-        route: RewriteModuleRoute::Shared,
     },
     RewriteModuleRow {
         module: "place_storage",
@@ -244,47 +288,12 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
     RewriteModuleRow {
-        module: "runtime_rematerialization",
-        // Register allocation replays `rematerialize_selected_runtime_value`
-        // through its runtime-spill route.
-        route: RewriteModuleRoute::Routed {
-            caller: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/runtime_spill/replay.rs",
-            evidence: "rematerialize_selected_runtime_value",
-        },
-    },
-    RewriteModuleRow {
-        module: "runtime_spill",
-        // Register allocation's `assignment/runtime_spill` executes and
-        // replays `spill_selected_runtime_value`.
-        route: RewriteModuleRoute::Routed {
-            caller: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/runtime_spill/recovery.rs",
-            evidence: "spill_selected_runtime_value",
-        },
-    },
-    RewriteModuleRow {
-        module: "selected_lowering",
-        // Its rule catalog is resolved by the `literal_folds` executor and
-        // consulted during native phase selection.
-        route: RewriteModuleRoute::Routed {
-            caller: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_folds/mod.rs",
-            evidence: "resolve_selected_lowering_rules",
-        },
-    },
-    RewriteModuleRow {
         module: "store_motion",
         route: RewriteModuleRoute::Orphaned("ALIAS-AWARE-MEMORY"),
     },
     RewriteModuleRow {
-        module: "test_support",
-        route: RewriteModuleRoute::TestSupport,
-    },
-    RewriteModuleRow {
         module: "triangle_relocation",
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
-    },
-    RewriteModuleRow {
-        module: "window_hazards",
-        route: RewriteModuleRoute::Shared,
     },
 ];
 
@@ -295,8 +304,22 @@ mod tests {
 
     use super::{REWRITE_MODULE_CATALOG, RewriteModuleRoute};
 
+    /// Modules declared in `rewrites/mod.rs` followed by those declared in
+    /// `rewrites/unexecuted/mod.rs`; the second list is the unexecuted area.
     fn declared_modules() -> Vec<String> {
-        include_str!("mod.rs")
+        let mut modules = declarations(include_str!("mod.rs"));
+        modules.extend(declarations(include_str!("unexecuted/mod.rs")));
+        modules
+    }
+
+    fn unexecuted_modules() -> BTreeSet<String> {
+        declarations(include_str!("unexecuted/mod.rs"))
+            .into_iter()
+            .collect()
+    }
+
+    fn declarations(source: &str) -> Vec<String> {
+        source
             .lines()
             .filter_map(|line| {
                 let line = line.trim();
@@ -357,16 +380,46 @@ mod tests {
         let rewrites_dir = repository_root().join(
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites",
         );
+        let unexecuted = unexecuted_modules();
         let missing_backing: Vec<&String> = declared
             .iter()
             .filter(|name| {
-                !rewrites_dir.join(format!("{name}.rs")).is_file()
-                    && !rewrites_dir.join(name).join("mod.rs").is_file()
+                let dir = if unexecuted.contains(*name) {
+                    rewrites_dir.join("unexecuted")
+                } else {
+                    rewrites_dir.clone()
+                };
+                !dir.join(format!("{name}.rs")).is_file()
+                    && !dir.join(name).join("mod.rs").is_file()
             })
             .collect();
         assert!(
             missing_backing.is_empty(),
             "declared modules with no backing file (<name>.rs or <name>/mod.rs): {missing_backing:?}"
+        );
+
+        // The tree states the disposition: every executed (`Routed`) family
+        // sits directly under `rewrites/`, every `Orphaned` family under
+        // `rewrites/unexecuted/`.
+        let misplaced: Vec<String> = REWRITE_MODULE_CATALOG
+            .iter()
+            .filter_map(|row| match row.route {
+                RewriteModuleRoute::Routed { .. } if unexecuted.contains(row.module) => Some(
+                    format!("{}: routed family declared under unexecuted/", row.module),
+                ),
+                RewriteModuleRoute::Orphaned(_) if !unexecuted.contains(row.module) => {
+                    Some(format!(
+                        "{}: unrouted family declared outside unexecuted/",
+                        row.module
+                    ))
+                }
+                _ => None,
+            })
+            .collect();
+        assert!(
+            misplaced.is_empty(),
+            "rewrite families declared in the wrong area:\n{}",
+            misplaced.join("\n")
         );
     }
 
@@ -442,6 +495,11 @@ mod tests {
         /// (their helpers are not entrances).
         fn module_files(module: &str, rewrites_dir: &Path) -> Vec<PathBuf> {
             let mut files = Vec::new();
+            let rewrites_dir = &if unexecuted_modules().contains(module) {
+                rewrites_dir.join("unexecuted")
+            } else {
+                rewrites_dir.to_path_buf()
+            };
             let root = rewrites_dir.join(format!("{module}.rs"));
             if root.is_file() {
                 files.push(root);
@@ -503,14 +561,11 @@ mod tests {
             let mut out = String::with_capacity(contents.len());
             let mut rest = contents;
             while let Some(start) = rest.find("use ") {
-                let at_item_start = rest[..start]
-                    .rsplit('\n')
-                    .next()
-                    .is_some_and(|prefix| {
-                        prefix.trim().is_empty()
-                            || prefix.trim() == "pub"
-                            || prefix.trim().starts_with("pub(")
-                    });
+                let at_item_start = rest[..start].rsplit('\n').next().is_some_and(|prefix| {
+                    prefix.trim().is_empty()
+                        || prefix.trim() == "pub"
+                        || prefix.trim().starts_with("pub(")
+                });
                 let Some(end) = rest[start..].find(';') else {
                     break;
                 };

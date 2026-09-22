@@ -3,25 +3,27 @@ use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIden
 use semantic_vocabulary::FuelScheduleIdentity;
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
-use crate::{
+use crate::rewrites::unexecuted::{
     ValidatedAddressFold, ValidatedArmRelocation, ValidatedBoundaryBoolean,
     ValidatedBoundaryBranch, ValidatedBypassRelocation, ValidatedBypassRunRelocation,
     ValidatedCommutingInterchange, ValidatedCommutingMemberRunInterchange,
     ValidatedCommutingRelocation, ValidatedCommutingRunInterchange,
-    ValidatedCommutingRunRelocation, ValidatedConditionMaterialization,
-    ValidatedConfluenceRelocation, ValidatedConfluenceRunRelocation, ValidatedConstantBoolean,
-    ValidatedConstantBranch, ValidatedCopiedCallOperand, ValidatedCopyRemoval,
-    ValidatedDeadCompare, ValidatedDeadStoreElimination, ValidatedDiamondRelocation,
-    ValidatedDiamondRunRelocation, ValidatedEdgeRelocation, ValidatedEdgeRunRelocation,
-    ValidatedEquivalentCompare, ValidatedFixedViewCopies, ValidatedForkRelocation,
+    ValidatedCommutingRunRelocation, ValidatedConfluenceRelocation,
+    ValidatedConfluenceRunRelocation, ValidatedConstantBoolean, ValidatedConstantBranch,
+    ValidatedCopyRemoval, ValidatedDeadCompare, ValidatedDeadStoreElimination,
+    ValidatedDiamondRelocation, ValidatedDiamondRunRelocation, ValidatedEdgeRelocation,
+    ValidatedEdgeRunRelocation, ValidatedEquivalentCompare, ValidatedForkRelocation,
     ValidatedForkRunRelocation, ValidatedInflowRelocation, ValidatedJoinRelocation,
-    ValidatedLiteralFold, ValidatedLocalRelocation, ValidatedLocalSchedule,
-    ValidatedMemberRunInterchange, ValidatedMemberRunRelocation, ValidatedPredecessorRelocation,
-    ValidatedPredecessorRunRelocation, ValidatedPressureRematerialization,
-    ValidatedProjectedAccess, ValidatedRedundantCompare, ValidatedRedundantExtension,
-    ValidatedRunInterchange, ValidatedRunRelocation, ValidatedRuntimeRematerialization,
-    ValidatedRuntimeSpill, ValidatedScheduledRelocation, ValidatedStoreMutationMotion,
-    ValidatedStoredLoadForwarding, ValidatedTerminatorPair, ValidatedTriangleRelocation,
+    ValidatedLocalRelocation, ValidatedLocalSchedule, ValidatedMemberRunInterchange,
+    ValidatedMemberRunRelocation, ValidatedPredecessorRelocation,
+    ValidatedPredecessorRunRelocation, ValidatedRedundantCompare, ValidatedRedundantExtension,
+    ValidatedRunInterchange, ValidatedRunRelocation, ValidatedScheduledRelocation,
+    ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding, ValidatedTriangleRelocation,
+};
+use crate::{
+    ValidatedConditionMaterialization, ValidatedCopiedCallOperand, ValidatedFixedViewCopies,
+    ValidatedLiteralFold, ValidatedPressureRematerialization, ValidatedProjectedAccess,
+    ValidatedRuntimeRematerialization, ValidatedRuntimeSpill, ValidatedTerminatorPair,
 };
 
 mod sealed {
