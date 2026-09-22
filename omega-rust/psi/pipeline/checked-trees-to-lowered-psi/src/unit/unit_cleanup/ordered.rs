@@ -8,9 +8,11 @@ use super::{
     ScalarTerm, ScalarType, ServiceReachInterface, ServiceReachPlan, ServiceReachSummary,
     StructuralFieldType, StructuralTypeShape, TerminalMachineResult, Terminator,
     checked_unit_call_closure_including, dense_identity, is_bounded_nominal_cleanup_record,
-    lookup_type_id, lower_nominal_cleanup_closure, machine_id, obligation_id, place_id,
-    unique_unit_machine, unsupported,
+    lookup_type_id, lower_unit_closure, machine_id, obligation_id, place_id, unique_unit_machine,
+    unsupported,
 };
+use crate::unit::attached_unit::{RuntimeRequirementOwner, UnitClosureRequest};
+
 pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
     checked: &CheckedTrees,
     nominal: &CheckedNominalAffineUnitCleanupMachinePlan,
@@ -298,7 +300,17 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
     // The dispatcher plus each unique cleanup root anchors a transitive call
     // closure; ordinary machines reached by a hook body lower beside it.
     let closure = checked_unit_call_closure_including(&staged, plan.machine, &roots)?;
-    let mut lowered = lower_nominal_cleanup_closure(&staged, plan.machine, &roots)?;
+    let mut unit_roots = Vec::with_capacity(roots.len() + 1);
+    unit_roots.push(plan.machine);
+    unit_roots.extend_from_slice(&roots);
+    let mut lowered = lower_unit_closure(
+        &staged,
+        &UnitClosureRequest {
+            requirements_owner: RuntimeRequirementOwner::NominalCleanup,
+            ..UnitClosureRequest::unit(plan.machine, &unit_roots)
+        },
+    )?
+    .lowered;
     let type_ids = lowered
         .semantic_module
         .structural_types

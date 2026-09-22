@@ -31,9 +31,11 @@ fn array_call_numeric_requirements_use_completed_argument_facts() {
         .find(|machine| machine.name.as_str() == "read")
         .unwrap()
         .symbol;
-    let mut closure =
-        crate::unit::attached_unit::lower_shared_unit_closure(&checked, entry, &[entry], None)
-            .unwrap();
+    let mut closure = crate::unit::attached_unit::lower_unit_closure(
+        &checked,
+        &crate::unit::attached_unit::UnitClosureRequest::unit(entry, &[entry]),
+    )
+    .unwrap();
     finalize_operation_proofs(&mut closure.lowered)
         .expect("callee arithmetic uses its ranged parameter requirement");
     terminal_verifier::verify_module(
