@@ -155,6 +155,7 @@ fn provider_boundaries_only_accept_prepared_calls() {
     assert!(real_source.contains("call: PreparedFilesystemCall,"));
     assert!(!real_source.contains("ExpressionHandle"));
     assert!(!real_source.contains("frame: &Frame"));
+    assert!(!real_source.contains("frame: &mut Frame"));
     assert!(!virtual_source.contains("handle as i32"));
     assert!(!real_source.contains("handle as i32"));
 }

@@ -15,7 +15,7 @@ impl<'program> Evaluator<'program> {
         &mut self,
         statement: typed_trees::statement::StatementHandle,
         call: &TableCall,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         if BuildOperation::from_call_target(call.target.as_str())
             != Some(BuildOperation::ProviderSelection)
@@ -23,7 +23,7 @@ impl<'program> Evaluator<'program> {
         {
             return Ok(None);
         }
-        let receiver = self.statement_receiver_cell(call.receiver, frame)?;
+        let receiver = self.statement_receiver_cell(call, frame)?;
         self.require_provider_selection_receiver(receiver)?;
         let composition_case = self.provider_composition_case(
             self.program
@@ -43,7 +43,7 @@ impl<'program> Evaluator<'program> {
         &mut self,
         expression: ExpressionHandle,
         call: &typed_trees::expression::TableCallExpression,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         if BuildOperation::from_call_target(call.target.as_str())
             != Some(BuildOperation::ProviderSelection)
@@ -84,7 +84,7 @@ impl<'program> Evaluator<'program> {
     fn provider_composition_case(
         &mut self,
         arguments: &[ExpressionHandle],
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<SymbolHandle> {
         if arguments.is_empty() {
             return Ok(SymbolHandle::invalid());

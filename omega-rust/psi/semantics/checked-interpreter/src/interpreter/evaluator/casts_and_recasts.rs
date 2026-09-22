@@ -111,7 +111,7 @@ impl<'program> Evaluator<'program> {
         &mut self,
         cast: &typed_trees::expression::TableCastExpression,
         target: Option<PrimitiveType>,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         let ExpressionNode::Indexed(indexed) =
             self.program.expression_table.expression(cast.value).clone()

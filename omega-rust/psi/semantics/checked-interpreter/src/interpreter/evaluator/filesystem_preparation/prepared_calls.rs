@@ -439,7 +439,7 @@ struct FilesystemArgumentCursor<'evaluation, 'program, 'arguments, 'frame> {
     evaluator: &'evaluation mut Evaluator<'program>,
     attempt_index: usize,
     arguments: std::slice::Iter<'arguments, ExpressionHandle>,
-    frame: &'frame Frame,
+    frame: &'frame mut Frame,
     consumed: usize,
 }
 
@@ -450,7 +450,7 @@ impl<'evaluation, 'program, 'arguments, 'frame>
         evaluator: &'evaluation mut Evaluator<'program>,
         attempt_index: usize,
         arguments: &'arguments [ExpressionHandle],
-        frame: &'frame Frame,
+        frame: &'frame mut Frame,
     ) -> Self {
         Self {
             evaluator,
@@ -742,7 +742,7 @@ impl<'program> Evaluator<'program> {
         &mut self,
         operation: FilesystemHostOperation,
         arguments: &[ExpressionHandle],
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<PreparedFilesystemCall> {
         check_filesystem_arity(operation, arguments.len())?;
         if self.rooted_build_paths_required

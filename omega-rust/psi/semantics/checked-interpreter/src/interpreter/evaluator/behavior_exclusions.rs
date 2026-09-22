@@ -30,7 +30,7 @@ impl<'program> Evaluator<'program> {
         &mut self,
         statement: StatementHandle,
         call: &TableCall,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         // `exclude_service` is the parser-carved marker (no resolved target
         // machine); `exclude_crash` resolves to the exact toolchain
@@ -77,7 +77,7 @@ impl<'program> Evaluator<'program> {
             return Ok(None);
         };
         self.require_root_build_receiver(
-            self.statement_receiver_cell(call.receiver, frame)?,
+            self.statement_receiver_cell(call, frame)?,
             call.target.as_str(),
         )?;
         self.record_executed_exclusion(
@@ -96,7 +96,7 @@ impl<'program> Evaluator<'program> {
         &mut self,
         handle: ExpressionHandle,
         call: &typed_trees::expression::TableCallExpression,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         let kind = if BuildOperation::from_call_target(call.target.as_str())
             == Some(BuildOperation::ServiceExclusion)
@@ -160,7 +160,7 @@ impl<'program> Evaluator<'program> {
     fn evaluated_exclusion_case(
         &mut self,
         arguments: &[ExpressionHandle],
-        frame: &Frame,
+        frame: &mut Frame,
         method_name: &str,
         type_name: &str,
     ) -> EvalResult<SymbolHandle> {

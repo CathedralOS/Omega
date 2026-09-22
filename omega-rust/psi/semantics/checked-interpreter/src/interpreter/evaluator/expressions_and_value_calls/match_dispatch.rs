@@ -16,7 +16,7 @@ impl Evaluator<'_> {
         &mut self,
         expression: ExpressionHandle,
         dispatch: &TableMatchExpression,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<ExpressionHandle> {
         let destination = self
             .expression_scalar_type(dispatch.subject, frame)

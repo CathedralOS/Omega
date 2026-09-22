@@ -99,12 +99,8 @@ const JUSTIFIED_LOOKUP_MAP_FILES: &[(&str, &str)] = &[
         "binder spellings bound to cells inside one build-time frame",
     ),
     (
-        "omega-rust/psi/semantics/checked-interpreter/src/interpreter/evaluator.rs",
-        "local binder spellings bound to cells inside one activated frame",
-    ),
-    (
         "omega-rust/psi/semantics/checked-interpreter/src/interpreter/evaluator/execution.rs",
-        "carried binder spellings bound to cells across one activation",
+        "record field spellings bound to cells while instantiating one machine",
     ),
     (
         "omega-rust/psi/semantics/checked-interpreter/src/interpreter/evaluator/wire_verification.rs",

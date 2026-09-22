@@ -35,7 +35,7 @@ impl<'program> Evaluator<'program> {
         &mut self,
         operation: FilesystemHostOperation,
         arguments: &[ExpressionHandle],
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Value> {
         self.charge_filesystem_operation_attempt()?;
         let attempt_index = self.filesystem_operation_attempts.len();

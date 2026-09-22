@@ -10,7 +10,7 @@ impl Evaluator<'_> {
         &mut self,
         expression: ExpressionHandle,
         destination: TypeReferenceHandle,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Value> {
         if let ExpressionNode::Match(dispatch) =
             self.program.expression_table.expression(expression).clone()
@@ -47,7 +47,7 @@ impl Evaluator<'_> {
         &mut self,
         expression: ExpressionHandle,
         element_type: TypeReferenceHandle,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Value> {
         let ExpressionNode::ArrayLiteral(elements) =
             self.program.expression_table.expression(expression)
@@ -71,7 +71,7 @@ impl Evaluator<'_> {
         &mut self,
         expression: ExpressionHandle,
         destination: Option<PrimitiveType>,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Value> {
         if let ExpressionNode::Match(dispatch) =
             self.program.expression_table.expression(expression).clone()
@@ -140,7 +140,7 @@ impl Evaluator<'_> {
         &mut self,
         state: &State,
         arguments: &[ExpressionHandle],
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Vec<EvaluatedArgument>> {
         let destinations: Vec<_> = self
             .program

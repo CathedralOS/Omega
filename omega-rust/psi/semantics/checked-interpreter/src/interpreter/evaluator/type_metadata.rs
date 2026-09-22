@@ -12,7 +12,7 @@ impl<'program> Evaluator<'program> {
         &mut self,
         argument: ExpressionHandle,
         destination: TypeReferenceHandle,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<EvaluatedArgument> {
         let initializer = self.mutable_scalar_recast_initializer(argument, frame)?;
         if let Some((source, recast)) = initializer {
@@ -104,18 +104,13 @@ impl<'program> Evaluator<'program> {
                         self.machine_attached_field_type(frame.machine_symbol, field.as_str())?,
                         rest,
                     ),
-                    [head, rest @ ..] => {
-                        match frame.type_locals.borrow().get(head.as_str()).copied() {
-                            Some(local) => (local, rest),
-                            None => (
-                                self.machine_attached_field_type(
-                                    frame.machine_symbol,
-                                    head.as_str(),
-                                )?,
-                                rest,
-                            ),
-                        }
-                    }
+                    [head, rest @ ..] => match frame.local_type(path.head_symbol) {
+                        Some(local) => (local, rest),
+                        None => (
+                            self.machine_attached_field_type(frame.machine_symbol, head.as_str())?,
+                            rest,
+                        ),
+                    },
                 };
                 for member in rest {
                     current = self.projected_member_type(current, member.as_str())?;
@@ -371,11 +366,7 @@ impl<'program> Evaluator<'program> {
                     return self.attached_field_scalar_type(frame, members[1].as_str());
                 }
                 if members.len() == 1 && !members[0].is_self_receiver() {
-                    return frame
-                        .scalar_locals
-                        .borrow()
-                        .get(members[0].as_str())
-                        .copied();
+                    return frame.local_scalar(path.head_symbol);
                 }
                 None
             }

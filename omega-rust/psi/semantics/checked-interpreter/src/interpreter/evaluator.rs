@@ -39,7 +39,6 @@ use numerics::float_semantics::{
     FloatClass as SemanticFloatClass, FloatFormat as SemanticFloatFormat, FloatMeaning,
     FloatPolicyTrap, FloatSemantics,
 };
-use std::cell::RefCell;
 use std::collections::{BTreeMap, HashSet};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -209,14 +208,14 @@ struct MutableRecordProjection {
     stored_integer: Option<typed_trees::PlanLaidIntegerField>,
 }
 
-/// A lexical scope: parameter / local bindings by name, plus the receiver (`self`) cell.
-/// `locals` is behind a `RefCell` so `let` bindings can be added while the frame is
-/// shared by `&` during statement execution.
-pub(crate) struct Frame {
-    return_type: TypeReferenceHandle,
-    locals: RefCell<BTreeMap<String, Cell>>,
-    type_locals: RefCell<BTreeMap<String, TypeReferenceHandle>>,
-    /// DECLARED scalar (primitive, arithmetic-domain) of locals/params, recorded
+/// One parameter or `let` binding of an activated frame, keyed by the checked
+/// tree's binding symbol. Name paths carry that symbol as their head, so a
+/// read never consults the binding's spelling.
+struct FrameLocal {
+    symbol: SymbolHandle,
+    cell: Cell,
+    type_reference: TypeReferenceHandle,
+    /// DECLARED scalar (primitive, arithmetic-domain) of the binding, recorded
     /// at binding -- the static type witness `Value::Int` alone cannot carry.
     /// Read for two classifications native derives from the same declared types:
     /// u64-classed names (`u64`/`usize`/`addr`) make comparisons UNSIGNED at
@@ -224,13 +223,24 @@ pub(crate) struct Frame {
     /// Saturating/Trapping names make arithmetic NODES clamp/trap at the
     /// operation itself (native emits the saturating ADD; a landing-seam
     /// coercion alone cannot represent an expression whose own domain differs
-    /// from its landing slot's).
-    scalar_locals: RefCell<BTreeMap<String, (PrimitiveType, ArithmeticDomain)>>,
-    /// Mutable recast locals retain either one equal-width scalar cell or an
-    /// indexed byte region. The local remains a normal `Ref` for place
-    /// resolution, while these descriptors preserve the stated scalar/record
+    /// from its landing slot's). `None` for a non-scalar binding.
+    scalar: Option<(PrimitiveType, ArithmeticDomain)>,
+    /// A mutable recast binding retains either one equal-width scalar cell or
+    /// an indexed byte region. The binding remains a normal `Ref` for place
+    /// resolution, while this descriptor preserves the stated scalar/record
     /// geometry at the observable read/write seams.
-    mutable_scalar_recasts: RefCell<BTreeMap<String, MutableScalarRecast>>,
+    mutable_recast: Option<MutableScalarRecast>,
+}
+
+/// A lexical scope: the parameter / local bindings, plus the receiver (`self`) cell.
+/// Statement execution threads the frame as `&mut`: `let` binds a local and a
+/// transition guard records its subject results, and both happen between
+/// expression evaluations rather than beneath a shared borrow.
+pub(crate) struct Frame {
+    return_type: TypeReferenceHandle,
+    /// Bindings in binding order; a rebinding of the same symbol replaces its
+    /// entry. A state's frame is small, so the symbol scan is a linear pass.
+    locals: Vec<FrameLocal>,
     self_cell: Cell,
     /// The machine whose state is currently executing. Lets a call/transition that names a
     /// SIBLING state resolve it within this machine (rather than re-entering the machine's
@@ -247,7 +257,7 @@ pub(crate) struct Frame {
     /// lookups compare structurally. The frame is rebuilt for every state (re)entry, so
     /// loops re-evaluate naturally. Destructure-marked case payload projections
     /// reuse this subject too; separately authored successor calls do not.
-    guard_call_results: RefCell<Vec<(ExpressionHandle, Value)>>,
+    guard_call_results: Vec<(ExpressionHandle, Value)>,
 }
 
 /// One open descriptor in the interpreter's virtual filesystem: which path it
@@ -487,24 +497,77 @@ enum TransitionDecision<'program> {
     },
 }
 
-// `Frame::locals` needs interior mutability so `let` bindings can be added while the
-// frame is shared by `&`. Wrap the map in a RefCell.
 impl Frame {
-    fn get(&self, name: &str) -> Option<Cell> {
-        self.locals_ref().borrow().get(name).cloned()
+    /// A frame with no bindings: owned-data initializers and host stubs
+    /// evaluate against the receiver alone.
+    fn bare(self_cell: Cell, machine_symbol: SymbolHandle) -> Self {
+        Self {
+            return_type: TypeReferenceHandle::invalid(),
+            locals: Vec::new(),
+            self_cell,
+            machine_symbol,
+            state_symbol: SymbolHandle::invalid(),
+            guard_call_results: Vec::new(),
+        }
     }
 
-    fn bind(&self, name: &str, cell: Cell) {
-        self.locals_ref().borrow_mut().insert(name.to_owned(), cell);
+    fn local(&self, symbol: SymbolHandle) -> Option<&FrameLocal> {
+        if !symbol.is_valid() {
+            return None;
+        }
+        self.locals.iter().find(|local| local.symbol == symbol)
     }
 
-    fn bind_type(&self, name: &str, type_reference: TypeReferenceHandle) {
-        self.type_locals
-            .borrow_mut()
-            .insert(name.to_owned(), type_reference);
+    /// The cell bound to `symbol`, when the frame binds it.
+    fn local_cell(&self, symbol: SymbolHandle) -> Option<Cell> {
+        self.local(symbol).map(|local| local.cell.clone())
     }
 
-    fn locals_ref(&self) -> &RefCell<BTreeMap<String, Cell>> {
-        &self.locals
+    fn local_type(&self, symbol: SymbolHandle) -> Option<TypeReferenceHandle> {
+        self.local(symbol).map(|local| local.type_reference)
+    }
+
+    fn local_scalar(&self, symbol: SymbolHandle) -> Option<(PrimitiveType, ArithmeticDomain)> {
+        self.local(symbol).and_then(|local| local.scalar)
+    }
+
+    fn local_mutable_recast(&self, symbol: SymbolHandle) -> Option<MutableScalarRecast> {
+        self.local(symbol)
+            .and_then(|local| local.mutable_recast.clone())
+    }
+
+    /// Bind or rebind one symbol. A re-executed `let` (a self-targeting
+    /// transition re-runs its state over the carried bindings) replaces the
+    /// earlier entry rather than shadowing it.
+    fn bind(&mut self, local: FrameLocal) {
+        match self
+            .locals
+            .iter_mut()
+            .find(|existing| existing.symbol == local.symbol)
+        {
+            Some(existing) => *existing = local,
+            None => self.locals.push(local),
+        }
+    }
+
+    /// The guard subject result already observed for a structurally equal
+    /// copy of `expression` during this state pass.
+    fn guard_call_result(
+        &self,
+        program: &TypedTrees,
+        expression: ExpressionHandle,
+    ) -> Option<Value> {
+        self.guard_call_results
+            .iter()
+            .find(|(seen, _)| {
+                program
+                    .expression_table
+                    .expressions_structurally_equal(*seen, expression)
+            })
+            .map(|(_, value)| value.clone())
+    }
+
+    fn record_guard_call_result(&mut self, expression: ExpressionHandle, value: &Value) {
+        self.guard_call_results.push((expression, value.clone()));
     }
 }

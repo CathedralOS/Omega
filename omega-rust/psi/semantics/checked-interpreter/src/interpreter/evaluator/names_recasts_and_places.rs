@@ -74,11 +74,7 @@ impl<'program> Evaluator<'program> {
         // A `Ref` read through a name dereferences transparently (param of `&mut T`).
         if let Value::Ref(inner) = value {
             if members.len() == 1
-                && let Some(recast) = frame
-                    .mutable_scalar_recasts
-                    .borrow()
-                    .get(members[0].as_str())
-                    .cloned()
+                && let Some(recast) = frame.local_mutable_recast(path.head_symbol)
             {
                 return match recast {
                     MutableScalarRecast::Direct { target, .. } => {
@@ -128,7 +124,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn mutable_scalar_recast_initializer(
         &mut self,
         initializer: ExpressionHandle,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<(Cell, MutableScalarRecast)>> {
         let cast_handle = match self.program.expression_table.expression(initializer) {
             ExpressionNode::Borrow(inner) => inner.target,
@@ -244,14 +240,10 @@ impl<'program> Evaluator<'program> {
             .program
             .expression_table
             .name_path_members(path.members);
-        let [name] = members else {
+        if members.len() != 1 {
             return None;
-        };
-        frame
-            .mutable_scalar_recasts
-            .borrow()
-            .get(name.as_str())
-            .cloned()
+        }
+        frame.local_mutable_recast(path.head_symbol)
     }
 
     /// Recover a mutable recast local and any record-field path projected from
@@ -260,7 +252,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn mutable_recast_path(
         &mut self,
         handle: ExpressionHandle,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<(MutableScalarRecast, Vec<MutableRecordProjectionStep>)>> {
         match self.program.expression_table.expression(handle).clone() {
             ExpressionNode::Borrow(inner) => {
@@ -277,14 +269,10 @@ impl<'program> Evaluator<'program> {
                     .program
                     .expression_table
                     .name_path_members(path.members);
-                let Some(root) = members.first() else {
+                if members.is_empty() {
                     return Ok(None);
-                };
-                let recast = frame
-                    .mutable_scalar_recasts
-                    .borrow()
-                    .get(root.as_str())
-                    .cloned();
+                }
+                let recast = frame.local_mutable_recast(path.head_symbol);
                 Ok(recast.map(|recast| {
                     (
                         recast,
@@ -323,7 +311,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn read_mutable_record_recast_target(
         &mut self,
         handle: ExpressionHandle,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         let Some((recast, path)) = self.mutable_recast_path(handle, frame)? else {
             return Ok(None);
@@ -393,7 +381,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn write_mutable_record_recast_target(
         &mut self,
         handle: ExpressionHandle,
-        frame: &Frame,
+        frame: &mut Frame,
         value: Value,
     ) -> EvalResult<bool> {
         let Some((recast, path)) = self.mutable_recast_path(handle, frame)? else {
@@ -537,7 +525,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn resolve_place(
         &mut self,
         handle: ExpressionHandle,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Cell> {
         match self.program.expression_table.expression(handle).clone() {
             ExpressionNode::Name(path) => self.resolve_name_place(&path, frame),
@@ -587,7 +575,7 @@ impl<'program> Evaluator<'program> {
         let head = members[0].as_str();
         let mut cell = if is_self_receiver(head) {
             frame.self_cell.clone()
-        } else if let Some(local) = frame.get(head) {
+        } else if let Some(local) = frame.local_cell(path.head_symbol) {
             local
         } else {
             // Implicit self-field: `n` means `self.n`.
@@ -705,7 +693,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn assignment_target_coercion(
         &mut self,
         handle: ExpressionHandle,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> Option<(typed_trees::types::PrimitiveType, ArithmeticDomain)> {
         if let ExpressionNode::Indexed(indexed) =
             self.program.expression_table.expression(handle).clone()
@@ -787,7 +775,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn assignment_target_type_reference(
         &mut self,
         handle: ExpressionHandle,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> Option<typed_trees::types::TypeReferenceHandle> {
         let (receiver, field_name) = match self.program.expression_table.expression(handle).clone()
         {
@@ -838,7 +826,7 @@ impl<'program> Evaluator<'program> {
                     [single] => {
                         // A single name is either a local (no declared-type record
                         // here) or an implicit self-field.
-                        if is_self_receiver(single) || frame.get(single).is_some() {
+                        if is_self_receiver(single) || frame.local(path.head_symbol).is_some() {
                             return None;
                         }
                         (frame.self_cell.clone(), single.clone())
@@ -846,7 +834,7 @@ impl<'program> Evaluator<'program> {
                     [head, middle @ .., last] => {
                         let mut cell = if is_self_receiver(head) {
                             frame.self_cell.clone()
-                        } else if let Some(local) = frame.get(head) {
+                        } else if let Some(local) = frame.local_cell(path.head_symbol) {
                             local
                         } else {
                             self.field_cell(&frame.self_cell, head).ok()?
@@ -939,7 +927,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn eval_index(
         &mut self,
         index: ExpressionHandle,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<usize> {
         let value = self.eval_expression(index, frame)?;
         let raw = value
@@ -970,7 +958,7 @@ impl<'program> Evaluator<'program> {
         &mut self,
         collection: ExpressionHandle,
         range: &typed_trees::expression::TableRangeExpression,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Value> {
         // Resolve nested windows recursively without replaying their selectors.
         // Clone only the view descriptor; its element cells or bytes stay shared.

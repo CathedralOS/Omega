@@ -26,7 +26,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn try_host_call(
         &mut self,
         call: &TableCall,
-        frame: &Frame,
+        frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         let filesystem_operation = self.exact_filesystem_host_operation(call.target_symbol)?;
         let intrinsic_method = if filesystem_operation.is_none() {
@@ -419,7 +419,7 @@ impl<'program> Evaluator<'program> {
     fn read_stdin_bounded_line(
         &mut self,
         destination: Option<ExpressionHandle>,
-        frame: &Frame,
+        frame: &mut Frame,
         type_symbol: SymbolHandle,
     ) -> EvalResult<Value> {
         let cell = match destination {
@@ -538,16 +538,14 @@ mod byte_input_rejection_tests;
 #[cfg(test)]
 mod tests {
     use super::super::{CheckedTrees, Frame};
-    use super::{Evaluator, Halt, SymbolHandle, Value};
+    use super::{Evaluator, Halt, Value};
     use crate::value::Cell;
     use source_files_to_tokens::Lexer;
-    use std::cell::RefCell;
     use std::collections::BTreeMap;
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
     use tokens_to_syntax_trees::parse_syntax_trees;
     use typed_trees::statement::{StatementNode, TableCall};
-    use typed_trees::types::TypeReferenceHandle;
     use typed_trees_to_checked_trees::CheckingRequest;
     use typed_trees_to_checked_trees::lower_typed_trees;
 
@@ -630,20 +628,6 @@ mod tests {
             .unwrap_or_else(|_| panic!("self cell"))
     }
 
-    fn bare_frame(self_cell: Cell, machine_symbol: SymbolHandle) -> Frame {
-        Frame {
-            return_type: TypeReferenceHandle::invalid(),
-            locals: RefCell::new(BTreeMap::new()),
-            type_locals: RefCell::new(BTreeMap::new()),
-            scalar_locals: RefCell::new(BTreeMap::new()),
-            mutable_scalar_recasts: RefCell::new(BTreeMap::new()),
-            self_cell,
-            machine_symbol,
-            state_symbol: SymbolHandle::invalid(),
-            guard_call_results: RefCell::new(Vec::new()),
-        }
-    }
-
     fn line_bytes(self_cell: &Cell) -> Vec<u8> {
         let guard = self_cell.borrow();
         let Value::Struct { fields, .. } = &*guard else {
@@ -699,9 +683,9 @@ mod tests {
         ] {
             let mut evaluator = Evaluator::new_checked(&checked, input);
             let self_cell = main_self(&mut evaluator, &checked, 4);
-            let frame = bare_frame(self_cell.clone(), machine_symbol);
+            let mut frame = Frame::bare(self_cell.clone(), machine_symbol);
             let value = evaluator
-                .try_host_call(&call, &frame)
+                .try_host_call(&call, &mut frame)
                 .unwrap_or_else(|_| panic!("{input:?}: bounded serve"))
                 .expect("boundary call admitted");
             let Value::Enum {
@@ -766,9 +750,9 @@ mod tests {
                 .symbol;
             let mut evaluator = Evaluator::new_checked(&checked, input);
             let self_cell = main_self(&mut evaluator, &checked, 4);
-            let frame = bare_frame(self_cell.clone(), machine_symbol);
+            let mut frame = Frame::bare(self_cell.clone(), machine_symbol);
             let value = evaluator
-                .try_host_call(&call, &frame)
+                .try_host_call(&call, &mut frame)
                 .unwrap_or_else(|_| panic!("{input:?} {destination}: bounded serve"))
                 .expect("boundary call admitted");
             let Value::Enum {
@@ -826,9 +810,9 @@ mod tests {
             .symbol;
         let mut evaluator = Evaluator::new_checked(&checked, b"hi\n");
         let self_cell = main_self(&mut evaluator, &checked, 16);
-        let frame = bare_frame(self_cell.clone(), machine_symbol);
+        let mut frame = Frame::bare(self_cell.clone(), machine_symbol);
         let value = evaluator
-            .try_host_call(&call, &frame)
+            .try_host_call(&call, &mut frame)
             .unwrap_or_else(|_| panic!("legacy serve"))
             .expect("boundary call admitted");
         // The Unit-returning shape keeps the whole-owner Boolean fallback: the
