@@ -14,6 +14,7 @@ mod normalized_foreign;
 mod syscall;
 #[cfg(test)]
 mod tests;
+mod time_host;
 
 pub use filesystem::{
     FilesystemCohortDisposition, FilesystemOrdinaryReleaseContract, UnsettledFilesystemRequirement,
@@ -30,6 +31,10 @@ pub use normalized_foreign::{
     normalized_foreign_terminal_mechanism_with_callback_materializations,
 };
 pub use syscall::conservative_syscall_terminal_mechanism;
+pub use time_host::{
+    UnsettledTimeHostRequirement, settled_time_host_cohort, time_host_mechanism_row,
+    time_host_permission_row, time_host_permission_rows,
+};
 
 use commitment::complete_policy_commitment;
 
