@@ -99,7 +99,8 @@ pub(super) fn substitute_bound(
             NormalizedBound::SymbolSum { .. }
             | NormalizedBound::Storage { .. }
             | NormalizedBound::Projected { .. }
-            | NormalizedBound::StorageProjected { .. } => None,
+            | NormalizedBound::StorageProjected { .. }
+            | NormalizedBound::CallResult { .. } => None,
         },
         NormalizedBound::Projected { symbol, segments } => match argument_bound(symbol)? {
             // `p.first` with `p` substituted by the argument names the
@@ -116,8 +117,11 @@ pub(super) fn substitute_bound(
         // Storage bounds are scope-local coordinates; substitution through a
         // proposition's immutable argument bounds cannot preserve the pinned
         // occurrence the storage name requires. Projected storage shares
-        // that contract.
-        NormalizedBound::Storage { .. } | NormalizedBound::StorageProjected { .. } => None,
+        // that contract. A call-occurrence bound names no parameter symbol
+        // and likewise cannot substitute.
+        NormalizedBound::Storage { .. }
+        | NormalizedBound::StorageProjected { .. }
+        | NormalizedBound::CallResult { .. } => None,
         NormalizedBound::SymbolSum {
             first,
             second,

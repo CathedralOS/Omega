@@ -49,6 +49,15 @@ pub(super) enum NormalizedBound {
         second: SymbolHandle,
         offset: i64,
     },
+    /// The value produced by one exact call occurrence, named by its
+    /// expression handle. A call result carries no place identity, so a
+    /// nested call's `ensures` binds the occurrence itself — the
+    /// intra-statement fact context for guarantees produced and consumed
+    /// within one statement. Equal only to the same occurrence; a call
+    /// result never shifts or carries a storage coordinate.
+    CallResult {
+        expression: ExpressionHandle,
+    },
 }
 
 /// Record one normalized bound in the retained selector-value vocabulary.
@@ -77,6 +86,9 @@ pub(super) fn selector_value(bound: NormalizedBound) -> BorrowCompatibilitySelec
             second,
             offset,
         },
+        NormalizedBound::CallResult { expression } => {
+            BorrowCompatibilitySelectorValue::CallResult { expression }
+        }
     }
 }
 
@@ -119,6 +131,14 @@ fn bound_terms_equal(left: NormalizedBound, right: NormalizedBound) -> bool {
                 segments: right_segments,
             },
         ) => left_symbol == right_symbol && left_segments == right_segments,
+        (
+            NormalizedBound::CallResult {
+                expression: left_expression,
+            },
+            NormalizedBound::CallResult {
+                expression: right_expression,
+            },
+        ) => left_expression == right_expression,
         _ => false,
     }
 }
@@ -130,6 +150,7 @@ fn bound_offset(bound: NormalizedBound) -> Option<i64> {
         NormalizedBound::Symbol { offset, .. } => Some(offset),
         NormalizedBound::Storage { .. } => Some(0),
         NormalizedBound::Projected { .. } | NormalizedBound::StorageProjected { .. } => Some(0),
+        NormalizedBound::CallResult { .. } => Some(0),
         NormalizedBound::SymbolSum { offset, .. } => Some(offset),
     }
 }
@@ -726,6 +747,9 @@ fn exclusive_end_bound(
                 NormalizedBound::Symbol { symbol, offset } => offset
                     .checked_add(1)
                     .map(|offset| NormalizedBound::Symbol { symbol, offset }),
+                // `call result + 1` is outside the result vocabulary, so
+                // an inclusive call end reports unknown.
+                NormalizedBound::CallResult { .. } => None,
                 // `storage + 1` is outside the storage vocabulary, so an
                 // inclusive mutable end reports unknown.
                 NormalizedBound::Storage { .. } => None,
@@ -816,6 +840,12 @@ pub(super) fn normalized_bound(
     program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
+    // A call result has no place identity: the occurrence's own expression
+    // handle is its bound, so a nested call's `ensures` minted in the same
+    // statement names this exact production.
+    if let ExpressionNode::Call(_) = program.expression_table.expression(expression) {
+        return Some(NormalizedBound::CallResult { expression });
+    }
     if let Some(offset) = validation::immutable_integer_bound_symbol_offset(program, expression) {
         return Some(NormalizedBound::Symbol {
             symbol: offset.symbol,

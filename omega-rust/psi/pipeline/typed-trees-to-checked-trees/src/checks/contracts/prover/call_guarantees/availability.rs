@@ -36,6 +36,16 @@ impl AvailableGuarantee<'_> {
             .decomposed_builtin_meaning(program, expression)
     }
 
+    /// The call expression's own handle when this guarantee's call site is a
+    /// call nested inside a statement expression. Statement-site calls have
+    /// no such operand — their results always bind a local name.
+    pub(in crate::checks) fn call_expression(&self) -> Option<ExpressionHandle> {
+        match self.invocation.site {
+            CallSite::Expression { expression, .. } => Some(expression),
+            _ => None,
+        }
+    }
+
     /// The member-projection segments behind this operand when it resolves
     /// to this guarantee's own reserved result (`result` or `result.first`).
     /// A projection rooted at a different callable's result does not qualify.

@@ -115,14 +115,26 @@ impl PremiseScope<'_> {
             } => {
                 if let Some(segments) = guarantee.result_segments(program, expression) {
                     match segments.as_slice() {
-                        [] => result.is_valid().then_some(if *result_mutable {
-                            NormalizedBound::Storage { symbol: *result }
-                        } else {
-                            NormalizedBound::Symbol {
-                                symbol: *result,
-                                offset: 0,
+                        [] => {
+                            if result.is_valid() {
+                                Some(if *result_mutable {
+                                    NormalizedBound::Storage { symbol: *result }
+                                } else {
+                                    NormalizedBound::Symbol {
+                                        symbol: *result,
+                                        offset: 0,
+                                    }
+                                })
+                            } else {
+                                // A nested call produces no binding: the
+                                // result operand names the call occurrence
+                                // itself, so the guarantee is consumable
+                                // inside its own statement.
+                                guarantee
+                                    .call_expression()
+                                    .map(|expression| NormalizedBound::CallResult { expression })
                             }
-                        }),
+                        }
                         // `result.first` — and longer resolved projections
                         // like `result.items[2]` — binds the pinned binding's
                         // projected place; the binding's own pin covers the
@@ -655,6 +667,9 @@ fn transport_query_bound(
                 segments,
             }
         }
+        // A call-occurrence bound carries no parameter symbol to
+        // transport; the occurrence identity crosses scopes unchanged.
+        NormalizedBound::CallResult { .. } => bound,
         NormalizedBound::SymbolSum {
             first,
             second,
@@ -941,6 +956,16 @@ fn bound_shift(value: NormalizedBound, base: NormalizedBound) -> Option<i64> {
         ) if value_first == base_first && value_second == base_second => {
             value_offset.checked_sub(base_offset)
         }
+        // The same call occurrence names one produced value: a premise
+        // minted at the call sits on the query's zero-offset line.
+        (
+            NormalizedBound::CallResult {
+                expression: value_expression,
+            },
+            NormalizedBound::CallResult {
+                expression: base_expression,
+            },
+        ) if value_expression == base_expression => Some(0),
         _ => None,
     }
 }
