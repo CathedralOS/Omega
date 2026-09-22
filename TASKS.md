@@ -159,6 +159,9 @@ the complete product bar; focused successes below do not establish that baseline
   `ProviderAttachment` is not an ordinary structural argument.
   **ENTRY-CONTENT-ROOTS**, **TR3-TR8** and **STATE-LOCAL-VALUE-FRONTIER** own these
   general repairs. No global provider state or weakened occurrence matching.
+  Parked WIP: `swarm/macw5-macos-app-pub` (three unvalidated commits — a
+  scalar-result provider-candidate catalog and nested call-source custody
+  drafting toward the multi-provider receiver requirement).
 
   Acceptance: all three authored apps publish a validated `.app` and execute
   on macOS ARM64 with observed window/render and completion behavior. Test-owned
@@ -2278,8 +2281,11 @@ syntax and other terminal services are not prerequisites.
 
   - Finish typed/checked/Terminal transport for generic type-scoped constant
     attachments, indexed constraints, operator homes and declared-domain case
-    facts. Preserve exact lexical/package selection through specialization,
-    same-leaf competitors, file-local imports and private/transitive exposure.
+    facts. Declared-domain case facts now replay as generated `CaseMembership`
+    tag tests with exact symbol-based multiplicity matching (1fc2f4cdd2);
+    the other transports remain. Preserve exact lexical/package selection
+    through specialization, same-leaf competitors, file-local imports and
+    private/transitive exposure.
     `module_namespace_residuals` contains resolver-only operator/case tests;
     extend those customers through their remaining consumers rather than adding
     another namespace recognizer.
@@ -2478,6 +2484,10 @@ syntax and other terminal services are not prerequisites.
     `REBOUND_FAMILY_DYNAMIC_INTEGER_SOURCE`, replacing its ignored-width,
     discarded-result probe with observed distinct tuple results and the actual
     rebound selected instance. Test-constructed tuple rows do not close this.
+    Parked WIP: `swarm/macw5-finite-dispatch` (one unvalidated commit, ~600
+    lines across `dynamic_scalar_calls/`, `finite_family.rs` and dynamic trait
+    declarations) covers roster-membership drafting toward the first bullet —
+    review before resuming.
 
   Acceptance: source pass/fail/run cases dispatch widths 16/32/64 from a runtime
   value through one selected conformance and execute natively without
@@ -2795,12 +2805,13 @@ syntax and other terminal services are not prerequisites.
     whole-root discard lists; `ReturnUnitPartialAffine` already exists.
     Update the encoding contract and representation, producer, codec,
     independent verifier/interpreter and native consumers together.
-  - Fix whole/residual scheduling across dying roots. The multi-temporary
-    path in `execution/terminal_unit/cleanup/anonymous.rs::append_continuation`
-    appends residuals in operand order, and the test above expects that
-    order; it does not establish the required cleanup schedule.
-    Complete construction-local roots, partial construction and mixed dying
-    roots, retaining maximal untouched subtrees and empty complements.
+  - Whole/residual scheduling across dying roots on a shared Unit consumer is
+    fixed (fc0fc77463): `execution/terminal_unit/cleanup/anonymous.rs::
+    append_continuation` emits each temporary's residual group
+    latest-established first, and the lowering validator and terminal
+    verifier independently rebuild that schedule. Remaining:
+    construction-local roots, partial construction and mixed dying roots,
+    retaining maximal untouched subtrees and empty complements.
     No runtime liveness flags, expansion of untouched arrays into leaves, or
     cleanup deferred until final return.
   - Generalize projected temporary cleanup beyond empty, effect-free Unit
