@@ -260,7 +260,7 @@ pub(super) fn check(
                     crate::labels::call_target_label(program, call.target_symbol),
                     crate::labels::machine_name(program, state.machine_symbol),
                     crate::labels::symbol_name(program, state.state_symbol),
-                    crate::labels::canonical_place_label_from_parts(program, PlaceRoot::Symbol(parameter.symbol), segments),
+                    facts::canonical_place_label_from_parts(program, PlaceRoot::Symbol(parameter.symbol), segments),
                     crate::labels::symbol_name(program, *domain_symbol),
                 )));
             }

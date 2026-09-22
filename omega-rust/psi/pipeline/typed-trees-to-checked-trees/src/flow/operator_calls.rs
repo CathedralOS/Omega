@@ -142,11 +142,7 @@ fn operator_statement_operands<'program>(
                     )
                 },
                 |place| {
-                    crate::labels::canonical_place_label_from_parts(
-                        program,
-                        place.root,
-                        &place.segments,
-                    )
+                    facts::canonical_place_label_from_parts(program, place.root, &place.segments)
                 },
             );
             (receiver_place.clone(), label)
@@ -202,7 +198,7 @@ fn named_operator_call_operands<'program>(
                 let label = place.as_ref().map_or_else(
                     || program.expression_table.display_name(*expression),
                     |place| {
-                        crate::labels::canonical_place_label_from_parts(
+                        facts::canonical_place_label_from_parts(
                             program,
                             place.root,
                             &place.segments,

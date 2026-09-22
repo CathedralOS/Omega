@@ -1,5 +1,3 @@
-use crate::labels::canonical_place_label;
-
 pub(super) fn expression_is_boolean_place_like(
     program: &typed_trees::TypedTrees,
     expression: typed_trees::expression::ExpressionHandle,
@@ -21,7 +19,6 @@ pub(super) fn expression_place_matches(
     expression: typed_trees::expression::ExpressionHandle,
     candidate_place: facts::PlaceHandle,
 ) -> bool {
-    let candidate_label =
-        canonical_place_label(program, semantic, semantic.places.get(candidate_place));
+    let candidate_label = semantic.place_label(program, candidate_place);
     program.expression_table.display_name(expression) == candidate_label
 }

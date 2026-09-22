@@ -105,10 +105,3 @@ pub(super) fn active_loan_detail(
             }
         })
 }
-
-pub(super) fn canonical_place_label(
-    program: &typed_trees::TypedTrees,
-    place: &crate::flow::CanonicalPlace,
-) -> String {
-    crate::labels::canonical_place_label_from_parts(program, place.root, &place.segments)
-}

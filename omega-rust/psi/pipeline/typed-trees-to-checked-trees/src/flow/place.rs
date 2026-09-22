@@ -35,4 +35,9 @@ impl CanonicalPlace {
     pub(crate) fn extend_segments(&mut self, segments: &[facts::PlaceSegment]) {
         self.segments.extend(segments.iter().copied());
     }
+
+    /// The canonical label diagnostics quote for this place.
+    pub(crate) fn label(&self, program: &typed_trees::TypedTrees) -> String {
+        facts::canonical_place_label_from_parts(program, self.root, &self.segments)
+    }
 }

@@ -5,7 +5,6 @@ use super::labels::{
     ContractTargetParameters, domain_proves_expression_label,
     instantiate_call_contract_expression_label,
 };
-use crate::labels::canonical_place_label;
 
 pub(super) fn prove_boolean_expression_via_context_domain_membership(
     program: &typed_trees::TypedTrees,
@@ -34,8 +33,7 @@ pub(super) fn prove_boolean_expression_via_context_domain_membership(
             }
             _ => return false,
         };
-        let canonical_base_label =
-            canonical_place_label(program, semantic, semantic.places.get(place));
+        let canonical_base_label = semantic.place_label(program, place);
         let display_base_label = program.expression_table.display_name(value);
         domain_proves_expression_label(
             program,
@@ -89,8 +87,7 @@ pub(super) fn prove_instantiated_boolean_expression_via_context_domain_membershi
             }
             _ => return false,
         };
-        let canonical_base_label =
-            canonical_place_label(program, semantic, semantic.places.get(place));
+        let canonical_base_label = semantic.place_label(program, place);
         let display_base_label = program.expression_table.display_name(value);
         domain_proves_expression_label(
             program,

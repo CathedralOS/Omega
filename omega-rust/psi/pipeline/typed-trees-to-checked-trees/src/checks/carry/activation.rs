@@ -149,8 +149,7 @@ fn established_claim_carry_policy(
         let facts::FactPlace::Place(place) = fact.place else {
             continue;
         };
-        let place =
-            crate::labels::canonical_place_label(program, semantic, semantic.places.get(place));
+        let place = semantic.place_label(program, place);
         if let Some((_, _, policy)) = claims
             .iter_mut()
             .find(|(candidate, evidence, _)| *candidate == place && *evidence == fact.evidence)

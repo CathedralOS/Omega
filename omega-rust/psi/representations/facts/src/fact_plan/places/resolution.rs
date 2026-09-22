@@ -85,19 +85,15 @@ fn resolve_member_symbol_from_receiver(
     None
 }
 
-pub(crate) fn canonical_place_label(
-    program: &TypedTrees,
-    facts: &FactPlan,
-    place: &Place,
-) -> String {
-    canonical_place_label_from_parts(
-        program,
-        place.root,
-        facts.place_segments.span_or_empty(place.segments),
-    )
-}
-
-fn canonical_place_label_from_parts(
+/// The canonical label of a place: the text diagnostics quote for it and the
+/// key `FactPlan::places_match` compares when two places are spelled from
+/// different roots. Symbols render as their declared name (`self`, `count`,
+/// `Succ`), a field as `.name`, a case as `::Variant`, a fixed element as
+/// `[3]`, a window as `[0..4]`, and a runtime index as the rendered index
+/// expression in brackets. The member separator is the one
+/// `language_core::receiver_binding` builds and takes apart receiver-rooted
+/// labels with, so `self.field` here is the same text there.
+pub fn canonical_place_label_from_parts(
     program: &TypedTrees,
     root: PlaceRoot,
     segments: &[PlaceSegment],
@@ -112,7 +108,7 @@ fn canonical_place_label_from_parts(
     for segment in segments {
         match segment {
             PlaceSegment::Field { symbol } => {
-                label.push('.');
+                label.push(language_core::PLACE_MEMBER_SEPARATOR);
                 label.push_str(&symbol_label(program, *symbol));
             }
             PlaceSegment::Case { variant } => {
@@ -142,77 +138,13 @@ fn canonical_place_label_from_parts(
     label
 }
 
+/// A symbol's declared spelling, which the symbol table retains for every
+/// declaration, parameter and local; only an invalid handle has none.
 fn symbol_label(program: &TypedTrees, symbol: SymbolHandle) -> String {
-    for data in program.data_definitions() {
-        if data.symbol == symbol {
-            return data.name.as_str().to_owned();
-        }
-
-        for member in program.data_members(data) {
-            match member {
-                typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
-                    return field.name.as_str().to_owned();
-                }
-                typed_trees::data::DataMember::Variant(variant) if variant.symbol == symbol => {
-                    return variant.name.as_str().to_owned();
-                }
-                typed_trees::data::DataMember::Variant(variant) => {
-                    if let Some(field) = program
-                        .data_payload_fields(variant)
-                        .iter()
-                        .find(|field| field.symbol == symbol)
-                    {
-                        return field.name.as_str().to_owned();
-                    }
-                }
-                typed_trees::data::DataMember::Field(_) => {}
-            }
-        }
+    if !symbol.is_valid() {
+        return "unknown".to_owned();
     }
-
-    for machine in program.machines() {
-        if machine.symbol == symbol {
-            return machine.name.as_str().to_owned();
-        }
-        for owned_data in program.machine_owned_data(machine) {
-            if owned_data.symbol == symbol {
-                return owned_data.name.as_str().to_owned();
-            }
-        }
-        for state in program.machine_states(machine) {
-            if state.symbol == symbol {
-                return state.name.as_str().to_owned();
-            }
-            for parameter in program.state_parameters(state) {
-                if parameter.symbol == symbol {
-                    return parameter.name.as_str().to_owned();
-                }
-            }
-        }
-    }
-
-    for trait_definition in program.traits() {
-        if trait_definition.symbol == symbol {
-            return trait_definition.name.as_str().to_owned();
-        }
-        for requirement in program.trait_requirements(trait_definition) {
-            if requirement.symbol == symbol {
-                return requirement.name.as_str().to_owned();
-            }
-        }
-        for machine_signature in program.trait_machine_signatures(trait_definition) {
-            if machine_signature.symbol == symbol {
-                return machine_signature.name.as_str().to_owned();
-            }
-            for parameter in program.state_signature_parameters(machine_signature) {
-                if parameter.symbol == symbol {
-                    return parameter.name.as_str().to_owned();
-                }
-            }
-        }
-    }
-
-    format!("symbol#{}", symbol.arena_index())
+    program.symbols.name(symbol).to_owned()
 }
 
 fn expression_type_symbol(

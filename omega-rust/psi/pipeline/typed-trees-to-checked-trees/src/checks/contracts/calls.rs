@@ -12,8 +12,8 @@ use super::prover::{
     semantic_contexts_prove_contract_fact,
 };
 use crate::labels::{
-    call_target_label, canonical_place_label_from_parts, joined_place_label, machine_name,
-    semantic_fact_requirement_label, symbol_name,
+    call_target_label, joined_place_label, machine_name, semantic_fact_requirement_label,
+    symbol_name,
 };
 
 pub(super) fn check_call_requires(
@@ -491,7 +491,7 @@ fn explain_domain_requirement_failure(
             .span_or_empty(invalidation.dependency_segments);
         let invalidated =
             joined_place_label(program, &facts.semantic, fact_place, dependency_segments);
-        let mutated = canonical_place_label_from_parts(
+        let mutated = facts::canonical_place_label_from_parts(
             program,
             invalidation.mutated_root,
             facts

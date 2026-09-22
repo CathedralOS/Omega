@@ -117,6 +117,7 @@ mod multiplicity;
 mod opaque_properties;
 mod operational_tail_calls;
 mod operators;
+mod place_labels;
 mod proof_embedding_totality;
 mod proof_embeddings;
 mod range_atomic_dependencies;

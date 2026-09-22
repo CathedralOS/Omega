@@ -448,27 +448,17 @@ fn acceptance_views_publish_exact_statement_owned_qualification_correspondences(
         correspondence.source_occurrence_place
     ));
     assert_eq!(
-        crate::labels::canonical_place_label(
-            &checked,
-            &checked.facts.semantic,
-            checked
-                .facts
-                .semantic
-                .places
-                .get(correspondence.source_place),
-        ),
+        checked
+            .facts
+            .semantic
+            .place_label(&checked, correspondence.source_place),
         "self.source"
     );
     assert_eq!(
-        crate::labels::canonical_place_label(
-            &checked,
-            &checked.facts.semantic,
-            checked
-                .facts
-                .semantic
-                .places
-                .get(correspondence.destination_place),
-        ),
+        checked
+            .facts
+            .semantic
+            .place_label(&checked, correspondence.destination_place),
         "self.destination"
     );
     let facts::QualificationPayloadIdentity::DomainMembership {
@@ -633,22 +623,20 @@ fn source_lowering_retains_prior_state_local_qualification_transfer_endpoints() 
     assert_eq!(
         correspondences
             .iter()
-            .map(|row| crate::labels::canonical_place_label(
-                &checked,
-                &checked.facts.semantic,
-                checked.facts.semantic.places.get(row.source_place),
-            ))
+            .map(|row| checked
+                .facts
+                .semantic
+                .place_label(&checked, row.source_place))
             .collect::<Vec<_>>(),
         ["self.pair.source", "local.destination"]
     );
     assert_eq!(
         correspondences
             .iter()
-            .map(|row| crate::labels::canonical_place_label(
-                &checked,
-                &checked.facts.semantic,
-                checked.facts.semantic.places.get(row.destination_place),
-            ))
+            .map(|row| checked
+                .facts
+                .semantic
+                .place_label(&checked, row.destination_place))
             .collect::<Vec<_>>(),
         ["local.destination", "self.pair.destination"]
     );

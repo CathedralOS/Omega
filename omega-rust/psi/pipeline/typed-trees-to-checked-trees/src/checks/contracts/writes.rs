@@ -22,7 +22,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
 
-use crate::labels::{canonical_place_label, machine_name, symbol_name};
+use crate::labels::{machine_name, symbol_name};
 
 pub(super) fn check_domain_field_writes(
     program: &typed_trees::TypedTrees,
@@ -1865,11 +1865,7 @@ fn value_proves_domain_in_contexts(
             }) {
                 return true;
             }
-            let place_label = canonical_place_label(
-                program,
-                &facts.semantic,
-                facts.semantic.places.get(fact_place),
-            );
+            let place_label = facts.semantic.place_label(program, fact_place);
             if place_label == value_label {
                 return true;
             }

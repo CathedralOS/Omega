@@ -528,7 +528,17 @@ impl FactPlan {
         right: PlaceHandle,
     ) -> bool {
         self.places_equal(left, right)
-            || crate::canonical_place_label(program, self, self.places.get(left))
-                == crate::canonical_place_label(program, self, self.places.get(right))
+            || self.place_label(program, left) == self.place_label(program, right)
+    }
+
+    /// The canonical label of one stored place; see
+    /// [`canonical_place_label_from_parts`](crate::canonical_place_label_from_parts).
+    pub fn place_label(&self, program: &TypedTrees, place: PlaceHandle) -> String {
+        let place = self.places.get(place);
+        crate::canonical_place_label_from_parts(
+            program,
+            place.root,
+            self.place_segments.span_or_empty(place.segments),
+        )
     }
 }

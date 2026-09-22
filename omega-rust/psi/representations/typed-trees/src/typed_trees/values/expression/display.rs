@@ -46,9 +46,12 @@ impl Expression {
                 )
             }
             Expression::Integer(value) => value.to_string(),
-            Expression::Member(member) => {
-                format!("{}.{}", member.receiver.display_name(), member.member)
-            }
+            Expression::Member(member) => format!(
+                "{}{}{}",
+                member.receiver.display_name(),
+                language_core::PLACE_MEMBER_SEPARATOR,
+                member.member
+            ),
             Expression::Borrow(expression) => format!(
                 "{}{}",
                 borrow_access_prefix(expression.access),
@@ -111,7 +114,12 @@ impl ExpressionNode {
             }
             Self::Integer(value) => value.to_string(),
             Self::Member(member) => {
-                format!("{}.{}", table.display_name(member.receiver), member.member)
+                format!(
+                    "{}{}{}",
+                    table.display_name(member.receiver),
+                    language_core::PLACE_MEMBER_SEPARATOR,
+                    member.member
+                )
             }
             Self::Borrow(expression) => format!(
                 "{}{}",

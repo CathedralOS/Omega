@@ -498,11 +498,7 @@ fn checked_one_to_one_call_infers_the_claims_exact_carry_policy() {
                 let facts::FactPlace::Place(place) = fact.place else {
                     return false;
                 };
-                crate::labels::canonical_place_label(
-                    &checked.typed,
-                    &checked.facts.semantic,
-                    checked.facts.semantic.places.get(place),
-                ) == "forwarded"
+                checked.facts.semantic.place_label(&checked.typed, place) == "forwarded"
                     && matches!(
                         fact.payload,
                         facts::FactPayload::DomainMembership { .. }
