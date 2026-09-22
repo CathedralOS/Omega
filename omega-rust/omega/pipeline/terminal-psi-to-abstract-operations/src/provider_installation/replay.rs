@@ -7,8 +7,8 @@
 //! exact call occurrence, then substitute candidate completion/content claims;
 //! that cross-machine custody relationship is specific to installation.
 
+use super::AdmittedInstalledProviderCall;
 use super::error::ProviderInstallationError;
-use super::model::AdmittedInstalledProviderCall;
 use abstract_operations::{AbstractFunctionResult, AbstractOperation, AbstractOperationPlan};
 use terminal_psi::{ProviderCandidateConformance, StructuralMultiplicity};
 
