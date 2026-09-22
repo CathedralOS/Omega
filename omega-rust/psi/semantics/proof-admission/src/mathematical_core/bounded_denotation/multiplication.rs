@@ -74,6 +74,15 @@ enum Law {
 pub(super) struct Multiplication {
     operation: Option<u32>,
     laws: BTreeMap<Law, u32>,
+    /// `mul l r = p` equations — numeral-operation bridges between a
+    /// `mul` application over evaluated operands and their denoted
+    /// product, interned once per checked `(l, r, p)` value triple.
+    pub(super) numeral_products: BTreeMap<(IntegerValue, IntegerValue, IntegerValue), u32>,
+    /// `div_T n d = q` equations — the same numeral-operation bridge for
+    /// the per-type truncating-division application, interned once per
+    /// checked `(T, n, d, q)` quadruple.
+    pub(super) numeral_quotients:
+        BTreeMap<(IntegerType, IntegerValue, IntegerValue, IntegerValue), u32>,
 }
 
 impl Denotation {
@@ -240,7 +249,7 @@ impl Denotation {
     /// `eq_le` when they agree, the binary-order strict laws plus
     /// `lt_le` when `l < u`. `None` when `l > u` — a defensive refusal,
     /// since callers derive the pair from an already-checked relation.
-    fn integer_le_numeral(
+    pub(super) fn integer_le_numeral(
         &mut self,
         lower: IntegerValue,
         upper: IntegerValue,
@@ -285,6 +294,107 @@ impl Denotation {
             &[lower_term, upper_term, strict],
         )
         .map(Some)
+    }
+
+    /// `Id Int (mul l' r') p'` — the numeral-operation equation bridging
+    /// a `mul` application over evaluated operands to their denoted
+    /// product, the same exact interned assumption `numeral_sum` and
+    /// `numeral_difference` name for their operations. Interned once per
+    /// checked `(l, r, p)` value triple. `None` when `l · r ≠ p` — a
+    /// defensive refusal, since callers derive the triple from a checked
+    /// chain, so a miss keeps the instance fallback rather than naming a
+    /// false equation.
+    pub(super) fn numeral_product(
+        &mut self,
+        left: IntegerValue,
+        right: IntegerValue,
+        product: IntegerValue,
+        left_term: TermHandle,
+        right_term: TermHandle,
+        product_term: TermHandle,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        let as_integer = |value: IntegerValue| match value {
+            IntegerValue::Signed(value) => BigInt::from_i128(value),
+            IntegerValue::Unsigned(value) => BigInt::from_u128(value),
+        };
+        if as_integer(left).mul(&as_integer(right)) != as_integer(product) {
+            return Ok(None);
+        }
+        if let Some(&position) = self
+            .multiplication
+            .numeral_products
+            .get(&(left, right, product))
+        {
+            return Ok(Some(self.constant(position)));
+        }
+        let integer = self.integer_constant()?;
+        let application = self.multiply_terms(left_term, right_term)?;
+        let ty = self.arena.insert(Term::Id {
+            ty: integer,
+            left: application,
+            right: product_term,
+        });
+        let position = self.position()?;
+        self.declarations.push(Declaration::assumption(0, ty));
+        self.multiplication
+            .numeral_products
+            .insert((left, right, product), position);
+        Ok(Some(self.constant(position)))
+    }
+
+    /// `Id Int (div_T n' d') q'` — the numeral-operation equation naming
+    /// one truncating-division application over evaluated operands. `q`
+    /// must be the exact toward-zero quotient `n / d` — recomputed with
+    /// checked arithmetic, and `None` (keeping the instance fallback) on
+    /// a zero divisor or any other value. The `div_T` constant is the
+    /// per-type `ExactIntegerDivide` denotation the scalar term already
+    /// carries, so the equation is exact for that machine operation.
+    pub(super) fn numeral_quotient(
+        &mut self,
+        integer_type: IntegerType,
+        dividend: IntegerValue,
+        divisor: IntegerValue,
+        quotient: IntegerValue,
+        dividend_term: TermHandle,
+        divisor_term: TermHandle,
+        quotient_term: TermHandle,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        let as_integer = |value: IntegerValue| match value {
+            IntegerValue::Signed(value) => BigInt::from_i128(value),
+            IntegerValue::Unsigned(value) => BigInt::from_u128(value),
+        };
+        let Some((exact, _)) = as_integer(dividend).div_rem(&as_integer(divisor)) else {
+            return Ok(None);
+        };
+        if exact != as_integer(quotient) {
+            return Ok(None);
+        }
+        let key = (integer_type, dividend, divisor, quotient);
+        if let Some(&position) = self.multiplication.numeral_quotients.get(&key) {
+            return Ok(Some(self.constant(position)));
+        }
+        let integer = self.integer_constant()?;
+        let divide = self.integer_operation(IntegerOperation::ExactDivide(integer_type))?;
+        let application = {
+            let function = self.constant(divide);
+            let function = self.arena.insert(Term::Apply {
+                function,
+                argument: dividend_term,
+            });
+            self.arena.insert(Term::Apply {
+                function,
+                argument: divisor_term,
+            })
+        };
+        let ty = self.arena.insert(Term::Id {
+            ty: integer,
+            left: application,
+            right: quotient_term,
+        });
+        let position = self.position()?;
+        self.declarations.push(Declaration::assumption(0, ty));
+        self.multiplication.numeral_quotients.insert(key, position);
+        Ok(Some(self.constant(position)))
     }
 
     /// Elaborate the checked `CorrelatedMultiply{Minimum,Maximum}` bound:

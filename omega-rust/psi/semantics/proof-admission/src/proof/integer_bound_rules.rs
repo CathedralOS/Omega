@@ -13,11 +13,11 @@ use std::collections::BTreeSet;
 use super::integer_math_normalization::lower_integer_math_relation;
 use super::{AcceptanceBuilder, AcceptedProofRule, ProofError, RuleScope};
 use crate::{
-    CheckedIntegerCastChain, IntegerAffineBoundConversionError, IntegerAffineWitness,
-    IntegerCastBoundConversionError, IntegerCorrelatedForbiddenRootWitness,
-    check_integer_affine_bound_conversion, check_integer_affine_witness,
-    check_integer_cast_bound_conversion, check_integer_cast_chain_witness,
-    check_integer_correlated_forbidden_root_conversion,
+    CheckedIntegerCastChain, CheckedIntegerCorrelatedForbiddenRoots,
+    IntegerAffineBoundConversionError, IntegerAffineWitness, IntegerCastBoundConversionError,
+    IntegerCorrelatedForbiddenRootWitness, check_integer_affine_bound_conversion,
+    check_integer_affine_witness, check_integer_cast_bound_conversion,
+    check_integer_cast_chain_witness, check_integer_correlated_forbidden_root_conversion,
     check_integer_correlated_forbidden_root_witness, integer_affine_truth_bounds,
     integer_cast_truth_bounds, map_integer_affine_bound,
 };
@@ -314,7 +314,8 @@ pub(crate) struct CorrelatedCitations {
 /// The `IntegerCorrelatedForbiddenRoots` premise/conclusion relation: the
 /// witness's two correlated affine branches replay over the axiom and
 /// assumption ledger under the machine-parameter values, and the checked
-/// interval must produce the conclusion.
+/// interval must produce the conclusion. Returns the citation indices
+/// and the checked witness the denotation layer replays.
 pub(crate) fn correlated_forbidden_roots_relation(
     context: &PropositionContext,
     assumptions: &[Proposition],
@@ -322,7 +323,7 @@ pub(crate) fn correlated_forbidden_roots_relation(
     machine_parameter_values: &BTreeSet<ValueId>,
     witness: &IntegerCorrelatedForbiddenRootWitness,
     conclusion: &Proposition,
-) -> Result<CorrelatedCitations, ProofError> {
+) -> Result<(CorrelatedCitations, CheckedIntegerCorrelatedForbiddenRoots), ProofError> {
     if witness.definition_axiom_count != semantic_axioms.len() {
         return Err(ProofError::IntegerCorrelatedForbiddenRootDefinitionBoundary);
     }
@@ -365,7 +366,7 @@ pub(crate) fn correlated_forbidden_roots_relation(
         }
         citations.assumptions.push(index);
     }
-    Ok(citations)
+    Ok((citations, checked))
 }
 
 pub(super) fn check_integer_correlated_forbidden_roots(
@@ -386,7 +387,7 @@ pub(super) fn check_integer_correlated_forbidden_roots(
     acceptance
         .rules
         .insert(AcceptedProofRule::IntegerCorrelatedForbiddenRoots);
-    let citations = correlated_forbidden_roots_relation(
+    let (citations, _) = correlated_forbidden_roots_relation(
         context,
         assumptions,
         semantic_axioms,
