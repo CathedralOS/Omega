@@ -134,6 +134,7 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
         graph.ranked_scc = ranked_scc;
         successors::retain(
             program,
+            expressions,
             graph,
             &mut structural_transfers,
             &mut scalar_arguments,
@@ -157,12 +158,14 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
 #[cfg(test)]
 pub(crate) fn finalize_checked_scalar_graph_plans(
     program: &TypedTrees,
+    expressions: &checked_trees::CheckedScalarExpressionPlans,
     ownership: &checked_trees::FlowOwnershipFacts,
     computations: &checked_trees::CheckedScalarComputationPlans,
     plans: &mut CheckedScalarGraphPlans,
 ) {
     finalize_checked_scalar_graph_plans_with_call_frames(
         program,
+        expressions,
         ownership,
         computations,
         plans,
@@ -172,6 +175,7 @@ pub(crate) fn finalize_checked_scalar_graph_plans(
 
 pub(crate) fn finalize_checked_scalar_graph_plans_with_call_frames(
     program: &TypedTrees,
+    expressions: &checked_trees::CheckedScalarExpressionPlans,
     ownership: &checked_trees::FlowOwnershipFacts,
     computations: &checked_trees::CheckedScalarComputationPlans,
     plans: &mut CheckedScalarGraphPlans,
@@ -183,6 +187,7 @@ pub(crate) fn finalize_checked_scalar_graph_plans_with_call_frames(
         }
         if successors::validate(
             program,
+            expressions,
             graph,
             &plans.structural_transfers,
             &plans.scalar_arguments,
@@ -1058,6 +1063,12 @@ fn structural_place_reads_position(
         return true;
     }
     if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+        parameter_index,
+        start,
+        end,
+        ..
+    }
+    | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
         parameter_index,
         start,
         end,

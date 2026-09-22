@@ -287,4 +287,10 @@ pub enum CheckedStructuralControlTransferSourcePlan {
         parameter_index: u32,
         expression: typed_trees::expression::ExpressionHandle,
     },
+    /// Exclusive borrowed `&[T]` element range, T != u8. Endpoints share
+    /// the transition subslice scalar roles; the extent counts elements.
+    ElementViewSubslice {
+        parameter_index: u32,
+        expression: typed_trees::expression::ExpressionHandle,
+    },
 }

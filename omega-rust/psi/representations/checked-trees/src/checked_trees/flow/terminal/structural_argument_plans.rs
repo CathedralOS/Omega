@@ -68,6 +68,16 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
         start: Option<CheckedScalarExpression>,
         end: Option<CheckedScalarExpression>,
     },
+    /// Exclusive element range over one whole immutable `&[T]` view
+    /// parameter, T != u8. Endpoints share the byte subslice's
+    /// source-bound scalar roles; the view's stored extent names its
+    /// element count, not a byte length.
+    ElementViewSubslice {
+        parameter_index: u32,
+        expression: typed_trees::expression::ExpressionHandle,
+        start: Option<CheckedScalarExpression>,
+        end: Option<CheckedScalarExpression>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -107,7 +117,8 @@ impl CheckedUnitStructuralArgumentPlan {
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. } => None,
+            | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. } => None,
         }
     }
 
@@ -121,7 +132,8 @@ impl CheckedUnitStructuralArgumentPlan {
             | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. } => None,
+            | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. } => None,
         }
     }
 
@@ -135,7 +147,8 @@ impl CheckedUnitStructuralArgumentPlan {
             | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. } => None,
+            | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. } => None,
         }
     }
 
@@ -146,6 +159,7 @@ impl CheckedUnitStructuralArgumentPlan {
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. }
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. } => None,
         }

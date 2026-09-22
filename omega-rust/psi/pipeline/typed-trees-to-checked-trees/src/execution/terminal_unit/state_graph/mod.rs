@@ -1507,10 +1507,17 @@ fn successor_bindings(
             {
                 mark(SuccessorGuard::SubsliceTransfer);
                 let target_parameter = target_parameters.get(target.position as usize)?;
-                let (parameter_index, type_identity) = calls::byte_subslice::source(
+                let element_view = calls::element_subslice::source(
                     program, facts, machine, source, source_structural,
                     target_parameter.type_reference, expression, ordinal as usize,
-                )?;
+                );
+                let is_element_view = element_view.is_some();
+                let (parameter_index, type_identity) = element_view.or_else(|| {
+                    calls::byte_subslice::source(
+                        program, facts, machine, source, source_structural,
+                        target_parameter.type_reference, expression, ordinal as usize,
+                    )
+                })?;
                 if type_identity != target.type_identity {
                     return None;
                 }
@@ -1545,9 +1552,16 @@ fn successor_bindings(
                     }
                 }
                 return Some(CheckedStructuralControlTransferPlan {
-                    source: checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
-                        parameter_index,
-                        expression,
+                    source: if is_element_view {
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
+                            parameter_index,
+                            expression,
+                        }
+                    } else {
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
+                            parameter_index,
+                            expression,
+                        }
                     },
                     target_parameter_index: u32::try_from(target_index).ok()?,
                 });
