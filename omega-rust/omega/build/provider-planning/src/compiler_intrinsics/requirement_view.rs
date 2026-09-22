@@ -79,7 +79,6 @@ impl<'typed> IntrinsicRequirement<'typed> {
         if requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
             || !requirement.is_public
             || requirement.body_is_present
-            || !requirement.lifetime_parameters.is_empty()
             || !typed.machine_type_parameters(requirement).is_empty()
         {
             return None;

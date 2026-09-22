@@ -1409,6 +1409,55 @@ fn fixed_byte_windows_retain_backing_offset_and_reject_transport_substitution() 
 }
 
 #[test]
+fn scalar_call_fixed_byte_window_retains_backing_and_extent() {
+    // A scalar-result call lends the same caller-backed window a Unit call
+    // does: the borrowed view is a call-scoped presentation, and the scalar
+    // result carries no custody of the backing.
+    let source = source_plan(
+        r#"
+            data Main { bytes: [u8; 41]; }
+            data Helper {}
+            machine Helper::measure(source: &[u8]) -> u64 {
+                source.len
+            }
+            machine Main::run(&mut self) {
+                let observed: u64 = Helper::measure(&self.bytes[1..41]);
+            }
+        "#,
+    );
+    for native in [NativeTarget::macos_arm64(), NativeTarget::windows_x64()] {
+        let target =
+            crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+                .expect("scalar call over a fixed byte window lowers");
+        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
+        let argument = target
+            .functions
+            .iter()
+            .flat_map(|function| &function.graph.blocks)
+            .flat_map(|block| &block.operations)
+            .find_map(|operation| match operation {
+                TargetUnitOperation::Call { arguments, .. } => arguments.first(),
+                _ => None,
+            })
+            .expect("scalar call structural argument");
+        assert_eq!(argument.fixed_array_length, Some(40));
+        assert_eq!(argument.element_stride, Some(1));
+        assert_eq!(argument.source_byte_offset, 1);
+        for mutation in 0..3 {
+            let changed = mutate_call_arguments(&target, |argument| match mutation {
+                0 => argument.source_byte_offset += 1,
+                1 => argument.fixed_array_length = Some(41),
+                _ => argument.element_stride = Some(2),
+            });
+            assert!(
+                crate::validate_abstract_to_target_translation(&source, native, &changed).is_err(),
+                "{native:?}, window mutation {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
 fn projected_field_borrow_rejects_substituted_identity_access_shape_and_placement() {
     let source = projected_field_borrow_plan();
     let expected =

@@ -435,7 +435,7 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
                 program,
                 actual.type_reference,
                 required.type_reference,
-                trait_definition,
+                &trait_definition.lifetime_parameters,
                 machine,
                 trait_lifetime_arguments,
             ) {
@@ -473,7 +473,7 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
             program,
             state.return_type,
             requirement.return_type,
-            trait_definition,
+            &trait_definition.lifetime_parameters,
             machine,
             trait_lifetime_arguments,
         )
@@ -802,13 +802,17 @@ pub(crate) fn type_references_match_with_trait_bindings(
 }
 
 /// Recheck the part of a requirement type erased by ordinary runtime type
-/// equality. Only lifetimes owned by the target trait are substituted here;
-/// callable-local lifetime semantics remain with their existing owner.
-fn type_reference_lifetimes_match_requirement_application(
+/// equality. `target_lifetimes` is the telescope a `required` lifetime
+/// mention resolves against — the target trait's parameters for a trait
+/// conformance, or the requirement machine's own telescope for a top-level
+/// `boundary requirement` — and `raw_application` maps each target ordinal to
+/// the realizing machine's lifetime ordinal. Lifetimes outside
+/// `target_lifetimes` are callable-local and keep their existing owner.
+pub(crate) fn type_reference_lifetimes_match_requirement_application(
     program: &TypedTrees,
     actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
-    trait_definition: &TraitDefinition,
+    target_lifetimes: &[typed_trees::name::Identifier],
     machine: &Machine,
     raw_application: &[u32],
 ) -> bool {
@@ -834,14 +838,14 @@ fn type_reference_lifetimes_match_requirement_application(
             requirement_lifetime_matches(
                 actual_lifetime.as_ref(),
                 required_lifetime.as_ref(),
-                trait_definition,
+                target_lifetimes,
                 machine,
                 raw_application,
             ) && type_reference_lifetimes_match_requirement_application(
                 program,
                 *actual_referee,
                 *required_referee,
-                trait_definition,
+                target_lifetimes,
                 machine,
                 raw_application,
             )
@@ -859,7 +863,7 @@ fn type_reference_lifetimes_match_requirement_application(
             program,
             *actual_base,
             *required_base,
-            trait_definition,
+            target_lifetimes,
             machine,
             raw_application,
         ),
@@ -884,7 +888,7 @@ fn type_reference_lifetimes_match_requirement_application(
             program,
             *actual_element,
             *required_element,
-            trait_definition,
+            target_lifetimes,
             machine,
             raw_application,
         ),
@@ -906,7 +910,7 @@ fn type_reference_lifetimes_match_requirement_application(
                         requirement_lifetime_matches(
                             Some(actual_lifetime),
                             Some(required_lifetime),
-                            trait_definition,
+                            target_lifetimes,
                             machine,
                             raw_application,
                         )
@@ -927,7 +931,7 @@ fn type_reference_lifetimes_match_requirement_application(
                             program,
                             *actual_argument,
                             *required_argument,
-                            trait_definition,
+                            target_lifetimes,
                             machine,
                             raw_application,
                         )
@@ -940,15 +944,14 @@ fn type_reference_lifetimes_match_requirement_application(
 fn requirement_lifetime_matches(
     actual: Option<&typed_trees::name::Identifier>,
     required: Option<&typed_trees::name::Identifier>,
-    trait_definition: &TraitDefinition,
+    target_lifetimes: &[typed_trees::name::Identifier],
     machine: &Machine,
     raw_application: &[u32],
 ) -> bool {
     let Some(required) = required else {
         return true;
     };
-    let Some(trait_ordinal) = trait_definition
-        .lifetime_parameters
+    let Some(trait_ordinal) = target_lifetimes
         .iter()
         .position(|parameter| parameter.as_str() == required.as_str())
     else {
