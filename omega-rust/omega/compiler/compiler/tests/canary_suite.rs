@@ -322,6 +322,12 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
 /// Pure checked-semantics canaries. These deliberately do not enter native
 /// lowering and therefore do not require a deployable `ProgramEntry` binding.
 const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
+    // Native production stops at `Lowering(Unsupported("Unit graph borrowed
+    // slice is not bytes"))`: the Unit graph admits a borrowed slice only as
+    // bytes, and this fixture lends a `[u64; 3]` field to a `&mut [u64]`
+    // parameter. Source checking admits it, which is what the fixture pins;
+    // promote once the Unit graph carries non-byte borrowed element views.
+    "entry/service_borrowed_slice_call",
     "borrows/borrow_chained_premise_index_mut",
     "borrows/borrow_proposition_index_disequality_mut",
     "proofs/mathematical_call_premises",
