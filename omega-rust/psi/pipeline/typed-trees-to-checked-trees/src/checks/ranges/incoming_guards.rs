@@ -1019,19 +1019,7 @@ fn guard_uses_machine_storage_only(
 #[cfg(test)]
 mod tests {
     use super::IncomingGuardIndex;
-
-    fn typed(source: &str) -> typed_trees::TypedTrees {
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .expect("tokens");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("resolved source");
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("typed source")
-    }
+    use crate::tests::front_end::typed_program;
 
     fn incoming(program: &typed_trees::TypedTrees) -> IncomingGuardIndex {
         let frames = validation::CallFrameResolver::new(program).expect("call frames");
@@ -1057,7 +1045,7 @@ mod tests {
                 "let saved: u64 = position; transition { _ -> finish(boundary, saved) }",
             ),
         ] {
-            let program = typed(&source);
+            let program = typed_program(&source);
             let machine = &program.machines()[0];
             let states = program.machine_states(machine);
             let entry_parameters = program.state_parameters(&states[0]);
@@ -1088,7 +1076,7 @@ mod tests {
                 "transition { _ -> finish",
                 "position = boundary; transition { _ -> finish",
             );
-        let program = typed(&source);
+        let program = typed_program(&source);
         let machine = &program.machines()[0];
         let states = program.machine_states(machine);
         let parameters = program.state_parameters(&states[2]);
@@ -1117,7 +1105,7 @@ mod tests {
     #[test]
     fn references_and_noninteger_values_keep_only_generic_place_transport() {
         for carrier in ["&mut u64", "bool"] {
-            let program = typed(&format!(
+            let program = typed_program(&format!(
                 r#"
                 machine walk(flag: bool, value: {carrier}) -> u64 {{
                     transition flag {{ true -> middle(value) false -> 0 }}
@@ -1170,7 +1158,7 @@ mod tests {
             if mutable_left {
                 source = source.replace("state left(position:", "state left(mut position:");
             }
-            let program = typed(&source);
+            let program = typed_program(&source);
             let machine = &program.machines()[0];
             let states = program.machine_states(machine);
             let entry = &states[0];
@@ -1198,7 +1186,7 @@ mod tests {
 
     #[test]
     fn entry_backedge_cannot_establish_a_guard_at_entry_or_its_descendant() {
-        let program = typed(
+        let program = typed_program(
             r#"
             machine walk(index: u64, cut: u64) -> u64 {
                 transition { _ -> body(index, cut) }
@@ -1221,7 +1209,7 @@ mod tests {
 
     #[test]
     fn self_backedge_participates_in_the_guard_meet() {
-        let program = typed(
+        let program = typed_program(
             r#"
             data Main { index: u64; cut: u64; }
             machine Main::walk(&mut self) -> u64 {

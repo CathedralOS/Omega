@@ -1,14 +1,4 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
-
-fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-}
+use crate::tests::front_end::checked_program_result;
 
 fn float_ordering_declarations(scalar: &str) -> String {
     format!(
@@ -56,21 +46,24 @@ fn computed_index_source(declarations: &str) -> String {
 #[test]
 fn builtin_slice_length_guards_prove_head_and_tail_on_both_edges() {
     let source = slice_source("");
-    check(&source).unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
+    checked_program_result(&source)
+        .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
 }
 
 #[test]
 fn unrelated_float_ordering_preserves_slice_length_guards() {
     for scalar in ["f32", "f64"] {
         let source = slice_source(&float_ordering_declarations(scalar));
-        check(&source).unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
+        checked_program_result(&source)
+            .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
     }
 }
 
 #[test]
 fn selected_integer_greater_cannot_supply_head_or_tail_bounds() {
     let source = slice_source("operator > u64::custom(left: u64, right: u64) -> bool;");
-    let diagnostics = check(&source).expect_err("selected user ordering cannot prove bounds");
+    let diagnostics =
+        checked_program_result(&source).expect_err("selected user ordering cannot prove bounds");
     for expected in ["cannot prove index", "cannot prove subslice range"] {
         assert!(
             diagnostics
@@ -84,14 +77,16 @@ fn selected_integer_greater_cannot_supply_head_or_tail_bounds() {
 #[test]
 fn builtin_computed_index_guard_reaches_successor_state() {
     let source = computed_index_source("");
-    check(&source).unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
+    checked_program_result(&source)
+        .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
 }
 
 #[test]
 fn unrelated_float_ordering_preserves_computed_index_guard() {
     for scalar in ["f32", "f64"] {
         let source = computed_index_source(&float_ordering_declarations(scalar));
-        check(&source).unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
+        checked_program_result(&source)
+            .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
     }
 }
 
@@ -100,14 +95,16 @@ fn unrelated_float_ordering_preserves_explicitly_typed_computed_index_guard() {
     for scalar in ["f32", "f64"] {
         let source = computed_index_source(&float_ordering_declarations(scalar))
             .replace("self.depth - 1", "self.depth - 1u64");
-        check(&source).unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
+        checked_program_result(&source)
+            .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
     }
 }
 
 #[test]
 fn selected_integer_less_cannot_supply_computed_index_bound() {
     let source = computed_index_source("operator < u64::custom(left: u64, right: u64) -> bool;");
-    let diagnostics = check(&source).expect_err("selected user ordering cannot prove bounds");
+    let diagnostics =
+        checked_program_result(&source).expect_err("selected user ordering cannot prove bounds");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("cannot prove index")
@@ -120,8 +117,8 @@ fn selected_integer_less_cannot_supply_computed_index_bound() {
 #[test]
 fn selected_integer_subtraction_cannot_supply_computed_index_bound() {
     let source = computed_index_source("operator - u64::custom(left: u64, right: u64) -> u64;");
-    let diagnostics =
-        check(&source).expect_err("selected subtraction cannot supply builtin bounds");
+    let diagnostics = checked_program_result(&source)
+        .expect_err("selected subtraction cannot supply builtin bounds");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("cannot prove index")
@@ -137,8 +134,8 @@ fn heterogeneous_ordering_with_anonymous_literal_cannot_supply_computed_index_bo
     // operand's u64 type must not copy that type onto the independent literal
     // and thereby discard this still-participating heterogeneous candidate.
     let source = computed_index_source("operator < u64::custom(left: u64, right: f64) -> bool;");
-    let diagnostics =
-        check(&source).expect_err("unknown literal cannot exclude an operator candidate");
+    let diagnostics = checked_program_result(&source)
+        .expect_err("unknown literal cannot exclude an operator candidate");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("cannot prove index")
@@ -160,8 +157,8 @@ fn nominal_float_len_field_retains_selected_ordering_without_builtin_bound_meani
                  value.len > 0.0f64
              }}"
         );
-        let checked =
-            check(&source).unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
+        let checked = checked_program_result(&source)
+            .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
         let comparison = checked
             .facts
             .operators

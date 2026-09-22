@@ -1,4 +1,4 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::tests::front_end::typed_program;
 
 /// An exclusive `&mut`/`&write` borrow of a bare reference binding is a
 /// reborrow: the callee receives the binding's own referent, never the binding
@@ -142,10 +142,7 @@ fn computed_reborrows_publish_proven_referents_and_fail_closed() {
             machine Main::run(&mut self{parameters}) {{ {prefix} {statement} }}
             "#
         );
-        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let typed = typed_program(&source);
         let resolver = validation::CallFrameResolver::new(&typed).expect("resolver");
         let machine = typed
             .machines()

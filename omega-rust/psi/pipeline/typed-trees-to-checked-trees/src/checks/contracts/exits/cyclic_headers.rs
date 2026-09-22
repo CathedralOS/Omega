@@ -1014,7 +1014,7 @@ mod tests {
 
     fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
         lower_typed_trees(
-            crate::tests::parse_typed_trees_with_core_service(&format!(
+            crate::tests::front_end::typed_program_with_core_service(&format!(
                 "boundary trait MachineControl {{}}\nboundary trait PortIo {{}}\n{source}"
             )),
             &CheckingRequest::settled(),

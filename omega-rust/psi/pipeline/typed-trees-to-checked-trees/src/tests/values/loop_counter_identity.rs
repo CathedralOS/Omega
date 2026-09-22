@@ -1,6 +1,6 @@
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
-use crate::tests::values::typed_trees;
+use crate::tests::front_end::typed_program;
 
 fn loop_source(receiver: &str) -> String {
     format!(
@@ -20,14 +20,14 @@ fn loop_source(receiver: &str) -> String {
 #[test]
 fn saturating_self_counter_keeps_its_own_loop_bound() {
     let source = loop_source("self");
-    lower_typed_trees(typed_trees(&source), &CheckingRequest::settled())
+    lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
 }
 
 #[test]
 fn another_receivers_field_cannot_establish_self_counter_monotonicity() {
     let source = loop_source("other");
-    let diagnostics = lower_typed_trees(typed_trees(&source), &CheckingRequest::settled())
+    let diagnostics = lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
         .expect_err("another receiver's possibly negative index cannot establish self.index >= 0");
     assert!(
         diagnostics.iter().any(|diagnostic| {

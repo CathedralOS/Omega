@@ -4,11 +4,7 @@
 //! every roster tuple's provider specialization.
 
 use super::{check_dynamic_source, sole_direct_dynamic_plan, sole_direct_dynamic_unit_plan};
-use crate::CheckingRequest;
-use crate::tests::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees,
-    resolve,
-};
+use crate::tests::front_end::{checked_program_result, typed_program};
 
 /// One `Value`-binder requirement declared as a finite two-tuple family,
 /// realized by a generic provider inside the selected conformance. No static
@@ -195,13 +191,7 @@ fn dynamic_family_call_selects_exact_tuple_and_generates_complete_roster() {
 
 #[test]
 fn dynamic_family_call_rejects_a_value_outside_the_roster() {
-    let tokens = Lexer::new(NON_MEMBER_CALL_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let Err(errors) = lower_typed_trees(typed, &CheckingRequest::settled()) else {
+    let Err(errors) = checked_program_result(NON_MEMBER_CALL_SOURCE) else {
         panic!("a non-member tuple must not select a family row")
     };
     assert!(
@@ -216,13 +206,7 @@ fn dynamic_family_call_rejects_a_value_outside_the_roster() {
 
 #[test]
 fn dynamic_call_rejects_a_generic_requirement_without_a_family() {
-    let tokens = Lexer::new(UNBOUNDED_CALL_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let Err(errors) = lower_typed_trees(typed, &CheckingRequest::settled()) else {
+    let Err(errors) = checked_program_result(UNBOUNDED_CALL_SOURCE) else {
         panic!("an unbounded generic requirement stays dynamically ineligible")
     };
     assert!(
@@ -344,13 +328,7 @@ fn dynamic_family_call_preserves_correlated_roster_tuples() {
 
 #[test]
 fn dynamic_family_call_rejects_an_uncorrelated_tuple() {
-    let tokens = Lexer::new(UNCORRELATED_CALL_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let Err(errors) = lower_typed_trees(typed, &CheckingRequest::settled()) else {
+    let Err(errors) = checked_program_result(UNCORRELATED_CALL_SOURCE) else {
         panic!("an uncorrelated tuple must not select a family row")
     };
     assert!(
@@ -368,12 +346,7 @@ fn boundary_family_demand_rejects_an_open_roster() {
     // A fabricated boundary demand naming a requirement whose roster is open
     // must reject: demand collection only emits `Finite` requirements, so a
     // `NotFinite` probe here is orchestration drift, not a partial demand.
-    let tokens = Lexer::new(UNBOUNDED_CALL_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let mut typed = typed_program(UNBOUNDED_CALL_SOURCE);
     let requirement = typed
         .traits()
         .iter()
@@ -638,13 +611,7 @@ fn forwarded_family_call_joins_the_parameter_side_tuple() {
 
 #[test]
 fn dynamic_family_call_rejects_a_generic_caller_tuple() {
-    let tokens = Lexer::new(GENERIC_CALLER_TUPLE_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let Err(errors) = lower_typed_trees(typed, &CheckingRequest::settled()) else {
+    let Err(errors) = checked_program_result(GENERIC_CALLER_TUPLE_SOURCE) else {
         panic!("a generic-spelled tuple is not a closed roster tuple")
     };
     assert!(
@@ -659,13 +626,7 @@ fn dynamic_family_call_rejects_a_generic_caller_tuple() {
 
 #[test]
 fn dynamic_family_call_rejects_a_nongeneric_provider() {
-    let tokens = Lexer::new(NONGENERIC_PROVIDER_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let Err(errors) = lower_typed_trees(typed, &CheckingRequest::settled()) else {
+    let Err(errors) = checked_program_result(NONGENERIC_PROVIDER_SOURCE) else {
         panic!("a nongeneric provider cannot cover a finite family")
     };
     assert!(

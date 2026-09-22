@@ -3,18 +3,11 @@
 //! caller's storage, and conversion policies the selected scalar plan has no
 //! node for (today `Saturating`). A case that cannot carry evidence must keep
 //! rejecting — nothing here invents a value or a tighter bound.
+use crate::tests::front_end::checked_program_result;
 use checked_trees::CheckedTrees;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 fn check(source: &str) -> Result<CheckedTrees, Vec<String>> {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).map_err(|diagnostics| {
+    checked_program_result(source).map_err(|diagnostics| {
         diagnostics
             .iter()
             .map(|diagnostic| diagnostic.message.clone())

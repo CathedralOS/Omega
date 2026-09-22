@@ -1,4 +1,4 @@
-use super::checked_source;
+use crate::tests::front_end::{checked_program, checked_program_result};
 
 const GUARDED_WINDOW: &str = r#"
     data Main { items: [i32; 4]; }
@@ -19,7 +19,7 @@ const GUARDED_WINDOW: &str = r#"
 
 #[test]
 fn incoming_guard_certifies_disjoint_write_and_call_after_parameter_forwarding() {
-    let mut checked = checked_source(GUARDED_WINDOW);
+    let mut checked = checked_program(GUARDED_WINDOW);
     assert!(
         checked
             .facts
@@ -48,7 +48,7 @@ fn incoming_guard_certifies_a_second_disjoint_loan_without_widening_authority() 
         "self.items[position] = 3;\n            take(&mut self.items[position]);",
         "let outside: &mut i32 = &mut self.items[position]; outside = 3;",
     );
-    let mut checked = checked_source(&source);
+    let mut checked = checked_program(&source);
     assert!(
         checked
             .facts
@@ -65,17 +65,7 @@ fn incoming_guard_certifies_a_second_disjoint_loan_without_widening_authority() 
 }
 
 fn assert_conflict(source: &str) {
-    use crate::tests::{
-        Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-    };
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize guard control");
-    let syntax = parse_syntax_trees(&tokens).expect("parse guard control");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve guard control");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type guard control");
-    let diagnostics = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
-        .expect_err("overlapping loan must reject");
+    let diagnostics = checked_program_result(source).expect_err("overlapping loan must reject");
     assert!(
         diagnostics
             .iter()
@@ -119,7 +109,7 @@ fn guard_polarity_boolean_structure_and_transitive_forwarding_replay() {
             ),
     ];
     for source in variants {
-        let mut checked = checked_source(&source);
+        let mut checked = checked_program(&source);
         assert!(
             checked
                 .facts
@@ -183,7 +173,7 @@ fn mutable_intermediate_and_destination_values_cannot_reuse_old_guard_relations(
 
 #[test]
 fn incoming_guard_identity_and_polarity_are_replayed_not_trusted() {
-    let original = checked_source(GUARDED_WINDOW);
+    let original = checked_program(GUARDED_WINDOW);
     for tamper in 0..3 {
         let mut checked = original.clone();
         let certificates = checked
@@ -229,7 +219,7 @@ fn replay_reconstructs_changed_guard_and_intermediate_argument_source() {
     use typed_trees::expression::ExpressionNode;
     use typed_trees::statement::{StatementNode, TransitionTargetNode};
     for change_guard in [false, true] {
-        let mut checked = checked_source(&forwarded_window());
+        let mut checked = checked_program(&forwarded_window());
         if change_guard {
             let guard = checked
                 .facts

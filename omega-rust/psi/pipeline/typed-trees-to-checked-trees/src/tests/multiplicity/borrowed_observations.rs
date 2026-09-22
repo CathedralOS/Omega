@@ -1,14 +1,4 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
-
-fn check_source(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = Lexer::new(source).tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    lower_typed_trees(typed, &CheckingRequest::settled())
-}
+use crate::tests::front_end::checked_program_result;
 
 #[test]
 fn intrinsic_enum_equality_observes_two_borrowed_fields() {
@@ -16,7 +6,7 @@ fn intrinsic_enum_equality_observes_two_borrowed_fields() {
         let source = format!(
             "data Kind {{ case A; case B; }} data Pair {{ left: Kind; right: Kind; }} machine Pair::same(&self) -> bool {{ self.left {operator} self.right }}"
         );
-        check_source(&source).expect("intrinsic equality observes both enum tags");
+        checked_program_result(&source).expect("intrinsic equality observes both enum tags");
     }
 }
 
@@ -34,9 +24,9 @@ fn borrowed_operator_result_preserves_owned_argument_consumption() {
             consume(token);
         }
     "#;
-    check_source(&source.replace("            consume(token);", ""))
+    checked_program_result(&source.replace("            consume(token);", ""))
         .expect("single owned operator argument followed by borrowing its result is admitted");
-    let diagnostics = match check_source(source) {
+    let diagnostics = match checked_program_result(source) {
         Ok(_) => panic!("operator computation consumes token"),
         Err(diagnostics) => diagnostics,
     };
@@ -58,7 +48,7 @@ fn intrinsic_equality_preserves_owned_nested_call_arguments() {
         machine choose(token: Token) -> Kind { Kind::A }
         machine Pair::same(&self) -> bool { self.left == choose(self.token) }
     "#;
-    let diagnostics = match check_source(source) {
+    let diagnostics = match checked_program_result(source) {
         Ok(_) => panic!("nested call transfers borrowed token"),
         Err(diagnostics) => diagnostics,
     };
@@ -81,19 +71,19 @@ fn borrowed_index_operator_result_preserves_owned_collection_consumption() {
             consume(items);
         }
     "#;
-    check_source(&source.replace("            consume(items);", ""))
+    checked_program_result(&source.replace("            consume(items);", ""))
         .expect("borrowing one owned index operator result is admitted");
     let direct = source.replace(
         "let view: &i32 = &items[index];",
         "let value: i32 = items[index];",
     );
-    check_source(&direct.replace("            consume(items);", ""))
+    checked_program_result(&direct.replace("            consume(items);", ""))
         .expect("one direct index result consumes its collection once");
     assert!(
-        check_source(&direct).is_err(),
+        checked_program_result(&direct).is_err(),
         "direct index result must retain collection consumption"
     );
-    let diagnostics = match check_source(source) {
+    let diagnostics = match checked_program_result(source) {
         Ok(_) => panic!("index operator consumes its owned collection"),
         Err(diagnostics) => diagnostics,
     };
@@ -116,7 +106,7 @@ fn borrowed_index_operator_result_cannot_consume_borrowed_collection() {
             let view: &i32 = &self.buffer[index];
         }
     "#;
-    let diagnostics = match check_source(source) {
+    let diagnostics = match checked_program_result(source) {
         Ok(_) => panic!("index operator cannot consume a borrowed collection"),
         Err(diagnostics) => diagnostics,
     };
@@ -136,7 +126,7 @@ fn authored_case_equality_cannot_consume_borrowed_operand() {
         data Pair { left: Kind; }
         machine Pair::same(&self) -> bool { self.left == Kind::A }
     "#;
-    let diagnostics = match check_source(source) {
+    let diagnostics = match checked_program_result(source) {
         Ok(_) => panic!("authored equality consumes its owned operand"),
         Err(diagnostics) => diagnostics,
     };
@@ -161,9 +151,9 @@ fn indexed_operand_access_preserves_shared_collection_and_owned_index() {
             consume(index);
         }
     "#;
-    check_source(&source.replace("            consume(index);", ""))
+    checked_program_result(&source.replace("            consume(index);", ""))
         .expect("shared collection remains observed while index moves once");
-    let diagnostics = match check_source(source) {
+    let diagnostics = match checked_program_result(source) {
         Ok(_) => panic!("authored index consumes its owned index operand"),
         Err(diagnostics) => diagnostics,
     };
@@ -194,7 +184,7 @@ fn borrowed_indexed_collection_reborrows_into_the_attached_receiver() {
                  {declaration}
                  machine read(buffer: {access} Buffer, {operands}) -> i32 {{ {tail} }}"
             );
-            check_source(&source).unwrap_or_else(|diagnostics| {
+            checked_program_result(&source).unwrap_or_else(|diagnostics| {
                 panic!("borrowed collection reborrows into the attached receiver: {diagnostics:#?}")
             });
         }
@@ -209,7 +199,7 @@ fn borrowed_indexed_collection_cannot_move_into_an_owned_receiver() {
         machine [] Buffer::take(self, index: Index) -> i32 { self.value }
         machine read(buffer: &Buffer, index: Index) -> i32 { buffer[index] }
     "#;
-    let diagnostics = match check_source(source) {
+    let diagnostics = match checked_program_result(source) {
         Ok(_) => panic!("borrowed storage cannot move into an owned `self` receiver"),
         Err(diagnostics) => diagnostics,
     };
@@ -235,7 +225,7 @@ fn ordinary_first_parameter_gains_no_receiver_adaptation() {
             let view: &i32 = &self.buffer[index];
         }
     "#;
-    let diagnostics = match check_source(source) {
+    let diagnostics = match checked_program_result(source) {
         Ok(_) => {
             panic!("an ordinary `items: &Buffer` parameter must not select at `buffer[index]`")
         }

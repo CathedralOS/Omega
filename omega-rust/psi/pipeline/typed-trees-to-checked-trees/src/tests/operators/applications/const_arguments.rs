@@ -1,10 +1,5 @@
-use super::{
-    Identifier, Lexer, OperatorSpelling, ResolutionRequest, StateParameter, SymbolHandle,
-    lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
-use crate::tests::operators::checked_program_from_source;
+use super::{Identifier, OperatorSpelling, StateParameter, SymbolHandle};
+use crate::tests::front_end::{checked_program, checked_program_result};
 use crate::tests::operators::named_type;
 use crate::tests::operators::operator_with_spelling;
 
@@ -12,7 +7,7 @@ use language_semantics::const_value::{CanonicalConstIdentity, DecodedCanonicalCo
 
 #[test]
 fn checked_named_boundary_use_retains_inferred_const_value_and_carrier() {
-    let checked = checked_program_from_source(
+    let checked = checked_program(
         r#"
         data ArrayOps {}
 
@@ -61,7 +56,7 @@ fn checked_named_boundary_use_retains_inferred_const_value_and_carrier() {
 
 #[test]
 fn checked_spelled_boundary_use_retains_inferred_const_value() {
-    let checked = checked_program_from_source(
+    let checked = checked_program(
         r#"
         boundary operator == Array::equal<const N: u64>(
             left: [u8; N],
@@ -87,7 +82,7 @@ fn checked_spelled_boundary_use_retains_inferred_const_value() {
 
 #[test]
 fn explicit_const_argument_must_corroborate_the_operand_value() {
-    let accepted = checked_program_from_source(
+    let accepted = checked_program(
         r#"
         data ArrayOps {}
         boundary operator ArrayOps::same_length<const N: u64>(
@@ -101,7 +96,7 @@ fn explicit_const_argument_must_corroborate_the_operand_value() {
     );
     assert_eq!(accepted.facts.operators.boundary_applications.len(), 1);
 
-    let tokens = Lexer::new(
+    let diagnostics = checked_program_result(
         r#"
         data ArrayOps {}
         boundary operator ArrayOps::same_length<const N: u64>(
@@ -113,13 +108,7 @@ fn explicit_const_argument_must_corroborate_the_operand_value() {
         }
         "#,
     )
-    .tokenize()
-    .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("mismatched const must reject");
+    .expect_err("mismatched const must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -129,7 +118,7 @@ fn explicit_const_argument_must_corroborate_the_operand_value() {
 
 #[test]
 fn repeated_const_binder_rejects_inconsistent_operand_lengths() {
-    let tokens = Lexer::new(
+    let diagnostics = checked_program_result(
         r#"
         data ArrayOps {}
         boundary operator ArrayOps::same_length<const N: u64>(
@@ -141,13 +130,7 @@ fn repeated_const_binder_rejects_inconsistent_operand_lengths() {
         }
         "#,
     )
-    .tokenize()
-    .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("inconsistent N must reject");
+    .expect_err("inconsistent N must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -157,7 +140,7 @@ fn repeated_const_binder_rejects_inconsistent_operand_lengths() {
 
 #[test]
 fn mixed_type_and_const_application_retains_declaration_order() {
-    let checked = checked_program_from_source(
+    let checked = checked_program(
         r#"
         data ArrayOps {}
         boundary operator ArrayOps::same<const N: u64, Element>(
@@ -190,7 +173,7 @@ fn mixed_type_and_const_application_retains_declaration_order() {
 
 #[test]
 fn synthesized_generic_operand_recovers_its_const_application() {
-    let checked = checked_program_from_source(
+    let checked = checked_program(
         r#"
         data Block<const N: u64> { bytes: [u8; N]; }
         data BlockOps {}
@@ -217,7 +200,7 @@ fn synthesized_generic_operand_recovers_its_const_application() {
 
 #[test]
 fn inferred_const_value_must_fit_the_declared_carrier() {
-    let tokens = Lexer::new(
+    let diagnostics = checked_program_result(
         r#"
         data ArrayOps {}
         boundary operator ArrayOps::same_length<const N: u8>(
@@ -229,13 +212,7 @@ fn inferred_const_value_must_fit_the_declared_carrier() {
         }
         "#,
     )
-    .tokenize()
-    .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("out-of-range const must reject");
+    .expect_err("out-of-range const must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -245,7 +222,7 @@ fn inferred_const_value_must_fit_the_declared_carrier() {
 
 #[test]
 fn spelled_const_application_reports_an_invalid_declared_carrier_value() {
-    let tokens = Lexer::new(
+    let diagnostics = checked_program_result(
         r#"
         boundary operator == Array::equal<const N: u8>(
             left: [u8; N],
@@ -256,13 +233,7 @@ fn spelled_const_application_reports_an_invalid_declared_carrier_value() {
         }
         "#,
     )
-    .tokenize()
-    .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("out-of-range const must reject");
+    .expect_err("out-of-range const must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message

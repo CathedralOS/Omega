@@ -3,6 +3,7 @@ use super::{
     CheckedScalarExpression, LandedIntegerType, PrimitiveType, ScalarValue, ScalarValueSource,
     evaluate,
 };
+use crate::tests::front_end::checked_program;
 use crate::values::BoundScalarValues;
 use numerics::{
     arithmetic::ArithmeticDomain,
@@ -452,18 +453,7 @@ fn comparisons_retain_integer_width_signedness_and_full_unsigned_precision() {
 
 #[test]
 fn generated_return_plan_preserves_explicit_integer_landing() {
-    let tokens = source_files_to_tokens::Lexer::new("machine value() -> u8 { 3u8 + 4u8 }")
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    let program = crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
-        .expect("checked lowering retains landed operands");
+    let program = checked_program("machine value() -> u8 { 3u8 + 4u8 }");
     let plans = &program.facts.values.scalar_expressions;
     let state = &program.machine_states(&program.machines()[0])[0];
     let expression = plans

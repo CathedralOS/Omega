@@ -1,5 +1,4 @@
-use super::{Lexer, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees};
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+use super::lower_typed_trees;
 
 mod crash_routes;
 mod data_facts;

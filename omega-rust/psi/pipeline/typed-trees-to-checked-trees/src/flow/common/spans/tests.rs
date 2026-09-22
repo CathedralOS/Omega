@@ -6,6 +6,7 @@ use crate::flow::common::filter_constraint_refs;
 use crate::flow::project_constraint_refs_to_active_contexts;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
+use crate::tests::front_end::checked_program;
 use arena::{Handle, HandleSpan};
 use checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
 use facts::{FactPlan, ProgramPoint};
@@ -21,18 +22,7 @@ fn repeated_call_checking_retains_shared_context_storage() {
         source.push_str("Helper::touch();\n");
     }
     source.push_str("value }");
-    let tokens = source_files_to_tokens::Lexer::new(&source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
-        .expect("check repeated calls");
+    let checked = checked_program(&source);
     let flow = &checked.facts.flow;
     assert_eq!(flow.control.calls.len(), 64);
     let selected_context_rows: usize = flow

@@ -1,18 +1,10 @@
 use super::DataMember;
 use crate::execution::terminal_unit::types::partial_affine_source_contents_are_owned;
+use crate::tests::front_end::typed_program;
 
 fn field_is_owned(spelling: &str) -> bool {
     let source = format!("data Carrier {{ value: {spelling}; }}");
-    let tokens = source_files_to_tokens::Lexer::new(&source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let program = typed_program(&source);
     let data = program
         .data_definitions()
         .iter()

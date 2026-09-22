@@ -1,12 +1,13 @@
-use super::{parameter_place, typed_source};
+use super::parameter_place;
 use crate::checks::ranges::facts::RangeFacts;
 use crate::flow::CanonicalPlace;
+use crate::tests::front_end::typed_program;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 use typed_trees::{TypedTrees, machine::Machine, state::State};
 
 fn atomic_source(body: &str) -> TypedTrees {
-    typed_source(&format!(
+    typed_program(&format!(
         "data Host {{
             counter: AtomicU32;
             other: AtomicU32;
@@ -371,7 +372,7 @@ fn writing_atomic_axes_without_a_complete_footprint_stay_incomplete() {
 
     // A stored operand whose own reads cannot be proven keeps the store
     // incomplete: the resident place alone is not the footprint.
-    let program = typed_source(
+    let program = typed_program(
         "data Host { counter: AtomicU32; }
         machine compute(value: u32) -> u32 { value }
         machine Host::window(&mut self, delta: u32) {

@@ -2,6 +2,7 @@ use super::{BorrowAccessKind, FlowBorrowWeakeningReason};
 use crate::execution::terminal_unit::receiver_aliases::tests::aliases;
 use crate::execution::terminal_unit::receiver_aliases::tests::checked;
 use crate::execution::terminal_unit::receiver_aliases::tests::fixture;
+use crate::tests::front_end::typed_program;
 
 #[test]
 fn mutable_root_cannot_widen_its_write_only_child() {
@@ -16,16 +17,7 @@ fn mutable_root_cannot_widen_its_write_only_child() {
                  child[1].replace(value);
              }}"
         );
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let typed =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let typed = typed_program(&source);
         assert!(
             crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).is_err(),
             "write-only parent to {access}"

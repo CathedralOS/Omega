@@ -1,7 +1,7 @@
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
-use crate::tests::termination::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
+use crate::tests::front_end::{
+    checked_program, checked_program_result, resolved_program, typed_program,
 };
 
 /// TPR3 slice 4: the checked termination facts -- the `checked_summary`'s
@@ -32,13 +32,7 @@ fn checked_termination_plans_record_summaries_and_resolved_views() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
 
     let machine = |name: &str| {
         typed
@@ -128,13 +122,7 @@ fn checked_proof_scc_retains_every_exact_structural_subterm_call_site() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let machine_symbol = |name: &str| {
         typed
             .machines()
@@ -259,13 +247,7 @@ fn checked_singleton_proof_scc_retains_its_exact_self_edge() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let descend = typed
         .machines()
         .iter()
@@ -306,13 +288,7 @@ fn inferred_completion_never_publishes_a_promise() {
     machine Main::promised(&mut self) -> u64 terminates; { 1 }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let symbol_of = |name: &str| {
         typed
             .machines()
@@ -376,12 +352,7 @@ fn trait_requirement_guarantee_propagates_to_resolved_signatures() {
     machine Main::main(&mut self) -> u64 { 7 }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
+    let resolved = resolved_program(source);
 
     let worker = resolved
         .traits
@@ -426,13 +397,7 @@ fn implementation_inherits_requirement_guarantee() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
 
     let run = typed
         .machines()
@@ -478,13 +443,7 @@ fn public_termination_omission_is_distinct_from_private_derivation() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
 
     let plan_of = |name: &str| {
         &typed
@@ -541,14 +500,7 @@ fn cyclic_inheritor_without_witness_fails_and_witness_discharges() {
 
     // Without a witness: the inherited claim cannot be checked on a cycle.
     let source = template("");
-    let tokens = Lexer::new(source.as_str())
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+    let diagnostics = checked_program_result(&source)
         .expect_err("a cyclic inheritor without a witness must fail");
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -564,13 +516,5 @@ fn cyclic_inheritor_without_witness_fails_and_witness_discharges() {
 
     // With the witness: the inherited claim discharges.
     let source = template("terminates by n;");
-    let tokens = Lexer::new(source.as_str())
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("the witness discharges the inherited claim");
+    checked_program(&source);
 }

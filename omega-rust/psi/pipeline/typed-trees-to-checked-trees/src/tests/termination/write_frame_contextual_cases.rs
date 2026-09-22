@@ -1,4 +1,4 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::tests::front_end::typed_program;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
@@ -33,10 +33,7 @@ fn contextual_case_program(body: &str) -> typed_trees::TypedTrees {
         machine foreign(value: &mut u64) {{ let local: Choice = Choice::Selected {{ view: View {{ body: value }} }}; }}
         "#
     );
-    let syntax =
-        parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
+    typed_program(&source)
 }
 
 fn visible_paths(paths: Option<Vec<String>>) -> Option<Vec<String>> {
@@ -352,10 +349,7 @@ fn named_state_payload_calls_retain_state_scoped_case_evidence() {
             machine probe(value: &mut u64) {{ {body} }}
         "#
         );
-        let syntax =
-            parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let program = lower_symbol_resolved_trees(&resolved).expect("type");
+        let program = typed_program(&source);
         let machine = program
             .machines()
             .iter()

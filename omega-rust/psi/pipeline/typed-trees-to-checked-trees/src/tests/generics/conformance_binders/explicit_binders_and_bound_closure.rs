@@ -1,6 +1,6 @@
 use crate::CheckingRequest;
-use crate::tests::{Lexer, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees};
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+use crate::tests::front_end::{checked_program, checked_program_result, typed_program};
+use crate::tests::lower_typed_trees;
 
 #[test]
 fn explicit_conformance_binder_selects_and_substitutes_one_closed_map() {
@@ -29,13 +29,7 @@ fn explicit_conformance_binder_selects_and_substitutes_one_closed_map() {
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let selected = typed
         .conformances()
         .iter()
@@ -131,15 +125,7 @@ fn explicit_conformance_binders_keep_distinct_closed_maps_as_distinct_instances(
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("each exact conformance argument should produce one specialization");
+    let checked = checked_program(source);
 
     let instances = checked
         .machine_specializations
@@ -179,10 +165,7 @@ fn nested_generic_conformance_application_closes_its_own_telescope() {
         }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
     let selected = typed
         .conformances()
         .iter()
@@ -235,10 +218,7 @@ fn selected_generic_conformance_bound_closes_and_specializes_its_application() {
         }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
     let selected = typed
         .conformances()
         .iter()
@@ -296,10 +276,7 @@ fn selected_bound_application_substitutes_forwarded_type_const_and_machine_argum
         }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
     let rank = typed
         .machines()
         .iter()
@@ -359,12 +336,7 @@ fn unused_private_selected_conformance_bound_rejects_missing_application_argumen
         {}
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("private bound must close");
+    let diagnostics = checked_program_result(source).expect_err("private bound must close");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
             "generic conformance `SequenceEncoding` requires 2 explicit non-lifetime argument(s), got 0",
@@ -387,12 +359,7 @@ fn unused_private_trait_selected_conformance_bound_is_also_closed() {
         {}
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("private trait bound must close");
+    let diagnostics = checked_program_result(source).expect_err("private trait bound must close");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
             "generic conformance `SequenceEncoding` requires 2 explicit non-lifetime argument(s), got 0",
@@ -416,12 +383,7 @@ fn unused_private_selected_conformance_bound_rejects_wrong_argument_category() {
         {}
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("wrong type category must reject");
+    let diagnostics = checked_program_result(source).expect_err("wrong type category must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -447,10 +409,5 @@ fn private_selected_conformance_bound_closes_lifetime_const_and_machine_lanes() 
         {}
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("all selected private bound lanes close");
+    checked_program(source);
 }

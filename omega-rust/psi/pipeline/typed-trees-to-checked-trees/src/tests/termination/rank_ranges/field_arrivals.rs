@@ -1,5 +1,6 @@
-use super::{lower_typed_trees, typed};
+use super::lower_typed_trees;
 use crate::CheckingRequest;
+use crate::tests::front_end::typed_program;
 
 const COUNTDOWN: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -17,7 +18,7 @@ const FRESH: &str = include_str!(concat!(
 ));
 
 fn prove(source: &str) {
-    lower_typed_trees(typed(source), &CheckingRequest::settled())
+    lower_typed_trees(typed_program(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
 }
 
@@ -122,7 +123,8 @@ fn computed_record_dependencies_do_not_authorize_effects_or_operator_meanings() 
 }
 
 fn reject(source: &str) {
-    crate::checks::termination::check_machine_termination(&typed(source)).expect_err(source);
+    crate::checks::termination::check_machine_termination(&typed_program(source))
+        .expect_err(source);
 }
 
 #[test]
@@ -487,7 +489,7 @@ fn field_arrival_proof_does_not_accept_foreign_same_spelled_handles() {
     use typed_trees::data::DataMember;
     use typed_trees::expression::{BinaryOperator, ExpressionNode};
 
-    let program = typed(&format!(
+    let program = typed_program(&format!(
         "{COUNTDOWN} data Other {{ remaining: u64 [0..=5]; }}"
     ));
     crate::checks::termination::check_machine_termination(&program).expect("valid arrival");

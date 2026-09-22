@@ -1,4 +1,4 @@
-use super::checked_source;
+use crate::tests::front_end::{checked_program, checked_program_result};
 use checked_trees::{BorrowCompatibilityDerivation, BorrowCompatibilityPremiseSource};
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionNode};
@@ -19,7 +19,7 @@ const DOMAIN_WINDOW: &str = r#"
 
 #[test]
 fn domain_membership_certifies_disjoint_window_write_and_call() {
-    let mut checked = checked_source(DOMAIN_WINDOW);
+    let mut checked = checked_program(DOMAIN_WINDOW);
     assert!(
         checked
             .facts
@@ -53,7 +53,7 @@ fn domain_predicate_boolean_structure_and_aliases_share_the_same_judgment() {
         "(self >= 2) == true",
         "false != (self >= 2)",
     ] {
-        let mut checked = checked_source(&DOMAIN_WINDOW.replace("self >= 2", predicate));
+        let mut checked = checked_program(&DOMAIN_WINDOW.replace("self >= 2", predicate));
         assert_domain_premises(&checked);
         crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
             .expect("Boolean decomposition preserves exact domain meaning");
@@ -64,7 +64,7 @@ fn domain_predicate_boolean_structure_and_aliases_share_the_same_judgment() {
             "requires split_point in u64::Upper",
             "requires split_point in u64::Alias",
         );
-    let checked = checked_source(&source);
+    let checked = checked_program(&source);
     assert_domain_premises(&checked);
 }
 
@@ -103,7 +103,7 @@ fn membership_can_separate_loans_but_cannot_license_contained_exclusive_loans() 
         "self.items[0] = 3;\n        take(&mut self.items[1]);",
         "let outside: &mut i32 = &mut self.items[1]; outside = 3;",
     );
-    let mut checked = checked_source(&source);
+    let mut checked = checked_program(&source);
     assert!(
         checked
             .facts
@@ -147,17 +147,7 @@ fn mutable_membership_subject_needs_preservation_evidence() {
 }
 
 fn assert_conflict(source: &str) {
-    use crate::tests::{
-        Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-    };
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize domain control");
-    let syntax = parse_syntax_trees(&tokens).expect("parse domain control");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve domain control");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type domain control");
-    let diagnostics = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
-        .expect_err("unproven separation rejects");
+    let diagnostics = checked_program_result(source).expect_err("unproven separation rejects");
     assert!(
         diagnostics.iter().any(
             |diagnostic| diagnostic.message.contains("while local borrow")
@@ -204,7 +194,7 @@ fn domain_predicate(
 
 #[test]
 fn replay_rejects_changed_domain_predicate() {
-    let mut checked = checked_source(DOMAIN_WINDOW);
+    let mut checked = checked_program(DOMAIN_WINDOW);
     let expression = domain_predicate(&checked);
     let ExpressionNode::Binary(binary) = checked.typed.expression_table.expression_mut(expression)
     else {
@@ -217,7 +207,7 @@ fn replay_rejects_changed_domain_predicate() {
 #[test]
 fn replay_rejects_changed_membership_subject_or_domain() {
     for change_domain in [false, true] {
-        let mut checked = checked_source(DOMAIN_WINDOW);
+        let mut checked = checked_program(DOMAIN_WINDOW);
         let handle = checked
             .typed
             .proof_facts
@@ -239,7 +229,7 @@ fn replay_rejects_changed_membership_subject_or_domain() {
 #[test]
 fn replay_rejects_retargeted_or_missing_domain_tokens() {
     for change in 0..5 {
-        let mut checked = checked_source(DOMAIN_WINDOW);
+        let mut checked = checked_program(DOMAIN_WINDOW);
         let handle = checked
             .facts
             .borrow
@@ -278,7 +268,7 @@ fn sibling_domain_self_cannot_be_grafted_into_the_membership_theory() {
         "data Main",
         "domain u64::Sibling requires self >= 2; data Main",
     );
-    let mut checked = checked_source(&source);
+    let mut checked = checked_program(&source);
     let expression = domain_predicate(&checked);
     let sibling = checked
         .typed
@@ -325,7 +315,7 @@ fn replay_rejects_authored_ordering_and_boolean_wrapper_meanings() {
             "operator Quantity::compare(left: {carrier}, right: {carrier}) -> bool; {}",
             DOMAIN_WINDOW.replace("self >= 2", predicate),
         );
-        let mut checked = checked_source(&source);
+        let mut checked = checked_program(&source);
         let operator = checked.typed.roots.operators.start();
         checked.typed.tables.operators.get_mut(operator).spelling = Some(spelling);
         assert_replay_rejects(&mut checked);
@@ -335,7 +325,7 @@ fn replay_rejects_authored_ordering_and_boolean_wrapper_meanings() {
 #[test]
 fn replay_rejects_changed_domain_carrier_and_instance_identity() {
     for change_carrier in [false, true] {
-        let mut checked = checked_source(DOMAIN_WINDOW);
+        let mut checked = checked_program(DOMAIN_WINDOW);
         let (handle, _) = checked
             .typed
             .tables
@@ -372,7 +362,7 @@ fn replay_rejects_changed_domain_carrier_and_instance_identity() {
 
 #[test]
 fn replay_rejects_jointly_missing_domain_identities() {
-    let mut checked = checked_source(DOMAIN_WINDOW);
+    let mut checked = checked_program(DOMAIN_WINDOW);
     let handle = checked
         .typed
         .proof_facts
@@ -402,7 +392,7 @@ fn replay_rejects_jointly_missing_domain_identities() {
 
 #[test]
 fn replay_rejects_foreign_carrier_symbol_behind_builtin_spelling() {
-    let mut checked = checked_source(DOMAIN_WINDOW);
+    let mut checked = checked_program(DOMAIN_WINDOW);
     let domain = checked
         .typed
         .domain_definitions()
@@ -440,7 +430,7 @@ fn domain_subject_carrier_comes_from_the_binding_not_its_display_name() {
             "requires split_point in u64::Upper;",
             "requires split_point in u64::Upper; requires other == other;",
         );
-    let mut checked = checked_source(&source);
+    let mut checked = checked_program(&source);
     let original = checked
         .typed
         .proof_facts

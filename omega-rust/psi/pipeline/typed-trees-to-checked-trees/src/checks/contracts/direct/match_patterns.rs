@@ -134,21 +134,13 @@ fn proves_scoped(
 #[cfg(test)]
 mod tests {
     use super::{ExpressionNode, proves};
+    use crate::tests::front_end::typed_program;
 
     #[test]
     fn match_comparison_substitutes_recursive_actual_only_once() {
-        let tokens = source_files_to_tokens::Lexer::new(
+        let program = typed_program(
             "machine choose(flag: bool) -> bool { match flag { false -> !flag true -> true } }",
-        )
-        .tokenize()
-        .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let program =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        );
         let dispatch = program
             .expression_table
             .iter_expressions()

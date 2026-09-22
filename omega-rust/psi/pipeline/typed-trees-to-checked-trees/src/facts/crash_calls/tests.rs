@@ -15,6 +15,7 @@ use crate::facts::crash_calls::summary_predicates::summary_boolean_value;
 use crate::facts::crash_calls::{
     SummaryCrashBucket, crash_predicate_from_expression, normalize_summary_buckets,
 };
+use crate::tests::front_end::{checked_program_result, typed_program};
 
 fn integer_comparison(
     operator: typed_trees::expression::BinaryOperator,
@@ -246,16 +247,7 @@ fn authored_integer_comparison_does_not_supply_summary_builtin_meaning() {
         let source = format!(
             "{declaration} machine value(input: u16) -> u16 crashes Trap input == 0u16 {{ input }}"
         );
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let program =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let program = typed_program(&source);
         let machine = program
             .machines()
             .iter()
@@ -313,16 +305,7 @@ fn concrete_call_summary_preserves_authored_comparison_meaning() {
             machine value(input: u16) -> u16 crashes Trap input == 0u16 {{ input }}
             machine caller() -> u16 {{ value(2u16) }}"
         );
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let program =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let program = typed_program(&source);
         let caller = program
             .machines()
             .iter()
@@ -359,16 +342,7 @@ fn callee_boolean_meaning_cannot_authorize_custom_actual_comparison() {
              machine value(flag: bool) -> u16 crashes Trap flag {{ 7u16 }}
              machine caller() -> u16 {{ {body} }}"
         );
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let program =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let program = typed_program(&source);
         let caller = program
             .machines()
             .iter()
@@ -801,17 +775,7 @@ fn call_site_buckets(
     checked_trees::CrashCause,
     Vec<checked_trees::CrashRouteGuard>,
 )> {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
+    let checked = checked_program_result(source)
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
     let machine = checked
         .machines()
@@ -1113,16 +1077,7 @@ fn a_case_payload_actual_below_rewritten_storage_widens_to_truth() {
 fn indexed_guard_leaves_extract_both_children() {
     use typed_trees::expression::BinaryOperator;
     let source = "machine value(items: [i32; 4]) -> bool crashes Trap items[0u64] == 0 { true }";
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let program = typed_program(source);
     let machine = program
         .machines()
         .iter()
@@ -1265,16 +1220,7 @@ fn indexed_predicates_substitute_through_summary_buckets() {
 fn range_index_guard_leaves_extract_both_bounds() {
     use typed_trees::expression::BinaryOperator;
     let predicate_for = |source: &str| {
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let program =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let program = typed_program(source);
         let machine = program
             .machines()
             .iter()

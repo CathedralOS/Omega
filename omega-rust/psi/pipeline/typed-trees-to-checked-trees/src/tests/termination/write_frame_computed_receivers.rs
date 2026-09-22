@@ -1,6 +1,4 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
+use crate::tests::front_end::{checked_program, typed_program};
 
 #[test]
 fn computed_receiver_cannot_select_a_numeric_builtin_by_spelling() {
@@ -15,10 +13,7 @@ fn computed_receiver_cannot_select_a_numeric_builtin_by_spelling() {
             }}
         "#
         );
-        let syntax =
-            parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let typed = typed_program(&source);
         let machine = typed
             .machines()
             .iter()
@@ -63,12 +58,7 @@ fn computed_reference_method_receiver_reaches_checked_trees() {
             let result: u64 = identity(&mut self.cell).write_value(&mut self.audit);
         }
     "#;
-    let syntax =
-        parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("computed reference receiver keeps its selected input loan");
+    checked_program(source);
 }
 
 #[test]
@@ -167,10 +157,7 @@ fn computed_method_receivers_transport_proven_origins_and_all_operand_writes() {
     for (name, receiver, prefix, _) in &cases {
         source.push_str(&format!("machine Main::case_{name}(&mut self) {{ {prefix} let result: u64 = {receiver}.write_value(&mut self.audit); }}"));
     }
-    let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(&source);
     let resolver = validation::CallFrameResolver::new(&typed).expect("resolver");
     let mut failures = Vec::new();
     for (name, _, _, expected) in cases {

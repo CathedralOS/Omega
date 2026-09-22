@@ -1,4 +1,4 @@
-use super::checked;
+use crate::tests::front_end::checked_program;
 use language_semantics::content::{
     ContentConservationTerm, ContentPlaceRoot, ContentPlaceSegment, ContentPlaceVersion,
 };
@@ -35,7 +35,7 @@ fn checked_facts_infer_exact_content_reshuffles_through_transparent_paths() {
         machine Main::main(&mut self) {}
     "#;
 
-    let checked = checked(source);
+    let checked = checked_program(source);
     let reshuffles = &checked.facts.qualifications.content.identity_reshuffles;
     assert_eq!(reshuffles.len(), 3, "identity reshuffles: {reshuffles:#?}");
 
@@ -151,7 +151,7 @@ fn checked_facts_compose_authored_partitions_through_a_direct_wrapper() {
         machine Main::main(&mut self) {}
     "#;
 
-    let checked = checked(source);
+    let checked = checked_program(source);
     let state_symbol = |name: &str| {
         checked
             .machines()
@@ -343,7 +343,7 @@ fn checked_facts_compose_partitions_through_exact_staged_result_rewrites() {
         machine Main::main(&mut self) {}
     "#;
 
-    let checked_program = checked(source);
+    let checked_program = checked_program(source);
     let compositions = &checked_program
         .facts
         .qualifications
@@ -549,7 +549,7 @@ fn checked_facts_compose_partitions_through_exact_array_and_case_arguments() {
         machine Main::main(&mut self) {}
     "#;
 
-    let checked_program = checked(source);
+    let checked_program = checked_program(source);
     let compositions = &checked_program
         .facts
         .qualifications
@@ -636,7 +636,7 @@ fn checked_facts_infer_exact_content_reshuffles_through_sum_case_paths() {
         machine Main::main(&mut self) {}
     "#;
 
-    let checked = checked(source);
+    let checked = checked_program(source);
     let [reshuffle] = checked
         .facts
         .qualifications
@@ -688,7 +688,7 @@ fn checked_facts_do_not_infer_content_for_fresh_claim_establishment() {
         machine Main::main(&mut self) {}
     "#;
 
-    let checked = checked(source);
+    let checked = checked_program(source);
     assert!(
         checked
             .facts
@@ -729,7 +729,7 @@ fn checked_facts_keep_independent_same_algebra_reshuffles_separate() {
         machine Main::main(&mut self) {}
     "#;
 
-    let checked = checked(source);
+    let checked = checked_program(source);
     let reshuffles = &checked.facts.qualifications.content.identity_reshuffles;
     assert_eq!(reshuffles.len(), 2, "one row per preserved claim identity");
     assert!(reshuffles.iter().all(|row| {
@@ -778,7 +778,7 @@ fn checked_facts_do_not_equate_distinct_content_projection_identities() {
         machine Main::main(&mut self) {}
     "#;
 
-    let checked = checked(source);
+    let checked = checked_program(source);
     assert!(
         checked
             .facts
@@ -817,7 +817,7 @@ fn checked_facts_infer_reshuffles_from_ordinary_qualification_contracts() {
         machine Main::main(&mut self) {}
     "#;
 
-    let checked = checked(source);
+    let checked = checked_program(source);
     assert_eq!(
         checked
             .facts

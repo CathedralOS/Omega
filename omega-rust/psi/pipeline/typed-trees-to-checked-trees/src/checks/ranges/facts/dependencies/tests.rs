@@ -1,6 +1,7 @@
 use super::{ExpressionHandle, ExpressionNode, State, SymbolHandle, TypedTrees};
 use crate::checks::ranges::RangeFacts;
 use crate::flow::CanonicalPlace;
+use crate::tests::front_end::typed_program;
 use typed_trees::statement::StatementNode;
 
 mod atomics;
@@ -9,18 +10,6 @@ pub(crate) mod calls;
 mod depth;
 mod indexes;
 mod members;
-
-fn typed_source(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize dependency fixture");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type")
-}
 
 fn initializer(program: &TypedTrees, state: &State) -> ExpressionHandle {
     program
@@ -61,7 +50,7 @@ fn selected_operator_facts(program: &TypedTrees) -> checked_trees::CheckedOperat
 
 #[test]
 fn retention_requires_complete_disjoint_writes_for_every_operand() {
-    let program = typed_source(
+    let program = typed_program(
         "machine window(left: i64, right: i64, unrelated: i64) {
         let cut: i64 = left - right;
     }",
@@ -106,7 +95,7 @@ fn retention_requires_complete_disjoint_writes_for_every_operand() {
 
 #[test]
 fn identical_labels_cannot_choose_between_different_typed_reads() {
-    let program = typed_source(
+    let program = typed_program(
         "machine first(original: i64, unrelated: i64) {
         let cut: i64 = original - 1;
     }
@@ -147,7 +136,7 @@ fn identical_labels_cannot_choose_between_different_typed_reads() {
 
 #[test]
 fn an_incoming_expression_cannot_borrow_the_current_states_parameter_names() {
-    let program = typed_source(
+    let program = typed_program(
         "machine window(original: i64) {
         let cut: i64 = original - 1;
         transition { _ -> next(original) }
@@ -177,7 +166,7 @@ fn an_incoming_expression_cannot_borrow_the_current_states_parameter_names() {
 #[test]
 fn calls_and_call_selectors_do_not_claim_an_argument_only_read_set() {
     for expression in ["compute(original)", "items[compute(original)]"] {
-        let program = typed_source(&format!(
+        let program = typed_program(&format!(
             "machine compute(original: u64) -> u64 {{ original }}
             machine window(original: u64, items: &[u64; 4]) {{
                 let cut: u64 = {expression};
@@ -211,7 +200,7 @@ fn calls_and_call_selectors_do_not_claim_an_argument_only_read_set() {
 /// cannot observe.
 #[test]
 fn a_literal_operand_reads_nothing_but_keeps_the_expression_completable() {
-    let program = typed_source(
+    let program = typed_program(
         "machine window(left: f64, unrelated: f64) {
         let cut: f64 = left - 2.5;
     }",
@@ -254,7 +243,7 @@ fn compound_literals_read_each_evaluated_operand() {
             "let cut: Pair = Pair { a: left, b: right };",
         ),
     ] {
-        let program = typed_source(&format!(
+        let program = typed_program(&format!(
             "{declaration}
             machine window(left: i64, right: i64, unrelated: i64) {{
                 {statement}
@@ -298,7 +287,7 @@ fn compound_literals_read_each_evaluated_operand() {
 /// every operand of every element and nothing else.
 #[test]
 fn a_literal_element_with_selected_arithmetic_reads_its_checked_operands() {
-    let program = typed_source(
+    let program = typed_program(
         "operator + u64::custom(left: u64, right: u64) -> u64;
         machine window(low: u64, step: u64, high: u64, unrelated: u64) {
             let cut: [u64; 2] = [low + step, high];
@@ -348,7 +337,7 @@ fn a_literal_element_with_selected_arithmetic_reads_its_checked_operands() {
 /// not have been selected.
 #[test]
 fn a_match_reads_its_subject_patterns_and_arm_values() {
-    let program = typed_source(
+    let program = typed_program(
         "machine window(flag: i64, left: i64, right: i64, unrelated: i64) {
         let cut: i64 = match flag { 0 -> left, _ -> right };
     }",
@@ -396,7 +385,7 @@ fn missing_typed_place_identities_cannot_be_recovered_from_display_names() {
         "data Host { original: i64; }
          machine Host::window(&self) { let cut: i64 = self.original - 1; }",
     ] {
-        let mut program = typed_source(source);
+        let mut program = typed_program(source);
         let machine = &program.machines()[0];
         let state = &program.machine_states(machine)[0];
         let expression = initializer(&program, state);

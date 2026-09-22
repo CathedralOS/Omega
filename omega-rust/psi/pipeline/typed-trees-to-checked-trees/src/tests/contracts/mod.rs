@@ -1,6 +1,6 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::typed_program;
 use typed_trees::proposition::ProofSubstitutions;
 
 mod anonymous_array_landing;
@@ -51,10 +51,7 @@ fn parse_typed_trees(source: &str) -> typed_trees::TypedTrees {
     // identities directly so checked-asm rows exercise normalized reach.
     let source =
         format!("boundary trait MachineControl {{}}\nboundary trait PortIo {{}}\n{source}");
-    let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
+    typed_program(&source)
 }
 
 /// Same prelude as `parse_typed_trees`, with the toolchain `core/service.omg`
@@ -63,7 +60,7 @@ fn parse_typed_trees(source: &str) -> typed_trees::TypedTrees {
 /// `bind_fixture_fused_service_erasures` supplies — without one an authored
 /// `Service<R>` field stays unshaped and the machine's unit plan fails closed.
 fn parse_typed_trees_with_service(source: &str) -> typed_trees::TypedTrees {
-    let mut typed = crate::tests::parse_typed_trees_with_core_service(&format!(
+    let mut typed = crate::tests::front_end::typed_program_with_core_service(&format!(
         "boundary trait MachineControl {{}}\nboundary trait PortIo {{}}\n{source}"
     ));
     crate::tests::bind_fixture_fused_service_erasures(&mut typed);

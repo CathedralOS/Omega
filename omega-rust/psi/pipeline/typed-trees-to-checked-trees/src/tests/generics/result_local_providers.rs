@@ -1,4 +1,4 @@
-use super::typed_source;
+use crate::tests::front_end::typed_program_result;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
@@ -44,7 +44,8 @@ fn check_selected_provider_result_local(additional_endpoint: bool, direct_provid
     } else {
         source
     };
-    let typed = typed_source(&source).expect("type the provider's inferred tail-call local");
+    let typed =
+        typed_program_result(&source).expect("type the provider's inferred tail-call local");
     let requirement_operator = typed
         .operators()
         .iter()

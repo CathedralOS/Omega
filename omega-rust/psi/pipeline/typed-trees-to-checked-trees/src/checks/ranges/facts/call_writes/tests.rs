@@ -1,5 +1,6 @@
 use super::{RangeCallContext, RangeFacts};
 use crate::semantic_calls::CallSite;
+use crate::tests::front_end::typed_program;
 
 fn program() -> typed_trees::TypedTrees {
     let source = r#"
@@ -19,15 +20,7 @@ fn program() -> typed_trees::TypedTrees {
             leaf(value)
         }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
+    typed_program(source)
 }
 
 #[test]

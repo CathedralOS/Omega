@@ -540,6 +540,7 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
 #[cfg(test)]
 mod tests {
     use super::{expression_contains, reachable_expressions};
+    use crate::tests::front_end::typed_program;
     use typed_trees::TypedTrees;
 
     fn fixture() -> TypedTrees {
@@ -554,15 +555,7 @@ mod tests {
                 scaled + chosen
             }
         "#;
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .expect("tokenize");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("resolve");
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type")
+        typed_program(source)
     }
 
     /// The indexed reachable set answers exactly the containment question the

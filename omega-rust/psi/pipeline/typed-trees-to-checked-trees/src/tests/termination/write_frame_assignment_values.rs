@@ -1,4 +1,4 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::tests::front_end::typed_program;
 #[test]
 fn finite_call_trees_preserve_deep_effects_and_reject_hostile_siblings() {
     let nested = |callee: &str, leaf: &str| {
@@ -99,10 +99,7 @@ fn finite_call_trees_preserve_deep_effects_and_reject_hostile_siblings() {
         "$RECURSIVE",
         &nested("return_value", "recursive_value(other)"),
     );
-    let tokens = Lexer::new(&source).tokenize().expect("source tokenizes");
-    let syntax = parse_syntax_trees(&tokens).expect("source parses");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("source resolves");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("source types");
+    let typed = typed_program(&source);
     let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
     for (name, expected) in [
         ("Main::indexed", Some(vec!["self.cells", "self.value"])),
@@ -1117,13 +1114,7 @@ fn transparent_returned_place_accepts_complete_indexed_statement_arguments() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
     for (name, expected_paths) in [
@@ -1533,13 +1524,7 @@ fn transparent_returned_place_accepts_finite_isolated_scratch_values() {
         ));
     }
 
-    let tokens = Lexer::new(&source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(&source);
     let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
     for name in [
@@ -1817,13 +1802,7 @@ fn mutable_slice_views_preserve_array_storage_origins() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
     for name in [

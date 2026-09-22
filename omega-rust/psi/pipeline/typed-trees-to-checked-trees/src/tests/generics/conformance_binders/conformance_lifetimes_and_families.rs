@@ -1,6 +1,6 @@
 use crate::CheckingRequest;
-use crate::tests::{Lexer, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees};
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+use crate::tests::front_end::{checked_program, checked_program_result, typed_program};
+use crate::tests::lower_typed_trees;
 
 #[test]
 fn explicit_generic_conformance_lifetime_closes_its_trait_identity() {
@@ -22,12 +22,7 @@ fn explicit_generic_conformance_lifetime_closes_its_trait_identity() {
         }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("explicit conformance lifetime");
+    let checked = checked_program(source);
     let application = checked
         .machine_specializations
         .iter()
@@ -58,12 +53,7 @@ fn generic_conformance_lifetime_elides_from_one_ordinary_borrow_constraint() {
         }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("uniquely elided conformance lifetime");
+    let checked = checked_program(source);
     let application = checked
         .machine_specializations
         .iter()
@@ -94,12 +84,7 @@ fn explicit_generic_conformance_lifetime_must_match_the_ordinary_borrow_constrai
         }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("mismatched explicit lifetime");
+    let diagnostics = checked_program_result(source).expect_err("mismatched explicit lifetime");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -136,12 +121,7 @@ fn generic_conformance_lifetime_elision_rejects_conflicting_borrow_constraints()
         }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("ambiguous elision must reject");
+    let diagnostics = checked_program_result(source).expect_err("ambiguous elision must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -169,12 +149,8 @@ fn generic_conformance_lifetime_elision_rejects_zero_borrow_candidates() {
         }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("zero-candidate elision must reject");
+    let diagnostics =
+        checked_program_result(source).expect_err("zero-candidate elision must reject");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -206,12 +182,7 @@ fn bare_generic_conformance_name_does_not_infer_its_owned_arguments() {
         }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("bare generic name must reject");
+    let diagnostics = checked_program_result(source).expect_err("bare generic name must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
             "generic conformance `SequenceEncoding` requires 2 explicit non-lifetime argument(s), got 0",
@@ -245,12 +216,7 @@ fn members_of_one_generic_conformance_family_have_distinct_identity() {
         }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("two closed family applications");
+    let checked = checked_program(source);
     let applications = checked
         .machine_specializations
         .iter()
@@ -292,10 +258,7 @@ fn nested_generic_conformance_application_specializes_its_selected_row() {
         }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
     let checked =
         lower_typed_trees(typed, &CheckingRequest::settled()).expect("instantiated selected row");
     let application = checked
@@ -350,12 +313,7 @@ fn distinct_generic_conformance_applications_specialize_distinct_selected_rows()
         }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("two instantiated selected rows");
+    let checked = checked_program(source);
     let mut row_instances = checked
         .machine_specializations
         .iter()

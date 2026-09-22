@@ -1,23 +1,12 @@
 use crate::semantic::contract_fact_place;
 use crate::semantic::contracts::places::contract_owner_self_symbol;
+use crate::tests::front_end::typed_program;
 use checked_trees::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner};
 use facts::{FactPlace, FactPlan};
 
-fn parse(source: &str) -> typed_trees::TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type")
-}
-
 #[test]
 fn resolved_attachment_self_rebinds_to_each_contract_owners_exact_formal() {
-    let program = parse(
+    let program = typed_program(
         r#"
         data Owner { value: u64; }
         domain u64::Small requires self < 10;
@@ -89,7 +78,7 @@ fn resolved_attachment_self_rebinds_to_each_contract_owners_exact_formal() {
 
 #[test]
 fn machine_contract_cannot_borrow_a_sibling_states_self_parameter() {
-    let program = parse(
+    let program = typed_program(
         r#"
         data Owner {}
         machine Owner::run() {

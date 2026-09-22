@@ -3,6 +3,7 @@ use super::super::plain_record;
 use super::CheckedUnitEffectOperationPlan;
 use crate::execution::terminal_unit::ShapeCollector;
 use crate::execution::terminal_unit::structural_scalar_store::build_structural_scalar_field_store_sequence;
+use crate::tests::front_end::typed_program_from_source_map_with_generic_data;
 
 fn fixture() -> checked_trees::CheckedTrees {
     let source = r#"
@@ -17,9 +18,6 @@ fn fixture() -> checked_trees::CheckedTrees {
             self.boolean.record(true);
         }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
     let mut sources = source::SourceMap::default();
     let source_id = sources
         .add(
@@ -27,21 +25,7 @@ fn fixture() -> checked_trees::CheckedTrees {
             source.to_owned(),
         )
         .source_id;
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
-    let syntax = syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest::new(syntax),
-    )
-    .unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &syntax,
-            sources: Some(std::sync::Arc::new(sources)),
-            top_level_bindings: Vec::new(),
-        },
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let typed = typed_program_from_source_map_with_generic_data(sources, &[(source_id, source)]);
     crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap()
 }
 

@@ -1,15 +1,4 @@
-fn parse(source: &str) -> typed_trees::TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type")
-}
-
+use crate::tests::front_end::checked_program_result;
 #[test]
 fn boolean_call_promises_keep_actual_values_when_formal_spellings_overlap() {
     for (primitive, formal) in ["bool", "i32"]
@@ -17,11 +6,10 @@ fn boolean_call_promises_keep_actual_values_when_formal_spellings_overlap() {
         .flat_map(|primitive| ["value", "other", "input"].map(|formal| (primitive, formal)))
     {
         for (actual, admitted) in [("value", true), ("other", false)] {
-            let program = parse(&format!(
+            let result = checked_program_result(&format!(
                 "machine identity({formal}: {primitive}) -> {primitive} ensures result == {formal} {{ {formal} }}
                  machine compute(value: {primitive}, other: {primitive}) -> {primitive} ensures result == value {{ identity({actual}) }}"
             ));
-            let result = crate::lower_typed_trees(program, &crate::CheckingRequest::settled());
             assert_eq!(result.is_ok(), admitted, "{primitive} {formal}: {actual}");
             if let Err(diagnostics) = result {
                 assert!(diagnostics.iter().any(|diagnostic| {

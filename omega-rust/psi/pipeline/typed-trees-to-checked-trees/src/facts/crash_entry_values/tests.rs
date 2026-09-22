@@ -2,23 +2,12 @@ use super::{
     entry_operand, entry_operand_projected, formal_member_projection,
     has_stable_observable_contents, operand_entry_provenance,
 };
+use crate::tests::front_end::{checked_program_result, typed_program};
 use checked_trees::CrashPredicateExpression;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
-
-fn typed_program(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
-}
 
 fn named_state(
     program: &TypedTrees,
@@ -903,7 +892,7 @@ fn mutable_field_snapshots_discharge_the_selected_crash_route() {
         ("crashes Trap h.other", false),
         ("", false),
     ] {
-        let program = typed_program(&format!(
+        match checked_program_result(&format!(
             "pub data Holder {{ value: bool; other: bool; }}
              {TRIGGER}
              pub machine value(h: Holder) -> bool
@@ -916,8 +905,7 @@ fn mutable_field_snapshots_discharge_the_selected_crash_route() {
                      r
                  }}
              }}"
-        ));
-        match crate::lower_typed_trees(program, &crate::CheckingRequest::settled()) {
+        )) {
             Ok(_) => assert!(expect_ok, "{declaration} must not check"),
             Err(diagnostics) => {
                 assert!(!expect_ok, "{declaration}: {diagnostics:#?}");
@@ -1420,7 +1408,7 @@ fn a_state_arrival_actual_discharges_the_selected_crash_route() {
     // route is false at this invocation. `value` is public: an undischarged
     // route would have to appear on its published ceiling.
     for declaration in ["", "crashes Trap false"] {
-        let program = typed_program(&format!(
+        checked_program_result(&format!(
             "{TRIGGER}
              pub machine value() -> bool
              {declaration}
@@ -1428,9 +1416,8 @@ fn a_state_arrival_actual_discharges_the_selected_crash_route() {
                  transition true {{ true -> next(false) false -> false }}
                  state next(input: bool) -> bool {{ let r: bool = trigger(input); r }}
              }}"
-        ));
-        crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
-            .unwrap_or_else(|diagnostics| panic!("{declaration}: {diagnostics:#?}"));
+        ))
+        .unwrap_or_else(|diagnostics| panic!("{declaration}: {diagnostics:#?}"));
     }
 }
 
@@ -1444,7 +1431,7 @@ fn a_state_arrival_actual_retains_the_exact_entry_origin() {
         ("crashes Trap !flag", false),
         ("", false),
     ] {
-        let program = typed_program(&format!(
+        match checked_program_result(&format!(
             "{TRIGGER}
              pub machine value(flag: bool) -> bool
              {declaration}
@@ -1452,8 +1439,7 @@ fn a_state_arrival_actual_retains_the_exact_entry_origin() {
                  transition true {{ true -> next(flag) false -> false }}
                  state next(input: bool) -> bool {{ let r: bool = trigger(input); r }}
              }}"
-        ));
-        match crate::lower_typed_trees(program, &crate::CheckingRequest::settled()) {
+        )) {
             Ok(_) => assert!(expect_ok, "{declaration} must not check"),
             Err(diagnostics) => {
                 assert!(!expect_ok, "{declaration}: {diagnostics:#?}");
@@ -1473,7 +1459,7 @@ fn mutable_state_arrivals_refine_the_selected_crash_route() {
     // The mutable parameter's bound snapshot is the saved actual, so the
     // surviving Trap route refines to the arrival's entry-relative value.
     for (declaration, expect_ok) in [("", true), ("crashes Trap false", true)] {
-        let program = typed_program(&format!(
+        match checked_program_result(&format!(
             "{TRIGGER}
              pub machine value() -> bool
              {declaration}
@@ -1481,8 +1467,7 @@ fn mutable_state_arrivals_refine_the_selected_crash_route() {
                  transition true {{ true -> next(false) false -> false }}
                  state next(mut input: bool) -> bool {{ let r: bool = trigger(input); r }}
              }}"
-        ));
-        match crate::lower_typed_trees(program, &crate::CheckingRequest::settled()) {
+        )) {
             Ok(_) => assert!(expect_ok, "{declaration} must not check"),
             Err(diagnostics) => {
                 assert!(!expect_ok, "{declaration}: {diagnostics:#?}");
@@ -1496,7 +1481,7 @@ fn mutable_state_arrivals_refine_the_selected_crash_route() {
         ("crashes Trap !flag", false),
         ("", false),
     ] {
-        let program = typed_program(&format!(
+        match checked_program_result(&format!(
             "{TRIGGER}
              pub machine value(flag: bool) -> bool
              {declaration}
@@ -1504,8 +1489,7 @@ fn mutable_state_arrivals_refine_the_selected_crash_route() {
                  transition true {{ true -> next(flag) false -> false }}
                  state next(mut input: bool) -> bool {{ let r: bool = trigger(input); r }}
              }}"
-        ));
-        match crate::lower_typed_trees(program, &crate::CheckingRequest::settled()) {
+        )) {
             Ok(_) => assert!(expect_ok, "{declaration} must not check"),
             Err(diagnostics) => {
                 assert!(!expect_ok, "{declaration}: {diagnostics:#?}");
@@ -1543,12 +1527,11 @@ fn divergent_or_mutable_state_arrivals_still_reject_at_checking() {
              }
          }",
     ] {
-        let program = typed_program(&format!(
+        let diagnostics = checked_program_result(&format!(
             "{TRIGGER}
 {source}"
-        ));
-        let diagnostics = crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
-            .expect_err("unproven state provenance must stay conservative");
+        ))
+        .expect_err("unproven state provenance must stay conservative");
         assert!(
             diagnostics
                 .iter()
@@ -1573,16 +1556,7 @@ fn structural_entry_identity_requires_plain_contents_through_generic_substitutio
              data Holder<T> {{ value: T; }}
              machine inspect(holder: {carrier}) {{}}"
         );
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let program =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let program = typed_program(&source);
         let machine = program
             .machines()
             .iter()

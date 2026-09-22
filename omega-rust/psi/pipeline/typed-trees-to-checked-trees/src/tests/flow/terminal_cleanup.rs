@@ -5,27 +5,6 @@ mod attached_returns_and_call_results;
 mod machine_edges_and_projections;
 mod structural_unit_control;
 
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
-use crate::tests::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
-}
-
-fn typed_program(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
-
 fn scalar_discard_positions(
     plan: &checked_trees::CheckedStructuralScalarReturnMachinePlan,
 ) -> Vec<u32> {

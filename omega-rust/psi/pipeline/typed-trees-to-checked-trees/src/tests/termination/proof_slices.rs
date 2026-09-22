@@ -1,6 +1,6 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::{checked_program_result, typed_program};
 
 const SEQUENCE: &str = r#"
     data Sequence {
@@ -8,13 +8,6 @@ const SEQUENCE: &str = r#"
         case Cons(head: u64, tail: Sequence);
     }
 "#;
-
-fn typed(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
 
 #[test]
 fn proof_slice_extraction_definition_accepts_guarded_tail_recursion() {
@@ -30,7 +23,7 @@ fn proof_slice_extraction_definition_accepts_guarded_tail_recursion() {
                 }}
             }}"#
         );
-        let program = typed(&source);
+        let program = typed_program(&source);
         let extractor = program
             .machines()
             .iter()
@@ -89,7 +82,7 @@ fn proof_slice_recursion_requires_the_same_nonempty_tail_edge() {
             terminates by items -> Slice::Length;
             {{ {body} }}"#
         );
-        let result = lower_typed_trees(typed(&source), &CheckingRequest::settled());
+        let result = checked_program_result(&source);
         let Err(diagnostics) = result else {
             panic!("{name}: unproved recursive edge accepted")
         };
@@ -135,8 +128,7 @@ fn nested_proof_slice_calls_cannot_borrow_another_edges_decrease() {
             terminates by items -> Slice::Length;
             {{ {body} }}"#
         );
-        let Err(diagnostics) = lower_typed_trees(typed(&source), &CheckingRequest::settled())
-        else {
+        let Err(diagnostics) = checked_program_result(&source) else {
             panic!("{name}: accepted unproved proof recursion")
         };
         assert!(
@@ -164,7 +156,7 @@ fn proof_slice_tail_cannot_override_a_different_ranking_view() {
             }}
         }}"#
     );
-    assert!(lower_typed_trees(typed(&source), &CheckingRequest::settled()).is_err());
+    assert!(checked_program_result(&source).is_err());
 }
 
 #[test]
@@ -180,7 +172,7 @@ fn runtime_slice_ranking_checks_every_recursive_edge() {
             }
         }
     "#;
-    let Err(diagnostics) = lower_typed_trees(typed(source), &CheckingRequest::settled()) else {
+    let Err(diagnostics) = checked_program_result(source) else {
         panic!("the shrinking first edge cannot justify the unchanged second edge");
     };
     assert!(
@@ -206,7 +198,7 @@ fn proof_slice_decrease_requires_exact_witness_and_bare_parameter_identity() {
         }} }}"#
     );
     for corruption in ["foreign_witness", "member_tail"] {
-        let mut program = typed(&source);
+        let mut program = typed_program(&source);
         let machine = program
             .machines()
             .iter()

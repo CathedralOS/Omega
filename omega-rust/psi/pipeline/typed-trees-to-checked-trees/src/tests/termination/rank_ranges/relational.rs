@@ -1,19 +1,20 @@
-use super::{lower_typed_trees, typed};
+use super::lower_typed_trees;
 use crate::CheckingRequest;
+use crate::tests::front_end::typed_program;
 
 fn prove_termination(source: &str) {
-    crate::checks::termination::check_machine_termination(&typed(source))
+    crate::checks::termination::check_machine_termination(&typed_program(source))
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
 }
 
 fn prove(source: &str) {
     prove_termination(source);
-    lower_typed_trees(typed(source), &CheckingRequest::settled())
+    lower_typed_trees(typed_program(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("complete checking: {source}\n{diagnostics:#?}"));
 }
 
 fn reject(source: &str) {
-    let diagnostics = crate::checks::termination::check_machine_termination(&typed(source))
+    let diagnostics = crate::checks::termination::check_machine_termination(&typed_program(source))
         .expect_err("the range must be proved, not assumed");
     assert!(
         diagnostics
@@ -114,7 +115,7 @@ fn computed_endpoint_may_land_under_requires_facts_not_declarations() {
 fn unrelated_payloads_and_immutable_locals_preserve_exact_parameter_ordinals() {
     let source = "data Payload { value: u64; } machine climb(flag: bool, limit: u64 [0..=10], payload: Payload, index: u64) requires index <= limit; terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1); -> u64 { let unrelated: u64 = 7; transition index < limit { true -> climb(flag, limit, payload, index + 1) false -> index } }";
     prove(source);
-    lower_typed_trees(typed(source), &CheckingRequest::settled())
+    lower_typed_trees(typed_program(source), &CheckingRequest::settled())
         .expect("the unrelated payload fixture checks completely");
     reject(&source.replace(
         "climb(flag, limit, payload, index + 1)",
@@ -195,7 +196,7 @@ fn selected_arithmetic_and_every_evaluated_prefix_keep_builtin_custody() {
 fn foreign_same_spelled_endpoint_custody_cannot_bind_local_parameters() {
     let source =
         format!("{DEPENDENT} {{ transition n > lo {{ true -> walk(lo, hi, n - 1) false -> n }} }}");
-    let mut program = typed(&format!("{source} {}", source.replace("walk", "other")));
+    let mut program = typed_program(&format!("{source} {}", source.replace("walk", "other")));
     program.ranking_expression_custody[0].rank_range =
         program.ranking_expression_custody[1].rank_range;
     let diagnostics = crate::checks::termination::check_machine_termination(&program)

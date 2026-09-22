@@ -1,19 +1,8 @@
-use super::{HandleSpan, ProofFact, TypeConstraintNode, TypeReferenceNode, TypedTrees};
+use super::{HandleSpan, ProofFact, TypeConstraintNode, TypeReferenceNode};
 use crate::monomorphization::contract_fact_text;
 use crate::monomorphization::monomorphize_generic_machine_value_calls_with_selections;
 use crate::monomorphization::refresh_closed_domain_instance_identities;
-
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolution");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("typing")
-}
+use crate::tests::front_end::{checked_program_result, typed_program};
 
 #[test]
 fn parameter_membership_instances_follow_single_and_multiple_specialization() {
@@ -21,7 +10,7 @@ fn parameter_membership_instances_follow_single_and_multiple_specialization() {
         "",
         "machine other(value: i64 in Coordinate<9>) -> i64 in Coordinate<9> { relay<9>(value) }",
     ] {
-        let mut program = typed(&format!(
+        let mut program = typed_program(&format!(
             "domain<T, const I: u64> T::Coordinate<I>;
              machine relay<const I: u64>(value: i64 in Coordinate<I>) -> i64 in Coordinate<I> {{ value }}
              machine run(value: i64 in Coordinate<7>) -> i64 in Coordinate<7> {{ relay<7>(value) }}
@@ -94,7 +83,7 @@ fn parameter_membership_instances_follow_single_and_multiple_specialization() {
 #[test]
 fn membership_contract_identity_retains_normalized_indices() {
     let identity = |index: &str| {
-        let program = typed(&format!(
+        let program = typed_program(&format!(
             "domain<T, const I: u64> T::Coordinate<I>; machine run(value: i64 in Coordinate<{index}>) -> i64 in Coordinate<{index}> {{ value }}"
         ));
         let fact = program
@@ -110,7 +99,7 @@ fn membership_contract_identity_retains_normalized_indices() {
 
 #[test]
 fn refresh_rejects_missing_index_arguments_instead_of_using_family_identity() {
-    let mut program = typed(
+    let mut program = typed_program(
         "domain<T, const I: u64> T::Coordinate<I>; machine run(value: i64 in Coordinate<7>) -> i64 in Coordinate<7> { value }",
     );
     let handle = program
@@ -151,8 +140,7 @@ fn bound_domain_index_forwards_through_generic_calls() {
          machine outer<const N: u32>(v: i64 in Coordinate<N>) -> i64 in Coordinate<N> { relay<N>(v) }
          machine main() -> i64 { let x: i64 in Coordinate<7> = 9; outer<7>(x) as i64 }",
     ] {
-        let typed = typed(source);
-        crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap_or_else(|diagnostics| {
+        checked_program_result(source).unwrap_or_else(|diagnostics| {
             panic!(
                 "call-bound index forwarding should lower: {}\n{source}",
                 diagnostics
@@ -170,12 +158,11 @@ fn bound_domain_index_rejects_a_mismatched_forwarding() {
     // Binding `I` to a different runtime binder does not establish
     // `Coordinate<N>`: the substituted index stays open and the retained call
     // still names a foreign binder the caller's scope cannot supply.
-    let typed = typed(
+    let diagnostics = checked_program_result(
         "domain<T, const I: u32> T::Coordinate<I>;
          machine relay<J: u32>(value: i64 in Coordinate<J>) -> i64 in Coordinate<J> { value }
          machine outer<N: u32, M: u32>(v: i64 in Coordinate<N>) -> i64 in Coordinate<N> { relay<M>(v) }",
-    );
-    let diagnostics = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+    )
         .expect_err("forwarding a different index binder must reject");
     assert!(
         diagnostics

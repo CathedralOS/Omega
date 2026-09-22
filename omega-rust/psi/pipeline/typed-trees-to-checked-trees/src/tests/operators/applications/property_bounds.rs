@@ -1,8 +1,5 @@
-use super::{
-    Identifier, Lexer, ResolutionRequest, SymbolHandle, TypeReferenceNode,
-    lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
-use crate::tests::operators::checked_program_from_source;
+use super::{Identifier, SymbolHandle, TypeReferenceNode};
+use crate::tests::front_end::{checked_program, typed_program};
 
 #[test]
 fn same_spelled_foreign_nominal_does_not_inherit_declared_property() {
@@ -39,7 +36,7 @@ fn same_spelled_foreign_nominal_does_not_inherit_declared_property() {
 
 #[test]
 fn closed_type_satisfying_property_bound_retains_exact_checked_application() {
-    let checked = checked_program_from_source(
+    let checked = checked_program(
         r#"
         data Math {}
         data CopyValue [copy] { value: i32; }
@@ -87,7 +84,7 @@ fn closed_type_satisfying_property_bound_retains_exact_checked_application() {
 
 #[test]
 fn closed_type_not_satisfying_property_bound_is_rejected_by_validation() {
-    let tokens = Lexer::new(
+    let typed = typed_program(
         r#"
         data Math {}
         data LinearValue [linear] { value: i32; }
@@ -97,12 +94,7 @@ fn closed_type_not_satisfying_property_bound_is_rejected_by_validation() {
             Math::same(left, right)
         }
         "#,
-    )
-    .tokenize()
-    .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    );
     let diagnostics = validation::validate_program(&typed)
         .expect_err("LinearValue must not satisfy the operator's [copy] bound");
 
@@ -115,7 +107,7 @@ fn closed_type_not_satisfying_property_bound_is_rejected_by_validation() {
 
 #[test]
 fn explicit_bounded_type_argument_must_equal_operand_inference() {
-    let tokens = Lexer::new(
+    let typed = typed_program(
         r#"
         data Math {}
         data Actual [copy] { value: i32; }
@@ -126,12 +118,7 @@ fn explicit_bounded_type_argument_must_equal_operand_inference() {
             Math::same<Other>(left, right)
         }
         "#,
-    )
-    .tokenize()
-    .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    );
     let diagnostics = validation::validate_program(&typed)
         .expect_err("the explicit bounded type must agree with operand inference");
 

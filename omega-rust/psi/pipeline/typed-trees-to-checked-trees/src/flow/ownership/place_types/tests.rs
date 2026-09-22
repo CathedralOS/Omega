@@ -8,24 +8,11 @@ use super::{canonical_place_type_reference, expression_type_reference_in_state};
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression;
 use crate::flow::ownership::discover_state_move_events;
+use crate::tests::front_end::typed_program;
 use checked_trees::expression::ExpressionNode;
 use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-
-fn typed_source(source: &str) -> typed_trees::TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize place-type fixture");
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse place-type fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve place-type fixture");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type place-type fixture")
-}
 
 /// `exercise` holds an `Outer` parameter and returns its `inner` field: the
 /// read's ownership disposition depends entirely on the field-type projection
@@ -127,7 +114,7 @@ impl Fixture {
 }
 
 fn fixture() -> Fixture {
-    let program = typed_source(
+    let program = typed_program(
         "data Outer { inner: u64; }
          machine exercise(value: Outer) -> u64 { value.inner }",
     );
@@ -144,7 +131,7 @@ fn fixture() -> Fixture {
 /// through the machine's retained `attached_data_symbol` — the symbol-only
 /// declaration lookup, not the parameter's type reference.
 fn attached_fixture() -> Fixture {
-    let program = typed_source(
+    let program = typed_program(
         "data Outer { inner: u64; }
          machine Outer::read(&self) -> u64 { self.inner }",
     );
@@ -339,7 +326,7 @@ impl RootedFixture {
 /// place roots at whatever expression produces the receiver — a dispatch, a
 /// literal, an indexed window, or a call.
 fn rooted_fixture(source: &str, machine_name: &str, member_name: &str) -> RootedFixture {
-    let program = typed_source(source);
+    let program = typed_program(source);
     let machine = program
         .machines()
         .iter()

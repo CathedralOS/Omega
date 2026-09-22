@@ -463,24 +463,14 @@ mod tests {
         scalar_value_at_place,
     };
     use crate::flow::CanonicalPlace;
+    use crate::tests::front_end::typed_program;
     use facts::{Fact, PlaceRoot, ProgramPoint};
     use typed_trees::expression::{ExpressionNode, TableBinaryExpression};
 
     #[test]
     fn scalar_lookup_requires_live_exact_literal_evidence_not_initializers() {
-        let tokens = source_files_to_tokens::Lexer::new(
-            "machine main() { let stored: u64 = 7; let other: u64 = 7; }",
-        )
-        .tokenize()
-        .expect("tokenize");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("resolve");
         let mut program =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-                .expect("type");
+            typed_program("machine main() { let stored: u64 = 7; let other: u64 = 7; }");
         let state = &program.machine_states(&program.machines()[0])[0];
         let locals: Vec<_> = program
             .statement_table

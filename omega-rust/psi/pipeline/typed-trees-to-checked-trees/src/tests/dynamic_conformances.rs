@@ -7,18 +7,8 @@ mod finite_family;
 mod structural_field_stores_and_descriptor_transfers;
 
 use crate::CheckingRequest;
-use crate::tests::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, lower_typed_trees, resolve,
-};
-use source::{SourceMap, SourceOrigin};
-use std::path::PathBuf;
-use std::sync::Arc;
-use tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
-
-const CORE_SERVICE: &str = include_str!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../../source/library/core/service.omg"
-));
+use crate::tests::front_end::typed_program_with_core_service;
+use crate::tests::lower_typed_trees;
 
 const STRUCTURAL_INTEGER_STORE_SOURCE: &str = r#"
     trait Shape {
@@ -216,33 +206,7 @@ const NESTED_MUTATING_REALIZATION_SOURCE: &str = r#"
 "#;
 
 fn check_dynamic_source(source: &str) -> checked_trees::CheckedTrees {
-    let mut sources = SourceMap::default();
-    let service_source_id = sources
-        .add_with_metadata(
-            PathBuf::from("source/library/core/service.omg"),
-            CORE_SERVICE.to_owned(),
-            PathBuf::from("source/library/core"),
-            None,
-            SourceOrigin::Toolchain,
-        )
-        .source_id;
-    let user_source_id = sources
-        .add(PathBuf::from("tests/main.omg"), source.to_owned())
-        .source_id;
-    let service_tokens = Lexer::new(CORE_SERVICE)
-        .tokenize()
-        .expect("tokenize service.omg");
-    let mut syntax =
-        parse_syntax_trees_with_id(service_source_id, &service_tokens).expect("parse service.omg");
-    let user_tokens = Lexer::new(source).tokenize().expect("tokenize");
-    parse_syntax_trees_into_with_id(&mut syntax, user_source_id, &user_tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest {
-        syntax: &syntax,
-        sources: Some(Arc::new(sources)),
-        top_level_bindings: Vec::new(),
-    })
-    .expect("resolve");
-    let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let mut typed = typed_program_with_core_service(source);
     // `Service<R>` carrier fields stay unshaped — and the machine fails
     // closed — until the settled fused-provider input supplies an erasure
     // authorization, exactly as `checked_with_service` fixtures arrange.

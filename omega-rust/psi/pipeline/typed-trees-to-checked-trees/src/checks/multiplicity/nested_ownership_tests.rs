@@ -1,5 +1,6 @@
 //! Source ownership of whole ordinary affine call operands. These assertions
 //! inspect permissions independently of the Terminal Unit planner.
+use crate::tests::front_end::checked_program_result;
 use checked_trees::FlowPermissionEventFact;
 use diagnostics::Diagnostic;
 use language_semantics::Multiplicity;
@@ -8,17 +9,7 @@ use language_semantics::PermissionClaimIdentity;
 use language_semantics::PermissionEventKind;
 use language_semantics::PermissionEventSource;
 fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<Diagnostic>> {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+    checked_program_result(source)
 }
 
 fn caller_events(checked: &checked_trees::CheckedTrees) -> Vec<&FlowPermissionEventFact> {

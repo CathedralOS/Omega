@@ -1,6 +1,6 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::typed_program;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
@@ -32,10 +32,7 @@ fn literal_move_program(body: &str, scalar: &str) -> typed_trees::TypedTrees {
         machine foreign(input: View) {{ let local: View = input; }}
     "#
     );
-    let syntax =
-        parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
+    typed_program(&source)
 }
 
 #[test]
@@ -511,10 +508,7 @@ fn immediate_literal_parameter_move_preserves_named_state_cycle_frame() {
             }
         }
     "#;
-    let syntax =
-        parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let program = lower_symbol_resolved_trees(&resolved).expect("type");
+    let program = typed_program(source);
     let machine = program
         .machines()
         .iter()
@@ -545,10 +539,7 @@ fn immediate_literal_move_composes_owned_suffix_below_reference_leaf() {
             write_outer(Outer { inner: local });
         }
     "#;
-    let syntax =
-        parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let program = lower_symbol_resolved_trees(&resolved).expect("type");
+    let program = typed_program(source);
     let machine = program
         .machines()
         .iter()
@@ -612,10 +603,7 @@ fn immediate_literal_moves_preserve_complete_empty_owned_and_shared_frames() {
             "#,
         ),
     ] {
-        let syntax =
-            parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let program = lower_symbol_resolved_trees(&resolved).expect("type");
+        let program = typed_program(source);
         let machine = program
             .machines()
             .iter()
@@ -660,10 +648,7 @@ fn immediate_literal_moves_reject_unknown_suffix_below_reference_leaf() {
             write_outer(Outer { inner: local });
         }
     "#;
-    let syntax =
-        parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let program = lower_symbol_resolved_trees(&resolved).expect("type");
+    let program = typed_program(source);
     let machine = program
         .machines()
         .iter()
@@ -705,10 +690,7 @@ fn immediate_literal_moves_preserve_acyclic_named_transition_origins() {
             }
         }
     "#;
-    let syntax =
-        parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let program = lower_symbol_resolved_trees(&resolved).expect("type");
+    let program = typed_program(source);
     let machine = program
         .machines()
         .iter()

@@ -1,16 +1,5 @@
-use super::TypedTrees;
 use crate::checks::contracts::entailment::integral_parameter_reflexivity;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
-
-fn parse(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
+use crate::tests::front_end::typed_program;
 
 #[test]
 fn integral_reflexivity_requires_the_same_exact_parameter_and_builtin_type() {
@@ -19,7 +8,7 @@ fn integral_reflexivity_requires_the_same_exact_parameter_and_builtin_type() {
         ("u64", "right", false),
         ("f64", "left", false),
     ] {
-        let program = parse(&format!(
+        let program = typed_program(&format!(
             "machine theorem(left: {source_type}, right: {source_type}) ensures left == {right} {{}}"
         ));
         let (source, expression) = program
@@ -60,7 +49,7 @@ const PROJECTION_SOURCE: &str = r#"
 
 #[test]
 fn recursive_resultless_identity_retains_its_positive_entailment_outcome() {
-    let program = parse(
+    let program = typed_program(
         r#"
         data Nat { case Zero; case Succ(prev: Nat); }
         machine copy(n: Nat) -> Nat terminates by n; {
@@ -95,7 +84,7 @@ fn recursive_resultless_identity_retains_its_positive_entailment_outcome() {
 
 #[test]
 fn proof_value_isolation_checks_reference_fields_beside_recursive_edges() {
-    let program = parse(
+    let program = typed_program(
         r#"
         data Nat { case Zero; case Succ(previous: Nat); }
         data BorrowingNat { case Zero; case Succ(previous: BorrowingNat, value: &mut u64); }
@@ -123,7 +112,7 @@ fn projection_entailment_cannot_reuse_a_mutated_entry_premise() {
         "make_pair(self.left, self.right).left == self.right",
         "projected_equal(self.left, self.right)",
     ] {
-        let program = parse(&format!(
+        let program = typed_program(&format!(
             r#"
             {PROJECTION_SOURCE}
             machine Input::break_equality(&mut self)
@@ -148,7 +137,7 @@ fn projection_entailment_cannot_reuse_a_mutated_entry_premise() {
 
 #[test]
 fn generic_proof_isolation_requires_isolated_actual_arguments_before_closing_cycles() {
-    let program = parse(
+    let program = typed_program(
         r#"
         data Seq<T> { case Empty; case Cons(head: T, tail: Seq<T>); }
         data RefCarrier<T> { value: &mut T; }
@@ -186,7 +175,7 @@ fn generic_proof_isolation_requires_isolated_actual_arguments_before_closing_cyc
 
 #[test]
 fn generic_recursive_copy_retains_actual_inductive_exit_proofs() {
-    let program = parse(
+    let program = typed_program(
         r#"
         data Seq<T> { case Empty; case Cons(head: T, tail: Seq<T>); }
         machine copy(items: Seq<u64>) -> Seq<u64> terminates by items; {
@@ -222,7 +211,7 @@ fn generic_recursive_copy_retains_actual_inductive_exit_proofs() {
 #[test]
 fn generic_proof_isolation_rejects_stale_owners_missing_arguments_and_foreign_binders() {
     use typed_trees::types::TypeReferenceNode;
-    let original = parse(
+    let original = typed_program(
         r#"
         data Seq<T> { case Empty; case Cons(head: T, tail: Seq<T>); }
         data Other<T> { value: T; }

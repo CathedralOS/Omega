@@ -1,19 +1,10 @@
-use super::{
-    Lexer, ResolutionRequest, SymbolHandle, lower_symbol_resolved_trees, parse_syntax_trees,
-    resolve,
-};
+use super::SymbolHandle;
+use crate::tests::front_end::{checked_program_result, typed_program};
 const COPY_OPAQUE: &str = r#"
 boundary data Token [copy];
 data Main {}
 machine Main::main(&mut self) {}
 "#;
-
-fn typed(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
 
 fn data_symbol(program: &typed_trees::TypedTrees, name: &str) -> SymbolHandle {
     program
@@ -34,15 +25,14 @@ fn rendered(diagnostics: Vec<diagnostics::Diagnostic>) -> String {
 
 #[test]
 fn ordinary_lowering_rejects_copyable_opaque_without_receipt() {
-    let diagnostics =
-        crate::lower_typed_trees(typed(COPY_OPAQUE), &crate::CheckingRequest::settled())
-            .expect_err("ordinary Psi lowering must not mint an opaque copy receipt");
+    let diagnostics = checked_program_result(COPY_OPAQUE)
+        .expect_err("ordinary Psi lowering must not mint an opaque copy receipt");
     assert!(rendered(diagnostics).contains("without an admitted property receipt"));
 }
 
 #[test]
 fn exact_opaque_copy_receipt_is_consumed_once() {
-    let program = typed(COPY_OPAQUE);
+    let program = typed_program(COPY_OPAQUE);
     let receipt = validation::OpaqueDataPropertyReceipt::copy(data_symbol(&program, "Token"));
     crate::lower_typed_trees(
         program,
@@ -53,7 +43,7 @@ fn exact_opaque_copy_receipt_is_consumed_once() {
 
 #[test]
 fn duplicate_and_wrong_declaration_receipts_reject() {
-    let duplicate = typed(COPY_OPAQUE);
+    let duplicate = typed_program(COPY_OPAQUE);
     let receipt = validation::OpaqueDataPropertyReceipt::copy(data_symbol(&duplicate, "Token"));
     let diagnostics = crate::lower_typed_trees(
         duplicate,
@@ -62,7 +52,7 @@ fn duplicate_and_wrong_declaration_receipts_reject() {
     .expect_err("duplicate opaque property receipts must reject");
     assert!(rendered(diagnostics).contains("repeat one exact declaration"));
 
-    let wrong = typed(COPY_OPAQUE);
+    let wrong = typed_program(COPY_OPAQUE);
     let receipt = validation::OpaqueDataPropertyReceipt::copy(data_symbol(&wrong, "Main"));
     let diagnostics = crate::lower_typed_trees(
         wrong,
@@ -74,7 +64,7 @@ fn duplicate_and_wrong_declaration_receipts_reject() {
 
 #[test]
 fn copy_receipt_rejects_an_opaque_that_does_not_claim_copy() {
-    let program = typed(
+    let program = typed_program(
         r#"
 boundary data Token;
 data Main {}

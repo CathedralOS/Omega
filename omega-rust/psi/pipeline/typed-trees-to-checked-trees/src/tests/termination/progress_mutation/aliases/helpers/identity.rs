@@ -1,6 +1,4 @@
-use super::super::super::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
+use crate::tests::front_end::typed_program;
 
 use crate::tests::termination::progress_mutation::CONTEXT_FIXTURE;
 use crate::tests::termination::progress_mutation::fixture_source;
@@ -15,14 +13,7 @@ fn typed_fixture(extra: &str) -> typed_trees::TypedTrees {
         false,
         extra,
     );
-    typed_source(&source)
-}
-
-fn typed_source(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    lower_symbol_resolved_trees(&resolved).unwrap()
+    typed_program(&source)
 }
 
 #[test]
@@ -34,7 +25,7 @@ fn a_slice_view_spelling_does_not_replace_a_declared_helper_body() {
         } else {
             "&self.selected"
         };
-        let mut program = typed_source(&format!(
+        let mut program = typed_program(&format!(
             "{CONTEXT_FIXTURE}
              data Holder {{ selected: {field_type}; }}
              machine Holder::as_mut_slice(&self) -> &Context {{ {result} }}
@@ -190,7 +181,7 @@ fn a_foreign_helper_parameter_cannot_supply_a_same_spelling_origin() {
 
 #[test]
 fn a_readonly_spelling_cannot_hide_a_mutable_binding_replacement() {
-    let mut program = typed_source(&format!(
+    let mut program = typed_program(&format!(
         "{CONTEXT_FIXTURE}
          machine replace(context: &mut Context, replacement: &Context) -> u64 {{
              let mut read_only: &Context = replacement;

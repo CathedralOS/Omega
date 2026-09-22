@@ -1,5 +1,6 @@
 use crate::execution::terminal_unit::ShapeCollector;
 use crate::execution::terminal_unit::control::build_checked_machine;
+use crate::tests::front_end::checked_program;
 use language_semantics::SemanticDomainTable;
 
 #[test]
@@ -22,17 +23,7 @@ fn builtin_store_policies_do_not_become_nominal_body_qualifications() {
             }}
         "#
         );
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let typed =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap();
+        let checked = checked_program(&source);
         let program = &checked.typed;
         let nominal = program.domain_definitions()[0].semantic_id;
         assert_ne!(nominal, identity);

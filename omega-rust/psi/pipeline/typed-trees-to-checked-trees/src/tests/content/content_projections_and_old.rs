@@ -1,4 +1,5 @@
-use super::{checked, rejected, retained_self_content_source};
+use super::{rejected, retained_self_content_source};
+use crate::tests::front_end::checked_program;
 use language_semantics::content::{
     ContentAlgebraIdentity, ContentArithmeticOperator, ContentConservationOwnerKind,
     ContentConservationTerm, ContentPlaceRoot, ContentPlaceSegment, ContentPlaceVersion,
@@ -13,7 +14,7 @@ fn scalar_and_content_guarantees_are_checked_independently() {
             "== Owned::content(&self.region)",
             "== Owned::content(&self.region); result == 7",
         );
-    let accepted = checked(&source);
+    let accepted = checked_program(&source);
     assert_eq!(
         accepted
             .facts
@@ -58,7 +59,7 @@ fn checked_facts_retain_normalized_content_projection() {
         machine Main::main(&mut self) {}
     "#;
 
-    let checked = checked(source);
+    let checked = checked_program(source);
     let [plan] = checked.facts.qualifications.content.plans.as_slice() else {
         panic!("one normalized content projection should be retained");
     };
@@ -123,7 +124,7 @@ fn checked_facts_lift_a_singleton_into_the_interval_set_algebra() {
         machine Main::main(&mut self) {}
     "#;
 
-    let checked = checked(source);
+    let checked = checked_program(source);
     let [plan] = checked.facts.qualifications.content.plans.as_slice() else {
         panic!("one normalized content projection should be retained");
     };
@@ -177,7 +178,7 @@ fn checked_facts_retain_runtime_scalar_embedding() {
         machine Main::main(&mut self) {}
     "#;
 
-    let checked = checked(source);
+    let checked = checked_program(source);
     let [plan] = checked.facts.qualifications.content.plans.as_slice() else {
         panic!("one normalized content projection should be retained");
     };
@@ -256,7 +257,7 @@ fn checked_facts_retain_normalized_content_conservation() {
         machine Main::main(&mut self) {}
     "#;
 
-    let checked = checked(source);
+    let checked = checked_program(source);
     let [plan] = checked
         .facts
         .qualifications
@@ -333,7 +334,7 @@ fn old_is_contextual_even_when_a_callable_parameter_has_the_same_name() {
         }
     "#;
 
-    let checked = checked(source);
+    let checked = checked_program(source);
     let [plan] = checked
         .facts
         .qualifications
@@ -355,7 +356,7 @@ fn old_is_contextual_even_when_a_callable_parameter_has_the_same_name() {
 
 #[test]
 fn old_retains_an_exact_self_field_place_at_callable_entry() {
-    let checked = checked(&retained_self_content_source(""));
+    let checked = checked_program(&retained_self_content_source(""));
     let [plan] = checked
         .facts
         .qualifications

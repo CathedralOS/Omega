@@ -1,6 +1,7 @@
 //! Indexed receiver admission stops at checked trees; Terminal production is separate.
 
-use super::{check_source, reject_source};
+use super::reject_source;
+use crate::tests::front_end::checked_program_result;
 
 fn source(signature: &str, body: &str, methods: &str) -> String {
     format!(
@@ -32,7 +33,7 @@ fn literal_indexed_receiver_paths_check() {
         ("Container::exercise(&write self)", "records[0]"),
     ] {
         let source = source(signature, &format!("{receiver}.replace(17);"), REPLACE);
-        check_source(&source).unwrap_or_else(|diagnostics| {
+        checked_program_result(&source).unwrap_or_else(|diagnostics| {
             panic!("content-independent path `{receiver}` must check: {diagnostics:#?}\n{source}")
         });
     }
@@ -55,7 +56,7 @@ fn proven_dynamic_indexed_receiver_paths_check() {
         ),
     ] {
         let source = source(signature, &format!("{receiver}.replace(17);"), REPLACE);
-        check_source(&source).unwrap_or_else(|diagnostics| {
+        checked_program_result(&source).unwrap_or_else(|diagnostics| {
             panic!("caller-supplied bounds admit `{receiver}`: {diagnostics:#?}\n{source}")
         });
     }
@@ -85,7 +86,7 @@ fn indexed_receiver_scalar_result_depends_only_on_written_input() {
                  replacement
              }",
         );
-        check_source(&source).unwrap_or_else(|diagnostics| {
+        checked_program_result(&source).unwrap_or_else(|diagnostics| {
             panic!("non-observing indexed scalar call must check: {diagnostics:#?}\n{source}")
         });
     }
@@ -191,7 +192,7 @@ fn indexed_receiver_requires_builtin_index_operator_meaning() {
             &format!("{declaration}\n{REPLACE}"),
         );
         if accepted {
-            check_source(&source).unwrap_or_else(|diagnostics| {
+            checked_program_result(&source).unwrap_or_else(|diagnostics| {
                 panic!("unrelated indexing overload must not block admission: {diagnostics:#?}\n{source}")
             });
         } else {
@@ -224,7 +225,7 @@ fn indexed_receiver_requires_builtin_selector_addition_meaning() {
             &format!("{declaration}\n{REPLACE}"),
         );
         if accepted {
-            check_source(&source).unwrap_or_else(|diagnostics| {
+            checked_program_result(&source).unwrap_or_else(|diagnostics| {
                 panic!("unrelated addition overload must not block admission: {diagnostics:#?}\n{source}")
             });
         } else {
@@ -315,7 +316,7 @@ fn foreign_observing_method_does_not_block_indexed_write_only_target() {
             "let written: u16 = records[0].replace(17);",
             &methods,
         );
-        check_source(&source).unwrap_or_else(|diagnostics| {
+        checked_program_result(&source).unwrap_or_else(|diagnostics| {
             panic!("only the selected indexed target controls access: {diagnostics:#?}\n{source}")
         });
     }
@@ -340,7 +341,7 @@ fn indexed_receiver_conflicts_with_its_whole_root_argument_only() {
                 ],
             );
         } else {
-            check_source(&source).unwrap_or_else(|diagnostics| {
+            checked_program_result(&source).unwrap_or_else(|diagnostics| {
                 panic!("distinct whole roots remain disjoint: {diagnostics:#?}\n{source}")
             });
         }
@@ -391,7 +392,7 @@ fn indexed_receiver_alias_chain_preserves_overlap_and_distinct_root_access() {
                 ],
             );
         } else {
-            check_source(&source).unwrap_or_else(|diagnostics| {
+            checked_program_result(&source).unwrap_or_else(|diagnostics| {
                 panic!("an alias receiver and distinct argument remain disjoint: {diagnostics:#?}\n{source}")
             });
         }
@@ -423,7 +424,7 @@ fn indexed_alias_receiver_distinguishes_ancestor_authority_from_a_live_child() {
         // the child uses its ancestry; a call through the suspended parent
         // would introduce a competing branch while the whole-array child lives.
         if accepted {
-            check_source(&source).unwrap_or_else(|diagnostics| {
+            checked_program_result(&source).unwrap_or_else(|diagnostics| {
                 panic!("a receiver may use its exact retained ancestor: {diagnostics:#?}\n{source}")
             });
         } else {

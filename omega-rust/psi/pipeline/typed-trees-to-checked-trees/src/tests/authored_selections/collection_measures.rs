@@ -5,12 +5,9 @@
 //! a measure, and `semantic_calls::collection_measure_member` is the one place
 //! which decides that for every consumer lane holding a receiver type.
 
-use super::{
-    AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionTarget, Lexer,
-    ResolutionRequest, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
-};
-use crate::CheckingRequest;
+use super::{AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionTarget};
 use crate::semantic_calls::MeasureReceiver;
+use crate::tests::front_end::{checked_program, typed_program};
 use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
@@ -23,13 +20,6 @@ const BOTH_SPELLINGS: &str = r#"
         tally.len
     }
 "#;
-
-fn typed_program(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
 
 /// Both `len` members, as (expression, receiver display name) pairs.
 fn len_members(program: &typed_trees::TypedTrees) -> Vec<(ExpressionHandle, String)> {
@@ -85,8 +75,7 @@ fn a_record_field_spelled_len_is_not_a_collection_measure() {
 
 #[test]
 fn checking_retains_the_measure_and_the_declared_field_separately() {
-    let checked = lower_typed_trees(typed_program(BOTH_SPELLINGS), &CheckingRequest::settled())
-        .expect("program should check");
+    let checked = checked_program(BOTH_SPELLINGS);
     let mut measure_selections = 0usize;
     let mut resolved_selections = 0usize;
 

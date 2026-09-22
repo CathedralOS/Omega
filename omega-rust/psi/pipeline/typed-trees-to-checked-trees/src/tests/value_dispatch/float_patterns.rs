@@ -1,7 +1,5 @@
-use super::super::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
 use super::check;
+use crate::tests::front_end::typed_program;
 use language_core::operator_spelling::OperatorSpelling;
 
 fn source(format: &str, declarations: &str, first_pattern: &str) -> String {
@@ -206,10 +204,7 @@ fn implicit_equality_keeps_arm_identity_and_never_becomes_an_expression_operator
 #[test]
 fn collecting_float_pattern_operators_does_not_manufacture_source_expressions() {
     let source = source("f32", EQUALITY, "identity(first)");
-    let tokens = Lexer::new(&source).tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    let typed = typed_program(&source);
     let count = typed.expression_table.expression_nodes().count();
     let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap();
     assert_eq!(

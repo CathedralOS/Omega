@@ -8,6 +8,7 @@
 
 use super::captured_place;
 use crate::flow::CanonicalPlace;
+use crate::tests::front_end::typed_program;
 use facts::{
     Fact, FactContextHandle, FactPayload, FactPlace, FactPlan, PlaceRoot, PlaceSegment,
     ProgramPoint, ScalarValue,
@@ -16,21 +17,13 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 fn program() -> typed_trees::TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(
+    typed_program(
         "machine produce() -> u64 { 7 }\n\
          machine caller(slot: &mut u64) {\n\
              let first: u64 = produce();\n\
              let second: u64 = produce();\n\
          }",
     )
-    .tokenize()
-    .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type")
 }
 
 fn call_expressions(program: &typed_trees::TypedTrees) -> Vec<ExpressionHandle> {

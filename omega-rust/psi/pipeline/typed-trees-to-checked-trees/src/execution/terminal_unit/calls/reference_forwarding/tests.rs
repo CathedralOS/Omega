@@ -2,6 +2,7 @@ use super::{CheckedStructuralAccess, ExpressionNode, SymbolHandle, TypedTrees};
 use crate::execution::terminal_unit::CheckFacts;
 use crate::execution::terminal_unit::StatementNode;
 use crate::execution::terminal_unit::calls::structural_arguments::exact_structural_argument_access;
+use crate::tests::front_end::typed_program;
 
 struct ForwardingFixture {
     program: TypedTrees,
@@ -28,17 +29,7 @@ impl ForwardingFixture {
              machine Helper::forward(record: {target_access} Flag) {{}}
              machine Main::value(record: {source_access} Flag) {{ {prefix} Helper::forward(record); }}"
         );
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize forwarding fixture");
-        let syntax =
-            tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse forwarding fixture");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("resolve forwarding fixture");
-        let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("type forwarding fixture");
+        let program = typed_program(&source);
         let machine = program
             .machines()
             .iter()

@@ -1,13 +1,13 @@
 use super::{
-    checked_program_from_source, has_selected_domain_add, indexed_selection_fixture, named_type,
-    operator_with_spelling,
+    has_selected_domain_add, indexed_selection_fixture, named_type, operator_with_spelling,
 };
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::operators::build_operator_facts;
+use crate::tests::front_end::{checked_program, typed_program};
 use crate::tests::{
-    Expression, Identifier, Lexer, Machine, NamePath, ResolutionRequest, State, StateParameter,
-    SymbolHandle, TypeReferenceNode, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
+    Expression, Identifier, Machine, NamePath, State, StateParameter, SymbolHandle,
+    TypeReferenceNode,
 };
 use language_core::operator_spelling::OperatorSpelling;
 use typed_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
@@ -239,12 +239,7 @@ fn checked_software_may_satisfy_a_contracted_ordinary_operator() {
         }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("a checked provider may ask less than its ordinary operator requirement");
+    checked_program(source);
 }
 
 #[test]
@@ -270,10 +265,7 @@ fn signature_requires_selects_domain_operator_without_flow_lookup() {
         machine Main::main(&mut self) {}
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
     let combine = typed
         .machines()
         .iter()
@@ -334,7 +326,7 @@ fn denotation_role_on_bodyless_declared_type_selects_domain_operator() {
         machine Main::main(&mut self) {}
     "#;
 
-    let checked = checked_program_from_source(source);
+    let checked = checked_program(source);
     assert!(has_selected_domain_add(&checked));
 }
 
@@ -367,7 +359,7 @@ fn closed_index_instances_select_distinct_same_carrier_operators() {
         machine Main::main(&mut self) {}
     "#;
 
-    let checked = checked_program_from_source(source);
+    let checked = checked_program(source);
     let selected = checked
         .facts
         .operators
@@ -411,7 +403,7 @@ fn explicit_mint_initializer_selects_domain_operator() {
         machine Main::main(&mut self) {}
     "#;
 
-    let checked = checked_program_from_source(source);
+    let checked = checked_program(source);
     assert!(has_selected_domain_add(&checked));
 }
 
@@ -439,7 +431,7 @@ fn flow_established_membership_does_not_select_domain_operator() {
         }
     "#;
 
-    let checked = checked_program_from_source(source);
+    let checked = checked_program(source);
     assert!(!has_selected_domain_add(&checked));
     assert!(
         checked
@@ -472,7 +464,7 @@ fn declared_binding_selects_domain_index_operator() {
         machine Main::main(&mut self) {}
     "#;
 
-    let checked = checked_program_from_source(source);
+    let checked = checked_program(source);
     assert!(checked.facts.operators.resolved_uses().any(|operator_use| {
         operator_use.spelling == OperatorSpelling::Index
             && checked

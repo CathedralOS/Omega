@@ -1,4 +1,5 @@
 use super::{Reader, lower_machine_entry_crash_contract_expression};
+use crate::tests::front_end::typed_program;
 use checked_trees::{
     CheckedBooleanExpression, CheckedOperatorFacts, CheckedStructuralPredicatePathSegment,
 };
@@ -8,18 +9,6 @@ use typed_trees::data::{DataField, DataMember};
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
-}
 
 fn requirement(program: &TypedTrees) -> ExpressionHandle {
     program
@@ -53,7 +42,7 @@ fn field_mut(program: &mut TypedTrees, owner_position: usize) -> &mut DataField 
 }
 
 fn simple() -> TypedTrees {
-    typed(
+    typed_program(
         "data Input { allowed: bool; } machine value(input: &Input) -> bool requires input.allowed { true }",
     )
 }
@@ -61,7 +50,7 @@ fn simple() -> TypedTrees {
 #[test]
 fn structural_entry_roots_preserve_access_independent_authored_and_dense_positions() {
     for root in ["Outer", "&Outer", "&mut Outer"] {
-        let program = typed(&format!(
+        let program = typed_program(&format!(
             "data Inner {{ allowed: bool; }} data Outer {{ inner: Inner; }} machine value(first: bool, input: {root}, mut last: bool) -> bool requires input.inner.allowed && last {{ true }}"
         ));
         assert_eq!(
@@ -110,7 +99,7 @@ fn structural_entry_field_identity_is_retained_without_a_spelling_lookup() {
 #[test]
 fn structural_entry_self_uses_the_exact_attached_field_alias() {
     for receiver in ["self", "&self", "&mut self"] {
-        let program = typed(&format!(
+        let program = typed_program(&format!(
             "data Input {{ allowed: bool; }} machine Input::value({receiver}) -> bool requires self.allowed {{ true }}"
         ));
         assert_eq!(
@@ -148,7 +137,7 @@ fn structural_entry_self_uses_the_exact_attached_field_alias() {
 #[test]
 fn structural_entry_runtime_self_path_and_boolean_type_queries_agree() {
     for explicit_identity in [false, true] {
-        let mut program = typed(
+        let mut program = typed_program(
             "data Input { allowed: bool; } machine Input::value(&self) -> bool requires self.allowed { true }",
         );
         if explicit_identity {
@@ -198,7 +187,7 @@ fn structural_entry_runtime_self_path_and_boolean_type_queries_agree() {
 
 #[test]
 fn structural_entry_requires_exact_live_receiver_local_field_symbols() {
-    let program = typed(
+    let program = typed_program(
         "data Input { allowed: bool; } data Other { allowed: bool; } machine value(input: &Input, other: &Other) -> bool requires input.allowed { true }",
     );
     assert!(read(&program).is_some());
@@ -237,7 +226,7 @@ fn structural_entry_requires_exact_live_receiver_local_field_symbols() {
 
 #[test]
 fn structural_entry_rejects_missing_or_foreign_root_identity() {
-    let program = typed(
+    let program = typed_program(
         "data Input { allowed: bool; } machine value(input: &Input, other: &Input) -> bool requires input.allowed { true }",
     );
     let root = requirement(&program);
@@ -294,7 +283,7 @@ fn structural_entry_rejects_fake_builtin_types_and_stale_field_types() {
     field_mut(&mut invalid, 0).type_reference = TypeReferenceHandle::invalid();
     assert!(read(&invalid).is_none());
 
-    let mut wrong_atom = typed(
+    let mut wrong_atom = typed_program(
         "data Input { allowed: bool; } machine value(input: &Input, number: u8) -> bool requires input.allowed { true }",
     );
     let parameters =
@@ -322,18 +311,18 @@ fn structural_entry_does_not_erase_intermediate_borrow_paths_or_generic_owners()
         "data Inner { allowed: bool; } data Outer { inner: &Inner; } machine value(input: &Outer) -> bool requires input.inner.allowed { true }",
         "data Input<T> { allowed: bool; } machine value<T>(input: &Input<T>) -> bool requires input.allowed { true }",
     ] {
-        let program = typed(source);
+        let program = typed_program(source);
         assert!(read(&program).is_none());
     }
 }
 
 #[test]
 fn structural_entry_boolean_operators_keep_exact_builtin_meaning() {
-    let custom = typed(
+    let custom = typed_program(
         "data Input { allowed: bool; } boundary operator == bool::custom(left: bool, right: bool) -> bool; machine value(input: &Input) -> bool requires input.allowed == true { true }",
     );
     assert!(read(&custom).is_none());
-    let unrelated = typed(
+    let unrelated = typed_program(
         "data Input { allowed: bool; } boundary operator == f64::custom(left: f64, right: f64) -> bool; machine value(input: &Input) -> bool requires input.allowed == true { true }",
     );
     assert!(read(&unrelated).is_some());
@@ -350,7 +339,8 @@ fn structural_entry_expression_and_type_walks_are_bounded() {
     member.receiver = root;
     assert!(read(&cyclic).is_none());
 
-    let mut deep = typed("machine value(unread: i32, flag: bool) -> bool requires flag { true }");
+    let mut deep =
+        typed_program("machine value(unread: i32, flag: bool) -> bool requires flag { true }");
     let parameters = deep.machine_states(&deep.machines()[0])[0].parameters;
     let mut reference = deep.tables.state_parameters.span_or_empty(parameters)[0].type_reference;
     for _ in 0..65 {
@@ -380,7 +370,7 @@ fn structural_entry_expression_and_type_walks_are_bounded() {
 }
 
 fn numeric(signature: &str, predicate: &str) -> TypedTrees {
-    typed(&format!(
+    typed_program(&format!(
         "data Record {{ enabled: bool; }} machine value({signature}) -> bool\nrequires {predicate}\n{{ true }}"
     ))
 }
@@ -479,7 +469,7 @@ fn integer_entry_comparisons_reject_unsupported_terms_and_bad_landings() {
             "{signature}: {predicate}"
         );
     }
-    let program = typed(
+    let program = typed_program(
         "machine value(input: i32) -> bool requires input > cost() { true } machine cost() -> i32 { 1 }",
     );
     assert!(read(&program).is_none());
@@ -549,8 +539,9 @@ fn integer_entry_comparisons_require_exact_live_operand_and_formal_identity() {
         "no result slot in an invocation requirement"
     );
 
-    let mut invalid =
-        typed("machine value(input: i32) -> bool requires input > 0 { let local: i32 = 1; true }");
+    let mut invalid = typed_program(
+        "machine value(input: i32) -> bool requires input > 0 { let local: i32 = 1; true }",
+    );
     let state = &invalid.machine_states(&invalid.machines()[0])[0];
     let local = invalid
         .statement_table
@@ -675,7 +666,7 @@ fn integer_entry_comparisons_reject_false_builtin_types_and_unread_type_cycles()
 #[test]
 fn integer_entry_comparisons_keep_authored_operator_meaning() {
     for (primitive, admitted) in [("i32", false), ("f64", true)] {
-        let program = typed(&format!(
+        let program = typed_program(&format!(
             "boundary operator > {primitive}::custom(left: {primitive}, right: {primitive}) -> bool; machine value(input: i32) -> bool requires input > 0 {{ true }}"
         ));
         assert_eq!(read(&program).is_some(), admitted, "{primitive} operator");
@@ -683,7 +674,7 @@ fn integer_entry_comparisons_keep_authored_operator_meaning() {
 }
 
 fn numeric_field(primitive: &str, root: &str, predicate: &str) -> TypedTrees {
-    typed(&format!(
+    typed_program(&format!(
         "data Input {{ number: {primitive}; other: {primitive}; }} machine value(input: {root}, other: &Input, flag: bool) -> bool\nrequires {predicate}\n{{ true }}"
     ))
 }
@@ -732,7 +723,7 @@ fn integer_entry_fields_keep_nested_identity_and_mixed_scalar_ordinals() {
     use typed_trees::types::PrimitiveType;
 
     for root in ["Outer", "&Outer", "&mut Outer"] {
-        let mut program = typed(&format!(
+        let mut program = typed_program(&format!(
             "data Inner {{ number: i32; }} data Outer {{ inner: Inner; }} machine value(flag: bool, input: {root}, mut limit: i32) -> bool\nrequires input.inner.number < limit\n{{ true }}"
         ));
         field_mut(&mut program, 0).identity = Some(7);
@@ -761,7 +752,7 @@ fn integer_entry_fields_keep_nested_identity_and_mixed_scalar_ordinals() {
         );
     }
     for receiver in ["self", "&self", "&mut self"] {
-        let program = typed(&format!(
+        let program = typed_program(&format!(
             "data Input {{ number: i32; }} machine Input::value({receiver}, limit: i32) -> bool\nrequires self.number < limit\n{{ true }}"
         ));
         let Some(CheckedBooleanExpression::IntegerComparison { left, right, .. }) = read(&program)
@@ -790,7 +781,7 @@ fn integer_entry_fields_keep_nested_identity_and_mixed_scalar_ordinals() {
 
 #[test]
 fn integer_entry_fields_reject_wrong_namespace_and_field_identity() {
-    let program = typed(
+    let program = typed_program(
         "data Input { number: i32; } data Other { number: i32; } machine value(input: &Input, other: &Other) -> bool\nrequires input.number > 0\n{ true }",
     );
     let root = requirement(&program);
@@ -932,7 +923,7 @@ fn integer_entry_fields_reject_partial_syntax_and_incompatible_carriers() {
         "input.signed > input.unsigned",
         "input.signed == input.unsigned",
     ] {
-        let program = typed(&format!(
+        let program = typed_program(&format!(
             "data Input {{ signed: i32; unsigned: u32; }} machine value(input: &Input) -> bool\nrequires {predicate}\n{{ true }}"
         ));
         assert!(read(&program).is_none(), "{predicate}");
@@ -942,7 +933,7 @@ fn integer_entry_fields_reject_partial_syntax_and_incompatible_carriers() {
 #[test]
 fn integer_entry_fields_retain_selected_comparison_meaning() {
     for (primitive, admitted) in [("i32", false), ("f64", true)] {
-        let program = typed(&format!(
+        let program = typed_program(&format!(
             "data Input {{ number: i32; }} boundary operator > {primitive}::custom(left: {primitive}, right: {primitive}) -> bool; machine value(input: &Input) -> bool\nrequires input.number > 0\n{{ true }}"
         ));
         assert_eq!(read(&program).is_some(), admitted, "{primitive} operator");

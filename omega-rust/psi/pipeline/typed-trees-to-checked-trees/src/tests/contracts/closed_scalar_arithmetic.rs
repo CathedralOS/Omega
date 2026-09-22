@@ -3,9 +3,7 @@
 //! equalities lowers as one predicate, while domain-qualified operands and
 //! non-arithmetic shapes stay outside the closed language.
 
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
+use crate::tests::front_end::checked_program;
 use checked_trees::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
     CheckedScalarExpression, ClosedScalarContractValue,
@@ -14,11 +12,7 @@ use typed_trees::types::PrimitiveType;
 
 fn ensures_clauses(machine_source: &str) -> Vec<Option<ClosedScalarContractValue>> {
     let source = format!("data Provider {{}}\n{machine_source}");
-    let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = checked_program(&source);
     let machine = checked
         .machines()
         .iter()

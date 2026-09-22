@@ -383,6 +383,7 @@ mod tests {
     use super::{ExpressionNode, FactPayload, FlowExitFact};
     use crate::checks::contracts::exits::cases::CaseObservation;
     use crate::checks::contracts::return_values::exit_return_expression;
+    use crate::tests::front_end::checked_program;
 
     #[test]
     fn result_field_observation_requires_a_complete_return_write_frame() {
@@ -391,17 +392,7 @@ mod tests {
             machine make(value: Message) -> Wrapper requires value in Message::Data;
             ensures result.message in Message::Data;
             { Wrapper { message: value, later: 1 == 1 } }";
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let typed =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap();
+        let checked = checked_program(source);
         let exit = checked
             .facts
             .flow
@@ -484,17 +475,7 @@ mod tests {
         let source = "data Message { case Empty; case Data(value: u8); }
             machine first() -> Message ensures result in Message::Data; { Message::Data { value: 1 } }
             machine second() -> Message ensures result in Message::Empty; { Message::Empty }";
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let typed =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap();
+        let checked = checked_program(source);
         let exits = checked
             .facts
             .flow

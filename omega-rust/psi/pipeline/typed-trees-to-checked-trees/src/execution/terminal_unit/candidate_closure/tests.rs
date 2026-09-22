@@ -8,20 +8,10 @@ use crate::execution::terminal_unit::build_checked_composed_unit_control_machine
 use crate::execution::terminal_unit::candidate_closure::CandidateClosure;
 use crate::execution::terminal_unit::candidate_closure::retain_available;
 use crate::execution::terminal_unit::scalar_targets;
+use crate::tests::front_end::checked_program_result;
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
-        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"))
+    checked_program_result(source).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"))
 }
 
 fn symbol(ordinal: usize) -> SymbolHandle {

@@ -1,13 +1,8 @@
-use super::checked;
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
-use crate::tests::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
+use crate::tests::front_end::{checked_program, checked_program_result};
 
 #[test]
 fn retains_canonical_semantic_permission_events() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Receipt [linear] { code: i32; }
         machine Receipt::ack(self) {}
@@ -89,7 +84,7 @@ fn retains_canonical_semantic_permission_events() {
 
 #[test]
 fn method_form_by_value_self_records_terminal_consume() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         pub data Receipt [linear] { code: i32; }
         boundary machine Receipt::complete(self) {}
@@ -128,7 +123,7 @@ fn method_form_by_value_self_records_terminal_consume() {
 
 #[test]
 fn explicit_crash_retains_definitely_live_linear_frontier_without_cleanup() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Receipt [linear] { code: i32; }
         data MaybeReceipt {
@@ -209,7 +204,7 @@ fn explicit_crash_retains_definitely_live_linear_frontier_without_cleanup() {
 
 #[test]
 fn multi_hop_case_guard_promotes_only_the_proven_conditional_crash_claim() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Receipt [linear] { code: i32; }
         data MaybeReceipt {
@@ -309,7 +304,7 @@ fn multi_hop_case_guard_promotes_only_the_proven_conditional_crash_claim() {
 
 #[test]
 fn common_case_guard_parameter_map_survives_a_diamond_join() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Receipt [linear] { code: i32; }
         data MaybeReceipt {
@@ -376,7 +371,7 @@ fn common_case_guard_parameter_map_survives_a_diamond_join() {
 
 #[test]
 fn nested_case_membership_proves_every_conditional_crash_claim_segment() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Receipt [linear] { code: i32; }
         data InnerReceipt {
@@ -479,7 +474,7 @@ fn nested_case_membership_proves_every_conditional_crash_claim_segment() {
 
 #[test]
 fn empty_conditional_sum_records_establishment_without_payload_debt() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Receipt [linear] { code: i32; }
         data ReceiptState {
@@ -521,11 +516,7 @@ fn uninitialized_conditional_sum_cannot_be_moved_as_an_empty_value() {
             0
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+    let diagnostics = checked_program_result(source)
         .expect_err("implicit zero-fill does not establish a sum value");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic

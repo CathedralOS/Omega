@@ -1,25 +1,15 @@
 //! Nested and borrowed custom-view projections are proved literal by literal.
 
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
-
-fn typed(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokens");
-    let syntax = parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolved");
-    lower_symbol_resolved_trees(&resolved).expect("typed")
-}
+use crate::tests::front_end::typed_program;
 
 fn prove(source: &str) {
-    crate::checks::termination::check_machine_termination(&typed(source))
+    crate::checks::termination::check_machine_termination(&typed_program(source))
         .unwrap_or_else(|diagnostics| panic!("termination: {source}\n{diagnostics:#?}"));
 }
 
 fn reject(source: &str) {
-    let diagnostics =
-        crate::checks::termination::check_machine_termination(&typed(source)).expect_err(source);
+    let diagnostics = crate::checks::termination::check_machine_termination(&typed_program(source))
+        .expect_err(source);
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message

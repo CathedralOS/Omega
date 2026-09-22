@@ -1,8 +1,9 @@
-use super::{checked, machine_and_entry_state, typed_program};
+use super::machine_and_entry_state;
+use crate::tests::front_end::{checked_program, typed_program};
 
 #[test]
 fn named_machine_back_edge_retains_entry_state_cleanup_and_shared_unit_plan() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         boundary trait Output { machine write(bytes: &[u8], marker: i32) reaches Output; }
         machine relay(bytes: &[u8]) reaches Output {
@@ -73,7 +74,7 @@ fn named_machine_back_edge_retains_entry_state_cleanup_and_shared_unit_plan() {
 
 #[test]
 fn structural_conditional_edges_retain_independent_affine_parameter_cleanup() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Token { value: i32; }
 
@@ -131,7 +132,7 @@ fn structural_conditional_edges_retain_independent_affine_parameter_cleanup() {
 
 #[test]
 fn structural_control_only_fences_edges_that_discard_nominal_cleanup() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Nominal {}
         machine Nominal::drop(&mut self) {}
@@ -177,7 +178,7 @@ fn structural_control_only_fences_edges_that_discard_nominal_cleanup() {
 
 #[test]
 fn structural_jump_retains_reverse_order_cleanup_after_transfer() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Token { value: i32; }
 
@@ -219,7 +220,7 @@ fn affine_locals_fail_closed_in_the_whole_parameter_edge_slice() {
         ),
     ] {
         let local_type = local.split(' ').next().unwrap();
-        let checked = checked(&format!(
+        let checked = checked_program(&format!(
             r#"
             {declarations}
 
@@ -286,7 +287,7 @@ fn affine_locals_fail_closed_in_the_whole_parameter_edge_slice() {
 
 #[test]
 fn partial_affine_parameter_moves_fail_closed() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Token { value: i32; }
         data Pair { left: Token; right: Token; }
@@ -313,7 +314,7 @@ fn partial_affine_parameter_moves_fail_closed() {
 #[test]
 fn attached_unit_direct_record_projection_retains_transfer_and_maximal_sibling() {
     for (moved, residual) in [("left", "right"), ("right", "left")] {
-        let checked = checked(&format!(
+        let checked = checked_program(&format!(
             r#"
             data Token {{ value: i32; }}
             data Pair {{ left: Token; right: Token; }}
@@ -490,7 +491,7 @@ fn projected_transition_cleanup_fences_shapes_outside_the_first_checked_cohort()
         ),
     ];
     for (case, source) in sources {
-        let checked = checked(source);
+        let checked = checked_program(source);
         let (machine, entry) = machine_and_entry_state(&checked, "route");
         assert!(
             checked
@@ -565,7 +566,7 @@ fn projected_transition_cleanup_admits_wider_exact_paths() {
         ),
     ];
     for (case, source, expected_residuals, expected_type) in cases {
-        let checked = checked(source);
+        let checked = checked_program(source);
         let (machine, entry) = machine_and_entry_state(&checked, "route");
         let edge = checked
             .facts
@@ -662,7 +663,7 @@ fn projected_transition_cleanup_admits_wider_exact_paths() {
 
 #[test]
 fn projected_transition_cleanup_retains_construction_local_residuals() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Token { value: i32; }
         data Pair { left: Token; right: Token; }
@@ -766,7 +767,7 @@ fn projected_transition_cleanup_retains_construction_local_residuals() {
 
 #[test]
 fn projected_transition_cleanup_orders_mixed_dying_roots() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Token { value: i32; }
         data Pair { left: Token; right: Token; }
@@ -914,7 +915,7 @@ fn projected_transition_cleanup_fences_unaccounted_temporary_custody() {
         ),
     ];
     for (case, source) in sources {
-        let checked = checked(source);
+        let checked = checked_program(source);
         let (machine, entry) = machine_and_entry_state(&checked, "route");
         assert!(
             checked
@@ -990,7 +991,7 @@ fn projected_transition_cleanup_admits_multi_state_machines() {
     // revalidates custody per edge, so a machine with more than two states
     // admits the same bounded cohort as long as the forwarding state and its
     // target keep the one-parameter Unit shape.
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Token { value: i32; }
         data Pair { left: Token; right: Token; }

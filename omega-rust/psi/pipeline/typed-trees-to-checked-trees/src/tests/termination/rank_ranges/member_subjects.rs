@@ -5,8 +5,9 @@
 //! descent on that coordinate exactly as a bare formal -- a respelled copy,
 //! a moved endpoint, a prefix write, or a signed leaf each fails on its own
 //! terms.
-use super::{lower_typed_trees, typed};
+use super::lower_typed_trees;
 use crate::CheckingRequest;
+use crate::tests::front_end::typed_program;
 
 const MEMBER: &str = r#"
 data Bag { count: u64 [0..=9]; }
@@ -25,19 +26,19 @@ terminates by bag.count -> Nat::Descending in 0..=9;
 "#;
 
 fn prove(source: &str) {
-    crate::checks::termination::check_machine_termination(&typed(source))
+    crate::checks::termination::check_machine_termination(&typed_program(source))
         .unwrap_or_else(|diagnostics| panic!("termination: {source}\n{diagnostics:#?}"));
-    lower_typed_trees(typed(source), &CheckingRequest::settled())
+    lower_typed_trees(typed_program(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("complete checking: {source}\n{diagnostics:#?}"));
 }
 
 fn prove_termination(source: &str) {
-    crate::checks::termination::check_machine_termination(&typed(source))
+    crate::checks::termination::check_machine_termination(&typed_program(source))
         .unwrap_or_else(|diagnostics| panic!("termination: {source}\n{diagnostics:#?}"));
 }
 
 fn reject_range(source: &str) {
-    let diagnostics = crate::checks::termination::check_machine_termination(&typed(source))
+    let diagnostics = crate::checks::termination::check_machine_termination(&typed_program(source))
         .expect_err("the authored member-subject range must be proved");
     assert!(
         diagnostics
@@ -48,7 +49,8 @@ fn reject_range(source: &str) {
 }
 
 fn reject_termination(source: &str) {
-    crate::checks::termination::check_machine_termination(&typed(source)).expect_err(source);
+    crate::checks::termination::check_machine_termination(&typed_program(source))
+        .expect_err(source);
 }
 
 #[test]

@@ -5,11 +5,7 @@ mod restoration_and_retirement;
 mod root_and_reborrow_closures;
 mod transactional_rejections;
 
-use super::super::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
+use crate::tests::front_end::checked_program;
 
 const SYMBOLIC_ADJACENCY: &str = r#"
     data Main { items: [i32; 4]; }
@@ -22,26 +18,6 @@ const SYMBOLIC_ADJACENCY: &str = r#"
         left.len + right.len
     }
 "#;
-
-fn lower(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize borrow resources");
-    let syntax = parse_syntax_trees(&tokens).expect("parse borrow resources");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve borrow resources");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type borrow resources");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check borrow resources")
-}
-
-fn try_lower(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize borrow resources");
-    let syntax = parse_syntax_trees(&tokens).expect("parse borrow resources");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve borrow resources");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type borrow resources");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-}
 
 fn reborrow_access_source(parent: &str, child: &str) -> String {
     let (parent_type, parent_borrow, prefix) = match parent {
@@ -78,11 +54,11 @@ fn reborrow_access_source(parent: &str, child: &str) -> String {
 }
 
 fn symbolic_adjacency() -> checked_trees::CheckedTrees {
-    lower(SYMBOLIC_ADJACENCY)
+    checked_program(SYMBOLIC_ADJACENCY)
 }
 
 fn direct_read_and_mutable_modes() -> checked_trees::CheckedTrees {
-    lower(
+    checked_program(
         r#"
         data Main { readable: i32; mutable: i32; }
         data Sibling { readable: i32; }
@@ -105,7 +81,7 @@ fn direct_read_and_mutable_modes() -> checked_trees::CheckedTrees {
 }
 
 fn direct_reborrow_chain() -> checked_trees::CheckedTrees {
-    lower(
+    checked_program(
         r#"
         data Cell { value: i32; }
         data Main { cell: Cell; other: Cell; }
@@ -152,7 +128,7 @@ fn main_reborrow_loans(
 }
 
 fn mutable_parent_write_only_child_restored_use() -> checked_trees::CheckedTrees {
-    lower(
+    checked_program(
         r#"
         data Cell { value: i32; }
         data Main { cell: Cell; }
@@ -168,7 +144,7 @@ fn mutable_parent_write_only_child_restored_use() -> checked_trees::CheckedTrees
 }
 
 fn mutable_parent_sole_shared_child_restored_use() -> checked_trees::CheckedTrees {
-    lower(
+    checked_program(
         r#"
         data Main { value: i32; }
         machine observe(value: &i32) {}
@@ -184,7 +160,7 @@ fn mutable_parent_sole_shared_child_restored_use() -> checked_trees::CheckedTree
 }
 
 fn mutable_parent_two_shared_children_restored_use() -> checked_trees::CheckedTrees {
-    lower(
+    checked_program(
         r#"
         data Main { value: i32; }
         machine observe(left: &i32, right: &i32) {}
@@ -201,7 +177,7 @@ fn mutable_parent_two_shared_children_restored_use() -> checked_trees::CheckedTr
 }
 
 fn mutable_parent_three_shared_children_restored_use() -> checked_trees::CheckedTrees {
-    lower(
+    checked_program(
         r#"
         data Main { value: i32; }
         machine observe(left: &i32, middle: &i32, right: &i32) {}
@@ -219,7 +195,7 @@ fn mutable_parent_three_shared_children_restored_use() -> checked_trees::Checked
 }
 
 fn sequential_reborrows() -> checked_trees::CheckedTrees {
-    lower(
+    checked_program(
         r#"
         data Main { value: i32; }
         machine write(value: &mut i32) { value = 1; }

@@ -1,15 +1,10 @@
 use super::{
-    direct_read_and_mutable_modes, direct_reborrow_chain, lower, main_reborrow_loans,
+    direct_read_and_mutable_modes, direct_reborrow_chain, main_reborrow_loans,
     mutable_parent_sole_shared_child_restored_use,
     mutable_parent_three_shared_children_restored_use,
     mutable_parent_two_shared_children_restored_use, reborrow_access_source, symbolic_adjacency,
-    try_lower,
 };
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
-use crate::tests::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
+use crate::tests::front_end::{checked_program, checked_program_result};
 
 #[test]
 fn direct_reborrow_access_classifier_covers_all_nine_cells() {
@@ -57,7 +52,10 @@ fn direct_reborrow_source_matrix_uses_borrow_diagnostics_for_all_nine_cells() {
         ("WriteOnly", "WriteOnly", true),
     ];
     for (parent, child, accepted) in cells {
-        match (try_lower(&reborrow_access_source(parent, child)), accepted) {
+        match (
+            checked_program_result(&reborrow_access_source(parent, child)),
+            accepted,
+        ) {
             (Ok(checked), true) => {
                 let resource = checked
                     .facts
@@ -126,7 +124,7 @@ fn direct_reborrow_source_matrix_uses_borrow_diagnostics_for_all_nine_cells() {
 
 #[test]
 fn mutable_shared_siblings_form_one_checked_cohort_and_restore_once() {
-    let checked = lower(
+    let checked = checked_program(
         r#"
         data Cell { value: i32; }
         data Main { cell: Cell; }
@@ -328,15 +326,7 @@ fn projected_self_write_only_local_retains_direct_root_resource() {
             fill(&write write);
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize fenced write-only local");
-    let syntax = parse_syntax_trees(&tokens).expect("parse fenced write-only local");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve fenced write-only local");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type fenced write-only local");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("exact self field capture is non-observing");
+    let checked = checked_program(source);
     assert!(
         checked
             .facts
@@ -722,7 +712,7 @@ fn retains_topological_reborrow_resources_and_remaps_parent_handles() {
 
 #[test]
 fn retains_projected_direct_reborrow_parent() {
-    let checked = lower(
+    let checked = checked_program(
         r#"
         data Cell { value: i32; }
         data Main { cell: Cell; }
@@ -795,7 +785,7 @@ fn retains_projected_direct_reborrow_parent() {
 
 #[test]
 fn retains_the_same_suspension_boundary_when_the_parent_is_reused_after_the_child() {
-    let checked = lower(
+    let checked = checked_program(
         r#"
         data Main { value: i32; }
         machine write(value: &mut i32) { value = 1; }

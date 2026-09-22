@@ -433,6 +433,7 @@ pub(crate) fn specialize_static_machine_calls_with_selections(
 #[cfg(test)]
 mod tests {
     use super::{CheckingMode, CheckingRequest};
+    use crate::tests::front_end::typed_program;
 
     #[test]
     fn checking_modes_preserve_package_settlement_permissions() {
@@ -458,17 +459,7 @@ mod tests {
 
     #[test]
     fn mathematical_declarations_check_into_checked_facts() {
-        use source_files_to_tokens::Lexer;
-        use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-        use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-        use tokens_to_syntax_trees::parse_syntax_trees;
-
-        let tokens = Lexer::new("let double(x: u64): u64 = x;")
-            .tokenize()
-            .expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let typed = typed_program("let double(x: u64): u64 = x;");
 
         let checked = crate::lower_typed_trees(typed, &CheckingRequest::settled())
             .expect("elaborated declarations check into facts");
@@ -483,17 +474,7 @@ mod tests {
 
     #[test]
     fn unelaboratable_mathematical_declarations_fail_with_their_own_diagnostic() {
-        use source_files_to_tokens::Lexer;
-        use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-        use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-        use tokens_to_syntax_trees::parse_syntax_trees;
-
-        let tokens = Lexer::new("let bad<A: core::Type<u, v>>(x: A): A = x;")
-            .tokenize()
-            .expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let typed = typed_program("let bad<A: core::Type<u, v>>(x: A): A = x;");
 
         let diagnostics = crate::lower_typed_trees(typed, &CheckingRequest::settled())
             .expect_err("a malformed `core::Type` carrier is unelaboratable");

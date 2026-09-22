@@ -2,22 +2,10 @@
 //! closed scalar contract roster while the requires tail keeps each range as
 //! a `Predicate` conjunction in the same constraint order: the roster is
 //! exact endpoint evidence riding beside the clause, never a replacement.
-use super::{
-    Lexer, ResolutionRequest, SymbolHandle, lower_symbol_resolved_trees, parse_syntax_trees,
-    resolve,
-};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
+use super::SymbolHandle;
+use crate::tests::front_end::checked_program;
 use numerics::literals::IntegerLiteral;
 use typed_trees::types::PrimitiveType;
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
-}
 
 fn machine_named(checked: &checked_trees::CheckedTrees, name: &str) -> SymbolHandle {
     checked
@@ -43,7 +31,7 @@ fn contract_plan(
 
 #[test]
 fn inclusive_u64_entry_range_retains_authored_endpoints() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         machine accept(value: u64[0..=3]) -> u64 { value }
     "#,
@@ -86,7 +74,7 @@ fn inclusive_u64_entry_range_retains_authored_endpoints() {
 #[test]
 fn exclusive_u64_entry_range_retains_its_inclusive_predecessor() {
     // `u64[0..4]` excludes 4, so the retained inclusive maximum is 3.
-    let checked = checked(
+    let checked = checked_program(
         r#"
         machine accept(value: u64[0..4]) -> u64 { value }
     "#,
@@ -112,7 +100,7 @@ fn exclusive_u64_entry_range_retains_its_inclusive_predecessor() {
 
 #[test]
 fn integer_entry_range_names_its_dense_scalar_position() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Carrier { raw: u64; }
         machine accept(flag: bool, value: u64[0..=7], aux: Carrier) -> u64 { value }
@@ -134,7 +122,7 @@ fn integer_entry_range_names_its_dense_scalar_position() {
 
 #[test]
 fn signed_i64_entry_range_retains_signed_endpoints() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         machine accept(value: i64[-4..=4]) -> i64 { value }
     "#,

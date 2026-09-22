@@ -1,4 +1,4 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::tests::front_end::typed_program;
 #[test]
 fn write_frame_stays_opaque_for_non_bijective_exclusive_cycle() {
     // This deliberately duplicates one exclusive parameter on a backedge.
@@ -15,13 +15,7 @@ fn write_frame_stays_opaque_for_non_bijective_exclusive_cycle() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let machine = typed
         .machines()
         .iter()
@@ -84,13 +78,7 @@ fn write_frame_composes_transparent_helpers_in_exclusive_cycles() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
     let frame = |name: &str| {
         let machine = typed
@@ -370,13 +358,7 @@ fn write_frame_substitutes_stable_local_exclusive_alias_origins() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
     let expected = [
@@ -1224,13 +1206,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
     for name in [

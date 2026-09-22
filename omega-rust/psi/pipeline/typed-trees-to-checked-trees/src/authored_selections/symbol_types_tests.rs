@@ -1,4 +1,5 @@
 use crate::authored_selections::operator_targets::type_reference_for_symbol;
+use crate::tests::front_end::typed_program;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::{TypedTrees, data::DataMember, statement::StatementNode};
 
@@ -12,15 +13,7 @@ fn fixture() -> TypedTrees {
         machine First::read(&self) { let observed: u16 = value; }
         machine second(value: u32) { let observed: u32 = value; }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type")
+    typed_program(source)
 }
 
 #[test]

@@ -1,6 +1,4 @@
-use super::super::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
+use crate::tests::front_end::{checked_program, checked_program_result};
 
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
@@ -52,11 +50,7 @@ use typed_trees::types::PrimitiveType;
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
     let source = format!("boundary trait PortIo {{}}\n{source}");
-    let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
+    checked_program(&source)
 }
 
 /// Same prelude as `checked`, with the toolchain `core/service.omg` resident
@@ -66,17 +60,13 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
 /// in the fixture.
 fn checked_with_service(source: &str) -> checked_trees::CheckedTrees {
     let source = format!("boundary trait PortIo {{}}\n{source}");
-    let mut typed = crate::tests::parse_typed_trees_with_core_service(&source);
+    let mut typed = crate::tests::front_end::typed_program_with_core_service(&source);
     crate::tests::bind_fixture_fused_service_erasures(&mut typed);
     lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
 }
 
 fn contextual_cleanup_diagnostics(source: &str) -> Vec<diagnostics::Diagnostic> {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
+    checked_program_result(source)
         .expect_err("contextual cleanup requirement-set mismatch must reject at its return edge")
 }
 

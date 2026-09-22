@@ -494,19 +494,7 @@ fn substitute_named_endpoints(
 mod tests {
     use super::{StatementNode, TypedTrees};
     use crate::monomorphization::result_locals::refresh_generic_call_results;
-
-    fn typed(source: &str) -> TypedTrees {
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .expect("tokens");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("resolution");
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("typing")
-    }
+    use crate::tests::front_end::typed_program;
 
     fn refresh_calls(program: &mut TypedTrees) -> Result<(), Vec<diagnostics::Diagnostic>> {
         super::super::materialize_static_argument_types(program);
@@ -520,7 +508,7 @@ mod tests {
 
     #[test]
     fn forwarded_result_range_rebinds_the_exact_caller_const_not_its_sibling() {
-        let mut program = typed("machine value<const N: u64>(witness: &[u8; N]) -> u64[0..=N] { N }
+        let mut program = typed_program("machine value<const N: u64>(witness: &[u8; N]) -> u64[0..=N] { N }
             machine forward<const N: u64, const M: u64>(witness: &[u8; N], expected: u64[0..=N], wrong: u64[0..=M]) -> u64 { value(witness) }");
         let machine = program
             .machines()
@@ -550,7 +538,7 @@ mod tests {
 
     #[test]
     fn retained_generic_caller_instantiates_only_inferred_results_without_consuming_template() {
-        let mut program = typed(
+        let mut program = typed_program(
             r#"
             machine endpoint<const N: u64>() -> u64[0..=N] { N }
             machine wrapper<Value>(value: Value) -> u64 {

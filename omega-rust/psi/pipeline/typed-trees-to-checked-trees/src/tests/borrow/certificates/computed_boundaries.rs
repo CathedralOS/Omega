@@ -1,4 +1,5 @@
-use super::{checked_source, sole_certificate};
+use super::sole_certificate;
+use crate::tests::front_end::{checked_program, checked_program_result};
 use checked_trees::{
     BorrowCompatibilityPlaceSide, BorrowCompatibilitySelectorPosition,
     BorrowCompatibilitySelectorValue,
@@ -198,7 +199,7 @@ fn computed_binding_and_finite_copies_freeze_the_original_symbol_in_both_orders(
         ),
     ] {
         for reverse in [false, true] {
-            let mut checked = checked_source(&split_source(declarations, left, right, reverse));
+            let mut checked = checked_program(&split_source(declarations, left, right, reverse));
             assert_adjacency_snapshot(&checked, reverse);
             let before = checked.facts.borrow.compatibility_certificates.clone();
             crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
@@ -217,7 +218,7 @@ fn offset_computed_boundary_licenses_adjacent_mutable_loans() {
     ] {
         for reverse in [false, true] {
             let mut checked =
-                checked_source(&split_source("let mid: u64 = 1 + 1;", left, right, reverse));
+                checked_program(&split_source("let mid: u64 = 1 + 1;", left, right, reverse));
             assert_offset_adjacency_snapshot(&mut checked, shifted_rows);
         }
     }
@@ -225,7 +226,7 @@ fn offset_computed_boundary_licenses_adjacent_mutable_loans() {
 
 #[test]
 fn offset_drift_rejects_certificate_replay() {
-    let mut checked = checked_source(&split_source(
+    let mut checked = checked_program(&split_source(
         "let mid: u64 = 1 + 1;",
         "0..mid",
         "mid + 1..4",
@@ -295,7 +296,7 @@ fn copy_declared_after_the_first_loan_keeps_the_captured_computed_identity() {
             "let cut: u64 = mid; let copied: u64 = cut; let right:",
         )
         .replace("self.items[mid..4]", "self.items[copied..4]");
-    let checked = checked_source(&source);
+    let checked = checked_program(&source);
     assert_adjacency_snapshot(&checked, false);
     assert_ne!(
         local(&checked, "copied").symbol,
@@ -304,19 +305,7 @@ fn copy_declared_after_the_first_loan_keeps_the_captured_computed_identity() {
 }
 
 fn rejection(source: &str) -> Vec<diagnostics::Diagnostic> {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize negative fixture");
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse negative fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve negative fixture");
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type negative fixture before checking borrow compatibility");
-    let Err(diagnostics) = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
-    else {
+    let Err(diagnostics) = checked_program_result(source) else {
         panic!("these boundaries cannot license mutable adjacency: {source}");
     };
     diagnostics
@@ -354,7 +343,7 @@ fn shared_loans_retain_distinct_computed_symbols_even_for_identical_initializers
         false,
     )
     .replace("&mut", "&");
-    let checked = checked_source(&source);
+    let checked = checked_program(&source);
     let certificate = sole_certificate(&checked);
     let mid = local(&checked, "mid").symbol;
     let other = local(&checked, "other").symbol;
@@ -460,7 +449,7 @@ fn unrelated_same_spelled_local_in_another_machine_cannot_supply_boundary_identi
         format!("{unrelated}\n{split}"),
         format!("{split}\n{unrelated}"),
     ] {
-        let checked = checked_source(&source);
+        let checked = checked_program(&source);
         assert_adjacency_snapshot(&checked, false);
         let selected = local(&checked, "mid").symbol;
         let same_spelled = checked
@@ -488,7 +477,7 @@ fn unrelated_same_spelled_local_in_another_machine_cannot_supply_boundary_identi
 }
 
 fn checked_with_spare_boundary() -> checked_trees::CheckedTrees {
-    checked_source(&split_source(
+    checked_program(&split_source(
         "let mid: u64 = 1 + 1; let cut: u64 = mid; let other: u64 = 1 + 1; let other_copy: u64 = other;",
         "0..cut",
         "mid..4",

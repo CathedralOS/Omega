@@ -1,15 +1,6 @@
-use super::super::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
-
-fn typed_source(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    lower_symbol_resolved_trees(&resolved).unwrap()
-}
+use crate::tests::front_end::{checked_program_result, typed_program};
 
 #[test]
 fn countdown_evidence_preserves_both_boolean_arm_orders_and_base_case_polarities() {
@@ -37,7 +28,7 @@ fn countdown_evidence_preserves_both_boolean_arm_orders_and_base_case_polarities
                 !first_truth,
                 target(!first_truth),
             );
-            let typed = typed_source(&source);
+            let typed = typed_program(&source);
             let machine = &typed.machines()[0];
             let components = crate::checks::termination::proven_nat_countdown_sccs(&typed, machine)
                 .unwrap_or_else(|| panic!("{source}: retained countdown evidence"));
@@ -72,7 +63,7 @@ fn distance_ranking_preserves_both_boolean_arm_orders() {
                 !first_truth,
                 target(!first_truth),
             );
-            lower_typed_trees(typed_source(&source), &CheckingRequest::settled())
+            checked_program_result(&source)
                 .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
         }
     }
@@ -96,11 +87,10 @@ fn mutual_ranking_uses_each_edges_own_failed_guard() {
             }
         }
     "#;
-    lower_typed_trees(typed_source(source), &CheckingRequest::settled())
-        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    checked_program_result(source).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
     let stalled = source.replace("false -> value(remaining - 1)", "false -> value(remaining)");
-    let diagnostics = lower_typed_trees(typed_source(&stalled), &CheckingRequest::settled())
-        .expect_err("every mutual edge must decrease");
+    let diagnostics =
+        checked_program_result(&stalled).expect_err("every mutual edge must decrease");
     assert!(
         diagnostics
             .iter()
@@ -121,7 +111,7 @@ fn one_decreasing_self_edge_cannot_cover_an_unchanged_fallback_edge() {
             }
         }
     "#;
-    let typed = typed_source(source);
+    let typed = typed_program(source);
     assert!(
         crate::checks::termination::proven_nat_countdown_sccs(&typed, &typed.machines()[0])
             .is_none()
@@ -148,7 +138,7 @@ fn signed_nonzero_does_not_prove_a_positive_countdown_rank() {
             }
         }
     "#;
-    let diagnostics = lower_typed_trees(typed_source(source), &CheckingRequest::settled())
+    let diagnostics = checked_program_result(source)
         .expect_err("nonzero signed input does not establish positive Nat descent");
     assert!(
         diagnostics

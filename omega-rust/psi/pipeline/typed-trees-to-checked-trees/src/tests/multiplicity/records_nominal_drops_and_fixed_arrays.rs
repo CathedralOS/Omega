@@ -1,9 +1,4 @@
-use super::checked;
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
-use crate::tests::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
+use crate::tests::front_end::{checked_program, checked_program_result};
 
 #[test]
 fn nested_linear_record_extraction_stays_conservative_without_field_algebra() {
@@ -24,11 +19,7 @@ fn nested_linear_record_extraction_stays_conservative_without_field_algebra() {
             0
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+    let diagnostics = checked_program_result(source)
         .expect_err("partial linear-record extraction needs per-field resource accounting");
 
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -40,7 +31,7 @@ fn nested_linear_record_extraction_stays_conservative_without_field_algebra() {
 
 #[test]
 fn transparent_record_frontier_preserves_independent_field_origins() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Receipt [linear] { code: i32; }
         machine Receipt::ack(self) {}
@@ -142,7 +133,7 @@ fn transparent_record_frontier_preserves_independent_field_origins() {
 
 #[test]
 fn transparent_record_entry_claims_share_lineage_but_have_distinct_identities() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Receipt [linear] { code: i32; }
         machine Receipt::ack(self) {}
@@ -203,12 +194,8 @@ fn transparent_record_partial_move_leaves_sibling_obligation_live() {
             0
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("the untouched sibling remains an obligation");
+    let diagnostics =
+        checked_program_result(source).expect_err("the untouched sibling remains an obligation");
 
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -229,11 +216,7 @@ fn nominal_drop_rejects_direct_partial_move() {
             let extracted: Leaf = wrapper.leaf;
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+    let diagnostics = checked_program_result(source)
         .expect_err("a nominal drop machine requires its whole valid receiver");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -257,11 +240,7 @@ fn nominal_drop_rejects_move_below_nested_prefix() {
             let extracted: Leaf = outer.wrapper.leaf;
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+    let diagnostics = checked_program_result(source)
         .expect_err("every proper nominal-drop prefix retains whole-value entitlement");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -285,11 +264,7 @@ fn nominal_drop_rejects_move_below_generic_prefix() {
             let extracted: Leaf = boxed.value.leaf;
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+    let diagnostics = checked_program_result(source)
         .expect_err("generic substitution preserves a nested nominal drop entitlement");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -308,11 +283,7 @@ fn nominal_drop_does_not_authorize_borrowed_self_extraction() {
             let extracted: Leaf = self.leaf;
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+    let diagnostics = checked_program_result(source)
         .expect_err("a nominal drop hook does not grant ownership of borrowed contents");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -323,7 +294,7 @@ fn nominal_drop_does_not_authorize_borrowed_self_extraction() {
 
 #[test]
 fn nominal_drop_allows_explicit_consuming_decomposition() {
-    checked(
+    checked_program(
         r#"
         data Leaf { value: i32; }
         data Wrapper { leaf: Leaf; }
@@ -335,7 +306,7 @@ fn nominal_drop_allows_explicit_consuming_decomposition() {
 
 #[test]
 fn nominal_drop_allows_whole_value_move() {
-    checked(
+    checked_program(
         r#"
         data Leaf { value: i32; }
         data Wrapper { leaf: Leaf; }
@@ -351,7 +322,7 @@ fn nominal_drop_allows_whole_value_move() {
 
 #[test]
 fn nominal_drop_allows_moving_nested_value_whole() {
-    checked(
+    checked_program(
         r#"
         data Leaf { value: i32; }
         data Wrapper { leaf: Leaf; }
@@ -370,7 +341,7 @@ fn nominal_drop_allows_moving_nested_value_whole() {
 
 #[test]
 fn nominal_drop_allows_copying_primitive_field() {
-    checked(
+    checked_program(
         r#"
         data Wrapper { value: i32; }
         machine Wrapper::drop(&mut self) {}
@@ -385,7 +356,7 @@ fn nominal_drop_allows_copying_primitive_field() {
 
 #[test]
 fn nominal_drop_allows_owned_production_into_self_field() {
-    checked(
+    checked_program(
         r#"
         data Leaf { value: i32; }
         data LeafFactory {}
@@ -401,7 +372,7 @@ fn nominal_drop_allows_owned_production_into_self_field() {
 
 #[test]
 fn transparent_affine_record_allows_partial_move() {
-    checked(
+    checked_program(
         r#"
         data Leaf { value: i32; }
         data Pair { left: Leaf; right: Leaf; }
@@ -440,12 +411,8 @@ fn transparent_record_rejects_duplicate_field_move() {
             0
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("one field claim cannot move twice");
+    let diagnostics =
+        checked_program_result(source).expect_err("one field claim cannot move twice");
 
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -456,7 +423,7 @@ fn transparent_record_rejects_duplicate_field_move() {
 
 #[test]
 fn fixed_array_partial_move_leaves_sibling_obligation_live() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Receipt [linear] { code: i32; }
         machine Receipt::ack(self) {}
@@ -543,12 +510,8 @@ fn fixed_array_rejects_duplicate_literal_index_move() {
             0
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("the same fixed element cannot move twice");
+    let diagnostics =
+        checked_program_result(source).expect_err("the same fixed element cannot move twice");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("receipts[0]")
@@ -562,7 +525,7 @@ fn fixed_array_rejects_duplicate_literal_index_move() {
 
 #[test]
 fn fixed_array_state_result_maps_claims_by_literal_index() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Receipt [linear] { code: i32; }
         machine Receipt::ack(self) {}
@@ -643,11 +606,7 @@ fn transparent_record_sibling_assignment_transfers_the_source_claim() {
             0
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+    let diagnostics = checked_program_result(source)
         .expect_err("assigning from a sibling must transfer its claim");
 
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -659,7 +618,7 @@ fn transparent_record_sibling_assignment_transfers_the_source_claim() {
 
 #[test]
 fn nested_generic_transparent_record_retains_the_concrete_claim_path() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Receipt [linear] { code: i32; }
         machine Receipt::ack(self) {}

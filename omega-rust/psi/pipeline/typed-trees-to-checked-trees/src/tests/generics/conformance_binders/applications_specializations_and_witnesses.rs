@@ -1,7 +1,8 @@
 use crate::CheckingRequest;
-use crate::tests::generics::typed_source;
-use crate::tests::{Lexer, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees};
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+use crate::tests::front_end::{
+    checked_program, checked_program_result, typed_program, typed_program_result,
+};
+use crate::tests::lower_typed_trees;
 
 #[test]
 fn closed_conformance_application_commitment_binds_exact_requirement_signature() {
@@ -34,12 +35,7 @@ fn closed_conformance_application_commitment_binds_exact_requirement_signature()
                 }}
             "#
         );
-        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-            .expect("closed conformance application");
+        let checked = checked_program(&source);
         let application = checked
             .machine_specializations
             .iter()
@@ -79,12 +75,7 @@ fn generic_conformance_const_argument_specializes_its_selected_row() {
         }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("const-instantiated selected row");
+    let checked = checked_program(source);
     let row = checked
         .machine_specializations
         .iter()
@@ -130,10 +121,7 @@ fn generic_conformance_static_machine_argument_specializes_its_selected_row() {
         }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
     let rank = typed
         .machines()
         .iter()
@@ -193,12 +181,7 @@ fn outer_generic_specialization_substitutes_nested_conformance_application() {
         }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("forwarded closed application");
+    let checked = checked_program(source);
     let application = checked
         .machine_specializations
         .iter()
@@ -261,10 +244,7 @@ fn outer_generic_specialization_substitutes_all_nested_conformance_lanes() {
         }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
     let rank = typed
         .machines()
         .iter()
@@ -322,12 +302,7 @@ fn generic_carrier_conformance_application_specializes_its_selected_row() {
         }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("generic-carrier selected row");
+    let checked = checked_program(source);
     let application = checked
         .machine_specializations
         .iter()
@@ -376,14 +351,7 @@ fn explicit_conformance_binder_rejects_a_map_for_the_wrong_subject() {
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+    let diagnostics = checked_program_result(source)
         .expect_err("an exact evidence argument must belong to the instantiated subject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
@@ -421,13 +389,7 @@ fn explicit_conformance_binder_dispatches_an_inherited_requirement_row() {
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("inherited binder lookup should resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let selected_row = typed
         .conformances()
         .iter()
@@ -488,13 +450,7 @@ fn explicit_conformance_binder_rewrites_a_procedure_requirement_call() {
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let selected_row = typed
         .conformances()
         .iter()
@@ -571,14 +527,7 @@ fn static_named_witness_requirement_call_keeps_public_lanes_and_private_dispatch
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("one exact static requirement witness call should check");
+    let checked = checked_program(source);
 
     let invocations = checked
         .facts
@@ -711,7 +660,7 @@ fn static_named_witness_requirement_call_accepts_exact_i32_result() {
         }
     "#;
 
-    let typed = typed_source(source).expect("typed exact i32 static requirement call");
+    let typed = typed_program_result(source).expect("typed exact i32 static requirement call");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("one exact i32 static requirement witness call should check");
     let token = checked
@@ -831,7 +780,7 @@ fn static_named_witness_i32_result_rejects_receiver_and_ordinary_argument() {
         }
     "#;
 
-    let typed = typed_source(source).expect("typed attached i32 static requirement call");
+    let typed = typed_program_result(source).expect("typed attached i32 static requirement call");
     let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("the first scalar rung must reject receivers and ordinary arguments");
     assert!(diagnostics.iter().any(|diagnostic| {

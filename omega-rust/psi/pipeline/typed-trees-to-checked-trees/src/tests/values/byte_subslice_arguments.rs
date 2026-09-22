@@ -2,7 +2,7 @@
 use super::StatementNode;
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
-use crate::tests::values::typed_trees;
+use crate::tests::front_end::typed_program;
 use checked_trees::{CheckedScalarExpression, CheckedScalarExpressionRole};
 use typed_trees::{expression::ExpressionNode, types::PrimitiveType};
 
@@ -10,7 +10,7 @@ use typed_trees::{expression::ExpressionNode, types::PrimitiveType};
 fn byte_subslice_endpoints_bind_dense_structural_roles_and_prior_locals() {
     // This checks retention, not a bounds theorem: unknown bounds need a
     // separately checked guard or contract before the body can execute.
-    let program = typed_trees(
+    let program = typed_program(
         "boundary trait Host {
             machine write(first: u8, whole: &[u8], enabled: bool, tail: &[u8], last: u8);
          }
@@ -99,7 +99,7 @@ fn byte_subslice_endpoint_retention_lands_only_exact_u64_and_keeps_omissions() {
         ("0u32..1u32", false, false),
         ("0..=1", false, false),
     ] {
-        let program = typed_trees(&format!(
+        let program = typed_program(&format!(
             "data Relay {{}}
              machine Relay::write(bytes: &[u8]) {{}}
              machine forward(bytes: &[u8]) {{ Relay::write(bytes[{range}]); }}"
@@ -144,7 +144,7 @@ fn byte_subslice_endpoint_retention_lands_only_exact_u64_and_keeps_omissions() {
 #[test]
 fn byte_subslice_full_view_retains_an_ordinary_checked_call_plan() {
     let checked = lower_typed_trees(
-        typed_trees(
+        typed_program(
             "boundary trait Host { machine write(bytes: &[u8]); }
          data Relay {}
          machine Relay::write(bytes: &[u8]) reaches Host { Host::write(bytes); }

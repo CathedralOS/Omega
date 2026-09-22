@@ -4,22 +4,10 @@
 //! carrier resolves through `refines`; the selected conformance's rows are
 //! then checked against the refinement's clauses.
 
-use crate::CheckingRequest;
-use crate::tests::{Lexer, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees};
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-
-fn check_source(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-}
+use crate::tests::front_end::checked_program_result;
 
 fn rejection(source: &str, expectation: &str) -> Vec<String> {
-    match check_source(source) {
+    match checked_program_result(source) {
         Ok(_) => panic!("{expectation}"),
         Err(diagnostics) => diagnostics
             .iter()
@@ -64,7 +52,7 @@ fn suspending_base_source(realization_axes: &str) -> String {
 
 #[test]
 fn refinement_binder_admits_an_explicitly_selected_base_conformance_that_fits() {
-    check_source(&suspending_base_source(""))
+    checked_program_result(&suspending_base_source(""))
         .expect("a `Logger` conformance whose rows neither suspend nor block fits `LocalLogger`");
 }
 
@@ -155,7 +143,7 @@ fn refinement_binder_rejects_a_realization_that_escapes_a_narrowed_reach() {
 fn an_inherited_reach_axis_imposes_no_obligation_at_the_concrete_site() {
     // "Omission here means inheritance": a clause that authors no `reaches`
     // leaves the base row in force and binds nothing extra here.
-    check_source(&narrowed_reach_source("reaches Console", "suspends false;"))
+    checked_program_result(&narrowed_reach_source("reaches Console", "suspends false;"))
         .expect("an omitted `reaches` clause inherits the base row");
 }
 
@@ -203,7 +191,7 @@ fn targeted_clause_source(write_axes: &str, flush_axes: &str) -> String {
 #[test]
 fn a_targeted_clause_narrows_alongside_the_wildcard_it_does_not_replace_it() {
     // Neither realization suspends or blocks, so both clauses are satisfied.
-    check_source(&targeted_clause_source("", ""))
+    checked_program_result(&targeted_clause_source("", ""))
         .expect("a realization violating no covering clause fits");
 
     // `flush` carries its targeted clause AND the wildcard. Suspending
@@ -290,7 +278,7 @@ fn refinement_binder_requires_a_published_termination_guarantee() {
         }),
         "{diagnostics:#?}"
     );
-    check_source(&terminating_source("terminates;"))
+    checked_program_result(&terminating_source("terminates;"))
         .expect("a realization publishing `terminates` fits the strengthened guarantee");
 }
 
@@ -333,7 +321,7 @@ fn a_reordered_refinement_head_instantiates_before_comparing() {
     // `Flipped<bool, i32>` binds X=bool, Y=i32, so `= Pair<Y, X>` demands
     // `Pair<i32, bool>`. Comparing the binder's own arguments instead would
     // look for `Pair<bool, i32>` and reject this fitting conformance.
-    check_source(&reordered_head_source("i32, bool"))
+    checked_program_result(&reordered_head_source("i32, bool"))
         .expect("the instantiated head selects `Pair<i32, bool>`");
 
     // The instantiation must still discriminate: the unflipped arguments are

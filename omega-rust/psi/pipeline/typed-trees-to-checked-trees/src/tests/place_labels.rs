@@ -3,7 +3,7 @@
 //! this pins the exact spelling for every root and segment kind so the
 //! diagnostics this crate emits cannot drift silently.
 
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::tests::front_end::typed_program;
 use facts::{PlaceRoot, PlaceSegment};
 use numerics::literals::IntegerLiteral;
 use symbols::SymbolHandle;
@@ -26,13 +26,6 @@ const SOURCE: &str = r#"
         let picked: u64 = 1;
     }
 "#;
-
-fn parse_typed_trees(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
 
 fn field_symbol(program: &TypedTrees, data_name: &str, field_name: &str) -> SymbolHandle {
     let data = program
@@ -104,7 +97,7 @@ fn receiver_and_local(program: &TypedTrees) -> (SymbolHandle, SymbolHandle) {
 
 #[test]
 fn place_labels_spell_every_root_and_segment_kind() {
-    let mut program = parse_typed_trees(SOURCE);
+    let mut program = typed_program(SOURCE);
     let (receiver, local) = receiver_and_local(&program);
     let count = field_symbol(&program, "Carrier", "count");
     let inner = field_symbol(&program, "Carrier", "inner");
@@ -213,7 +206,7 @@ fn place_labels_spell_every_root_and_segment_kind() {
 /// builds and takes apart, so the two spellings must agree.
 #[test]
 fn receiver_rooted_labels_round_trip_through_language_core() {
-    let program = parse_typed_trees(SOURCE);
+    let program = typed_program(SOURCE);
     let (receiver, _) = receiver_and_local(&program);
     let items = field_symbol(&program, "Carrier", "items");
     let label = facts::canonical_place_label_from_parts(

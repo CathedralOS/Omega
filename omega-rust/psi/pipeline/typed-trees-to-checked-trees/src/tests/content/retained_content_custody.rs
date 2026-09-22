@@ -1,4 +1,5 @@
-use super::{checked, rejected, retained_borrow_program};
+use super::{rejected, retained_borrow_program};
+use crate::tests::front_end::checked_program;
 use language_semantics::content::{ContentPlaceRoot, ContentPlaceVersion};
 
 fn structural_retention_program(declarations: &str, requirement: &str) -> String {
@@ -76,7 +77,7 @@ fn retained_content_custody_accepts_owned_field_beside_borrowed_field() {
             Owned::content(old(&inputs.owned)) == Retained::content(&result.pending);
         "#,
     );
-    checked(&source);
+    checked_program(&source);
 }
 
 #[test]
@@ -146,7 +147,7 @@ fn retained_content_custody_empty_array_is_not_an_owned_source() {
                 "an empty array supplies no owned element: {diagnostics:#?}"
             );
         } else {
-            checked(&source);
+            checked_program(&source);
         }
     }
 }
@@ -173,7 +174,7 @@ fn retained_content_custody_preserves_root_loan_with_nested_compatible_content()
         data Buffer [linear] { nested: Nested in Nested::Held; }
         "#,
     );
-    let checked = checked(&source);
+    let checked = checked_program(&source);
     let [custody] = checked
         .facts
         .qualifications
@@ -249,7 +250,7 @@ fn retained_content_custody_records_exact_shared_lifetime_bound_source() {
                 result in PendingRead::Retained;
         "#,
     );
-    let mut checked = checked(&source);
+    let mut checked = checked_program(&source);
     let [fact] = checked
         .facts
         .qualifications
@@ -394,7 +395,7 @@ fn retained_content_custody_rejects_mutable_lifetime_bound_source() {
 
 #[test]
 fn retained_content_custody_accepts_consumed_owned_source() {
-    checked(
+    checked_program(
         r#"
         data ByteUnit {}
         data CountedQuantity<Unit> { magnitude: u64; }
@@ -482,7 +483,7 @@ fn retained_content_custody_rejects_ambiguous_owned_sources() {
 
 #[test]
 fn retained_content_custody_accepts_exact_authored_source_correspondence() {
-    checked(
+    checked_program(
         r#"
         data ByteUnit {}
         data CountedQuantity<Unit> { magnitude: u64; }
@@ -601,7 +602,7 @@ fn retained_content_custody_authorizes_invoked_call_result_spelling() {
         data Main {}
         machine Main::main(&mut self) {}
     "#;
-    let checked = checked(source);
+    let checked = checked_program(source);
     let [fact] = checked
         .facts
         .qualifications

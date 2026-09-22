@@ -1,6 +1,6 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::typed_program;
 
 fn stored_aggregate_program(body: &str) -> typed_trees::TypedTrees {
     let source = format!(
@@ -18,10 +18,7 @@ fn stored_aggregate_program(body: &str) -> typed_trees::TypedTrees {
         machine Main::run(&mut self, index: u64) {{ {body} }}
         "#
     );
-    let syntax =
-        parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
+    typed_program(&source)
 }
 
 #[test]
@@ -429,10 +426,7 @@ fn stored_aggregate_reference_origin_survives_named_state_cycle() {
             }
         }
     "#;
-    let syntax =
-        parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let program = lower_symbol_resolved_trees(&resolved).expect("type");
+    let program = typed_program(source);
     let machine = program
         .machines()
         .iter()
@@ -474,10 +468,7 @@ fn stored_aggregate_writes_invalidate_arithmetic_facts_in_both_spellings() {
              machine store(mut view: View) {{ view.body = 255; }}
              machine Main::run(&mut self) {{ {body} }}"
         );
-        let syntax =
-            parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let program = lower_symbol_resolved_trees(&resolved).expect("type");
+        let program = typed_program(&source);
         match validation::validate_program(&program) {
             Err(diagnostics)
                 if diagnostics.iter().any(|diagnostic| {
@@ -508,10 +499,7 @@ fn stored_aggregate_metadata_requires_exact_live_local_identity() {
             view.body = 2;
         }
     "#;
-    let syntax =
-        parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let original = lower_symbol_resolved_trees(&resolved).expect("type");
+    let original = typed_program(source);
     let caller = original
         .machines()
         .iter()

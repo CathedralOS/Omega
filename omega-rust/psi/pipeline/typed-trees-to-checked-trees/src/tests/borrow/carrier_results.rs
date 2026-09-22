@@ -1,4 +1,5 @@
 use super::checks::check_program;
+use crate::tests::front_end::typed_program;
 
 #[test]
 fn a_direct_reference_field_result_keeps_its_source_loan_active() {
@@ -378,18 +379,6 @@ fn carrier_result_nested_array_sources_keep_paths_and_polarity() {
             .any(|loan| loan.root_symbol == parameters[1].symbol
                 && loan.kind == checked_trees::BorrowAccessKind::Mutable)
     );
-}
-
-fn typed_program(source: &str) -> typed_trees::TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type")
 }
 
 #[test]

@@ -2,19 +2,10 @@ use super::{CheckedStructuralAccess, Multiplicity};
 use crate::execution::terminal_unit::CheckedStructuralScalarReturnCleanupAction;
 use crate::execution::terminal_unit::primitive_effects::is_primitive_reference_plan;
 use crate::execution::terminal_unit::returns::build_checked_primitive_store_scalar_return_plans;
+use crate::tests::front_end::checked_program;
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap()
+    checked_program(source)
 }
 
 #[test]

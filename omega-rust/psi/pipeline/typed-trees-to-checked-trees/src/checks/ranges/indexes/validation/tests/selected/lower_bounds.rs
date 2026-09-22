@@ -5,6 +5,7 @@ use super::{
 use crate::checks::ranges::RangeFacts;
 use crate::checks::ranges::indexes::check_indexed_access;
 use crate::checks::ranges::indexes::validation::BoundsCheckResult;
+use crate::tests::front_end::typed_program;
 
 fn unknown_slice_result(
     declaration: &str,
@@ -14,16 +15,7 @@ fn unknown_slice_result(
 ) -> (BoundsCheckResult, Vec<diagnostics::Diagnostic>) {
     let source =
         format!("{declaration} machine inspect(items: &[u8], {parameters}) {{ items{access}; }}");
-    let tokens = source_files_to_tokens::Lexer::new(&source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let program = typed_program(&source);
     let (expression, indexed) = program
         .expression_table
         .iter_expressions()

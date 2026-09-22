@@ -1,13 +1,8 @@
-use super::checked;
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
-use crate::tests::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
+use crate::tests::front_end::checked_program;
 
 #[test]
 fn borrow_loans_share_the_permission_context_with_access_and_origin() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Main { items: [i32; 2]; }
 
@@ -77,7 +72,7 @@ fn borrow_loans_share_the_permission_context_with_access_and_origin() {
 
 #[test]
 fn linear_judgment_reads_canonical_permission_events() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Receipt [linear] { code: i32; }
         machine Receipt::ack(self) {}
@@ -96,7 +91,7 @@ fn linear_judgment_reads_canonical_permission_events() {
 
 #[test]
 fn consuming_call_that_returns_an_obligation_transfers_its_origin() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Receipt [linear] { code: i32; }
         machine Receipt::forward(self) -> Receipt { self }
@@ -139,7 +134,7 @@ fn consuming_call_that_returns_an_obligation_transfers_its_origin() {
 
 #[test]
 fn state_call_result_preserves_a_locally_created_obligation_origin() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Receipt [linear] { code: i32; }
         machine Receipt::ack(self) {}
@@ -191,7 +186,7 @@ fn state_call_result_preserves_a_locally_created_obligation_origin() {
 
 #[test]
 fn state_call_result_maps_multiple_claims_by_unique_output_path() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Receipt [linear] { code: i32; }
         machine Receipt::ack(self) {}
@@ -270,7 +265,7 @@ fn state_call_result_maps_multiple_claims_by_unique_output_path() {
 
 #[test]
 fn state_call_result_maps_direct_aggregate_constructor_fields() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Receipt [linear] { code: i32; }
         machine Receipt::ack(self) {}
@@ -382,12 +377,7 @@ fn state_call_result_consumes_checked_opaque_multi_output_map() {
             0
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("checked outcome maps should compose");
+    let checked = checked_program(source);
     use language_semantics::PermissionEventKind;
     let maps = checked
         .facts

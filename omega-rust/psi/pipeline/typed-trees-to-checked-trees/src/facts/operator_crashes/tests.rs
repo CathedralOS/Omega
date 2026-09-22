@@ -6,24 +6,8 @@
 //! statement's entry contexts, and only while every place a guard leaf reads
 //! keeps its invocation-entry provenance below the operand it binds to.
 
+use crate::tests::front_end::{checked_program_result, typed_program};
 use checked_trees::CheckedTrees;
-use typed_trees::TypedTrees;
-
-fn typed_program(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
-}
-
-fn check(source: &str) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    crate::lower_typed_trees(typed_program(source), &crate::CheckingRequest::settled())
-}
 
 fn inspect(source: &str) -> CheckedTrees {
     crate::lower_typed_trees(
@@ -52,7 +36,8 @@ fn named_call_discharges_a_route_its_statement_entry_context_proves_false() {
          requires value >= 0 {
              Comparison::equal(1, value)
          }";
-    check(source).expect("a statement-entry fact covering the named invocation discharges it");
+    checked_program_result(source)
+        .expect("a statement-entry fact covering the named invocation discharges it");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
@@ -72,7 +57,8 @@ fn named_call_retains_a_route_no_statement_entry_fact_covers() {
          pub machine uncovered(value: i32) -> bool {
              Comparison::equal(1, value)
          }";
-    let diagnostics = check(source).expect_err("an unproven named route cannot vanish");
+    let diagnostics =
+        checked_program_result(source).expect_err("an unproven named route cannot vanish");
     assert!(
         diagnostics
             .iter()
@@ -92,7 +78,7 @@ fn named_call_discharge_survives_writes_to_disjoint_sibling_storage() {
     // The statement-entry fact about `value` is untouched by the writes to
     // `x`, and `value`'s immutable binding is entry-proven, so the route
     // still discharges at the later statement.
-    check(
+    checked_program_result(
         "boundary operator == Comparison::equal(left: i32, right: i32) -> bool
          crashes Trap !(right >= 0);
          pub machine safe(value: i32) -> bool
@@ -119,7 +105,8 @@ fn named_call_discharges_a_route_whose_exclusive_loan_never_writes() {
              peek(&mut value);
              Comparison::equal(1, value)
          }";
-    check(source).expect("an exclusive loan whose callee never writes keeps the premise live");
+    checked_program_result(source)
+        .expect("an exclusive loan whose callee never writes keeps the premise live");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
@@ -140,8 +127,8 @@ fn named_call_keeps_a_route_whose_operand_a_borrow_rewrites() {
              poke(&mut value);
              Comparison::equal(1, value)
          }";
-    let diagnostics =
-        check(source).expect_err("an operand rewritten through a borrow keeps its route");
+    let diagnostics = checked_program_result(source)
+        .expect_err("an operand rewritten through a borrow keeps its route");
     assert!(
         diagnostics
             .iter()
@@ -168,7 +155,8 @@ fn named_call_discharges_a_route_through_a_shared_borrow_operand() {
          requires rec.count >= 0 {
              Ns::probe(&rec)
          }";
-    check(source).expect("a shared borrow of an entry-proven referent discharges the route");
+    checked_program_result(source)
+        .expect("a shared borrow of an entry-proven referent discharges the route");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
@@ -188,7 +176,8 @@ fn named_call_discharges_a_route_across_multiple_operands() {
          requires a != b {
              Comparison::equal(a, b)
          }";
-    check(source).expect("a fact covering both entry-proven operands discharges the route");
+    checked_program_result(source)
+        .expect("a fact covering both entry-proven operands discharges the route");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
@@ -208,7 +197,8 @@ fn named_call_retains_a_route_through_a_shared_borrow_without_a_covering_fact() 
          pub machine uncovered(rec: Rec) -> bool {
              Ns::probe(&rec)
          }";
-    let diagnostics = check(source).expect_err("an unproven named route cannot vanish");
+    let diagnostics =
+        checked_program_result(source).expect_err("an unproven named route cannot vanish");
     assert!(
         diagnostics
             .iter()
@@ -236,7 +226,8 @@ fn named_call_keeps_a_route_whose_borrowed_referent_is_overwritten() {
              rec = Rec { count: 1 };
              Ns::probe(&rec)
          }";
-    let diagnostics = check(source).expect_err("a written referent cannot borrow its entry facts");
+    let diagnostics = checked_program_result(source)
+        .expect_err("a written referent cannot borrow its entry facts");
     assert!(
         diagnostics
             .iter()
@@ -264,7 +255,8 @@ fn named_call_keeps_a_route_through_a_borrow_of_an_unproven_aggregate() {
              let p: Point = Point { x: seed };
              Ns::probe(&p)
          }";
-    let diagnostics = check(source).expect_err("an unproven aggregate keeps its route");
+    let diagnostics =
+        checked_program_result(source).expect_err("an unproven aggregate keeps its route");
     assert!(
         diagnostics
             .iter()
@@ -291,7 +283,8 @@ fn named_call_keeps_a_route_after_the_operand_storage_is_overwritten() {
              value = value - 1;
              Comparison::equal(1, value)
          }";
-    let diagnostics = check(source).expect_err("a written operand cannot borrow its entry facts");
+    let diagnostics = checked_program_result(source)
+        .expect_err("a written operand cannot borrow its entry facts");
     assert!(
         diagnostics
             .iter()
@@ -312,7 +305,7 @@ fn named_call_discharges_a_route_through_a_receiver_field_operand() {
          requires self.count >= 0 {
              Ns::probe(self.count)
          }";
-    check(source).expect("the entry fact covers the receiver-field operand");
+    checked_program_result(source).expect("the entry fact covers the receiver-field operand");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
@@ -334,7 +327,8 @@ fn named_call_discharges_a_receiver_field_route_in_a_non_entry_state() {
              transition true { true -> work() false -> true }
              state work(&self) -> bool requires self.count >= 0 { Ns::probe(self.count) }
          }";
-    check(source).expect("the immutable receiver carries entry identity across states");
+    checked_program_result(source)
+        .expect("the immutable receiver carries entry identity across states");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
@@ -355,7 +349,8 @@ fn named_call_discharges_a_route_through_a_mutable_receiver_field() {
          requires self.count >= 0 {
              Ns::probe(self.count)
          }";
-    check(source).expect("the entry fact covers an unwritten mutable-receiver field");
+    checked_program_result(source)
+        .expect("the entry fact covers an unwritten mutable-receiver field");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
@@ -384,7 +379,8 @@ fn named_call_mutable_receiver_field_discharge_is_per_field() {
                  Ns::probe(self.count)
              }
          }";
-    check(source).expect("sibling writes do not escape the read field's entry identity");
+    checked_program_result(source)
+        .expect("sibling writes do not escape the read field's entry identity");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
@@ -406,7 +402,8 @@ fn named_call_keeps_a_route_whose_mutable_receiver_field_is_written() {
              self.count = -1;
              Ns::probe(self.count)
          }";
-    let diagnostics = check(source).expect_err("a written receiver field keeps its route");
+    let diagnostics =
+        checked_program_result(source).expect_err("a written receiver field keeps its route");
     assert!(
         diagnostics
             .iter()
@@ -441,7 +438,7 @@ fn named_call_mutable_receiver_field_window_excludes_states_that_cannot_precede(
              transition true { true -> done() false -> seen }
              state done(&mut self) -> bool { self.count = -1; true }
          }";
-    check(source).expect("a downstream-only write cannot precede the read");
+    checked_program_result(source).expect("a downstream-only write cannot precede the read");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
@@ -470,7 +467,8 @@ fn named_call_mutable_receiver_field_cycle_discharges_when_reentry_reestablishes
                  transition self.count >= 0 { true -> check() false -> true }
              }
          }";
-    check(source).expect("the re-entry requirement re-establishes the premise at every arrival");
+    checked_program_result(source)
+        .expect("the re-entry requirement re-establishes the premise at every arrival");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
@@ -498,7 +496,8 @@ fn named_call_keeps_a_route_whose_mutable_receiver_escapes() {
                  {body}
              }}",
         );
-        let diagnostics = check(source).expect_err("a receiver escape that writes keeps the route");
+        let diagnostics = checked_program_result(source)
+            .expect_err("a receiver escape that writes keeps the route");
         assert!(
             diagnostics
                 .iter()
@@ -526,7 +525,8 @@ fn named_call_discharges_a_route_through_a_shared_borrow_of_a_receiver_field() {
          requires self.cell.count >= 0 {
              Ns::probe(&self.cell)
          }";
-    check(source).expect("a shared borrow of an immutable receiver field discharges the route");
+    checked_program_result(source)
+        .expect("a shared borrow of an immutable receiver field discharges the route");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
@@ -618,7 +618,7 @@ fn authored_operator_crash_buckets_carry_their_structured_guard_forms() {
              pub machine safe(value: i32) -> bool
              requires value >= 0 {{ {use_site} }}"
         );
-        let checked = check(&source).expect("the entry fact discharges the route");
+        let checked = checked_program_result(&source).expect("the entry fact discharges the route");
         let forms = published_guard_forms(&checked);
         let [Some(form)] = forms.as_slice() else {
             panic!("one guarded published route with a structured form: {forms:?}");
@@ -659,7 +659,8 @@ fn named_call_discharge_reads_the_guard_field_through_a_sibling_write() {
              rec.other = 1;
              Ns::probe(&rec)
          }";
-    check(source).expect("a sibling-field write keeps the read projection's provenance");
+    checked_program_result(source)
+        .expect("a sibling-field write keeps the read projection's provenance");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
@@ -681,7 +682,8 @@ fn named_call_discharge_reads_the_guard_field_through_a_sibling_loan() {
              peek(&mut rec.other);
              Ns::probe(&rec)
          }";
-    check(source).expect("an exclusive sibling-field loan keeps the read projection's provenance");
+    checked_program_result(source)
+        .expect("an exclusive sibling-field loan keeps the read projection's provenance");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
@@ -702,7 +704,8 @@ fn named_call_keeps_a_route_whose_read_field_is_rewritten() {
              rec.count = -1;
              Ns::probe(&rec)
          }";
-    let diagnostics = check(source).expect_err("a rewritten read projection keeps its route");
+    let diagnostics =
+        checked_program_result(source).expect_err("a rewritten read projection keeps its route");
     assert!(
         diagnostics
             .iter()
@@ -731,8 +734,8 @@ fn named_call_keeps_a_route_whose_read_field_is_rewritten_through_a_loan() {
              poke(&mut rec.count);
              Ns::probe(&rec)
          }";
-    let diagnostics =
-        check(source).expect_err("a loan of the read projection that writes keeps its route");
+    let diagnostics = checked_program_result(source)
+        .expect_err("a loan of the read projection that writes keeps its route");
     assert!(
         diagnostics
             .iter()
@@ -759,7 +762,8 @@ fn named_call_discharges_a_route_through_a_mutated_by_value_operand() {
              rec.other = 1;
              Ns::probe(rec)
          }";
-    check(source).expect("a by-value operand's read projection survives a sibling write");
+    checked_program_result(source)
+        .expect("a by-value operand's read projection survives a sibling write");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
@@ -781,7 +785,8 @@ fn named_call_discharge_versions_each_operand_projection_independently() {
              left.other = 1;
              Ns::paired(&left, &right)
          }";
-    check(source).expect("each operand's read projection is provenance-checked independently");
+    checked_program_result(source)
+        .expect("each operand's read projection is provenance-checked independently");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
@@ -803,7 +808,8 @@ fn named_call_discharge_follows_the_leafs_nested_projection() {
              rec.other = 1;
              Ns::probe(&rec)
          }";
-    check(discharge).expect("a sibling write keeps the nested read projection's provenance");
+    checked_program_result(discharge)
+        .expect("a sibling write keeps the nested read projection's provenance");
     let retain = "pub data Inner { count: i32 }
          pub data Rec { outer: Inner; other: i32; }
          boundary operator Ns::probe(cell: &Rec) -> bool
@@ -813,8 +819,8 @@ fn named_call_discharge_follows_the_leafs_nested_projection() {
              rec.outer.count = -1;
              Ns::probe(&rec)
          }";
-    let diagnostics =
-        check(retain).expect_err("a write inside the read projection keeps its route");
+    let diagnostics = checked_program_result(retain)
+        .expect_err("a write inside the read projection keeps its route");
     assert!(
         diagnostics
             .iter()
@@ -837,7 +843,8 @@ fn named_call_discharges_a_route_whose_stable_record_operand_was_copied_before_a
          requires rec.count >= 0 {
              Ns::probe(rec, reset(&mut rec))
          }";
-    check(source).expect("the copied record's operand-time premise discharges the route");
+    checked_program_result(source)
+        .expect("the copied record's operand-time premise discharges the route");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
@@ -859,8 +866,8 @@ fn named_call_keeps_a_route_whose_copied_record_predates_the_proving_write() {
          pub machine drifted(mut rec: Rec) -> bool {
              Ns::probe(rec, prepare(&mut rec))
          }";
-    let diagnostics =
-        check(source).expect_err("a guarantee newer than the copy cannot discharge the route");
+    let diagnostics = checked_program_result(source)
+        .expect_err("a guarantee newer than the copy cannot discharge the route");
     assert!(
         diagnostics
             .iter()
@@ -908,8 +915,8 @@ fn named_call_surviving_route_keeps_the_projected_caller_field() {
              rec.other = 1;
              Ns::probe(&rec)
          }";
-    let diagnostics =
-        check(source).expect_err("the unproven route survives with an exact per-field caller name");
+    let diagnostics = checked_program_result(source)
+        .expect_err("the unproven route survives with an exact per-field caller name");
     assert!(
         diagnostics
             .iter()
@@ -944,7 +951,8 @@ fn named_call_surviving_route_widens_when_the_read_field_is_rewritten() {
              rec.count = -1;
              Ns::probe(&rec)
          }";
-    let diagnostics = check(source).expect_err("a rewritten read projection keeps its route");
+    let diagnostics =
+        checked_program_result(source).expect_err("a rewritten read projection keeps its route");
     assert!(
         diagnostics
             .iter()
@@ -976,7 +984,7 @@ fn spelled_use_surviving_route_keeps_the_projected_caller_field() {
              rec.other = 1;
              rec + other
          }";
-    let diagnostics = check(source)
+    let diagnostics = checked_program_result(source)
         .expect_err("the unproven spelled route survives with an exact per-field caller name");
     assert!(
         diagnostics
@@ -1035,7 +1043,8 @@ fn named_call_discharges_a_route_its_short_circuit_premise_establishes() {
          pub machine compare(value: i32) -> bool {
              value >= 0 && Comparison::equal(1, value)
          }";
-    check(source).expect("the operand-time capture carries the short-circuit premise");
+    checked_program_result(source)
+        .expect("the operand-time capture carries the short-circuit premise");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
@@ -1070,7 +1079,7 @@ fn named_call_keeps_a_route_whose_premise_an_earlier_operand_overwrote() {
          requires value >= 0 {
              Comparison::equal(bump(&mut value), value)
          }";
-    let diagnostics = check(source)
+    let diagnostics = checked_program_result(source)
         .expect_err("a write between operand evaluation and invocation voids the premise");
     assert!(
         diagnostics
@@ -1105,7 +1114,7 @@ fn named_call_crash_discharge_uses_captured_values_not_later_storage() {
                  Comparison::equal(value, {right})
              }}"
         );
-        let checked = check(&source);
+        let checked = checked_program_result(&source);
         assert_eq!(checked.is_ok(), accepted, "{source}\n{:?}", checked.err());
     }
 }
@@ -1122,7 +1131,8 @@ fn named_call_discharge_intersects_shared_borrow_operands_at_invocation() {
          requires a.count >= b.count {
              Ns::paired(&a, &b)
          }";
-    check(source).expect("the relation leaf proves through both captured borrow operands");
+    checked_program_result(source)
+        .expect("the relation leaf proves through both captured borrow operands");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
@@ -1144,8 +1154,8 @@ fn named_call_keeps_a_route_whose_referent_an_earlier_operand_overwrote() {
          requires rec.count >= 0 {
              bump(&mut rec) && Ns::probe(&rec)
          }";
-    let diagnostics =
-        check(source).expect_err("a referent write before the named call keeps its route");
+    let diagnostics = checked_program_result(source)
+        .expect_err("a referent write before the named call keeps its route");
     assert!(
         diagnostics
             .iter()
@@ -1171,7 +1181,7 @@ fn named_call_capture_rows_fail_closed_when_their_operands_are_substituted() {
          requires value >= 0 {
              Comparison::equal(1, value)
          }";
-    let checked = check(source).expect("the capture discharges the route");
+    let checked = checked_program_result(source).expect("the capture discharges the route");
     let mut facts = checked.facts.clone();
     let captures: Vec<_> = facts
         .flow
@@ -1211,7 +1221,7 @@ fn statement_position_named_call_discharges_a_covered_route() {
          crashes Trap !(v >= 0);
          pub machine m(value: i32)
          requires value >= 0 { Ns::store(value); }";
-    check(source).expect("a covered statement-position named call checks");
+    checked_program_result(source).expect("a covered statement-position named call checks");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
@@ -1226,7 +1236,7 @@ fn statement_position_named_call_discharges_a_covered_route() {
 
 #[test]
 fn statement_position_named_call_rejects_an_uncovered_route() {
-    let diagnostics = check(
+    let diagnostics = checked_program_result(
         "boundary operator Ns::store(v: i32) -> ()
          crashes Trap !(v >= 0);
          pub machine m(value: i32) { Ns::store(value); }",
@@ -1249,7 +1259,7 @@ fn explicitly_discarded_named_call_keeps_its_crash_site() {
          crashes Trap !(v >= 0);
          pub machine m(value: i32)
          requires value >= 0 { _ = Ns::probe(value); }";
-    check(source).expect("an explicitly discarded covered call checks");
+    checked_program_result(source).expect("an explicitly discarded covered call checks");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
@@ -1272,8 +1282,8 @@ fn unrewritten_statement_call_to_a_crash_contracted_operator_fails_closed() {
          crashes Trap !(v >= 0);
          pub machine m(value: i32) requires value >= 0 { Ns::store(value); }",
     ] {
-        let diagnostics =
-            check(source).expect_err("a statement call with no retained site must not pass");
+        let diagnostics = checked_program_result(source)
+            .expect_err("a statement call with no retained site must not pass");
         assert!(
             diagnostics.iter().any(|diagnostic| {
                 diagnostic
@@ -1300,7 +1310,8 @@ fn spelled_index_use_discharges_a_route_its_captured_operands_prove_false() {
          requires index < items.len && index >= 1 {
              items[index]
          }";
-    check(source).expect("the operand-time capture discharges the index use's route");
+    checked_program_result(source)
+        .expect("the operand-time capture discharges the index use's route");
     let checked = inspect(source);
     let sites: Vec<_> = checked
         .facts
@@ -1340,7 +1351,7 @@ fn named_index_call_matches_the_spelled_index_discharge() {
          requires index < items.len && index >= 1 {
              Index::at(items, index)
          }";
-    check(source).expect("the named call keeps the discharged route");
+    checked_program_result(source).expect("the named call keeps the discharged route");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
@@ -1363,7 +1374,7 @@ fn spelled_range_use_discharges_a_route_its_captured_bounds_prove_false() {
          requires start <= end && end <= items.len {
              items[start..end]
          }";
-    check(source).expect("the bound captures discharge the range use's route");
+    checked_program_result(source).expect("the bound captures discharge the range use's route");
     let checked = inspect(source);
     let sites: Vec<_> = checked
         .facts
@@ -1409,8 +1420,8 @@ fn spelled_index_use_keeps_a_route_its_operands_cannot_disprove() {
          requires index < items.len {
              items[index]
          }";
-    let diagnostics =
-        check(source).expect_err("an unprovable route at a spelled index use rejects");
+    let diagnostics = checked_program_result(source)
+        .expect_err("an unprovable route at a spelled index use rejects");
     assert!(
         diagnostics
             .iter()
@@ -1442,7 +1453,7 @@ fn named_call_capture_rows_fail_closed_when_duplicated() {
          requires value >= 0 {
              Comparison::equal(1, value)
          }";
-    let checked = check(source).expect("the capture discharges the route");
+    let checked = checked_program_result(source).expect("the capture discharges the route");
     let mut facts = checked.facts.clone();
     let duplicate = facts
         .flow
@@ -1485,7 +1496,8 @@ fn spelled_index_crash_guard_resolves_collection_length_on_a_slice_formal() {
          requires index < items.len {
              items[index]
          }";
-    check(source).expect("the collection-length member resolves and the route is retained");
+    checked_program_result(source)
+        .expect("the collection-length member resolves and the route is retained");
     let checked = inspect(source);
     let sites: Vec<_> = checked
         .facts
@@ -1525,7 +1537,7 @@ fn named_index_call_crash_guard_resolves_collection_length_on_a_slice_formal() {
          requires index < items.len {
              Index::at(items, index)
          }";
-    check(source).expect("the named call retains the collection-length route");
+    checked_program_result(source).expect("the named call retains the collection-length route");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
@@ -1550,7 +1562,8 @@ fn caller_republication_covers_a_collection_length_route() {
          crashes Trap items.len == 0 {
              items[index]
          }";
-    check(source).expect("the caller's matching published route covers the invocation route");
+    checked_program_result(source)
+        .expect("the caller's matching published route covers the invocation route");
 }
 
 /// Without a premise or published route covering it, a public caller keeps
@@ -1566,8 +1579,8 @@ fn spelled_index_use_keeps_a_collection_length_route_no_premise_disproves() {
          requires index < items.len {
              items[index]
          }";
-    let diagnostics =
-        check(source).expect_err("a collection-length route the caller cannot falsify rejects");
+    let diagnostics = checked_program_result(source)
+        .expect_err("a collection-length route the caller cannot falsify rejects");
     assert!(
         diagnostics
             .iter()
@@ -1638,7 +1651,7 @@ fn spelled_use_keeps_a_route_whose_guard_reads_a_callee_scope_call() {
          machine keep(value: i32) -> bool {
              1 == value
          }";
-    check(source).expect("a callee-scope call leaf keeps its route structured");
+    checked_program_result(source).expect("a callee-scope call leaf keeps its route structured");
     let checked = inspect(source);
     let site = spelled_site(&checked);
     assert_eq!(site.published.len(), 1);
@@ -1672,7 +1685,8 @@ fn caller_republication_covers_a_route_whose_guard_reads_a_callee_scope_call() {
          crashes Trap !(value >= floor()) {
              1 == value
          }";
-    check(source).expect("the caller's matching published route covers the call-leaf route");
+    checked_program_result(source)
+        .expect("the caller's matching published route covers the call-leaf route");
 }
 
 /// Without coverage the route still fails closed — the uncovered diagnostic
@@ -1685,7 +1699,8 @@ fn spelled_use_call_leaf_route_stays_uncoverable_without_a_matching_ceiling() {
          pub machine keep(value: i32) -> bool {
              1 == value
          }";
-    let diagnostics = check(source).expect_err("an uncovered call-leaf route rejects");
+    let diagnostics =
+        checked_program_result(source).expect_err("an uncovered call-leaf route rejects");
     assert!(
         diagnostics
             .iter()
@@ -1718,7 +1733,7 @@ fn spelled_use_substitutes_formals_inside_a_guard_call_argument() {
          machine keep(value: i32) -> bool {
              1 == value
          }";
-    check(source).expect("a formal inside a call argument still substitutes");
+    checked_program_result(source).expect("a formal inside a call argument still substitutes");
     let checked = inspect(source);
     let site = spelled_site(&checked);
     let expected = CrashPredicateExpression::Unary {
@@ -1749,7 +1764,7 @@ fn spelled_use_keeps_a_route_whose_guard_call_has_a_namespace_receiver() {
          machine keep(value: i32) -> bool {
              1 == value
          }";
-    check(source).expect("a namespaced call leaf keeps its route structured");
+    checked_program_result(source).expect("a namespaced call leaf keeps its route structured");
     let checked = inspect(source);
     let site = spelled_site(&checked);
     let expected = CrashPredicateExpression::Unary {
@@ -1782,7 +1797,7 @@ fn named_call_keeps_a_route_whose_guard_indexes_a_formal() {
          machine keep(items: [i32; 4], value: i32) -> bool {
              Ns::probe(items, value)
          }";
-    check(source).expect("an indexed guard leaf keeps its route structured");
+    checked_program_result(source).expect("an indexed guard leaf keeps its route structured");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
@@ -1817,7 +1832,8 @@ fn caller_republication_covers_a_route_whose_guard_indexes_a_formal() {
          crashes Trap !(value >= items[0u64]) {
              Ns::probe(items, value)
          }";
-    check(source).expect("the caller's matching published route covers the indexed route");
+    checked_program_result(source)
+        .expect("the caller's matching published route covers the indexed route");
 }
 
 /// The transport boundary stays conservative outside `Indexed`: a cast leaf
@@ -1832,7 +1848,7 @@ fn named_call_still_widens_a_route_whose_opaque_leaf_hides_a_formal() {
          machine keep(items: [i64; 4], value: i32) -> bool {
              Ns::probe(items, value)
          }";
-    check(source).expect("an internal caller retains the widened route");
+    checked_program_result(source).expect("an internal caller retains the widened route");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
@@ -1862,7 +1878,7 @@ fn spelled_use_keeps_a_route_whose_guard_reads_a_float_literal() {
          machine keep(value: f64) -> bool {
              1.0 == value
          }";
-    check(source).expect("a float-literal leaf keeps its route structured");
+    checked_program_result(source).expect("a float-literal leaf keeps its route structured");
     let checked = inspect(source);
     let site = spelled_site(&checked);
     assert_eq!(site.published.len(), 1);
@@ -1891,7 +1907,8 @@ fn caller_republication_covers_a_route_whose_guard_reads_a_float_literal() {
          crashes Trap !(value >= 1.5) {
              1.0 == value
          }";
-    check(source).expect("the caller's matching published route covers the float-leaf route");
+    checked_program_result(source)
+        .expect("the caller's matching published route covers the float-leaf route");
 }
 
 /// A float literal actual also transports: the guard's `left` binds the
@@ -1906,7 +1923,7 @@ fn spelled_use_substitutes_a_float_literal_actual() {
          machine keep(value: f64) -> bool {
              2.5 == value
          }";
-    check(source).expect("a float-literal actual keeps its route structured");
+    checked_program_result(source).expect("a float-literal actual keeps its route structured");
     let checked = inspect(source);
     let site = spelled_site(&checked);
     let expected = CrashPredicateExpression::Unary {
@@ -1929,7 +1946,8 @@ fn spelled_use_float_leaf_route_stays_uncoverable_without_a_matching_ceiling() {
          pub machine keep(value: f64) -> bool {
              1.0 == value
          }";
-    let diagnostics = check(source).expect_err("an uncovered float-leaf route rejects");
+    let diagnostics =
+        checked_program_result(source).expect_err("an uncovered float-leaf route rejects");
     assert!(
         diagnostics
             .iter()

@@ -1,9 +1,9 @@
 use super::TerminationGuarantee;
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::typed_program;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::assert_input_premise;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::source;
-use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::typed_source;
 use crate::tests::termination::progress_mutation::assert_subjects;
 use crate::tests::termination::progress_mutation::check_source;
 use crate::tests::termination::progress_mutation::fixture_with_body;
@@ -85,8 +85,9 @@ fn reconstructed_results_do_not_restore_qualifications_retired_by_helper_writes(
         if retained {
             assert_input_premise(&check_source(&source));
         } else {
-            let diagnostics = lower_typed_trees(typed_source(&source), &CheckingRequest::settled())
-                .expect_err("returning a reference cannot restore its scheduler qualification");
+            let diagnostics =
+                lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
+                    .expect_err("returning a reference cannot restore its scheduler qualification");
             assert!(
                 diagnostics.iter().any(|diagnostic| diagnostic
                     .message
@@ -167,7 +168,7 @@ fn a_local_actual_uses_its_captured_source_after_reconstruction() {
 
 #[test]
 fn a_reconstructed_result_query_retains_the_input_leaf_without_changing_frames() {
-    let program = typed_source(&result_source("", "Carrier { context: carrier.context }"));
+    let program = typed_program(&result_source("", "Carrier { context: carrier.context }"));
     let machine = program
         .machines()
         .iter()

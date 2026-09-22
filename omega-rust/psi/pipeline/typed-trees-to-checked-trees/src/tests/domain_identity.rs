@@ -1,17 +1,4 @@
-use super::{Lexer, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees};
-use crate::CheckingRequest;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-
-fn check(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("checked lowering should succeed")
-}
+use crate::tests::front_end::checked_program;
 
 fn specializations_for<'program>(
     checked: &'program checked_trees::CheckedTrees,
@@ -30,7 +17,7 @@ fn specializations_for<'program>(
 
 #[test]
 fn reordered_domain_conjunctions_share_one_specialization() {
-    let checked = check(
+    let checked = checked_program(
         r#"
         domain i32::Alpha;
         domain i32::Beta;
@@ -60,7 +47,7 @@ fn reordered_domain_conjunctions_share_one_specialization() {
 
 #[test]
 fn distinct_domains_with_the_same_term_count_do_not_share_a_specialization() {
-    let checked = check(
+    let checked = checked_program(
         r#"
         domain i32::Alpha;
         domain i32::Beta;

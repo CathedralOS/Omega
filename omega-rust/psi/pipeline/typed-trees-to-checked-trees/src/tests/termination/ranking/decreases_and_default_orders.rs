@@ -1,8 +1,6 @@
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
-use crate::tests::termination::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
+use crate::tests::front_end::{checked_program_result, typed_program};
 
 #[test]
 fn rejects_terminating_recursive_machine_without_decreases() {
@@ -21,15 +19,7 @@ fn rejects_terminating_recursive_machine_without_decreases() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("termination check should fail");
+    let diagnostics = checked_program_result(source).expect_err("termination check should fail");
 
     assert!(
         diagnostics
@@ -51,13 +41,7 @@ fn accepts_slice_range_surface_during_checked_lowering() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
 
     lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("checked lowering should accept ranges");
@@ -82,13 +66,7 @@ fn accepts_terminating_countdown_machine_with_decreases() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
 
     lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("termination check should succeed");
@@ -109,13 +87,7 @@ fn direct_unsigned_countdown_exports_exact_ranked_scc_evidence() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let machine = typed
         .machines()
         .iter()
@@ -147,12 +119,7 @@ fn direct_unsigned_countdown_exports_exact_ranked_scc_evidence() {
     assert_eq!(edge.target_rank_parameter_position, 1);
 
     let stalled = source.replace("remaining - 1", "remaining");
-    let tokens = Lexer::new(&stalled)
-        .tokenize()
-        .expect("stalled source should tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("stalled source should parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("stalled source should resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("stalled source should type");
+    let typed = typed_program(&stalled);
     let machine = typed
         .machines()
         .iter()
@@ -184,13 +151,7 @@ fn accepts_terminating_distance_machine_with_decreases() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
 
     lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("termination distance proof should succeed");
@@ -223,13 +184,7 @@ fn accepts_terminating_slice_distance_machine_with_decreases() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
 
     lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("termination slice distance proof should succeed");
@@ -254,15 +209,7 @@ fn rejects_terminating_countdown_machine_with_stalled_decrease() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("termination check should fail");
+    let diagnostics = checked_program_result(source).expect_err("termination check should fail");
 
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -298,15 +245,7 @@ fn rejects_terminating_slice_distance_machine_with_stalled_index() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("termination check should fail");
+    let diagnostics = checked_program_result(source).expect_err("termination check should fail");
 
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -342,15 +281,7 @@ fn rejects_terminating_slice_length_order_without_supported_progress_shape() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("termination check should fail");
+    let diagnostics = checked_program_result(source).expect_err("termination check should fail");
 
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -386,13 +317,7 @@ fn accepts_terminating_slice_length_order_with_shrinking_subslice() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
 
     lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("termination slice length proof should succeed");
@@ -427,13 +352,7 @@ fn accepts_terminating_mutually_recursive_states_with_decreases() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
 
     lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("mutual recursion decrease proof should succeed");
@@ -468,15 +387,7 @@ fn rejects_terminating_mutually_recursive_states_without_decrease() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("termination check should fail");
+    let diagnostics = checked_program_result(source).expect_err("termination check should fail");
 
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -504,13 +415,7 @@ fn infers_default_nat_descending_for_plain_usize_decreases() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
 
     lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("default nat-descending inference should succeed");
@@ -543,13 +448,7 @@ fn infers_default_slice_length_for_plain_slice_decreases() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
 
     lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("default slice-length inference should succeed");
@@ -575,13 +474,7 @@ fn infers_default_bounded_distance_for_plain_two_subject_tuple() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
 
     lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("default bounded-distance inference should succeed");
@@ -607,13 +500,7 @@ fn accepts_explicit_named_bounded_distance_view() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
 
     lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("explicit named bounded-distance view should prove");
@@ -639,15 +526,7 @@ fn rejects_inverted_bounded_distance_with_naming_diagnostic() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("inverted distance should fail");
+    let diagnostics = checked_program_result(source).expect_err("inverted distance should fail");
 
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -687,13 +566,7 @@ fn rejects_retired_subtraction_decreases_spelling_with_tuple_guidance() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let machine = typed
         .machines()
         .iter()
@@ -748,15 +621,8 @@ fn rejects_named_bounded_distance_view_over_single_subject() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("the view ranks a (lower, upper) pair only");
+    let diagnostics =
+        checked_program_result(source).expect_err("the view ranks a (lower, upper) pair only");
 
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -787,15 +653,8 @@ fn rejects_ambiguous_default_order_requiring_explicit_form() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("ambiguous default order should fail");
+    let diagnostics =
+        checked_program_result(source).expect_err("ambiguous default order should fail");
 
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -837,13 +696,7 @@ fn infers_default_nat_descending_for_plain_u32_decreases() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
 
     lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("default nat-descending inference should cover u32");
@@ -876,15 +729,8 @@ fn plain_decreases_never_selects_a_declared_measure_even_when_unique() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("a unique declared measure must not be inferred");
+    let diagnostics =
+        checked_program_result(source).expect_err("a unique declared measure must not be inferred");
 
     assert!(
         diagnostics.iter().any(|diagnostic| {

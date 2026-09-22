@@ -1,8 +1,9 @@
-use super::{checked, machine_and_entry_state, scalar_discard_positions};
+use super::{machine_and_entry_state, scalar_discard_positions};
+use crate::tests::front_end::checked_program;
 
 #[test]
 fn attached_scalar_literal_return_retains_exact_structural_cleanup() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Token { value: i32; }
         data Root {}
@@ -33,7 +34,7 @@ fn attached_scalar_literal_return_retains_exact_structural_cleanup() {
 
 #[test]
 fn attached_closed_integer_expression_retains_exact_structural_cleanup() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Token { value: i32; }
         data Root {}
@@ -57,7 +58,7 @@ fn attached_closed_integer_expression_retains_exact_structural_cleanup() {
 
 #[test]
 fn attached_closed_branch_free_boolean_retains_exact_structural_cleanup() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Token { value: i32; }
         data Root {}
@@ -82,7 +83,7 @@ fn attached_closed_branch_free_boolean_retains_exact_structural_cleanup() {
 
 #[test]
 fn attached_branch_free_scalar_locals_retain_exact_structural_cleanup() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Token { value: i32; }
         data Root {}
@@ -115,7 +116,7 @@ fn attached_branch_free_scalar_locals_retain_exact_structural_cleanup() {
 
 #[test]
 fn structural_scalar_return_retains_interleaved_scalar_parameter_map() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Token { value: i32; }
         data Root {}
@@ -153,7 +154,7 @@ fn structural_scalar_return_retains_interleaved_scalar_parameter_map() {
 
 #[test]
 fn structural_scalar_return_retains_short_circuit_return_cleanup() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Token { value: i32; }
         data Root {}
@@ -178,7 +179,7 @@ fn structural_scalar_return_retains_short_circuit_return_cleanup() {
 
 #[test]
 fn structural_scalar_return_supports_repeated_carried_short_circuit_local_continuations() {
-    let supported = checked(
+    let supported = checked_program(
         r#"
         data Token { value: i32; }
         data Root {}
@@ -216,7 +217,7 @@ fn structural_scalar_return_supports_repeated_carried_short_circuit_local_contin
     assert_eq!(plan.return_statement_ordinal, 7);
     assert_eq!(scalar_discard_positions(plan), [0]);
 
-    let composed = checked(
+    let composed = checked_program(
         r#"
         data Token { value: i32; }
         data Root {}
@@ -245,7 +246,7 @@ fn structural_scalar_return_supports_repeated_carried_short_circuit_local_contin
     assert_eq!(plan.return_statement_ordinal, 3);
     assert_eq!(scalar_discard_positions(plan), [0]);
 
-    let rejected = checked(
+    let rejected = checked_program(
         r#"
         data Token { value: i32; }
         data Root {}
@@ -276,7 +277,7 @@ fn structural_scalar_return_supports_repeated_carried_short_circuit_local_contin
 #[test]
 fn owned_call_result_cleanup_requires_exact_transfer_on_every_edge() {
     use language_semantics::{PermissionEventKind, PermissionEventSource, PermissionProvenance};
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Kind { case Missing; case Other; }
         machine make() -> Kind { Kind::Missing }

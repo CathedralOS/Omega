@@ -2,6 +2,7 @@ use super::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};
 use crate::execution::terminal_unit::ShapeCollector;
 use crate::execution::terminal_unit::control::build_checked_machine;
 use crate::execution::terminal_unit::structural_scalar_store::build_structural_scalar_field_store_sequence;
+use crate::tests::front_end::checked_program;
 use checked_trees::{CheckedScalarComputationKind, CheckedStructuralScalarFieldStoreValue};
 
 fn fixture() -> checked_trees::CheckedTrees {
@@ -13,17 +14,7 @@ fn fixture() -> checked_trees::CheckedTrees {
             self.value = narrow(value) as u8 in Wrapping;
         }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap()
+    checked_program(source)
 }
 
 #[test]
@@ -42,17 +33,7 @@ fn selective_crashing_field_rhs_retains_its_ordered_source_plan() {
             Trace::observe(self.value);
         }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap();
+    let checked = checked_program(source);
     let program = &checked.typed;
     let machine = program
         .machines()
@@ -237,17 +218,7 @@ fn trapping_binary_assignment_declines_at_the_missing_scalar_source() {
             self.x = self.x + 1;
         }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap();
+    let checked = checked_program(source);
     let program = &checked.typed;
     let machine = program
         .machines()

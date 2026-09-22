@@ -1,16 +1,9 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::typed_program_result;
 
 fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    lower_typed_trees(typed(source)?, &CheckingRequest::settled())
-}
-
-fn typed(source: &str) -> Result<typed_trees::TypedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = Lexer::new(source).tokenize().expect("lex fixture");
-    let syntax = parse_syntax_trees(&tokens).expect("parse fixture");
-    let resolved = resolve(ResolutionRequest::new(&syntax))?;
-    lower_symbol_resolved_trees(&resolved).map_err(|diagnostic| vec![diagnostic])
+    lower_typed_trees(typed_program_result(source)?, &CheckingRequest::settled())
 }
 
 #[test]
@@ -176,7 +169,8 @@ fn a_later_or_enclosing_fact_cannot_justify_natural_coercion_formation() {
 
 #[test]
 fn proof_integer_classification_uses_builtin_identity_not_type_spelling() {
-    let mut program = typed("data Authored { value: u8; }").expect("typed authored data");
+    let mut program =
+        typed_program_result("data Authored { value: u8; }").expect("typed authored data");
     let authored = program.data_definitions()[0].symbol;
     let builtin = program
         .symbols
@@ -219,7 +213,7 @@ fn proof_integer_classification_uses_builtin_identity_not_type_spelling() {
 
 #[test]
 fn proof_integer_inline_containment_propagates_but_erasure_and_indirection_do_not() {
-    let program = typed(
+    let program = typed_program_result(
         r#"
         data Direct { value: Int; }
         data Wrapper { inner: Direct; }

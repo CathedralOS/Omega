@@ -1,5 +1,6 @@
-use super::{checked_program_from_source, checked_values_for, operator_with_placeholder_operands};
+use super::{checked_values_for, operator_with_placeholder_operands};
 use crate::operators::build_operator_facts;
+use crate::tests::front_end::checked_program;
 use crate::tests::{HandleSpan, SignatureContract, SignatureContractKind, SymbolHandle};
 use language_core::operator_spelling::OperatorSpelling;
 use typed_trees::expression::{ExpressionNode, TableIndexedExpression, TableRangeExpression};
@@ -36,7 +37,7 @@ fn records_checked_float_policy_adapters_from_operand_domains() {
         machine Main::main(&mut self) {}
     "#;
 
-    let checked = checked_program_from_source(source);
+    let checked = checked_program(source);
     let adapters = checked
         .facts
         .operators
@@ -114,7 +115,7 @@ fn records_checked_named_float_policy_adapters() {
         machine Main::main(&mut self) {}
     "#;
 
-    let checked = checked_program_from_source(source);
+    let checked = checked_program(source);
     let adapters = checked
         .facts
         .operators
@@ -157,7 +158,7 @@ fn resolves_spelled_operator_from_named_call_result_type() {
         machine Main::main(&mut self) {}
     "#;
 
-    let checked = checked_program_from_source(source);
+    let checked = checked_program(source);
     let outer_add = checked
         .facts
         .operators

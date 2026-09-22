@@ -4,7 +4,7 @@ use crate::checks::ranges::facts::RangeCallContext;
 use crate::checks::ranges::facts::dependencies::tests::initializer;
 use crate::checks::ranges::facts::dependencies::tests::parameter_place;
 use crate::checks::ranges::facts::dependencies::tests::selected_operator_facts;
-use crate::checks::ranges::facts::dependencies::tests::typed_source;
+use crate::tests::front_end::typed_program;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
@@ -55,7 +55,7 @@ fn checked_facts<'program>(
 
 #[test]
 fn a_selected_call_reads_only_its_established_operand_footprint() {
-    let program = typed_source(
+    let program = typed_program(
         "machine compute(original: u64) -> u64 { original }
         machine window(original: u64, index: u64, unrelated: u64) {
             let cut: u64 = compute(original);
@@ -93,7 +93,7 @@ fn a_selected_call_reads_only_its_established_operand_footprint() {
 
 #[test]
 fn borrow_arguments_carry_the_callee_readable_place() {
-    let program = typed_source(
+    let program = typed_program(
         "machine observe(target: &mut u64) -> u64 { 0 }
         machine window(mut original: u64, unrelated: u64) {
             let cut: u64 = observe(&mut original);
@@ -131,7 +131,7 @@ fn borrow_arguments_carry_the_callee_readable_place() {
 
 #[test]
 fn a_self_receiver_callee_reads_the_callers_machine_storage() {
-    let program = typed_source(
+    let program = typed_program(
         "data Main { count: u64; other: u64; }
         machine Main::measure(&self) -> u64 { self.count }
         machine Main::window(&mut self, unrelated: u64) -> u64 {
@@ -179,7 +179,7 @@ fn a_self_receiver_callee_reads_the_callers_machine_storage() {
 
 #[test]
 fn a_nested_call_selector_extends_the_indexed_read_set() {
-    let program = typed_source(
+    let program = typed_program(
         "machine compute(index: u64) -> u64 { index }
         machine window(items: &[u64; 4], index: u64, unrelated: u64) {
             let cut: u64 = items[compute(index)];
@@ -218,7 +218,7 @@ fn a_nested_call_selector_extends_the_indexed_read_set() {
 
 #[test]
 fn missing_or_foreign_occurrence_evidence_keeps_the_read_set_incomplete() {
-    let program = typed_source(
+    let program = typed_program(
         "machine compute(original: u64) -> u64 { original }
         machine window(original: u64, unrelated: u64) {
             let cut: u64 = compute(original);
@@ -258,7 +258,7 @@ fn missing_or_foreign_occurrence_evidence_keeps_the_read_set_incomplete() {
 
 #[test]
 fn a_static_binder_or_hidden_argument_keeps_the_footprint_incomplete() {
-    let mut program = typed_source(
+    let mut program = typed_program(
         "machine compute(original: u64) -> u64 { original }
         machine window(original: u64, unrelated: u64) {
             let cut: u64 = compute(original);
@@ -304,7 +304,7 @@ fn a_type_applied_generic_call_reads_its_established_operand_footprint() {
             let cut: u64 = identity<Card>(&original);
         }",
     ] {
-        let program = typed_source(source);
+        let program = typed_program(source);
         let (machine, state) = window(&program);
         let expression = initializer(&program, state);
         let statement_index = statement_index_of(&program, state, "cut");
@@ -342,7 +342,7 @@ fn a_type_applied_generic_call_reads_its_established_operand_footprint() {
 /// still enumerate the complete footprint.
 #[test]
 fn a_const_applied_generic_call_reads_its_operand_footprint() {
-    let program = typed_source(
+    let program = typed_program(
         "machine scaled<const Factor: u64>(value: u64) -> u64 { value }
         machine window(original: u64, index: u64, unrelated: u64) {
             let cut: u64 = scaled<2u64>(original);
@@ -383,7 +383,7 @@ fn a_const_applied_generic_call_reads_its_operand_footprint() {
 /// retires the premise.
 #[test]
 fn a_type_applied_self_receiver_call_reads_the_callers_machine_storage() {
-    let program = typed_source(
+    let program = typed_program(
         "data Main { count: u64; other: u64; }
         machine Main::measure<Element>(&self, value: Element) -> u64 { self.count }
         machine Main::window(&mut self, original: u64, unrelated: u64) -> u64 {
@@ -445,7 +445,7 @@ fn a_machine_valued_or_nested_static_application_stays_incomplete() {
             let cut: u64 = identity<Pair<u64>>(&original);
         }",
     ] {
-        let program = typed_source(source);
+        let program = typed_program(source);
         let (machine, state) = window(&program);
         let expression = initializer(&program, state);
         let statement_index = statement_index_of(&program, state, "cut");
@@ -466,7 +466,7 @@ fn a_machine_valued_or_nested_static_application_stays_incomplete() {
 #[test]
 fn only_storage_free_static_selections_admit_the_applied_call_footprint() {
     for drift in ["none", "callable", "nested"] {
-        let mut program = typed_source(
+        let mut program = typed_program(
             "machine identity<Element>(value: Element) -> Element { value }
             machine window(original: u64, unrelated: u64) {
                 let cut: u64 = identity<u64>(original);
@@ -518,7 +518,7 @@ fn only_storage_free_static_selections_admit_the_applied_call_footprint() {
 /// wrapped selector stays incomplete.
 #[test]
 fn a_wrapped_arithmetic_selector_still_proves_its_call_operand_footprint() {
-    let program = typed_source(
+    let program = typed_program(
         "operator + u64::custom(left: u64, right: u64) -> u64;
         machine compute(original: u64) -> u64 { original }
         machine window(items: &[i64; 4], low: u64, step: u64, unrelated: u64) {

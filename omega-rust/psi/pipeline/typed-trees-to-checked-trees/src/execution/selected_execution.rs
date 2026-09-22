@@ -629,23 +629,11 @@ fn settled_mutation_facts(
 #[cfg(test)]
 mod tests {
     use super::refresh_settled_state_write_frames;
-    use crate::{CheckingRequest, lower_typed_trees};
-    use source_files_to_tokens::Lexer;
-    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-    use tokens_to_syntax_trees::parse_syntax_trees;
-
-    fn checked(source: &str) -> checked_trees::CheckedTrees {
-        let tokens = Lexer::new(source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
-    }
+    use crate::tests::front_end::checked_program;
 
     #[test]
     fn write_frame_refresh_accepts_agreement_and_rejects_a_changed_complete_frame() {
-        let mut program = checked(
+        let mut program = checked_program(
             "data Counter { value: u64 }
              machine Counter::reset(&mut self) { self.value = 0u64; }",
         );

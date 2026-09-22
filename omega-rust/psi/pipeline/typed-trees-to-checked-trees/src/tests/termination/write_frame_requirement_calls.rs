@@ -1,14 +1,6 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
-use typed_trees::TypedTrees;
-
-fn typed_boundary_source(source: &str) -> TypedTrees {
-    let syntax =
-        parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
+use crate::tests::front_end::{checked_program_result, typed_program};
 
 fn generic_boundary_call_source(subject: &str) -> String {
     format!(
@@ -26,7 +18,7 @@ fn generic_boundary_call_source(subject: &str) -> String {
 #[test]
 fn generic_boundary_receiver_preserves_disjoint_caller_facts() {
     let source = generic_boundary_call_source("self.untouched");
-    let typed = typed_boundary_source(&source);
+    let typed = typed_program(&source);
     let checked =
         lower_typed_trees(typed, &CheckingRequest::settled()).unwrap_or_else(|diagnostics| {
             panic!(
@@ -52,8 +44,7 @@ fn generic_boundary_receiver_preserves_disjoint_caller_facts() {
 #[test]
 fn generic_boundary_receiver_invalidates_written_caller_facts() {
     let source = generic_boundary_call_source("self.cell.value");
-    let typed = typed_boundary_source(&source);
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+    let diagnostics = checked_program_result(&source)
         .expect_err("an exclusive boundary argument may overwrite the referenced field");
     assert!(
         diagnostics
@@ -73,8 +64,7 @@ fn generic_boundary_owner_and_method_arguments_preserve_disjoint_facts() {
         requires self.untouched == 7;
         ensures self.untouched == 7;
         { self.device.consume(&mut self.cell, &mut self.audit); }";
-    let typed = typed_boundary_source(source);
-    lower_typed_trees(typed, &CheckingRequest::settled()).unwrap_or_else(|diagnostics| {
+    checked_program_result(source).unwrap_or_else(|diagnostics| {
         panic!("owner and method type arguments must preserve disjoint facts: {diagnostics:#?}")
     });
 }
@@ -87,8 +77,7 @@ fn generic_boundary_value_argument_does_not_invalidate_its_source() {
             "consume(&mut self.cell)",
             "consume(&mut self.cell, self.untouched)",
         );
-    let typed = typed_boundary_source(&source);
-    lower_typed_trees(typed, &CheckingRequest::settled()).unwrap_or_else(|diagnostics| {
+    checked_program_result(&source).unwrap_or_else(|diagnostics| {
         panic!(
             "copying a scalar argument does not authorize a write to its source: {diagnostics:#?}"
         )
@@ -112,7 +101,7 @@ fn shadowed_boundary_call_source(subject: &str) -> String {
 #[test]
 fn generic_boundary_shadowed_method_binder_preserves_disjoint_facts() {
     let source = shadowed_boundary_call_source("self.untouched");
-    let typed = typed_boundary_source(&source);
+    let typed = typed_program(&source);
     let checked =
         lower_typed_trees(typed, &CheckingRequest::settled()).unwrap_or_else(|diagnostics| {
             panic!(
@@ -137,8 +126,7 @@ fn generic_boundary_shadowed_method_binder_preserves_disjoint_facts() {
 #[test]
 fn generic_boundary_shadowed_method_binder_invalidates_written_facts() {
     let source = shadowed_boundary_call_source("self.other.value");
-    let typed = typed_boundary_source(&source);
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+    let diagnostics = checked_program_result(&source)
         .expect_err("shadowing cannot hide the exclusive argument's writes");
     assert!(
         diagnostics
@@ -232,10 +220,7 @@ fn requirement_receiver_calls_reach_checked_trees_with_exact_frames() {
             machine Main::inspect(&mut self{parameters}) {{ {body} }}
         "#
         );
-        let syntax =
-            parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let typed = typed_program(&source);
         let machine = typed
             .machines()
             .iter()

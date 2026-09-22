@@ -4,10 +4,10 @@ use super::{
 };
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::typed_program;
 use crate::tests::values::initializer_call_computations::ResultKind;
 use crate::tests::values::initializer_call_computations::caller;
 use crate::tests::values::initializer_call_computations::role;
-use crate::tests::values::typed_trees;
 use checked_trees::CheckedScalarExpressionRole;
 
 fn sequence_source(kind: ResultKind, computed: bool) -> String {
@@ -47,7 +47,7 @@ fn later_scalar_results_keep_statement_coordinates_and_pre_destination_namespace
     for kind in [ResultKind::Scalar, ResultKind::BoundaryScalar] {
         for computed in [false, true] {
             let source = sequence_source(kind, computed);
-            let checked = lower_typed_trees(typed_trees(&source), &CheckingRequest::settled())
+            let checked = lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
                 .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
             let machine = caller(&checked);
             let state = &checked.machine_states(machine)[0];
@@ -205,7 +205,7 @@ fn later_scalar_results_keep_statement_coordinates_and_pre_destination_namespace
 #[test]
 fn later_result_eligibility_rejects_mutability_receivers_and_semantic_modifiers() {
     let source = sequence_source(ResultKind::Scalar, true);
-    let program = typed_trees(&source);
+    let program = typed_program(&source);
     let machine = program
         .machines()
         .iter()
@@ -294,7 +294,7 @@ fn later_boundary_structural_results_keep_operand_roots_and_scalar_namespace() {
         } else {
             BOUNDARY_STRUCTURAL_SEQUENCE.to_owned()
         };
-        let checked = lower_typed_trees(typed_trees(&source), &CheckingRequest::settled())
+        let checked = lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
             .expect("later boundary result");
         let machine = caller(&checked);
         let [state] = checked.machine_states(machine) else {
@@ -409,7 +409,7 @@ fn later_boundary_structural_results_keep_operand_roots_and_scalar_namespace() {
 #[test]
 fn later_boundary_structural_eligibility_keeps_ownership_and_target_fences() {
     use typed_trees::types::{DomainConstraint, TypeConstraintNode, TypeReferenceNode};
-    let program = typed_trees(BOUNDARY_STRUCTURAL_SEQUENCE);
+    let program = typed_program(BOUNDARY_STRUCTURAL_SEQUENCE);
     let machine = program
         .machines()
         .iter()
@@ -475,7 +475,7 @@ fn later_boundary_structural_eligibility_keeps_ownership_and_target_fences() {
         );
     }
     let linear =
-        typed_trees(&BOUNDARY_STRUCTURAL_SEQUENCE.replace("Packet {", "Packet [linear] {"));
+        typed_program(&BOUNDARY_STRUCTURAL_SEQUENCE.replace("Packet {", "Packet [linear] {"));
     let machine = linear
         .machines()
         .iter()
@@ -512,7 +512,7 @@ fn boundary_structural_results_transfer_once_through_existing_affine_consumers()
                 &format!("Sink::produce(numeric(prior), prior); {completion}")
             )
         );
-        let checked = lower_typed_trees(typed_trees(&source), &CheckingRequest::settled())
+        let checked = lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
             .expect("affine result moves");
         let machine = caller(&checked);
         let plan = checked
@@ -577,7 +577,7 @@ fn boundary_structural_results_transfer_once_through_existing_affine_consumers()
                 "Root::consume(moved); Root::consume(moved);",
             );
         assert!(
-            lower_typed_trees(typed_trees(&repeated), &CheckingRequest::settled()).is_err(),
+            lower_typed_trees(typed_program(&repeated), &CheckingRequest::settled()).is_err(),
             "second owned move must reject"
         );
     }
@@ -618,7 +618,7 @@ fn direct_boundary_result_operands_retain_exact_nonself_transfer_events() {
                 "machine Root::enter(input: u32) reaches Host",
             );
         }
-        let checked = lower_typed_trees(typed_trees(&source), &CheckingRequest::settled())
+        let checked = lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
             .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"));
         let machine = caller(&checked);
         let [state] = checked.machine_states(machine) else {

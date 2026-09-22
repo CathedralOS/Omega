@@ -1,9 +1,9 @@
-use super::typed_source;
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::typed_program_result;
 
 fn rejects(source: &str, fragment: &str) {
-    let typed = typed_source(source).expect("nested generic call types");
+    let typed = typed_program_result(source).expect("nested generic call types");
     let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("invalid generic call must reject");
     assert!(
@@ -30,7 +30,7 @@ fn nested_calls_infer_from_arguments_without_a_direct_result_annotation() {
              }}"
         );
         lower_typed_trees(
-            typed_source(&source).expect("nested generic expression types"),
+            typed_program_result(&source).expect("nested generic expression types"),
             &CheckingRequest::settled(),
         )
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
@@ -47,7 +47,7 @@ fn generic_selector_infers_a_borrowed_field_type() {
             view.len
         }";
     lower_typed_trees(
-        typed_source(source).expect("borrowed field selector types"),
+        typed_program_result(source).expect("borrowed field selector types"),
         &CheckingRequest::settled(),
     )
     .expect("field type supplies the nested call's generic argument");
@@ -69,7 +69,7 @@ fn nested_generic_selector_waits_for_its_callers_concrete_witness() {
             second
         }";
     lower_typed_trees(
-        typed_source(source).expect("forwarded generic selector types"),
+        typed_program_result(source).expect("forwarded generic selector types"),
         &CheckingRequest::settled(),
     )
     .expect("specializing callers exposes each concrete nested tuple");

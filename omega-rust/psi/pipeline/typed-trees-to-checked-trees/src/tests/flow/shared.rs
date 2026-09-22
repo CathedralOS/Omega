@@ -2,6 +2,7 @@ use super::super::{
     HandleSpan, Identifier, Machine, SignatureContract, SignatureContractKind, State,
     StateSignature, StatementNode, SymbolHandle, TableCall, TraitConformance, TraitDefinition,
 };
+use crate::tests::front_end::typed_program;
 
 use crate::borrow::build_borrow_facts;
 use crate::flow::build_domain_facts;
@@ -491,16 +492,7 @@ fn carries_local_borrow_loans_into_later_call_constraints() {
         machine Main::write_alias(&mut self, value: &mut i32) {}
     "#;
 
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
@@ -584,16 +576,7 @@ fn carries_helper_returned_loans_into_later_call_constraints() {
         machine Main::write_alias(&mut self, exits: &mut [Exit]) {}
     "#;
 
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
@@ -676,16 +659,7 @@ fn drops_local_borrow_loans_after_last_use() {
         machine Main::use_value(&mut self, value: &mut i32) {}
     "#;
 
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
@@ -758,16 +732,7 @@ fn drops_local_borrow_loans_after_local_reassignment() {
         machine Main::use_value(&mut self, value: &mut i32) {}
     "#;
 
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
     let proof_plan = proof::obligations::build_proof_plan(&typed);
     let operations = validation::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);

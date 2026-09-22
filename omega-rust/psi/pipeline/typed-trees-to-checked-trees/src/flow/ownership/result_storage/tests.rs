@@ -1,25 +1,12 @@
 use super::{DataMember, TypeReferenceHandle, TypeReferenceNode};
 use crate::flow::CanonicalPlace;
 use crate::flow::ownership::result_storage::is_private_result_place;
+use crate::tests::front_end::typed_program;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
-fn typed_source(source: &str) -> typed_trees::TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize result storage fixture");
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse result storage fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve result storage fixture");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type result storage fixture")
-}
-
 fn fixture(result_type: &str) -> (typed_trees::TypedTrees, CanonicalPlace) {
-    let program = typed_source(&format!(
+    let program = typed_program(&format!(
         "data Leaf {{ value: u64; }}
          data Inner {{ leaf: Leaf; }}
          data Outer {{ inner: Inner; items: [Inner; 2]; }}

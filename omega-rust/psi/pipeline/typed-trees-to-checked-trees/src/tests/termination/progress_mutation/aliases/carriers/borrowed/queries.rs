@@ -1,7 +1,7 @@
 use super::TerminationGuarantee;
+use crate::tests::front_end::typed_program;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::loaded_source;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::source;
-use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::typed_source;
 use crate::tests::termination::progress_mutation::check_source;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
@@ -78,7 +78,7 @@ fn assert_input_fields(program: &typed_trees::TypedTrees, fields: &[&str]) {
 fn readable_borrowed_carriers_do_not_change_ordinary_cached_frames() {
     for (outer_access, inner_access) in [("", ""), ("mut ", ""), ("mut ", "mut ")] {
         assert_input_fields(
-            &typed_source(&loaded_source(outer_access, inner_access)),
+            &typed_program(&loaded_source(outer_access, inner_access)),
             &["Carrier::context"],
         );
     }
@@ -99,7 +99,7 @@ fn another_reference_boundary_stays_opaque_directly_and_through_a_local() {
                     &format!("carrier: &{outer_access}Outer)"),
                 )
                 .replace("requires carrier.context.scheduler in WeakFair", "");
-            assert_eq!(origin(&typed_source(&source)), None, "{body}");
+            assert_eq!(origin(&typed_program(&source)), None, "{body}");
         }
     }
 }
@@ -123,7 +123,7 @@ fn owned_nested_carriers_preserve_the_complete_nominal_projection() {
             "requires carrier.inner.context.scheduler in WeakFair",
         );
         assert_input_fields(
-            &typed_source(&source),
+            &typed_program(&source),
             &["Outer::inner", "Carrier::context"],
         );
         let program = check_source(&source);
@@ -172,7 +172,7 @@ fn possible_cases_cannot_select_a_borrowed_input_payload() {
         "data Carrier { case Selected(context: &Context); case Empty; }",
     )
     .replace("requires carrier.context.scheduler in WeakFair", "");
-    assert_eq!(origin(&typed_source(&source)), None);
+    assert_eq!(origin(&typed_program(&source)), None);
 }
 
 #[test]
@@ -193,7 +193,7 @@ fn fixed_and_runtime_indexes_do_not_supply_exact_reference_identity() {
         )
         .replace("carrier: &Carrier)", "carrier: &Carrier, index: u64)")
         .replace("requires carrier.context.scheduler in WeakFair", "");
-        assert_eq!(origin(&typed_source(&source)), None, "{selection}");
+        assert_eq!(origin(&typed_program(&source)), None, "{selection}");
     }
 }
 
@@ -220,7 +220,7 @@ fn alias_ancestor_mutation_retires_a_subsequent_load_from_the_original_carrier()
         );
         // Read through the original parameter so rejection must account for
         // the alias's mutation of that carrier's established reference slot.
-        let mut program = typed_source(&source);
+        let mut program = typed_program(&source);
         crate::lookup::resolve_projected_receiver_calls(&mut program).unwrap();
         assert_eq!(origin(&program), None, "{operation}");
     }
@@ -229,7 +229,7 @@ fn alias_ancestor_mutation_retires_a_subsequent_load_from_the_original_carrier()
 #[test]
 fn erased_or_foreign_parameter_symbols_cannot_recover_from_names() {
     for erased in [false, true] {
-        let mut program = typed_source(&source(
+        let mut program = typed_program(&source(
             "",
             "",
             "let borrowed: &Context = carrier.context; transition { _ -> 0 }",

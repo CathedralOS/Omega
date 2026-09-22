@@ -1,8 +1,6 @@
-use super::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees,
-    resolve,
-};
+use super::lower_typed_trees;
 use crate::CheckingRequest;
+use crate::tests::front_end::{checked_program_result, typed_program};
 
 mod call_components;
 mod clamped_calls;
@@ -26,13 +24,6 @@ mod state_edges;
 mod static_fallback;
 mod struct_fields;
 
-fn typed(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokens");
-    let syntax = parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolved");
-    lower_symbol_resolved_trees(&resolved).expect("typed")
-}
-
 fn countdown(range: &str) -> String {
     format!(
         r#"
@@ -51,15 +42,14 @@ fn countdown(range: &str) -> String {
 #[test]
 fn descending_rank_accepts_proved_nonzero_floor_and_exclusive_ceiling() {
     for range in ["1..=5", "0..=5", "1..6"] {
-        lower_typed_trees(typed(&countdown(range)), &CheckingRequest::settled()).expect(range);
+        checked_program_result(&countdown(range)).expect(range);
     }
 }
 
 #[test]
 fn descending_rank_rejects_unproved_floor_and_ceiling() {
     for range in ["2..=5", "1..=4", "1..5", "6..=1"] {
-        let diagnostics = lower_typed_trees(typed(&countdown(range)), &CheckingRequest::settled())
-            .expect_err(range);
+        let diagnostics = checked_program_result(&countdown(range)).expect_err(range);
         assert!(
             diagnostics
                 .iter()
@@ -73,7 +63,7 @@ fn descending_rank_rejects_unproved_floor_and_ceiling() {
 fn rank_bounds_do_not_excuse_an_out_of_range_backedge() {
     let source = countdown("1..=5").replace("remaining > 1", "remaining > 0");
     assert!(
-        lower_typed_trees(typed(&source), &CheckingRequest::settled()).is_err(),
+        checked_program_result(&source).is_err(),
         "the final backedge would deliver zero"
     );
 }
@@ -82,8 +72,8 @@ fn rank_bounds_do_not_excuse_an_out_of_range_backedge() {
 fn acyclic_body_does_not_ignore_an_authored_rank_range() {
     let source =
         "machine walk(remaining: u32) terminates by remaining in 1..=5; -> u32 { remaining }";
-    let diagnostics = lower_typed_trees(typed(source), &CheckingRequest::settled())
-        .expect_err("range is not established by an acyclic body");
+    let diagnostics =
+        checked_program_result(source).expect_err("range is not established by an acyclic body");
     assert!(
         diagnostics
             .iter()
@@ -107,7 +97,7 @@ fn increasing_view_ranks_distance_not_cursor() {
             }}
         "#
         );
-        lower_typed_trees(typed(&source), &CheckingRequest::settled()).expect(range);
+        checked_program_result(&source).expect(range);
     }
 }
 
@@ -123,7 +113,7 @@ fn changing_view_bound_cannot_reuse_a_pinned_rank_ceiling() {
             }
         }
     "#;
-    let diagnostics = crate::checks::termination::check_machine_termination(&typed(source))
+    let diagnostics = crate::checks::termination::check_machine_termination(&typed_program(source))
         .expect_err("moving bound");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -141,16 +131,16 @@ fn mutable_parameters_establish_rank_bounds_only_while_the_prefix_preserves_them
         "machine walk(mut remaining: u32 [1..=5]) terminates by remaining -> Nat::Descending in 1..=5; -> u32 { remaining }",
         "machine walk(mut remaining: u32 [1..=5]) terminates by remaining -> Nat::Descending in 1..=5; -> u32 { transition remaining > 1 { true -> walk(remaining - 1) false -> remaining } }",
     ] {
-        crate::checks::termination::check_machine_termination(&typed(source))
+        crate::checks::termination::check_machine_termination(&typed_program(source))
             .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
-        lower_typed_trees(typed(source), &CheckingRequest::settled())
+        checked_program_result(source)
             .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
     }
     // Live write-frame evidence decides: a prefix store into the ranked
     // path invalidates the arrival premise even when the value stays in
     // range, and the machine must not borrow the arrival constraint.
     let source = "machine walk(mut remaining: u32 [1..=5]) terminates by remaining -> Nat::Descending in 1..=5; -> u32 { remaining = 3; transition remaining > 1 { true -> walk(remaining - 1) false -> remaining } }";
-    let diagnostics = crate::checks::termination::check_machine_termination(&typed(source))
+    let diagnostics = crate::checks::termination::check_machine_termination(&typed_program(source))
         .expect_err("a prefix write invalidates the mutable premise");
     assert!(
         diagnostics
@@ -160,7 +150,7 @@ fn mutable_parameters_establish_rank_bounds_only_while_the_prefix_preserves_them
     );
     // A wrapping carrier still cannot bound a natural rank.
     let source = "machine walk(remaining: u32 [1..=5] in Wrapping) terminates by remaining -> Nat::Descending in 1..=5; -> u32 { remaining }";
-    let diagnostics = crate::checks::termination::check_machine_termination(&typed(source))
+    let diagnostics = crate::checks::termination::check_machine_termination(&typed_program(source))
         .expect_err("wrapping");
     assert!(
         diagnostics
@@ -172,7 +162,7 @@ fn mutable_parameters_establish_rank_bounds_only_while_the_prefix_preserves_them
 
 #[test]
 fn missing_endpoint_custody_cannot_fall_back_to_display_text() {
-    let mut program = typed(&countdown("1..=5"));
+    let mut program = typed_program(&countdown("1..=5"));
     // The source-owned endpoint evidence must remain present, regardless of
     // whether the normalized witness still has convincing display strings.
     let machine = program.machines()[0].symbol;

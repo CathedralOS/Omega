@@ -1,6 +1,7 @@
 use super::super::{ShapeCollector, machine_binders, structural_signature};
 use super::{build_structural_scalar_field_store_sequence, frame};
 use crate::execution::terminal_unit::control::build_checked_machine;
+use crate::tests::front_end::{checked_program, typed_program};
 use checked_trees::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};
 
 mod arithmetic_policies;
@@ -21,17 +22,7 @@ fn array_byte_field_store_retains_the_borrowed_receiver_and_exact_path() {
         data Record { cells: [Cell;2]; }
         machine Record::replace(&mut self) { self.cells[1].out = "old"; }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap();
+    let checked = checked_program(source);
     let program = &checked.typed;
     let machine = program
         .machines()
@@ -85,16 +76,7 @@ fn array_byte_fields_do_not_admit_stored_borrows_or_nominal_drop() {
             machine Record::observe(&self) {{}}
         "#
         );
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let program =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let program = typed_program(&source);
         let record = program
             .data_definitions()
             .iter()
@@ -116,17 +98,7 @@ fn byte_field_sequence_rejects_missing_extra_and_opaque_write_frames() {
         data Record { out: [u8;3] in Utf8; flag: bool; }
         machine Record::replace(&mut self) { self.out = "XXX"; self.flag = true; }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap();
+    let checked = checked_program(source);
     let program = &checked.typed;
     let machine = program
         .machines()
@@ -203,17 +175,7 @@ fn structural_entry_field_write_retains_its_ordered_unit_plan() {
         crashes Trap record.enabled
         { record.enabled = false; Sink::record(trigger()); }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap();
+    let checked = checked_program(source);
     let program = &checked.typed;
     let facts = &checked.facts;
     let machine = program
@@ -305,17 +267,7 @@ fn ordered_stores_replay_successor_writes_and_reject_modified_frames() {
             state done(&mut self) {}
         }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap();
+    let checked = checked_program(source);
     let program = &checked.typed;
     let machine = program
         .machines()

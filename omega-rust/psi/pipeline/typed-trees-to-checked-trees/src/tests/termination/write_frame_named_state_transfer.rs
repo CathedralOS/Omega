@@ -1,11 +1,4 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
-
-fn program(source: &str) -> typed_trees::TypedTrees {
-    let syntax =
-        parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
+use crate::tests::front_end::typed_program;
 
 fn visible_paths(paths: Option<Vec<String>>) -> Option<Vec<String>> {
     paths.map(|paths| {
@@ -20,7 +13,7 @@ fn visible_paths(paths: Option<Vec<String>>) -> Option<Vec<String>> {
 }
 
 fn entry_frame(source: &str) -> Option<Vec<String>> {
-    let program = program(source);
+    let program = typed_program(source);
     let machine = program
         .machines()
         .iter()

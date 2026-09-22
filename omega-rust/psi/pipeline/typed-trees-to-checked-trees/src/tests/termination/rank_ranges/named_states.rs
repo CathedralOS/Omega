@@ -1,5 +1,6 @@
-use super::{lower_typed_trees, typed};
+use super::lower_typed_trees;
 use crate::CheckingRequest;
+use crate::tests::front_end::typed_program;
 
 const COUNTDOWN: &str = r#"
 machine walk(remaining: u32 [0..=5])
@@ -16,15 +17,15 @@ terminates by remaining in 0..=5;
 "#;
 
 fn prove(source: &str) {
-    crate::checks::termination::check_machine_termination(&typed(source))
+    crate::checks::termination::check_machine_termination(&typed_program(source))
         .unwrap_or_else(|diagnostics| panic!("termination: {source}\n{diagnostics:#?}"));
-    lower_typed_trees(typed(source), &CheckingRequest::settled())
+    lower_typed_trees(typed_program(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("complete checking: {source}\n{diagnostics:#?}"));
 }
 
 fn reject(source: &str) {
-    let diagnostics =
-        crate::checks::termination::check_machine_termination(&typed(source)).expect_err(source);
+    let diagnostics = crate::checks::termination::check_machine_termination(&typed_program(source))
+        .expect_err(source);
     assert!(
         diagnostics
             .iter()
@@ -363,7 +364,7 @@ fn foreign_same_spelled_arrival_symbols_do_not_transport_rank_facts() {
             COUNTDOWN.replace("iterate(remaining)", &format!("iterate({actual})"))
         );
         for replace_head in [false, true] {
-            let mut program = typed(&source);
+            let mut program = typed_program(&source);
             let root = &program.machine_states(&program.machines()[0])[0];
             let StatementNode::Transition(arrival) =
                 &program.statement_table.statements(root.statement_nodes)[0]

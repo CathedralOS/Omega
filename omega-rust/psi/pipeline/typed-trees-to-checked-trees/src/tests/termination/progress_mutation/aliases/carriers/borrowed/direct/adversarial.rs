@@ -1,9 +1,9 @@
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::typed_program;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::assert_input_premise;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::direct::direct_source;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::source;
-use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::typed_source;
 use crate::tests::termination::progress_mutation::check_source;
 use symbols::SymbolHandle;
 use typed_trees::{expression::ExpressionNode, statement::StatementNode};
@@ -78,7 +78,7 @@ fn direct_results_require_frozen_slots_even_after_capturing_a_local() {
                 )
                 .replace("select(carrier)", "select(carrier, replacement)")
             );
-            let mut program = typed_source(&source);
+            let mut program = typed_program(&source);
             crate::lookup::resolve_projected_receiver_calls(&mut program).unwrap();
             assert_identity(&program, "borrowed", operation.is_empty());
         }
@@ -111,7 +111,7 @@ fn a_terminal_call_checks_exposure_in_both_operand_orders() {
                  machine inspect_context(context: &mut Context) -> u64 {{ 0 }}",
                 direct_source("mut ", &format!("forward({arguments})"))
             );
-            let mut program = typed_source(&source);
+            let mut program = typed_program(&source);
             crate::lookup::resolve_projected_receiver_calls(&mut program).unwrap();
             assert_identity(&program, "borrowed", operand == "0");
             if operand == "0" {
@@ -125,7 +125,7 @@ fn a_terminal_call_checks_exposure_in_both_operand_orders() {
 fn direct_results_require_selected_call_and_parameter_symbols() {
     for corrupt_call in [false, true] {
         for missing in [false, true] {
-            let mut program = typed_source(&format!(
+            let mut program = typed_program(&format!(
                 "{} machine unrelated(carrier: &Carrier) {{}}",
                 direct_source("", "carrier.context")
             ));
@@ -187,7 +187,7 @@ fn private_referents_cannot_escape_as_exact_caller_inputs() {
         );
     // Invalid escapes cannot use the sibling reference field's input correspondence.
     for source in [local, owned] {
-        assert_identity(&typed_source(&source), "borrowed", false);
+        assert_identity(&typed_program(&source), "borrowed", false);
     }
 }
 
@@ -204,7 +204,7 @@ fn a_conditional_direct_result_and_its_copy_stay_exact_beside_a_known_query() {
              let copied: &Context = conditional;
              let borrowed: &Context = carrier.context;",
     );
-    let program = typed_source(&source);
+    let program = typed_program(&source);
     for local in ["conditional", "copied", "borrowed"] {
         assert_identity(&program, local, true);
     }
@@ -221,7 +221,7 @@ fn recursive_result_bodies_are_opaque_but_finite_actual_nesting_is_exact() {
         ),
     ] {
         let source = format!("{} {extra}", direct_source("", body));
-        assert_identity(&typed_source(&source), "borrowed", false);
+        assert_identity(&typed_program(&source), "borrowed", false);
     }
     for (body, nested_argument) in [
         ("forward(carrier.context)", false),
@@ -231,12 +231,13 @@ fn recursive_result_bodies_are_opaque_but_finite_actual_nesting_is_exact() {
             "{} machine forward(context: &Context) -> &Context {{ context }}",
             direct_source("", body)
         );
-        assert_identity(&typed_source(&source), "borrowed", true);
+        assert_identity(&typed_program(&source), "borrowed", true);
         if nested_argument {
             // Exact provenance does not remove the existing realization fence
             // on a machine call used directly as another call's argument.
-            let diagnostics = lower_typed_trees(typed_source(&source), &CheckingRequest::settled())
-                .expect_err("nested call arguments still require realization support");
+            let diagnostics =
+                lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
+                    .expect_err("nested call arguments still require realization support");
             assert!(
                 diagnostics.iter().any(|diagnostic| diagnostic
                     .message
@@ -262,7 +263,7 @@ fn a_pure_terminal_exclusive_reborrow_keeps_its_direct_subject() {
              transition { _ -> wait_context(borrowed) }",
             &format!("machine reborrow(context: &mut Context) -> &mut Context {{ {body} }}"),
         );
-        assert_identity(&typed_source(&source), "borrowed", true);
+        assert_identity(&typed_program(&source), "borrowed", true);
         assert_input_premise(&check_source(&source));
     }
 }
@@ -274,7 +275,7 @@ fn an_owned_self_result_cannot_repair_a_foreign_field_from_its_spelling() {
          machine Carrier::project(&self) -> &Context {{ &self.context }}",
         direct_source("", "carrier.project()").replace("context: &Context;", "context: Context;")
     );
-    let mut program = typed_source(&source);
+    let mut program = typed_program(&source);
     assert_identity(&program, "borrowed", true);
     let foreign = program
         .data_definitions()
@@ -325,6 +326,6 @@ fn a_local_carrier_capture_cannot_hide_binding_exposure_in_its_tag() {
             ),
         );
         // Typed identity isolates the binding fence from borrow and terminal-type checks.
-        assert_identity(&typed_source(&source), "borrowed", tag == "0");
+        assert_identity(&typed_program(&source), "borrowed", tag == "0");
     }
 }

@@ -1,14 +1,4 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
-
-fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-}
+use crate::tests::front_end::checked_program_result;
 
 #[test]
 fn binary_float_results_do_not_change_format_at_destinations() {
@@ -42,7 +32,7 @@ fn binary_float_results_do_not_change_format_at_destinations() {
                 "machine run() {{ transition {{ _ -> next({value}) }} state next(value: {target_format}) {{}} }}"
             ),
         ] {
-            let diagnostics = check(&source)
+            let diagnostics = checked_program_result(&source)
                 .err()
                 .unwrap_or_else(|| panic!("accepted incompatible destination: {source}"));
             assert!(
@@ -62,7 +52,7 @@ fn binary_operands_keep_declared_call_result_formats() {
             "machine value() -> {operand} {{ 1.0{operand} }} machine run() -> {result} {{ value() + value() }}"
         );
         assert!(
-            check(&source).is_err(),
+            checked_program_result(&source).is_err(),
             "call operands retain their format: {source}"
         );
     }
@@ -75,7 +65,7 @@ fn boundary_call_results_keep_their_declared_formats() {
         let source = format!(
             "{declaration} machine run() -> {result} reaches Source {{ Source::value() + Source::value() }}"
         );
-        let diagnostics = check(&source)
+        let diagnostics = checked_program_result(&source)
             .err()
             .unwrap_or_else(|| panic!("boundary result format mismatch accepted: {source}"));
         assert!(
@@ -84,7 +74,7 @@ fn boundary_call_results_keep_their_declared_formats() {
                 .any(|diagnostic| diagnostic.message.contains("explicit conversion")),
             "{diagnostics:#?}"
         );
-        check(&format!(
+        checked_program_result(&format!(
             "{declaration} machine run() -> {operand} reaches Source {{ Source::value() + Source::value() }}"
         ))
         .expect("matching boundary result");
@@ -97,7 +87,7 @@ fn assignment_through_mutable_reference_checks_the_referent() {
         let source = format!(
             "machine write(destination: &mut {result}, left: {operand}, right: {operand}) {{ destination = left + right; }}"
         );
-        let diagnostics = check(&source)
+        let diagnostics = checked_program_result(&source)
             .err()
             .unwrap_or_else(|| panic!("reference assignment format mismatch accepted: {source}"));
         assert!(
@@ -106,7 +96,7 @@ fn assignment_through_mutable_reference_checks_the_referent() {
                 .any(|diagnostic| diagnostic.message.contains("explicit conversion")),
             "{diagnostics:#?}"
         );
-        check(&format!("machine write(destination: &mut {operand}, left: {operand}, right: {operand}) {{ destination = left + right; }}")).expect("matching referent format");
+        checked_program_result(&format!("machine write(destination: &mut {operand}, left: {operand}, right: {operand}) {{ destination = left + right; }}")).expect("matching referent format");
     }
 }
 
@@ -116,7 +106,7 @@ fn explicit_conversion_result_supplies_its_own_format() {
         let source = format!(
             "operator {namespace}::convert(value: {operand}) -> {result}; machine run() -> {result} {{ {namespace}::convert(1.0{operand} + 2.0{operand}) }}"
         );
-        check(&source).expect("explicit selected conversion");
+        checked_program_result(&source).expect("explicit selected conversion");
     }
 }
 
@@ -129,11 +119,11 @@ fn named_operator_method_arguments_exclude_the_implicit_receiver() {
     ] {
         let source = format!("{declaration} machine run(source: Source) {{ {body} }}");
         assert!(
-            check(&source).is_err(),
+            checked_program_result(&source).is_err(),
             "method argument format mismatch accepted: {source}"
         );
     }
-    check(&format!(
+    checked_program_result(&format!(
         "{declaration} machine run(source: Source) {{ source.take(1.0f32 + 2.0f32); }}"
     ))
     .expect("receiver is not a positional argument");
@@ -143,11 +133,12 @@ fn named_operator_method_arguments_exclude_the_implicit_receiver() {
 fn binary_float_results_keep_matching_and_anonymous_destinations() {
     for format in ["f32", "f64"] {
         for value in [format!("1.0{format} + 2.0{format}"), "1.0 + 2.0".to_owned()] {
-            check(&format!(
+            checked_program_result(&format!(
                 "machine take(value: {format}) {{}} machine run() {{ take({value}); }}"
             ))
             .expect("matching argument");
-            check(&format!("machine run() -> {format} {{ {value} }}")).expect("matching result");
+            checked_program_result(&format!("machine run() -> {format} {{ {value} }}"))
+                .expect("matching result");
         }
     }
 }
@@ -158,12 +149,12 @@ fn selected_heterogeneous_operator_result_controls_destination() {
         let declaration = format!(
             "operator + {operand}::combine(left: {operand}, right: {operand}) -> {result};"
         );
-        check(&format!("{declaration} machine run(left: {operand}, right: {operand}) -> {result} {{ left + right }}")).expect("selected result matches");
+        checked_program_result(&format!("{declaration} machine run(left: {operand}, right: {operand}) -> {result} {{ left + right }}")).expect("selected result matches");
         let source = format!(
             "{declaration} machine run(left: {operand}, right: {operand}) -> {operand} {{ left + right }}"
         );
         assert!(
-            check(&source).is_err(),
+            checked_program_result(&source).is_err(),
             "selected result cannot adopt operand format: {source}"
         );
     }
@@ -173,11 +164,11 @@ fn selected_heterogeneous_operator_result_controls_destination() {
 fn only_active_domain_operator_result_controls_destination() {
     let declaration =
         "domain f64::Narrowed; operator + f64::Narrowed::combine(left: f64, right: f64) -> f32;";
-    check(&format!(
+    checked_program_result(&format!(
         "{declaration} machine run(left: f64 in Narrowed, right: f64) -> f32 {{ left + right }}"
     ))
     .expect("active domain selected result");
-    check(&format!(
+    checked_program_result(&format!(
         "{declaration} machine run(left: f64, right: f64) -> f64 {{ left + right }}"
     ))
     .expect("inactive domain preserves builtin");
@@ -188,7 +179,7 @@ fn only_active_domain_operator_result_controls_destination() {
         format!("{declaration} machine run(left: f64, right: f64) -> f32 {{ left + right }}"),
     ] {
         assert!(
-            check(&source).is_err(),
+            checked_program_result(&source).is_err(),
             "destination does not select the domain: {source}"
         );
     }

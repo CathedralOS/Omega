@@ -1,19 +1,4 @@
-use super::super::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
-
-fn check_source(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    lower_typed_trees(typed_source(source), &CheckingRequest::settled())
-}
-
-fn typed_source(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
+use crate::tests::front_end::checked_program_result;
 
 fn receiver_source(receiver: &str, result: &str, body: &str) -> String {
     format!(
@@ -31,7 +16,7 @@ fn receiver_source(receiver: &str, result: &str, body: &str) -> String {
 fn reject_source(source: &str, expected: &str) {
     // A synthetic Self type rejection or a missing Terminal plan is not
     // evidence that the checker recognized observation through this receiver.
-    let diagnostics = match check_source(source) {
+    let diagnostics = match checked_program_result(source) {
         Ok(_) => panic!("receiver observation must fail checking: {source}"),
         Err(diagnostics) => diagnostics,
     };
@@ -59,13 +44,13 @@ fn reject_index_observation(body: &str) {
 
 #[test]
 fn write_only_self_direct_scalar_store_checks() {
-    check_source(&receiver_source("&write self", "", "self.value = 17;"))
+    checked_program_result(&receiver_source("&write self", "", "self.value = 17;"))
         .expect("write-only self permits a direct scalar store in a plain record");
 }
 
 #[test]
 fn write_only_self_nested_scalar_store_checks() {
-    check_source(&receiver_source(
+    checked_program_result(&receiver_source(
         "&write self",
         "",
         "self.inner.value = 17;",
@@ -75,7 +60,7 @@ fn write_only_self_nested_scalar_store_checks() {
 
 #[test]
 fn write_only_self_literal_index_scalar_store_checks() {
-    check_source(&receiver_source(
+    checked_program_result(&receiver_source(
         "&write self",
         "",
         "self.inner.values[1] = 17;",
@@ -87,7 +72,7 @@ fn write_only_self_literal_index_scalar_store_checks() {
 fn write_only_self_scalar_parameter_rhs_checks() {
     for destination in ["self.value", "self.inner.value", "self.inner.values[1]"] {
         let source = receiver_source("&write self", "", &format!("{destination} = replacement;"));
-        check_source(&source).unwrap_or_else(|diagnostics| {
+        checked_program_result(&source).unwrap_or_else(|diagnostics| {
             panic!("an independent scalar parameter may supply `{destination}`: {diagnostics:#?}")
         });
     }
@@ -209,7 +194,7 @@ fn write_only_self_nonobserving_statement_call_checks() {
         "{}\nmachine Record::replace(&write self) {{ self.value = 17; }}",
         receiver_source("&write self", "", "self.replace();"),
     );
-    check_source(&source).expect("write-only dispatch preserves non-observing access");
+    checked_program_result(&source).expect("write-only dispatch preserves non-observing access");
 }
 
 #[test]
@@ -232,7 +217,7 @@ fn write_only_self_nested_observing_statement_call_rejects() {
 
 #[test]
 fn write_only_self_static_fixed_array_length_checks() {
-    check_source(&receiver_source(
+    checked_program_result(&receiver_source(
         "&write self",
         "",
         "let length: u64 = self.inner.values.len;",
@@ -253,10 +238,10 @@ fn write_only_self_bare_attached_fields_cannot_be_observed() {
 #[test]
 fn write_only_self_bare_attached_fields_complete_checking() {
     for body in ["value = 17;", "inner.value = 17;", "inner.values[1] = 17;"] {
-        check_source(&receiver_source("&write self", "", body))
+        checked_program_result(&receiver_source("&write self", "", body))
             .expect("bare field access and exact declaration selection both complete");
     }
-    check_source(&receiver_source("&write self", "", "value = 17;"))
+    checked_program_result(&receiver_source("&write self", "", "value = 17;"))
         .expect("a direct bare field store completes checking");
 }
 
@@ -278,7 +263,7 @@ fn write_only_self_state_transfer_cannot_restore_observation() {
 
 #[test]
 fn write_only_self_state_transfer_preserves_non_observing_access() {
-    check_source(
+    checked_program_result(
         "data Record { value: u16; }
          machine Record::exercise(&write self) {
              transition { _ -> replace() }
@@ -292,7 +277,7 @@ fn write_only_self_state_transfer_preserves_non_observing_access() {
 fn shared_and_mutable_self_prior_reads_check() {
     for receiver in ["&self", "&mut self"] {
         for value in ["self.value", "self.inner.value", "self.inner.values[1]"] {
-            check_source(&receiver_source(
+            checked_program_result(&receiver_source(
                 receiver,
                 "",
                 &format!("let prior: u16 = {value};"),
@@ -307,7 +292,7 @@ fn shared_and_mutable_self_prior_reads_check() {
 #[test]
 fn mutable_self_read_after_write_checks() {
     for destination in ["self.value", "self.inner.value", "self.inner.values[1]"] {
-        check_source(&receiver_source(
+        checked_program_result(&receiver_source(
             "&mut self",
             "",
             &format!("{destination} = 17; let observed: u16 = {destination};"),

@@ -1,5 +1,6 @@
-use super::{lower_typed_trees, typed};
+use super::lower_typed_trees;
 use crate::CheckingRequest;
+use crate::tests::front_end::typed_program;
 
 const WALK: &str = r#"
 data Entry { value: u32; }
@@ -15,13 +16,13 @@ terminates by entries -> Slice::Length in 0..=capacity;
 "#;
 
 fn prove(source: &str) {
-    lower_typed_trees(typed(source), &CheckingRequest::settled())
+    lower_typed_trees(typed_program(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
 }
 
 fn reject(source: &str) {
-    let diagnostics =
-        crate::checks::termination::check_machine_termination(&typed(source)).expect_err(source);
+    let diagnostics = crate::checks::termination::check_machine_termination(&typed_program(source))
+        .expect_err(source);
     assert!(
         diagnostics
             .iter()

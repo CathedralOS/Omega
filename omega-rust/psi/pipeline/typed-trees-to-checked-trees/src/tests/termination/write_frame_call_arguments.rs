@@ -1,4 +1,4 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::tests::front_end::typed_program;
 #[test]
 fn direct_frames_close_over_current_aliases_without_redirecting_prior_aliases() {
     use typed_trees::statement::StatementNode;
@@ -17,10 +17,7 @@ fn direct_frames_close_over_current_aliases_without_redirecting_prior_aliases() 
         let result: u64 = prior.read_after_write();
     }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+    let typed = typed_program(source);
     let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
     let machine = typed
         .machines()
@@ -103,10 +100,7 @@ fn direct_alias_stores_invalidate_arithmetic_facts_in_both_spellings() {
             "data Main {{ value: u8; }}
              machine Main::run(&mut self) {{ {body} }}"
         );
-        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+        let typed = typed_program(&source);
         match validation::validate_program(&typed) {
             Err(diagnostics)
                 if diagnostics.iter().any(|diagnostic| {
@@ -139,10 +133,7 @@ fn local_receiver_calls_invalidate_arithmetic_facts_on_caller_storage() {
                 self.value = self.value + 1;
             }}"
         );
-        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+        let typed = typed_program(&source);
         let diagnostics = validation::validate_program(&typed)
             .expect_err("stale zero cannot prove overflow safety");
         assert!(
@@ -193,10 +184,7 @@ fn local_receiver_references_retain_caller_writes_and_returned_places() {
             machine Cell::select(&mut self, value: u64) -> &mut u64 {{ self.value = value; &mut self.value }}
             machine Main::run(&mut self) {{ {body} }}"
         );
-        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+        let typed = typed_program(&source);
         let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
         let machine = typed
             .machines()
@@ -238,10 +226,7 @@ fn computed_attached_arguments_exclude_the_receiver_parameter() {
         alias = 2;
     }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+    let typed = typed_program(source);
     let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
     for name in ["Main::statement", "Main::expression"] {
         let machine = typed
@@ -286,10 +271,7 @@ fn computed_argument_siblings_keep_indexed_borrow_origins() {
         ("index(audit)", "recursive(other) + 1", false),
     ] {
         let source = template.replace("$INDEX", index).replace("$VALUE", value);
-        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+        let typed = typed_program(&source);
         let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
         let machine = typed
             .machines()
@@ -509,12 +491,9 @@ fn computed_call_arguments_preserve_every_write_and_reject_hostile_siblings() {
             }}"
         ));
     }
-    let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     // The negative cases deliberately include malformed value contexts. Frame
     // inference must not claim completeness before validation rejects them.
-    let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+    let typed = typed_program(&source);
     let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
     for (name, _, complete, writes_other) in all_cases {
         let qualified_name = format!("Main::{name}");
@@ -554,10 +533,7 @@ fn member_projection_off_aggregate_call_result_lends_the_leaf_referents() {
         consume(&mut self.other);
     }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+    let typed = typed_program(source);
     let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
     let machine = typed
         .machines()
@@ -586,10 +562,7 @@ fn aggregate_leaf_result_tail_lends_the_leaf_referents() {
         consume(&mut self.other);
     }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+    let typed = typed_program(source);
     let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
     let machine = typed
         .machines()

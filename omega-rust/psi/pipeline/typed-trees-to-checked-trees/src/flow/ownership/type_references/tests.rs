@@ -6,27 +6,14 @@
 //! the classification must decline rather than let the first same-shaped
 //! row mint evidence.
 use super::intrinsic_enum_equality;
+use crate::tests::front_end::typed_program;
 use typed_trees::statement::StatementNode;
-
-fn typed_source(source: &str) -> typed_trees::TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize enum-equality fixture");
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse enum-equality fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve enum-equality fixture");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type enum-equality fixture")
-}
 
 /// `decide` compares two `Choice` parameters: the equality's custody
 /// classification depends entirely on resolving the shared nominal symbol to
 /// one declaration whose members are all payload-free variants.
 fn equality_is_intrinsic(source: &str, mutate: impl FnOnce(&mut typed_trees::TypedTrees)) -> bool {
-    let mut program = typed_source(source);
+    let mut program = typed_program(source);
     mutate(&mut program);
     let machine = program
         .machines()

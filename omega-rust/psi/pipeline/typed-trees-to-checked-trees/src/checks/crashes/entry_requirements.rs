@@ -158,18 +158,7 @@ fn has_exact_entry_meaning(
 mod tests {
     use super::{CheckedOperatorFacts, TypedTrees, collect};
     use crate::checks::crashes::entry_requirements::EntryRequirements;
-
-    fn typed(source: &str) -> TypedTrees {
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
-    }
+    use crate::tests::front_end::typed_program;
 
     fn requirements(program: &TypedTrees, names: &[&str]) -> EntryRequirements {
         collect(
@@ -187,11 +176,13 @@ mod tests {
 
     #[test]
     fn total_entry_requirements_seed_crash_consequences_but_arrival_facts_do_not() {
-        let program = typed("machine value(mut flag: bool) -> bool\nrequires !flag\n{ flag }");
+        let program =
+            typed_program("machine value(mut flag: bool) -> bool\nrequires !flag\n{ flag }");
         assert!(!requirements(&program, &["flag"]).consequences.is_empty());
-        let program = typed("machine value(input: u32) -> u32\nrequires input > 0\n{ input }");
+        let program =
+            typed_program("machine value(input: u32) -> u32\nrequires input > 0\n{ input }");
         assert!(!requirements(&program, &["input"]).consequences.is_empty());
-        let program = typed(
+        let program = typed_program(
             "machine value(flag: bool) -> bool { transition { _ -> finish(true) } state finish(flag: bool) -> bool\nrequires flag\n{ flag } }",
         );
         assert!(requirements(&program, &["flag"]).consequences.is_empty());
@@ -199,8 +190,9 @@ mod tests {
 
     #[test]
     fn canonical_parameter_order_must_agree_with_exact_entry_symbols() {
-        let program =
-            typed("machine value(flag: bool, other: bool) -> bool\nrequires flag\n{ other }");
+        let program = typed_program(
+            "machine value(flag: bool, other: bool) -> bool\nrequires flag\n{ other }",
+        );
         assert!(
             !requirements(&program, &["flag", "other"])
                 .consequences
@@ -217,7 +209,7 @@ mod tests {
     #[test]
     fn structural_entry_facts_keep_the_complete_authored_parameter_namespace() {
         for access in ["", "&", "&mut "] {
-            let program = typed(&format!(
+            let program = typed_program(&format!(
                 "data Record {{ enabled: bool; }}\n\
                  machine value(record: {access}Record, other: {access}Record) -> bool\n\
                  requires record.enabled\n{{ true }}"
@@ -240,7 +232,7 @@ mod tests {
 
     #[test]
     fn authored_boolean_equality_is_not_builtin_requirement_evidence() {
-        let program = typed(
+        let program = typed_program(
             "boundary operator == bool::custom(left: bool, right: bool) -> bool;\nmachine value(flag: bool) -> bool\nrequires flag == true\n{ flag }",
         );
         assert!(requirements(&program, &["flag"]).consequences.is_empty());
@@ -249,7 +241,7 @@ mod tests {
     #[test]
     fn common_branch_facts_need_exact_builtin_entry_operators() {
         for carrier in ["bool", "f64"] {
-            let program = typed(&format!(
+            let program = typed_program(&format!(
                 "boundary operator == {carrier}::custom(left: {carrier}, right: {carrier}) -> bool;\n\
                  machine value(a: bool, b: bool, c: bool) -> bool\n\
                  requires ((a == true) && b) || ((a == true) && c)\n\
@@ -268,7 +260,7 @@ mod tests {
     #[test]
     fn published_equality_requires_its_own_exact_builtin_meaning() {
         for (carrier, covered) in [("bool", false), ("f64", true)] {
-            let program = typed(&format!(
+            let program = typed_program(&format!(
                 "boundary operator == {carrier}::custom(left: {carrier}, right: {carrier}) -> bool;\n\
                  machine value(flag: bool) -> bool\nrequires !flag\ncrashes Trap flag == false\n{{ crash Trap; }}",
             ));

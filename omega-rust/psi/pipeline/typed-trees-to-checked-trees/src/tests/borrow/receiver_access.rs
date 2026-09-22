@@ -1,21 +1,9 @@
-use super::super::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
-
-fn check_source(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-}
+use crate::tests::front_end::checked_program_result;
 
 fn reject_source(source: &str) -> Vec<diagnostics::Diagnostic> {
     // Stop at source checking: absence of a Terminal executable plan cannot
     // establish rejection of an unauthorized receiver access.
-    let diagnostics = match check_source(source) {
+    let diagnostics = match checked_program_result(source) {
         Ok(_) => panic!("receiver access must fail source checking"),
         Err(diagnostics) => diagnostics,
     };
@@ -86,7 +74,7 @@ fn projected_receiver_and_live_slice_require_compatible_access() {
              }}"
         );
         if accepted {
-            check_source(&source).expect("shared receiver and shared slice may overlap");
+            checked_program_result(&source).expect("shared receiver and shared slice may overlap");
         } else {
             let diagnostics = reject_source(&source);
             assert!(
@@ -117,7 +105,7 @@ fn shared_self_direct_field_write_rejects() {
 
 #[test]
 fn projected_mutable_receiver_accepts_a_distinct_derived_slice_argument() {
-    check_source(
+    checked_program_result(
         "data Reader { marker: u8; }
          data Container { reader: Reader; bytes: [u8; 4]; }
          machine Reader::observe(&mut self, bytes: &[u8]) -> u8 {
@@ -191,7 +179,7 @@ fn shared_self_literal_index_write_rejects() {
 
 #[test]
 fn mutable_self_direct_field_write_checks() {
-    check_source(
+    checked_program_result(
         r#"
             data Pair { prefix: u8; value: u16; }
 
@@ -205,7 +193,7 @@ fn mutable_self_direct_field_write_checks() {
 
 #[test]
 fn mutable_self_nested_field_write_checks() {
-    check_source(
+    checked_program_result(
         r#"
             data Inner { value: u16; }
             data Outer { inner: Inner; }
@@ -220,7 +208,7 @@ fn mutable_self_nested_field_write_checks() {
 
 #[test]
 fn mutable_self_literal_index_write_checks() {
-    check_source(
+    checked_program_result(
         r#"
             data Inner { values: [u16; 2]; }
             data Outer { inner: Inner; }
@@ -235,7 +223,7 @@ fn mutable_self_literal_index_write_checks() {
 
 #[test]
 fn write_only_parameter_direct_field_write_checks() {
-    check_source(
+    checked_program_result(
         r#"
             data Pair { prefix: u8; value: u16; }
 
@@ -249,7 +237,7 @@ fn write_only_parameter_direct_field_write_checks() {
 
 #[test]
 fn write_only_parameter_nested_field_write_checks() {
-    check_source(
+    checked_program_result(
         r#"
             data Inner { value: u16; }
             data Outer { inner: Inner; }
@@ -264,7 +252,7 @@ fn write_only_parameter_nested_field_write_checks() {
 
 #[test]
 fn write_only_parameter_literal_index_write_checks() {
-    check_source(
+    checked_program_result(
         r#"
             data Inner { values: [u16; 2]; }
             data Outer { inner: Inner; }
@@ -363,7 +351,7 @@ fn shared_self_field_cannot_supply_mutable_call_argument() {
 
 #[test]
 fn mutable_self_field_can_supply_mutable_call_argument() {
-    check_source(
+    checked_program_result(
         r#"
             data Pair { prefix: u8; value: u16; }
 
@@ -415,7 +403,7 @@ fn absent_state_self_cannot_inherit_mutable_entry_authority() {
 
 #[test]
 fn mutable_state_self_field_write_checks() {
-    check_source(
+    checked_program_result(
         r#"
             data Pair { prefix: u8; value: u16; }
 
@@ -500,7 +488,7 @@ fn indexed_shared_receiver_source(caller_access: &str) -> String {
 #[test]
 fn mutable_self_literal_indexed_element_can_supply_shared_receiver() {
     for caller_access in ["&mut", "&"] {
-        let checked = check_source(&indexed_shared_receiver_source(caller_access))
+        let checked = checked_program_result(&indexed_shared_receiver_source(caller_access))
             .expect("shared indexed receiver must check");
         let run = machine_named(&checked, "run");
         let plan = checked
@@ -541,7 +529,7 @@ fn mutable_self_literal_indexed_element_can_supply_shared_receiver() {
 
 #[test]
 fn mutable_self_mixed_field_index_path_can_supply_shared_receiver() {
-    let checked = check_source(
+    let checked = checked_program_result(
         "data Cell { value: u64; }
          data Rack { cells: [Cell; 2]; }
          data Shelf { rack: Rack; }
@@ -579,7 +567,7 @@ fn omission_stage(
 
 #[test]
 fn explicit_shared_literal_indexed_argument_names_its_caller_in_the_call_operation() {
-    let checked = check_source(
+    let checked = checked_program_result(
         "data Cell { value: u64; }
          data Rack { cells: [Cell; 2]; }
          machine take(view: &Cell) -> u64 { view.value }
@@ -600,7 +588,7 @@ fn explicit_shared_literal_indexed_argument_names_its_caller_in_the_call_operati
 
 #[test]
 fn explicit_shared_dynamic_indexed_argument_still_omits_caller_in_call_operation() {
-    let checked = check_source(
+    let checked = checked_program_result(
         "data Cell { value: u64; }
          data Rack { cells: [Cell; 2]; }
          machine take(view: &Cell) -> u64 { view.value }
@@ -629,7 +617,7 @@ fn explicit_shared_dynamic_indexed_argument_still_omits_caller_in_call_operation
 
 #[test]
 fn local_indexed_receiver_still_omits_in_call_statement_shape() {
-    let checked = check_source(
+    let checked = checked_program_result(
         "data Cell { value: u64; }
          machine Cell::get(&self) -> u64 { self.value }
          machine run() -> u64 {
@@ -651,7 +639,7 @@ fn local_indexed_receiver_still_omits_in_call_statement_shape() {
 
 #[test]
 fn dynamic_indexed_parameter_receiver_stops_at_receiver_reconciliation() {
-    let checked = check_source(
+    let checked = checked_program_result(
         "data Cell { value: u64; }
          machine Cell::get(&self) -> u64 { self.value }
          machine run(cells: &[Cell; 2], i: u64 [0..=1]) -> u64 { cells[i].get() }",
@@ -669,7 +657,7 @@ fn dynamic_indexed_parameter_receiver_stops_at_receiver_reconciliation() {
 
 #[test]
 fn literal_indexed_parameter_receiver_can_supply_shared_receiver() {
-    let checked = check_source(
+    let checked = checked_program_result(
         "data Cell { value: u64; }
          machine Cell::get(&self) -> u64 { self.value }
          machine run(cells: &[Cell; 2]) -> u64 { cells[1].get() }",
@@ -689,7 +677,7 @@ fn literal_indexed_parameter_receiver_can_supply_shared_receiver() {
 
 #[test]
 fn dynamic_indexed_element_still_cannot_supply_shared_receiver() {
-    let checked = check_source(
+    let checked = checked_program_result(
         "data Cell { value: u64; }
          data Rack { cells: [Cell; 2]; }
          machine Cell::get(&self) -> u64 { self.value }

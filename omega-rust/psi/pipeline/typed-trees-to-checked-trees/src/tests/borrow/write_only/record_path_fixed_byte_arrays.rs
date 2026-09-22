@@ -1,11 +1,12 @@
-use super::{rendered_rejection, typed};
+use super::rendered_rejection;
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::typed_program;
 
 #[test]
 fn record_path_fixed_byte_array_literal_element_is_writable() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             data Inner { bytes: [u8; 4]; }
             data Outer { inner: Inner; }
@@ -44,7 +45,7 @@ fn record_path_fixed_byte_array_out_of_bounds_literal_remains_rejected() {
 #[test]
 fn record_path_fixed_byte_array_proven_dynamic_element_is_writable() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             data Inner { bytes: [u8; 4]; }
             data Outer { inner: Inner; }
@@ -102,7 +103,7 @@ fn record_path_fixed_byte_array_dynamic_index_observation_remains_rejected() {
 #[test]
 fn record_path_fixed_byte_array_static_range_is_writable() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             data Inner { bytes: [u8; 4]; }
             data Outer { inner: Inner; }
@@ -300,7 +301,7 @@ fn nested_invariant_bearing_record_field_write_remains_rejected() {
 #[test]
 fn closed_ranged_record_field_write_is_writable() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             data Limited { value: u8 [0..=10]; }
             data Outer { inner: Limited; }
@@ -322,7 +323,7 @@ fn closed_ranged_record_field_write_is_writable() {
 #[test]
 fn literal_indexed_closed_ranged_record_field_is_writable() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             data Inner [copy] { value: u8 [0..=10]; }
             data Outer { items: [Inner; 2]; }
@@ -394,7 +395,7 @@ fn closed_ranged_record_field_wider_source_remains_rejected() {
 #[test]
 fn policy_qualified_record_field_write_is_writable() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             data Limited { value: u32 in Wrapping; depth: i32 in Wrapping; }
             data Outer { inner: Limited; }
@@ -417,7 +418,7 @@ fn policy_qualified_record_field_write_is_writable() {
 #[test]
 fn literal_indexed_policy_record_field_is_writable() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             data Inner [copy] { value: u32 in Wrapping; }
             data Outer { items: [Inner; 2]; }
@@ -480,7 +481,7 @@ fn domain_qualified_record_field_is_writable() {
     // check re-derives `in Utf8` from the field declaration and discharges it
     // against the stored value — the same obligation a `&mut` store owes.
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             domain [u8; 8]::Utf8
             requires

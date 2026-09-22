@@ -1,5 +1,6 @@
-use super::{lower_typed_trees, typed};
+use super::lower_typed_trees;
 use crate::CheckingRequest;
+use crate::tests::front_end::typed_program;
 
 const COUNTDOWN: &str = r#"
 machine walk(remaining: u32 [0..=5])
@@ -19,15 +20,15 @@ terminates by remaining in 0..=5;
 "#;
 
 fn prove(source: &str) {
-    crate::checks::termination::check_machine_termination(&typed(source))
+    crate::checks::termination::check_machine_termination(&typed_program(source))
         .unwrap_or_else(|diagnostics| panic!("termination: {source}\n{diagnostics:#?}"));
-    lower_typed_trees(typed(source), &CheckingRequest::settled())
+    lower_typed_trees(typed_program(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("complete checking: {source}\n{diagnostics:#?}"));
 }
 
 fn reject(source: &str) {
-    let diagnostics =
-        crate::checks::termination::check_machine_termination(&typed(source)).expect_err(source);
+    let diagnostics = crate::checks::termination::check_machine_termination(&typed_program(source))
+        .expect_err(source);
     assert!(
         diagnostics
             .iter()
@@ -66,7 +67,7 @@ fn entry_parameter_refinements_still_require_valid_arrivals() {
     // must reject the back-edge that leaves that refinement.
     let source = "machine walk(n: u32 [1..=5]) requires 1 <= n && n <= 5; terminates by n in 0..=5; -> u32 { transition { _ -> walk(n - 1) } }";
     let diagnostics =
-        lower_typed_trees(typed(source), &CheckingRequest::settled()).expect_err(source);
+        lower_typed_trees(typed_program(source), &CheckingRequest::settled()).expect_err(source);
     assert!(!diagnostics.is_empty(), "{source}");
 }
 

@@ -1,11 +1,12 @@
-use super::{rendered_rejection, typed};
+use super::rendered_rejection;
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::typed_program;
 
 #[test]
 fn unrestricted_plain_record_leaves_are_wholly_replaceable() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             data Leaf [copy] {
                 value: u16;
@@ -32,7 +33,7 @@ fn plain_domain_qualified_record_leaves_are_wholly_replaceable() {
     // ordinary write-side domain check discharges `in Valid` against the
     // stored value exactly as it does for a `&mut` target.
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             data Leaf [copy] { value: u16; }
             domain Leaf::Valid
@@ -53,7 +54,7 @@ fn plain_domain_qualified_record_leaves_are_wholly_replaceable() {
 #[test]
 fn closed_material_copy_sums_are_wholly_replaceable() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             data Choice [copy] {
                 case Empty;
@@ -221,9 +222,11 @@ fn qualified_scalar_and_carrier_roots_are_wholly_replaceable() {
             "#,
         ),
     ] {
-        lower_typed_trees(typed(source), &CheckingRequest::settled()).unwrap_or_else(|errors| {
-            panic!("{name}: a qualified `&write` root should be wholly replaceable: {errors:?}")
-        });
+        lower_typed_trees(typed_program(source), &CheckingRequest::settled()).unwrap_or_else(
+            |errors| {
+                panic!("{name}: a qualified `&write` root should be wholly replaceable: {errors:?}")
+            },
+        );
     }
 }
 
@@ -313,7 +316,7 @@ fn ineligible_sum_shapes_remain_outside_whole_replacement() {
 
 #[test]
 fn zero_gate_independently_fences_copy_sum_replacement() {
-    let mut program = typed(
+    let mut program = typed_program(
         r#"
             data Choice [copy]
             where
@@ -409,7 +412,7 @@ fn unrestricted_record_leaf_observation_and_read_modify_write_remain_rejected() 
 #[test]
 fn nested_unconstrained_fixed_byte_array_record_field_is_writable() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             data Inner {
                 bytes: [u8; 4];
@@ -433,7 +436,7 @@ fn nested_unconstrained_fixed_byte_array_record_field_is_writable() {
 #[test]
 fn direct_and_nested_unrestricted_primitive_fixed_arrays_are_writable() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             data Inner { words: [u16; 2]; }
             data Outer { inner: Inner; }
@@ -464,7 +467,7 @@ fn direct_and_nested_unrestricted_primitive_fixed_arrays_are_writable() {
 #[test]
 fn fixed_arrays_of_material_copy_records_support_the_closed_operation_set() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             data Leaf [copy] { value: u16; enabled: bool; }
             data Holder { leaves: [Leaf; 4]; sibling: u8; }
@@ -499,7 +502,7 @@ fn fixed_arrays_of_material_copy_records_support_the_closed_operation_set() {
 #[test]
 fn fixed_arrays_of_material_copy_sums_support_the_closed_operation_set() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             data Choice [copy] {
                 case Empty;
@@ -537,7 +540,7 @@ fn fixed_arrays_of_material_copy_sums_support_the_closed_operation_set() {
 #[test]
 fn recursively_literal_fixed_arrays_support_atomic_outer_operations() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             data Holder { grids: [[u16; 2]; 4]; sibling: u8; }
 
@@ -637,7 +640,7 @@ fn fixed_array_record_elements_do_not_expose_child_places() {
 #[test]
 fn direct_and_nested_primitive_fixed_array_ranges_are_writable() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             data Inner { words: [u32; 4]; }
             data Outer { inner: Inner; }
@@ -656,7 +659,7 @@ fn direct_and_nested_primitive_fixed_array_ranges_are_writable() {
 #[test]
 fn immutable_local_copy_bounds_are_writable() {
     lower_typed_trees(
-        typed(
+        typed_program(
             r#"
             machine fill(values: &write [u16; 4]) {
                 let first: u64 = 1;

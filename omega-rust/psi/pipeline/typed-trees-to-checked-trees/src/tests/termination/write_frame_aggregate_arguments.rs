@@ -1,6 +1,6 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::{checked_program, typed_program};
 
 #[test]
 fn aggregate_actual_reference_leaves_transport_complete_write_sets() {
@@ -127,10 +127,7 @@ fn aggregate_actual_reference_leaves_transport_complete_write_sets() {
             "machine Main::case_{name}(&mut self) {{ {body} }}"
         ));
     }
-    let syntax =
-        parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(&source);
     let resolver = validation::CallFrameResolver::new(&typed).expect("resolver");
     let mut failures = Vec::new();
     for (name, _, expected) in cases {
@@ -204,12 +201,7 @@ fn aggregate_literal_reference_argument_reaches_checked_trees() {
         machine write_view(mut view: View) { view.body = 1; }
         machine Main::run(&mut self) { write_view(View { body: &mut self.value }); }
     "#;
-    let syntax =
-        parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("literal-carried reference reaches the checked callee");
+    checked_program(source);
 }
 
 #[test]
@@ -269,10 +261,7 @@ fn mutable_argument_bindings_do_not_grant_reference_access() {
     for (name, machines, expected_error) in cases {
         let source =
             format!("data View {{ body: &mut u64; }} data Main {{ value: u64; }} {machines}");
-        let syntax =
-            parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let typed = typed_program(&source);
         match (
             lower_typed_trees(typed, &CheckingRequest::settled()),
             expected_error,

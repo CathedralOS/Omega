@@ -1,5 +1,5 @@
+use crate::tests::front_end::typed_program;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::direct::direct_source;
-use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::typed_source;
 use symbols::SymbolHandle;
 use typed_trees::{expression::ExpressionNode, statement::StatementNode};
 
@@ -62,7 +62,7 @@ fn assert_selector_corruptions(body: &str, receiver: &str) {
                     "carrier.inner.context.scheduler"
                 )
         );
-        let mut program = typed_source(&source);
+        let mut program = typed_program(&source);
         assert_nested_identity(&program, true);
         let foreign = program
             .data_definitions()

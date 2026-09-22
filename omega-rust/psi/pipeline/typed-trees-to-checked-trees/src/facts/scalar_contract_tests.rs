@@ -1,6 +1,7 @@
 use super::TypedTrees;
 use crate::facts::canonical_encoding::encode_contract_fact_canonical;
 use crate::facts::contract_plan_facts::build_closed_scalar_value_contract_plan;
+use crate::tests::front_end::typed_program;
 use checked_trees::{
     CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedOperatorUseFact,
     ClosedScalarContractValue,
@@ -11,7 +12,7 @@ mod parameter_predicates;
 #[test]
 fn canonical_membership_contract_bytes_retain_normalized_indices() {
     let encode = |index: &str| {
-        let program = typed(&format!(
+        let program = typed_program(&format!(
             "domain<const I: u64> i64::Coordinate<I>; machine run(value: i64 in Coordinate<{index}>) {{ }}"
         ));
         let fact = program
@@ -36,18 +37,6 @@ fn canonical_membership_contract_bytes_retain_normalized_indices() {
     assert_eq!(encode("7"), encode("(7 + 0)"));
 }
 
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
-}
-
 #[test]
 fn closed_literal_contracts_require_builtin_equality_meaning() {
     for (scalar, literal) in [("u16", "7u16"), ("bool", "true")] {
@@ -59,7 +48,7 @@ fn closed_literal_contracts_require_builtin_equality_meaning() {
             } else {
                 String::new()
             };
-            let program = typed(&format!(
+            let program = typed_program(&format!(
                 r#"
                 {declaration}
                 machine value() -> {scalar}
@@ -89,7 +78,7 @@ fn nested_literal_comparisons_retain_exact_carriers_and_operator_meaning() {
             "",
             "boundary operator < Meaning::compare(left: u8, right: u8) -> bool;",
         ] {
-            let program = typed(&format!(
+            let program = typed_program(&format!(
                 "{declaration} machine value() -> bool ensures result == ({comparison}) {{ true }}"
             ));
             let plan = build_closed_scalar_value_contract_plan(
@@ -134,7 +123,7 @@ fn nested_literal_comparisons_retain_exact_carriers_and_operator_meaning() {
 
 #[test]
 fn integer_comparison_declarations_do_not_replace_boolean_tautologies() {
-    let program = typed(
+    let program = typed_program(
         r#"
         boundary operator == Meaning::equal(left: u16, right: u16) -> bool;
         machine value() -> bool
@@ -161,7 +150,7 @@ fn integer_comparison_declarations_do_not_replace_boolean_tautologies() {
 #[test]
 fn result_predicates_and_literal_requirements_gate_their_own_meanings() {
     for (spelling, require_builtin, ensure_builtin) in [("==", false, true), ("<", true, false)] {
-        let program = typed(&format!(
+        let program = typed_program(&format!(
             r#"
             boundary operator {spelling} Meaning::compare(left: u16, right: u16) -> bool;
             machine value() -> u16
@@ -190,7 +179,7 @@ fn result_predicates_and_literal_requirements_gate_their_own_meanings() {
 #[test]
 fn literal_carrier_identity_decides_heterogeneous_comparator_overlap() {
     for (literal, admitted) in [("7u16", true), ("7", false)] {
-        let program = typed(&format!(
+        let program = typed_program(&format!(
             r#"
         boundary operator == Meaning::compare(left: u16, right: bool) -> bool;
         machine value() -> u16
@@ -213,7 +202,7 @@ fn literal_carrier_identity_decides_heterogeneous_comparator_overlap() {
 
 #[test]
 fn retained_nonbuiltin_operator_status_cannot_be_replaced_by_literal_shape() {
-    let program = typed(
+    let program = typed_program(
         r#"
         machine value() -> u16
         requires 7u16 == 7u16

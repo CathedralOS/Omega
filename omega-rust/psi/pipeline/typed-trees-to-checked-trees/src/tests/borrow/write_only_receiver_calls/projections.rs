@@ -1,6 +1,7 @@
 //! Field selection preserves non-observation and exact exclusive receiver access.
 
-use super::{check_source, reject_source};
+use super::reject_source;
+use crate::tests::front_end::checked_program_result;
 
 const RECEIVERS: [&str; 4] = [
     "container.record",
@@ -35,7 +36,7 @@ fn projected_write_only_receiver_scalar_result_depends_on_written_input() {
                  replacement
              }",
         );
-        check_source(&source).unwrap_or_else(|diagnostics| {
+        checked_program_result(&source).unwrap_or_else(|diagnostics| {
             panic!("an independent scalar result checks: {diagnostics:#?}\n{source}")
         });
     }
@@ -58,7 +59,7 @@ fn bare_attached_field_write_only_receiver_calls_check() {
                      }}"
                 ),
             );
-            check_source(&source).unwrap_or_else(|diagnostics| {
+            checked_program_result(&source).unwrap_or_else(|diagnostics| {
                 panic!("bare attached fields retain their self root: {diagnostics:#?}\n{source}")
             });
         }
@@ -219,7 +220,7 @@ fn same_spelled_foreign_observing_method_does_not_block_projected_call() {
                 format!("{replacing}\n{foreign}")
             };
             let source = source(receiver, &format!("{receiver}.replace();"), &methods);
-            check_source(&source).unwrap_or_else(|diagnostics| {
+            checked_program_result(&source).unwrap_or_else(|diagnostics| {
                 panic!("only the exact attached target controls access: {diagnostics:#?}\n{source}")
             });
         }

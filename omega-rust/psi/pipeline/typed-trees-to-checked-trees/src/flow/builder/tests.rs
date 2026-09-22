@@ -1,9 +1,6 @@
+use crate::tests::front_end::typed_program;
 use facts::ScalarValue;
 use numerics::bignum::BigInt;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 use super::build_flow_facts;
 use crate::borrow::build_borrow_facts;
@@ -47,10 +44,7 @@ fn exhausted_sweep_budget_discards_provisional_constants() {
         "machine chain() -> u8",
         "machine chain() -> u8 ensures result == 3",
     );
-    let tokens = Lexer::new(&source).tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let program = lower_symbol_resolved_trees(&resolved).unwrap();
+    let program = typed_program(&source);
     check_against_whole_pass(program.clone(), &crate::CheckingRequest::settled())
         .expect("the complete fixed point proves 3");
     let _restore = Restore(SWEEP_LIMIT.replace(1));
@@ -98,10 +92,7 @@ fn reverse_chain_revisits_only_changed_inputs_before_final_materialization() {
     let length = 12;
     let independent = 64;
     let source = reverse_chain_source(length, independent);
-    let tokens = Lexer::new(&source).tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let program = lower_symbol_resolved_trees(&resolved).unwrap();
+    let program = typed_program(&source);
     let proof_plan = proof::obligations::build_proof_plan(&program);
     let operations = validation::infer_operational_may(&program);
     let borrow = build_borrow_facts(&program);
@@ -161,10 +152,7 @@ fn complete_checking_matches_reference_with_reverse_chain_and_cycle() {
         }
         "#
     );
-    let tokens = Lexer::new(&source).tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let program = lower_symbol_resolved_trees(&resolved).unwrap();
+    let program = typed_program(&source);
     let mut dirty_times = Vec::new();
     let mut reference_times = Vec::new();
     // Alternate order and compare full checking, not just the transfer helper.
@@ -212,12 +200,7 @@ fn complete_checking_matches_reference_with_reverse_chain_and_cycle() {
 #[test]
 fn call_free_direct_stores_leave_mutation_summaries_unbuilt() {
     let source = "machine produce() -> u8 { let mut value: u8 = 3; value = 4; value }";
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize direct store");
-    let syntax = parse_syntax_trees(&tokens).expect("parse direct store");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve direct store");
-    let program = lower_symbol_resolved_trees(&resolved).expect("type direct store");
+    let program = typed_program(source);
     let proof_plan = proof::obligations::build_proof_plan(&program);
     let operations = validation::infer_operational_may(&program);
     let borrow = build_borrow_facts(&program);
@@ -291,12 +274,7 @@ fn flow_value_input_passes_share_one_mutation_summary_table_per_invocation() {
             }}
             "#
         );
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize flow fixture");
-        let syntax = parse_syntax_trees(&tokens).expect("parse flow fixture");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve flow fixture");
-        let program = lower_symbol_resolved_trees(&resolved).expect("type flow fixture");
+        let program = typed_program(&source);
         let proof_plan = proof::obligations::build_proof_plan(&program);
         let operations = validation::infer_operational_may(&program);
         let borrow = build_borrow_facts(&program);

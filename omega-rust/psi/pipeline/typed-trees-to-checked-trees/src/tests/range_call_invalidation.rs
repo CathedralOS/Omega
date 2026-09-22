@@ -1,14 +1,4 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
-
-fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-}
+use crate::tests::front_end::checked_program_result;
 
 #[test]
 fn boolean_fallback_index_reads_use_the_prior_guard_complement() {
@@ -26,7 +16,8 @@ fn boolean_fallback_index_reads_use_the_prior_guard_complement() {
                  }}
              }}"
         );
-        check(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+        checked_program_result(&source)
+            .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
     }
 }
 
@@ -40,7 +31,7 @@ fn refuted_conjunction_does_not_prove_each_operand_false() {
             }
         }
     "#;
-    let Err(diagnostics) = check(source) else {
+    let Err(diagnostics) = checked_program_result(source) else {
         panic!("a false selection alone cannot establish the index bound")
     };
     assert!(
@@ -63,7 +54,7 @@ fn effectful_guard_cannot_restore_an_old_bound_in_its_fallback() {
             }
         }
     "#;
-    let Err(diagnostics) = check(source) else {
+    let Err(diagnostics) = checked_program_result(source) else {
         panic!("guard writes must invalidate the earlier index bound before fall-through")
     };
     assert!(
@@ -93,7 +84,7 @@ fn mutating_calls_retire_local_index_values() {
             }}
         "#
         );
-        let Err(diagnostics) = check(&source) else {
+        let Err(diagnostics) = checked_program_result(&source) else {
             panic!("stale local index was accepted after {call}")
         };
         assert!(
@@ -107,7 +98,7 @@ fn mutating_calls_retire_local_index_values() {
 
 #[test]
 fn mutating_array_contents_preserves_its_declared_extent() {
-    check(
+    checked_program_result(
         r#"
         machine touch(values: &mut [u64; 2]) { values[0] = 9; }
         machine main() -> u64 {
@@ -122,7 +113,7 @@ fn mutating_array_contents_preserves_its_declared_extent() {
 
 #[test]
 fn readonly_reference_call_preserves_a_live_nonconstant_bound() {
-    check(
+    checked_program_result(
         r#"
         machine inspect(index: &u64) {}
         machine main(values: &[u64; 2], index: u64) -> u64
@@ -159,7 +150,8 @@ fn readonly_and_disjoint_calls_preserve_index_values() {
             }}
         "#
         );
-        check(&source).unwrap_or_else(|diagnostics| panic!("{call}: {diagnostics:#?}"));
+        checked_program_result(&source)
+            .unwrap_or_else(|diagnostics| panic!("{call}: {diagnostics:#?}"));
     }
 }
 
@@ -180,7 +172,7 @@ fn mutating_expression_operands_retire_bounds_before_indexing() {
             }}
         "#
         );
-        let Err(diagnostics) = check(&source) else {
+        let Err(diagnostics) = checked_program_result(&source) else {
             panic!("stale sibling index accepted: {value}")
         };
         assert!(
@@ -206,7 +198,7 @@ fn indexed_method_statement_receivers_are_bounds_checked() {
             }}
         "#
         );
-        let result = check(&source);
+        let result = checked_program_result(&source);
         if accepted {
             result.unwrap_or_else(|diagnostics| panic!("valid indexed receiver: {diagnostics:#?}"));
         } else {
@@ -238,7 +230,7 @@ fn calls_retire_collection_relative_guard_bounds() {
             }
         }
     "#;
-    let Err(diagnostics) = check(source) else {
+    let Err(diagnostics) = checked_program_result(source) else {
         panic!("stale collection-relative index accepted")
     };
     assert!(
@@ -270,7 +262,7 @@ fn mutable_guard_calls_cannot_reestablish_earlier_bounds() {
         }}
     "#
         );
-        let Err(diagnostics) = check(&source) else {
+        let Err(diagnostics) = checked_program_result(&source) else {
             panic!("mutating guard replayed its earlier index bound")
         };
         assert!(

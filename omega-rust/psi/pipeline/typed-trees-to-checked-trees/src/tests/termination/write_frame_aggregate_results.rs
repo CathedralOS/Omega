@@ -1,6 +1,6 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::typed_program;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
@@ -33,10 +33,7 @@ fn aggregate_result_program(body: &str, extra: &str, scalar: &str) -> typed_tree
         {extra}
     "#
     );
-    let syntax =
-        parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
+    typed_program(&source)
 }
 
 #[test]
@@ -344,10 +341,7 @@ fn aggregate_helper_result_producer_writes_do_not_become_later_call_writes() {
             write_view(local);
         }
     "#;
-    let syntax =
-        parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let program = lower_symbol_resolved_trees(&resolved).expect("type");
+    let program = typed_program(source);
     let machine = program
         .machines()
         .iter()
@@ -509,10 +503,7 @@ fn aggregate_helper_results_keep_independent_input_lifetimes_and_origins() {
             write_pair(local);
         }
     "#;
-    let syntax =
-        parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let program = lower_symbol_resolved_trees(&resolved).expect("type");
+    let program = typed_program(source);
     let machine = program
         .machines()
         .iter()

@@ -1,6 +1,4 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
+use crate::tests::front_end::checked_program_result;
 
 #[test]
 fn operator_entry_guard_does_not_survive_entry_state_rearrival() {
@@ -17,8 +15,9 @@ fn operator_entry_guard_does_not_survive_entry_state_rearrival() {
              }}"
         )
         };
-        check(&source("crashes Trap")).expect("unconditional route covers conservative re-entry");
-        let diagnostics = match check(&source("crashes Trap left < 0")) {
+        checked_program_result(&source("crashes Trap"))
+            .expect("unconditional route covers conservative re-entry");
+        let diagnostics = match checked_program_result(&source("crashes Trap left < 0")) {
             Ok(_) => {
                 panic!("a state-arrival parameter is not the initial invocation value: {transfer}")
             }
@@ -46,10 +45,11 @@ fn operator_entry_guard_survives_a_self_forwarded_rearrival() {
          }}"
     )
     };
-    check(&source("crashes Trap")).expect("unconditional route covers a self-forwarded re-entry");
-    check(&source("crashes Trap left < 0"))
+    checked_program_result(&source("crashes Trap"))
+        .expect("unconditional route covers a self-forwarded re-entry");
+    checked_program_result(&source("crashes Trap left < 0"))
         .expect("a self-forwarded arrival retains the exact entry actual");
-    let diagnostics = check(&source("crashes Trap right < 0"))
+    let diagnostics = checked_program_result(&source("crashes Trap right < 0"))
         .expect_err("the forwarded arrival still names `left`, not `right`");
     assert!(
         diagnostics
@@ -57,17 +57,6 @@ fn operator_entry_guard_survives_a_self_forwarded_rearrival() {
             .any(|diagnostic| diagnostic.message.contains("crash")),
         "{diagnostics:#?}"
     );
-}
-
-fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize operator route fixture");
-    let syntax = parse_syntax_trees(&tokens).expect("parse operator route fixture");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve operator route fixture");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type operator route fixture");
-    lower_typed_trees(typed, &CheckingRequest::settled())
 }
 
 #[test]
@@ -82,7 +71,7 @@ fn operator_field_routes_preserve_immutable_owned_and_shared_entry_values() {
                      {operand} == right
                  }}"
             );
-            check(&source).unwrap_or_else(|errors| panic!("{source}: {errors:?}"));
+            checked_program_result(&source).unwrap_or_else(|errors| panic!("{source}: {errors:?}"));
         }
     }
 }
@@ -100,8 +89,9 @@ fn operator_field_routes_cannot_relabel_mutable_contents_as_entry() {
              }}"
         )
         };
-        check(&source("")).expect("the unconditional ceiling covers the actual mutation");
-        let errors = check(&source("flag.enabled"))
+        checked_program_result(&source(""))
+            .expect("the unconditional ceiling covers the actual mutation");
+        let errors = checked_program_result(&source("flag.enabled"))
             .expect_err("current fields cannot inherit invocation-entry identity");
         assert!(
             errors
@@ -124,8 +114,8 @@ fn operator_field_entry_guard_does_not_survive_state_rearrival() {
          }}"
     )
     };
-    check(&source("")).expect("unconditional crash contract covers every arrival");
-    let errors = check(&source("flag.enabled"))
+    checked_program_result(&source("")).expect("unconditional crash contract covers every arrival");
+    let errors = checked_program_result(&source("flag.enabled"))
         .expect_err("reordered state arrivals are not invocation-entry fields");
     assert!(
         errors
@@ -145,10 +135,10 @@ fn selected_operator_crash_routes_require_same_cause_coverage() {
                  pub machine compare(left: f32, right: f32) -> bool {ceiling} {{ {body} }}"
             )
             };
-            check(&source(&format!("crashes {cause}")))
+            checked_program_result(&source(&format!("crashes {cause}")))
                 .expect("same cause covers the selected invocation");
             for ceiling in [String::new(), format!("crashes {wrong}")] {
-                let diagnostics = check(&source(&ceiling))
+                let diagnostics = checked_program_result(&source(&ceiling))
                     .expect_err("selected crash cannot disappear or change cause");
                 assert!(
                     diagnostics
@@ -164,7 +154,7 @@ fn selected_operator_crash_routes_require_same_cause_coverage() {
 #[test]
 fn false_operator_route_retains_examined_empty_invocation() {
     for body in ["left == right", "match left { right -> true, _ -> false }"] {
-        let checked = check(&format!(
+        let checked = checked_program_result(&format!(
             "boundary operator == Comparison::equal(left: f32, right: f32) -> bool crashes Trap false;
              pub machine compare(left: f32, right: f32) -> bool {{ {body} }}"
         )).expect("a false published route needs no caller crash ceiling");
@@ -190,9 +180,10 @@ fn operator_crash_survives_private_helper_summary() {
          pub machine compare(left: f32, right: f32) -> bool {ceiling} {{ helper(left, right) }}"
         )
     };
-    check(&source("crashes Trap")).expect("wrapper covers the private operator invocation");
-    let diagnostics =
-        check(&source("")).expect_err("private summaries must retain operator crash causes");
+    checked_program_result(&source("crashes Trap"))
+        .expect("wrapper covers the private operator invocation");
+    let diagnostics = checked_program_result(&source(""))
+        .expect_err("private summaries must retain operator crash causes");
     assert!(
         diagnostics
             .iter()
@@ -209,8 +200,9 @@ fn operator_crash_guard_cannot_relabel_mutable_storage_as_entry() {
          machine compare({mutable}left: i32, right: i32) -> bool crashes Trap left < 0 {{ {assignment} left == right }}"
     )
     };
-    check(&source("", "")).expect("immutable entry operand retains exact published guard identity");
-    let diagnostics = check(&source("mut ", "left = -1;"))
+    checked_program_result(&source("", ""))
+        .expect("immutable entry operand retains exact published guard identity");
+    let diagnostics = checked_program_result(&source("mut ", "left = -1;"))
         .expect_err("current storage cannot impersonate entry crash guard");
     assert!(
         diagnostics
@@ -223,7 +215,7 @@ fn operator_crash_guard_cannot_relabel_mutable_storage_as_entry() {
 #[test]
 fn private_operator_summary_cannot_relabel_mutated_call_actual_as_entry() {
     for actual in ["left", "saved"] {
-        let checked = check(&format!(
+        let checked = checked_program_result(&format!(
         "boundary operator == Comparison::equal(left: i32, right: i32) -> bool crashes Trap left < 0;
          machine helper(left: i32, right: i32) -> bool {{ left == right }}
          pub machine compare(mut left: i32, right: i32) -> bool crashes Trap left < 0 {{
@@ -257,7 +249,7 @@ fn operator_crash_discharge_uses_captured_values_not_later_storage() {
              machine prepare(value: &mut i32) -> i32 ensures value >= 0 {{ value = 1; 0 }}
              pub machine compare(mut value: i32) -> bool {premise} {{ value == {right} }}"
         );
-        let checked = check(&source);
+        let checked = checked_program_result(&source);
         assert_eq!(checked.is_ok(), accepted, "{source}\n{:?}", checked.err());
     }
 }
@@ -274,7 +266,7 @@ fn operator_crash_discharge_observes_earlier_operand_effects() {
                  {operation}(&mut value) == value
              }}"
         );
-        let checked = check(&source);
+        let checked = checked_program_result(&source);
         assert_eq!(checked.is_ok(), accepted, "{source}\n{:?}", checked.err());
     }
 }
@@ -282,7 +274,7 @@ fn operator_crash_discharge_observes_earlier_operand_effects() {
 #[test]
 fn operator_crash_entry_guard_substitution_preserves_argument_order() {
     for (guard, accepted) in [("right < 0", true), ("left < 0", false)] {
-        let checked = check(&format!(
+        let checked = checked_program_result(&format!(
             "boundary operator == Comparison::equal(left: i32, right: i32) -> bool
              crashes Trap left < 0;
              pub machine compare(left: i32, right: i32) -> bool crashes Trap {guard} {{
@@ -295,7 +287,7 @@ fn operator_crash_entry_guard_substitution_preserves_argument_order() {
 
 #[test]
 fn operator_crash_records_reject_missing_or_changed_surviving_routes() {
-    let checked = check(
+    let checked = checked_program_result(
         "boundary operator == Comparison::equal(left: i32, right: i32) -> bool crashes Trap;
          pub machine compare(left: i32, right: i32) -> bool crashes Trap { left == right }",
     )
@@ -333,7 +325,7 @@ fn operator_crash_records_reject_missing_or_changed_surviving_routes() {
 
 #[test]
 fn each_match_comparison_retains_its_own_operator_crash_record() {
-    let checked = check(
+    let checked = checked_program_result(
         "boundary operator == Float::equal(left: f32, right: f32) -> bool crashes Trap false;
          pub machine compare(value: f32, first: f32, second: f32) -> bool {
              match value { first -> true, second -> true, _ -> false }

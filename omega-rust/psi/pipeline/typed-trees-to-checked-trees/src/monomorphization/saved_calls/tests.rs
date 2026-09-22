@@ -1,7 +1,4 @@
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
+use crate::tests::front_end::typed_program;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
@@ -21,11 +18,7 @@ fn saved_provider_call_keeps_its_unresolved_tuple_after_live_specialization() {
             GenericProvider::measure(value)
         }
         "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let mut source =
-        lower_symbol_resolved_trees(&resolved).expect("type the unresolved provider call");
+    let mut source = typed_program(source);
     let provider = source
         .machines()
         .iter()

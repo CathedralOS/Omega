@@ -1,8 +1,8 @@
-use super::checked;
+use crate::tests::front_end::checked_program;
 
 #[test]
 fn structural_unit_jump_composes_signatures_transfers_and_cleanup() {
-    let supported = checked(
+    let supported = checked_program(
         r#"
         data Token { value: i32; }
         data Root {}
@@ -69,7 +69,7 @@ fn structural_unit_jump_composes_signatures_transfers_and_cleanup() {
     };
     assert_eq!(trivial_affine_discard_parameter_positions, &[0]);
 
-    let rejected = checked(
+    let rejected = checked_program(
         r#"
         data Token { value: i32; }
         data Root {}
@@ -114,7 +114,7 @@ fn structural_unit_countdown_retains_exact_ranked_scc_plan() {
             state done(token: Token) {}
         }
         "#;
-    let admitted = checked(source);
+    let admitted = checked_program(source);
     let machine = admitted
         .machines()
         .iter()
@@ -178,7 +178,7 @@ fn structural_unit_countdown_retains_exact_ranked_scc_plan() {
     );
 
     let without_witness =
-        checked(&source.replace("terminates by remaining -> Nat::Descending;", ""));
+        checked_program(&source.replace("terminates by remaining -> Nat::Descending;", ""));
     let machine = without_witness
         .machines()
         .iter()
@@ -198,7 +198,7 @@ fn structural_unit_countdown_retains_exact_ranked_scc_plan() {
 
 #[test]
 fn structural_unit_countdown_retains_implicit_mutable_receiver_custody() {
-    let admitted = checked(
+    let admitted = checked_program(
         r#"
         data Root { value: i32; }
 
@@ -279,7 +279,7 @@ fn structural_unit_countdown_retains_implicit_mutable_receiver_custody() {
 
 #[test]
 fn structural_unit_conditional_composes_independent_transfer_cleanup_frontiers() {
-    let supported = checked(
+    let supported = checked_program(
         r#"
         data Token { value: i32; }
         data Root {}
@@ -344,7 +344,7 @@ fn structural_unit_conditional_composes_independent_transfer_cleanup_frontiers()
     assert_eq!(when_false.scalar_arguments, when_true.scalar_arguments);
     assert_eq!(when_false.trivial_affine_discard_parameter_positions, [0]);
 
-    let rejected = checked(
+    let rejected = checked_program(
         r#"
         data Token { value: i32; }
         data Root {}
@@ -379,7 +379,7 @@ fn structural_unit_conditional_composes_independent_transfer_cleanup_frontiers()
 
 #[test]
 fn structural_unit_bounded_conditional_topology_composes_exact_frontiers() {
-    let supported = checked(
+    let supported = checked_program(
         r#"
         data Token { value: i32; }
         data Root {}
@@ -430,7 +430,7 @@ fn structural_unit_bounded_conditional_topology_composes_exact_frontiers() {
         }
     ));
 
-    let nested = checked(
+    let nested = checked_program(
         r#"
         data Token { value: i32; }
         data Root {}
@@ -487,7 +487,7 @@ fn structural_unit_bounded_conditional_topology_composes_exact_frontiers() {
         2
     );
 
-    let rejected = checked(
+    let rejected = checked_program(
         r#"
         data Token { value: i32; }
         data Root {}
@@ -556,7 +556,7 @@ fn structural_unit_bounded_conditional_topology_composes_exact_frontiers() {
 
 #[test]
 fn structural_unit_diamond_retains_one_join_and_exact_scalar_edges() {
-    let checked = checked(
+    let checked = checked_program(
         r#"
         data Token { value: i32; }
         data Root {}

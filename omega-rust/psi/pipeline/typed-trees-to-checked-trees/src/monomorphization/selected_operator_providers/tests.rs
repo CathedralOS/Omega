@@ -1,6 +1,7 @@
-use super::{SymbolHandle, TypedTrees};
+use super::SymbolHandle;
 use crate::monomorphization::SelectedProviderTemplates;
 use crate::monomorphization::specialize_selected_generic_operator_providers;
+use crate::tests::front_end::typed_program;
 use std::cell::Cell;
 
 thread_local! {
@@ -15,23 +16,11 @@ pub(super) fn record_working_copy() {
     WORK.update(|(preparations, copies)| (preparations, copies + 1));
 }
 
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolved");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("typed")
-}
-
 #[test]
 fn empty_selection_does_not_prepare_or_copy_provider_trees() {
     WORK.set((0, 0));
     crate::lower_typed_trees(
-        typed("machine identity(value: i32) -> i32 { value }"),
+        typed_program("machine identity(value: i32) -> i32 { value }"),
         &crate::CheckingRequest::settled(),
     )
     .expect("ordinary checking");
@@ -40,7 +29,7 @@ fn empty_selection_does_not_prepare_or_copy_provider_trees() {
 
 #[test]
 fn distinct_const_tuples_share_a_copy_and_converged_demand_copies_nothing() {
-    let program = typed(
+    let program = typed_program(
         r#"
         data ArrayOps {}
         boundary operator ArrayOps::measure<const Count: u64>(items: [u8; Count]) -> bool;
@@ -81,7 +70,7 @@ fn distinct_const_tuples_share_a_copy_and_converged_demand_copies_nothing() {
 
 #[test]
 fn invalid_provider_request_rejects_even_without_applications() {
-    let mut program = typed("machine identity(value: i32) -> i32 { value }");
+    let mut program = typed_program("machine identity(value: i32) -> i32 { value }");
     let selected = [crate::SelectedGenericOperatorProviderSpecialization {
         requirement_operator: SymbolHandle::invalid(),
         realization_machine: program.machines()[0].symbol,
@@ -99,7 +88,7 @@ fn invalid_provider_request_rejects_even_without_applications() {
 
 #[test]
 fn nested_providers_prepare_once_and_copy_only_new_demand() {
-    let program = typed(
+    let program = typed_program(
         r#"
         pub data Inner {}
         pub boundary operator Inner::identity<Element>(value: Element) -> Element;

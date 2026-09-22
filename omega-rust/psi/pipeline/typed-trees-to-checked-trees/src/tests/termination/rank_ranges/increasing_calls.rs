@@ -1,5 +1,6 @@
-use super::{lower_typed_trees, typed};
+use super::lower_typed_trees;
 use crate::CheckingRequest;
+use crate::tests::front_end::typed_program;
 
 const PAIR: &str = r#"
 data Main { observed: u64; }
@@ -24,13 +25,13 @@ terminates by position -> Nat::IncreasingTo(bound) in 0..=ceiling;
 "#;
 
 fn prove(source: &str) {
-    lower_typed_trees(typed(source), &CheckingRequest::settled())
+    lower_typed_trees(typed_program(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
 }
 
 fn reject(source: &str) {
     let diagnostics =
-        lower_typed_trees(typed(source), &CheckingRequest::settled()).expect_err(source);
+        lower_typed_trees(typed_program(source), &CheckingRequest::settled()).expect_err(source);
     assert!(
         diagnostics.iter().any(
             |diagnostic| diagnostic.message.contains("machine call cycle")

@@ -7,11 +7,9 @@
 //! scope's re-derived contracts, and never mints, extends, or transfers loan
 //! authority.
 
-use super::{checked_source, sole_certificate};
-use crate::tests::{
-    Lexer, ResolutionRequest, SymbolHandle, lower_symbol_resolved_trees, parse_syntax_trees,
-    resolve,
-};
+use super::sole_certificate;
+use crate::tests::SymbolHandle;
+use crate::tests::front_end::{checked_program, checked_program_result, typed_program};
 
 const DISEQUAL_ELEMENTS: &str = r#"
     data Entry { value: i32; }
@@ -32,7 +30,7 @@ const DISEQUAL_ELEMENTS: &str = r#"
 fn stated_disequality_certifies_distinct_mutable_elements() {
     for relation in ["left_index != right_index", "right_index != left_index"] {
         let mut checked =
-            checked_source(&DISEQUAL_ELEMENTS.replace("left_index != right_index", relation));
+            checked_program(&DISEQUAL_ELEMENTS.replace("left_index != right_index", relation));
         let certificate = checked
             .facts
             .borrow
@@ -88,7 +86,7 @@ fn disequal_element_offsets_require_the_same_translation() {
     let shifted =
         DISEQUAL_ELEMENTS.replace("left_index != right_index", "left_index + 1 != right_index");
     assert_borrow_conflict(&shifted);
-    let mut checked = checked_source(&shifted.replace(
+    let mut checked = checked_program(&shifted.replace(
         "left_index + 1 != right_index",
         "left_index + 1 != right_index + 1",
     ));
@@ -111,11 +109,10 @@ fn disequality_separates_exclusive_call_arguments_not_duplicate_elements() {
             write_pair(&mut view[left_index], &mut view[right_index]);
         }
     "#;
-    checked_source(source);
+    checked_program(source);
     let invalid = source.replace("&mut view[right_index]", "&mut view[left_index]");
-    let diagnostics =
-        crate::lower_typed_trees(typed_source(&invalid), &crate::CheckingRequest::settled())
-            .expect_err("a disequality premise cannot separate two uses of the same element");
+    let diagnostics = checked_program_result(&invalid)
+        .expect_err("a disequality premise cannot separate two uses of the same element");
     assert!(
         diagnostics
             .iter()
@@ -134,7 +131,7 @@ fn disequality_certificate_rejects_missing_retargeted_and_reordered_evidence() {
         "selectors",
         "conclusion",
     ] {
-        let mut checked = checked_source(DISEQUAL_ELEMENTS);
+        let mut checked = checked_program(DISEQUAL_ELEMENTS);
         let handle = checked
             .facts
             .borrow
@@ -186,7 +183,7 @@ fn disequality_certificate_rejects_missing_retargeted_and_reordered_evidence() {
 
 #[test]
 fn disequality_certificate_rejects_changed_requires() {
-    let mut checked = checked_source(DISEQUAL_ELEMENTS);
+    let mut checked = checked_program(DISEQUAL_ELEMENTS);
     let expression = checked
         .typed
         .proof_facts
@@ -330,19 +327,8 @@ fn assert_recording_rejects(
     diagnostics
 }
 
-fn typed_source(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize premise fixture");
-    let syntax = parse_syntax_trees(&tokens).expect("parse premise fixture");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve premise fixture");
-    lower_symbol_resolved_trees(&resolved).expect("type premise fixture")
-}
-
 fn assert_borrow_conflict(source: &str) {
-    let Err(diagnostics) =
-        crate::lower_typed_trees(typed_source(source), &crate::CheckingRequest::settled())
-    else {
+    let Err(diagnostics) = checked_program_result(source) else {
         panic!("premise-insufficient windows must reject: {source}");
     };
     assert!(
@@ -356,7 +342,7 @@ fn assert_borrow_conflict(source: &str) {
 
 #[test]
 fn stated_ordering_premise_certifies_disjoint_symbolic_windows() {
-    let checked = checked_source(DISJOINT_WINDOWS);
+    let checked = checked_program(DISJOINT_WINDOWS);
     let certificate = sole_certificate(&checked);
 
     assert_eq!(
@@ -392,7 +378,7 @@ fn stated_ordering_premise_certifies_disjoint_symbolic_windows() {
 
 #[test]
 fn stated_equality_premise_certifies_same_extent() {
-    let checked = checked_source(EQUAL_WINDOWS);
+    let checked = checked_program(EQUAL_WINDOWS);
     let certificate = sole_certificate(&checked);
 
     assert_eq!(
@@ -417,7 +403,7 @@ fn stated_equality_premise_certifies_same_extent() {
 
 #[test]
 fn stated_premises_certify_multi_token_containment() {
-    let checked = checked_source(CONTAINED_WINDOWS);
+    let checked = checked_program(CONTAINED_WINDOWS);
     let certificate = sole_certificate(&checked);
 
     assert_eq!(
@@ -457,7 +443,7 @@ fn stated_premises_certify_multi_token_containment() {
 
 #[test]
 fn premised_certificate_replays_through_checked_recording() {
-    let mut checked = checked_source(DISJOINT_WINDOWS);
+    let mut checked = checked_program(DISJOINT_WINDOWS);
     let before = checked.facts.borrow.compatibility_certificates.clone();
 
     crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
@@ -470,7 +456,7 @@ fn premised_certificate_replays_through_checked_recording() {
 
 #[test]
 fn unconsulted_requires_leaves_a_structural_certificate() {
-    let checked = checked_source(
+    let checked = checked_program(
         r#"
         data Main { items: [i32; 4]; }
 
@@ -582,7 +568,7 @@ fn mutable_premise_subject_offers_no_premise() {
     // `last` is mutable, so `cut <= last` decomposes to no normalized bound
     // and the windows stay unordered.
     let Err(_) = crate::lower_typed_trees(
-        typed_source(
+        typed_program(
             r#"
         data Main { items: [i32; 4]; }
 
@@ -603,7 +589,7 @@ fn mutable_premise_subject_offers_no_premise() {
 
 #[test]
 fn rejects_retained_premise_relation_tamper() {
-    let mut checked = checked_source(DISJOINT_WINDOWS);
+    let mut checked = checked_program(DISJOINT_WINDOWS);
     let row = checked
         .facts
         .borrow
@@ -625,7 +611,7 @@ fn rejects_retained_premise_relation_tamper() {
 
 #[test]
 fn rejects_retained_premise_operand_retarget() {
-    let mut checked = checked_source(DISJOINT_WINDOWS);
+    let mut checked = checked_program(DISJOINT_WINDOWS);
     let row = checked
         .facts
         .borrow
@@ -647,7 +633,7 @@ fn rejects_retained_premise_operand_retarget() {
 
 #[test]
 fn rejects_retained_premise_fact_retarget() {
-    let mut checked = checked_source(DISJOINT_WINDOWS);
+    let mut checked = checked_program(DISJOINT_WINDOWS);
     let row = checked
         .facts
         .borrow
@@ -670,7 +656,7 @@ fn rejects_retained_premise_fact_retarget() {
 
 #[test]
 fn rejects_transposed_retained_premise_tokens() {
-    let mut checked = checked_source(CONTAINED_WINDOWS);
+    let mut checked = checked_program(CONTAINED_WINDOWS);
     let row = checked
         .facts
         .borrow
@@ -692,7 +678,7 @@ fn rejects_transposed_retained_premise_tokens() {
 
 #[test]
 fn rejects_missing_retained_premise_tokens() {
-    let mut checked = checked_source(CONTAINED_WINDOWS);
+    let mut checked = checked_program(CONTAINED_WINDOWS);
     let row = checked
         .facts
         .borrow
@@ -714,7 +700,7 @@ fn rejects_missing_retained_premise_tokens() {
 
 #[test]
 fn rejects_extra_retained_premise_tokens() {
-    let mut checked = checked_source(DISJOINT_WINDOWS);
+    let mut checked = checked_program(DISJOINT_WINDOWS);
     let row = checked
         .facts
         .borrow
@@ -732,7 +718,7 @@ fn rejects_extra_retained_premise_tokens() {
 
 #[test]
 fn rejects_premised_derivation_with_empty_ledger() {
-    let mut checked = checked_source(DISJOINT_WINDOWS);
+    let mut checked = checked_program(DISJOINT_WINDOWS);
     let row = checked
         .facts
         .borrow
@@ -749,7 +735,7 @@ fn rejects_premised_derivation_with_empty_ledger() {
 
 #[test]
 fn rejects_structural_derivation_with_retained_ledger() {
-    let mut checked = checked_source(DISJOINT_WINDOWS);
+    let mut checked = checked_program(DISJOINT_WINDOWS);
     let row = checked
         .facts
         .borrow
@@ -768,7 +754,7 @@ fn rejects_structural_derivation_with_retained_ledger() {
 fn rejects_structural_derivation_with_stripped_ledger() {
     // With the ledger erased and the class downgraded, replay re-derives the
     // available premise but the recorded consult position is missing.
-    let mut checked = checked_source(DISJOINT_WINDOWS);
+    let mut checked = checked_program(DISJOINT_WINDOWS);
     let row = checked
         .facts
         .borrow
@@ -786,7 +772,7 @@ fn rejects_structural_derivation_with_stripped_ledger() {
 
 #[test]
 fn rejects_stale_requires_that_no_longer_states_the_relation() {
-    let mut checked = checked_source(DISJOINT_WINDOWS);
+    let mut checked = checked_program(DISJOINT_WINDOWS);
     // Flip the recorded `cut <= last` conjunct to `cut >= last` in the typed
     // requires expression: the re-derived premise set still offers an
     // ordering fact, but not the one the certificate consumed.
@@ -881,7 +867,7 @@ fn sole_mutation_certificate(
 
 #[test]
 fn stated_ordering_premise_certifies_summed_index_bounds() {
-    let checked = checked_source(SUMMED_INDEX);
+    let checked = checked_program(SUMMED_INDEX);
     let certificate = sole_mutation_certificate(&checked);
 
     assert_eq!(
@@ -915,7 +901,7 @@ fn stated_ordering_premise_certifies_summed_index_bounds() {
 
 #[test]
 fn summed_premise_certificate_replays_through_checked_recording() {
-    let mut checked = checked_source(SUMMED_INDEX);
+    let mut checked = checked_program(SUMMED_INDEX);
     let before = checked.facts.borrow.mutation_certificates.clone();
 
     crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
@@ -930,7 +916,7 @@ fn summed_premise_certificate_replays_through_checked_recording() {
 fn rejects_retained_sum_operand_retarget() {
     // Reordering the recorded pair breaks its canonical member order, so the
     // re-derived premise tokens drift.
-    let mut checked = checked_source(SUMMED_INDEX);
+    let mut checked = checked_program(SUMMED_INDEX);
     let row = checked
         .facts
         .borrow

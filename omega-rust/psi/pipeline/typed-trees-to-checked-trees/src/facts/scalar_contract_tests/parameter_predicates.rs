@@ -1,6 +1,6 @@
 use super::{CheckedOperatorFacts, ClosedScalarContractValue, TypedTrees};
 use crate::facts::contract_plan_facts::build_closed_scalar_value_contract_plan;
-use crate::facts::scalar_contract_tests::typed;
+use crate::tests::front_end::typed_program;
 use checked_trees::{
     CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedScalarExpression,
 };
@@ -17,7 +17,7 @@ fn plan(program: &TypedTrees) -> checked_trees::ClosedScalarValueContractPlan {
 
 #[test]
 fn contract_positions_keep_formals_before_the_result() {
-    let program = typed(
+    let program = typed_program(
         r#"
         machine value(flag: bool, input: u16) -> u16
         requires input < 256u16
@@ -70,7 +70,7 @@ fn contract_positions_keep_formals_before_the_result() {
 
 #[test]
 fn authored_result_parameter_shadows_the_reserved_result() {
-    let program = typed(
+    let program = typed_program(
         "machine value(result: u16) -> u16\nrequires result < 256u16\nensures result == 7u16\n{ 999u16 }",
     );
     let plan = plan(&program);
@@ -91,7 +91,7 @@ fn authored_result_parameter_shadows_the_reserved_result() {
 
 #[test]
 fn mutable_formal_ensures_cannot_claim_an_entry_snapshot() {
-    let program = typed(
+    let program = typed_program(
         "machine value(mut input: u16) -> u16\nrequires input < 256u16\nensures result == input\n{ input }",
     );
     let plan = plan(&program);
@@ -104,7 +104,7 @@ fn mutable_formal_ensures_cannot_claim_an_entry_snapshot() {
 
 #[test]
 fn missing_formal_symbols_do_not_fall_back_to_spelling() {
-    let mut program = typed(
+    let mut program = typed_program(
         "machine value(input: u16) -> u16\nrequires input < 256u16\nensures result == input\n{ input }",
     );
     let names = program
@@ -131,14 +131,14 @@ fn missing_formal_symbols_do_not_fall_back_to_spelling() {
 fn formal_predicates_reject_selected_operators_and_carry_exact_arithmetic() {
     // A comparison whose spelling selects a declared operator is not builtin
     // vocabulary; exact `+` arithmetic over a formal and a literal is.
-    let program = typed(
+    let program = typed_program(
         "boundary operator < Meaning::before(left: u16, right: u16) -> bool; machine value(input: u16) -> u16\nrequires input < 256u16\nensures result < input\n{ input }",
     );
     let selected = plan(&program);
     assert_eq!(selected.requires(), &[None]);
     assert_eq!(selected.ensures(), &[None]);
 
-    let program = typed(
+    let program = typed_program(
         "machine value(input: u16) -> u16\nrequires input + 1u16 < 256u16\nensures result == input + 1u16\n{ input }",
     );
     let arithmetic = plan(&program);
@@ -165,7 +165,7 @@ fn formal_predicates_reject_selected_operators_and_carry_exact_arithmetic() {
         ))]
     ));
     // A bitwise operand stays outside the closed language.
-    let program = typed(
+    let program = typed_program(
         "machine value(input: u16) -> u16\nrequires input & 1u16 < 256u16\nensures result == input\n{ input }",
     );
     assert_eq!(plan(&program).requires(), &[None]);
@@ -180,7 +180,7 @@ fn closed_parameter_ranges_append_native_requirements() {
         "[0..=128 + 127]",
         "[0..=255 / 2 * 2]",
     ] {
-        let program = typed(&format!(
+        let program = typed_program(&format!(
             r#"
             boundary operator <= Meaning::before(left: u16, right: u16) -> bool;
             machine value(input: u16 {range}) -> u16
@@ -210,7 +210,7 @@ fn closed_parameter_ranges_append_native_requirements() {
 #[test]
 fn unsupported_present_ranges_are_not_silently_erased() {
     for parameter in ["input: u16 [0..=limit]", "input: u16 [0..=255] in Wrapping"] {
-        let program = typed(&format!(
+        let program = typed_program(&format!(
             "machine value(limit: u16, {parameter}) -> u16\nrequires 7u16 == 7u16\nensures result == input\n{{ input }}"
         ));
         let plan = plan(&program);

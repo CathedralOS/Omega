@@ -1,5 +1,6 @@
 use super::checks::check_program;
 use crate::borrow::view_link::{DeclarationLifetimeFrontier, declaration_lifetime_frontier};
+use crate::tests::front_end::{checked_program_result, typed_program};
 
 mod static_calls;
 
@@ -8,18 +9,6 @@ const CARRIERS: &str = r#"
     data Remainder { bytes: &[u8]; }
     data Relayed<T> { value: T; remainder: Remainder; }
 "#;
-
-fn typed_program(source: &str) -> typed_trees::TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type")
-}
 
 #[test]
 fn declarations_retain_template_dependent_frontiers_for_unknown_and_nested_carriers() {
@@ -145,7 +134,7 @@ fn concrete_decode_realization_and_call_are_checked_by_the_complete_pipeline() {
         }}
     "#
     );
-    crate::lower_typed_trees(typed_program(&source), &crate::CheckingRequest::settled())
+    checked_program_result(&source)
         .unwrap_or_else(|diagnostics| panic!("closed implementation and call: {diagnostics:#?}"));
 }
 

@@ -1,5 +1,6 @@
-use super::{lower_typed_trees, typed};
+use super::lower_typed_trees;
 use crate::CheckingRequest;
+use crate::tests::front_end::typed_program;
 
 const COUNTDOWN: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -9,12 +10,12 @@ const PRECONDITION: &str = "requires countdown.remaining <= countdown.limit;";
 const NEXT_LIMIT: &str = "limit: countdown.limit";
 
 fn prove_termination(source: &str) {
-    crate::checks::termination::check_machine_termination(&typed(source))
+    crate::checks::termination::check_machine_termination(&typed_program(source))
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
 }
 
 fn reject_range(source: &str) {
-    let diagnostics = crate::checks::termination::check_machine_termination(&typed(source))
+    let diagnostics = crate::checks::termination::check_machine_termination(&typed_program(source))
         .expect_err("the exact field endpoint must remain proved and pinned");
     assert!(
         diagnostics
@@ -25,7 +26,8 @@ fn reject_range(source: &str) {
 }
 
 fn reject_termination(source: &str) {
-    crate::checks::termination::check_machine_termination(&typed(source)).expect_err(source);
+    crate::checks::termination::check_machine_termination(&typed_program(source))
+        .expect_err(source);
 }
 
 fn second_record() -> String {
@@ -41,7 +43,7 @@ fn second_record() -> String {
 
 #[test]
 fn pinned_field_customer_checks_through_complete_lowering() {
-    lower_typed_trees(typed(COUNTDOWN), &CheckingRequest::settled())
+    lower_typed_trees(typed_program(COUNTDOWN), &CheckingRequest::settled())
         .expect("entry membership and the reconstructed remaining and limit fields all check");
 }
 
@@ -65,11 +67,11 @@ fn ordinary_field_requirements_do_not_depend_on_a_ranking_witness() {
             ),
     ] {
         lower_typed_trees(
-            typed(&source.replace("spare: 0", "spare: countdown.spare")),
+            typed_program(&source.replace("spare: 0", "spare: countdown.spare")),
             &CheckingRequest::settled(),
         )
         .expect("simultaneous field substitution preserves the entry requirement");
-        let diagnostics = lower_typed_trees(typed(&source), &CheckingRequest::settled())
+        let diagnostics = lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
             .expect_err("an invalid entry requirement rejects with or without a rank");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
@@ -91,11 +93,11 @@ fn ordinary_field_requirements_keep_caller_and_callee_coordinates_separate() {
         requires second.value <= first.value;
         { consume(second, first) }
     "#;
-    lower_typed_trees(typed(source), &CheckingRequest::settled())
+    lower_typed_trees(typed_program(source), &CheckingRequest::settled())
         .expect("actuals map simultaneously despite reversed same-named formals");
     for arguments in ["first, second", "Bounds { value: 5 }, Bounds { value: 0 }"] {
         let changed = source.replace("consume(second, first)", &format!("consume({arguments})"));
-        let diagnostics = lower_typed_trees(typed(&changed), &CheckingRequest::settled())
+        let diagnostics = lower_typed_trees(typed_program(&changed), &CheckingRequest::settled())
             .expect_err("neither caller names nor an invalid constructor supplies the callee fact");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
@@ -143,7 +145,7 @@ fn related_sibling_coordinates_contribute_entry_facts() {
     ] {
         let changed = source.replace("spare: countdown.spare", &format!("spare: {value}"));
         prove_termination(&changed);
-        let diagnostics = lower_typed_trees(typed(&changed), &CheckingRequest::settled())
+        let diagnostics = lower_typed_trees(typed_program(&changed), &CheckingRequest::settled())
             .expect_err("the constructor and recursive contract still require ordinary checking");
         assert!(
             diagnostics

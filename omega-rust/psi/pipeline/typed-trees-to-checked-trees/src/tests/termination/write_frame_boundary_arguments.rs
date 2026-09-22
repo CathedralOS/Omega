@@ -1,6 +1,6 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::{checked_program, checked_program_result, typed_program};
 
 #[test]
 fn boundary_reference_metadata_preserves_disjoint_facts_and_argument_effects() {
@@ -31,10 +31,7 @@ fn boundary_reference_metadata_preserves_disjoint_facts_and_argument_effects() {
                  Device::write(alias);
              }}"
         );
-        let syntax =
-            parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let typed = typed_program(&source);
         let machine = typed
             .machines()
             .iter()
@@ -59,11 +56,7 @@ fn boundary_reference_metadata_preserves_disjoint_facts_and_argument_effects() {
         });
         for written in expected {
             let invalid = source.replace("self.untouched", written);
-            let syntax = parse_syntax_trees(&Lexer::new(&invalid).tokenize().expect("tokenize"))
-                .expect("parse negative control");
-            let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-            let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-            let errors = lower_typed_trees(typed, &CheckingRequest::settled())
+            let errors = checked_program_result(&invalid)
                 .expect_err("a boundary or argument write invalidates its old field fact");
             assert!(
                 errors
@@ -83,12 +76,7 @@ fn indexed_method_receiver_reaches_checked_trees() {
         machine Cell::write_value(&mut self) -> u64 { self.value = 1; 1 }
         machine Main::run(&mut self) { let result: u64 = self.cells[0].write_value(); }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("indexed method receiver reaches checking");
+    checked_program(source);
 }
 
 #[test]
@@ -178,10 +166,7 @@ fn indexed_method_receivers_keep_coarse_storage_and_exact_argument_writes() {
         };
         source.push_str(&format!("machine Main::case_{name}(&mut self) {{ {prefix} let result: u64 = {receiver}.{target}(&mut self.audit); }}"));
     }
-    let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(&source);
     let resolver = validation::CallFrameResolver::new(&typed).expect("resolver");
     let mut failures = Vec::new();
     for (name, _, _, expected) in cases {
@@ -291,11 +276,7 @@ fn boundary_forwarded_reference_reaches_checked_trees() {
                 format!("self.device.{target}")
             },
         );
-        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        let checked = lower_typed_trees(typed, &CheckingRequest::settled());
+        let checked = checked_program_result(&source);
         if let Some(expected) = expected_diagnostic {
             let diagnostics = checked.expect_err("reference result access and referee must match");
             assert!(
@@ -487,10 +468,7 @@ fn boundary_reference_results_transport_proven_origins_and_producer_writes() {
             "machine Main::case_{name}(&mut self{parameters}) {{ {body} }}"
         ));
     }
-    let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+    let typed = typed_program(&source);
     let resolver = validation::CallFrameResolver::new(&typed).expect("resolver");
     let mut failures = Vec::new();
     for (name, _, expected) in cases {
@@ -689,10 +667,7 @@ fn boundary_results_bound_to_locals_transport_their_proven_origin() {
             "machine Main::case_{name}(&mut self) {{ {body} }}"
         ));
     }
-    let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+    let typed = typed_program(&source);
     let resolver = validation::CallFrameResolver::new(&typed).expect("resolver");
     let mut failures = Vec::new();
     for (name, _, expected) in cases {
@@ -772,10 +747,7 @@ fn boundary_attached_result_requires_the_exact_caller_self_identity() {
         machine Main::run(&mut self) { self.device.output(self.cell.field_reference()); }
         machine Main::foreign(&mut self) {}
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let original = lower_symbol_resolved_trees(&resolved).expect("type");
+    let original = typed_program(source);
     for foreign in [false, true] {
         let mut typed = original.clone();
         if foreign {
@@ -863,10 +835,7 @@ fn boundary_reference_binding_identity_requires_the_live_caller_declaration() {
             let alias: &mut u64 = &mut self.value;
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let original = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+    let original = typed_program(source);
     for (wrapped, variant) in [false, true].into_iter().flat_map(|wrapped| {
         ["exact", "constrained", "foreign", "stale", "later_local"]
             .into_iter()
@@ -1097,10 +1066,7 @@ fn boundary_reference_bindings_keep_exact_origins_without_reborrowing_slots() {
             "machine Main::{name}(&mut self{parameters}) {{ {body} }}"
         ));
     }
-    let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+    let typed = typed_program(&source);
     let resolver = validation::CallFrameResolver::new(&typed).expect("resolver");
     let mut failures = Vec::new();
     for (name, _, _, expected_state, expected_calls) in cases {
@@ -1172,10 +1138,7 @@ fn boundary_method_names_do_not_acquire_builtin_empty_frames() {
                 self.value = self.device.{target}(compute(&mut self.audit));
             }}"
         );
-        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+        let typed = typed_program(&source);
         let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
         let machine = typed
             .machines()
@@ -1207,10 +1170,7 @@ fn constrained_boundary_reference_parameters_keep_their_write_reach() {
     machine Main::run(&mut self) { self.device.overwrite(&mut self.value); }
     machine Main::slice(&mut self) { self.device.overwrite_slice(&mut self.cells[0..2]); }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let mut typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+    let mut typed = typed_program(source);
     let boundary = typed
         .traits()
         .iter()
@@ -1440,12 +1400,9 @@ fn boundary_arguments_publish_declared_reach_and_all_producer_writes() {
             }}"
         ));
     }
-    let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     // Malformed argument contexts deliberately reach the pre-validation frame
     // query. Neither argument typing nor boundary reach may be guessed here.
-    let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+    let typed = typed_program(&source);
     let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
     for name in [
         "carrier_literal",

@@ -1,11 +1,8 @@
 use super::{FlowCallFact, FlowFacts, FlowStateFact, ProgressSubject, TypedTrees};
 use crate::checks::termination::progress::origins::at_call;
+use crate::tests::front_end::typed_program;
 use arena::HandleSpan;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use symbols::SymbolHandle;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::data::DataMember;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -89,10 +86,7 @@ impl Fixture {
             }}
             "#
         );
-        let tokens = Lexer::new(&source).tokenize().expect("tokenize origins");
-        let syntax = parse_syntax_trees(&tokens).expect("parse origins");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve origins");
-        let program = lower_symbol_resolved_trees(&resolved).expect("type origins");
+        let program = typed_program(&source);
         let machine = program
             .machines()
             .iter()

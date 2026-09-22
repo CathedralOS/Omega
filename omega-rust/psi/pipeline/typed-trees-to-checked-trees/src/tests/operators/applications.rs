@@ -1,10 +1,6 @@
-use super::{
-    Identifier, Lexer, OperatorSpelling, ResolutionRequest, StateParameter, SymbolHandle,
-    TypeReferenceNode, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
-use crate::tests::operators::{checked_program_from_source, operator_with_spelling};
+use super::{Identifier, OperatorSpelling, StateParameter, SymbolHandle, TypeReferenceNode};
+use crate::tests::front_end::{checked_program, checked_program_result, typed_program};
+use crate::tests::operators::operator_with_spelling;
 use typed_trees::expression::ExpressionNode;
 
 mod const_arguments;
@@ -163,7 +159,7 @@ fn exact_operator_application_rejects_unsupported_binder_categories() {
 
 #[test]
 fn checked_boundary_operator_uses_retain_empty_and_typed_applications() {
-    let checked = checked_program_from_source(
+    let checked = checked_program(
         r#"
         boundary operator == Number::equal(left: i32, right: i32) -> bool;
         boundary operator != Generic::not_equal<Element>(left: Element, right: Element) -> bool;
@@ -208,7 +204,7 @@ fn checked_boundary_operator_uses_retain_empty_and_typed_applications() {
 
 #[test]
 fn checked_boundary_type_application_retains_declaration_order() {
-    let checked = checked_program_from_source(
+    let checked = checked_program(
         r#"
         data Pair<Left, Right> { left: Left; right: Right; }
 
@@ -257,7 +253,7 @@ fn checked_boundary_type_application_retains_declaration_order() {
 
 #[test]
 fn checked_named_monomorphic_boundary_use_retains_empty_application() {
-    let checked = checked_program_from_source(
+    let checked = checked_program(
         r#"
         data F32 {}
 
@@ -292,7 +288,7 @@ fn checked_named_monomorphic_boundary_use_retains_empty_application() {
 
 #[test]
 fn checked_named_unit_statement_boundary_use_retains_type_application() {
-    let checked = checked_program_from_source(
+    let checked = checked_program(
         r#"
         data Sink {}
 
@@ -330,7 +326,7 @@ fn checked_named_unit_statement_boundary_use_retains_type_application() {
 
 #[test]
 fn checked_named_generic_boundary_use_replays_inferred_type_application() {
-    let checked = checked_program_from_source(
+    let checked = checked_program(
         r#"
         data Math {}
 
@@ -361,7 +357,7 @@ fn checked_named_generic_boundary_use_replays_inferred_type_application() {
 
 #[test]
 fn checked_named_generic_boundary_use_closes_from_landed_literals() {
-    let checked = checked_program_from_source(
+    let checked = checked_program(
         r#"
         data Math {}
 
@@ -386,7 +382,7 @@ fn checked_named_generic_boundary_use_closes_from_landed_literals() {
 
 #[test]
 fn named_generic_boundary_rejects_conflicting_landed_literal_application() {
-    let tokens = Lexer::new(
+    let diagnostics = checked_program_result(
         r#"
         data Math {}
 
@@ -394,13 +390,7 @@ fn named_generic_boundary_rejects_conflicting_landed_literal_application() {
         machine compare() -> bool { Math::same<i32>(1i32, 2u64) }
         "#,
     )
-    .tokenize()
-    .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("conflicting landed literal types must reject");
+    .expect_err("conflicting landed literal types must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
             "cannot validate explicit static arguments because its operand application remains open or unresolved",
@@ -410,7 +400,7 @@ fn named_generic_boundary_rejects_conflicting_landed_literal_application() {
 
 #[test]
 fn checked_named_generic_boundary_use_replays_explicit_type_application() {
-    let checked = checked_program_from_source(
+    let checked = checked_program(
         r#"
         data Math {}
 
@@ -427,7 +417,7 @@ fn checked_named_generic_boundary_use_replays_explicit_type_application() {
 
 #[test]
 fn checked_named_generic_boundary_use_replays_nested_type_application() {
-    let checked = checked_program_from_source(
+    let checked = checked_program(
         r#"
         data Math {}
         data Wrapper<Element> { value: Element; }
@@ -472,7 +462,7 @@ fn checked_named_generic_boundary_use_replays_nested_type_application() {
 
 #[test]
 fn named_generic_boundary_static_type_must_equal_operand_application() {
-    let tokens = Lexer::new(
+    let diagnostics = checked_program_result(
         r#"
         data Math {}
 
@@ -480,13 +470,7 @@ fn named_generic_boundary_static_type_must_equal_operand_application() {
         machine compare(left: i32, right: i32) -> bool { Math::same<u64>(left, right) }
         "#,
     )
-    .tokenize()
-    .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("mismatched static type must reject");
+    .expect_err("mismatched static type must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -496,7 +480,7 @@ fn named_generic_boundary_static_type_must_equal_operand_application() {
 
 #[test]
 fn monomorphic_named_boundary_rejects_static_arguments() {
-    let tokens = Lexer::new(
+    let diagnostics = checked_program_result(
         r#"
         data Math {}
 
@@ -504,13 +488,7 @@ fn monomorphic_named_boundary_rejects_static_arguments() {
         machine compare(left: i32, right: i32) -> bool { Math::same<i32>(left, right) }
         "#,
     )
-    .tokenize()
-    .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect_err("static argument must reject");
+    .expect_err("static argument must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -520,7 +498,7 @@ fn monomorphic_named_boundary_rejects_static_arguments() {
 
 #[test]
 fn checked_named_open_generic_boundary_application_retains_symbolic_type_binder() {
-    let checked = checked_program_from_source(
+    let checked = checked_program(
         r#"
         pub data Math {}
 
@@ -578,7 +556,7 @@ fn checked_named_open_generic_boundary_application_retains_symbolic_type_binder(
 
 #[test]
 fn checked_named_bounded_generic_boundary_application_retains_exact_type() {
-    let checked = checked_program_from_source(
+    let checked = checked_program(
         r#"
         data Math {}
 
@@ -616,7 +594,7 @@ fn checked_named_bounded_generic_boundary_application_retains_exact_type() {
 #[test]
 fn checked_boundary_type_application_ignores_binder_renames() {
     let compile = |binder: &str| {
-        checked_program_from_source(&format!(
+        checked_program(&format!(
             r#"
             boundary operator != Generic::not_equal<{binder}>(
                 left: {binder},
@@ -658,7 +636,7 @@ fn checked_boundary_type_application_ignores_binder_renames() {
 
 #[test]
 fn checked_boundary_first_cohort_maps_direct_open_applications_symbolically() {
-    let checked = checked_program_from_source(
+    let checked = checked_program(
         r#"
         data Wrapper<Element> { value: Element; }
 
@@ -725,7 +703,7 @@ fn checked_boundary_first_cohort_maps_direct_open_applications_symbolically() {
 
 #[test]
 fn checked_boundary_applications_preserve_distinct_use_provenance() {
-    let checked = checked_program_from_source(
+    let checked = checked_program(
         r#"
         boundary operator == Number::equal(left: i32, right: i32) -> bool;
 
@@ -743,7 +721,7 @@ fn checked_boundary_applications_preserve_distinct_use_provenance() {
 
 #[test]
 fn specialized_generic_operator_provider_retains_exact_closed_realization() {
-    let checked = checked_program_from_source(
+    let checked = checked_program(
         r#"
         pub data GenericMath {}
         pub boundary operator GenericMath::identity<Element>(value: Element) -> Element;
@@ -840,10 +818,7 @@ fn selected_generic_operator_provider_closes_application_in_specialized_helper()
             helper(value)
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
     let requirement_operator = typed
         .operators()
         .iter()
@@ -1007,10 +982,7 @@ fn checked_program_with_selected_generic_providers(
     source: &str,
     providers: &[(&str, &str, &str)],
 ) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
     let selected = providers
         .iter()
         .map(|(namespace, requirement, provider)| {

@@ -1,7 +1,7 @@
 use super::StatementNode;
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
-use crate::tests::values::typed_trees;
+use crate::tests::front_end::typed_program;
 use checked_trees::{
     CheckedCallScalarArgument, CheckedScalarComputationKind, CheckedScalarExpressionRole,
     CheckedTrees, CheckedUnitEffectOperationPlan,
@@ -24,7 +24,7 @@ fn checked_call(boundary: bool) -> CheckedTrees {
              Sink::consume(token, saved && outer(inner(flag)), (numeric(number) as u32) + 1u32, other);
          }}"
     );
-    lower_typed_trees(typed_trees(&source), &CheckingRequest::settled())
+    lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
 }
 

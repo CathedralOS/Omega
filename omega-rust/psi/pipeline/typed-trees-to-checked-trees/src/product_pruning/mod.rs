@@ -326,20 +326,15 @@ mod tests {
     use crate::product_pruning::rewrite::validate_pruned_product;
     use crate::product_pruning::selection_identity;
     use crate::prune_checked_tree_product;
-    use source_files_to_tokens::Lexer;
+    use crate::tests::front_end::{checked_program, checked_program_result};
+
     use std::collections::HashSet;
-    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-    use tokens_to_syntax_trees::parse_syntax_trees;
+
     use typed_trees::TypedTrees;
     use typed_trees::machine::Machine;
 
     fn checked(source: &str) -> CheckedTrees {
-        let tokens = Lexer::new(source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).expect("check")
+        checked_program(source)
     }
 
     fn machine_named<'a>(program: &'a TypedTrees, name: &str) -> &'a Machine {
@@ -546,20 +541,13 @@ mod tests {
         // unproven-arithmetic diagnostic must still surface from authored
         // checking. Pruning is unreachable here: the phase input is a
         // `CheckedTrees`, which only exists after all diagnostics clear.
-        let tokens = Lexer::new(
+        let Err(diagnostics) = checked_program_result(
             r#"
             machine helper() -> u64 { 40u64 }
             machine detached() -> u64 { helper() + 2u64 }
             pub machine main() -> u64 { helper() }
             "#,
-        )
-        .tokenize()
-        .expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        let Err(diagnostics) = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
-        else {
+        ) else {
             panic!("an invalid authored declaration must fail checking");
         };
         assert!(

@@ -1,6 +1,6 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::typed_program;
 use crate::tests::termination::symbol_of_checked;
 use checked_trees::CheckedTrees;
 use language_semantics::{MachineTerminationPlan, TerminationGuarantee, TerminationInterface};
@@ -9,12 +9,7 @@ mod qualifications;
 
 fn typed(source: &str) -> typed_trees::TypedTrees {
     let source = format!("data Main {{}} machine Main::run(&mut self) {{}} {source}");
-    let tokens = Lexer::new(&source)
-        .tokenize()
-        .expect("tokenize lineage fixture");
-    let syntax = parse_syntax_trees(&tokens).expect("parse lineage fixture");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve lineage fixture");
-    lower_symbol_resolved_trees(&resolved).expect("type lineage fixture")
+    typed_program(&source)
 }
 
 fn checked(source: &str) -> CheckedTrees {

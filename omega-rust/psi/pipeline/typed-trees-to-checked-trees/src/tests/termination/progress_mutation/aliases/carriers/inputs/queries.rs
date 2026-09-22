@@ -1,5 +1,5 @@
-use super::exposure::typed_source;
 use super::fixture_source;
+use crate::tests::front_end::typed_program;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
@@ -47,7 +47,7 @@ fn possible_input_cases_do_not_prove_a_selected_reference_payload() {
         "data Carrier { context: &Context; }",
         "data Carrier { case Selected(context: &Context); case Empty; }",
     );
-    assert_eq!(origin(&typed_source(&source)), None);
+    assert_eq!(origin(&typed_program(&source)), None);
 }
 
 #[test]
@@ -64,7 +64,7 @@ fn an_additional_loaded_reference_boundary_needs_its_own_relation() {
         )
         .replace("carrier.context", "carrier.carrier.context");
         let source = format!("{source} data Envelope {{ carrier: &Carrier; }}");
-        assert_eq!(origin(&typed_source(&source)), None);
+        assert_eq!(origin(&typed_program(&source)), None);
     }
 }
 
@@ -79,7 +79,7 @@ fn an_input_reference_query_selects_the_exact_nominal_field() {
         "data Carrier { context: &Context; }",
         "data Carrier { context: &Context; other: &Context; }",
     );
-    let program = typed_source(&source);
+    let program = typed_program(&source);
     let (root, segments) = origin(&program).expect("known input leaf");
     let machine = program
         .machines()
@@ -102,7 +102,7 @@ fn an_input_reference_query_selects_the_exact_nominal_field() {
 #[test]
 fn erased_or_foreign_input_identity_cannot_recover_by_spelling() {
     for erased in [false, true] {
-        let mut program = typed_source(&fixture_source(
+        let mut program = typed_program(&fixture_source(
             "",
             "let borrowed: &Context = carrier.context; transition { _ -> 0 }",
             "machine unrelated(carrier: Carrier) {}",

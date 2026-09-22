@@ -1,3 +1,4 @@
+use crate::tests::front_end::typed_program;
 use std::cell::Cell;
 
 use super::super::facts::{CloneWork, RangeFacts};
@@ -19,16 +20,7 @@ fn transition_snapshots_follow_authored_targets_and_preserve_fallthrough() {
             }
         }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize branch fixture");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse branch fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve branch fixture");
-    let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type branch fixture");
+    let program = typed_program(source);
     for (machine_ordinal, machine) in program.machines().iter().enumerate() {
         let target_is_bounded = machine_ordinal == 1;
         let state = &program.machine_states(machine)[0];

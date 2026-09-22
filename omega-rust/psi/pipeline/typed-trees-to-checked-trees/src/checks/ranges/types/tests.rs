@@ -1,18 +1,10 @@
 use super::{ExpressionHandle, ExpressionNode, SymbolHandle};
 use crate::checks::ranges::expression_enforced_declared_range;
+use crate::tests::front_end::typed_program;
 use typed_trees::typed_trees::StaticRequirementDispatch;
 
 fn fixture(source: &str) -> (typed_trees::TypedTrees, ExpressionHandle) {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("symbols");
-    let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("types");
+    let program = typed_program(source);
     let call = program
         .expression_table
         .iter_expressions()

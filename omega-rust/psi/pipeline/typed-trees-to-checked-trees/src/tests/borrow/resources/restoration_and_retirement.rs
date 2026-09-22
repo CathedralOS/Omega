@@ -1,11 +1,12 @@
 use super::{
-    direct_reborrow_chain, lower, mutable_parent_sole_shared_child_restored_use,
+    direct_reborrow_chain, mutable_parent_sole_shared_child_restored_use,
     mutable_parent_write_only_child_restored_use, sequential_reborrows,
 };
+use crate::tests::front_end::checked_program;
 
 #[test]
 fn four_shared_children_remain_outside_restored_call_authority() {
-    let checked = lower(
+    let checked = checked_program(
         r#"
         data Main { value: i32; }
         machine observe(a: &i32, b: &i32, c: &i32, d: &i32) {}
@@ -236,7 +237,7 @@ fn rejects_missing_and_duplicate_restored_call_use_rows() {
 
 #[test]
 fn retains_parent_and_child_retirement_at_the_same_state_exit_boundary() {
-    let checked = lower(
+    let checked = checked_program(
         r#"
         data Cell { value: i32; }
         data Main { cell: Cell; }
@@ -299,7 +300,7 @@ fn retains_parent_and_child_retirement_at_the_same_state_exit_boundary() {
 
 #[test]
 fn orders_same_statement_expiry_before_reassignment_semantically() {
-    let checked = lower(
+    let checked = checked_program(
         r#"
         data Cell { value: i32; }
         data Main { left: Cell; right: Cell; }
@@ -373,7 +374,7 @@ fn orders_same_statement_expiry_before_reassignment_semantically() {
 
 #[test]
 fn same_last_use_batch_retires_without_cascading() {
-    let checked = lower(
+    let checked = checked_program(
         r#"
         data Cell { value: i32; }
         data Main { cell: Cell; }
@@ -418,7 +419,7 @@ fn same_last_use_batch_retires_without_cascading() {
 
 #[test]
 fn same_reassignment_batch_retires_without_arena_order_inference() {
-    let mut checked = lower(
+    let mut checked = checked_program(
         r#"
         data Cell { value: i32; }
         data Main { cell: Cell; }
@@ -503,7 +504,7 @@ fn rejects_swapped_lineage_closure_and_root_handoff_transactionally() {
         ),
     ];
     for (source, wrong_disposition) in fixtures {
-        let mut checked = lower(source);
+        let mut checked = checked_program(source);
         let direct_before = checked.facts.borrow.direct_loan_resources.clone();
         let reborrows_before = checked.facts.borrow.reborrow_loan_resources.clone();
         let handle = checked
@@ -770,7 +771,7 @@ fn sequential_children_reactivate_then_final_child_certifies_the_exact_parent_us
 
 #[test]
 fn sequential_shared_then_exclusive_child_only_certifies_the_exclusive_restoration() {
-    let checked = lower(
+    let checked = checked_program(
         r#"
         data Main { value: i32; }
         machine observe(value: &i32) {}

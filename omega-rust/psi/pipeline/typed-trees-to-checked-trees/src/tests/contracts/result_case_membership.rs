@@ -1,7 +1,7 @@
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
-use crate::tests::parse_typed_trees_with_core_service;
+use crate::tests::front_end::typed_program_with_core_service;
 
 const DATA: &str = "data Message { case Empty; case Data(value: u8); }";
 const PUB_DATA: &str = "pub data Message { case Empty; case Data(value: u8); }";
@@ -29,7 +29,7 @@ fn check(machine: &str, accepted: bool) {
 fn lower_service_source(
     source: &str,
 ) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let mut typed = parse_typed_trees_with_core_service(source);
+    let mut typed = typed_program_with_core_service(source);
     crate::tests::bind_fixture_fused_service_erasures(&mut typed);
     lower_typed_trees(typed, &CheckingRequest::settled())
 }

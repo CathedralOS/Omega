@@ -1,4 +1,4 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::tests::front_end::typed_program;
 #[test]
 fn transparent_returned_place_composes_direct_array_literal_index_frames() {
     let source = r#"
@@ -203,13 +203,7 @@ fn transparent_returned_place_composes_direct_array_literal_index_frames() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = typed_program(source);
     let resolver = validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
     for name in ["Main::direct", "Main::wrapped"] {

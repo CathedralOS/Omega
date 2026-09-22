@@ -1,5 +1,5 @@
 use super::StatementNode;
-use crate::tests::values::typed_trees;
+use crate::tests::front_end::typed_program;
 use checked_trees::CheckedOperatorFacts;
 
 #[test]
@@ -10,7 +10,7 @@ fn generated_case_equality_checks_single_tag_and_payload_expansions() {
         "choice != Choice::Empty {}",
         "choice == Choice::Ready { value: 37 }",
     ] {
-        let program = typed_trees(&format!(
+        let program = typed_program(&format!(
             "trait Equatable {{ machine equals(&self, rhs: &Self) -> bool; }}
              data Choice {{ case Empty; case Ready(value: u64); }}
              ChoiceEquatable: Choice satisfies Equatable;
@@ -60,7 +60,7 @@ fn case_tag_predicates_preserve_value_equality_and_membership_meaning() {
             None,
         ),
     ] {
-        let program = typed_trees(&format!(
+        let program = typed_program(&format!(
             "data Outcome [copy] {{ {members} }} {operator}
              data Root {{ result: Outcome; }}
              machine Root::predicate(&self) -> bool {{ {value} }}"

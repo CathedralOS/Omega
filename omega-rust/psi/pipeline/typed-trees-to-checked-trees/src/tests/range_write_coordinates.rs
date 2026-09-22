@@ -1,19 +1,8 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
-use crate::CheckingRequest;
 use crate::borrow::build_borrow_facts;
-use crate::lower_typed_trees;
+use crate::tests::front_end::{checked_program_result, typed_program};
 
 fn check(source: &str, accepted: bool) {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .unwrap_or_else(|diagnostics| panic!("tokenize: {diagnostics:#?}\n{source}"));
-    let syntax = parse_syntax_trees(&tokens)
-        .unwrap_or_else(|diagnostics| panic!("parse: {diagnostics:#?}\n{source}"));
-    let resolved = resolve(ResolutionRequest::new(&syntax))
-        .unwrap_or_else(|diagnostics| panic!("resolve: {diagnostics:#?}\n{source}"));
-    let typed = lower_symbol_resolved_trees(&resolved)
-        .unwrap_or_else(|diagnostics| panic!("type: {diagnostics:#?}\n{source}"));
-    match lower_typed_trees(typed, &CheckingRequest::settled()) {
+    match checked_program_result(source) {
         Ok(_) => assert!(accepted, "stale projected bound accepted: {source}"),
         Err(diagnostics) => {
             assert!(!accepted, "{diagnostics:#?}\n{source}");
@@ -344,10 +333,7 @@ fn transitive_write_selectors_require_builtin_arithmetic_meaning() {
                  }}
                  machine caller(original: &mut [i64; 2], replacement: i64) {{ {call} }}"
             );
-            let tokens = Lexer::new(&source).tokenize().expect("tokens");
-            let syntax = parse_syntax_trees(&tokens).expect("syntax");
-            let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolved");
-            let program = lower_symbol_resolved_trees(&resolved).expect("typed");
+            let program = typed_program(&source);
             let machine = program
                 .machines()
                 .iter()

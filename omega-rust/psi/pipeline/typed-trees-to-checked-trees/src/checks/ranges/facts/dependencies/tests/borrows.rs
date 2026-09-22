@@ -2,8 +2,8 @@ use super::{ExpressionNode, SymbolHandle, TypedTrees};
 use crate::checks::ranges::RangeFacts;
 use crate::checks::ranges::facts::dependencies::tests::initializer;
 use crate::checks::ranges::facts::dependencies::tests::parameter_place;
-use crate::checks::ranges::facts::dependencies::tests::typed_source;
 use crate::flow::CanonicalPlace;
+use crate::tests::front_end::typed_program;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
@@ -56,7 +56,7 @@ fn field_place(
 #[test]
 fn a_borrowed_member_receiver_reads_its_projected_place() {
     for borrow in ["&pair", "&mut pair"] {
-        let program = typed_source(&format!(
+        let program = typed_program(&format!(
             "data Pair {{ a: i64; b: i64; }}
             machine window(mut pair: Pair, unrelated: i64) {{
                 let cut: i64 = ({borrow}).a;
@@ -106,7 +106,7 @@ fn a_borrowed_member_receiver_reads_its_projected_place() {
 /// operand `i`.
 #[test]
 fn a_borrowed_index_collection_reads_the_element_place() {
-    let program = typed_source(
+    let program = typed_program(
         "machine window(items: &[i64; 4], index: u64, unrelated: u64) {
             let cut: i64 = (&items)[index];
         }",
@@ -160,7 +160,7 @@ fn a_borrowed_index_collection_reads_the_element_place() {
 /// its own.
 #[test]
 fn a_borrowed_member_inside_a_compound_operand_reads_each_side() {
-    let program = typed_source(
+    let program = typed_program(
         "data Pair { a: i64; b: i64; }
         machine window(pair: Pair, offset: i64, unrelated: i64) {
             let cut: i64 = (&pair).a + offset;
@@ -191,7 +191,7 @@ fn a_borrowed_member_inside_a_compound_operand_reads_each_side() {
 /// see.
 #[test]
 fn a_borrow_of_a_call_result_stays_incomplete() {
-    let program = typed_source(
+    let program = typed_program(
         "data Pair { a: i64; b: i64; }
         machine compute() -> Pair { Pair { a: 0, b: 0 } }
         machine window(pair: Pair, unrelated: i64) {
@@ -211,7 +211,7 @@ fn a_borrow_of_a_call_result_stays_incomplete() {
 /// spelling must be unresolvable on the receiver's declaration.
 #[test]
 fn an_unresolved_member_on_a_borrowed_receiver_stays_incomplete() {
-    let mut program = typed_source(
+    let mut program = typed_program(
         "data Pair { a: i64; b: i64; }
         machine window(pair: Pair, unrelated: i64) {
             let cut: i64 = (&pair).a;
@@ -237,7 +237,7 @@ fn an_unresolved_member_on_a_borrowed_receiver_stays_incomplete() {
 /// write to the projected field or the whole receiver retires it.
 #[test]
 fn a_borrowed_self_member_reads_the_attached_field_place() {
-    let program = typed_source(
+    let program = typed_program(
         "data Pair { a: i64; b: i64; }
         data Main { pair: Pair; unrelated: i64; }
         machine Main::window(&self, offset: i64) -> i64 {
@@ -312,7 +312,7 @@ fn a_borrowed_self_member_reads_the_attached_field_place() {
 /// member keeps applies through the peel.
 #[test]
 fn a_borrowed_member_of_foreign_storage_stays_incomplete() {
-    let program = typed_source(
+    let program = typed_program(
         "data Pair { a: i64; b: i64; }
         machine window(pair: Pair) {
             let cut: i64 = (&pair).a;

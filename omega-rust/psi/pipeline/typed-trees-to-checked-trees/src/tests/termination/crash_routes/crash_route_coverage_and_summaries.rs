@@ -1,9 +1,5 @@
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
-use crate::tests::termination::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
-    symbol_of_checked,
-};
+use crate::tests::front_end::{checked_program, checked_program_result};
+use crate::tests::termination::symbol_of_checked;
 
 #[test]
 fn published_caller_must_cover_every_surviving_call_crash_route() {
@@ -21,14 +17,7 @@ fn published_caller_must_cover_every_surviving_call_crash_route() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+    let diagnostics = checked_program_result(source)
         .expect_err("the caller's Trap ceiling cannot cover a surviving Abort route");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -49,14 +38,7 @@ fn private_explicit_crash_ceiling_must_cover_every_direct_site() {
     }
     "#;
 
-    let tokens = Lexer::new(uncovered)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+    let diagnostics = checked_program_result(uncovered)
         .expect_err("a private published ceiling cannot retain an uncovered direct site");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -76,15 +58,7 @@ fn private_explicit_crash_ceiling_must_cover_every_direct_site() {
     }
     "#;
 
-    let tokens = Lexer::new(covered)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("covered private ceilings and omitted private ceilings should remain valid");
+    let checked = checked_program(covered);
     assert_eq!(
         checked
             .facts
@@ -124,15 +98,7 @@ fn checked_crash_calls_select_acyclic_private_body_summaries() {
 
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("checked lowering should succeed");
+    let checked = checked_program(source);
     let plan = |name: &str| {
         checked
             .facts
@@ -189,15 +155,7 @@ fn private_crash_summaries_compose_guarded_routes_across_nonleaf_calls() {
     machine disproved() -> i32 { outer(false) }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("a published caller should cover a guard retained through private wrappers");
+    let checked = checked_program(source);
     let plan = |name: &str| {
         checked
             .facts
@@ -265,15 +223,7 @@ fn checked_crash_calls_select_machine_requirement_capsules() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("requirement crash capsule should lower");
+    let checked = checked_program(source);
     let apply = checked
         .machines()
         .iter()

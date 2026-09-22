@@ -1,14 +1,4 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
-use crate::CheckingRequest;
-use crate::lower_typed_trees;
-
-fn checked_source(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize tail call");
-    let syntax = parse_syntax_trees(&tokens).expect("parse tail call");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve tail call");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type tail call");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check tail call")
-}
+use crate::tests::front_end::{checked_program, checked_program_result};
 
 #[test]
 fn named_tail_call_coordinates_match_borrow_and_semantic_traversal() {
@@ -19,7 +9,7 @@ fn named_tail_call_coordinates_match_borrow_and_semantic_traversal() {
         } else {
             ""
         };
-        let checked = checked_source(&format!(
+        let checked = checked_program(&format!(
             "data Root {{}}\n\
              machine Root::argument() -> u64 {{ 0 }}\n\
              machine Root::target(value: u64) -> u64 {{ value }}\n\
@@ -88,7 +78,7 @@ fn named_tail_call_coordinates_match_borrow_and_semantic_traversal() {
 
 #[test]
 fn named_tail_helper_propagates_synchronous_invocation_contract() {
-    let checked = checked_source(
+    let checked = checked_program(
         r#"
         pub boundary trait Host { machine ping() reaches Host; }
         pub data Root {}
@@ -129,7 +119,7 @@ fn named_static_binder_tail_retains_fixed_requirement_reach() {
         "where machine Work() -> u64 reaches Audit;",
         "where machine Work satisfies Task::run;",
     ] {
-        let checked = checked_source(&format!(
+        let checked = checked_program(&format!(
             "boundary trait Audit {{}}\n\
              trait Task {{ machine run() -> u64 reaches Audit; }}\n\
              machine invoke<machine Work>() -> u64\n\
@@ -161,13 +151,7 @@ fn named_static_binder_tail_checks_signature_arguments() {
              where machine Work(value: u64) -> u64;\n\
              {{ transition {{ _ -> Work({argument}) }} }}",
         );
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize binder arguments");
-        let syntax = parse_syntax_trees(&tokens).expect("parse binder arguments");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve binder arguments");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type binder arguments");
-        let result = lower_typed_trees(typed, &CheckingRequest::settled());
+        let result = checked_program_result(&source);
         if argument == "0" {
             result.expect("the matching binder argument should check");
         } else {
@@ -201,13 +185,7 @@ fn named_tail_call_does_not_invent_suspension_acknowledgement() {
         }
     "#
         .replace("TAIL", target);
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize suspending tail");
-        let syntax = parse_syntax_trees(&tokens).expect("parse suspending tail");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve suspending tail");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type suspending tail");
-        let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        let diagnostics = checked_program_result(&source)
             .expect_err("an unmarked named transfer cannot acknowledge a suspending call");
         assert!(
             diagnostics

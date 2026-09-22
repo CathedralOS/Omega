@@ -1,4 +1,5 @@
 use super::{prove, reject};
+use crate::tests::front_end::typed_program;
 
 const ACYCLIC: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -124,7 +125,7 @@ fn computed_rank_arrival_uses_established_copy_equality() {
     // This proof requires equality, unlike the cancellation controls above.
     // The independent store-bound consumer does not yet transport this private
     // rank invariant; complete source-check success is covered separately.
-    crate::checks::termination::check_machine_termination(&super::super::typed(&source))
+    crate::checks::termination::check_machine_termination(&typed_program(&source))
         .expect("established copy equality proves the computed rank arrival");
 }
 
@@ -322,12 +323,11 @@ fn explicit_self_edges_cannot_publish_termination_guarantees() {
         terminates by remaining in 0..=5;
         -> u32 { transition { _ -> self } }";
     assert!(
-        crate::checks::termination::check_machine_termination(&super::super::typed(source))
-            .is_err(),
+        crate::checks::termination::check_machine_termination(&typed_program(source)).is_err(),
         "an unchanged self edge has no strict descent"
     );
     let unannotated = "machine spin() { transition { _ -> self } }";
-    let program = super::super::typed(unannotated);
+    let program = typed_program(unannotated);
     assert_eq!(
         crate::infer_machine_termination_summary(&program, program.machines()[0].symbol),
         Some(language_semantics::TerminationGuarantee::NoGuarantee),
@@ -337,11 +337,8 @@ fn explicit_self_edges_cannot_publish_termination_guarantees() {
         .expect("a productive loop without a termination promise remains valid");
     let caller = format!("{unannotated} machine caller() terminates; {{ spin(); }}");
     assert!(
-        super::super::lower_typed_trees(
-            super::super::typed(&caller),
-            &crate::CheckingRequest::settled()
-        )
-        .is_err(),
+        super::super::lower_typed_trees(typed_program(&caller), &crate::CheckingRequest::settled())
+            .is_err(),
         "a terminating caller cannot inherit a false guarantee from a self loop"
     );
 }
@@ -367,7 +364,7 @@ fn explicit_self_occurrences_cannot_hide_beside_descending_edges() {
          }",
     ] {
         let diagnostics =
-            crate::checks::termination::check_machine_termination(&super::super::typed(source))
+            crate::checks::termination::check_machine_termination(&typed_program(source))
                 .expect_err("every self occurrence requires its own strict descent");
         assert!(
             diagnostics.iter().any(|diagnostic| {
@@ -380,7 +377,7 @@ fn explicit_self_occurrences_cannot_hide_beside_descending_edges() {
         );
         assert!(
             super::super::lower_typed_trees(
-                super::super::typed(source),
+                typed_program(source),
                 &crate::CheckingRequest::settled()
             )
             .is_err()

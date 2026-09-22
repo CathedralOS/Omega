@@ -1,4 +1,4 @@
-use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::tests::front_end::typed_program;
 use typed_trees::statement::StatementNode;
 
 fn probe_program(body: &str) -> typed_trees::TypedTrees {
@@ -26,10 +26,7 @@ fn probe_program_with_helpers(body: &str, helpers: &str) -> typed_trees::TypedTr
         {helpers}
         "#
     );
-    let syntax =
-        parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
+    typed_program(&source)
 }
 
 fn visible_paths(paths: Option<Vec<String>>) -> Option<Vec<String>> {

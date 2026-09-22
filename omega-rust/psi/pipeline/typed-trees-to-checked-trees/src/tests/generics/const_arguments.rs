@@ -1,20 +1,10 @@
-use super::{Lexer, lower_symbol_resolved_trees, parse_syntax_trees};
 use crate::CheckingRequest;
 use crate::lower_typed_trees;
+use crate::tests::front_end::typed_program_with_generic_data_result;
 use checked_trees::CheckedTrees;
 
 fn check(source: &str) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("const argument tokens");
-    let syntax = parse_syntax_trees(&tokens).expect("const argument syntax");
-    let syntax = syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest::new(syntax),
-    )?;
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )?;
-    let typed = lower_symbol_resolved_trees(&resolved).map_err(|error| vec![error])?;
+    let typed = typed_program_with_generic_data_result(source)?;
     lower_typed_trees(typed, &CheckingRequest::settled())
 }
 

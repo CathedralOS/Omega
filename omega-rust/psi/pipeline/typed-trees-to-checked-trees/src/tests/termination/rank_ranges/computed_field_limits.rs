@@ -1,5 +1,6 @@
-use super::{lower_typed_trees, typed};
+use super::lower_typed_trees;
 use crate::CheckingRequest;
+use crate::tests::front_end::typed_program;
 
 const COUNTDOWN: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -7,7 +8,7 @@ const COUNTDOWN: &str = include_str!(concat!(
 ));
 
 fn reject_range(source: &str) {
-    let diagnostics = crate::checks::termination::check_machine_termination(&typed(source))
+    let diagnostics = crate::checks::termination::check_machine_termination(&typed_program(source))
         .expect_err("field endpoint formation and pinning remain independent obligations");
     assert!(
         diagnostics
@@ -27,7 +28,7 @@ fn computed_field_limits_check_through_ordinary_lowering() {
         "countdown.limit + (0.5 * 2)",
     ] {
         lower_typed_trees(
-            typed(&COUNTDOWN.replace("countdown.limit + 1", endpoint)),
+            typed_program(&COUNTDOWN.replace("countdown.limit + 1", endpoint)),
             &CheckingRequest::settled(),
         )
         .expect(endpoint);

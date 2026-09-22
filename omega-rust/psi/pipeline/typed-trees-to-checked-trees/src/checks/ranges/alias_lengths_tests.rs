@@ -1,5 +1,6 @@
 //! Isolate extent identity from the separate domain-proof transport checker.
 
+use crate::tests::front_end::typed_program;
 #[test]
 fn bounded_byte_state_alias_names_cannot_relabel_an_old_receiver_extent() {
     for (receiver, accepted) in [("left", false), ("right", true)] {
@@ -20,17 +21,7 @@ fn bounded_byte_state_alias_names_cannot_relabel_an_old_receiver_extent() {
             }}
         "#
         );
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize alias extent fixture");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
-            .expect("parse alias extent fixture");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("resolve alias extent fixture");
-        let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("type alias extent fixture");
+        let program = typed_program(&source);
         let borrows = crate::borrow::build_borrow_facts(&program);
         let proof_plan = proof::obligations::build_proof_plan(&program);
         let values = crate::values::build_value_facts(&program, &proof_plan);

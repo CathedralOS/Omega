@@ -1,8 +1,4 @@
-use super::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees,
-    resolve,
-};
-use crate::CheckingRequest;
+use crate::tests::front_end::{checked_program, checked_program_result, typed_program};
 
 #[test]
 fn checked_facts_store_declared_and_effective_carry_separately() {
@@ -20,11 +16,7 @@ fn checked_facts_store_declared_and_effective_carry_separately() {
         data Main {}
         machine Main::run(&mut self) {}
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = checked_program(source);
 
     let outer = checked
         .data_definitions()
@@ -77,14 +69,6 @@ fn checked_facts_store_declared_and_effective_carry_separately() {
     );
 }
 
-fn lower(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-}
-
 #[test]
 fn call_target_type_parameters_supply_carry_bounds() {
     let source = r#"
@@ -95,10 +79,7 @@ fn call_target_type_parameters_supply_carry_bounds() {
             address: movable,
         )]>(value: T) suspends; {}
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = typed_program(source);
     let machine = typed
         .machines()
         .iter()
@@ -132,7 +113,7 @@ fn call_target_type_parameters_supply_carry_bounds() {
 
 #[test]
 fn rejects_suspension_while_borrow_carrying_local_remains_live() {
-    let diagnostics = lower(
+    let diagnostics = checked_program_result(
         r#"
         data Cell { value: i32; }
         data Message { body: &Cell; }
@@ -164,7 +145,7 @@ fn rejects_suspension_while_borrow_carrying_local_remains_live() {
 
 #[test]
 fn accepts_suspension_after_restrictive_locals_last_use() {
-    lower(
+    checked_program_result(
         r#"
         data Cell { value: i32; }
         data Message { body: &Cell; }
@@ -187,7 +168,7 @@ fn accepts_suspension_after_restrictive_locals_last_use() {
 
 #[test]
 fn checked_crossing_records_canonical_site_and_joined_policy() {
-    let checked = lower(
+    let checked = checked_program_result(
         r#"
         boundary trait Scheduler { machine park() suspends; }
         data Main<'s> { scheduler: &'s mut Scheduler; }
@@ -235,7 +216,7 @@ fn checked_crossing_records_canonical_site_and_joined_policy() {
 
 #[test]
 fn admitted_across_suspend_permission_relaxes_only_the_claim_suspension_axis() {
-    let checked = lower(
+    let checked = checked_program_result(
         r#"
         data Token [linear] { id: u64; }
         boundary trait TokenIssuer {
@@ -299,7 +280,7 @@ fn admitted_across_suspend_permission_relaxes_only_the_claim_suspension_axis() {
 
 #[test]
 fn non_suspension_claim_permission_does_not_relax_suspension() {
-    let diagnostics = lower(
+    let diagnostics = checked_program_result(
         r#"
         data Token [linear] { id: u64; }
         boundary trait TokenIssuer {
@@ -330,7 +311,7 @@ fn non_suspension_claim_permission_does_not_relax_suspension() {
 
 #[test]
 fn admitted_linear_bodyless_claim_without_permissions_is_born_strict() {
-    let diagnostics = lower(
+    let diagnostics = checked_program_result(
         r#"
         data Token [linear] { id: u64; }
         domain Token::Issued
@@ -364,7 +345,7 @@ fn admitted_linear_bodyless_claim_without_permissions_is_born_strict() {
 
 #[test]
 fn state_parameter_claim_retains_its_strict_origin_without_a_permission() {
-    let diagnostics = lower(
+    let diagnostics = checked_program_result(
         r#"
         data Token [linear] { id: u64; }
         domain Token::Issued
@@ -402,7 +383,7 @@ fn state_parameter_claim_retains_its_strict_origin_without_a_permission() {
 
 #[test]
 fn state_parameter_claim_retains_its_exact_carry_permission() {
-    lower(
+    checked_program_result(
         r#"
         data Token [linear] { id: u64; }
         domain Token::Issued
@@ -431,7 +412,7 @@ fn state_parameter_claim_retains_its_exact_carry_permission() {
 
 #[test]
 fn checked_one_to_one_call_infers_the_claims_exact_carry_policy() {
-    let checked = lower(
+    let checked = checked_program_result(
         r#"
         data Token [linear] { id: u64; }
         domain Token::Issued
@@ -511,7 +492,7 @@ fn checked_one_to_one_call_infers_the_claims_exact_carry_policy() {
 
 #[test]
 fn checked_nary_call_inherits_each_claims_exact_carry_policy() {
-    let diagnostics = lower(
+    let diagnostics = checked_program_result(
         r#"
         data Token [linear] { id: u64; }
         domain Token::Issued
@@ -558,7 +539,7 @@ fn checked_nary_call_inherits_each_claims_exact_carry_policy() {
 
 #[test]
 fn checked_nary_call_retains_distinct_claim_policy_facts() {
-    let checked = lower(
+    let checked = checked_program_result(
         r#"
         data Token [linear] { id: u64; }
         domain Token::Issued
@@ -622,7 +603,7 @@ fn checked_nary_call_retains_distinct_claim_policy_facts() {
 
 #[test]
 fn checked_one_to_one_call_cannot_erase_a_strict_claim_origin() {
-    let diagnostics = lower(
+    let diagnostics = checked_program_result(
         r#"
         data Token [linear] { id: u64; }
         domain Token::Issued
@@ -658,7 +639,7 @@ fn checked_one_to_one_call_cannot_erase_a_strict_claim_origin() {
 
 #[test]
 fn admitted_one_to_one_call_cannot_erase_a_strict_claim_origin() {
-    let diagnostics = lower(
+    let diagnostics = checked_program_result(
         r#"
         data Token [linear] { id: u64; }
         domain Token::Issued
@@ -700,7 +681,7 @@ fn admitted_one_to_one_call_cannot_erase_a_strict_claim_origin() {
 
 #[test]
 fn rejects_transitive_suspension_reach_with_live_restrictive_value() {
-    let diagnostics = lower(
+    let diagnostics = checked_program_result(
         r#"
         data Cell { value: i32; }
         data Message { body: &Cell; }
@@ -732,7 +713,7 @@ fn rejects_transitive_suspension_reach_with_live_restrictive_value() {
 
 #[test]
 fn rejects_suspension_while_restrictive_self_field_remains_live() {
-    let diagnostics = lower(
+    let diagnostics = checked_program_result(
         r#"
         data Cell { value: i32; }
         data Message { body: &Cell; }
@@ -760,7 +741,7 @@ fn rejects_suspension_while_restrictive_self_field_remains_live() {
 
 #[test]
 fn accepts_suspension_after_restrictive_self_field_last_use() {
-    lower(
+    checked_program_result(
         r#"
         data Cell { value: i32; }
         data Message { body: &Cell; }
@@ -780,7 +761,7 @@ fn accepts_suspension_after_restrictive_self_field_last_use() {
 
 #[test]
 fn rejects_suspension_when_self_field_is_used_in_reachable_state() {
-    let diagnostics = lower(
+    let diagnostics = checked_program_result(
         r#"
         data Cell { value: i32; }
         data Message { body: &Cell; }
@@ -811,7 +792,7 @@ fn rejects_suspension_when_self_field_is_used_in_reachable_state() {
 
 #[test]
 fn rejects_restrictive_argument_carried_by_suspending_call() {
-    let diagnostics = lower(
+    let diagnostics = checked_program_result(
         r#"
         data Cell { value: i32; }
         data Message { body: &Cell; }
@@ -839,7 +820,7 @@ fn rejects_restrictive_argument_carried_by_suspending_call() {
 
 #[test]
 fn rejects_nested_suspending_call_before_carry_analysis() {
-    let diagnostics = lower(
+    let diagnostics = checked_program_result(
         r#"
         data Cell { value: i32; }
         data Message { body: &Cell; }
@@ -868,7 +849,7 @@ fn rejects_nested_suspending_call_before_carry_analysis() {
 
 #[test]
 fn accepts_restrictive_use_before_nested_suspending_call_in_same_statement() {
-    lower(
+    checked_program_result(
         r#"
         data Cell { value: i32; }
         data Message { body: &Cell; }
@@ -892,7 +873,7 @@ fn accepts_restrictive_use_before_nested_suspending_call_in_same_statement() {
 
 #[test]
 fn activation_wide_carry_is_complete_for_resolved_permissive_machine() {
-    let checked = lower(
+    let checked = checked_program_result(
         r#"
         data Job { value: i32; }
         data Worker {}
@@ -926,7 +907,7 @@ fn activation_wide_carry_is_complete_for_resolved_permissive_machine() {
 
 #[test]
 fn activation_wide_carry_joins_restrictive_machine_values() {
-    let checked = lower(
+    let checked = checked_program_result(
         r#"
         data Cell { value: i32; }
         data Borrowed { cell: &Cell; }
@@ -954,7 +935,7 @@ fn activation_wide_carry_joins_restrictive_machine_values() {
 
 #[test]
 fn contained_topology_groups_fields_and_all_attached_machine_targets() {
-    let checked = lower(
+    let checked = checked_program_result(
         r#"
         data Leaf {}
         machine Leaf::read(&self) -> i32 { transition { _ -> 1 } }
@@ -1002,7 +983,7 @@ fn contained_topology_groups_fields_and_all_attached_machine_targets() {
 
 #[test]
 fn erased_attached_data_field_does_not_create_contained_machine_topology() {
-    let checked = lower(
+    let checked = checked_program_result(
         r#"
         data Leaf {}
         machine Leaf::read(&self) -> i32 { transition { _ -> 1 } }
@@ -1045,7 +1026,7 @@ fn erased_attached_data_field_does_not_create_contained_machine_topology() {
 
 #[test]
 fn activation_wide_carry_joins_contained_machine_subtree() {
-    let checked = lower(
+    let checked = checked_program_result(
         r#"
         data Leaf {}
         machine Leaf::work<T [carry(

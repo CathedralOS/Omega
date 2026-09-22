@@ -1,4 +1,5 @@
 use super::{exact_self_parameter, structural_parameter_field_path};
+use crate::tests::front_end::typed_program;
 use checked_trees::CheckedStructuralPredicatePathSegment;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -8,16 +9,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::TypeReferenceNode;
 
 fn byte_length_fixture(source: &str) -> (TypedTrees, ExpressionHandle) {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let program = typed_program(source);
     let ExpressionNode::Binary(relation) =
         program.expression_table.expression(requirement(&program))
     else {
@@ -187,15 +179,7 @@ fn fixture() -> TypedTrees {
         { transition { _ -> finish(fallback) }
           state finish(other: bool) -> bool { other } }
         machine Other::read(&self) -> bool { true }";
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
+    typed_program(source)
 }
 
 fn requirement(program: &TypedTrees) -> ExpressionHandle {
