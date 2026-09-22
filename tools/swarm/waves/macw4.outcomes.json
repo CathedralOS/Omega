@@ -1,0 +1,200 @@
+{
+  "wave": "macw4",
+  "drained_at": "2026-09-22T23:05Z",
+  "drain_reason": "user-requested drain; board sweep landed as 9e5df807fd via --board-update",
+  "tank_model": "6 concurrent local subagents + coordinator slot; refill on every completion; claim leases re-fenced by coordinator when agents outlived 120-minute leases",
+  "slots": [
+    {
+      "slot": "pass-timings",
+      "agent_id": "coordinator",
+      "result": "landed",
+      "commits": ["bad1463bc6"],
+      "item_closed": true,
+      "notes": "COMPILER-PASS-PROFILE-TIMINGS: terminal-production collectors follow request timing state; board entry removed in sweep"
+    },
+    {
+      "slot": "reseal-elim",
+      "agent_id": "coordinator-refill",
+      "result": "landed",
+      "commits": ["c649c19fbd"],
+      "item_closed": true,
+      "notes": "REVIEW-RESEAL-ELIMINATION: native-realization joins the wrapper object seal without reserializing; board entry removed in sweep"
+    },
+    {
+      "slot": "quotient-lift",
+      "agent_id": "wave-slot",
+      "result": "landed",
+      "commits": ["278bc98a25"],
+      "item_closed": false,
+      "notes": "transport-backed argument-adapted lift runtime maps; continued by quotient-lift-2"
+    },
+    {
+      "slot": "exact-target-spelling",
+      "agent_id": "wave-slot",
+      "result": "landed",
+      "commits": ["a74e37fd2f", "643909ed8d"],
+      "item_closed": true,
+      "notes": "exact target requests accept only canonical profile names; board close commit included"
+    },
+    {
+      "slot": "rep-specialization",
+      "agent_id": "wave-slot",
+      "result": "landed",
+      "commits": ["15b754d100"],
+      "item_closed": false,
+      "notes": "proven nonconstant field initializers forward to observation uses through field_value_specialization admission/apply/substitution"
+    },
+    {
+      "slot": "proof-relevance",
+      "agent_id": "wave-slot",
+      "result": "landed",
+      "commits": ["baffe0a0ed"],
+      "item_closed": false,
+      "notes": "closed erased record/enum formals admitted on the contract proof-term lane (static slice of PROOF-RELEVANCE-MIGRATION)"
+    },
+    {
+      "slot": "general-licm",
+      "agent_id": "wave-slot",
+      "result": "landed",
+      "commits": ["49468aee46"],
+      "item_closed": false,
+      "notes": "crash-continuation scalar calls relocate through the shared preheader"
+    },
+    {
+      "slot": "termination-ranking",
+      "agent_id": "wave-slot",
+      "result": "landed",
+      "commits": ["d29935bb6a"],
+      "item_closed": false,
+      "notes": "integer-division terms install on record-literal remainder leaves before normalization; generalized by later main work (linw3)"
+    },
+    {
+      "slot": "recast-positions",
+      "agent_id": "wave-slot",
+      "result": "landed",
+      "commits": ["b167d9d48c"],
+      "item_closed": false,
+      "notes": "recasts judged at executable statement positions with polarity agreement and source-place loan reads; runtime legs blocked on documented Terminal unit-plan omission"
+    },
+    {
+      "slot": "translation-validation",
+      "agent_id": "wave-slot",
+      "result": "landed",
+      "commits": ["21f55a3411"],
+      "item_closed": false,
+      "notes": "checked rebound dynamic calls replay into boundary-operator scope, fail-closed; forwarded/stored/direct forms remain"
+    },
+    {
+      "slot": "placed-access-native-ops",
+      "agent_id": "wave-slot",
+      "result": "landed",
+      "commits": ["d61f983d6a"],
+      "item_closed": false,
+      "notes": "real blocker was proven_runtime_index only consuming revoked roster syntax; now folds authored requires conjuncts into closed intervals"
+    },
+    {
+      "slot": "proof-cert-bridge",
+      "agent_id": "wave-slot",
+      "result": "landed",
+      "commits": ["ebd634e638"],
+      "item_closed": false,
+      "notes": "kernel ClosedIntegerRelation lifts Exact compounds through open-term ring normalization; coordinator committed agent's uncommitted tree (reverted 6 fmt-drift files under foreign claims); FactPayload/CheckFacts carry remains"
+    },
+    {
+      "slot": "psiir-fuel",
+      "agent_id": "545ccea4",
+      "result": "landed",
+      "commits": ["3c43ed43dc"],
+      "item_closed": false,
+      "notes": "ranked-cycle visit multipliers use literal requires ceilings instead of rank carrier type max; self-service land"
+    },
+    {
+      "slot": "structural-generic-matching",
+      "agent_id": "f63727f5",
+      "result": "landed",
+      "commits": ["e27a86d1a0"],
+      "item_closed": false,
+      "notes": "carrier-qualified and constrained domain spellings share one canonical Constrained identity via DomainHead; stale pin rewritten; self-service land"
+    },
+    {
+      "slot": "pcc-ledger",
+      "agent_id": "9859f8f0",
+      "result": "landed",
+      "commits": ["32d6986d45"],
+      "item_closed": false,
+      "notes": "crash obligations as supplied certificate rows; 128-file diff committed by coordinator, agent resumed for 4-way conflict resolution incl. 17 trusted-surface digest recomputes and open_terms.rs inventory fix"
+    },
+    {
+      "slot": "quotient-lift-2",
+      "agent_id": "58a0273c",
+      "result": "landed",
+      "commits": ["9a76eb51f1"],
+      "item_closed": false,
+      "notes": "immutable result aliases + finite-state forwarding through package evidence, codec wire, verifier correspondence; coordinator landed with post-rebase digest recompute (8efde629)"
+    },
+    {
+      "slot": "exact-machine-simplifications",
+      "agent_id": "5519e75c",
+      "result": "landed x2",
+      "commits": ["ad5cb24ec6", "cb21535d0a"],
+      "item_closed": false,
+      "notes": "same-block copy removal executes through pre-allocation selection; second commit repaired a textual-clean/semantic-broken merge from glob-removal churn"
+    },
+    {
+      "slot": "c2l-blowup",
+      "agent_id": "ef0cff81",
+      "result": "wip-parked",
+      "commits": ["546fa2d83d"],
+      "item_closed": false,
+      "notes": "branch swarm/macw4-c2l-blowup; 44-file mid-refactor checkpoint, unvalidated; resume via branch + board WIP line"
+    },
+    {
+      "slot": "spill-realization",
+      "agent_id": "df9ccc86",
+      "result": "wip-parked",
+      "commits": ["3ee6bf7ebc"],
+      "item_closed": false,
+      "notes": "branch swarm/macw4-spill-realization; rate-limit kill mid-work; touched files + resume guidance on TASKS_OPTIMIZER.md"
+    },
+    {
+      "slot": "plan-laid-views",
+      "agent_id": "earlier-slot",
+      "result": "wip-parked",
+      "commits": ["670843530b"],
+      "item_closed": false,
+      "notes": "branch swarm/macw4-plan-laid-views; blocked on BoundaryOpaque/MissingBoundaryTarget (documented on board)"
+    },
+    {
+      "slot": "float-literal-carrier",
+      "agent_id": "03d1d8df",
+      "result": "dead-no-output",
+      "commits": [],
+      "item_closed": false,
+      "notes": "handle produced zero filesystem output; clean worktree and empty branch removed at drain"
+    },
+    {
+      "slot": "declarative-peepholes",
+      "agent_id": "0a1f7a7d",
+      "result": "dead-no-output",
+      "commits": [],
+      "item_closed": false,
+      "notes": "alive handle but zero filesystem activity across full tenure; killed in rate-limit burst; nothing to preserve"
+    },
+    {
+      "slot": "backend-vocab-audit",
+      "agent_id": "67dd8713",
+      "result": "dead-no-output",
+      "commits": [],
+      "item_closed": false,
+      "notes": "killed by rate-limit burst shortly after claim bd8e00ed; no work produced"
+    }
+  ],
+  "friction": [
+    "rate-limiter burst killed three slots mid-flight (declarative-peepholes, spill-realization, backend-vocab-audit); only spill-realization had preservable work",
+    "four slots outlived their 120-minute claim leases while still running; coordinator re-fenced each under the slot owner before lapse (eae5bab0, ae74f6e6, bb6bf5b8, d31c7ef0)",
+    "two agents finished with verified-but-uncommitted trees (proof-cert-bridge, pcc-ledger); coordinator classified dirty files against live claims, reverted fmt-drift under foreign fences, committed and landed",
+    "upstream glob-removal churn twice broke main-adjacent state: terminal-verifier lib.rs trusted-surface digest left stale on main (attributed, not repaired), and a textual-clean/semantic-broken merge needed repair commit cb21535d0a",
+    "landing.py refuses dirty checkouts and publish requires the --claim argument; board sweep landed from a scratch worktree with --board-update after resolving conflicts against linw3's concurrent drain sweep",
+    "pre-existing failures attributed, not repaired: vocabulary-107 codec fixture (marker now 108), runtime_ranked_accumulator_guarantee_exit provider-resolution diagnostic (reproduced at base 2ef65b6e45), macOS rust-objcopy libLLVM.dylib warnings"
+  ]
+}
