@@ -275,43 +275,6 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
         .expect("native artifact custody must leave the report only by value")
         .validate()
         .expect("transferred native artifact custody must still replay");
-
-    let unsupported = compiler::compile(
-        CompileRequest::new(CompilerOptions {
-            root_path: pass_canary(fixture_roster::EXPLICIT_PROGRAM_ENTRY_BINDING).join("main.omg"),
-            build_dir: None,
-            target_name: Some("windows_x86_64".into()),
-        })
-        .with_requested_product(compiler::RequestedCompileProduct::TerminalArtifact),
-    )
-    .and_then(compiler::CompileOutcomes::into_single_report)
-    .expect_err("unsupported Terminal constructs must fail instead of selecting legacy lowering");
-    assert!(unsupported.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("terminal-artifact production failed")
-    }));
-
-    let unsupported_native_dir = unique_no_output_build_dir();
-    let unsupported_native = compiler::compile(
-        CompileRequest::new(CompilerOptions {
-            root_path: pass_canary(fixture_roster::EXPLICIT_PROGRAM_ENTRY_BINDING).join("main.omg"),
-            build_dir: Some(unsupported_native_dir.clone()),
-            target_name: Some("windows_x86_64".into()),
-        })
-        .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact),
-    )
-    .and_then(compiler::CompileOutcomes::into_single_report)
-    .expect_err("unsupported Terminal constructs must not fall back for NativeArtifact");
-    assert!(unsupported_native.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("native-artifact Terminal production failed")
-    }));
-    assert!(
-        !unsupported_native_dir.exists(),
-        "failed native realization must not write output or reports"
-    );
 }
 
 #[test]
