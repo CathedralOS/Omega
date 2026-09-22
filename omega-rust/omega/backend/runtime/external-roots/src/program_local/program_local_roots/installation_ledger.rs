@@ -50,6 +50,7 @@ pub struct ProgramLocalRootInstallationLedger {
     established_occurrences: BTreeSet<InstalledProgramLocalRootOccurrenceId>,
     used_occurrences: BTreeSet<InstalledProgramLocalRootOccurrenceId>,
     sealed_epoch_cohorts: BTreeSet<(ComponentEraLedgerId, u64)>,
+    cleanup_occupancies: BTreeSet<InstalledProgramLocalRootOccurrenceId>,
 }
 
 impl ProgramLocalRootInstallationLedger {
@@ -66,6 +67,7 @@ impl ProgramLocalRootInstallationLedger {
             established_occurrences: BTreeSet::new(),
             used_occurrences: BTreeSet::new(),
             sealed_epoch_cohorts: BTreeSet::new(),
+            cleanup_occupancies: BTreeSet::new(),
         }
     }
 
@@ -718,6 +720,39 @@ impl ProgramLocalRootInstallationLedger {
             .collect())
     }
 
+    /// Track a receiver extent whose cleanup must occupy its hosted
+    /// installation ledger extent through completion.
+    ///
+    /// The occupancy marker follows the occurrence's active lifetime: it can
+    /// be recorded only on an occurrence that established under this ledger
+    /// and is still active — a pending occurrence has not proven occupancy,
+    /// a retired one has already completed — and retirement discharges it.
+    /// Tracked extents keep contributing their aggregate accounting while
+    /// occupied; the marker is evidence, not an additional capacity row.
+    pub fn track_receiver_cleanup_occupancy(
+        &mut self,
+        occurrence: InstalledProgramLocalRootOccurrenceId,
+    ) -> Result<(), ExternalRootDiagnostic> {
+        if !self.established_occurrences.contains(&occurrence)
+            || !self.active_occurrences.contains(&occurrence)
+        {
+            return Err(ExternalRootDiagnostic(
+                "program-local receiver cleanup occupancy requires an exact active established occurrence"
+                    .into(),
+            ));
+        }
+        self.cleanup_occupancies.insert(occurrence);
+        Ok(())
+    }
+
+    /// The occurrences whose receiver cleanup currently occupies its hosted
+    /// installation ledger extent.
+    pub fn cleanup_occupancies(
+        &self,
+    ) -> impl Iterator<Item = &InstalledProgramLocalRootOccurrenceId> {
+        self.cleanup_occupancies.iter()
+    }
+
     /// Retire one established root and release its exact lifecycle hold. A
     /// failed release reconstructs and returns the complete root account.
     pub fn retire_established<'root, 'code>(
@@ -820,6 +855,9 @@ impl ProgramLocalRootInstallationLedger {
 
         let removed = self.active_occurrences.remove(&identity);
         debug_assert!(removed, "validated active occurrence remains present");
+        // Completion discharges the cleanup occupancy: a retired extent no
+        // longer occupies the ledger through its receiver's cleanup.
+        self.cleanup_occupancies.remove(&identity);
         let fresh = self.used_occurrences.insert(identity);
         debug_assert!(fresh, "active occurrence was not already retired");
         Ok(RetiredProgramLocalRootOccurrence {

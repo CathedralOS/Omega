@@ -110,6 +110,17 @@ pub fn validate_native_program_entry_settlement(
             .structural_parameters
             .iter()
             .filter(|parameter| parameter.is_self);
+        if eligibility.cleanup()
+            == terminal_psi::CheckedProgramEntryReceiverCleanup::OccupiesHostedExtent
+            && !matches!(
+                eligibility.projection(),
+                terminal_psi::CheckedProgramEntryReceiverProjection::Retained { .. }
+            )
+        {
+            // Cleanup occupancy needs a hosted extent to occupy: a receipt
+            // that marks occupancy on an erased receiver is drift.
+            return Err(NativeProgramEntrySettlementError::ReceiverEligibilityDrift);
+        }
         match eligibility.projection() {
             terminal_psi::CheckedProgramEntryReceiverProjection::Retained {
                 terminal_self,

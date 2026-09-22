@@ -13,9 +13,9 @@ use checked_trees::types::{
 use checked_trees::{CheckedTerminalMachineSelection, CheckedTrees};
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
-    CheckedProgramEntryFusedServiceField, CheckedProgramEntryReceiverEligibility,
-    CheckedProgramEntryReceiverProjection, StructuralAccess, StructuralFieldType,
-    StructuralTypeShape, TerminalModule,
+    CheckedProgramEntryFusedServiceField, CheckedProgramEntryReceiverCleanup,
+    CheckedProgramEntryReceiverEligibility, CheckedProgramEntryReceiverProjection,
+    StructuralAccess, StructuralFieldType, StructuralTypeShape, TerminalModule,
 };
 
 pub(super) fn derive(
@@ -67,10 +67,13 @@ pub(super) fn derive(
         || machine.attached_data.as_ref() != Some(&definition.name)
         || !checked.data_type_parameters(definition).is_empty()
         || validation::data_requires_establishment(&checked.typed, definition)
-        || validation::data_requires_nominal_drop(&checked.typed, definition)
     {
         return None;
     }
+    // Nominal cleanup does not reject outright: a retained receiver's hosted
+    // extent can carry the obligation as ledger occupancy. Whether it must
+    // is classified against the actual Terminal projection below.
+    let requires_cleanup = validation::data_requires_nominal_drop(&checked.typed, definition);
     let entry = module
         .machines
         .iter()
@@ -107,6 +110,19 @@ pub(super) fn derive(
             }
             CheckedProgramEntryReceiverProjection::Erased { source_position }
         }
+    };
+    let cleanup = if requires_cleanup {
+        if matches!(
+            projection,
+            CheckedProgramEntryReceiverProjection::Erased { .. }
+        ) {
+            // An erased receiver occupies no hosted extent, so nominal
+            // cleanup has no ledger residence to track and still rejects.
+            return None;
+        }
+        CheckedProgramEntryReceiverCleanup::OccupiesHostedExtent
+    } else {
+        CheckedProgramEntryReceiverCleanup::None
     };
     let mut structural_types = module
         .structural_types
@@ -190,6 +206,7 @@ pub(super) fn derive(
         projection,
         terminal_receiver_type,
         fused_service_fields,
+        cleanup,
     ))
 }
 
@@ -1291,7 +1308,7 @@ mod tests {
     }
 
     #[test]
-    fn source_nominal_cleanup_and_zero_gates_cannot_acquire_receiver_eligibility() {
+    fn retained_receiver_nominal_cleanup_classifies_hosted_extent_occupancy() {
         let base = check_source(SOURCE);
         let artifact =
             TerminalProductionRequest::new(&base, TerminalMachineSelection::Name("Main::run"))
@@ -1303,15 +1320,63 @@ mod tests {
                 })
                 .unwrap();
         let module = terminal_codec::decode_module(artifact.artifact().semantic_bytes()).unwrap();
-        // A same-named Terminal record cannot prove source cleanup absence.
-        // Both owning forms must be checked on the actual source type graph.
+        // A retained receiver's hosted extent can carry the cleanup
+        // obligation as ledger occupancy: nominal cleanup classifies into
+        // `OccupiesHostedExtent` rather than rejecting eligibility outright.
         for source in [
             "data Main { value: i32; } machine Main::drop(&mut self) {} machine Main::run(&mut self) { self.value = 7; }",
             "data Child {} machine Child::drop(&mut self) {} data Main { value: i32; child: Child; } machine Main::run(&mut self) { self.value = 7; }",
-            "data Main { value: i32 [1..=9]; } machine Main::run(&mut self) { self.value = 7; }",
-            "data Main { value: i32; values: [i32 [1..=9]; 2]; } machine Main::run(&mut self) { self.value = 7; }",
             "data Child { value: i32; } machine Child::drop(&mut self) {} data Main { value: i32; values: [Child; 2]; } machine Main::run(&mut self) { self.value = 7; }",
             "data Child { value: i32; } machine Child::drop(&mut self) {} data Pair { child: Child; } data Main { value: i32; pair: Pair; } machine Main::run(&mut self) { self.value = 7; }",
+        ] {
+            let checked = check_source(source);
+            let selection = checked_trees_to_lowered_psi::select_terminal_machine(
+                &checked,
+                TerminalMachineSelection::Name("Main::run"),
+            )
+            .unwrap();
+            let eligibility = derive(&checked, selection, &module)
+                .unwrap_or_else(|| panic!("{source} must classify cleanup occupancy"));
+            assert_eq!(
+                eligibility.cleanup(),
+                terminal_psi::CheckedProgramEntryReceiverCleanup::OccupiesHostedExtent,
+                "{source}"
+            );
+            assert!(matches!(
+                eligibility.projection(),
+                terminal_psi::CheckedProgramEntryReceiverProjection::Retained { .. }
+            ));
+        }
+        let checked = check_source(SOURCE);
+        let selection = checked_trees_to_lowered_psi::select_terminal_machine(
+            &checked,
+            TerminalMachineSelection::Name("Main::run"),
+        )
+        .unwrap();
+        assert_eq!(
+            derive(&checked, selection, &module).unwrap().cleanup(),
+            terminal_psi::CheckedProgramEntryReceiverCleanup::None
+        );
+    }
+
+    #[test]
+    fn source_nonzero_gates_cannot_acquire_receiver_eligibility() {
+        let base = check_source(SOURCE);
+        let artifact =
+            TerminalProductionRequest::new(&base, TerminalMachineSelection::Name("Main::run"))
+                .produce(TerminalProductionCustody {
+                    retain_unoptimized: false,
+                    entry_identity: Some([7; 32]),
+                    callback_custody: (),
+                    timings: &mut TerminalProductionTimings::default(),
+                })
+                .unwrap();
+        let module = terminal_codec::decode_module(artifact.artifact().semantic_bytes()).unwrap();
+        // A same-named Terminal record cannot prove source establishment
+        // absence: nonzero gates still reject on the actual source type graph.
+        for source in [
+            "data Main { value: i32 [1..=9]; } machine Main::run(&mut self) { self.value = 7; }",
+            "data Main { value: i32; values: [i32 [1..=9]; 2]; } machine Main::run(&mut self) { self.value = 7; }",
             "data Child { value: i32 [1..=9]; } data Pair { child: Child; } data Main { value: i32; pair: Pair; } machine Main::run(&mut self) { self.value = 7; }",
         ] {
             let checked = check_source(source);

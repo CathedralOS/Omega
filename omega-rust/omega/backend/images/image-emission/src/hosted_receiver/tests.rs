@@ -1032,6 +1032,7 @@ fn hosted_receiver_binding(
         },
         receiver_byte_count,
         receiver_alignment,
+        cleanup_occupancy: false,
     }
 }
 
