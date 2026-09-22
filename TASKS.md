@@ -3528,231 +3528,53 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `UnsupportedTarget` in catalog.rs and `hosted_sequences.rs` emits the
   out-of-range diagnostic. No authorized implementation surface; resolved
   with the parent row.
-- **ASM-CATALOG-FAMILY-EXPANSION.** — mined candidate; verify scope then
 
-- **ASM-CATALOG-FAMILY-EXPANSION** — mined candidate; verify scope then
-  implement. Landed slice: the pipeline-directive family — `serialize`
-  (x86_64) / `isb` (aarch64) instruction-stream serialization plus `pause`
-  (x86_64) / `yield` (aarch64) scheduling hints, all UserChecked/NoAuthority
-  zero-operand zero-clobber contracts threaded through the catalog, parser,
-  builtin table, statement gate, interpreter unit arm, and terminal-authority
-  inventory (row count 545->549 + policy commitment re-pinned); canary coverage
-  is check-level with pass and expected-reject fixtures. Remaining: byte-level
-  emission assertions once native-artifact production accepts asm-only
-  entries (currently unreachable at entry selection), the catalog doc family
-  table row (fenced elsewhere this wave), and memory/authority-bearing
-  families blocked on UnmodeledMemoryAccess and service admission.
-  **The inventory step was missed once and took native compilation down**
-  (repaired on main by `b1dc444d9dc9` + `6aca16747fe5`): `b8b858b14472`
-  ("asm catalog: contract invd, wbnoinvd and nop") added three
-  `BuiltinFunction` variants and their classification rows but left
-  `CLOSED_POLICY_ROW_COUNT` at 550 against an enumeration of 553. That assert
-  sits inside `committed_policy_mechanisms()`, not a test, so the shipped
-  `omega` binary panicked on **every native compile**. Measured while it was
-  red: `omega --check` was unaffected (exit 0 on a 16-file subject), while an
-  ordinary native compile aborted with "assertion `left == right` failed,
-  left: 553, right: 550" — taking out native artifact production, `omega run`,
-  every native canary and the whole benchmark corpus, with
-  `cargo check --workspace` and the architecture suite still green, which is
-  why no landing gate caught it. When this family grows, the row count and the
-  commitment `policy_identity_binds_version_and_complete_table` pins must move
-  together (545->549, then 549->550 for wbinvd, now 550->553);
-  `TERMINAL_AUTHORITY_POLICY_VERSION` stays 7 by this row's own precedent. An
-  independent recomputation of the new commitment here matched the landed pin
-  byte for byte.
-- **ASM-CATALOG-MEMORY-AND-CONTROL.** — mined candidate; verify scope then
-  implement. Landed slice: refusal-coverage completion for the two named
-  families in `language-core/src/inline_assembly/mod.rs` — the hidden-exit
-  list gains the x86 near/far/operand-size return spellings (`retn`/`retw`/
-  `iret`/`iretd`/`iretw`), far call/jump forms (`lcall`/`callf`/`jmpf`/`jmpl`/
-  `ljmpl`), `int1`, the AArch64 branch-consistent `bc` head, and the
-  pointer-authenticated branch/return/debug-return spellings (`braa`/`brab`/
-  `braaz`/`brabz`/`blraa*`/`eretaa`/`eretab`/`drps`); the unmodeled-memory list
-  gains the non-temporal pair forms, RCpc/limited-ordering acquire-release and
-  unprivileged-unscaled variants, the plain exclusive-acquire `ldax`, the
-  complete LSE read-modify-write ordering grid (`swp*`/`cas*`/`ld*` suffix
-  spaces), the 64-byte accelerator block forms, NEON structure load/store
-  (`ld1`-`ld4`/`st1`-`st4` and replicate forms), x86 string/port-string bare and
-  dword forms (`movs`/`lods`/`stos`/`scas`/`cmps`/`ins`/`outs` + `*sd`), stack
-  and flag-store width forms, far-pointer loads (`lds`/`les`/`lss`/`lfs`/`lgs`),
-  `xsave`/`fxsave` families, descriptor-table memory operands
-  (`sgdt`/`sidt`/`lgdt`), memory-destination non-temporal stores, and `bound`.
-  Partly register-only spellings (`movzx`, `bt*`, `smsw`, SSE's `movsd`/`cmpsd`
-  shadows) stay unrecognized — mnemonics classify whole. Remaining: real
-  contracts for these families are blocked on the UnmodeledMemoryAccess
-  operand-provenance model (sibling ASM-MEMORY-AND-TRANSFER-CONTRACTS), the
-  AArch64 `dmb`/`dsb` ordering contracts which need a barrier-option operand
-  form, service admission for `svc`-class traps and `syscall`/`sysenter`, and
-  catalog test-list updates (tests.rs is claimed elsewhere this wave).
-- **ASM-INSTRUCTION-CATALOG-EXPANSION.** — mined candidate; verified scope and
-  landed one bounded catalog slice at the work branch. Verified shape at
-  `b46b34a87f`: the refusal grid is already complete (HiddenControlExit +
-  UnmodeledMemoryAccess lists are exhaustive pins), so expansion means new
-  CONTRACTED members of existing shapes, not new refusal coverage. Landed the
-  two kind-families the catalog's own doc names as its expansion axis —
-  `AsmCacheOperationKind` += `invd` (invalidate without writeback) and
-  `wbnoinvd` (writeback without invalidate), both serializing X86_64
-  MachineOwner zero-operand contracts beside `wbinvd`; `AsmSchedulingHintKind`
-  += `nop` (`Any` target, NoAuthority, elidable — the canonical pipeline
-  no-op). Per-member realization chain closed end to end: catalog row + kind
-  enum + kind helpers (`omega-rust/psi/foundation/language-core/src/
-  inline_assembly/mod.rs`), all `BuiltinFunction` sites including stable
-  ordinals 77–79 (`asm#invd`/`asm#wbnoinvd`/`asm#nop`), the statement-form
-  gate (`machine_calls/calls/call_gates.rs`), the authority-discharge
-  mnemonic map (`effects/asm_discharge.rs` — MachineOwner members only;
-  no-authority members deliberately unlisted there), the terminal-authority
-  classification + inventory test, and the interpreter comment. Parser and
-  interpreter arms are kind-generic (`from_intrinsic_name`), so new members
-  need no parser change. Witnessed: `language-core`+`symbols`+`validation`+`
-  checked-interpreter` nextest green (incl. extended discharge tests: hosted
-  `invd`/`wbnoinvd` name machine-owner authority; hosted `nop` admits; the
-  former unknown-mnemonic pin for `nop` moved to the contracted list).
-  Fixtures: `asm_cache_maintenance_compile` now spells all three cache ops;
-  both pipeline-directive pass fixtures gain `nop`; new fail canaries
-  `asm_invd_requires_machine_authority` and
-  `asm_wbnoinvd_requires_machine_authority` registered in
-  CACHE_OPERATION_FAIL_CANARIES. UNWITNESSED this wave: the canary suite —
-  `cargo check -p selected-instructions-to-selected-instructions` fails at
-  clean origin/main `29983459ec` (E0061: `crossed_window` gained a
-  `CrossingDirection` parameter in `block_edges.rs:293` that caller
-  `rewrites/relocation/admission.rs:126` never passes; preexisting, fenced to
-  the spill/sequencing workers), so `compiler` and everything downstream are
-  unbuildable until that lands. Residual legs recorded on the doc: operand-
-  bearing cache/TLB ops (`invlpg`, `clflush`) still refuse until a modeled
-  memory-operand contract exists; atomics, mode transitions and AArch64
-  system ops stay unrecognized per the same axis paragraph.
+- **ASM-INSTRUCTION-CATALOG-EXPANSION.** Carry accepted checked assembly
+  through the ordinary source-to-native pipeline under
+  [assembly](wiki/spec/language/assembly.md) and the
+  [catalog](omega-rust/psi/foundation/language-core/inline_assembly.md).
+  Catalog/checking coverage is not executable support.
 
-  WITNESSED at `7a62e962b2a7` (macOS arm64; the E0061 that blocked the suite
-  landed as `a1e8298497f3`). `cargo nextest run -p compiler --test canary_suite
-  -E 'test(/inline_asm/)'` is **8 passed / 5 failed** of 13. All eight
-  checked-semantics and authority-contract legs pass, including
-  `cache_maintenance_reaches_checked_semantics` and
-  `pipeline_directives_reach_checked_semantics`, so this row's landed catalog
-  slice is green where it owns the outcome. The five reds are the x86
-  byte-emission legs — `x86_asm_{fences,msr,interrupt_control,control_registers,
-  flags}_*` — and none is a catalog defect: each pins an explicit
-  `target_name: linux_x86_64` cross-compile to a native artifact and fails
-  before emission with `Lowering(InvalidUnitMachinePlan { machine:
-  "Main::main", reason: "attached Unit closure is missing a checked transitive
-  machine plan", omission: "`Main::main` has no admitted body (local
-  construction stopped at statement sequence: call: call operation, statement
-  0)" })`. asm statements therefore pass checking and stop at the lowering
-  wall. That omission is the same family CANARY-ACQUIRES-THROUGH-HELPER-RETURN
-  records (its variant stops at signature rather than at statement 0) and the
-  same wall four `terminal_psi_runnable` legs hit in the macos_arm64 native
-  differential row; it is not host-specific — the target is named explicitly.
-  Closing these five needs the asm-statement lowering arm, not more catalog
-  members.
+  Resume at `typed-trees-to-checked-trees/src/execution/unit/calls/call_operations.rs`:
+  dedicated asm-call planning handles `AsmPortOut`, while
+  `asm_value_intrinsic_result_types_reach_the_call_operation_frontier` pins
+  missing operation plans for value intrinsics. Complete checked plans,
+  lowering, Terminal encoding, independent verification, target realization
+  and final-span/state evidence together. Reuse ordinary assignments/transitions
+  where they express the operation: canonical unordered `ldr`/`str` already
+  lower through typed places. Do not require a new opcode per source spelling
+  or a separate asm-only body recognizer.
 
-  **Scoped 2026-09-21 — that arm is a multi-crate chain, not a bounded slice.**
-  The checked stage models asm instructions as builtin intrinsic calls, and
-  `typed-trees-to-checked-trees/src/execution/unit/calls/call_operations.rs:92`
-  carries an operation arm for exactly ONE of them: `AsmPortOut` ->
-  `CheckedUnitEffectOperationPlan::PortWrite`. The 30-odd other `Asm*` builtins
-  (`symbols/src/builtin/mod.rs:189-235`) have none, which an existing test
-  already pins deliberately —
-  `t2c/src/tests/contracts/assembly.rs`'s
-  `asm_value_intrinsic_result_types_reach_the_call_operation_frontier`, whose
-  comment says they stop "where no `CheckedUnitEffectOperationPlan` arm exists
-  for it yet".
+  First acceptance is the existing `canary_suite/inline_asm.rs` x86 fence,
+  interrupt, flags, MSR and control-register byte-emission customers, followed
+  by its checked-only pipeline-directive/cache and AArch64 system-register
+  fixtures. Preserve exact target, operand widths, authority/reach, clobbers,
+  ordering and modeled exits through emitted bytes. Wrong-target, missing
+  authority, stale postcondition, invalid saved-place, omitted clobber and
+  mismatched evidence controls must reject. Cross-compilation/byte assertions
+  do not establish privileged execution on a host.
 
-  Adding one is not one arm. Terminal Psi's `OperationKind`
-  (`terminal-psi/.../control_flow/operations.rs`) likewise carries `PortWrite`
-  and nothing else asm-shaped, so each new family needs: a checked plan variant,
-  a Terminal operation variant, a wire tag plus its
-  `wiki/spec/terminal-psi/encoding.md` table row (machine-checked by
-  `encoding_contract.rs`), verifier and interpreter arms, and the lowering and
-  native-emission legs. That is the same shape as the ElementView descriptor
-  sweep, which ran to 40 consumer legs across 6 crates.
+  Further memory, atomic, barrier-option, cache/TLB and mode-transition families
+  need a customer and complete contracted operands/effects, not just more
+  recognized mnemonics. Memory access must retain authorized extent/view,
+  bounds, alignment, initialization and access permission; numeric addresses
+  confer none. Unknown instructions and hidden/unmodeled exits keep rejecting.
+  **PRIVILEGED-PORT-EFFECT-SETTLEMENTS** owns the port-read/write provider
+  adapter integration; do not duplicate that assignment.
 
-  Not design-blocked: `wiki/spec/language/assembly.md:3-7` settles the rule —
-  "every accepted instruction has a compiler-owned contract", and "assembly
-  remains valid source surface". The one open asm owner question is
-  embedded-interpretation asm, which these five legs do not exercise (they
-  cross-compile to `linux_x86_64`). It is owned engineering of real size.
-- **ASM-MEMORY-AND-TRANSFER-CONTRACTS.** Mined candidate — landed the first
-  contracted memory-transfer family: the operand-provenance model is the typed
-  Omega place itself. The catalog gains `AsmInstructionShape::MemoryTransfer`
-  (`AsmMemoryTransferKind::{Load, Store}`) and contracts the canonical
-  unordered AArch64 pair `ldr`/`str`: the memory operand is spelled as an
-  ordinary place expression (`ldr <dest>, <place>` lowers to `<dest> = <place>`,
-  `str <value>, <place>` to `<place> = <value>`), so provenance, permission and
-  exact-type checking are the place's own, exactly as the catalog doc models
-  "authorized memory data moves through a typed view index". Bracketed
-  `[address]` operands still refuse before the shape applies; width-suffixed
-  (`ldrb`/`strh`/...), offset/unscaled, ordered (acquire/release) and
-  multi-register spellings stay refused — each is a different contract
-  (element-width access, address arithmetic, ordering, or a place pair).
-  Witness: new `asm_memory_transfer_compile` pass canary compiles for
-  linux_arm64; the `asm_structured_ldr_str` fail canary keeps pinning the
-  bracketed refusal; `memory_transfer_contracts_pin_place_operands_and_
-  operand_order` + `parses_memory_transfers_as_place_assignments` cover both
-  layers. Remaining families: ordered AArch64 acquire/release (`ldar`/`stlr`,
-  LSE `swp*`/`cas*`/`ld*`) need ordering contracts in the shape, x86
-  memory-destination stores and the exclusive/string/descriptor-table families
-  need their own operand rosters, and the cache-with-memory-operand members
-  (`invlpg`, `clflush`) admit through this shape once a place is spelled.
-- **ASM-HIDDEN-EXIT-AND-MEMORY-CONTRACTS** — mined candidate; verify scope then implement.
-- **ASM-PRIVILEGED-SERVICE-ADMISSION.** Mined candidate; scope verified at
-  `17fec446ef2` — the admission leg is landed, and what remains is gated
-  elsewhere. Re-mines the ASM-CATALOG-FAMILY-EXPANSION residual
-  ("memory/authority-bearing families blocked on UnmodeledMemoryAccess and
-  service admission"). Verified the admission route end-to-end at this
-  revision: `Build.privileged_services.{port_io,interrupt_table}` parses into
-  `PrivilegedServicesGrants` (build-evaluation `admission/configuration.rs`),
-  flows through `phase_transitions.rs:192` into
-  `AsmAuthorityAdmission::from_freestanding(...).with_grants(...)`, and
-  `validate_asm_discharge` admits per instruction-authority class — the
-  catalog's current three classes are all routable (7 MachineOwner
-  instructions, freestanding-only by contract; 1 PortIo + 1 IdtControl under
-  the mediated grants). No Mmio-authority or memory-authority instruction
-  exists to admit a fourth class for — such a grant would be dead code.
-  The blocked families themselves are gated on memory-access modeling:
-  `inline_assembly/mod.rs:808` refuses ldr/str/ldp/stp/push/pop as
-  `UnmodeledMemoryAccess`, a spec/model item rather than an admission slice.
-  Fence note: the admission config surface `build-evaluation/src/admission`
-  is path-claimed under TARGET-INFERENCE-AND-PLATFORM-CERTIFICATION
-  (Zergling-112) this wave. No independent implementable slice exists.
-- **ASM-MEMORY-AND-TRANSFER-CONTRACTS.** Mined candidate; scope
-  verified at `a51cb805cc`, resolved — no unfenced slice this wave.
-  Re-mines the memory/authority-bearing family clause of the asm
-  catalog frontier: the row above (ASM family Residual) records
-  "memory/authority-bearing families blocked on UnmodeledMemoryAccess
-  and service admission", and resolved sibling
-  INLINE-ASSEMBLY-CATALOG-EXPANSION attributes the same clause —
-  those families stay blocked on UnmodeledMemoryAccess plus service
-  admission per ASM-CATALOG-FAMILY-EXPANSION's Remaining, while the
-  byte-level emission assertions wait on native-artifact production
-  accepting asm-only entries (currently unreachable at entry
-  selection). A memory-and-transfer contract family is exactly that
-  blocked leg: load/store/transfer instructions carry memory effects
-  `AsmInstructionContract` cannot model until UnmodeledMemoryAccess
-  is resolved, and privileged service admission is
-  ASM-PRIVILEGED-SERVICE-ADMISSION's separate stub. The implementing
-  surfaces are live-fenced: `language-core/src/inline_assembly` +
-  `inline_assembly.md` + the builtin intrinsic table + the parser arm
-  by ASM-INSTRUCTION-CATALOG-EXPANSION (Zergling-160, 06:00Z), and
-  `inline_assembly/mod.rs` + `inline_assembly.md` by
-  ASM-CATALOG-MEMORY-AND-CONTROL (z139, 05:55Z). No independent slice
-  exists; sibling stubs ASM-CATALOG-MEMORY-AND-CONTROL and
-  ASM-HIDDEN-EXIT-AND-MEMORY-CONTRACTS mine the same clause.
-- **ASM-INSTRUCTION-CATALOG-EXPANSION** — mined candidate; resolved upstream.
-  Re-witnessed at `4252f00ab216`: the bounded catalog slice landed on main at
-  `b8b858b14472` ("asm catalog: contract invd, wbnoinvd and nop") plus
-  policy-inventory repins `6aca16747fe5`/`0f9a23e3d0d3` — `AsmCacheOperationKind`
-  += `invd`/`wbnoinvd` beside `wbinvd` and `AsmSchedulingHintKind` += `nop`,
-  all contracted members of existing shapes with the full per-member chain
-  (kind enum + helpers, `BuiltinFunction` ordinals 77–79, statement gate,
-  MachineOwner discharge map, terminal-authority inventory). The upstream
-  board annotation (origin/main ~line 6943) already records the verified
-  shape and the wave's unwitnessed-canary caveat (`selected-instructions-to-
-  selected-instructions` `crossed_window`/`CrossingDirection` build break,
-  fenced to the spill/sequencing workers). Residual legs: operand-bearing
-  cache/TLB ops (`invlpg`, `clflush`) stay refused until a modeled
-  memory-operand contract exists — sibling row
-  ASM-MEMORY-AND-TRANSFER-CONTRACTS; atomics, mode transitions and AArch64
-  system ops stay unrecognized per the catalog axis paragraph. No
-  independent slice remains under this name.
+  Preserve the settled build authority route: hosted grants for `port_io` and
+  `interrupt_table` are independent; machine-owner authority remains
+  freestanding-only. Reach is not authority, and helper calls cannot hide
+  obligations. Keep the closed terminal-authority inventory and commitment
+  consistent when catalog mechanisms change; exercise an ordinary native
+  compile so a production inventory assertion cannot hide behind source checks.
+
+  Embedded target-specific assembly remains the `interpreted-inline-assembly`
+  owner question, not a blocker for native support. The checked interpreter's
+  unit-return arms in `interpreter/evaluator/statements_and_calls.rs` do not
+  establish fidelity for unmodeled halt/register/cache effects. Unsupported
+  effects must reject, while genuinely elidable hints retain their catalog
+  meaning; do not silently turn all asm into successful no-ops.
 - **BACKEND-RUNTIME-STARTUP-MECHANICS** — mined candidate; verify scope then implement.
   surfaces are under live claims (UEFI-OS-HANDOFF until 20:00Z,
   UEFI-PHYSICAL-SEMANTIC-ENTRY 22:59Z, OPAQUE-BY-VALUE-BOUNDARY-ABI and
@@ -4089,7 +3911,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   24,454 ms median is the Xeon 8559C cross-compile, not this host. The run was
   only possible after `b1dc444d9dc9`/`6aca16747fe5` repaired the closed-policy
   inventory count — before those, every native compile panicked (see
-  ASM-CATALOG-FAMILY-EXPANSION). Next action for the fence-holder: commit this
+  ASM-INSTRUCTION-CATALOG-EXPANSION). Next action for the fence-holder: commit this
   record under `tools/benchmark/records/` and add the `benchmarks.md`
   coverage entry.
   **macOS arm64 host row recorded 2026-09-21.** The committed
@@ -5449,7 +5271,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   expired and `src/borrow/` is currently unclaimed. Residual (2) is still
   spec-gated (lifetimes.md:33, conformances.md:66). The only open slice
   under this name remains the outlives spec decision.
-- **HOSTED-INLINE-ASSEMBLY-AUTHORITY** — mined candidate; scope verified, authority question already settled. The catalog in `psi/foundation/language-core/src/inline_assembly/` carries `required_authority` per instruction (`MachineOwner`, `PortIoAuthority`, `IdtControlAuthority`, `None`), per the privileged-services contract in `wiki/spec/build/permissions.md` (separate `MachineControl`/`PortIo`/`Mmio` service identities — listing the service does not establish ownership). The hosted-side authority decision is the implemented v0 discharge: `validation/src/machine_calls/effects/asm_discharge.rs::validate_asm_discharge` rejects every non-`None`-authority asm instruction on non-freestanding builds ("only code that owns the machine may emit privileged instructions; a hosted build would fault at ring 3") and passes freestanding — so hosted inline-assembly authority is denied by contract, not unimplemented. A finer hosted grant is a permissions.md spec change, not a compiler slice on this row.
 - **INDEXED-OPERAND-ATTACHED-RECEIVER** — mined candidate; scope verified, covered — same indexing-through-attached-receiver surface as the resolved sibling INDEXING-ATTACHED-RECEIVER-BORROW, which names this stub (verified `669925b8b9`, linux x86-64): `tests/multiplicity/borrowed_case_payloads.rs` exercises `self.kinds[slot]` transitions under `&self`/`&mut self` custody, loan lifetime across successors, and index-argument consumption; `tests/multiplicity/borrowed_observations.rs` pins reborrows into the attached receiver and rejects a borrowed indexed collection moving into an owned receiver; affine extraction still rejects; the indexed operand route through the receiver_self_match loan is additionally pinned by BASELINE-T2C-INDEXED-OPERAND-ACCESS's landing (`7ec7ee32e8`, 8/8 `borrowed_observations` green at `d05ec39a5d`). No independent slice exists here.
 - **INDEXING-ATTACHED-RECEIVER-BORROW.** Mined candidate — resolved,
   covered on `origin/main` (verified `669925b8b9`, linux x86-64). The
@@ -5464,7 +5285,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   9/9 `borrowed_indexed`/`indexed_case`/`indexed_observation` tests
   PASS. Sibling stub on the same surface:
   INDEXED-OPERAND-ATTACHED-RECEIVER.
-- **INLINE-ASSEMBLY-CATALOG-EXPANSION** — mined candidate; verify scope then implement.
 - **INTEGER-COMPARISON-OCCURRENCE-PRODUCER-COVERAGE.** Mined candidate —
   resolved, covered. Member of the INTEGER-COMPARISON-OCCURRENCE-*
   re-mine family under BENCHMARK-COMPILE-UNBLOCK-COMPARISON-OCCURRENCES.
@@ -5514,7 +5334,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   installed_artifact.rs at 00:12Z+1d; native_evidence.rs at 00:24Z+1d —
   all Devin / swarm-w9-macos-x64-host-profile).
 - **INTERNAL-PASS-PROFILE-TIMINGS** — mined candidate; verify scope then implement.
-- **HOSTED-INLINE-ASSEMBLY-AUTHORITY.** — mined candidate; scope verified, authority question already settled. The catalog in `psi/foundation/language-core/src/inline_assembly/` carries `required_authority` per instruction (`MachineOwner`, `PortIoAuthority`, `IdtControlAuthority`, `None`), per the privileged-services contract in `wiki/spec/build/permissions.md` (separate `MachineControl`/`PortIo`/`Mmio` service identities — listing the service does not establish ownership). The hosted-side authority decision is the implemented v0 discharge: `validation/src/machine_calls/effects/asm_discharge.rs::validate_asm_discharge` rejects every non-`None`-authority asm instruction on non-freestanding builds ("only code that owns the machine may emit privileged instructions; a hosted build would fault at ring 3") and passes freestanding — so hosted inline-assembly authority is denied by contract, not unimplemented. A finer hosted grant is a permissions.md spec change, not a compiler slice on this row.
 - **INTRINSIC-PHYSICAL-SPAN-ARMS.** Resolved — re-mine of the intrinsic
   span-arm surface already adjudicated on sibling **TV-INTRINSIC-SPAN-ARMS**
   (verified `14e6f8f72e`). Verified at `96b4afed92e5`: every intrinsic
