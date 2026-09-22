@@ -105,6 +105,24 @@ pub(crate) fn validate_store_and_initializer_calls(
                         result,
                         value: checked_trees::CheckedCallScalarArgument::Computation(_),
                     } => result.statement_index == statement_index,
+                    // A structural local whose initializer vocabulary produces
+                    // a value (a view, aggregate, or alias) rather than a call
+                    // op is established by this operation; it owns the authored
+                    // call unless one of its nested calls already does.
+                    CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                        result, calls, ..
+                    } => {
+                        result.statement_index == statement_index
+                            && calls.iter().all(|call| {
+                                !matches!(
+                                    call.operation(),
+                                    CheckedUnitEffectOperationPlan::StructuralCall {
+                                        coordinate: actual,
+                                        ..
+                                    } if *actual == coordinate
+                                )
+                            })
+                    }
                     _ => false,
                 });
         let Some((operation_index, owner)) = owners.next() else {
@@ -166,12 +184,16 @@ pub(crate) fn validate_store_and_initializer_calls(
         // Its existing exact application owner validates that realization;
         // ordinary calls instead rejoin their captured flow occurrence.
         if let Some(expression) = initializer {
+            // EstablishStructuralValue owners carry initializer vocabulary
+            // that never produced a checked call (view/alias constructions);
+            // there is no flow occurrence left to rejoin.
             if !matches!(
                 owner,
                 CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
                     | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall { .. }
                     | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { .. }
                     | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
+                    | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
             ) {
                 occurrences::validate(checked, plan.machine, plan.state, coordinate, expression)?;
             }

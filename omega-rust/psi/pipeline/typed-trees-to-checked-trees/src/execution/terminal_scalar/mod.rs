@@ -301,7 +301,13 @@ fn build_machine_graph(
             let (structural_parameters, scalar_parameters, mut shapes) = if mixed {
                 // Whole structural forwarding is bounded to the same authored
                 // state; additional state signatures remain a separate slice.
-                if source_states.len() != 1 || machine.attached_data.is_some() {
+                // An attached machine whose receiver is a borrowed `self` keeps
+                // the receiver ambient, so the attachment needs no graph slot;
+                // a selfless attached machine keeps the receiver discipline.
+                if source_states.len() != 1
+                    || (machine.attached_data.is_some()
+                        && !parameters.iter().any(|parameter| parameter.is_self))
+                {
                     return None;
                 }
                 super::terminal_unit::structural_scalar_graph_signature(program, state)?

@@ -218,7 +218,7 @@ pub(super) fn structural_scalar_graph_signature(
     Vec<CheckedUnitStructuralTypePlan>,
 )> {
     if program.state_parameters(state).iter().any(|parameter| {
-        if parameter.relevance.is_erased() {
+        if parameter.is_self || parameter.relevance.is_erased() {
             return false;
         }
         // Numeric constraints retain their separate scalar contract owner;
@@ -242,6 +242,16 @@ pub(super) fn structural_scalar_graph_signature(
             .type_reference(parameter.type_reference)
         {
             TypeReferenceNode::Reference { referee, .. } => {
+                // A borrowed slice view is a structural carrier in its own
+                // right: its extent is a stored runtime length, not a
+                // declared bound, so the referent stays outside the owned
+                // payload admission this signature applies to plain data.
+                if matches!(
+                    program.type_reference_table.type_reference(*referee),
+                    TypeReferenceNode::Slice { .. }
+                ) {
+                    return false;
+                }
                 if program.primitive_type_reference(*referee).is_none() {
                     return true;
                 }
