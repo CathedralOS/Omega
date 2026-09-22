@@ -26,8 +26,10 @@ pub use lowering::{TargetLoweringRequest, lower_to_target_operations};
 pub use validation::{
     AbstractToTargetFunctionRosterReceipt, AbstractToTargetTranslationValidationError,
     AbstractToTargetTranslationValidationReceipt, validate_abstract_to_target_translation,
-    validate_abstract_to_target_translation_with_ieee_float_fma_settlements,
 };
+// The settlement-aware validator has no caller outside the crate; the
+// optimized lowering entrance reaches it through the root.
+pub(crate) use validation::validate_abstract_to_target_translation_with_ieee_float_fma_settlements;
 
 #[cfg(test)]
 mod tests;
