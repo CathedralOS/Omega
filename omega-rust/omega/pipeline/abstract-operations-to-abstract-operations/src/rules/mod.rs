@@ -137,7 +137,7 @@ pub fn built_in_psi_registry(
 /// Construct at most one Psi pass registry from Psi's own target-neutral
 /// selection vocabulary. The unified-build entrance above is a migration
 /// adapter and performs only the exhaustive structural projection.
-pub fn built_in_psi_registry_for_selections(
+pub(crate) fn built_in_psi_registry_for_selections(
     selections: &PsiOptimizationSelections,
 ) -> Result<OrderedRuleRegistry, RuleRegistryError> {
     let mut registries = built_in_psi_registries_for_selections(selections)?;
@@ -150,7 +150,7 @@ pub fn built_in_psi_registry_for_selections(
 }
 
 /// Resolve exact selections in canonical catalog order.
-pub fn built_in_psi_registries(
+pub(crate) fn built_in_psi_registries(
     selections: &OptimizationSelections,
 ) -> Result<Vec<OrderedRuleRegistry>, RuleRegistryError> {
     let projection = selections.project_psi();
@@ -158,7 +158,7 @@ pub fn built_in_psi_registries(
 }
 
 /// Resolve exact Psi-owned selections in canonical catalog order.
-pub fn built_in_psi_registries_for_selections(
+pub(crate) fn built_in_psi_registries_for_selections(
     selections: &PsiOptimizationSelections,
 ) -> Result<Vec<OrderedRuleRegistry>, RuleRegistryError> {
     if let Some(unsupported) = selections.as_slice().iter().find(|optimization| {

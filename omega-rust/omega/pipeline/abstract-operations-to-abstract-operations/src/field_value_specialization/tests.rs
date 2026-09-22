@@ -1,11 +1,11 @@
 //! Optimizer module role: test leaf. Proven field-value specialization proposal, replay, and custody evidence.
 
 use super::super::VerifiedPsiOptimizationSession;
-use crate::field_value_specialization::propose_field_value_specializations;
-use crate::{
-    FieldValueSpecializationCandidate, FieldValueSpecializationError,
-    apply_field_value_specialization, validate_field_value_specialization,
+use crate::field_value_specialization::{
+    apply_field_value_specialization, propose_field_value_specializations,
+    validate_field_value_specialization,
 };
+use crate::{FieldValueSpecializationCandidate, FieldValueSpecializationError};
 use abstract_operations::AbstractOperation;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_unit::{

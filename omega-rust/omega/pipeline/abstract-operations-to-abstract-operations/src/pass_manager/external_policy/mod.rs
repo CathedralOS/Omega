@@ -16,7 +16,7 @@ use optimization_unit::PsiRewriteCandidate;
 
 pub(super) use context::expected_context;
 pub(super) use recording::external_points_from_manifest_decisions;
-pub use recording::validate_external_decision_recording;
+pub(crate) use recording::validate_external_decision_recording;
 pub(super) use replay::ExternalDecisionReplayCursor;
 
 /// Join the validated candidate to its scheduled rule contract at the sole

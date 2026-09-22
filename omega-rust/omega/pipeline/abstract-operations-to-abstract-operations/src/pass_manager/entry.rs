@@ -4,10 +4,9 @@ use optimization_core::{
 };
 use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
 
-use crate::{
-    OrderedRuleRegistry, built_in_psi_registries, built_in_psi_registries_for_selections,
-    built_in_psi_registry,
-};
+use crate::{OrderedRuleRegistry, built_in_psi_registry};
+use crate::rules::built_in_psi_registries;
+use crate::rules::built_in_psi_registries_for_selections;
 
 use super::{
     ExternalDecisionReplayError, OptimizationRun, OptimizationRunError,

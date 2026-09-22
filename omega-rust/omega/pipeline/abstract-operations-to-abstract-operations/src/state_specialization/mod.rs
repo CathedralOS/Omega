@@ -89,7 +89,7 @@ pub fn validate_state_argument_specialization(
     validate::candidate(session, candidate)
 }
 
-pub fn apply_state_argument_specialization(
+pub(crate) fn apply_state_argument_specialization(
     session: VerifiedPsiOptimizationSession,
     validated: ValidatedStateArgumentSpecialization,
 ) -> Result<AppliedStateArgumentSpecialization, StateArgumentSpecializationError> {

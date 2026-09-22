@@ -5,7 +5,8 @@ mod manager;
 mod revision;
 mod semantic;
 
-pub use catalog::{AnalysisProduct, analysis_dependencies, compute_analysis};
+pub(crate) use catalog::analysis_dependencies;
+pub use catalog::{AnalysisProduct, compute_analysis};
 pub use control_flow::{
     BlockControlFlow, CallGraphAnalysis, ControlFlowAnalysis,
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantAnalysisSnapshot,

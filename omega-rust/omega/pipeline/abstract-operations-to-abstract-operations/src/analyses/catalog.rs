@@ -56,7 +56,7 @@ impl AnalysisProduct {
     }
 }
 
-pub fn analysis_dependencies(kind: AnalysisKind) -> Option<AnalysisSet> {
+pub(crate) fn analysis_dependencies(kind: AnalysisKind) -> Option<AnalysisSet> {
     match kind {
         AnalysisKind::ControlFlowGraph
         | AnalysisKind::CallGraph

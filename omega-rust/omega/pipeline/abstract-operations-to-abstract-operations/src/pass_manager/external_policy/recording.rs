@@ -74,7 +74,7 @@ pub(crate) fn external_points_from_manifest_decisions(
 
 /// Reconstruct the policy surface independently from the baseline log and
 /// validated manifests, then compare it with a strict wire round trip.
-pub fn validate_external_decision_recording(
+pub(crate) fn validate_external_decision_recording(
     run: &OptimizationRun,
 ) -> Result<(), OptimizationRunError> {
     let ordered_rules = run

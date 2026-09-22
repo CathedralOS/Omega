@@ -9,7 +9,8 @@ mod commits;
 mod records;
 mod rule_set;
 
-use crate::{OptimizationRun, OptimizationRunUsage, validate_external_decision_recording};
+use crate::pass_manager::validate_external_decision_recording;
+use crate::{OptimizationRun, OptimizationRunUsage};
 use optimization_core::{OptimizationRuleSetIdentity, OptimizationWorkUsage};
 
 use crate::OptimizedAbstractProjectionError;
