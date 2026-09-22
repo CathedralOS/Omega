@@ -188,6 +188,17 @@ pub enum SelectedMemoryAccessRole {
         obligation: semantic_vocabulary::ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
+    /// One element write at the checked dynamic index scaled by the declared
+    /// element width (the row's byte_count), added to the row's fixed payload
+    /// offset. The subject is a borrowed fixed-array referent; `extent` is the
+    /// declared element count the obligation proves the index inside.
+    WriteIndexedPrimitive {
+        index: semantic_vocabulary::ValueId,
+        value: semantic_vocabulary::ValueId,
+        extent: u64,
+        obligation: semantic_vocabulary::ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+    },
     ReadPlace,
     WritePlace,
     WriteLocal {

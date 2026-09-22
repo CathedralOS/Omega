@@ -96,6 +96,11 @@ pub(crate) fn reconstruct_fact_index(function: &PsiOptimizationFunction) -> Vec<
                 obligation,
                 ..
             }
+            | O::WriteOnlyIndexedPrimitiveStore {
+                psi_operation,
+                obligation,
+                ..
+            }
             | O::IntegerExactCast {
                 psi_operation,
                 obligation,

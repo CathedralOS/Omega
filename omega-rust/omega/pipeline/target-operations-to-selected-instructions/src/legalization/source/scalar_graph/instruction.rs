@@ -187,6 +187,9 @@ pub(super) fn project(
         AbstractOperation::WriteOnlyPrimitiveStore { .. } => {
             storage_instructions::project_write_only_primitive_store(node, unit)?
         }
+        AbstractOperation::WriteOnlyIndexedPrimitiveStore { .. } => {
+            storage_instructions::project_write_only_indexed_primitive_store(node, optimized, unit)?
+        }
         AbstractOperation::StructuralScalarFieldStore { .. } => {
             storage_instructions::project_structural_scalar_field_store(node, unit)?
         }

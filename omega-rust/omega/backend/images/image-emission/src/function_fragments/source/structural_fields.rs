@@ -81,6 +81,104 @@ pub(super) fn indexed_store_retained(
         && writes.next().is_none()
 }
 
+/// Join the exact write-only indexed-store occurrence without replacing its
+/// structural subject with a byte offset. Mandatory replay checks layout and
+/// scalar homes; publication retains the declared destination, path, index,
+/// source and bounds obligation.
+pub(super) fn write_only_indexed_store_retained(
+    function: &AbstractFunction,
+    operation: &AbstractOperation,
+    target: &TargetFunction,
+) -> bool {
+    let AbstractOperation::WriteOnlyIndexedPrimitiveStore {
+        psi_operation,
+        destination,
+        path,
+        index,
+        value,
+        obligation,
+    } = operation
+    else {
+        return false;
+    };
+    let Some((access, _)) = read_access(function, target, destination.place, true) else {
+        return false;
+    };
+    if access != destination.access {
+        return false;
+    }
+    let mut writes = target
+        .graph
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|candidate| {
+            matches!(candidate,
+        TargetUnitOperation::WriteOnlyIndexedPrimitiveStore { psi_operation: retained, .. }
+            if retained == psi_operation)
+        });
+    let Some(TargetUnitOperation::WriteOnlyIndexedPrimitiveStore {
+        destination: retained_destination,
+        path: retained_path,
+        index: retained_index,
+        source: retained_value,
+        obligation: retained_obligation,
+        ..
+    }) = writes.next()
+    else {
+        return false;
+    };
+    *retained_destination == *destination
+        && *retained_path == *path
+        && retained_obligation == obligation
+        && retained_index.source_value() == index.value
+        && retained_index.scalar_type() == index.scalar_type
+        && matches!(retained_index.scalar_type(), ScalarType::Integer(integer)
+            if Ok(integer) == semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64))
+        && retained_value.source_value() == value.value
+        && retained_value.scalar_type() == value.scalar_type
+        && writes.next().is_none()
+}
+
+/// Exactly one element-width write accounts for this effect. A read or
+/// metadata publication with the same origin is not part of the indexed
+/// write-only store; mandatory source/selection replay independently
+/// reconstructs the scaled address and the accepted bounds fact.
+pub(super) fn write_only_indexed_footprint_retained(
+    operation: &AbstractOperation,
+    accesses: &[selected_instructions::SelectedMemoryAccess],
+) -> bool {
+    use selected_instructions::{
+        SelectedMemoryAccessOrigin as Origin, SelectedMemoryAccessRole as Role,
+    };
+    let AbstractOperation::WriteOnlyIndexedPrimitiveStore {
+        psi_operation,
+        destination,
+        index,
+        value,
+        obligation,
+        ..
+    } = operation
+    else {
+        return false;
+    };
+    let mut effects = accesses
+        .iter()
+        .filter(|access| access.origin == Origin::Operation(*psi_operation));
+    let Some(write) = effects.next() else {
+        return false;
+    };
+    write.place == destination.place
+        && matches!(write.role, Role::WriteIndexedPrimitive {
+            index: retained_index,
+            value: retained_value,
+            obligation: retained_obligation,
+            ..
+        } if retained_index == index.value && retained_value == value.value
+            && retained_obligation == *obligation)
+        && effects.next().is_none()
+}
+
 /// Exactly one one-byte write accounts for this effect. A read or metadata
 /// publication with the same origin is not part of indexed replacement.
 /// Mandatory source/selection replay independently reconstructs the additive
