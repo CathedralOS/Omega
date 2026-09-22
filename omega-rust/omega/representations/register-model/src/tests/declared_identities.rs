@@ -2,11 +2,12 @@ use super::{
     CatalogMutation, ModelMutation, instruction_key, miniature_catalog, miniature_model,
     validated_miniature_model,
 };
+use crate::register_model::identities;
 use crate::{
     RegisterClassId, RegisterConstraintFamily, RegisterConstraintId, RegisterConstraintKey,
     RegisterOperandAccess, RegisterReservationProfile, RegisterUnitId, RegisterUnitKind,
     RegisterViewId, RegisterWriteSemantics, ReservationReason,
-    TargetRegisterEnvironmentConstraintKeys, identities, target_register_environment_identity,
+    TargetRegisterEnvironmentConstraintKeys, target_register_environment_identity,
     validate_physical_register_model, validate_register_constraint_catalog,
     validate_register_reservation_profile,
 };

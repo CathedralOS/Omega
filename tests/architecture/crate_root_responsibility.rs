@@ -82,16 +82,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
             "stack_realizations",
         ],
     ),
-    (
-        "omega/representations/effects",
-        &[
-            "authority",
-            "capabilities",
-            "component_eras",
-            "executable_scopes",
-            "selected_provider_plans",
-        ],
-    ),
+    ("omega/representations/effects", &["effects"]),
     (
         "omega/representations/legalized-operations",
         &["legalized_operations"],
@@ -99,15 +90,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
     ("omega/representations/machine-code", &["machine_code"]),
     (
         "omega/representations/optimization-core",
-        &[
-            "contracts",
-            "decisions",
-            "identities",
-            "manifest",
-            "mutation_matrix",
-            "report_request",
-            "selection",
-        ],
+        &["optimization_core"],
     ),
     (
         "omega/representations/optimization-unit",
@@ -118,17 +101,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
         &["physical_instructions"],
     ),
     ("omega/representations/register-homes", &["register_homes"]),
-    (
-        "omega/representations/register-model",
-        &[
-            "constraint_catalog",
-            "identities",
-            "physical_register_model",
-            "preservation_storage",
-            "register_vocabulary",
-            "reservation_profiles",
-        ],
-    ),
+    ("omega/representations/register-model", &["register_model"]),
     (
         "omega/representations/representation-selections",
         &["representation_selections"],
@@ -154,21 +127,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
         "omega/representations/target-operations",
         &["target_operations"],
     ),
-    (
-        "omega/representations/task-plans",
-        &[
-            "activation_plans",
-            "composition_model",
-            "executor_selection",
-            "identities",
-            "lifecycle_ledger",
-            "provider_admission",
-            "report_fingerprints",
-            "runtime_invocation",
-            "stack_composition",
-            "stack_leases",
-        ],
-    ),
+    ("omega/representations/task-plans", &["task_plans"]),
     // Psi foundation.
     (
         "psi/foundation/access-plans",

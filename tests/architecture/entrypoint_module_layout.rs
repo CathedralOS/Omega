@@ -18,15 +18,12 @@ use std::path::{Path, PathBuf};
 use super::workspace_root;
 
 /// Representation crates whose `src/` does not keep exactly one named root
-/// file beside `lib.rs` today (AGENTS.md: "Each program representation has
-/// one named root file beside `lib.rs`").
+/// file beside `lib.rs` (AGENTS.md: "Each program representation has one
+/// named root file beside `lib.rs`"): the two `lib.rs`-owned leaves that
+/// `crate_root_responsibility.rs` lists in `LIB_RS_OWNED`.
 const REPRESENTATION_ROOT_EXCEPTIONS: &[&str] = &[
-    "omega-rust/omega/representations/effects",
     "omega-rust/omega/representations/function-identity",
     "omega-rust/omega/representations/installation-evidence",
-    "omega-rust/omega/representations/optimization-core",
-    "omega-rust/omega/representations/register-model",
-    "omega-rust/omega/representations/task-plans",
 ];
 
 /// `model/` grab-bag directories retained inside crate source trees

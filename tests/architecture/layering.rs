@@ -1596,8 +1596,8 @@ fn target_neutral_effect_inference_is_psi_owned() {
         );
     }
 
-    let providers =
-        root.join("omega-rust/omega/representations/effects/src/capabilities/provider_plan.rs");
+    let providers = root
+        .join("omega-rust/omega/representations/effects/src/effects/capabilities/provider_plan.rs");
     assert!(
         providers.exists(),
         "provider bindings and installation policy must remain Omega-owned"
@@ -1753,13 +1753,13 @@ fn checked_semantics_are_psi_owned_without_provider_realization() {
     }
 
     let omega_provider_carrier =
-        root.join("omega-rust/omega/representations/effects/src/selected_provider_plans.rs");
+        root.join("omega-rust/omega/representations/effects/src/effects.rs");
     assert!(
         omega_provider_carrier.exists(),
         "selected concrete provider plans must remain in the Omega provider subsystem"
     );
     let omega_task_carrier = root.join(
-        "omega-rust/omega/representations/task-plans/src/activation_plans/activation_plan_facts.rs",
+        "omega-rust/omega/representations/task-plans/src/task_plans/activation_plan_facts.rs",
     );
     let task_source = std::fs::read_to_string(&omega_task_carrier)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", omega_task_carrier.display()));
@@ -2233,11 +2233,12 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         "{realization}\n{input}\n{optimization_stage}\n{target_stage}\n{target_output}\n{physical_stage}\n{optimized_fragment_projection}\n{machine_code}"
     );
     let selection_path =
-        root.join("omega-rust/omega/representations/optimization-core/src/selection.rs");
+        root.join("omega-rust/omega/representations/optimization-core/src/optimization_core.rs");
     let selection = std::fs::read_to_string(&selection_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", selection_path.display()));
-    let post_terminal_selection_path = root
-        .join("omega-rust/omega/representations/optimization-core/src/selection/post_terminal.rs");
+    let post_terminal_selection_path = root.join(
+        "omega-rust/omega/representations/optimization-core/src/optimization_core/post_terminal.rs",
+    );
     let post_terminal_selection = std::fs::read_to_string(&post_terminal_selection_path)
         .unwrap_or_else(|error| {
             panic!(
@@ -2485,8 +2486,7 @@ fn component_candidate_replay_keeps_compact_identity_report_only() {
         root.join("omega-rust/omega/backend/artifacts/native-artifact/src/native_artifact.rs");
     let native = std::fs::read_to_string(&native_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", native_path.display()));
-    let effects_path =
-        root.join("omega-rust/omega/representations/effects/src/selected_provider_plans.rs");
+    let effects_path = root.join("omega-rust/omega/representations/effects/src/effects.rs");
     let effects = std::fs::read_to_string(&effects_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", effects_path.display()));
     let producer_path = root.join(
@@ -2573,7 +2573,7 @@ fn component_era_artifact_occurrence_joins_require_strong_installation_evidence(
         &root.join("omega-rust/omega/backend/runtime/executable-installation/src"),
     );
     let effects_path = root.join(
-        "omega-rust/omega/representations/effects/src/component_eras/component_era_entry_ledger.rs",
+        "omega-rust/omega/representations/effects/src/effects/component_eras/component_era_entry_ledger.rs",
     );
     let effects = std::fs::read_to_string(&effects_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", effects_path.display()));
@@ -4641,7 +4641,7 @@ fn normalized_write_frame_compact_identity_is_report_only() {
 fn external_root_progress_rejoins_the_exact_selected_provider_closure() {
     let root = workspace_root();
     let manifest_path =
-        root.join("omega-rust/omega/representations/effects/src/component_eras/component_progress_manifest.rs");
+        root.join("omega-rust/omega/representations/effects/src/effects/component_eras/component_progress_manifest.rs");
     let manifest = std::fs::read_to_string(&manifest_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest_path.display()));
     assert!(

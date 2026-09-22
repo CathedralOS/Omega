@@ -4,12 +4,12 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
         family: "optimization manifest",
         paths: &[
-            "omega-rust/omega/representations/optimization-core/src/manifest/codec.rs",
-            "omega-rust/omega/representations/optimization-core/src/manifest/decision.rs",
-            "omega-rust/omega/representations/optimization-core/src/manifest/error.rs",
-            "omega-rust/omega/representations/optimization-core/src/manifest/fact_reference.rs",
-            "omega-rust/omega/representations/optimization-core/src/manifest/pass.rs",
-            "omega-rust/omega/representations/optimization-core/src/manifest/work_usage.rs",
+            "omega-rust/omega/representations/optimization-core/src/optimization_core/manifest/codec.rs",
+            "omega-rust/omega/representations/optimization-core/src/optimization_core/manifest/decision.rs",
+            "omega-rust/omega/representations/optimization-core/src/optimization_core/manifest/error.rs",
+            "omega-rust/omega/representations/optimization-core/src/optimization_core/manifest/fact_reference.rs",
+            "omega-rust/omega/representations/optimization-core/src/optimization_core/manifest/pass.rs",
+            "omega-rust/omega/representations/optimization-core/src/optimization_core/manifest/work_usage.rs",
         ],
     },
     SemanticLadder {

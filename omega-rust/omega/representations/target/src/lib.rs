@@ -1,8 +1,8 @@
 //! Target descriptions: deployment profiles, semantics, x86 feature sets,
 //! ELF loading, UEFI tables.
 //!
-//! Start at `target_profile/`: the deployment-profile catalog (`TargetProfile`,
-//! `NativeTarget`, and the program-entry slot contract) that every other root
+//! Start at `target_profile.rs`: the deployment-profile catalog (`TargetProfile`,
+//! `NativeTarget`, and the program-entry slot contract) that every other area
 //! names. `target_semantics` names each supported native target's observation
 //! promises; `x86_features` records feature requirements; `elf_loader` and the
 //! `uefi_*` folders describe the loader and firmware structures a program may

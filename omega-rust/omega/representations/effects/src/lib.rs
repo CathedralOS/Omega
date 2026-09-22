@@ -8,7 +8,7 @@
 //!
 //! **Endianness splits by file, cleanly, and nobody says so.**
 //! `terminal_authority.rs` writes big-endian at all 14 of its sites.
-//! `capabilities/provider_plan.rs` (17 sites), `selected_provider_plans.rs` (9)
+//! `capabilities/provider_plan.rs` (17 sites), the `effects.rs` root (9)
 //! and `component_progress_manifest.rs` (10) write little-endian at all 36 of
 //! theirs. No file mixes the two. Hash the same `u64` in `terminal_authority.rs`
 //! and in `provider_plan.rs` and you get two different byte strings, which is
@@ -82,18 +82,15 @@
 //! Neither crate can see that on its own: from here the type has a production
 //! consumer, and from there it has a producer.
 //!
-//! `selected_provider_plans.rs` and `capabilities/` record which provider
-//! realizes each boundary; `executable_scopes/`, `component_eras/` and
-//! `authority/` hold the retained evidence about scopes, eras and authority.
+//! Start at `effects.rs`: the selected provider closure and its digest,
+//! leading into `capabilities/` (which provider realizes each boundary),
+//! `executable_scopes/`, `component_eras/` and `authority/` (the retained
+//! evidence about scopes, eras and authority).
 
-mod authority;
-mod capabilities;
-mod component_eras;
-mod executable_scopes;
-mod selected_provider_plans;
+mod effects;
 
-pub use authority::service_terminal_authority_permission::ServiceTerminalAuthorityPermission;
-pub use authority::terminal_authority::{
+pub use effects::authority::service_terminal_authority_permission::ServiceTerminalAuthorityPermission;
+pub use effects::authority::terminal_authority::{
     CheckedPhysicalOperationIdentity, CheckedPhysicalTerminalMechanismIdentity,
     CheckedSyscallArgumentContractIdentity, CompilerIntrinsicExecutionIdentity,
     CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
@@ -105,19 +102,19 @@ pub use authority::terminal_authority::{
     TerminalAuthorityPolicyIdentity, TerminalMechanismIdentity,
     compiler_intrinsic_execution_identity_bytes, terminal_mechanism_identity_bytes,
 };
-pub use capabilities::analysis::{
+pub use effects::capabilities::analysis::{
     BoundaryCallCoordinate, UnapprovedBoundaryCall, audit_boundary_provider_calls,
     build_boundary_provider_approval_registry,
 };
-pub use capabilities::foreign_locator::{
+pub use effects::capabilities::foreign_locator::{
     ForeignLocatorCandidate, ForeignLocatorIdentityDigest, ForeignLocatorValidationError,
     NormalizedForeignLocator, normalize_foreign_locator,
 };
-pub use capabilities::provider_approval::{
+pub use effects::capabilities::provider_approval::{
     BoundaryCallApproval, BoundaryProviderApproval, BoundaryProviderApprovalRegistry,
 };
-pub use capabilities::provider_plan;
-pub use component_eras::component_era_entry_ledger::{
+pub use effects::capabilities::provider_plan;
+pub use effects::component_eras::component_era_entry_ledger::{
     ActiveComponentEraEntry, ComponentEraCandidate, ComponentEraEntryLedger,
     ComponentEraEntryReceipt, ComponentEraEntryState, ComponentEraLeaveReceipt,
     ComponentEraLedgerId, ComponentEraPublicationReceipt, ComponentEraQuiescenceReceipt,
@@ -126,16 +123,16 @@ pub use component_eras::component_era_entry_ledger::{
     ProgramLocalRootEpochLeaseAcquisitionError, ProgramLocalRootEpochLeaseId,
     ProgramLocalRootEpochLeaseReleaseError,
 };
-pub use component_eras::component_progress_manifest::{
+pub use effects::component_eras::component_progress_manifest::{
     CheckedComponentProgressDemand, ComponentBuildBoundProgressDemand, ComponentProgressManifest,
     ComponentProgressManifestDigest,
 };
-pub use executable_scopes::coexisting_executable_eras::{
+pub use effects::executable_scopes::coexisting_executable_eras::{
     AdmittedExecutableEra, AttributedContainmentEvidence, AttributedManifestCompleteness,
     CoexistingExecutableTcbEntry, CoexistingExecutableTcbReport, CoexistingExecutableTcbSet,
     CoexistingScopeCompleteness, ExecutableManifestSource,
 };
-pub use executable_scopes::executable_tcb_manifest::{
+pub use effects::executable_scopes::executable_tcb_manifest::{
     ContainmentEvidence, ContainmentGuarantee, ExecutableEntryOrigin, ExecutableIdentity,
     ExecutableTcbEntry, ExecutableTcbManifest, ExecutionScope, ImplementationEvidence,
     IncompleteCause, OmegaRuntimeExecutableAdmissionCandidate, OmegaRuntimeExecutableLedger,
@@ -143,19 +140,19 @@ pub use executable_scopes::executable_tcb_manifest::{
     ProviderIdentity, RuntimeExecutableClosureEvidence, ScopeCompleteness,
     SelectedProviderRequirement, ValidatedOpaqueExecutableAdmission,
 };
-pub use executable_scopes::executable_tcb_profile::{
+pub use effects::executable_scopes::executable_tcb_profile::{
     ExactExecutableTcbAllowance, ExecutableTcbProfile, ExecutableTcbProfileAcceptance,
     ExecutableTcbProfileRejection, ExecutableTcbProfileViolation, IncompleteScopePolicy,
     evaluate_executable_tcb_profile,
 };
-pub use executable_scopes::isolated_executable_scopes::{
+pub use effects::executable_scopes::isolated_executable_scopes::{
     AdmittedIsolatedExecutableScope, ExecutableTcbManifestSet, IsolatedExecutableScopeCandidate,
 };
-pub use executable_scopes::process_static_services::{
+pub use effects::executable_scopes::process_static_services::{
     ActiveServiceRegistration, AtomicServiceHandoverReceipt, ProcessStaticServiceContract,
     ProcessStaticServicePolicy, ProcessStaticServiceRegistry, ServiceHandoverCompletion,
     ServiceHandoverError, ServiceRegistrationCandidate, ServiceRegistrationError,
 };
-pub use selected_provider_plans::{
+pub use effects::{
     InstallationReachResolution, SelectedProviderClosureDigest, SelectedProviderPlanFacts,
 };

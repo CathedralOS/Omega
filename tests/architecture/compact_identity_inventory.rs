@@ -591,7 +591,7 @@ fn residual_identity_named_compact_hashes_are_explicit_reports() {
             &["pub schema_identity: u64"][..],
         ),
         (
-            "omega-rust/omega/representations/effects/src/selected_provider_plans.rs",
+            "omega-rust/omega/representations/effects/src/effects.rs",
             &["plan_by_identity"][..],
         ),
         (
@@ -665,8 +665,8 @@ fn trust_tooling_compact_coordinates_retain_strong_evidence_and_report_labels() 
 #[test]
 fn provider_service_calling_plan_reports_retain_strong_commitments() {
     let root = workspace_root();
-    let provider_path =
-        root.join("omega-rust/omega/representations/effects/src/capabilities/provider_plan.rs");
+    let provider_path = root
+        .join("omega-rust/omega/representations/effects/src/effects/capabilities/provider_plan.rs");
     let provider = fs::read_to_string(&provider_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", provider_path.display()))
         + &module_tree_source(&provider_path.with_extension(""));
