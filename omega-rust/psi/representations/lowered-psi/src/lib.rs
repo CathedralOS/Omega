@@ -7,4 +7,9 @@
 //! Neither this record nor its construction grants verification authority.
 
 mod lowered_psi;
-pub use lowered_psi::*;
+pub use lowered_psi::{
+    CallbackTerminalLoweringReceipt, LoweredPsi, LoweredSelectedIeeeFloatComparisonOccurrence,
+    LoweredSelectedIeeeFloatFmaOccurrence, LoweredSelectedIntegerComparisonOccurrence,
+    LoweredSelectedIntegerComparisonOperandOrder, LoweredSelectedIntegerComparisonOperation,
+    LoweredSourceCallOccurrence,
+};

@@ -1,7 +1,12 @@
 //! Current, unsealed Psi product before selected optimization and publication.
 
 mod source_custody;
-pub use source_custody::*;
+pub use source_custody::{
+    CallbackTerminalLoweringReceipt, LoweredSelectedIeeeFloatComparisonOccurrence,
+    LoweredSelectedIeeeFloatFmaOccurrence, LoweredSelectedIntegerComparisonOccurrence,
+    LoweredSelectedIntegerComparisonOperandOrder, LoweredSelectedIntegerComparisonOperation,
+    LoweredSourceCallOccurrence,
+};
 use terminal_psi::{ProofBundle, TerminalDebugMap, TerminalModule};
 
 /// Semantic module and separate replaceable proof artifact produced by the

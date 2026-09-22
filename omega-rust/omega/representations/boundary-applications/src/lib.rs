@@ -12,4 +12,13 @@
 //! product, leading into the demand, realization, and coverage owners.
 
 pub mod boundary_applications;
-pub use boundary_applications::*;
+pub use boundary_applications::{
+    BoundaryApplication, BoundaryApplicationArgument, BoundaryApplicationCoverageIdentity,
+    BoundaryApplicationRealization, BoundaryApplicationRealizationCompanion,
+    BoundaryApplicationRealizationRole, BoundaryNominalIdentity,
+    BoundaryOpaqueRepresentationApplication, BoundaryOpaqueRepresentationApplications,
+    BoundaryOperatorRequirement, BoundaryTypeIdentity, OperatorApplicationCoverageRef,
+    TerminalBoundaryApplicationCoverage, TerminalBoundaryApplicationDemand,
+    TerminalBoundaryApplicationDemands, TerminalBoundaryApplicationRealizations, coverage, demands,
+    opaque_applications, realization,
+};

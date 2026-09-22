@@ -81,7 +81,6 @@ const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[
         "omega-rust/omega/pipeline/target-operations-to-selected-instructions",
         1,
     ),
-    ("omega-rust/omega/representations/boundary-applications", 1),
     ("omega-rust/omega/representations/legalized-operations", 2),
     ("omega-rust/omega/representations/register-homes", 1),
     ("omega-rust/omega/representations/register-model", 1),
@@ -95,10 +94,6 @@ const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[
         3,
     ),
     ("omega-rust/psi/pipeline/typed-trees-to-checked-trees", 2),
-    ("omega-rust/psi/representations/facts", 1),
-    ("omega-rust/psi/representations/flow-effects", 1),
-    ("omega-rust/psi/representations/lowered-psi", 2),
-    ("omega-rust/psi/representations/optimization", 1),
     ("omega-rust/psi/representations/symbol-resolved-trees", 1),
     ("omega-rust/psi/semantics/build-time-evaluation", 1),
 ];

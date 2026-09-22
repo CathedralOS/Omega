@@ -79,7 +79,6 @@ const GLOB_REEXPORT_CEILINGS: &[(&str, usize)] = &[
         "omega-rust/omega/pipeline/target-operations-to-selected-instructions",
         1,
     ),
-    ("omega-rust/omega/representations/boundary-applications", 1),
     ("omega-rust/omega/representations/register-model", 3),
     (
         "omega-rust/omega/representations/representation-selections",
@@ -90,10 +89,6 @@ const GLOB_REEXPORT_CEILINGS: &[(&str, usize)] = &[
         "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees",
         15,
     ),
-    ("omega-rust/psi/representations/facts", 6),
-    ("omega-rust/psi/representations/flow-effects", 1),
-    ("omega-rust/psi/representations/lowered-psi", 2),
-    ("omega-rust/psi/representations/optimization", 1),
     ("omega-rust/psi/representations/symbol-resolved-trees", 1),
 ];
 
