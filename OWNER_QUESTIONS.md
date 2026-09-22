@@ -443,6 +443,48 @@ ruling or at least a note so later legs make the same choice:
    stays red on that one fixture and the architecture sweep does not touch
    the multiplicity classifier.
 
+9. **Which three Terminal operations does the Unit body composition need
+   before the remaining pass canaries can lower?** (named decision:
+   `terminal-vocabulary-for-unit-bodies`). The Unit body producer now
+   composes every single-state body through one statement-sequence
+   producer (c3383bfcbe, a601f34f7a, 4ffc6e387b, e95fd0382d, 9de580c45d);
+   the corpus fixtures it still omits stop at shapes Terminal has no
+   operation for, so no per-statement emitter can close them:
+
+   - (a) *Cleanup-free structural field replacement.*
+     `self.event.kind = EventKind::Treasure;` and the depth-1
+     `self.facing = Direction::South;` store a payloadless case into a sum
+     field. `StructuralScalarFieldStore` cannot carry a `Structural` field
+     and `StoreStructuralField` is spec- and verifier-gated
+     (`validation/borrowed_windows.rs`, `BorrowedStorageRepairMismatch`) to
+     reseating an open `MoveStructuralField` window. Missing: a store into a
+     never-vacated, disposal-free structural field. Blocks
+     `control_flow/composite_field_guard_dispatch`,
+     `control_flow/runtime_case_member_dispatch_exit`,
+     `runtime_string_literal_dispatch_exit`.
+   - (c) *Recast views.* `let d: &Desc = &self.buf[8] as &Desc;` (the eleven
+     `recast/*` fixtures): validation admits the reinterpreting view only in
+     `let` position, and neither the checked Unit plan nor Terminal has an
+     operation that yields a `&T` referent over a byte offset of a region.
+   - (d) *Fresh linear claim establishment.* Every `ownership/linear_*`
+     fixture (the nine `reports_and_capabilities` reds) builds its
+     `Receipt [linear]` by literal. `EstablishRecord` is claim-free by spec
+     (`operations.rs`) and by the verifier (`validation/record.rs` rejects a
+     Linear result or a nonempty `result.claims`); Terminal's only claim
+     sources are entry claims, call `returned_claim_transfers`, and
+     boundary-route minting. `checked-trees-to-lowered-psi` refuses "fresh
+     structural value cannot create linear custody". Missing: an
+     establishment that mints one fresh root claim for a `[linear]` record,
+     retired by its terminal consumer or transferred like an entry claim.
+     Pinned at plan level by
+     `tests::flow::terminal_unit::linear_local_consumers::a_fresh_linear_literal_still_stops_at_its_local_binding`.
+
+   Each is a vocabulary addition with a verifier rule, not a producer
+   change. Until answered, the producer keeps refusing these shapes by name
+   (`structural field store: record literal field`, `local data:
+   structural call binding`, `structural call binding`) and the affected
+   fixtures stay on their measured-stage rosters.
+
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
 [foundation](wiki/spec/proofs/foundation.md). Their implementation and required
