@@ -2,8 +2,8 @@
 //! per-change decisions in the install/update flow. The review itself is
 //! owned by `crate::review`; this is the console adapter over it.
 
-use super::model::{PackageCommandError, failure};
 use super::state;
+use super::{PackageCommandError, failure};
 use crate::operations::{PackageChangeReview, PackageFileTransaction};
 use crate::review::{
     PackagePolicyResolution, PackagePolicyReviewError, recover_package_policy_review,

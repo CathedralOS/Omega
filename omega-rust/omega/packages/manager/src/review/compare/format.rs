@@ -1,6 +1,6 @@
 //! Fixed-vocabulary rendering and canonical conflict tags.
 
-use super::model::{
+use super::{
     ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictSet,
     ReviewOnlyPackageCapabilityConflicts, ReviewSetRole,
 };
@@ -64,10 +64,10 @@ fn render_package(
     push_hex(output, &package.key.identity().digest());
     output.push('\n');
     match &package.baseline {
-        super::model::ReviewOnlyCapabilityConflictBaseline::EmptyAdmission => {
+        super::ReviewOnlyCapabilityConflictBaseline::EmptyAdmission => {
             output.push_str("baseline empty_admission\n");
         }
-        super::model::ReviewOnlyCapabilityConflictBaseline::RetainedReview {
+        super::ReviewOnlyCapabilityConflictBaseline::RetainedReview {
             resolution,
             source_consumption,
         } => {

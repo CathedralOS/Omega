@@ -1,8 +1,8 @@
 use crate::declarations::dependencies::read::error::DependencyProjectionError;
-use crate::declarations::dependencies::read::model::{DependencyPurpose, DependencySourceRequest};
 use crate::declarations::dependencies::read::source_literal::{
     project_alias_literal, project_source_literal,
 };
+use crate::declarations::dependencies::read::{DependencyPurpose, DependencySourceRequest};
 use build_declarations as shared;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionHandle;

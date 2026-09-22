@@ -5,7 +5,6 @@
 //! printing stay in the binary. Compiler preparation is separate in [`crate::operations`].
 
 mod change_decisions;
-mod model;
 mod planning;
 mod proposal;
 mod source_review;
@@ -23,16 +22,13 @@ use crate::resolution::graph::{
     resolve_staged_external_local_project_closure,
 };
 use crate::review::CandidateSourcePreparation;
-use model::failure;
-pub use model::{
-    PackageCommand, PackageCommandError, PackageCommandKind, PackageCommandOptions,
-    PackageCommandOutcome, PackageCommandStatus,
-};
 use package_source::PrimaryGitChoices;
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use proposal::PendingPackageChange;
 use sha2::{Digest, Sha256};
+use std::fmt;
+use std::path::PathBuf;
 use target::TargetProfile;
 
 /// Execute one package command under the project's publication authority.
@@ -356,4 +352,70 @@ fn targets(
     }
     requested.sort_by_key(|target| target.target_name());
     Ok(requested)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackageCommandKind {
+    Install,
+    Update,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageCommand {
+    Install {
+        source: String,
+        revision: Option<String>,
+        alias: Option<String>,
+        /// Declared Git workspace package name; absence selects the root.
+        package: Option<String>,
+    },
+    Update {
+        packages: Vec<String>,
+        revision: Option<String>,
+    },
+    Resume {
+        kind: PackageCommandKind,
+    },
+    DiscardReview,
+}
+
+#[derive(Debug, Clone)]
+pub struct PackageCommandOptions {
+    pub project_root: PathBuf,
+    /// Explicit targets augment every previously accepted target. Empty uses
+    /// existing targets, or the compiler's default target on first admission.
+    pub targets: Vec<TargetProfile>,
+    /// Use cached recorded Git pins only; never fetch or refresh a selector.
+    pub offline: bool,
+    /// Root-only immutable input selection for a new install/update. Resume
+    /// uses the pending proposal's selection; it cannot override it.
+    pub build_inputs: Option<package_compilation::BuildSourceCaptureRequest>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackageCommandStatus {
+    Published,
+    ReviewRequired,
+    ReviewDiscarded,
+}
+
+#[derive(Debug)]
+pub struct PackageCommandOutcome {
+    pub status: PackageCommandStatus,
+    pub report: String,
+    pub review_paths: Vec<PathBuf>,
+}
+
+#[derive(Debug)]
+pub struct PackageCommandError(String);
+
+impl fmt::Display for PackageCommandError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(formatter)
+    }
+}
+impl std::error::Error for PackageCommandError {}
+
+fn failure(message: impl fmt::Display) -> PackageCommandError {
+    PackageCommandError(message.to_string())
 }

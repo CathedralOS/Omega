@@ -1,6 +1,6 @@
 //! Version 2 stores full-comparison subjects, not source-graph row indices.
 
-use super::super::model::HistoricalPackagePolicyRecoveryUsage;
+use super::super::HistoricalPackagePolicyRecoveryUsage;
 use super::super::text::{disposition_token, parse_digest, parse_number};
 use super::{
     Error, HistoricalPackagePolicyDecision, HistoricalPackagePolicyDecisions,

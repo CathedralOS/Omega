@@ -3,12 +3,12 @@
 use super::super::{
     ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode, ResolvedSourceIdentity,
 };
-use super::model::{
+use super::resolved_closure::ResolvedPackageSourceClosure;
+use super::{
     DependencyRequestPath, DependencyRequestPathStep, PackageSourceClosureConflict,
     PackageSourceClosureConflictCandidate, PackageSourceClosureLimitKind,
     PackageSourceClosureLimits, PackageSourceClosureResolutionError,
 };
-use super::resolved_closure::ResolvedPackageSourceClosure;
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::read::{DependencyPurpose, DependencySourceRequest};
 use crate::declarations::{AliasName, PackageKey};

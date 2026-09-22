@@ -1,6 +1,6 @@
 //! Bounded accounting for candidate-controlled comparison inputs.
 
-use super::model::{ReviewOnlyCapabilityConflictError, ReviewOnlyCapabilityConflictLimits};
+use super::{ReviewOnlyCapabilityConflictError, ReviewOnlyCapabilityConflictLimits};
 use crate::review::candidate::PackageReviewEvidence;
 use package_evidence::record::PackageReviewCanonicalRowSource;
 

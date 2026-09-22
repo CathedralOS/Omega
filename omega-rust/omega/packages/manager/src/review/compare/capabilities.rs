@@ -3,8 +3,13 @@
 use super::commitments::{
     ConflictFingerprintBaseline, derive_candidate_closure_identity, derive_conflict_fingerprint,
 };
-use super::model::*;
 use super::resources::{ComparisonInputBudget, account_review_resources};
+use super::{
+    ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflict,
+    ReviewOnlyCapabilityConflictBaseline, ReviewOnlyCapabilityConflictChange,
+    ReviewOnlyCapabilityConflictError, ReviewOnlyCapabilityConflictLimits,
+    ReviewOnlyCapabilityConflictSet, ReviewOnlyPackageCapabilityConflicts, ReviewSetRole,
+};
 use crate::declarations::PackageKey;
 use crate::resolution::graph::{DependencyRequestPath, ExactTargetPackageSourceClosure};
 use crate::review::candidate::PackageReviewEvidence;

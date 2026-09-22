@@ -3,7 +3,7 @@
 mod text;
 pub(super) use text::{HEADER, encode, recover};
 
-use super::model::{
+use super::{
     HistoricalPackagePolicyDecision, HistoricalPackagePolicyDecisionSubject as Subject,
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyError as Error,
     HistoricalPackagePolicyLimits,

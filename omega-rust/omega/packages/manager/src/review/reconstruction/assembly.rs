@@ -1,9 +1,9 @@
 use super::encoding::{encode_question, fingerprint};
-use super::model::{
+use super::validation::validate_association;
+use super::{
     CanonicalPackageReconstructionEntry, CanonicalPackageReconstructionQuestion,
     CanonicalPackageReconstructionQuestionError, CanonicalPackageReconstructionQuestionLimits,
 };
-use super::validation::validate_association;
 use crate::lock::PackageOccurrenceRoster;
 use crate::resolution::graph::{CanonicalSourceClosureSubject, ExactTargetPackageSourceClosure};
 use crate::resolution::package_compilation_inputs_for;

@@ -1,8 +1,8 @@
 use super::error::DependencyProjectionError;
-use super::model::{BuildDependencyProjection, DependencyPurpose, DependencySourceRequest};
 use super::projection::{
     extract_build_projection_from_source, extract_scoped_requests_from_source,
 };
+use super::{BuildDependencyProjection, DependencyPurpose, DependencySourceRequest};
 use std::fs;
 use std::path::Path;
 

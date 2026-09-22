@@ -1,6 +1,6 @@
 //! Exact capability comparison between an accepted baseline and a candidate.
 //!
-//! [`model`] owns exact conflict values, [`limits`] bounds hostile inputs, and
+//! This file owns the exact conflict values, [`limits`] bounds hostile inputs, and
 //! [`error`] names fail-closed outcomes. [`capabilities`] derives row changes,
 //! [`resources`] accounts hostile inputs, [`risk`] supports triage, and
 //! [`commitments`] binds those
@@ -12,24 +12,26 @@ mod error;
 mod format;
 mod limits;
 mod locked_policy;
-mod model;
 mod policy;
 mod render_error;
 pub(crate) mod resources;
 mod risk;
 
+use crate::declarations::BuildDeclarationKind;
+use crate::declarations::PackageKey;
+use crate::resolution::graph::{CanonicalSourceClosureSubjectFingerprint, DependencyRequestPath};
+use crate::review::candidate::ReviewOnlySourceConsumptionCommitment;
 pub use capabilities::{
     compare_review_only_capabilities, compare_review_only_initial_capabilities,
 };
+pub use error::ReviewOnlyCapabilityConflictError;
+use format::{RenderByteCounter, render_conflict_set};
+pub use limits::ReviewOnlyCapabilityConflictLimits;
 pub use locked_policy::{LockedPolicyComparisonError, compare_locked_package_policies};
-pub use model::{
-    ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflict,
-    ReviewOnlyCapabilityConflictBaseline, ReviewOnlyCapabilityConflictChange,
-    ReviewOnlyCapabilityConflictError, ReviewOnlyCapabilityConflictFingerprint,
-    ReviewOnlyCapabilityConflictLimits, ReviewOnlyCapabilityConflictSet,
-    ReviewOnlyPackageCapabilityConflicts, ReviewOnlyRootRoleChange, ReviewOnlyRootRoleContract,
-    ReviewSetRole,
+use package_evidence::record::{
+    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
 };
+use package_source::ImmutableSourceResolution;
 pub use policy::{
     PackagePolicyChangeError, PackagePolicyChangeFingerprint, PackagePolicyChangeKind,
     PackagePolicyChangeLimits, PackagePolicyChangeSet, PackagePolicyDependencyPath,
@@ -41,3 +43,304 @@ pub(crate) use risk::changed_review_risk;
 
 #[cfg(test)]
 mod tests;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ReviewOnlyCapabilityConflictChange {
+    Added,
+    Removed,
+    Changed,
+}
+
+/// Exact compatibility contract broken by changing the selected project root's
+/// authored role without changing its package identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ReviewOnlyRootRoleContract {
+    DependencyCompatibility,
+    ApplicationActivation,
+}
+
+impl ReviewOnlyRootRoleContract {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::DependencyCompatibility => "dependency-compatibility",
+            Self::ApplicationActivation => "application-activation",
+        }
+    }
+}
+
+/// Directional review result for one stable root key whose authored role
+/// changed. This is blocking review evidence, not an admission decision.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewOnlyRootRoleChange {
+    root: PackageKey,
+    baseline_role: BuildDeclarationKind,
+    candidate_role: BuildDeclarationKind,
+    broken_contract: ReviewOnlyRootRoleContract,
+}
+
+impl ReviewOnlyRootRoleChange {
+    pub fn root(&self) -> &PackageKey {
+        &self.root
+    }
+
+    pub const fn baseline_role(&self) -> BuildDeclarationKind {
+        self.baseline_role
+    }
+
+    pub const fn candidate_role(&self) -> BuildDeclarationKind {
+        self.candidate_role
+    }
+
+    pub const fn broken_contract(&self) -> ReviewOnlyRootRoleContract {
+        self.broken_contract
+    }
+
+    pub const fn is_blocking(&self) -> bool {
+        true
+    }
+}
+
+/// Domain-separated identity for one exact review-time row conflict.
+///
+/// This is suitable for joining a future root-policy decision to the conflict
+/// it resolved. It is not itself a resolution, admission artifact, or proof of
+/// review.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ReviewOnlyCapabilityConflictFingerprint([u8; 32]);
+
+impl ReviewOnlyCapabilityConflictFingerprint {
+    pub const fn digest(self) -> [u8; 32] {
+        self.0
+    }
+}
+
+/// Review-only identity of exact candidate source topology and every package's
+/// target, compiler, source-consumption, build-observation, and whole-review
+/// evidence. It does not admit the candidate or certify any observation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ReviewOnlyCandidateClosureCommitment([u8; 32]);
+
+impl ReviewOnlyCandidateClosureCommitment {
+    pub const fn digest(self) -> [u8; 32] {
+        self.0
+    }
+}
+
+/// One exact compiler-owned row difference.
+///
+/// The package layer deliberately does not parse either canonical row. The
+/// compiler remains the sole owner of their semantic schema and matching key.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewOnlyCapabilityConflict {
+    kind: PackageReviewCanonicalRowKind,
+    risk: PackageReviewCanonicalRowRisk,
+    change: ReviewOnlyCapabilityConflictChange,
+    row_key: Vec<u8>,
+    baseline_row: Option<Vec<u8>>,
+    candidate_row: Option<Vec<u8>>,
+    baseline_source: Option<PackageReviewCanonicalRowSource>,
+    candidate_source: Option<PackageReviewCanonicalRowSource>,
+    fingerprint: ReviewOnlyCapabilityConflictFingerprint,
+}
+
+impl ReviewOnlyCapabilityConflict {
+    pub const fn kind(&self) -> PackageReviewCanonicalRowKind {
+        self.kind
+    }
+
+    pub const fn risk(&self) -> PackageReviewCanonicalRowRisk {
+        self.risk
+    }
+
+    pub const fn change(&self) -> ReviewOnlyCapabilityConflictChange {
+        self.change
+    }
+
+    pub fn row_key(&self) -> &[u8] {
+        &self.row_key
+    }
+
+    pub fn baseline_row(&self) -> Option<&[u8]> {
+        self.baseline_row.as_deref()
+    }
+
+    pub fn candidate_row(&self) -> Option<&[u8]> {
+        self.candidate_row.as_deref()
+    }
+
+    pub const fn baseline_source(&self) -> Option<&PackageReviewCanonicalRowSource> {
+        self.baseline_source.as_ref()
+    }
+
+    pub const fn candidate_source(&self) -> Option<&PackageReviewCanonicalRowSource> {
+        self.candidate_source.as_ref()
+    }
+
+    pub const fn fingerprint(&self) -> ReviewOnlyCapabilityConflictFingerprint {
+        self.fingerprint
+    }
+
+    /// Whether root policy must resolve this row before update. Representation-
+    /// TCB opacity alone recommends audit; blocking and opaque-blocking rows do
+    /// not become implicit admissions.
+    pub const fn is_blocking(&self) -> bool {
+        matches!(
+            self.risk,
+            PackageReviewCanonicalRowRisk::Blocking | PackageReviewCanonicalRowRisk::OpaqueBlocking
+        )
+    }
+}
+
+/// Conflicts for one exact package identity and candidate dependency path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReviewOnlyCapabilityConflictBaseline {
+    /// Fresh package admission has no prior resolution, source commitment, or
+    /// review row. This is an explicit empty policy baseline, not synthesized
+    /// evidence.
+    EmptyAdmission,
+    /// A locally retained review baseline for an existing package lineage.
+    RetainedReview {
+        resolution: ImmutableSourceResolution,
+        source_consumption: ReviewOnlySourceConsumptionCommitment,
+    },
+}
+
+impl ReviewOnlyCapabilityConflictBaseline {
+    pub const fn is_empty_admission(&self) -> bool {
+        matches!(self, Self::EmptyAdmission)
+    }
+
+    pub const fn resolution(&self) -> Option<&ImmutableSourceResolution> {
+        match self {
+            Self::EmptyAdmission => None,
+            Self::RetainedReview { resolution, .. } => Some(resolution),
+        }
+    }
+
+    pub const fn source_consumption(&self) -> Option<ReviewOnlySourceConsumptionCommitment> {
+        match self {
+            Self::EmptyAdmission => None,
+            Self::RetainedReview {
+                source_consumption, ..
+            } => Some(*source_consumption),
+        }
+    }
+}
+
+/// Conflicts for one exact package identity and candidate dependency path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewOnlyPackageCapabilityConflicts {
+    key: PackageKey,
+    baseline: ReviewOnlyCapabilityConflictBaseline,
+    candidate_resolution: ImmutableSourceResolution,
+    dependency_path: DependencyRequestPath,
+    candidate_source_consumption: ReviewOnlySourceConsumptionCommitment,
+    candidate_closure: ReviewOnlyCandidateClosureCommitment,
+    conflicts: Vec<ReviewOnlyCapabilityConflict>,
+}
+
+impl ReviewOnlyPackageCapabilityConflicts {
+    pub fn key(&self) -> &PackageKey {
+        &self.key
+    }
+
+    pub const fn baseline(&self) -> &ReviewOnlyCapabilityConflictBaseline {
+        &self.baseline
+    }
+
+    pub fn baseline_resolution(&self) -> Option<&ImmutableSourceResolution> {
+        self.baseline.resolution()
+    }
+
+    pub fn candidate_resolution(&self) -> &ImmutableSourceResolution {
+        &self.candidate_resolution
+    }
+
+    pub const fn dependency_path(&self) -> &DependencyRequestPath {
+        &self.dependency_path
+    }
+
+    pub const fn baseline_source_consumption(
+        &self,
+    ) -> Option<ReviewOnlySourceConsumptionCommitment> {
+        self.baseline.source_consumption()
+    }
+
+    pub const fn candidate_source_consumption(&self) -> ReviewOnlySourceConsumptionCommitment {
+        self.candidate_source_consumption
+    }
+
+    pub const fn candidate_closure(&self) -> ReviewOnlyCandidateClosureCommitment {
+        self.candidate_closure
+    }
+
+    pub fn conflicts(&self) -> &[ReviewOnlyCapabilityConflict] {
+        &self.conflicts
+    }
+}
+
+/// Exact row conflicts for ordinary updates and fresh package admission.
+///
+/// Fresh packages expose only trust-bearing rows that require root policy;
+/// ordinary API rows have no prior compatibility contract. Removed packages
+/// and source-lineage replacement still receive separate provenance triage.
+/// Accepted-lock publication remains a separate project transaction.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewOnlyCapabilityConflictSet {
+    packages: Vec<ReviewOnlyPackageCapabilityConflicts>,
+    source_subject: CanonicalSourceClosureSubjectFingerprint,
+}
+
+impl ReviewOnlyCapabilityConflictSet {
+    /// Exact source graph, root role, requests, and target used for comparison.
+    pub const fn source_subject(&self) -> &CanonicalSourceClosureSubjectFingerprint {
+        &self.source_subject
+    }
+
+    pub fn packages(&self) -> &[ReviewOnlyPackageCapabilityConflicts] {
+        &self.packages
+    }
+
+    pub fn conflict_count(&self) -> usize {
+        self.packages
+            .iter()
+            .map(|package| package.conflicts.len())
+            .sum()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.packages.is_empty()
+    }
+
+    /// Render a fixed-vocabulary, injection-resistant exact conflict view.
+    ///
+    /// Compiler rows are summarized by byte length and digest rather than decoded
+    /// by package code. Source locations and the companion source patch supply
+    /// the human-readable code context.
+    pub fn render_bounded(
+        &self,
+        maximum_bytes: usize,
+    ) -> Result<String, ReviewOnlyCapabilityConflictRenderError> {
+        let mut counter = RenderByteCounter::default();
+        render_conflict_set(&mut counter, self);
+        if counter.bytes > maximum_bytes {
+            return Err(ReviewOnlyCapabilityConflictRenderError::LimitExceeded {
+                maximum_bytes,
+                required_bytes: counter.bytes,
+            });
+        }
+        let mut rendered = String::new();
+        rendered
+            .try_reserve_exact(counter.bytes)
+            .map_err(|_| ReviewOnlyCapabilityConflictRenderError::AllocationFailed)?;
+        render_conflict_set(&mut rendered, self);
+        debug_assert_eq!(rendered.len(), counter.bytes);
+        Ok(rendered)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReviewSetRole {
+    Baseline,
+    Candidate,
+}

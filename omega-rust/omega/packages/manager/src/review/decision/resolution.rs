@@ -1,4 +1,4 @@
-use super::model::{ReviewOnlyRootPolicyDecision, ReviewOnlyRootPolicyDisposition};
+use super::{ReviewOnlyRootPolicyDecision, ReviewOnlyRootPolicyDisposition};
 use crate::review::timings;
 use crate::review::{
     ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflictFingerprint,

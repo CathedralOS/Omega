@@ -1,4 +1,4 @@
-use super::model::{
+use super::{
     CanonicalPackageReconstructionEntry, CanonicalPackageReconstructionQuestion,
     CanonicalPackageReconstructionQuestionError, CanonicalPackageReconstructionQuestionFingerprint,
     CanonicalPackageReconstructionQuestionLimits,

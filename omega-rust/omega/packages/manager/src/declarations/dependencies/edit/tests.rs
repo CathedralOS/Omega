@@ -1,11 +1,11 @@
 use crate::declarations::dependencies::edit::BUILD_FILE_NAME;
-use crate::declarations::dependencies::edit::model::{
-    BuildDependencyEditError, BuildDependencyEditPlan, BuildDependencyManualReason,
-    BuildFileReplacement,
-};
 use crate::declarations::dependencies::edit::planning::plan_dependency_addition;
 use crate::declarations::dependencies::edit::rendering::{
     canonical_dependency_statement, source_digest,
+};
+use crate::declarations::dependencies::edit::{
+    BuildDependencyEditError, BuildDependencyEditPlan, BuildDependencyManualReason,
+    BuildFileReplacement,
 };
 use crate::declarations::dependencies::read::{
     DependencyProjectionError, DependencyPurpose, DependencySourceRequest, PackageSelection,

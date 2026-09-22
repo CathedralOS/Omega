@@ -2,8 +2,8 @@
 
 mod old_sources;
 
-use super::model::{PackageCommandError, failure};
 use super::state;
+use super::{PackageCommandError, failure};
 use crate::lock::PackageLock;
 use crate::operations::PackageFileTransaction;
 use crate::resolution::graph::ResolvedPackageSourceClosure;

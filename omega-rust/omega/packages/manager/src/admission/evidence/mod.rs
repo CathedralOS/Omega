@@ -1,12 +1,204 @@
 //! Exact in-memory ordinary evidence after fresh reconstruction and project-policy comparison.
 
 mod assembly;
-mod model;
 mod validation;
 
-pub use assembly::accept_ordinary_closure_evidence;
-pub use model::{
-    ACCEPTED_ORDINARY_EVIDENCE_SCHEMA_VERSION, AcceptedOrdinaryClosureEvidence,
-    AcceptedOrdinaryEvidenceError, AcceptedOrdinaryEvidenceSchemaIdentity,
-    AcceptedOrdinaryPackageEvidence,
+use crate::declarations::PackageKey;
+use crate::review::{
+    FreshPackageRootPolicyAcceptance, FreshPackageRootPolicyError, PackagePolicyChangeSet,
 };
+pub use assembly::accept_ordinary_closure_evidence;
+use build_evaluation::{BuildEvaluationUsage, BuildObservationSummary};
+use package_compilation::{
+    AcceptedSemanticBinding, PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment,
+};
+use package_evidence::ledger::{
+    OrdinaryPackageObligationLedger, OrdinaryPackageObligationResultSet,
+    OrdinaryPackageObligationSchemaIdentity,
+};
+use package_source::{ImmutableSourceResolution, SourceResolveError};
+
+pub const ACCEPTED_ORDINARY_EVIDENCE_SCHEMA_VERSION: u16 = 6;
+
+/// Closed identity for the exact accepted-evidence vocabulary represented by
+/// this module. This is distinct from the obligation schema and any future
+/// accepted-lock framing version.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AcceptedOrdinaryEvidenceSchemaIdentity {
+    version: u16,
+}
+
+impl AcceptedOrdinaryEvidenceSchemaIdentity {
+    pub const fn current() -> Self {
+        Self {
+            version: ACCEPTED_ORDINARY_EVIDENCE_SCHEMA_VERSION,
+        }
+    }
+
+    pub const fn version(self) -> u16 {
+        self.version
+    }
+}
+
+/// One exact checked package occurrence and its local derivation provenance.
+///
+/// Construction is private to the complete closure gate. The ordinary
+/// artifact is the complete locally reconstructed obligation ledger, not a
+/// compiler verdict, review fingerprint, or native executable.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AcceptedOrdinaryPackageEvidence {
+    package: PackageKey,
+    resolution: ImmutableSourceResolution,
+    source_consumption: PackageSourceConsumptionCommitment,
+    selected_build_machine_identity: String,
+    build_evaluation_usage: Option<BuildEvaluationUsage>,
+    build_observation: Option<BuildObservationSummary>,
+    semantic_bindings: Vec<AcceptedSemanticBinding>,
+    generated_sources: PackageGeneratedSourceBundle,
+    artifact: OrdinaryPackageObligationLedger,
+    results: OrdinaryPackageObligationResultSet,
+}
+
+impl AcceptedOrdinaryPackageEvidence {
+    pub const fn package(&self) -> &PackageKey {
+        &self.package
+    }
+
+    pub const fn resolution(&self) -> &ImmutableSourceResolution {
+        &self.resolution
+    }
+
+    pub const fn source_consumption(&self) -> PackageSourceConsumptionCommitment {
+        self.source_consumption
+    }
+
+    /// Canonical semantic identity of the build machine admitted by this
+    /// exact compiler review.
+    pub fn selected_build_machine_identity(&self) -> &str {
+        &self.selected_build_machine_identity
+    }
+
+    pub const fn build_evaluation_usage(&self) -> Option<BuildEvaluationUsage> {
+        self.build_evaluation_usage
+    }
+
+    pub const fn build_observation(&self) -> Option<&BuildObservationSummary> {
+        self.build_observation.as_ref()
+    }
+
+    /// Exact consumer semantic roles used to derive this package evidence.
+    /// The project's accepted normalized policy still governs requirements
+    /// exposed by those roles.
+    pub fn semantic_bindings(&self) -> &[AcceptedSemanticBinding] {
+        &self.semantic_bindings
+    }
+
+    pub const fn generated_sources(&self) -> &PackageGeneratedSourceBundle {
+        &self.generated_sources
+    }
+
+    pub const fn artifact(&self) -> &OrdinaryPackageObligationLedger {
+        &self.artifact
+    }
+
+    pub const fn obligation_schema(&self) -> OrdinaryPackageObligationSchemaIdentity {
+        self.artifact.schema()
+    }
+
+    pub const fn results(&self) -> &OrdinaryPackageObligationResultSet {
+        &self.results
+    }
+}
+
+/// Authority-bearing in-memory acceptance for one exact ordinary package
+/// closure.
+///
+/// The only public construction path reruns source custody, obligation
+/// reconstruction, transitive composition, occurrence-local row matching, and project-policy
+/// comparison. This value has no codec, lock mutation route, audit receipt, or
+/// `PackageInstance` constructor.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AcceptedOrdinaryClosureEvidence {
+    schema: AcceptedOrdinaryEvidenceSchemaIdentity,
+    packages: Vec<AcceptedOrdinaryPackageEvidence>,
+    acceptance: FreshPackageRootPolicyAcceptance,
+}
+
+impl AcceptedOrdinaryClosureEvidence {
+    pub const fn schema(&self) -> AcceptedOrdinaryEvidenceSchemaIdentity {
+        self.schema
+    }
+
+    pub fn packages(&self) -> &[AcceptedOrdinaryPackageEvidence] {
+        &self.packages
+    }
+
+    pub const fn acceptance(&self) -> &FreshPackageRootPolicyAcceptance {
+        &self.acceptance
+    }
+
+    pub const fn policy_changes(&self) -> &PackagePolicyChangeSet {
+        self.acceptance.policy_changes()
+    }
+}
+
+#[derive(Debug)]
+pub enum AcceptedOrdinaryEvidenceError {
+    SourceCustody {
+        package: PackageKey,
+        error: SourceResolveError,
+    },
+    SourceSelectionCustody {
+        package: PackageKey,
+        error: crate::resolution::source::PackageSourceSelectionEvidenceError,
+    },
+    RootPolicy(FreshPackageRootPolicyError),
+    MissingReview(PackageKey),
+    ReviewAssociationMismatch(PackageKey),
+    AllocationFailed,
+}
+
+impl std::fmt::Display for AcceptedOrdinaryEvidenceError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::SourceCustody { package, error } => write!(
+                formatter,
+                "accepted ordinary evidence source custody changed for {package:?}: {error}"
+            ),
+            Self::SourceSelectionCustody { package, error } => write!(
+                formatter,
+                "accepted ordinary evidence source selection changed for {package:?}: {error}"
+            ),
+            Self::RootPolicy(error) => {
+                write!(
+                    formatter,
+                    "accepted ordinary evidence policy check failed: {error}"
+                )
+            }
+            Self::MissingReview(package) => write!(
+                formatter,
+                "accepted ordinary evidence is missing compiler review for {package:?}"
+            ),
+            Self::ReviewAssociationMismatch(package) => write!(
+                formatter,
+                "accepted ordinary evidence review does not match reconstructed package {package:?}"
+            ),
+            Self::AllocationFailed => {
+                formatter.write_str("accepted ordinary evidence allocation failed")
+            }
+        }
+    }
+}
+
+impl std::error::Error for AcceptedOrdinaryEvidenceError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::SourceCustody { error, .. } => Some(error),
+            Self::SourceSelectionCustody { error, .. } => Some(error),
+            Self::RootPolicy(error) => Some(error),
+            Self::MissingReview(_)
+            | Self::ReviewAssociationMismatch(_)
+            | Self::AllocationFailed => None,
+        }
+    }
+}

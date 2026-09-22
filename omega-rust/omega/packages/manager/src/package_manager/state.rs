@@ -1,6 +1,6 @@
 //! Command proposal and editable findings, separate from publication intent.
 
-use super::model::{PackageCommandError, PackageCommandOutcome, PackageCommandStatus, failure};
+use super::{PackageCommandError, PackageCommandOutcome, PackageCommandStatus, failure};
 use crate::operations::{PackageFileTransaction, PackagePublicationError};
 use platform_custody::record_file::{RecordFileLimits, RecordFileRoot, RootRecordRead};
 use std::path::{Path, PathBuf};

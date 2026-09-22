@@ -1,4 +1,4 @@
-use super::model::ReviewOnlyRootPolicyDisposition;
+use super::ReviewOnlyRootPolicyDisposition;
 use super::resolution::{
     ReviewOnlyRootPolicyResolution, ReviewOnlyRootPolicyResolutionError,
     resolve_review_only_root_policy_decisions,

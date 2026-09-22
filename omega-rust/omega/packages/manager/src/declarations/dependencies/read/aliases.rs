@@ -1,6 +1,6 @@
 //! Alias validation across the one flat dependency set.
 
-use super::model::ProjectedDependencies;
+use super::ProjectedDependencies;
 use crate::declarations::{AliasName, PackageName};
 use std::collections::BTreeMap;
 use std::fmt;

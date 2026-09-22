@@ -18,7 +18,7 @@ mod framing;
 #[cfg(test)]
 mod tests;
 
-use super::model::PackageCommandKind;
+use super::PackageCommandKind;
 use crate::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,
 };
