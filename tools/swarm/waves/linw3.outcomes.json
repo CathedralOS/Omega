@@ -31,11 +31,10 @@
   {
    "slot": "structural-borrow-identity",
    "agent_id": "17265e38",
-   "result": "landed + parked WIP",
-   "commits": ["c6c43812ae"],
-   "unpublished": ["53ce1f70ff on swarm/linw3-structural-borrow-identity — scalar_window_probe diagnosis for unread borrowed-receiver scalar-graph leg"],
+   "result": "landed x2",
+   "commits": ["c6c43812ae", "931a37193a"],
    "item_closed": false,
-   "notes": "RuntimeIndex segment end-to-end; died twice on rate limiter, WIP preserved via fill.py recover"
+   "notes": "RuntimeIndex segment end-to-end + borrowed byte views join scalar-return callee cohort; died twice on rate limiter — recovered WIP commit was amended into the second landed leg (931a37193a); probe file dropped before landing"
   },
   {
    "slot": "termination-ranking-checks",
