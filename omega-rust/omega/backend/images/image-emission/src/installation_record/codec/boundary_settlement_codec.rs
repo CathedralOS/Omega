@@ -665,6 +665,11 @@ fn encode_structural_path(
                 bytes.extend_from_slice(&[2, 0, 0, 0]);
                 push_u64(bytes, *index);
             }
+            StructuralPathSegment::FixedByteRange { start, end } => {
+                bytes.extend_from_slice(&[4, 0, 0, 0]);
+                push_u64(bytes, *start);
+                push_u64(bytes, *end);
+            }
         }
     }
     Ok(())
@@ -698,6 +703,10 @@ fn decode_structural_path(
             }
             2 => StructuralPathSegment::FixedIndex(reader.u64()?),
             3 => StructuralPathSegment::Referent,
+            4 => StructuralPathSegment::FixedByteRange {
+                start: reader.u64()?,
+                end: reader.u64()?,
+            },
             _ => return Err(InstallationError::InvalidBoundaryResult),
         });
     }
@@ -984,6 +993,53 @@ mod tests {
         StructuralOperationResult, StructuralTypeId, ValueId, decode_boundary_result,
         decode_boundary_runtime_source, encode_boundary_result, encode_boundary_runtime_source,
     };
+
+    #[test]
+    fn fixed_byte_range_path_codecs_preserve_endpoints_and_reject_malformed_wire() {
+        for codec in 0..3 {
+            let encode =
+                |bytes: &mut Vec<u8>, path: &[terminal_psi::StructuralPathSegment]| match codec {
+                    0 => super::encode_structural_path(bytes, path),
+                    1 => super::super::structural_argument_codec::encode_path(bytes, path),
+                    _ => super::super::unit_structural_scalar_field_store_codec::encode_path(
+                        bytes, path,
+                    ),
+                };
+            let decode = |reader: &mut Reader<'_>| match codec {
+                0 => super::decode_structural_path(reader),
+                1 => super::super::structural_argument_codec::decode_path(reader),
+                _ => super::super::unit_structural_scalar_field_store_codec::decode_path(reader),
+            };
+            for (start, end) in [(0, 0), (1, 3), (2, 4), (u64::MAX - 1, u64::MAX)] {
+                let path = vec![terminal_psi::StructuralPathSegment::FixedByteRange { start, end }];
+                let mut bytes = Vec::new();
+                encode(&mut bytes, &path).unwrap();
+                let mut expected = vec![1, 0, 0, 0, 4, 0, 0, 0];
+                expected.extend_from_slice(&start.to_le_bytes());
+                expected.extend_from_slice(&end.to_le_bytes());
+                assert_eq!(bytes, expected);
+                let mut reader = Reader::new(&bytes);
+                let decoded = decode(&mut reader).unwrap();
+                assert_eq!(decoded, path);
+                assert_eq!(reader.remaining(), 0);
+                let mut reencoded = Vec::new();
+                encode(&mut reencoded, &decoded).unwrap();
+                assert_eq!(reencoded, bytes);
+                for truncated_length in 0..bytes.len() {
+                    assert!(decode(&mut Reader::new(&bytes[..truncated_length])).is_err());
+                }
+                let mut reserved = bytes.clone();
+                reserved[5] = 1;
+                assert!(matches!(
+                    decode(&mut Reader::new(&reserved)),
+                    Err(InstallationError::NonzeroReservedField)
+                ));
+                let mut unknown_tag = bytes;
+                unknown_tag[4] = 5;
+                assert!(decode(&mut Reader::new(&unknown_tag)).is_err());
+            }
+        }
+    }
 
     #[test]
     fn selected_process_exit_source_has_no_scratch_and_preserves_exact_identity() {

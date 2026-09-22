@@ -382,7 +382,10 @@ pub(crate) fn validate_function_structural_catalog(
                                             *index,
                                         ))
                                     }
-                                    terminal_psi::StructuralPathSegment::Referent => None,
+                                    terminal_psi::StructuralPathSegment::Referent
+                                    | terminal_psi::StructuralPathSegment::FixedByteRange {
+                                        ..
+                                    } => None,
                                 })
                                 .collect::<Option<Vec<_>>>()
                                 .as_ref()

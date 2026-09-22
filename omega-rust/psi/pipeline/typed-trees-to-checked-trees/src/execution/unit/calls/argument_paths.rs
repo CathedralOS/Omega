@@ -283,6 +283,52 @@ fn fixed_array_literal_length(
     Some(*length)
 }
 
+/// A range loan stays a projection of its original fixed-array backing. The
+/// call owns its lifetime, so no independently live mutable descriptor is
+/// manufactured. Runtime endpoints need separate extent evidence; this route
+/// retains only canonical fixed bounds and rechecks the actual array extent.
+pub(crate) fn fixed_byte_array_range_path(
+    program: &TypedTrees,
+    state: SymbolHandle,
+    statement_index: usize,
+    place: &crate::flow::CanonicalPlace,
+    target: TypeReferenceHandle,
+) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
+    let (facts::PlaceSegment::FixedRange { start, end }, fields) = place.segments.split_last()?
+    else {
+        return None;
+    };
+    if !fields
+        .iter()
+        .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))
+    {
+        return None;
+    }
+    let backing = crate::flow::CanonicalPlace {
+        root: place.root,
+        segments: fields.to_vec(),
+    };
+    let (backing_type, mut path) =
+        projected_argument_path(program, state, statement_index, &backing)?;
+    let extent = fixed_array_literal_length(program, backing_type)?;
+    if extent == 0
+        || start > end
+        || *end > extent
+        || !super::boundary_admission::fixed_byte_array_view_is_admitted(
+            program,
+            backing_type,
+            target,
+        )
+    {
+        return None;
+    }
+    path.push(CheckedUnitStructuralPathSegment::FixedByteRange {
+        start: u64::try_from(*start).ok()?,
+        end: u64::try_from(*end).ok()?,
+    });
+    Some(path)
+}
+
 pub(crate) fn ordinary_projected_call_is_supported(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -427,6 +473,7 @@ pub(crate) fn ordinary_projected_call_is_supported(
                         segment,
                         CheckedUnitStructuralPathSegment::Field(_)
                             | CheckedUnitStructuralPathSegment::FixedIndex(_)
+                            | CheckedUnitStructuralPathSegment::FixedByteRange { .. }
                     )
                 });
                 match argument.access {

@@ -16,7 +16,9 @@ pub(crate) fn structural_argument_canonical_prefix(
     let mut prefix = Vec::with_capacity(argument.path.len());
     for (position, segment) in argument.path.iter().enumerate() {
         match segment {
-            StructuralPathSegment::Referent => return None,
+            StructuralPathSegment::Referent | StructuralPathSegment::FixedByteRange { .. } => {
+                return None;
+            }
             StructuralPathSegment::Field(identity) => {
                 let field = module
                     .structural_types
@@ -87,7 +89,9 @@ pub(crate) fn canonical_field_path(
     let mut written = Vec::with_capacity(path.len());
     for segment in path {
         match segment {
-            StructuralPathSegment::Referent => return None,
+            StructuralPathSegment::Referent | StructuralPathSegment::FixedByteRange { .. } => {
+                return None;
+            }
             StructuralPathSegment::Field(identity) => {
                 let declaration = module
                     .structural_types

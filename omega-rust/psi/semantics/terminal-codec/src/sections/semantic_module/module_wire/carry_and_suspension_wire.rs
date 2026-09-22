@@ -86,6 +86,11 @@ pub(crate) fn encode_suspension_call_plan(
                             writer.u64(*index);
                         }
                         terminal_psi::StructuralPathSegment::Referent => writer.u8(3),
+                        terminal_psi::StructuralPathSegment::FixedByteRange { start, end } => {
+                            writer.u8(4);
+                            writer.u64(*start);
+                            writer.u64(*end);
+                        }
                     }
                 }
             }
@@ -201,6 +206,10 @@ pub(crate) fn decode_suspension_call_plan(
                         reader.u64()?,
                     )),
                     3 => Ok(terminal_psi::StructuralPathSegment::Referent),
+                    4 => Ok(terminal_psi::StructuralPathSegment::FixedByteRange {
+                        start: reader.u64()?,
+                        end: reader.u64()?,
+                    }),
                     tag => Err(CodecError::InvalidTag("StructuralPathSegment", tag)),
                 })?,
             },

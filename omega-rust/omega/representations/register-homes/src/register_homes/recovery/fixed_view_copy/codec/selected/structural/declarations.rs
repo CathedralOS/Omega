@@ -486,6 +486,11 @@ pub(super) fn encode_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
                 bytes.extend_from_slice(&value.to_le_bytes());
             }
             StructuralPathSegment::Referent => bytes.push(3),
+            StructuralPathSegment::FixedByteRange { start, end } => {
+                bytes.push(4);
+                bytes.extend_from_slice(&start.to_le_bytes());
+                bytes.extend_from_slice(&end.to_le_bytes());
+            }
         }
     }
 }
@@ -500,6 +505,10 @@ pub(super) fn decode_path(
             1 => StructuralPathSegment::Field(decode_string(cursor)?),
             2 => StructuralPathSegment::FixedIndex(cursor.u64()?),
             3 => StructuralPathSegment::Referent,
+            4 => StructuralPathSegment::FixedByteRange {
+                start: cursor.u64()?,
+                end: cursor.u64()?,
+            },
             tag => return Err(FixedViewCopyDecodeError::UnknownStructuralPathSegment(tag)),
         });
     }

@@ -60,6 +60,7 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
+ "terminal-semantics",
  "terminal-verifier",
  "tokens-to-syntax-trees",
  "typed-trees-to-checked-trees",
@@ -450,6 +451,7 @@ dependencies = [
  "terminal-interpreter",
  "terminal-production",
  "terminal-psi",
+ "terminal-semantics",
  "terminal-verifier",
  "tokens-to-syntax-trees",
  "typed-trees",
@@ -2274,6 +2276,7 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
+ "terminal-semantics",
  "terminal-verifier",
 ]
 

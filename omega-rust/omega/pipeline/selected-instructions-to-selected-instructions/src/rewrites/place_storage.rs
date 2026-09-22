@@ -46,9 +46,11 @@ pub(super) fn structural_place_declarations(
 /// subslice-descriptor, and call-result homes all publish the slot's
 /// materialized address as the place's storage pointer, so slot and place
 /// share byte coordinates. Any other `Structural` slot only stages bytes
-/// that name the place — a call's staged view descriptor — under its own
+/// that name the place under its own
 /// slot coordinates; a staging operation can never be its own argument's
-/// producer, so the declaration check never confuses the two.
+/// producer, so the declaration check never confuses the two. A
+/// `StructuralCallArgument` slot is always temporary descriptor storage;
+/// its call and argument ordinal never name the backing place's own storage.
 pub(super) fn local_slot_is_place_storage(
     slot: LocalStorageSlotId,
     place: PlaceId,
@@ -73,7 +75,9 @@ pub(super) fn local_slot_is_place_storage(
                         )
                 })
         }
-        LocalStorageSlotId::Spill { .. } | LocalStorageSlotId::Boundary { .. } => false,
+        LocalStorageSlotId::Spill { .. }
+        | LocalStorageSlotId::Boundary { .. }
+        | LocalStorageSlotId::StructuralCallArgument { .. } => false,
     }
 }
 
@@ -119,7 +123,9 @@ pub(super) fn row_storage(
 /// place's declaration does not charge to the slot's operation stages bytes
 /// that name the place under slot coordinates no place-named row can reach,
 /// so only the rows naming that very slot — a `WriteLocal` rewriting them
-/// or an `AddressLocal` exposing them — decide the walk.
+/// or an `AddressLocal` exposing them — decide the walk. A
+/// `StructuralCallArgument` descriptor likewise occupies only its exact
+/// call-and-argument slot, independent of the backing place named by its row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum SubjectStorage {
     Place,
@@ -148,14 +154,16 @@ pub(super) fn slot_is_subject_storage(
 /// `WriteLocal` claiming a different place than the slot's staged name is
 /// no coherent staging row — and the caller's `local_slot_is_place_storage`
 /// check has already ruled out the producer-home reading, so the slot's
-/// bytes are staging coordinates only.
+/// bytes are staging coordinates only. For `StructuralCallArgument`, the
+/// independently validated access roster binds the backing place; the slot
+/// itself identifies only that call argument's temporary descriptor.
 pub(super) fn staging_slot(slot: LocalStorageSlotId, place: PlaceId) -> Option<LocalStorageSlotId> {
-    if matches!(slot, LocalStorageSlotId::Structural { .. })
-        && slot.structural_place() == Some(place)
-    {
-        Some(slot)
-    } else {
-        None
+    match slot {
+        LocalStorageSlotId::StructuralCallArgument { .. } => Some(slot),
+        LocalStorageSlotId::Structural {
+            place: slot_place, ..
+        } if slot_place == place => Some(slot),
+        _ => None,
     }
 }
 
@@ -388,4 +396,70 @@ pub(super) fn local_store_shape<E>(
         return Err(reject());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        LocalStorageSlotId, PlaceId, SubjectStorage, local_slot_is_place_storage,
+        slot_is_subject_storage, staging_slot,
+    };
+    use semantic_vocabulary::{OperationId, StructuralPlaceKind, StructuralTypeId};
+    use terminal_psi::StructuralPlaceDeclaration;
+
+    #[test]
+    fn structural_call_argument_staging_is_distinct_from_backing_and_sibling_slots() {
+        let operation = OperationId::new(1).unwrap();
+        let place = PlaceId::new(2).unwrap();
+        let declarations = [StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: operation,
+                structural_type: StructuralTypeId::new(1).unwrap(),
+            },
+        }];
+        let slot = LocalStorageSlotId::StructuralCallArgument {
+            operation,
+            argument_index: 0,
+        };
+        assert_eq!(staging_slot(slot, place), Some(slot));
+        assert!(!local_slot_is_place_storage(slot, place, &declarations));
+        assert!(!slot_is_subject_storage(
+            slot,
+            SubjectStorage::Place,
+            place,
+            &declarations
+        ));
+        assert!(slot_is_subject_storage(
+            slot,
+            SubjectStorage::Staging(slot),
+            place,
+            &declarations
+        ));
+        for sibling in [
+            LocalStorageSlotId::StructuralCallArgument {
+                operation,
+                argument_index: 1,
+            },
+            LocalStorageSlotId::StructuralCallArgument {
+                operation: OperationId::new(2).unwrap(),
+                argument_index: 0,
+            },
+            LocalStorageSlotId::Structural { operation, place },
+        ] {
+            assert!(!slot_is_subject_storage(
+                sibling,
+                SubjectStorage::Staging(slot),
+                place,
+                &declarations
+            ));
+        }
+        let owner = LocalStorageSlotId::Structural { operation, place };
+        assert!(local_slot_is_place_storage(owner, place, &declarations));
+        assert_eq!(staging_slot(owner, PlaceId::new(3).unwrap()), None);
+        assert_eq!(
+            staging_slot(LocalStorageSlotId::Boundary { operation }, place),
+            None
+        );
+    }
 }

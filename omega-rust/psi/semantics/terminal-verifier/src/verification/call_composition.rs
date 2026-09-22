@@ -562,7 +562,8 @@ fn compose_structural_scalar_call(
     Ok(())
 }
 
-/// Borrowed referents have no owned-field spelling in the proposition algebra.
+/// Borrowed referents and fixed byte windows have no owned-field spelling in
+/// the proposition algebra. A window must never substitute its entire backing.
 /// Omit an unused binder only after checking the complete published contract;
 /// a contract that actually needs the missing projection remains unsupported.
 fn structural_contract_substitutions(
@@ -613,7 +614,19 @@ fn structural_contract_substitutions(
             .any(|proposition| {
                 crate::validation::proposition_observes_places(proposition, &[parameter.place])
             });
-        if !crate::validation::is_reference_projection(module, caller, argument) || observed {
+        let fixed_window = caller.structural_parameters.iter().any(|actual| {
+            terminal_semantics::fixed_byte_array_window(
+                module.structural_types.iter(),
+                actual,
+                argument,
+                parameter,
+            )
+            .is_some()
+        });
+        if observed
+            || (!crate::validation::is_reference_projection(module, caller, argument)
+                && !fixed_window)
+        {
             return Err(ModuleError::InvalidReferenceCustody {
                 machine: caller.id,
                 reason: "callee contract requires an unsupported reference projection",

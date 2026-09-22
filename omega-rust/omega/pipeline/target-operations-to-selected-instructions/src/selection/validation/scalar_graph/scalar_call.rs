@@ -55,12 +55,30 @@ pub(super) fn argument_pointer(
     let pointer =
         structural::call_pointer(replay, operation, pointer_place, target.source_byte_offset)?;
     let pointer = if let Some(length) = target.fixed_array_length {
-        structural::fixed_array_argument(replay, operation, semantic.place, pointer, length)?
+        structural::fixed_array_argument(
+            replay,
+            operation,
+            semantic.place,
+            argument_index
+                .try_into()
+                .map_err(|_| SelectedInstructionError::SourceCustodyMismatch)?,
+            pointer,
+            length,
+        )?
     } else if let Some((field_offset, _)) = byte_field {
         if field_offset != target.source_byte_offset {
             return Err(SelectedInstructionError::SourceCustodyMismatch);
         }
-        structural::byte_field_argument(replay, operation, semantic.place, pointer, field_offset)?
+        structural::byte_field_argument(
+            replay,
+            operation,
+            semantic.place,
+            argument_index
+                .try_into()
+                .map_err(|_| SelectedInstructionError::SourceCustodyMismatch)?,
+            pointer,
+            field_offset,
+        )?
     } else {
         pointer
     };

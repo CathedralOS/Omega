@@ -13,6 +13,12 @@ pub(crate) fn lower_structural_path(
             CheckedUnitStructuralPathSegment::FixedIndex(index) => {
                 StructuralPathSegment::FixedIndex(*index)
             }
+            CheckedUnitStructuralPathSegment::FixedByteRange { start, end } => {
+                StructuralPathSegment::FixedByteRange {
+                    start: *start,
+                    end: *end,
+                }
+            }
         })
         .collect()
 }

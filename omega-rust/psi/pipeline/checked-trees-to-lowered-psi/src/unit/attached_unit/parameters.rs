@@ -991,32 +991,42 @@ fn fixed_byte_array_view_transfer(
     type_ids: &[(String, StructuralTypeId)],
     structural_types: &[StructuralTypeDeclaration],
 ) -> bool {
-    if source.access != StructuralAccess::MutableBorrow
-        || argument.access != checked_trees::CheckedStructuralAccess::MutableBorrow
-        || target.access != checked_trees::CheckedStructuralAccess::MutableBorrow
-        || source.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+    if argument.access != target.access
         || target.multiplicity != Multiplicity::Unrestricted
-        || !source.qualifications.is_empty()
-        || !source.projected_qualifications.is_empty()
         || !target.qualifications.is_empty()
-        || !argument.path.is_empty()
+        || !target.projected_qualifications.is_empty()
     {
         return false;
     }
-    let Some(StructuralTypeShape::FixedArray { element, .. }) = structural_types
-        .iter()
-        .find(|declaration| declaration.id == source.structural_type)
-        .map(|declaration| &declaration.shape)
-    else {
+    let access = match target.access {
+        checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
+        checked_trees::CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
+        _ => return false,
+    };
+    let Ok(structural_type) = lookup_type_id(type_ids, &target.type_identity) else {
         return false;
     };
-    structural_types.iter().any(|declaration| declaration.id == *element
-        && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(integer))
-            if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address()))
-        && lookup_type_id(type_ids, &target.type_identity).ok().is_some_and(|target_type| {
-            structural_types.iter().any(|declaration| declaration.id == target_type
-                && matches!(declaration.shape, StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)))
-        })
+    let expected = StructuralParameterDeclaration {
+        place: source.place,
+        position: target.position,
+        is_self: target.is_self,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    terminal_semantics::fixed_byte_array_window(
+        structural_types.iter(),
+        source,
+        &StructuralArgument {
+            place: source.place,
+            path: lower_structural_path(&argument.path),
+            access,
+        },
+        &expected,
+    )
+    .is_some()
 }
 
 fn checked_access_can_supply(

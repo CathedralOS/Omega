@@ -340,43 +340,24 @@ pub(crate) fn fixed_byte_array_view(
     view_type: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(u32, u64)> {
-    if source.place != argument.place
-        || source.access != terminal_psi::StructuralAccess::MutableBorrow
-        || argument.access != terminal_psi::StructuralAccess::MutableBorrow
-        || source.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-        || !source.qualifications.is_empty()
-        || !source.projected_qualifications.is_empty()
-        || !argument
-            .path
-            .iter()
-            .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
-        || !declarations.iter().any(|declaration| {
-            declaration.id == view_type
-                && declaration.shape
-                    == StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView,
-                    )
-        })
-    {
-        return None;
-    }
-    let (array_type, offset) = project(source.structural_type, &argument.path, declarations)?;
-    let StructuralTypeShape::FixedArray { element, length } = declarations
-        .iter()
-        .find(|declaration| declaration.id == array_type)?
-        .shape
-    else {
-        return None;
-    };
-    if length == 0 || !declarations.iter().any(|declaration| declaration.id == element
-        && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
-            if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address()))
-    {
-        return None;
-    }
+    // The caller independently checks the actual callee signature. Here the
+    // expected presentation is the exact plain borrowed byte-view shape.
+    let mut destination = source.clone();
+    destination.structural_type = view_type;
+    destination.access = argument.access;
+    let window = terminal_semantics::fixed_byte_array_window(
+        declarations.iter(),
+        source,
+        argument,
+        &destination,
+    )?;
+    let (_, offset) = project(source.structural_type, window.backing_path, declarations)?;
     let root = shape(source.structural_type, declarations)?;
-    (u64::from(offset).checked_add(length)? <= u64::from(root.byte_size))
-        .then_some((offset, length))
+    if u64::from(offset).checked_add(window.backing_length)? > u64::from(root.byte_size) {
+        return None;
+    }
+    let offset = u64::from(offset).checked_add(window.offset)?;
+    Some((u32::try_from(offset).ok()?, window.length))
 }
 
 /// Reconstruct a borrowed view presented from a bounded inline byte field.

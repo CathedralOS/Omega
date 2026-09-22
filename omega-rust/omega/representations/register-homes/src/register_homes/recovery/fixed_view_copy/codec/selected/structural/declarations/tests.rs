@@ -11,6 +11,30 @@ use crate::register_homes::recovery::fixed_view_copy::codec::selected::structura
 use crate::register_homes::recovery::fixed_view_copy::codec::selected::structural::declarations::encode_type;
 
 #[test]
+fn fixed_byte_range_path_round_trip_retains_exact_endpoints_and_rejects_truncation() {
+    for (start, end) in [(0, 0), (1, 3), (2, 4), (u64::MAX - 1, u64::MAX)] {
+        let path = vec![StructuralPathSegment::FixedByteRange { start, end }];
+        let mut bytes = Vec::new();
+        encode_path(&mut bytes, &path);
+        let mut expected = 1_u64.to_le_bytes().to_vec();
+        expected.push(4);
+        expected.extend_from_slice(&start.to_le_bytes());
+        expected.extend_from_slice(&end.to_le_bytes());
+        assert_eq!(bytes, expected);
+        let mut cursor = Cursor::new(&bytes);
+        let decoded = decode_path(&mut cursor).unwrap();
+        assert_eq!(decoded, path);
+        assert_eq!(cursor.remaining(), 0);
+        let mut reencoded = Vec::new();
+        encode_path(&mut reencoded, &decoded);
+        assert_eq!(reencoded, bytes);
+        for truncated_length in 0..bytes.len() {
+            assert!(decode_path(&mut Cursor::new(&bytes[..truncated_length])).is_err());
+        }
+    }
+}
+
+#[test]
 fn reference_type_and_referent_path_round_trip_without_erasing_custody() {
     let declaration = StructuralTypeDeclaration {
         id: StructuralTypeId::new(7).unwrap(),

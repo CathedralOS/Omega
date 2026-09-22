@@ -22,6 +22,78 @@ use terminal_psi::{
 };
 
 #[test]
+fn fixed_byte_range_call_identity_binds_both_endpoints() {
+    let mut baseline =
+        reconstruct_psi_optimization_unit_seed(&plan(), FuelScheduleIdentity::new(1).unwrap())
+            .unwrap();
+    baseline.functions[0].blocks[0].nodes[0].operation = AbstractOperation::CallUnit {
+        psi_operation: id(1, OperationId::new),
+        callee: id(2, MachineId::new),
+        arguments: Vec::new(),
+        structural_arguments: vec![terminal_psi::StructuralArgument {
+            place: id(1, PlaceId::new),
+            access: terminal_psi::StructuralAccess::MutableBorrow,
+            path: vec![terminal_psi::StructuralPathSegment::FixedByteRange { start: 0, end: 2 }],
+        }],
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    let original = recompute_psi_optimization_unit_identity(&baseline);
+    for (start, end) in [(1, 2), (0, 3), (1, 3)] {
+        let mut changed = baseline.clone();
+        let AbstractOperation::CallUnit {
+            structural_arguments,
+            ..
+        } = &mut changed.functions[0].blocks[0].nodes[0].operation
+        else {
+            unreachable!()
+        };
+        structural_arguments[0].path[0] =
+            terminal_psi::StructuralPathSegment::FixedByteRange { start, end };
+        let identity = recompute_psi_optimization_unit_identity(&changed);
+        assert_ne!(original, identity, "range {start}..{end}");
+        let canonical = crate::optimization_unit::identity::collect_unit_canonical_bytes(&changed);
+        assert_eq!(
+            OptimizationUnitIdentity::from_canonical_bytes(&canonical),
+            identity
+        );
+    }
+}
+
+#[test]
+fn fixed_byte_range_frontier_identity_binds_both_endpoints() {
+    let unit =
+        reconstruct_psi_optimization_unit_seed(&plan(), FuelScheduleIdentity::new(1).unwrap())
+            .unwrap();
+    let original = OwnershipFrontierFact::new(
+        unit.psi,
+        unit.functions[0].machine,
+        OwnershipFrontierSite::BlockEntry(unit.functions[0].blocks[0].id),
+        OwnershipFrontierSnapshot {
+            claims: vec![crate::OwnershipFrontierLiveClaim {
+                claim: id(1, ClaimId::new),
+                input: Some(id(1, PlaceId::new)),
+                path: vec![terminal_psi::StructuralPathSegment::FixedByteRange {
+                    start: 0,
+                    end: 2,
+                }],
+                multiplicity: None,
+            }],
+            owned_places: Vec::new(),
+            partial_custody: Vec::new(),
+        },
+    );
+    assert!(original.has_canonical_identity());
+    for (start, end) in [(1, 2), (0, 3), (1, 3)] {
+        let mut changed = original.clone();
+        changed.snapshot.claims[0].path[0] =
+            terminal_psi::StructuralPathSegment::FixedByteRange { start, end };
+        assert!(!changed.has_canonical_identity(), "range {start}..{end}");
+    }
+}
+
+#[test]
 fn boundary_fixed_service_reach_changes_identity_without_changing_published_ceiling() {
     let source = plan();
     let mut unit =

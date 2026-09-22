@@ -8,6 +8,7 @@ use super::{
     ValueDefinitionSite, ValueId, ValueLocation, ValueShape, VirtualRegisterId, build,
     evaluate_call_plan, fixture, returned,
 };
+mod fixed_windows;
 mod literal_storage;
 mod mixed;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};

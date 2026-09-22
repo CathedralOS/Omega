@@ -305,7 +305,8 @@ pub(super) fn validate_content_entry_claims(
                             StructuralPathSegment::FixedIndex(index) => {
                                 Some(semantic_vocabulary::ContentPlaceSegment::FixedIndex(*index))
                             }
-                            StructuralPathSegment::Referent => None,
+                            StructuralPathSegment::Referent
+                            | StructuralPathSegment::FixedByteRange { .. } => None,
                         })
                         .collect::<Option<Vec<_>>>())
         {
@@ -891,7 +892,9 @@ fn partition_substitutions_match_arguments(
                 StructuralPathSegment::FixedIndex(index) => {
                     Some(semantic_vocabulary::ContentPlaceSegment::FixedIndex(*index))
                 }
-                StructuralPathSegment::Referent => None,
+                StructuralPathSegment::Referent | StructuralPathSegment::FixedByteRange { .. } => {
+                    None
+                }
             })
             .collect::<Option<Vec<_>>>()
         else {

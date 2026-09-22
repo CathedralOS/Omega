@@ -251,7 +251,8 @@ fn edge_attribution_is_not_unique(
 fn is_partial_cleanup_path(path: &[terminal_psi::StructuralPathSegment]) -> bool {
     !path.is_empty()
         && path.iter().all(|segment| match segment {
-            terminal_psi::StructuralPathSegment::Referent => false,
+            terminal_psi::StructuralPathSegment::Referent
+            | terminal_psi::StructuralPathSegment::FixedByteRange { .. } => false,
             terminal_psi::StructuralPathSegment::Field(identity) => !identity.is_empty(),
             terminal_psi::StructuralPathSegment::FixedIndex(_) => true,
         })

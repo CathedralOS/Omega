@@ -282,7 +282,7 @@ fn preceding_byte_loan_preserves_carrier(
     if matching.next().is_some()
         || parameter.is_self
         || parameter.is_const
-        || !(crate::execution::terminal_unit::calls::boundary_admission::fixed_byte_array_mutable_view_is_admitted(
+        || !(crate::execution::terminal_unit::calls::boundary_admission::fixed_byte_array_view_is_admitted(
             program,
             source.type_reference,
             parameter.type_reference,

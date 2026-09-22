@@ -5,6 +5,7 @@ use crate::custody::resolve_structural_arguments;
 use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
 use crate::values::StructuralRuntimePlace;
+use crate::values::TerminalStructuralValue;
 use semantic_vocabulary::ScalarType;
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeMap;
@@ -90,7 +91,9 @@ impl TerminalExecution {
                 .ok_or_else(invalid)?;
             if !matches!(
                 parameter.access,
-                StructuralAccess::Owned | StructuralAccess::MutableBorrow
+                StructuralAccess::Owned
+                    | StructuralAccess::MutableBorrow
+                    | StructuralAccess::SharedBorrow
             ) || !matches!(
                 parameter.multiplicity,
                 StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
@@ -152,29 +155,48 @@ impl TerminalExecution {
         &self,
         parameter: &StructuralParameterDeclaration,
         argument: &StructuralArgument,
-    ) -> Result<Option<ByteSequenceBinding>, TerminalInterpretError> {
+    ) -> Result<Option<(TerminalStructuralValue, ByteSequenceBinding)>, TerminalInterpretError>
+    {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
-        if parameter.access != StructuralAccess::MutableBorrow
-            || !self
-                .structural_types
-                .get(&parameter.structural_type)
-                .is_some_and(|declaration| {
-                    declaration.shape
-                        == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
-                })
+        if !matches!(
+            parameter.access,
+            StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+        ) || !self
+            .structural_types
+            .get(&parameter.structural_type)
+            .is_some_and(|declaration| {
+                declaration.shape
+                    == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+            })
         {
             return Ok(None);
         }
         if parameter.multiplicity != StructuralMultiplicity::Unrestricted
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
-            || argument.access != StructuralAccess::MutableBorrow
+            || argument.access != parameter.access
             || self
                 .live_claims
                 .values()
                 .any(|claim| claim.place == Some(argument.place))
         {
             return Err(invalid());
+        }
+        if argument.path.is_empty()
+            && let Some(binding @ ByteSequenceBinding::Immutable(_)) =
+                self.byte_sequence_values.get(&argument.place)
+        {
+            let value = self
+                .structural_values
+                .get(&argument.place)
+                .ok_or_else(invalid)?;
+            if parameter.access != StructuralAccess::SharedBorrow
+                || value.structural_type != parameter.structural_type
+                || !value.qualifications.is_empty()
+            {
+                return Err(invalid());
+            }
+            return Ok(Some((value.clone(), binding.clone())));
         }
         if argument.path.is_empty()
             && let Some(binding @ ByteSequenceBinding::MutableArray { .. }) =
@@ -188,15 +210,41 @@ impl TerminalExecution {
                 return Err(invalid());
             }
             binding.validate_mutable_referent(&self.structural_types, value)?;
-            return Ok(Some(binding.clone()));
+            if parameter.access == StructuralAccess::SharedBorrow {
+                let ByteSequenceBinding::MutableArray {
+                    array,
+                    offset,
+                    length,
+                    ..
+                } = binding
+                else {
+                    return Err(invalid());
+                };
+                let bytes = self.structural_byte_arrays.get(array).ok_or_else(invalid)?;
+                let start = usize::try_from(*offset).map_err(|_| invalid())?;
+                let end = usize::try_from(offset.checked_add(*length).ok_or_else(invalid)?)
+                    .map_err(|_| invalid())?;
+                return Ok(Some((
+                    value.clone(),
+                    ByteSequenceBinding::Immutable(bytes.subslice(start, end).ok_or_else(invalid)?),
+                )));
+            }
+            return Ok(Some((value.clone(), binding.clone())));
         }
         // A genuine array projection resolves to its own structural type. The
         // bounded byte-field presentation remains owned by its separate path.
         let Some(root) = self.structural_values.get(&argument.place) else {
             return Err(invalid());
         };
+        // A window changes the borrowed extent, never the backing's identity.
+        // Keep the range out of the storage key so repeated and forwarded calls
+        // update the same array and leave bytes outside the loan untouched.
+        let backing_path = match argument.path.split_last() {
+            Some((StructuralPathSegment::FixedByteRange { .. }, backing)) => backing,
+            _ => &argument.path,
+        };
         let Some(array_type) =
-            array_path_type(&self.structural_types, root.structural_type, &argument.path)
+            array_path_type(&self.structural_types, root.structural_type, backing_path)
         else {
             return Ok(None);
         };
@@ -221,18 +269,29 @@ impl TerminalExecution {
             )
             .find(|source| source.place == argument.place)
             .ok_or_else(invalid)?;
-        if source.access != StructuralAccess::MutableBorrow
-            || source.multiplicity != StructuralMultiplicity::Unrestricted
+        if source.multiplicity != StructuralMultiplicity::Unrestricted
             || source.structural_type != root.structural_type
             || !source.qualifications.is_empty()
             || !source.projected_qualifications.is_empty()
         {
             return Err(invalid());
         }
+        let window = terminal_semantics::fixed_byte_array_window(
+            self.structural_types.values(),
+            source,
+            argument,
+            parameter,
+        )
+        .ok_or_else(invalid)?;
+        let backing_argument = StructuralArgument {
+            place: argument.place,
+            path: window.backing_path.to_vec(),
+            access: argument.access,
+        };
         let mut referent = resolve_structural_arguments(
             &self.structural_types,
             &self.structural_values,
-            std::slice::from_ref(argument),
+            std::slice::from_ref(&backing_argument),
         )?
         .pop()
         .ok_or_else(invalid)?;
@@ -248,10 +307,32 @@ impl TerminalExecution {
             return Err(invalid());
         }
         referent.structural_type = parameter.structural_type;
-        Ok(Some(ByteSequenceBinding::MutableArray {
-            array,
-            array_type,
-            referent,
-        }))
+        if let Some(segment @ StructuralPathSegment::FixedByteRange { .. }) = argument.path.last() {
+            referent.path.push(segment.clone());
+        }
+        if parameter.access == StructuralAccess::SharedBorrow {
+            let start = usize::try_from(window.offset).map_err(|_| invalid())?;
+            let end = usize::try_from(
+                window
+                    .offset
+                    .checked_add(window.length)
+                    .ok_or_else(invalid)?,
+            )
+            .map_err(|_| invalid())?;
+            return Ok(Some((
+                referent,
+                ByteSequenceBinding::Immutable(bytes.subslice(start, end).ok_or_else(invalid)?),
+            )));
+        }
+        Ok(Some((
+            referent.clone(),
+            ByteSequenceBinding::MutableArray {
+                array,
+                array_type,
+                offset: window.offset,
+                length: window.length,
+                referent,
+            },
+        )))
     }
 }

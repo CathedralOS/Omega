@@ -462,6 +462,11 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
         for segment in &binding.semantic.argument.path {
             match segment {
                 terminal_psi::StructuralPathSegment::Referent => bytes.push(2),
+                terminal_psi::StructuralPathSegment::FixedByteRange { start, end } => {
+                    bytes.push(3);
+                    bytes.extend_from_slice(&start.to_le_bytes());
+                    bytes.extend_from_slice(&end.to_le_bytes());
+                }
                 terminal_psi::StructuralPathSegment::Field(field) => {
                     bytes.push(0);
                     encode_len(bytes, field.len());

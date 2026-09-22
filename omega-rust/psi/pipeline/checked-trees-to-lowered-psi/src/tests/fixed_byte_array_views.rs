@@ -9,14 +9,26 @@ use terminal_interpreter::{
 };
 use terminal_psi::StructuralPathSegment;
 
-fn array_fixture(length: usize, field: bool) -> terminal_codec::CanonicalTerminalArtifact {
+fn array_fixture(
+    length: usize,
+    field: bool,
+    window: Option<(usize, usize)>,
+) -> terminal_codec::CanonicalTerminalArtifact {
+    let argument = match (field, window) {
+        (true, None) => "&mut self.out".to_owned(),
+        (false, None) => "out".to_owned(),
+        (true, Some((start, end))) => format!("&mut self.out[{start}..{end}]"),
+        (false, Some((start, end))) => format!("&mut out[{start}..{end}]"),
+    };
     let caller = if field {
         format!(
             "data Record {{ out: [u8; {length}]; other: [u8; {length}]; }}\n\
-             machine Record::run(&mut self) {{ put(&mut self.out, 65); put(&mut self.out, 0); }}"
+             machine Record::run(&mut self) {{ put({argument}, 65); put({argument}, 0); }}"
         )
     } else {
-        format!("machine run(out: &mut [u8; {length}]) {{ put(out, 65); put(out, 0); }}")
+        format!(
+            "machine run(out: &mut [u8; {length}]) {{ put({argument}, 65); put({argument}, 0); }}"
+        )
     };
     let checked = checked_source(&format!("{}\n{caller}", byte_sequence_write::PUT));
     terminal_production::TerminalProductionRequest::new(
@@ -46,7 +58,7 @@ fn entry_argument(artifact: &terminal_codec::CanonicalTerminalArtifact) -> Termi
 fn fixed_byte_array_views_write_original_storage_across_calls_and_suspension() {
     for initial in [vec![0x11], vec![0x11, 0x80, 0xff]] {
         for field in [false, true] {
-            let artifact = array_fixture(initial.len(), field);
+            let artifact = array_fixture(initial.len(), field, None);
             let path = if field {
                 vec![StructuralPathSegment::Field("out".into())]
             } else {
@@ -136,7 +148,7 @@ fn fixed_byte_array_views_write_original_storage_across_calls_and_suspension() {
 
 #[test]
 fn fixed_byte_array_views_reject_mistyped_or_duplicate_initial_storage() {
-    let artifact = array_fixture(3, false);
+    let artifact = array_fixture(3, false, None);
     let argument = entry_argument(&artifact);
     let valid = TerminalStructuralByteArrayValue {
         argument_index: 0,
@@ -195,6 +207,112 @@ fn fixed_byte_array_views_reject_mistyped_or_duplicate_initial_storage() {
                 .is_err(),
             "an opaque identity does not initialize its array"
         );
+    }
+}
+
+#[test]
+fn fixed_byte_windows_publish_and_execute_repeated_call_loans() {
+    for (start, end) in [(0, 0), (1, 3), (3, 3), (0, 3)] {
+        for field in [false, true] {
+            let artifact = array_fixture(3, field, Some((start, end)));
+            let path = if field {
+                vec![StructuralPathSegment::Field("out".into())]
+            } else {
+                Vec::new()
+            };
+            let sibling_path = vec![StructuralPathSegment::Field("other".into())];
+            let mut arrays = vec![TerminalStructuralByteArrayValue {
+                argument_index: 0,
+                path: path.clone(),
+                bytes: vec![17, 128, 255],
+            }];
+            if field {
+                arrays.push(TerminalStructuralByteArrayValue {
+                    argument_index: 0,
+                    path: sibling_path.clone(),
+                    bytes: vec![42; 3],
+                });
+            }
+            let mut execution = TerminalExecution::start_artifact(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &proof_admission::AdmissionProfile::default(),
+                &[],
+                TerminalStructuralInputs {
+                    arguments: &[entry_argument(&artifact)],
+                    byte_arrays: &arrays,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            assert!(matches!(
+                execution
+                    .resume(
+                        &mut terminal_fuel::TerminalFuelMeter::unbounded(),
+                        &mut AcceptTerminalEffects
+                    )
+                    .unwrap(),
+                TerminalExecutionStatus::Complete(_)
+            ));
+            let mut expected = [17, 128, 255];
+            if start < end {
+                expected[start] = 0;
+            }
+            assert_eq!(
+                execution.structural_byte_array(73, &path).unwrap(),
+                expected
+            );
+            if field {
+                assert_eq!(
+                    execution.structural_byte_array(73, &sibling_path).unwrap(),
+                    &[42; 3]
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn fixed_byte_windows_replay_authored_endpoints() {
+    for invocation in ["put(&mut self.out[1..3],65)", "observe(&self.out[1..3])"] {
+        let checked = checked_source(&format!(
+            "{}\n machine observe(bytes: &[u8]) {{}}\n data Record {{ out: [u8;3]; }}\n\
+         machine Record::run(&mut self) {{ {invocation}; }}",
+            byte_sequence_write::PUT
+        ));
+        let _artifact =
+            terminal_production::TerminalProductionRequest::new(&checked, "Record::run")
+                .produce_artifact()
+                .unwrap();
+        // Each substitute is itself a valid array window. Bounds validation alone
+        // cannot establish that it is the window the caller actually authored.
+        for (start, end) in [(0, 2), (1, 2), (3, 3)] {
+            let mut changed = checked.clone();
+            let call = changed
+                .facts
+                .flow
+                .terminal_unit_effects
+                .machines
+                .iter_mut()
+                .flat_map(|plan| &mut plan.operations)
+                .find(|operation| {
+                    matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
+                })
+                .unwrap();
+            let CheckedUnitEffectOperationPlan::CallUnit {
+                structural_arguments,
+                ..
+            } = call
+            else {
+                panic!("call");
+            };
+            *structural_arguments[0].path.last_mut().unwrap() =
+                CheckedUnitStructuralPathSegment::FixedByteRange { start, end };
+            assert!(
+                lower_machine(&changed, "Record::run").is_err(),
+                "a valid but unauthored byte window must reject"
+            );
+        }
     }
 }
 

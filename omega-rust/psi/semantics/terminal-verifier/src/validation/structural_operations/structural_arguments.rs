@@ -223,12 +223,7 @@ fn structural_access_is_exclusive(access: StructuralAccess) -> bool {
     )
 }
 
-pub(crate) fn structural_paths_may_overlap(
-    left: &[StructuralPathSegment],
-    right: &[StructuralPathSegment],
-) -> bool {
-    left.iter().zip(right).all(|(left, right)| left == right)
-}
+pub(crate) use terminal_semantics::structural_paths_may_overlap;
 
 fn literal_index_path(path: &[StructuralPathSegment]) -> Option<&[StructuralPathSegment]> {
     let field_count = path
@@ -243,6 +238,36 @@ fn literal_index_path(path: &[StructuralPathSegment]) -> Option<&[StructuralPath
             .iter()
             .all(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_))))
     .then_some(fields)
+}
+
+#[cfg(test)]
+#[test]
+fn fixed_byte_window_overlap_replays_intervals_indexes_and_parent_custody() {
+    let range = |start, end| StructuralPathSegment::FixedByteRange { start, end };
+    let field = StructuralPathSegment::Field("bytes".into());
+    let left = vec![field.clone(), range(1, 3)];
+    for (right, overlaps) in [
+        (vec![], true),
+        (vec![field.clone()], true),
+        (vec![field.clone(), range(2, 4)], true),
+        (vec![field.clone(), range(3, 4)], false),
+        (
+            vec![field.clone(), StructuralPathSegment::FixedIndex(1)],
+            true,
+        ),
+        (
+            vec![field.clone(), StructuralPathSegment::FixedIndex(3)],
+            false,
+        ),
+        (vec![field.clone(), range(4, 4)], true),
+        (
+            vec![StructuralPathSegment::Field("other".into()), range(1, 3)],
+            false,
+        ),
+    ] {
+        assert_eq!(structural_paths_may_overlap(&left, &right), overlaps);
+        assert_eq!(structural_paths_may_overlap(&right, &left), overlaps);
+    }
 }
 
 fn is_direct_literal_index_path(path: &[StructuralPathSegment]) -> bool {
@@ -264,6 +289,10 @@ pub(crate) fn is_admitted_unit_call_argument_path(
         || is_literal_indexed_field_path(&argument.path)
         || is_direct_literal_index_path(&argument.path)
         || (matches!(argument.access, StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)
+            && matches!(argument.path.split_last(),
+                Some((StructuralPathSegment::FixedByteRange { .. }, backing))
+                    if backing.iter().all(|segment| matches!(segment, StructuralPathSegment::Field(identity) if !identity.is_empty()))))
+        || (matches!(argument.access, StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)
             && is_static_borrow_path(&argument.path))
         // Structural paths already retain only fields and literal indexes;
         // write-only subloans may interleave them. Resolution checks each hop.
@@ -284,7 +313,7 @@ fn is_static_borrow_path(path: &[StructuralPathSegment]) -> bool {
         && path.iter().all(|segment| match segment {
             StructuralPathSegment::Field(identity) => !identity.is_empty(),
             StructuralPathSegment::FixedIndex(_) => true,
-            StructuralPathSegment::Referent => false,
+            StructuralPathSegment::Referent | StructuralPathSegment::FixedByteRange { .. } => false,
         })
 }
 
@@ -401,6 +430,7 @@ pub(crate) fn is_unrestricted_write_only_subloan(
 }
 
 pub(crate) fn is_unrestricted_shared_subloan(
+    module: &TerminalModule,
     caller: &TerminalMachine,
     expected: &StructuralParameterDeclaration,
     argument: &StructuralArgument,
@@ -412,6 +442,17 @@ pub(crate) fn is_unrestricted_shared_subloan(
     else {
         return false;
     };
+    if argument.access == StructuralAccess::SharedBorrow
+        && terminal_semantics::fixed_byte_array_window(
+            module.structural_types.iter(),
+            actual,
+            argument,
+            expected,
+        )
+        .is_some()
+    {
+        return true;
+    }
     (terminal_psi::is_bounded_structural_scalar_store_path(&argument.path)
         || (matches!(
             actual.access,
@@ -436,6 +477,17 @@ pub(crate) fn is_unrestricted_mutable_subloan(
     else {
         return false;
     };
+    if argument.access == StructuralAccess::MutableBorrow
+        && terminal_semantics::fixed_byte_array_window(
+            module.structural_types.iter(),
+            actual,
+            argument,
+            expected,
+        )
+        .is_some()
+    {
+        return true;
+    }
     is_static_borrow_path(&argument.path)
         && argument.access == StructuralAccess::MutableBorrow
         && expected.access == StructuralAccess::MutableBorrow

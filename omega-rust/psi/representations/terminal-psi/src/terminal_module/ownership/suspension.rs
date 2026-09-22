@@ -125,6 +125,11 @@ pub fn suspension_frontier_commitment(plan: &TerminalSuspensionCallPlan) -> [u8;
                             hash.update(index.to_le_bytes());
                         }
                         StructuralPathSegment::Referent => hash.update([3]),
+                        StructuralPathSegment::FixedByteRange { start, end } => {
+                            hash.update([4]);
+                            hash.update(start.to_le_bytes());
+                            hash.update(end.to_le_bytes());
+                        }
                     }
                 }
             }

@@ -214,6 +214,7 @@ fn descended_type(
         .find(|entry| entry.id == current)?
         .shape;
     match segment {
+        StructuralPathSegment::FixedByteRange { .. } => None,
         StructuralPathSegment::Field(identity) => {
             let fields = match shape {
                 StructuralTypeShape::Record { fields }

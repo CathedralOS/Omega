@@ -7,7 +7,7 @@ use crate::execution::terminal_unit::calls::argument_paths::{
     byte_sequence_literal_argument, projected_argument_path, projected_argument_path_with_identity,
 };
 use crate::execution::terminal_unit::calls::boundary_admission::{
-    boundary_argument_presentation_is_admitted, fixed_byte_array_mutable_view_is_admitted,
+    boundary_argument_presentation_is_admitted, fixed_byte_array_view_is_admitted,
     is_registered_boundary_scalar_target,
 };
 use crate::execution::terminal_unit::calls::computation_arguments;
@@ -146,6 +146,22 @@ pub(crate) fn structural_call_arguments(
             {
                 output.push(subslice);
                 continue;
+            }
+            // A fixed range projection must still name the builtin slice
+            // operation. Canonical storage identity alone does not authorize
+            // replacing an authored range operator with a byte-window loan.
+            if matches!(program.expression_table.expression(expression),
+                crate::execution::terminal_unit::ExpressionNode::Indexed(indexed)
+                    if matches!(program.expression_table.expression(indexed.index),
+                        crate::execution::terminal_unit::ExpressionNode::Range(_)))
+                && !validation::has_builtin_subslice_meaning(
+                    program,
+                    caller_machine,
+                    Some(caller_state),
+                    expression,
+                )
+            {
+                return None;
             }
             crate::flow::canonical_place_from_expression_in_state(
                 program,
@@ -379,14 +395,40 @@ pub(crate) fn structural_call_arguments(
         let source_identity = caller_parameters.get(source_index)?.type_identity.clone();
         let path = match place.segments.as_slice() {
             [] => Vec::new(),
+            [.., facts::PlaceSegment::FixedRange { .. }]
+                if (target_machine.supply_mode == MachineSupplyMode::CheckedBody
+                    || target_machine.supply_mode.is_boundary_declaration())
+                    && matches!(
+                        caller_parameters[source_index].access,
+                        CheckedStructuralAccess::MutableBorrow
+                            | CheckedStructuralAccess::SharedBorrow
+                    )
+                    && caller_parameters[source_index].multiplicity
+                        == Multiplicity::Unrestricted
+                    && caller_parameters[source_index].qualifications.is_empty() =>
+            {
+                super::argument_paths::fixed_byte_array_range_path(
+                    program,
+                    caller_state.symbol,
+                    statement_index,
+                    &place,
+                    target.type_reference,
+                )?
+            }
             segments
                 if !segments.is_empty()
                     && target_machine.supply_mode == MachineSupplyMode::CheckedBody
-                    && caller_parameters[source_index].access
-                        == CheckedStructuralAccess::MutableBorrow
+                    && matches!(
+                        caller_parameters[source_index].access,
+                        CheckedStructuralAccess::MutableBorrow
+                            | CheckedStructuralAccess::SharedBorrow
+                    )
                     && caller_parameters[source_index].qualifications.is_empty()
-                    && structural_access_for_type_reference(program, target.type_reference)?
-                        == CheckedStructuralAccess::MutableBorrow
+                    && matches!(
+                        structural_access_for_type_reference(program, target.type_reference)?,
+                        CheckedStructuralAccess::MutableBorrow
+                            | CheckedStructuralAccess::SharedBorrow
+                    )
                     && byte_sequence_carrier(program, target.type_reference, &[])
                         == Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
                     && segments.iter().all(|segment| {
@@ -410,7 +452,7 @@ pub(crate) fn structural_call_arguments(
                     && segments
                         .iter()
                         .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))
-                    && fixed_byte_array_mutable_view_is_admitted(
+                    && fixed_byte_array_view_is_admitted(
                         program,
                         projected_type,
                         target.type_reference,
@@ -554,10 +596,13 @@ pub(crate) fn structural_call_arguments(
             && source_identity != target_identity
             && !(target_machine.supply_mode == MachineSupplyMode::CheckedBody
                 && is_unit(program, target_state.return_type)
-                && caller_parameters[source_index].access == CheckedStructuralAccess::MutableBorrow
+                && matches!(
+                    caller_parameters[source_index].access,
+                    CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::SharedBorrow
+                )
                 && caller_parameters[source_index].multiplicity == Multiplicity::Unrestricted
                 && caller_parameters[source_index].qualifications.is_empty()
-                && fixed_byte_array_mutable_view_is_admitted(
+                && fixed_byte_array_view_is_admitted(
                     program,
                     source_parameter.type_reference,
                     target.type_reference,

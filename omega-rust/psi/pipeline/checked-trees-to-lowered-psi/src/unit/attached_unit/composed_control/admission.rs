@@ -348,16 +348,26 @@ pub(super) fn validate_claim_free_boundary(
     boundary: &CheckedBoundaryMachinePlan,
 ) -> Result<(), LoweringError> {
     if boundary.attachment_type_identity.is_some()
-        || !boundary.structural_parameters.is_empty()
+        || boundary.structural_parameters.iter().any(|parameter| {
+            parameter.multiplicity != Multiplicity::Unrestricted
+                || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+                || parameter.fused_service_erasure.is_some()
+                || !matches!(
+                    parameter.access,
+                    checked_trees::CheckedStructuralAccess::SharedBorrow
+                        | checked_trees::CheckedStructuralAccess::MutableBorrow
+                )
+        })
         || !boundary.domain_requirements.is_empty()
         || !(boundary.result.is_unit()
             || matches!(&boundary.result,
                 CheckedBoundaryMachineResultPlan::Structural {
-                    multiplicity: Multiplicity::Affine, qualifications, ..
+                    multiplicity: Multiplicity::Affine | Multiplicity::Unrestricted, qualifications, ..
                 } if qualifications.is_empty()))
     {
         return unsupported(
-            "composed Unit boundary escaped claim-free Unit or affine result custody",
+            "composed Unit boundary escaped claim-free borrowed-input/result custody",
         );
     }
     Ok(())
@@ -496,7 +506,6 @@ pub(super) fn retain_call_boundary<'a>(
     let expected_result = match operation {
         CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
             result,
-            structural_arguments,
             completion_receipts,
             ..
         } => {
@@ -538,15 +547,22 @@ pub(super) fn retain_call_boundary<'a>(
             // The graph validates the shared result namespace and each
             // edge's ownership disposition. Target retention must not infer
             // either from the number of boundary calls or the terminator shape.
-            if !structural_arguments.is_empty()
-                || !completion_receipts.is_empty()
-                || result.multiplicity != Multiplicity::Affine
+            // Borrowed operands do not become ownership of the result. Source
+            // custody above and validate_transfer_shape at emission replay each
+            // input independently; the result keeps its exact declared type and
+            // multiplicity. Copy results owe dominance, affine results also owe
+            // the per-edge disposal checked by result_custody.
+            if !completion_receipts.is_empty()
+                || !matches!(
+                    result.multiplicity,
+                    Multiplicity::Affine | Multiplicity::Unrestricted
+                )
                 || !matches!(&target.result, CheckedBoundaryMachineResultPlan::Structural {
-                    type_identity, multiplicity: Multiplicity::Affine, qualifications,
-                } if type_identity == &result.type_identity && qualifications.is_empty())
+                    type_identity, multiplicity, qualifications,
+                } if type_identity == &result.type_identity && *multiplicity == result.multiplicity && qualifications.is_empty())
             {
                 return unsupported(
-                    "composed Unit local result escaped claim-free affine return custody",
+                    "composed Unit local result escaped its claim-free return custody",
                 );
             }
             target.result.clone()

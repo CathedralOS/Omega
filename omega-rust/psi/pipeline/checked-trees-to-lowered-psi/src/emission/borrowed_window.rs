@@ -431,6 +431,9 @@ fn spell_place(
                 spelling.push_str(&format!("[{index}]"));
             }
             CheckedUnitStructuralPathSegment::Referent => spelling.push_str(".*"),
+            CheckedUnitStructuralPathSegment::FixedByteRange { start, end } => {
+                spelling.push_str(&format!("[{start}..{end}]"));
+            }
         }
     }
     spelling

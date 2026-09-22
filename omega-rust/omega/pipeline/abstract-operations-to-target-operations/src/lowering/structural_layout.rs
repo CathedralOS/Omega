@@ -524,7 +524,7 @@ pub(super) fn resolve_structural_projection_path(
     let mut selected_shape = None;
     for segment in path {
         let (selected_type, shape, local_offset) = match segment {
-            StructuralPathSegment::Referent => {
+            StructuralPathSegment::Referent | StructuralPathSegment::FixedByteRange { .. } => {
                 return Err(LoweringError::UnsupportedStructuralReference(
                     structural_type,
                 ));

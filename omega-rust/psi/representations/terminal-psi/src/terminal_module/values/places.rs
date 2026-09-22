@@ -4,6 +4,13 @@ use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 pub enum StructuralPathSegment {
     Field(String),
     FixedIndex(u64),
+    /// A call-scoped borrowed window into fixed byte-array backing. It must
+    /// end the path; consumers independently check `start <= end <= extent`.
+    /// The window is not an owned subtree or an escaping reference result.
+    FixedByteRange {
+        start: u64,
+        end: u64,
+    },
     /// Cross a reference carrier's borrowed boundary. This never grants owned
     /// access to the referent or includes it in the carrier's cleanup.
     Referent,

@@ -99,7 +99,7 @@ pub(crate) fn boundary_argument_presentation_is_admitted(
 }
 
 /// A fixed byte array lends initialized elements without becoming a bounded owner.
-pub(crate) fn fixed_byte_array_mutable_view_is_admitted(
+pub(crate) fn fixed_byte_array_view_is_admitted(
     program: &TypedTrees,
     mut source: typed_trees::types::TypeReferenceHandle,
     target: typed_trees::types::TypeReferenceHandle,
@@ -117,7 +117,7 @@ pub(crate) fn fixed_byte_array_mutable_view_is_admitted(
         return false;
     };
     let TypeReferenceNode::Reference {
-        access: language_core::ReferenceAccess::Mutable,
+        access: language_core::ReferenceAccess::Mutable | language_core::ReferenceAccess::Shared,
         referee,
         ..
     } = program.type_reference_table.type_reference(target)

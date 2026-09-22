@@ -28,6 +28,7 @@ selected-instructions = { path = "../../representations/selected-instructions" }
 target-operations = { path = "../../representations/target-operations" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
+terminal-semantics = { path = "../../../psi/semantics/terminal-semantics" }
 
 terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
 terminal-verifier = { path = "../../../psi/semantics/terminal-verifier" }

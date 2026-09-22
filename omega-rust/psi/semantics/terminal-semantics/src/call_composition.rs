@@ -1,7 +1,7 @@
 //! Exact call-composition policy rows.
 
 mod fixed_byte_view;
-pub use fixed_byte_view::mutable_fixed_byte_array_extent;
+pub use fixed_byte_view::{FixedByteArrayWindow, fixed_byte_array_extent, fixed_byte_array_window};
 
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{

@@ -1,4 +1,4 @@
-//! Propose authored guarantees at acyclic scalar joins.
+//! Propose authored guarantees and literal arrival ranges at acyclic scalar joins.
 //!
 //! Reconstruction deliberately intersects ordinary path facts. A lost join
 //! equation needs checked arrivals, not unioned branch facts. Work backwards
@@ -14,12 +14,23 @@
 //! conjunct, or repeatedly add guards around its own imported assertion. Values
 //! absent from a header's scope must resolve through established arrival facts;
 //! a later block cannot supply its not-yet-defined parameters to an earlier edge.
+//!
+//! Different literal arrivals lose their equalities at an ordinary intersection,
+//! but their interval hull can still justify later arithmetic. Propose that hull
+//! only when every actual scalar arrival supplies an exact same-type constant.
+//! This is a seed, not authority: the common retention pass reconstructs and
+//! proves every arrival, including SSA availability, before publishing the range.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use proof_admission::{check_predicate_denotations, check_value_equality_denotation};
-use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ValueId};
-use terminal_psi::{ScalarBlockInvariant, TerminalModule, Terminator};
+use semantic_vocabulary::{
+    IntegerValue, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
+};
+use terminal_psi::{
+    OperationKind, OperationResult, ScalarBlockInvariant, TerminalMachine, TerminalModule,
+    Terminator,
+};
 use terminal_verifier::{ReconstructedTerminalObligationOwner, ReconstructedTerminalObligationSet};
 
 pub(super) fn candidates(
@@ -38,6 +49,20 @@ pub(super) fn candidates(
         let Ok(components) = terminal_verifier::control_cycle_members(machine) else {
             continue;
         };
+        let literals = machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter_map(|operation| {
+                let OperationKind::IntegerConstant { value } = &operation.kind else {
+                    return None;
+                };
+                let OperationResult::Scalar(result) = &operation.result else {
+                    return None;
+                };
+                Some((result.id, result.scalar_type, *value))
+            })
+            .collect::<Vec<_>>();
         let mut arrivals = BTreeMap::<_, usize>::new();
         let mut structural_targets = BTreeSet::new();
         for block in &machine.blocks {
@@ -104,6 +129,21 @@ pub(super) fn candidates(
                     imported.extend(members);
                 }
                 cursor += 1;
+            }
+            for position in 0..header.parameters.len() {
+                let Some(predicate) =
+                    literal_arrival_range(machine, header, position, &literals, remaining)
+                else {
+                    continue;
+                };
+                if !imported.contains(&&predicate) {
+                    candidates.push(ScalarBlockInvariant {
+                        machine: machine.id,
+                        header: header.id,
+                        predicate,
+                        arrivals: Vec::new(),
+                    });
+                }
             }
             for site in questions
                 .obligations()
@@ -213,6 +253,70 @@ pub(super) fn candidates(
         }
     }
     candidates
+}
+
+fn literal_arrival_range(
+    machine: &TerminalMachine,
+    header: &terminal_psi::Block,
+    position: usize,
+    literals: &[(ValueId, ScalarType, IntegerValue)],
+    remaining: &mut usize,
+) -> Option<Proposition> {
+    let parameter = header.parameters.get(position)?;
+    let ScalarType::Integer(integer) = parameter.scalar_type else {
+        return None;
+    };
+    let mut minimum = integer.maximum_value();
+    let mut maximum = integer.minimum_value();
+    let mut arrivals = 0usize;
+    let mut visit = |target, arguments: &[ValueId]| -> Option<()> {
+        if target != header.id {
+            return Some(());
+        }
+        *remaining = remaining.checked_sub(1)?;
+        let argument = *arguments.get(position)?;
+        let mut definitions = literals.iter().filter(|(value, _, _)| *value == argument);
+        let (_, scalar_type, value) = definitions.next()?;
+        if definitions.next().is_some()
+            || *scalar_type != parameter.scalar_type
+            || !integer.admits(*value)
+        {
+            return None;
+        }
+        minimum = minimum.min(*value);
+        maximum = maximum.max(*value);
+        arrivals += 1;
+        Some(())
+    };
+    for block in &machine.blocks {
+        match &block.terminator {
+            Terminator::Jump {
+                target, arguments, ..
+            } => visit(*target, arguments)?,
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                visit(when_true.target, &when_true.arguments)?;
+                visit(when_false.target, &when_false.arguments)?;
+            }
+            Terminator::StructuralCase { cases, .. }
+                if cases.iter().any(|case| case.target == header.id) =>
+            {
+                return None;
+            }
+            _ => {}
+        }
+    }
+    if arrivals < 2 || (minimum == integer.minimum_value() && maximum == integer.maximum_value()) {
+        return None;
+    }
+    let subject = ScalarTerm::value(parameter.id, parameter.scalar_type);
+    Some(Proposition::Conjunction(vec![
+        Proposition::LessOrEqual(ScalarTerm::integer(integer, minimum).ok()?, subject.clone()),
+        Proposition::LessOrEqual(subject, ScalarTerm::integer(integer, maximum).ok()?),
+    ]))
 }
 
 pub(super) fn uses_header(predicate: &Proposition, header: &terminal_psi::Block) -> bool {

@@ -196,13 +196,10 @@ impl TerminalExecution {
             // Reuse the ordinary call's exact initialized-array binding. It can
             // enter a checked provider and be forwarded again, but never enters
             // the external field-replacement staging/writeback protocol.
-            if let Some(binding @ ByteSequenceBinding::MutableArray { .. }) =
+            if let Some((referent, binding)) =
                 self.prepare_array_view_argument(parameter, argument)?
             {
-                let ByteSequenceBinding::MutableArray { referent, .. } = &binding else {
-                    return Err(invalid());
-                };
-                resolved.values.push(referent.clone());
+                resolved.values.push(referent);
                 resolved.byte_sequences.push(Some(binding));
                 continue;
             }

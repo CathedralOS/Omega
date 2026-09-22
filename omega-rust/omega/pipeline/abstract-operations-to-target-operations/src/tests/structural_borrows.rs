@@ -1296,6 +1296,115 @@ fn projected_field_borrow_retains_borrowed_reference_and_validates() {
 }
 
 #[test]
+fn fixed_byte_windows_retain_backing_offset_and_reject_transport_substitution() {
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        for (start, end) in [(0, 0), (4, 4), (1, 3), (0, 4)] {
+            let mut source = projected_field_borrow_plan();
+            let mut types = source.structural_types.to_vec();
+            let byte = StructuralTypeId::new(3).unwrap();
+            let view = StructuralTypeId::new(4).unwrap();
+            types[0].shape = StructuralTypeShape::FixedArray {
+                element: byte,
+                length: 4,
+            };
+            types.push(StructuralTypeDeclaration {
+                id: byte,
+                identity: "Byte".into(),
+                shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+                )),
+            });
+            types.push(StructuralTypeDeclaration {
+                id: view,
+                identity: "View".into(),
+                shape: StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView,
+                ),
+            });
+            let StructuralTypeShape::Record { fields } = &mut types[1].shape else {
+                unreachable!()
+            };
+            fields.insert(
+                0,
+                StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(2).unwrap(),
+                    identity: "prefix".into(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    )),
+                },
+            );
+            source.structural_types = types.into();
+            source.functions[1].structural_parameters[0].structural_type = view;
+            let AbstractOperation::CallUnit {
+                structural_arguments,
+                ..
+            } = &mut source.functions[0].operations[0]
+            else {
+                unreachable!()
+            };
+            structural_arguments[0]
+                .path
+                .push(terminal_psi::StructuralPathSegment::FixedByteRange { start, end });
+            let target = crate::lower_to_target_operations(
+                &source,
+                crate::TargetLoweringRequest::new(native),
+            )
+            .unwrap();
+            crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
+            let argument = target
+                .functions
+                .iter()
+                .flat_map(|function| &function.graph.blocks)
+                .flat_map(|block| &block.operations)
+                .find_map(|operation| match operation {
+                    TargetUnitOperation::Call { arguments, .. } => arguments.first(),
+                    _ => None,
+                })
+                .unwrap();
+            assert_eq!(argument.source_byte_offset, 8 + start as u32);
+            assert_eq!(argument.fixed_array_length, Some(end - start));
+            for mutation in 0..5 {
+                let changed = mutate_call_arguments(&target, |argument| match mutation {
+                    0 => argument.source_byte_offset += 1,
+                    1 => argument.fixed_array_length = Some(end - start + 1),
+                    2 => argument.element_stride = Some(2),
+                    3 => argument.path.pop().map(|_| ()).unwrap(),
+                    _ => argument.root_structural_type = view,
+                });
+                assert!(
+                    crate::validate_abstract_to_target_translation(&source, native, &changed)
+                        .is_err(),
+                    "mutation {mutation}"
+                );
+            }
+            source.functions[0].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+            source.functions[1].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+            let AbstractOperation::CallUnit {
+                structural_arguments,
+                ..
+            } = &mut source.functions[0].operations[0]
+            else {
+                unreachable!()
+            };
+            structural_arguments[0].access = StructuralAccess::SharedBorrow;
+            let shared = crate::lower_to_target_operations(
+                &source,
+                crate::TargetLoweringRequest::new(native),
+            )
+            .unwrap();
+            crate::validate_abstract_to_target_translation(&source, native, &shared).unwrap();
+        }
+    }
+}
+
+#[test]
 fn projected_field_borrow_rejects_substituted_identity_access_shape_and_placement() {
     let source = projected_field_borrow_plan();
     let expected =

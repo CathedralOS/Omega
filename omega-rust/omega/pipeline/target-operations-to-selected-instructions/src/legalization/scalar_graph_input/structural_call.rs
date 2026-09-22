@@ -115,6 +115,25 @@ pub(in crate::legalization) fn argument_at(
             plan,
         );
     }
+    if caller.structural_parameters.iter().any(|source| {
+        terminal_semantics::fixed_byte_array_window(
+            plan.structural_types.iter(),
+            source,
+            semantic,
+            destination_parameter,
+        )
+        .is_some()
+    }) {
+        return primitive_argument(
+            semantic,
+            caller,
+            destination_parameter,
+            call,
+            parameter_ordinal,
+            native,
+            plan,
+        );
+    }
     // A shared argument may still project a field or element of its source:
     // nested records, stored byte views, and bounded inline byte fields all
     // reconstruct through the same exclusive-argument custody checks.
