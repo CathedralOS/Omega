@@ -281,5 +281,4 @@ fn render_realization_site(site: PsiRealizationSite) -> String {
 }
 
 #[cfg(test)]
-#[path = "tests.rs"]
 mod tests;

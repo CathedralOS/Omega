@@ -61,5 +61,4 @@ pub(crate) fn review_terminal_authority_closure(
 }
 
 #[cfg(test)]
-#[path = "terminal_authority_review/tests.rs"]
 mod tests;
