@@ -1,40 +1,17 @@
 use crate::extent::Extent;
-use crate::extent::diagnostic::{ExtentDiagnostic, nonzero_identity};
+use crate::extent::diagnostic::ExtentDiagnostic;
 use crate::identities::{
     AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRights, MappingEraId,
+    normalized_extent_identity,
 };
 use crate::loans::{ExtentLoan, LoanPolarity};
 use crate::roots::root_grants::ValidatedExtentGeometry;
 use crate::roots::root_origins::ExtentRootOrigin;
 use std::collections::BTreeSet;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct MappingGrantId(u64);
+normalized_extent_identity!(MappingGrantId, "mapping-grant");
 
-impl MappingGrantId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
-        nonzero_identity(identity, "mapping-grant")?;
-        Ok(Self(identity))
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct MappingId(u64);
-
-impl MappingId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
-        nonzero_identity(identity, "mapping")?;
-        Ok(Self(identity))
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
-}
+normalized_extent_identity!(MappingId, "mapping");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MappingSourceMode {
@@ -43,19 +20,10 @@ pub enum MappingSourceMode {
     BorrowedExclusive,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TranslationActivationFactId(u64);
-
-impl TranslationActivationFactId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
-        nonzero_identity(identity, "translation-activation-fact")?;
-        Ok(Self(identity))
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
-}
+normalized_extent_identity!(
+    TranslationActivationFactId,
+    "translation-activation-fact"
+);
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TranslationInstallObligations(BTreeSet<TranslationActivationFactId>);
@@ -72,19 +40,10 @@ impl TranslationInstallObligations {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TranslationCompletionFactId(u64);
-
-impl TranslationCompletionFactId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
-        nonzero_identity(identity, "translation-completion-fact")?;
-        Ok(Self(identity))
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
-}
+normalized_extent_identity!(
+    TranslationCompletionFactId,
+    "translation-completion-fact"
+);
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TranslationReleaseObligations(BTreeSet<TranslationCompletionFactId>);
@@ -101,19 +60,10 @@ impl TranslationReleaseObligations {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PeerWriteRevocationFactId(u64);
-
-impl PeerWriteRevocationFactId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
-        nonzero_identity(identity, "peer-write-revocation-fact")?;
-        Ok(Self(identity))
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
-}
+normalized_extent_identity!(
+    PeerWriteRevocationFactId,
+    "peer-write-revocation-fact"
+);
 
 /// The provider-established facts a shared-custody mapping's revocation
 /// receipt must show before its payload may be read zero-copy: the hostile

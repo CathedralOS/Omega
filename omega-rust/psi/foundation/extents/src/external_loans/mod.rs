@@ -4,39 +4,16 @@
 
 use std::collections::BTreeSet;
 
-use crate::extent::diagnostic::{ExtentDiagnostic, nonzero_identity};
+use crate::extent::diagnostic::ExtentDiagnostic;
 use crate::identities::{
     AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRights, MappingEraId,
+    normalized_extent_identity,
 };
 use crate::loans::{ExtentLoan, LoanPolarity};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ExternalBorrowerId(u64);
+normalized_extent_identity!(ExternalBorrowerId, "external-borrower");
 
-impl ExternalBorrowerId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
-        nonzero_identity(identity, "external-borrower")?;
-        Ok(Self(identity))
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ExternalLoanId(u64);
-
-impl ExternalLoanId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
-        nonzero_identity(identity, "external-loan")?;
-        Ok(Self(identity))
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
-}
+normalized_extent_identity!(ExternalLoanId, "external-loan");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExternalLoanDirection {
@@ -48,33 +25,9 @@ pub enum ExternalLoanDirection {
     DeviceWrites,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ExternalCompletionFactId(u64);
+normalized_extent_identity!(ExternalCompletionFactId, "external-completion-fact");
 
-impl ExternalCompletionFactId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
-        nonzero_identity(identity, "external-completion-fact")?;
-        Ok(Self(identity))
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ExternalReachReceiptId(u64);
-
-impl ExternalReachReceiptId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
-        nonzero_identity(identity, "external-reach receipt")?;
-        Ok(Self(identity))
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
-}
+normalized_extent_identity!(ExternalReachReceiptId, "external-reach receipt");
 
 /// Why the provider may assert that the invisible borrower can reach only the
 /// exact range named by one external loan.
