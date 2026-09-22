@@ -18,24 +18,15 @@
 #[cfg(test)]
 mod tests;
 
-use crate::extent::diagnostic::{ExtentDiagnostic, nonzero_identity};
+use crate::extent::diagnostic::ExtentDiagnostic;
 use crate::extent::{Lineage, SplitBranch};
-use crate::identities::ExtentLineageId;
+use crate::identities::{ExtentLineageId, normalized_extent_identity};
 
-/// The authored claim site — the per-site key publication and replay join on.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ActivationClaimSiteId(u64);
-
-impl ActivationClaimSiteId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
-        nonzero_identity(identity, "activation-claim-site")?;
-        Ok(Self(identity))
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
-}
+normalized_extent_identity!(
+    /// The authored claim site — the per-site key publication and replay join on.
+    ActivationClaimSiteId,
+    "activation-claim-site"
+);
 
 /// One live claim's identity inside its activation ledger.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
