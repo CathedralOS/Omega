@@ -94,6 +94,32 @@ lists them; `get` returning 403 means foreign-parented.
 - **Assign items with known remaining legs** when recycling (check the last
   verdict's `remaining_legs` in outcomes.json); a recycled worker on a finished
   item just reports superseded and costs a drain cycle.
+- **Never park a worker on a `blocked` verdict.** A blocked lane stays pushed
+  for later resume; the worker itself immediately gets the next *unblocked*
+  leaf — chain-dep parking wastes slot-hours (measured: ~6h idle on a small
+  pool) and a different unblocked leaf always exists or mining does.
+- **Slice-first landing rule.** Dispatches that turn out chunk-sized (a leg
+  spanning a chain of sub-discoveries) should land the first verifiable slice
+  and report the rest as named residuals rather than holding the lane for
+  hours. Right-sized leaves ran ~7-45min; the fat tails (2-5h+) clustered on
+  legs whose leaves were really mini-endgames. Pre-flight every dispatch:
+  check the acceptance's compiler/toolchain prerequisites actually exist on
+  main before spending a leg that can only end `blocked`.
+- **Reuse the worker's checkout.** Suspended workers resume on the same VM —
+  dispatch templates say "reuse your existing clone/worktree when present"
+  rather than re-cloning every leg (cold clone + cold build is leg-time tax).
+- **Coordinator-owned toolchain refresh.** When workers verify against a
+  pinned packaged binary (Squalr's `swarm-binaries` omega), the coordinator —
+  not each leg — rebuilds and re-pins it after every merge that touches the
+  toolchain path; per-leg "build your own binary" instructions burn leg-time
+  and split evidence across mismatched binaries.
+- **Residual treadmill > fresh domains.** Verdicts should name "the smallest
+  next residual in this domain"; re-dispatching the same worker same-domain is
+  the fastest sustained rate observed (warm clone, warm build, warm context).
+- **Verify main is green before reverting a lane.** A merge-failure diagnosis
+  that skips the main-red check can cost a revert + repair + re-land cycle on
+  an innocent lane (observed: the "clobbered registrations" revert; the real
+  failure was preexisting main red).
 - **Expect churn at width.** Beyond ~20 workers on this board, most verdicts
   are `blocked` on foreign claims (other waves hold renewable leases; nothing
   guarantees expiry). A blocked worker costs ~1-5 min and produces a structured
