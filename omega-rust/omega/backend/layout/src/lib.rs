@@ -18,7 +18,12 @@ mod sum_materialization;
 
 pub use builder::{build_layout_plan, layout_type_reference};
 pub use field_paths::{field_data_layout_fields, field_machine_layout, field_path_offset};
-pub use layout_plan::*;
+pub use layout_plan::{
+    BitFieldFragment, BitFieldLayout, DataLayout, DataShape, ENUM_TAG_BYTES, FieldLayout,
+    LayoutPlan, MachineLayout, RepeatedFieldLayout, StoredIntegerLayout,
+    TargetClosedPlanLaidDataLayoutIdentity, TargetClosedPrivateCallbackDemand,
+    TargetClosedTwoHopPrivateCallbackPath, TypeLayout, TypeLayoutDescriptor, VariantLayout,
+};
 pub use sizing::primitive_layout;
 pub use sum_materialization::{
     project_conventional_record_with_nested_sum_record_materialization_layout,

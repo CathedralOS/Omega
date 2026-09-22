@@ -1,6 +1,9 @@
 use super::encoding::{encode_ids, encode_len};
-use super::structural_types::*;
 use crate::legalized_operations::LegalizedStructuralContract;
+use crate::legalized_operations::identity::structural_types::{
+    encode_entry_claim, encode_structural_parameter, encode_structural_place,
+    encode_structural_type, encode_target_structural_parameter,
+};
 
 pub(super) fn encode_structural_contract(
     bytes: &mut Vec<u8>,

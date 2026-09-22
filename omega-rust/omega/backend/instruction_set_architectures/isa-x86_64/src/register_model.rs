@@ -33,10 +33,14 @@ pub use constraint_catalog::{
     X86_64RegisterConstraintCatalogValidationError, validate_x86_64_register_constraint_catalog,
     x86_64_register_constraint_catalog, x86_64_register_constraint_catalog_for,
 };
-pub use float_scalar_calls::*;
-pub use indirect_results::*;
-pub use mixed_aggregate_calls::*;
-pub use mixed_calls::*;
+pub use float_scalar_calls::{x86_64_float_scalar_call_keys, x86_64_float_scalar_return_keys};
+pub use indirect_results::x86_64_indirect_aggregate_call_keys;
+pub use mixed_aggregate_calls::{
+    x86_64_microsoft_mixed_aggregate_call_keys, x86_64_system_v_mixed_aggregate_call_keys,
+};
+pub use mixed_calls::{
+    x86_64_microsoft_mixed_unit_call_keys, x86_64_system_v_mixed_unit_call_keys,
+};
 pub use operation_keys::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_ADDRESS_OFFSET, X86_64_BITS_TO_FLOAT32,
     X86_64_BITS_TO_FLOAT64, X86_64_COMPARE_I64, X86_64_COMPARE_I64_IMMEDIATE,

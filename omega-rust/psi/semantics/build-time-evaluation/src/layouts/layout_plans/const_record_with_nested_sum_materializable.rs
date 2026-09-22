@@ -4,6 +4,14 @@
 //! arrays beside its deeper record paths; every child kind retains
 //! independent custody under the same bounded traversal.
 
+use crate::layouts::layout_plans::const_record_with_nested_sum_materializable::derivation::{
+    derive_nested_record_sum_bytes, derive_nested_record_sums_bytes_with_reachability,
+};
+use crate::layouts::layout_plans::const_record_with_nested_sum_materializable::report_identity::{
+    nested_path_reports_match_for_replay, nested_record_sum_materialization_report_fingerprint,
+    nested_record_sums_materialization_report_fingerprint,
+    record_sum_paths_reports_match_for_replay,
+};
 use layout_plans::{
     AggregateFieldSchema, AggregateFieldValue, ByteOrder,
     ConventionalNestedRecordSumPathLayoutReport, ConventionalNestedRecordSumPathsLayoutReport,
@@ -43,13 +51,11 @@ mod recursive;
 mod report_identity;
 mod sum_reachability;
 
-use derivation::*;
 pub use record_level::ValidatedConstRecordSumChildMaterialization;
 pub use recursive::{
     ValidatedConstRecordWithRecursiveNestedSumsMaterialization,
     validate_const_materializable_record_with_recursive_nested_sums,
 };
-use report_identity::*;
 pub(super) use sum_reachability::SumReachability;
 use sum_reachability::{record_sum_profile, reject_sum_array_type};
 

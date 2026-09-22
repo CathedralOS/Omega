@@ -479,7 +479,11 @@ mod tests {
     use super::{
         CertificateRejection, NormalizedGraph, PolicyEvaluation, check_outcome, evaluate_policy,
     };
-    use crate::deployment_plan::*;
+    use crate::deployment_plan::{
+        Binding, Certificate, Completeness, ComponentDescription, Endpoint, EndpointDirection,
+        EndpointKey, Identity, InstanceName, InstanceRole, PlanInstance, PolicyCall, PolicyOutcome,
+        PolicySelector, Violation,
+    };
 
     fn identity(byte: u8) -> Identity {
         [byte; 32]

@@ -4,10 +4,13 @@
 use super::{
     BuildTimeValue, ByteOrder, ConventionalRecordSumChildInterior,
     ConventionalRecursiveRecordSumPathsLayoutReport, MaterializationDiagnostic, SumReachability,
-    TypedTrees, ValidatedConstRecordSumChildMaterialization,
-    child_materializations_match_for_replay, derive_record_level_children_bytes,
-    field_occurrence_matches, normalized_layout_plan_report_fingerprint,
-    record_sum_paths_reports_match_for_replay, recursive_level_materialization_report_fingerprint,
+    TypedTrees, ValidatedConstRecordSumChildMaterialization, field_occurrence_matches,
+    normalized_layout_plan_report_fingerprint,
+};
+use crate::layouts::layout_plans::const_record_with_nested_sum_materializable::derivation::derive_record_level_children_bytes;
+use crate::layouts::layout_plans::const_record_with_nested_sum_materializable::report_identity::{
+    child_materializations_match_for_replay, record_sum_paths_reports_match_for_replay,
+    recursive_level_materialization_report_fingerprint,
 };
 #[cfg(test)]
 mod tests;

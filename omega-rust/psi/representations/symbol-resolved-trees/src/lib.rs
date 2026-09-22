@@ -12,7 +12,16 @@
 //! signatures are still unjudged and belong to the typing stage.
 
 pub mod declaration_selection {
-    pub use language_semantics::declaration_selection::*;
+    pub use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelection, AuthoredDeclarationSelectionExposure,
+        AuthoredDeclarationSelectionFinalizationError, AuthoredDeclarationSelectionIntrinsic,
+        AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding,
+        AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError,
+        AuthoredDeclarationSelectionSuffixRebase, AuthoredDeclarationSelectionSuffixRebaseError,
+        AuthoredDeclarationSelectionTarget, AuthoredDeclarationSelections, BuildOperation,
+        CollectionMeasure, CollectionViewOperation, CompilerDerivedSelectionPartition,
+        ResolvedAuthoredDeclarationSelection,
+    };
 }
 pub mod symbol_resolved_trees;
 

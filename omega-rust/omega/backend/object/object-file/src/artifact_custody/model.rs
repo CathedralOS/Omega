@@ -1,6 +1,5 @@
 //! Object-artifact records, manifests, custody, and errors.
 
-use super::codec::*;
 use super::{
     ARTIFACT_MAGIC, ARTIFACT_VERSION, FunctionFragmentEmissionManifestIdentity,
     FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentTextSectionManifestIdentity,
@@ -10,6 +9,10 @@ use super::{
     PrePhysicalOptimizationManifestIdentity, RelocationFreeObjectContainerError,
     RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
     StagedOptimizedRelocationFreeObjectContainer, TerminalPsiIdentity,
+};
+use crate::artifact_custody::codec::{
+    Cursor, decode_artifact_content, decode_machine, decode_psi, decode_statistics, decode_target,
+    encode_artifact_content, encode_manifest_content,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

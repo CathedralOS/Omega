@@ -1,8 +1,12 @@
 //! Ordinary structural signature data; no separate executable function payload.
-use super::declarations::*;
 use crate::FixedViewCopyDecodeError;
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
     Cursor, decode_id, decode_ids, encode_ids, length,
+};
+use crate::register_homes::recovery::fixed_view_copy::codec::selected::structural::declarations::{
+    decode_entry_claim, decode_multiplicity, decode_parameter, decode_path, decode_place,
+    decode_semantic_argument, decode_type, encode_entry_claim, encode_multiplicity,
+    encode_parameter, encode_path, encode_place, encode_semantic_argument, encode_type,
 };
 use legalized_operations::LegalizedStructuralContract;
 use semantic_vocabulary::{PlaceId, ServiceId, StructuralDomainId, StructuralTypeId};
