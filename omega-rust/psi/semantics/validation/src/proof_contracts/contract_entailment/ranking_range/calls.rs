@@ -743,6 +743,7 @@ pub(crate) fn prove_ranking_range_call(
     for expression in destination_expressions {
         bind_destination_fields(
             program,
+            caller.machine,
             destination,
             source,
             &mut engine,
@@ -819,6 +820,7 @@ pub(crate) fn prove_ranking_range_call(
                 })?;
             destination_coordinate.arrived(
                 program,
+                caller.machine,
                 source,
                 &mut engine,
                 arguments[position],
@@ -1076,6 +1078,7 @@ fn membership(
 /// foreign record's lineage.
 fn bind_destination_fields(
     program: &TypedTrees,
+    machine: &Machine,
     destination: &State,
     source: &State,
     engine: &mut Engine<'_>,
@@ -1098,6 +1101,7 @@ fn bind_destination_fields(
                         .position(|parameter| parameter.symbol == coordinate.parameter.symbol)
                     && let Some(actual) = coordinate.arrived(
                         program,
+                        machine,
                         source,
                         engine,
                         arguments[position],

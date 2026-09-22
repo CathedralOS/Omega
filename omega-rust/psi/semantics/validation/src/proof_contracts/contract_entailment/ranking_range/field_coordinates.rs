@@ -3,8 +3,8 @@
 //! unique, nominally checked arrival role. Record ancestry alone never proves
 //! copy equality.
 use super::{
-    BTreeMap, Comparison, Engine, ExpressionHandle, ExpressionNode, Polynomial, RankingRangeState,
-    State, TypedTrees, comparison_proven, fields,
+    BTreeMap, Comparison, Engine, ExpressionHandle, ExpressionNode, Machine, Polynomial,
+    RankingRangeState, State, TypedTrees, comparison_proven, fields,
 };
 use fields::FieldCoordinate;
 use symbols::SymbolHandle;
@@ -136,6 +136,7 @@ impl<'program> FieldCoordinates<'program> {
     pub(super) fn substitute(
         &self,
         program: &'program TypedTrees,
+        machine: &Machine,
         state: &State,
         entry_parameters: Option<&[SymbolHandle]>,
         destination: Option<RankingRangeState<'_>>,
@@ -216,9 +217,16 @@ impl<'program> FieldCoordinates<'program> {
                             }
                         }
                     };
-                    arrived.actual(program, state, engine, argument, arrived.borrowed)?
+                    arrived.actual(program, machine, state, engine, argument, arrived.borrowed)?
                 }
-                None => coordinate.actual(program, state, engine, argument, coordinate.borrowed)?,
+                None => coordinate.actual(
+                    program,
+                    machine,
+                    state,
+                    engine,
+                    argument,
+                    coordinate.borrowed,
+                )?,
             };
             if let Some(existing) = substitutions.get(&coordinate.identity) {
                 // A contested required role reaches this map once per

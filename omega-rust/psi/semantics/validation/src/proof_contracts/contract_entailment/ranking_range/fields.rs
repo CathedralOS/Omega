@@ -501,6 +501,7 @@ impl<'program> FieldCoordinate<'program> {
     pub(super) fn actual(
         &self,
         program: &TypedTrees,
+        machine: &Machine,
         state: &State,
         engine: &mut Engine<'_>,
         expression: ExpressionHandle,
@@ -543,6 +544,13 @@ impl<'program> FieldCoordinate<'program> {
                 owner = next;
             }
         }
+        // A literal's leaf may itself be a quotient or remainder over caller
+        // inputs: mint each division's operand-pair atom the same way a bare
+        // scalar actual's terms are bound, so the leaf normalization keeps
+        // both operands' identity instead of refusing the term.
+        super::meanings::install_integer_division_terms(
+            program, machine, state, engine, current, 0,
+        )?;
         engine.normalize(current)
     }
 
@@ -636,6 +644,7 @@ impl<'program> FieldCoordinate<'program> {
     pub(super) fn arrived(
         &self,
         program: &'program TypedTrees,
+        machine: &Machine,
         state: &State,
         engine: &mut Engine<'_>,
         expression: ExpressionHandle,
@@ -675,6 +684,12 @@ impl<'program> FieldCoordinate<'program> {
                 owner = next;
             }
         }
+        // As in `actual`: a rebuilt literal's leaf may spell a runtime
+        // quotient or remainder, so each division's operand-pair atom is
+        // minted before the leaf normalizes.
+        super::meanings::install_integer_division_terms(
+            program, machine, state, engine, current, 0,
+        )?;
         engine.normalize(current)
     }
 }

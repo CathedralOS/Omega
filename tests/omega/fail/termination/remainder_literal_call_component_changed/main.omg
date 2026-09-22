@@ -1,0 +1,33 @@
+data Limits {
+    bound: u64 [0..=20];
+    spare: u64;
+    step: u64 [1..=5];
+}
+
+data Main { pad: u64; }
+
+machine Main::main(&mut self) {}
+
+machine Main::walk(&mut self, remaining: u64 [0..=5], held: Limits)
+requires held.spare <= 4;
+terminates by remaining in 0..(held.bound + 6);
+-> u64 {
+    transition remaining > 0 {
+        true -> self.step(remaining, held)
+        false -> remaining
+    }
+}
+
+machine Main::step(&mut self, pending: u64 [0..=5], limits: Limits)
+requires limits.spare <= 4;
+terminates by pending in 0..(limits.bound + 6);
+-> u64 {
+    transition pending > 0 {
+        true -> self.walk(pending - 1, Limits {
+            bound: limits.bound,
+            spare: limits.bound / limits.step,
+            step: limits.step
+        })
+        false -> pending
+    }
+}

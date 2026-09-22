@@ -220,6 +220,7 @@ fn prove(
             } else {
                 field.actual(
                     program,
+                    caller,
                     caller_state,
                     &mut source_engine,
                     *argument,
