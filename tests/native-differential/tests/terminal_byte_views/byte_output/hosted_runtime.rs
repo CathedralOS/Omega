@@ -7,9 +7,6 @@
     all(target_os = "macos", target_arch = "aarch64")
 ))]
 use super::super::native_function;
-use super::{
-    NativeTarget, TerminalModule, byte_output_module, stage_byte_output_module, unit_calls,
-};
 #[cfg(any(
     all(
         target_os = "linux",

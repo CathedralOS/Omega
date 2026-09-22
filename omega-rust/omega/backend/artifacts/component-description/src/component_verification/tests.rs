@@ -990,6 +990,20 @@ fn described_module() -> TerminalModule {
         live_value_count: 0,
         live_values: Vec::new(),
     };
+    // The operation's own marker is the authoritative crossing demand: a plan
+    // naming a call side that does not declare it is rewritten evidence.
+    let marked = module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| machine.blocks.iter_mut())
+        .flat_map(|block| block.operations.iter_mut())
+        .find(|candidate| candidate.id == plan.operation)
+        .map(|candidate| candidate.suspension_crossing = Some(plan.crossing))
+        .is_some();
+    assert!(
+        marked,
+        "the suspension plan names an operation in the module"
+    );
     module
         .suspension_call_sites
         .push(TerminalSuspensionCallSite {

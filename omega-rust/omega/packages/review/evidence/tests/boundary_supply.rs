@@ -1,5 +1,3 @@
-use crate::support;
-
 #[path = "boundary_supply/boundary_bodies.rs"]
 mod boundary_bodies;
 #[path = "boundary_supply/evaluated_via_supply.rs"]

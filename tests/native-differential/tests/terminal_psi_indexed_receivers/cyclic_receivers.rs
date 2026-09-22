@@ -1,6 +1,6 @@
 //! Ordinary looping callees keep projected receiver storage and caller continuation.
 
-use super::{NativeTarget, artifact, native_function, native_text, optimize, primitive_stores};
+use super::{NativeTarget, artifact, native_text, optimize, primitive_stores};
 fn source(ranking: &str) -> String {
     format!(
         "data Child {{ value: u64; }}

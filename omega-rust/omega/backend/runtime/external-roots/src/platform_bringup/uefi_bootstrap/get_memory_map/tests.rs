@@ -458,6 +458,9 @@ fn stale_exit_key_reacquires_a_fresh_map_and_retries_to_success() {
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     script_success(0x5AFE_0043, 96, 48, 1);
     FAKE_EXIT_STATUS.store(EFI_INVALID_PARAMETER, Ordering::SeqCst);
+    // The call counter is process-global: this test asserts its own exact
+    // acquisition count, so it starts from zero like its scripted siblings.
+    OBSERVED_GET_CALLS.store(0, Ordering::SeqCst);
     let boot_address = 0x401000;
     let system = table(UEFI_SYSTEM_TABLE_SIGNATURE, 120, 96, boot_address);
     let boot = boot_table(

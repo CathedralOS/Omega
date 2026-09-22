@@ -1,18 +1,15 @@
 use super::FuelExhaustion;
 use super::{
-    AdmissionProfile, CrashCause, EdgeId, IntegerSign, IntegerType, IntegerValue, LoweringError,
-    NativeTarget, OperationId, TargetLoweringRequest, TerminalExecutionResult,
-    TerminalExecutionStatus, TerminalFuelMeter, TerminalFuelSchedule, TerminalScalarValue,
-    build_artifact_manifest, compile_to_checked, decode_module, decode_proof_bundle,
-    derive_fixed_entry_fuel, encode_module, encode_proof_section, lower_machine,
+    AdmissionProfile, CrashCause, IntegerSign, IntegerType, IntegerValue, LoweringError,
+    NativeTarget, TargetLoweringRequest, TerminalExecutionResult, TerminalExecutionStatus,
+    TerminalFuelMeter, TerminalScalarValue, compile_to_checked, lower_machine,
     lower_to_target_operations, lower_verified_artifact, source_canary, start_verified_artifact,
-    terminal_psi_identity, validate_artifact_manifest, validate_fixed_entry_fuel, verify_module,
+    verify_module,
 };
 #[cfg(unix)]
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;
 use target_operations::TargetControlTerminator;
-use terminal_fuel::FuelChargeSite;
 use terminal_interpreter::AcceptTerminalEffects;
 
 #[test]

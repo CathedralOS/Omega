@@ -1,10 +1,10 @@
 //! Optimizer module role: test leaf. Established-case membership specialization proposal, replay, and custody evidence.
 
 use super::super::VerifiedPsiOptimizationSession;
+use crate::representation_specialization::propose_case_membership_specializations;
 use crate::{
     CaseMembershipSpecializationCandidate, CaseMembershipSpecializationError,
-    apply_case_membership_specialization, propose_case_membership_specializations,
-    validate_case_membership_specialization,
+    apply_case_membership_specialization, validate_case_membership_specialization,
 };
 use abstract_operations::AbstractOperation;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;

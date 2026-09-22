@@ -5,7 +5,6 @@ use crate::resolution::source::{
 };
 #[cfg(unix)]
 use package_source::PrimaryGitChoices;
-use package_source::SourceResolveError;
 use package_source::{
     IdentityError, ImmutableSourceResolution, LocalSourceLimits, SourceLineage, SourceRelativePath,
     WorkspaceLineageIdentity, WorkspaceMemberLineage,

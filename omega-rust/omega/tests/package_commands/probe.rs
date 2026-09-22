@@ -173,7 +173,7 @@ fn native_probe_rejects_malformed_and_stale_authored_admissions() {
         fixture.write("root/omega.admissions", &contents);
         let output = fixture.omega(&["run", "--both", "main.omg"]);
         assert_status(&output, 200);
-        assert_probe_rejection(&output, &diagnostic);
+        assert_probe_rejection(&output, diagnostic);
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(!stderr.contains("native exit"), "{stderr}");
         assert_eq!(fixture.read("root/omega.admissions"), contents);

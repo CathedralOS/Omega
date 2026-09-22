@@ -325,7 +325,6 @@ fn lower_writer_on_both_linux_isas(
     {
         let _ = fill;
         eprintln!("skip: native writer execution needs Linux x86-64/aarch64 or macOS aarch64");
-        return;
     }
 
     #[cfg(any(

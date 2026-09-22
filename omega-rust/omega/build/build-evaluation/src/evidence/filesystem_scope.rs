@@ -893,7 +893,7 @@ fn captured_inventory(input: &CapturedBuildSourceInput) -> BuildCapturedSourceIn
 
 #[cfg(test)]
 mod tests {
-    use super::{BuildMachineFilesystemScope, overlap_key};
+    use super::BuildMachineFilesystemScope;
     use build_output::{CapturedBuildSourceInput, CapturedSourceEntry};
     use build_time_evaluation::BuildMachineFilesystemAccess;
     use checked_interpreter::{

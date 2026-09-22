@@ -3,7 +3,7 @@
 //! aggregate, owned local roots, callee re-forwarding, and attached callees
 //! with extra write-only parameters all land on caller storage.
 
-use super::{NativeTarget, artifact_for, native_function, native_text_for, optimize};
+use super::{NativeTarget, artifact_for, native_text_for, optimize};
 
 /// Two disjoint `&write` arguments in one call keep their own referents.
 const DISJOINT_WRITE_ONLY: &str = "machine stamp(left: &write u64, right: &write u64, value: u64) {
@@ -241,7 +241,7 @@ fn mixed_access_field_arguments_update_distinct_fields() {
 
 #[test]
 fn local_root_arguments_return_the_restored_local() {
-    for (source, value) in [
+    for (source, _value) in [
         (LOCAL_ROOT_WRITE_ONLY, 41_u64),
         (LOCAL_ROOT_MUTABLE, 77_u64),
     ] {

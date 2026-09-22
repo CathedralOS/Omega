@@ -1,5 +1,3 @@
-use crate::support;
-
 #[path = "contract_expressions/collection_views.rs"]
 mod collection_views;
 #[path = "contract_expressions/evidence_calls.rs"]

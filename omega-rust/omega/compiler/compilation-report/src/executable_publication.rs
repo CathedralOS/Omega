@@ -503,7 +503,7 @@ mod tests {
     //! chain above this is covered by `compile_report/custody_tests.rs`.
     use super::{
         ExecutablePublicationReceipt, appended_file_name_path, executable_container_digest,
-        publish_exact_executable_bytes, publish_exact_file_bytes, remove_stale_companion,
+        publish_exact_executable_bytes, remove_stale_companion,
     };
     use std::path::{Path, PathBuf};
 

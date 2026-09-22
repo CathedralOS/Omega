@@ -1,5 +1,3 @@
-use crate::support;
-
 #[path = "authority/boundary_guarantees.rs"]
 mod boundary_guarantees;
 #[path = "authority/declared_authority.rs"]

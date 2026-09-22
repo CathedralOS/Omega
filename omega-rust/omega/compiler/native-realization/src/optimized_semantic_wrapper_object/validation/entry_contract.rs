@@ -297,8 +297,8 @@ pub(crate) fn validate_entry_shape(
     {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     }
-    if let Some(receiver) = receiver {
-        if !receiver.is_self
+    if let Some(receiver) = receiver
+        && (!receiver.is_self
             || receiver.position != 0
             || receiver.multiplicity != StructuralMultiplicity::Unrestricted
             || receiver.access != StructuralAccess::MutableBorrow
@@ -307,12 +307,9 @@ pub(crate) fn validate_entry_shape(
             || entry.attachment != Some(receiver.structural_type)
             || !matches!(entry.structural_places.as_slice(), [receiver_place, ..]
                 if receiver_place.id == receiver.place
-                    && receiver_place.kind == StructuralPlaceKind::Parameter { position: 0, is_self: true })
-        {
-            return Err(
-                OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch,
-            );
-        }
+                    && receiver_place.kind == StructuralPlaceKind::Parameter { position: 0, is_self: true }))
+    {
+        return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     }
     let [image_root, storage_root] = contract.roots();
     if !entry.parameters.is_empty()

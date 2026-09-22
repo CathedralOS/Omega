@@ -1,10 +1,8 @@
 //! Source-produced i32 exit operands and execution of the retained native image.
 
-use super::super::{PathBuf, native_hosted_target};
+use super::super::native_hosted_target;
 use super::fixture_roster;
 use crate::{compile_rooted_backend_canary_without_output_for_target, pass_canary};
-use std::fs;
-use std::process::Command;
 #[test]
 fn hosted_exit_normalizes_source_i32_status_through_selected_custody() {
     let canary = pass_canary(fixture_roster::RUNTIME_CONSOLE_EXIT_I32_STATUS);

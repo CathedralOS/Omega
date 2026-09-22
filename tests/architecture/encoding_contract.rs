@@ -505,7 +505,7 @@ fn decode_tag_set(path: &str, function: &str, label: &str) -> BTreeSet<u8> {
                 break;
             };
             if start <= position && position <= end {
-                let smaller = best.map_or(true, |(_, old_end)| end < old_end);
+                let smaller = best.is_none_or(|(_, old_end)| end < old_end);
                 if smaller {
                     best = Some((start, end));
                 }

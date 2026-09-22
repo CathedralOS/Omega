@@ -424,7 +424,7 @@ fn place_aliases_classify_views_from_declared_roots_and_live_claims() {
     // Distinct declared roots are disjoint storage sites.
     assert_eq!(
         machine.relation(
-            &view(parameter_a, &[field.clone()]),
+            &view(parameter_a, std::slice::from_ref(&field)),
             &view(parameter_b, &[])
         ),
         PlaceAliasRelation::Disjoint
@@ -433,15 +433,15 @@ fn place_aliases_classify_views_from_declared_roots_and_live_claims() {
     assert_eq!(
         machine.relation(
             &view(parameter_a, &[]),
-            &view(parameter_a, &[field.clone()])
+            &view(parameter_a, std::slice::from_ref(&field))
         ),
         PlaceAliasRelation::Overlapping
     );
     // Diverging fields on one root name disjoint extents.
     assert_eq!(
         machine.relation(
-            &view(parameter_a, &[field.clone()]),
-            &view(parameter_a, &[other.clone()])
+            &view(parameter_a, std::slice::from_ref(&field)),
+            &view(parameter_a, std::slice::from_ref(&other))
         ),
         PlaceAliasRelation::Disjoint
     );
@@ -449,7 +449,7 @@ fn place_aliases_classify_views_from_declared_roots_and_live_claims() {
     // storage rather than extending it.
     assert_eq!(
         machine.relation(
-            &view(parameter_a, &[field.clone()]),
+            &view(parameter_a, std::slice::from_ref(&field)),
             &view(
                 parameter_a,
                 &[field.clone(), terminal_psi::StructuralPathSegment::Referent]

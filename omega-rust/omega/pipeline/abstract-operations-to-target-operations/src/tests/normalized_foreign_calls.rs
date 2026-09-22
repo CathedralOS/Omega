@@ -397,10 +397,7 @@ fn lower(
     .unwrap()
 }
 
-fn normalized_foreign_ref<'a>(
-    plan: &'a TargetOperationPlan,
-    psi_operation: u32,
-) -> &'a TargetUnitOperation {
+fn normalized_foreign_ref(plan: &TargetOperationPlan, psi_operation: u32) -> &TargetUnitOperation {
     plan.functions[0]
         .graph
         .blocks
