@@ -11,9 +11,7 @@ use extents::{
 };
 
 use crate::access_plan::diagnostic::into_validated_access;
-use crate::placements::owned_resident_custody::replay_owned_admission_resources;
-use crate::placements::owned_resident_custody::validate_owned_content_binding;
-use crate::placements::owned_resident_custody::validate_resident_observation;
+use crate::placements::owned_resident_custody::validate_owned_resident_authority;
 use crate::placements::placement_authority::PlacementAuthorityRef;
 use crate::primitive_access::field_projection::project_placed_field;
 use crate::{
@@ -117,7 +115,12 @@ pub fn adopt_owned_atomic(
     into_validated_access(
         (admission, content),
         |(admission, content)| {
-            validate_owned_atomic_resident_authority(admission, content, "Atomic adoption")
+            validate_owned_resident_authority(
+                admission,
+                content,
+                ObservationModel::Atomic,
+                "Atomic adoption",
+            )
         },
         |(admission, content), ()| DormantOwnedAtomicResident { admission, content },
         |(admission, content), diagnostic| OwnedAtomicAdoptionError {
@@ -170,9 +173,10 @@ impl DormantOwnedAtomicResident {
         into_validated_access(
             self,
             |resident| {
-                validate_owned_atomic_resident_authority(
+                validate_owned_resident_authority(
                     &resident.admission,
                     &resident.content,
+                    ObservationModel::Atomic,
                     "Atomic resident view",
                 )
             },
@@ -259,9 +263,10 @@ impl EstablishedOwnedAtomicPlacement {
         into_validated_access(
             self,
             |resident| {
-                validate_owned_atomic_resident_authority(
+                validate_owned_resident_authority(
                     &resident.admission,
                     &resident.content,
+                    ObservationModel::Atomic,
                     "Atomic resident-preserving retirement",
                 )
             },
@@ -275,31 +280,4 @@ impl EstablishedOwnedAtomicPlacement {
             },
         )
     }
-}
-
-pub(super) fn validate_owned_atomic_resident_authority(
-    admission: &OwnedPlacementAdmission,
-    content: &ProviderExistingContentGrant,
-    transition: &str,
-) -> Result<(), AccessPlanDiagnostic> {
-    let resources = replay_owned_admission_resources(admission).map_err(|diagnostic| {
-        AccessPlanDiagnostic(format!(
-            "{transition} could not replay the retained placement authority: {diagnostic}"
-        ))
-    })?;
-    if resources != admission.resources {
-        return Err(AccessPlanDiagnostic(format!(
-            "{transition} replayed resource compatibility differs from the retained admission"
-        )));
-    }
-    validate_owned_content_binding(admission, content).map_err(|diagnostic| {
-        AccessPlanDiagnostic(format!(
-            "{transition} could not replay the retained provider content grant: {diagnostic}"
-        ))
-    })?;
-    validate_resident_observation(
-        &admission.placement_plan,
-        ObservationModel::Atomic,
-        transition,
-    )
 }

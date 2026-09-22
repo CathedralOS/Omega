@@ -193,6 +193,7 @@ impl DormantOwnedResident {
                 validate_owned_resident_authority(
                     &resident.admission,
                     &resident.content,
+                    ObservationModel::Stable,
                     "owned resident view",
                 )
             },
@@ -267,6 +268,7 @@ impl EstablishedOwnedPlacement {
                 validate_owned_resident_authority(
                     &resident.admission,
                     &resident.content,
+                    ObservationModel::Stable,
                     "resident-preserving retirement",
                 )
             },

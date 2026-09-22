@@ -152,6 +152,7 @@ pub(super) fn replay_owned_admission_resources(
 pub(super) fn validate_owned_resident_authority(
     admission: &OwnedPlacementAdmission,
     content: &ProviderExistingContentGrant,
+    observation: ObservationModel,
     transition: &str,
 ) -> Result<(), AccessPlanDiagnostic> {
     let resources = replay_owned_admission_resources(admission).map_err(|diagnostic| {
@@ -169,9 +170,5 @@ pub(super) fn validate_owned_resident_authority(
             "{transition} could not replay the retained provider content grant: {diagnostic}"
         ))
     })?;
-    validate_resident_observation(
-        &admission.placement_plan,
-        ObservationModel::Stable,
-        transition,
-    )
+    validate_resident_observation(&admission.placement_plan, observation, transition)
 }

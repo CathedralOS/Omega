@@ -35,6 +35,7 @@ impl DormantOwnedResident {
         validate_owned_resident_authority(
             &self.admission,
             &self.content,
+            ObservationModel::Stable,
             "borrowed resident shared-view establishment",
         )?;
         let length = self.admission.extent.length();
@@ -69,6 +70,7 @@ impl DormantOwnedResident {
         validate_owned_resident_authority(
             &self.admission,
             &self.content,
+            ObservationModel::Stable,
             "borrowed resident exclusive-view establishment",
         )?;
         let plan = self.admission.placement_plan.clone();

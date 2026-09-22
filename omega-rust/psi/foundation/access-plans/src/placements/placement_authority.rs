@@ -2,9 +2,9 @@
 
 use extents::{LoanPolarity, ResidentClaimId};
 
-use crate::placements::owned_atomic_resident_custody::validate_owned_atomic_resident_authority;
 use crate::placements::owned_resident_custody::replay_owned_admission_resources;
 use crate::placements::owned_resident_custody::validate_owned_content_binding;
+use crate::placements::owned_resident_custody::validate_owned_resident_authority;
 use crate::placements::owned_resident_custody::validate_provider_content_binding;
 use crate::placements::owned_resident_custody::validate_resident_observation;
 use crate::placements::placement_admission::validate_placement_admission;
@@ -160,9 +160,10 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
                         )
                     })
             }
-            Self::EstablishedOwnedAtomic(established) => validate_owned_atomic_resident_authority(
+            Self::EstablishedOwnedAtomic(established) => validate_owned_resident_authority(
                 &established.admission,
                 &established.content,
+                crate::access_plan::ObservationModel::Atomic,
                 transition,
             ),
             Self::OwnedCorrespondedExternal(established) => {

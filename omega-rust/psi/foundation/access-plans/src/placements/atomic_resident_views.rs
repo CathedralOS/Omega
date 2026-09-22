@@ -11,7 +11,7 @@ use extents::{
 };
 
 use crate::access_plan::diagnostic::into_validated_access;
-use crate::placements::owned_atomic_resident_custody::validate_owned_atomic_resident_authority;
+use crate::placements::owned_resident_custody::validate_owned_resident_authority;
 use crate::placements::owned_resident_custody::{
     validate_provider_content_binding, validate_resident_observation,
 };
@@ -33,9 +33,10 @@ impl DormantOwnedAtomicResident {
         &self,
         occurrence: PlacedOccurrenceId,
     ) -> Result<EstablishedBorrowedAtomicResidentPlacement<'_>, AccessPlanDiagnostic> {
-        validate_owned_atomic_resident_authority(
+        validate_owned_resident_authority(
             &self.admission,
             &self.content,
+            ObservationModel::Atomic,
             "borrowed Atomic resident shared-view establishment",
         )?;
         let length = self.admission.extent.length();
@@ -69,9 +70,10 @@ impl DormantOwnedAtomicResident {
         &mut self,
         occurrence: PlacedOccurrenceId,
     ) -> Result<EstablishedBorrowedAtomicResidentPlacement<'_>, AccessPlanDiagnostic> {
-        validate_owned_atomic_resident_authority(
+        validate_owned_resident_authority(
             &self.admission,
             &self.content,
+            ObservationModel::Atomic,
             "borrowed Atomic resident exclusive-view establishment",
         )?;
         let plan = self.admission.placement_plan.clone();
