@@ -484,15 +484,34 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 - **BENCHMARKS.** Complete missing subject/selection/target measurements
   through [tools/benchmark](tools/benchmark/README.md), using the existing
   record schema and generated [benchmark matrix](wiki/drafts/benchmarks.md).
-  Nonempty Linux selections, enabled/disabled comparisons and a measured macOS
-  ARM64 selected row already exist; do not redo a missing-first-row project.
+  Linux native and enabled/disabled selection rows, cross-target compile rows,
+  a measured macOS ARM64 selected row, and a compile-only structural-proofs
+  row already exist; do not rebuild the harness or repeat first-row work.
 
-  Follow the matrix's remaining host/target rows and
-  **PRIME-COUNTER-BENCHMARK-ROW** for its package-candidate/provider settlement.
-  The old integer-comparison blocker is not current. Distinguish cross-emission,
-  matching-host execution, rejected setup and unavailable environments.
+  Remaining host acceptance: matching-host Linux ARM64, Windows x64 and Intel
+  macOS measurements, plus an applicable UEFI subject and QEMU/hardware route.
+  Windows job-object peak-memory collection is implemented; exercise it on
+  Windows and report unavailable metrics honestly. The harness's Intel macOS
+  `HOST_LEGS` label still says native realization is pending; reconcile that
+  stale label with **MACOS-X64-HOST-PROFILE** in [TASKS.md](TASKS.md), whose
+  remaining acceptance is matching-host execution, not a new backend.
 
-  Acceptance: added records validate, identify exact source/build selection and
-  target/host conditions, report requested compile-time, peak-memory, code-size
-  and runtime observations honestly, and regenerate the checked matrix.
-  Missing runtime coverage remains explicit; cross-compilation is not a pass.
+  Commit missing `prime_counter` (`--expected-exit 8`) and `standalone`
+  measurements after reproducing their current package/entry acceptance.
+  Historical remainder and `Filesystem::host` failures are not current
+  blockers without reproduction. The proof-call selection repair is present;
+  `math_proofs` still needs an authored entry/product choice before native
+  measurement. Preserve compile-only proof work as such rather than inventing
+  meaningful runtime behavior for an inert entry. A dependency-free subject
+  is not inherently restricted to `--no-run`.
+
+  Acceptance: use the existing prepare/measure/validate/matrix flow; records
+  bind exact subject/compiler revision, authored enabled/disabled selection,
+  admissions, target, measuring host and observed exit behavior. Report
+  compile time, peak memory, code size and runtime with explicit skipped,
+  unavailable or non-applicable reasons, and regenerate the matrix.
+  `wrapping_square_sum` now enables six Psi rules, so its authored row is a
+  selected row, not the historical empty-default cell. A non-applicable
+  subject/target pairing must not erase the still-unmeasured host leg or
+  disguise an unrelated compile/review failure. Keep records descriptive of
+  the measurement; no per-cell task proliferation or session history.
