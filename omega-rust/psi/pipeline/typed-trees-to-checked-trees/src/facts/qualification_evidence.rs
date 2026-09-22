@@ -41,9 +41,10 @@ pub(crate) fn boundary_qualification_authorization(
     let ProofFact::Membership(membership) = program.proof_facts.get(fact) else {
         return None;
     };
-    if !expression_is_bare_result(program, membership.value) {
+    let Some(subject_carrier) = ensured_subject_carrier(program, signature, membership.value)
+    else {
         return None;
-    }
+    };
     if membership_carry_permission(program, membership).is_some() {
         return Some(BoundaryQualificationAuthorization {
             requirement_symbol: owner_symbol,
@@ -70,7 +71,7 @@ pub(crate) fn boundary_qualification_authorization(
     }) {
         return None;
     }
-    if !return_type_matches_domain_target(program, signature.return_type, domain.target_type) {
+    if !return_type_matches_domain_target(program, subject_carrier, domain.target_type) {
         return None;
     }
 
@@ -309,6 +310,40 @@ fn expression_is_bare_result(
         return false;
     };
     name.as_str() == "result"
+}
+
+/// The carrier an `ensures` membership mints into: `result` for the exact
+/// result, or the exact `&mut` non-self parameter a boundary requirement
+/// mints through caller storage it borrows mutably. Other parameters are
+/// caller premises — nothing may establish into them.
+fn ensured_subject_carrier(
+    program: &TypedTrees,
+    signature: &StateSignature,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    if expression_is_bare_result(program, expression) {
+        return Some(signature.return_type);
+    }
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let [name] = program.expression_table.name_path_members(path.members) else {
+        return None;
+    };
+    program
+        .state_signature_parameters(signature)
+        .iter()
+        .find(|parameter| {
+            !parameter.is_self
+                && crate::checks::contracts::is_readable_mutable_reference(
+                    program,
+                    parameter.type_reference,
+                )
+                && (parameter.name.as_str() == name.as_str()
+                    || parameter.symbol == path.symbol
+                    || parameter.symbol == path.head_symbol)
+        })
+        .map(|parameter| parameter.type_reference)
 }
 
 fn membership_carry_permission(
