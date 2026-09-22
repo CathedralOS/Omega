@@ -484,6 +484,28 @@ pub(crate) fn validate(
                     }
                 }
             }
+            CheckedStructuralValueKind::FixedArray { elements } => {
+                let ExpressionNode::ArrayLiteral(literal) =
+                    checked.expression_table.expression(expression)
+                else {
+                    return unsupported("array establishment lost its authored constructor");
+                };
+                let expected = validation::unwrapped_type_reference(&checked.typed, reference)
+                    .ok_or(LoweringError::Unsupported("array carrier missing"))?;
+                let checked_trees::types::TypeReferenceNode::FixedArray {
+                    element_type, ..
+                } = checked.type_reference_table.type_reference(expected)
+                else {
+                    return unsupported("array establishment substituted its carrier");
+                };
+                let authored = checked.expression_table.expression_handles(*literal);
+                if authored.len() != elements.len() {
+                    return unsupported("array establishment changed its element roster");
+                }
+                for (element, authored_element) in elements.iter().zip(authored.iter()) {
+                    pending.push((*element, *authored_element, *element_type, source_arm, None));
+                }
+            }
             CheckedStructuralValueKind::Case(construction) => {
                 if construction.expression != expression
                     || checked.normalized_type_identity(construction.type_reference)

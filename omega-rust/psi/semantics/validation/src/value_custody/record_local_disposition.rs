@@ -245,6 +245,9 @@ fn initializer_transfer(
                     }
                 }
             }
+            CheckedStructuralValueKind::FixedArray { elements } => {
+                pending.extend(elements.iter().copied());
+            }
             CheckedStructuralValueKind::Place(argument) => {
                 if argument.source
                     != (checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {

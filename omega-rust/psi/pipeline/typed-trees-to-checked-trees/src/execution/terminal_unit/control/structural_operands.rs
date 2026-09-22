@@ -163,6 +163,9 @@ pub(in crate::execution::terminal_unit) fn value_calls(
             checked_trees::CheckedStructuralValueKind::Projection { source, .. } => {
                 pending.push(*source);
             }
+            checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
+                pending.extend(elements.iter().rev().copied());
+            }
             checked_trees::CheckedStructuralValueKind::Reference { .. }
             | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
             | checked_trees::CheckedStructuralValueKind::Case(_)

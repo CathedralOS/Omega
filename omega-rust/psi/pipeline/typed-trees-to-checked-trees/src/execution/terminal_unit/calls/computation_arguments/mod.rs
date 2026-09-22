@@ -51,7 +51,9 @@ pub(crate) fn structural_computation_argument(
             }
             argument.target
         }
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) => expression,
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            expression
+        }
         _ => return None,
     };
     let mut place = crate::flow::canonical_place_from_expression_in_state(
@@ -350,7 +352,9 @@ fn shared_nominal_argument(
         // bound to; forwarding it hands that referent carrier to the callee,
         // exactly as a shared-borrow parameter would. The retained symbol and
         // recorded access stay the local's own — nothing unwraps or copies the
-        // referent into a fabricated place.
+        // referent into a fabricated place. A fixed-array local is the same
+        // kind of established home: its bounds come from the literal length
+        // when a segment projects inside it.
         let (reference, carrier) = match program
             .type_reference_table
             .type_reference(local.type_reference)
@@ -362,7 +366,9 @@ fn shared_nominal_argument(
                 referee,
                 ..
             } => (*referee, true),
-            TypeReferenceNode::Named { .. } => (local.type_reference, false),
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::FixedArray { .. } => {
+                (local.type_reference, false)
+            }
             _ => return None,
         };
         (
@@ -379,7 +385,7 @@ fn shared_nominal_argument(
     if whole_storage
         && (!matches!(
             program.type_reference_table.type_reference(reference),
-            TypeReferenceNode::Named { .. }
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::FixedArray { .. }
         ) || !validation::has_plain_owned_contents_with_numeric_constraints(program, reference)
             || !matches!(
                 program.type_multiplicity(reference),

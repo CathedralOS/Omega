@@ -1661,6 +1661,18 @@ fn structural_value_observes_primitive_carrier(
                 }
             })
         }
+        checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
+            elements.iter().any(|element| {
+                structural_value_observes_primitive_carrier(
+                    facts,
+                    *element,
+                    positions,
+                    symbols,
+                    visited,
+                    visited_computations,
+                )
+            })
+        }
         checked_trees::CheckedStructuralValueKind::Case(_)
         | checked_trees::CheckedStructuralValueKind::Call { .. } => false,
     }
