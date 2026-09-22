@@ -5,14 +5,14 @@ use super::super::super::{
 };
 use super::super::{CheckedTrees, LoweringError};
 
-use crate::unit::attached_unit::bodies::UnitBody;
+use crate::unit::attached_unit::bodies::{UnitBody, UnitPlans};
 
 pub(in crate::unit::attached_unit::composed_control) fn retain_call_target<'a>(
     checked: &'a CheckedTrees,
     root: symbols::SymbolHandle,
     state: &checked_trees::CheckedComposedUnitControlStatePlan,
     operation: &CheckedUnitEffectOperationPlan,
-    plans: &'a checked_trees::CheckedUnitEffectPlans,
+    plans: UnitPlans<'a>,
     targets: &mut Vec<(UnitBody<'a>, String)>,
 ) -> Result<(), LoweringError> {
     crate::emission::call_source_custody::validate_operation(
@@ -153,7 +153,7 @@ pub(in crate::unit::attached_unit::composed_control) fn retain_call_target<'a>(
                 || argument.access != target.access
                 || target.multiplicity != Multiplicity::Unrestricted
                 || !target.qualifications.is_empty()
-                || !plans.structural_types.iter().any(|declaration| {
+                || !plans.structural_types().any(|declaration| {
                     declaration.identity == target.type_identity
                         && matches!(
                             declaration.shape,

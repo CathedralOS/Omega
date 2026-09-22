@@ -202,7 +202,9 @@ pub(super) fn emit_call_operations(
                             "nested structural target is missing",
                         ))?;
                     let entry = super::super::bodies::UnitBody::find(
-                        &checked.facts.flow.terminal_unit_effects,
+                        super::super::bodies::UnitPlans::published(
+                            &checked.facts.flow.terminal_unit_effects,
+                        ),
                         *target_machine,
                     )?
                     .entry()?;
@@ -226,7 +228,9 @@ pub(super) fn emit_call_operations(
                         .collect::<Vec<_>>();
                     let prepared = super::super::ordinary_calls::prepare(
                         checked,
-                        &checked.facts.flow.terminal_unit_effects,
+                        super::super::bodies::UnitPlans::published(
+                            &checked.facts.flow.terminal_unit_effects,
+                        ),
                         operand,
                         super::super::ordinary_calls::Target {
                             parameters: &target.structural_parameters,

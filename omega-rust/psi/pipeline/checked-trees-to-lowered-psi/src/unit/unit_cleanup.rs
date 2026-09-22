@@ -18,6 +18,7 @@ use super::{
     lookup_machine_id, lookup_type_id, lower_unit_closure, machine_id, obligation_id, place_id,
     unique_unit_machine, unsupported,
 };
+use crate::unit::attached_unit::bodies::UnitPlans;
 use crate::unit::attached_unit::{RuntimeRequirementOwner, UnitClosureRequest};
 use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralParameterPlan};
 use symbols::SymbolHandle;
@@ -184,10 +185,8 @@ pub(crate) fn lower_nominal_affine_unit_cleanup_machine(
         );
     }
 
-    let cleanup_target = unique_unit_machine(
-        &checked.facts.flow.terminal_unit_effects,
-        cleanup.cleanup_machine,
-    )?;
+    let published = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
+    let cleanup_target = unique_unit_machine(published, cleanup.cleanup_machine)?;
     let cleanup_contract = checked
         .facts
         .contract_plans
@@ -222,36 +221,42 @@ pub(crate) fn lower_nominal_affine_unit_cleanup_machine(
         return unsupported("nominal cleanup target identity or bounded signature drifted");
     }
 
-    // Cleanup is an explicit additional closure root because it is executable
-    // edge work, not a source-authored ordinary call operation.
-    let mut staged = checked.clone();
-    let staged_unit = &mut staged.facts.flow.terminal_unit_effects;
+    // The nominal lane's shapes join the ordinary roster for this closure;
+    // a shape both lanes publish must agree.
     for shape in nominal_types {
-        match staged_unit
-            .structural_types
-            .iter()
-            .find(|candidate| candidate.identity == shape.identity)
+        if published
+            .structural_type(&shape.identity)
+            .is_some_and(|existing| existing != shape)
         {
-            Some(existing) if existing != shape => {
-                return unsupported(
-                    "nominal affine Unit structural type conflicts with its cleanup closure",
-                );
-            }
-            Some(_) => {}
-            None => staged_unit.structural_types.push(shape.clone()),
+            return unsupported(
+                "nominal affine Unit structural type conflicts with its cleanup closure",
+            );
         }
     }
-    if !staged_unit
-        .machines
-        .iter()
-        .any(|candidate| candidate.machine == plan.machine)
-    {
-        staged_unit.machines.push(plan.clone());
-    }
-    // The closure root pair anchors a transitive call closure: whatever
-    // ordinary machines the hook body reaches are lowered beside it.
-    let closure =
-        checked_unit_call_closure_including(&staged, plan.machine, &[cleanup.cleanup_machine])?;
+    // A free consuming machine is already seeded into the ordinary roster;
+    // an attached entry is read from the nominal lane as the closure's entry.
+    let plans = if published.for_machine(plan.machine).is_some() {
+        UnitPlans::with_staged_structural_types(
+            &checked.facts.flow.terminal_unit_effects,
+            nominal_types,
+        )
+    } else {
+        UnitPlans::with_staged(
+            &checked.facts.flow.terminal_unit_effects,
+            plan,
+            nominal_types,
+        )
+    };
+    // Cleanup is an explicit additional closure root because it is executable
+    // edge work, not a source-authored ordinary call operation. The closure
+    // root pair anchors a transitive call closure: whatever ordinary machines
+    // the hook body reaches are lowered beside it.
+    let closure = checked_unit_call_closure_including(
+        checked,
+        plans,
+        plan.machine,
+        &[cleanup.cleanup_machine],
+    )?;
     let cleanup_machine_index = closure
         .iter()
         .position(|candidate| *candidate == cleanup.cleanup_machine)
@@ -260,10 +265,14 @@ pub(crate) fn lower_nominal_affine_unit_cleanup_machine(
         ))?;
     let cleanup_terminal_id = machine_id(dense_identity(cleanup_machine_index)?);
     let mut lowered = lower_unit_closure(
-        &staged,
+        checked,
         &UnitClosureRequest {
+            plans,
+            entry: plan.machine,
+            unit_roots: &[plan.machine, cleanup.cleanup_machine],
+            external: None,
             requirements_owner: RuntimeRequirementOwner::NominalCleanup,
-            ..UnitClosureRequest::unit(plan.machine, &[plan.machine, cleanup.cleanup_machine])
+            scalar_entry: false,
         },
     )?
     .lowered;
@@ -582,7 +591,7 @@ pub(super) fn patch_nominal_cleanup_member(
                 "nominal cleanup member parameter is absent from its terminal signature",
             ))?;
         let cleanup_target = unique_unit_machine(
-            &checked.facts.flow.terminal_unit_effects,
+            UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
             cleanup.cleanup_machine,
         )?;
         if cleanup_target.state != cleanup.cleanup_state

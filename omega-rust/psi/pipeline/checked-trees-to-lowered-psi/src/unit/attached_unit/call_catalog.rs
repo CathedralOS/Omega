@@ -7,6 +7,7 @@
 //! emitter exactly once, while the remaining scalar bodies use their own emitter.
 //! Classification grants no custody; each body and call is validated by assembly.
 
+use super::bodies::UnitPlans;
 use super::{
     CheckedScalarCallee, CheckedTrees, CheckedUnitEffectOperationPlan,
     CheckedUnitProviderCandidate, LoweringError, ProviderBody, UnitBody,
@@ -21,24 +22,24 @@ pub(super) struct CheckedCallCatalog {
 
 pub(super) fn discover(
     checked: &CheckedTrees,
+    plans: UnitPlans<'_>,
     entry: symbols::SymbolHandle,
     unit_roots: &[symbols::SymbolHandle],
     external: Option<&shared_closure::ExternalUnitRoots<'_>>,
     scalar_entry: bool,
 ) -> Result<CheckedCallCatalog, LoweringError> {
-    let plans = &checked.facts.flow.terminal_unit_effects;
     let mut retained_roots = unit_roots.to_vec();
     loop {
         let closure = match retained_roots.split_first() {
             Some((root, additional)) => {
-                checked_unit_call_closure_including(checked, *root, additional)?
+                checked_unit_call_closure_including(checked, plans, *root, additional)?
             }
             None => Vec::new(),
         };
         if external.is_some() && closure.contains(&entry) {
             return unsupported("external composed entry overlaps its ordinary Unit closure");
         }
-        let candidates = checked_unit_provider_candidates(checked, &closure)?;
+        let candidates = checked_unit_provider_candidates(checked, plans, &closure)?;
         for candidate in candidates
             .iter()
             .filter(|candidate| candidate.body == ProviderBody::Callable)

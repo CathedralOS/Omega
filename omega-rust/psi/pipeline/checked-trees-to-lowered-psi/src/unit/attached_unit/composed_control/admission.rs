@@ -9,7 +9,7 @@ use super::super::{
 };
 use super::{CheckedTrees, LoweringError, internal_calls};
 use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
-use crate::unit::attached_unit::bodies::UnitBody;
+use crate::unit::attached_unit::bodies::{UnitBody, UnitPlans};
 
 pub(crate) fn admit_dynamic_continuation<'a>(
     checked: &'a CheckedTrees,
@@ -384,7 +384,7 @@ pub(super) fn retain_call_targets<'a>(
     ),
     LoweringError,
 > {
-    let plans = &checked.facts.flow.terminal_unit_effects;
+    let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
     let mut boundaries = Vec::new();
     let mut internal_targets = Vec::new();
     for state in call_states.iter().copied() {
@@ -473,7 +473,7 @@ pub(super) fn retain_call_boundary<'a>(
     machine: symbols::SymbolHandle,
     state: &'a checked_trees::CheckedComposedUnitControlStatePlan,
     operation: &CheckedUnitEffectOperationPlan,
-    plans: &'a checked_trees::CheckedUnitEffectPlans,
+    plans: UnitPlans<'a>,
     boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, String)>,
 ) -> Result<(), LoweringError> {
     crate::emission::call_source_custody::validate_operation(

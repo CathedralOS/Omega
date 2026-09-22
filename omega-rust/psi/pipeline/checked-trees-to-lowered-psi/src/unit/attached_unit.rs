@@ -65,7 +65,7 @@ mod structural_calls;
 mod structural_completion;
 pub(crate) mod structural_values;
 
-use bodies::UnitBody;
+use bodies::{UnitBody, UnitPlans};
 pub(crate) use parameters::validate_direct_unit_parameter_custody;
 pub(crate) use parameters::{lower_declared_service_reach, lower_fixed_boundary_service_reach};
 
@@ -142,7 +142,7 @@ fn retain_exact_checked_flow_call(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn retain_exact_unit_boundary<'plans>(
     checked: &CheckedTrees,
-    plans: &'plans checked_trees::CheckedUnitEffectPlans,
+    plans: UnitPlans<'plans>,
     boundaries: &mut Vec<(&'plans CheckedBoundaryMachinePlan, String)>,
     target_machine: symbols::SymbolHandle,
     target_state: symbols::SymbolHandle,
@@ -213,14 +213,16 @@ pub(crate) enum RuntimeRequirementOwner {
     NominalCleanup,
 }
 
-/// The one closure assembly request. `entry` is the exact machine the
-/// closure begins at; `unit_roots` are its explicit Unit roots (the entry
-/// first for an ordinary closure, empty for a scalar entry); `external` names
-/// the boundary, type, service and scalar roots a composed caller supplies;
+/// The one closure assembly request. `plans` is the Unit roster the closure
+/// resolves bodies and shapes from; `entry` is the exact machine the closure
+/// begins at; `unit_roots` are its explicit Unit roots (the entry first for
+/// an ordinary closure, empty for a scalar entry); `external` names the
+/// boundary, type, service and scalar roots a composed caller supplies;
 /// `scalar_entry` marks a scalar machine that borrows the same real callee
 /// catalog without a synthetic Unit caller.
 #[derive(Clone, Copy)]
 pub(crate) struct UnitClosureRequest<'a> {
+    pub(crate) plans: UnitPlans<'a>,
     pub(crate) entry: symbols::SymbolHandle,
     pub(crate) unit_roots: &'a [symbols::SymbolHandle],
     pub(crate) external: Option<shared_closure::ExternalUnitRoots<'a>>,
@@ -229,9 +231,14 @@ pub(crate) struct UnitClosureRequest<'a> {
 }
 
 impl<'a> UnitClosureRequest<'a> {
-    /// An ordinary Unit closure rooted at `entry` alone.
-    pub(crate) fn unit(entry: symbols::SymbolHandle, roots: &'a [symbols::SymbolHandle]) -> Self {
+    /// An ordinary Unit closure over the published roster.
+    pub(crate) fn unit(
+        checked: &'a CheckedTrees,
+        entry: symbols::SymbolHandle,
+        roots: &'a [symbols::SymbolHandle],
+    ) -> Self {
         Self {
+            plans: UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
             entry,
             unit_roots: roots,
             external: None,
@@ -248,7 +255,7 @@ pub(crate) fn lower_unit_effect_closure(
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
-    let closure = lower_unit_closure(checked, &UnitClosureRequest::unit(entry, &[entry]))?;
+    let closure = lower_unit_closure(checked, &UnitClosureRequest::unit(checked, entry, &[entry]))?;
     crate::producer_result::SourceMappedLowered::new(closure.lowered, closure.machine_ids)
 }
 
@@ -263,7 +270,7 @@ pub(crate) fn lower_scalar_effect_closure(
         checked,
         &UnitClosureRequest {
             scalar_entry: true,
-            ..UnitClosureRequest::unit(entry, &[])
+            ..UnitClosureRequest::unit(checked, entry, &[])
         },
     )?;
     finalize_operation_proofs(&mut closure.lowered)?;
@@ -278,20 +285,26 @@ pub(crate) fn lower_unit_closure(
     request: &UnitClosureRequest<'_>,
 ) -> Result<shared_closure::SharedUnitClosure, LoweringError> {
     let UnitClosureRequest {
+        plans,
         entry,
         unit_roots,
         external,
         requirements_owner,
         scalar_entry,
     } = *request;
-    let plans = &checked.facts.flow.terminal_unit_effects;
     let reserved_prefix = usize::from(external.is_some());
     let ordinary_entry = unit_roots.first().copied();
     if external.is_none() && !scalar_entry && ordinary_entry != Some(entry) {
         return unsupported("ordinary Unit closure must begin with its exact entry");
     }
-    let call_catalog =
-        call_catalog::discover(checked, entry, unit_roots, external.as_ref(), scalar_entry)?;
+    let call_catalog = call_catalog::discover(
+        checked,
+        plans,
+        entry,
+        unit_roots,
+        external.as_ref(),
+        scalar_entry,
+    )?;
     let closure = call_catalog.operations;
     let provider_candidate_plans = call_catalog.providers;
     let scalar_closure = call_catalog.scalars;
@@ -381,6 +394,7 @@ pub(crate) fn lower_unit_closure(
     }
     let admitted_bodies = admission::admit(
         checked,
+        plans,
         entry,
         &closure,
         &scalar_closure,
@@ -417,12 +431,13 @@ pub(crate) fn lower_unit_closure(
     let (mut structural_types, type_ids) = if !additional_type_roots.is_empty() {
         catalog::lower_unit_structural_types_including(
             checked,
+            plans,
             &closure,
             &boundaries,
             &additional_type_roots,
         )?
     } else {
-        catalog::lower_unit_structural_types(checked, &closure, &boundaries)?
+        catalog::lower_unit_structural_types(checked, plans, &closure, &boundaries)?
     };
     // Callable composed bodies borrow a complete shared catalog. Retain the
     // generated immutable carrier before cloning it into any callee emitter.
@@ -461,6 +476,7 @@ pub(crate) fn lower_unit_closure(
         .collect::<Vec<_>>();
     let (structural_domains, domain_ids) = catalog::lower_unit_structural_domains_including(
         checked,
+        plans,
         &closure,
         &boundaries,
         &type_ids,
@@ -469,13 +485,20 @@ pub(crate) fn lower_unit_closure(
     let (services, service_ids) = if !additional_service_roots.is_empty() {
         catalog::lower_unit_services_including(
             checked,
+            plans,
             &closure,
             &boundaries,
             &provider_candidate_plans,
             &additional_service_roots,
         )?
     } else {
-        catalog::lower_unit_services(checked, &closure, &boundaries, &provider_candidate_plans)?
+        catalog::lower_unit_services(
+            checked,
+            plans,
+            &closure,
+            &boundaries,
+            &provider_candidate_plans,
+        )?
     };
     let root_service_reach = lower_root_service_reach(checked, entry, &service_ids)?;
 

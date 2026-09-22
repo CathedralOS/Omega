@@ -4,6 +4,7 @@ use super::super::{
     StructuralArgument, StructuralParameterDeclaration, StructuralTypeDeclaration, ValueId,
     claim_id, structural_crash_route_argument_prefix, substitute_structural_crash_route_roots,
 };
+use super::bodies::UnitPlans;
 use super::parameters::{StructuralResultCustody, emitted_claim_transfers};
 use super::{
     CheckedTrees, CheckedUnitEffectOperationPlan, ClaimTransfer, LoweringError, Multiplicity,
@@ -48,7 +49,7 @@ pub(super) struct PreparedCall {
 #[allow(clippy::too_many_arguments)]
 pub(super) fn prepare(
     checked: &CheckedTrees,
-    plans: &checked_trees::CheckedUnitEffectPlans,
+    plans: UnitPlans<'_>,
     operation: &CheckedUnitEffectOperationPlan,
     target: Target<'_>,
     evaluated_scalar_arguments: Option<&[ValueDeclaration]>,
@@ -393,8 +394,11 @@ pub(super) fn emit_structural(
             })
             .collect::<Result<Vec<_>, LoweringError>>()?,
     };
-    let target =
-        UnitBody::find(&checked.facts.flow.terminal_unit_effects, *target_machine)?.entry()?;
+    let target = UnitBody::find(
+        UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
+        *target_machine,
+    )?
+    .entry()?;
     // Callee claims use the same dense entry ordering as lower_unit_entry_claims;
     // caller identities stay in the caller's namespace across normal completion.
     let returned_claim_transfers = custody

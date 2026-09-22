@@ -1,6 +1,7 @@
 //! Exact checked Unit call-closure and identity validation.
 
 use super::super::CheckedTerminalSignatureEligibility;
+use super::bodies::UnitPlans;
 use super::{
     CheckedBoundaryMachinePlan, CheckedTrees, CheckedUnitEffectMachinePlan,
     CheckedUnitEffectOperationPlan, LoweringError, Multiplicity, UnitBody, structural_calls,
@@ -8,10 +9,10 @@ use super::{
 };
 pub(crate) fn checked_unit_call_closure_including(
     checked: &CheckedTrees,
+    plans: UnitPlans<'_>,
     entry: symbols::SymbolHandle,
     additional_roots: &[symbols::SymbolHandle],
 ) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
-    let plans = &checked.facts.flow.terminal_unit_effects;
     let mut closure = vec![entry];
     for root in additional_roots {
         if closure.contains(root) {
@@ -73,10 +74,10 @@ pub(crate) fn checked_unit_call_closure_including(
 pub(super) use crate::scalar_graph::scalar_call_closure::embedded::checked_scalar_call_closure_with_structural_roots;
 
 pub(crate) fn unique_unit_machine(
-    plans: &checked_trees::CheckedUnitEffectPlans,
+    plans: UnitPlans<'_>,
     symbol: symbols::SymbolHandle,
 ) -> Result<&CheckedUnitEffectMachinePlan, LoweringError> {
-    let mut matches = plans.machines.iter().filter(|plan| plan.machine == symbol);
+    let mut matches = plans.machines().filter(|plan| plan.machine == symbol);
     let plan = matches.next().ok_or(LoweringError::Unsupported(
         "attached Unit closure is missing a checked transitive machine plan",
     ))?;
@@ -87,11 +88,11 @@ pub(crate) fn unique_unit_machine(
 }
 
 pub(super) fn unique_unit_boundary(
-    plans: &checked_trees::CheckedUnitEffectPlans,
+    plans: UnitPlans<'_>,
     symbol: symbols::SymbolHandle,
 ) -> Result<&CheckedBoundaryMachinePlan, LoweringError> {
     let mut matches = plans
-        .boundary_machines
+        .boundary_machines()
         .iter()
         .filter(|plan| plan.machine == symbol);
     let plan = matches.next().ok_or(LoweringError::Unsupported(
@@ -615,11 +616,11 @@ pub(super) fn validate_unit_operation_sequence(
 }
 
 pub(super) fn reject_recursive_unit_closure(
-    plans: &checked_trees::CheckedUnitEffectPlans,
+    plans: UnitPlans<'_>,
     closure: &[symbols::SymbolHandle],
 ) -> Result<(), LoweringError> {
     fn visit(
-        plans: &checked_trees::CheckedUnitEffectPlans,
+        plans: UnitPlans<'_>,
         symbol: symbols::SymbolHandle,
         active: &mut Vec<symbols::SymbolHandle>,
         complete: &mut Vec<symbols::SymbolHandle>,

@@ -11,6 +11,7 @@ use super::{
     lookup_type_id, lower_unit_closure, machine_id, obligation_id, place_id, unique_unit_machine,
     unsupported,
 };
+use crate::unit::attached_unit::bodies::UnitPlans;
 use crate::unit::attached_unit::{RuntimeRequirementOwner, UnitClosureRequest};
 
 pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
@@ -226,12 +227,10 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
         }
     }
 
+    let published = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
     let mut roots = Vec::new();
     for cleanup in &nominal.cleanups {
-        let target = unique_unit_machine(
-            &checked.facts.flow.terminal_unit_effects,
-            cleanup.cleanup_machine,
-        )?;
+        let target = unique_unit_machine(published, cleanup.cleanup_machine)?;
         let contract = checked
             .facts
             .contract_plans
@@ -269,45 +268,36 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
         }
     }
 
-    let mut staged = checked.clone();
+    // The nominal lane's dispatcher and shapes join the ordinary roster for
+    // this closure; a shape both lanes publish must agree.
     for shape in nominal_types {
-        match staged
-            .facts
-            .flow
-            .terminal_unit_effects
-            .structural_types
-            .iter()
-            .find(|candidate| candidate.identity == shape.identity)
+        if published
+            .structural_type(&shape.identity)
+            .is_some_and(|existing| existing != shape)
         {
-            Some(existing) if existing != shape => {
-                return unsupported("ordered nominal cleanup structural type conflicts");
-            }
-            Some(_) => {}
-            None => staged
-                .facts
-                .flow
-                .terminal_unit_effects
-                .structural_types
-                .push(shape.clone()),
+            return unsupported("ordered nominal cleanup structural type conflicts");
         }
     }
-    staged
-        .facts
-        .flow
-        .terminal_unit_effects
-        .machines
-        .push(plan.clone());
+    let plans = UnitPlans::with_staged(
+        &checked.facts.flow.terminal_unit_effects,
+        plan,
+        nominal_types,
+    );
     // The dispatcher plus each unique cleanup root anchors a transitive call
     // closure; ordinary machines reached by a hook body lower beside it.
-    let closure = checked_unit_call_closure_including(&staged, plan.machine, &roots)?;
+    let closure = checked_unit_call_closure_including(checked, plans, plan.machine, &roots)?;
     let mut unit_roots = Vec::with_capacity(roots.len() + 1);
     unit_roots.push(plan.machine);
     unit_roots.extend_from_slice(&roots);
     let mut lowered = lower_unit_closure(
-        &staged,
+        checked,
         &UnitClosureRequest {
+            plans,
+            entry: plan.machine,
+            unit_roots: &unit_roots,
+            external: None,
             requirements_owner: RuntimeRequirementOwner::NominalCleanup,
-            ..UnitClosureRequest::unit(plan.machine, &unit_roots)
+            scalar_entry: false,
         },
     )?
     .lowered;

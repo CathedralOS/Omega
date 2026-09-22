@@ -98,15 +98,19 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
                 service_roots: &services,
                 scalar_roots: &scalar_roots,
             }),
-            ..UnitClosureRequest::unit(machine, &unit_roots)
+            ..UnitClosureRequest::unit(checked, machine, &unit_roots)
         },
     )?;
     let lowered_boundaries = shared
         .boundary_parameters
         .iter()
         .map(|(source, id, _, scalar_parameters)| {
-            let boundary =
-                unique_unit_boundary(&checked.facts.flow.terminal_unit_effects, *source)?;
+            let boundary = unique_unit_boundary(
+                crate::unit::attached_unit::bodies::UnitPlans::published(
+                    &checked.facts.flow.terminal_unit_effects,
+                ),
+                *source,
+            )?;
             let declaration = shared
                 .lowered
                 .semantic_module

@@ -9,7 +9,7 @@ use super::super::{
 };
 mod operations;
 
-use super::bodies::UnitBody;
+use super::bodies::{UnitBody, UnitPlans};
 use super::composed_control::{self, callable::CallableBody};
 use super::{
     RuntimeRequirementOwner, reference_results, retain_exact_unit_boundary, scalar_completion,
@@ -37,13 +37,13 @@ impl<'a> AdmittedBody<'a> {
 
 pub(super) fn admit<'a>(
     checked: &'a CheckedTrees,
+    plans: UnitPlans<'a>,
     entry: SymbolHandle,
     closure: &[SymbolHandle],
     scalar_closure: &[SymbolHandle],
     requirements_owner: RuntimeRequirementOwner,
     boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, String)>,
 ) -> Result<Vec<AdmittedBody<'a>>, LoweringError> {
-    let plans = &checked.facts.flow.terminal_unit_effects;
     let mut bodies = Vec::with_capacity(closure.len());
     for source in closure {
         let admitted = match UnitBody::find(plans, *source)? {
@@ -65,7 +65,7 @@ pub(super) fn admit<'a>(
             }
             UnitBody::Ordinary(plan) => {
                 validate_ordinary(checked, plan, entry, requirements_owner)?;
-                operations::validate(checked, plan, closure, scalar_closure, boundaries)?;
+                operations::validate(checked, plans, plan, closure, scalar_closure, boundaries)?;
                 AdmittedBody::Ordinary(plan)
             }
         };

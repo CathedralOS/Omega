@@ -135,7 +135,9 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_call_operation(
         _ => None,
     };
     let target_entry = crate::unit::attached_unit::bodies::UnitBody::find(
-        &checked.facts.flow.terminal_unit_effects,
+        crate::unit::attached_unit::bodies::UnitPlans::published(
+            &checked.facts.flow.terminal_unit_effects,
+        ),
         *target_machine,
     )?
     .entry()?;
