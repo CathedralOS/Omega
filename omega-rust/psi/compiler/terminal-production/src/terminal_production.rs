@@ -856,39 +856,37 @@ mod tests {
             )
             .unwrap_err()
         };
+        fn rebound_scalar_latest_mut(
+            checked: &mut checked_trees::CheckedTrees,
+        ) -> &mut checked_trees::CheckedDynamicScalarCallPlan {
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .dynamic_dispatch
+                .calls
+                .iter_mut()
+                .find_map(|plan| match plan {
+                    checked_trees::CheckedDynamicDispatchPlan::Scalar(
+                        checked_trees::CheckedDynamicBinding::Rebound { latest, .. },
+                    ) => Some(latest),
+                    _ => None,
+                })
+                .expect("one rebound scalar dynamic plan")
+        }
         let drifted = "rebound dynamic dispatch drifted from its checked selection";
         // A checked plan whose requirement identity no longer matches the
         // emitted dispatch row.
         let mut corrupted = checked.clone();
-        corrupted
-            .facts
-            .flow
-            .terminal_unit_effects
-            .dynamic_dispatch
-            .rebound_scalar_calls[0]
-            .latest
-            .requirement_identity = "foreign".to_owned();
+        rebound_scalar_latest_mut(&mut corrupted).requirement_identity = "foreign".to_owned();
         assert_eq!(replay(&corrupted), drifted);
         // A checked plan whose family tuple is substituted.
         let mut corrupted = checked.clone();
-        corrupted
-            .facts
-            .flow
-            .terminal_unit_effects
-            .dynamic_dispatch
-            .rebound_scalar_calls[0]
-            .latest
-            .family_tuple = Box::from(["foreign".to_owned()]);
+        rebound_scalar_latest_mut(&mut corrupted).family_tuple = Box::from(["foreign".to_owned()]);
         assert_eq!(replay(&corrupted), drifted);
         // A stale checked coordinate leaves the indirect dispatch unrejoined.
         let mut corrupted = checked.clone();
-        corrupted
-            .facts
-            .flow
-            .terminal_unit_effects
-            .dynamic_dispatch
-            .rebound_scalar_calls[0]
-            .latest
+        rebound_scalar_latest_mut(&mut corrupted)
             .coordinate
             .statement_index += 1;
         assert_eq!(
@@ -897,16 +895,8 @@ mod tests {
         );
         // A retained conformance row whose requirement identity drifted.
         let mut corrupted = checked.clone();
-        corrupted
-            .facts
-            .flow
-            .terminal_unit_effects
-            .dynamic_dispatch
-            .rebound_scalar_calls[0]
-            .latest
-            .selection
-            .rows[0]
-            .requirement_identity = "foreign".to_owned();
+        rebound_scalar_latest_mut(&mut corrupted).selection.rows[0].requirement_identity =
+            "foreign".to_owned();
         assert_eq!(
             replay(&corrupted),
             "rebound dynamic conformance application drifted from its checked selection"

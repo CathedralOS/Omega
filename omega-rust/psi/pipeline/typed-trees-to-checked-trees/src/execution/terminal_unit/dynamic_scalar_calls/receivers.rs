@@ -3,12 +3,6 @@
 use crate::execution::terminal_unit::{CheckFacts, ExpressionNode, SymbolHandle, TypedTrees};
 use typed_trees::name::Identifier;
 
-pub(crate) enum CheckedDynamicScalarCall {
-    Direct(checked_trees::CheckedDynamicScalarCallPlan),
-    Rebound(checked_trees::CheckedReboundDynamicScalarCallPlan),
-    Stored(checked_trees::CheckedStoredDynamicScalarCallPlan),
-}
-
 pub(crate) struct DynamicReceiverPlace {
     pub(crate) root: SymbolHandle,
     pub(crate) leaf: SymbolHandle,

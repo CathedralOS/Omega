@@ -6,15 +6,16 @@
 
 use super::realizations::{collect_dynamic_realizations, materialize_dynamic_realizations};
 use super::{
-    Block, CheckedStructuralAccess, CheckedTrees, LoweredPsi, LoweredSourceCallOccurrence,
-    LoweringError, Operation, OperationKind, OperationResult, ProofBundle, StructuralAccess,
-    StructuralArgument, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralPlaceKind, TerminalDynamicConformanceSelection, TerminalDynamicDescriptorArgument,
-    TerminalDynamicDescriptorParameter, TerminalDynamicDescriptorSource,
-    TerminalDynamicDispatchCatalog, TerminalMachine, TerminalMachineResult, TerminalModule,
-    TerminalParameterDynamicDispatch, Terminator, ValueDeclaration, VocabularyMarker, block_id,
-    edge_id, join, lookup_type_id, lower_installation_machine_service_ceiling,
-    lower_root_service_reach, machine_id, operation_id, place_id, unit, unsupported, value_id,
+    Block, CheckedDynamicUnitCallPlan, CheckedStructuralAccess, CheckedTrees, LoweredPsi,
+    LoweredSourceCallOccurrence, LoweringError, Operation, OperationKind, OperationResult,
+    ProofBundle, StructuralAccess, StructuralArgument, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralPlaceKind, TerminalDynamicConformanceSelection,
+    TerminalDynamicDescriptorArgument, TerminalDynamicDescriptorParameter,
+    TerminalDynamicDescriptorSource, TerminalDynamicDispatchCatalog, TerminalMachine,
+    TerminalMachineResult, TerminalModule, TerminalParameterDynamicDispatch, Terminator,
+    ValueDeclaration, VocabularyMarker, block_id, edge_id, join, lookup_type_id,
+    lower_installation_machine_service_ceiling, lower_root_service_reach, machine_id, operation_id,
+    place_id, unit, unsupported, value_id,
 };
 use crate::unit::dynamic_composed_unit::applications::{
     exact_machine_service_summary, lower_exact_application,
@@ -31,17 +32,28 @@ use crate::unit::dynamic_composed_unit::structural_types::{
 };
 pub(super) fn lower(
     checked: &CheckedTrees,
-    plan: &checked_trees::CheckedJoinedDynamicUnitCallPlan,
+    control: &checked_trees::CheckedDynamicJoinControlPlan,
+    when_true: &checked_trees::CheckedDynamicJoinBranchPlan<CheckedDynamicUnitCallPlan>,
+    when_false: &checked_trees::CheckedDynamicJoinBranchPlan<CheckedDynamicUnitCallPlan>,
 ) -> Result<LoweredPsi, LoweringError> {
-    validate_join_plan(checked, plan)?;
-    let branches = [&plan.when_true.call, &plan.when_false.call];
+    join::validate_join_control_plan(
+        checked,
+        control,
+        &when_true.successor,
+        when_true.call.caller_machine,
+        when_true.call.caller_state,
+        &when_false.successor,
+        when_false.call.caller_machine,
+        when_false.call.caller_state,
+    )?;
+    let branches = [&when_true.call, &when_false.call];
     for branch in branches {
         unit::validate_exact_unit_plan(checked, branch, DynamicLoweringLane::Direct)?;
     }
     let first = branches[0];
     let second = branches[1];
     if first.caller_attachment_type_identity != second.caller_attachment_type_identity
-        || first.caller_attachment_type_identity != plan.caller_attachment_type_identity
+        || first.caller_attachment_type_identity != control.caller_attachment_type_identity
         || first.source_type_identity != second.source_type_identity
         || first.source_access != second.source_access
         || first.caller_parameter_access != second.caller_parameter_access
@@ -362,43 +374,15 @@ pub(super) fn lower(
             evidence: Vec::new(),
         },
         debug_map: None,
-        source_call_occurrences: joined_source_call_occurrences(plan, &helper_ids)?,
+        source_call_occurrences: joined_source_call_occurrences(
+            when_true,
+            when_false,
+            &helper_ids,
+        )?,
         selected_ieee_float_fma_occurrences: Vec::new(),
         selected_ieee_float_comparison_occurrences: Vec::new(),
         selected_integer_comparison_occurrences: Vec::new(),
     })
-}
-
-fn validate_join_plan(
-    checked: &CheckedTrees,
-    plan: &checked_trees::CheckedJoinedDynamicUnitCallPlan,
-) -> Result<(), LoweringError> {
-    if checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .dynamic_dispatch
-        .joined_unit_calls
-        .iter()
-        .filter(|candidate| *candidate == plan)
-        .count()
-        != 1
-    {
-        return unsupported("joined dynamic Unit control plan drifted from checked custody");
-    }
-    join::validate_join_control_plan(
-        checked,
-        plan.caller_machine,
-        plan.entry_state,
-        &plan.scalar_parameters,
-        &plan.guard,
-        &plan.when_true.successor,
-        plan.when_true.call.caller_machine,
-        plan.when_true.call.caller_state,
-        &plan.when_false.successor,
-        plan.when_false.call.caller_machine,
-        plan.when_false.call.caller_state,
-    )
 }
 
 fn lower_source(
@@ -509,23 +493,23 @@ fn branch_block(
 }
 
 fn joined_source_call_occurrences(
-    plan: &checked_trees::CheckedJoinedDynamicUnitCallPlan,
+    when_true: &checked_trees::CheckedDynamicJoinBranchPlan<CheckedDynamicUnitCallPlan>,
+    when_false: &checked_trees::CheckedDynamicJoinBranchPlan<CheckedDynamicUnitCallPlan>,
     helpers: &[unit::ForwardedUnitHelperIds],
 ) -> Result<Vec<LoweredSourceCallOccurrence>, LoweringError> {
-    if helpers.len() != plan.when_true.call.forwarding_transfers.len() + 1
-        || plan.when_true.call.forwarding_transfers != plan.when_false.call.forwarding_transfers
+    if helpers.len() != when_true.call.forwarding_transfers.len() + 1
+        || when_true.call.forwarding_transfers != when_false.call.forwarding_transfers
     {
         return unsupported("joined Unit source-call helper chain drifted from checked custody");
     }
-    let join_state = plan
-        .when_true
+    let join_state = when_true
         .call
         .forwarding_transfers
         .first()
         .map(|transfer| transfer.caller_state);
     let mut occurrences = [
-        (&plan.when_true.call, operation_id(1)),
-        (&plan.when_false.call, operation_id(2)),
+        (&when_true.call, operation_id(1)),
+        (&when_false.call, operation_id(2)),
     ]
     .into_iter()
     .map(|(branch, operation)| {
@@ -548,7 +532,7 @@ fn joined_source_call_occurrences(
         })
     })
     .collect::<Result<Vec<_>, _>>()?;
-    for (transfer, helper) in plan.when_true.call.forwarding_transfers.iter().zip(helpers) {
+    for (transfer, helper) in when_true.call.forwarding_transfers.iter().zip(helpers) {
         occurrences.push(LoweredSourceCallOccurrence {
             source_site: None,
             source_state: transfer.caller_state,
@@ -565,7 +549,7 @@ fn joined_source_call_occurrences(
     }
     let checked_trees::CheckedDynamicUnitCallOrigin::Forwarded {
         state, coordinate, ..
-    } = plan.when_true.call.origin
+    } = when_true.call.origin
     else {
         return unsupported("joined Unit dispatch lost its forwarded source coordinate");
     };
@@ -584,7 +568,7 @@ fn joined_source_call_occurrences(
                 "joined Unit source-call chain has no final helper",
             ))?
             .operation,
-        source_target: plan.when_true.call.requirement,
+        source_target: when_true.call.requirement,
         source_values_before_call: Vec::new(),
     });
     Ok(occurrences)

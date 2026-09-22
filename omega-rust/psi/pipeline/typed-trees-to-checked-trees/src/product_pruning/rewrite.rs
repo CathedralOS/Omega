@@ -345,26 +345,8 @@ pub(super) fn apply_pruning(
         .transfers
         .retain(|row| retained.contains(&row.caller_machine));
     dispatch
-        .direct_scalar_calls
-        .retain(|row| retained.contains(&row.caller_machine));
-    dispatch
-        .rebound_scalar_calls
-        .retain(|row| retained.contains(&row.latest.caller_machine));
-    dispatch
-        .joined_scalar_calls
-        .retain(|row| retained.contains(&row.caller_machine));
-    dispatch
-        .stored_scalar_calls
-        .retain(|row| retained.contains(&row.call.caller_machine));
-    dispatch
-        .direct_unit_calls
-        .retain(|row| retained.contains(&row.caller_machine));
-    dispatch
-        .rebound_unit_calls
-        .retain(|row| retained.contains(&row.latest.caller_machine));
-    dispatch
-        .joined_unit_calls
-        .retain(|row| retained.contains(&row.caller_machine));
+        .calls
+        .retain(|row| retained.contains(&row.caller_machine()));
 }
 
 /// Whether a contract-fact owner survives pruning: machine owners must be

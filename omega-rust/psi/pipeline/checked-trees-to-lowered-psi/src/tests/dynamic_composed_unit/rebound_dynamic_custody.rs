@@ -7,6 +7,8 @@ use super::{
 };
 use crate::TerminalMachineSelection;
 use crate::tests::{checked_source_with_core_service, lower_machine};
+use checked_trees::CheckedDynamicBinding::{Direct, Joined, Rebound, Stored};
+use checked_trees::CheckedDynamicDispatchPlan::Scalar;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{Operation, OperationKind, Terminator};
@@ -15,13 +17,11 @@ use terminal_psi::{Operation, OperationKind, Terminator};
 fn lowers_stored_dynamic_descriptor_as_verified_terminal_storage_and_reload() {
     let mut checked = crate::front_end::checked_program(STORED_DYNAMIC_SOURCE);
     let catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
-    assert!(catalog.direct_scalar_calls.is_empty());
-    assert!(catalog.rebound_scalar_calls.is_empty());
-    let [plan] = catalog.stored_scalar_calls.as_slice() else {
+    let [Scalar(Stored { descriptor, call })] = catalog.calls.as_slice() else {
         panic!("one checked stored dynamic plan expected, got {catalog:#?}")
     };
-    assert_eq!(plan.storage.statement_index, 1);
-    assert_eq!(plan.call.coordinate.statement_index, 2);
+    assert_eq!(descriptor.storage.statement_index, 1);
+    assert_eq!(call.coordinate.statement_index, 2);
 
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
         .expect("stored dynamic call lowers");
@@ -84,13 +84,17 @@ fn lowers_stored_dynamic_descriptor_as_verified_terminal_storage_and_reload() {
     tampered.dynamic_dispatch.stored_descriptors[0].selection_ordinal = 1;
     assert!(terminal_verifier::validate_module(&tampered).is_err());
 
-    checked
+    let [Scalar(Stored { descriptor, .. })] = checked
         .facts
         .flow
         .terminal_unit_effects
         .dynamic_dispatch
-        .stored_scalar_calls[0]
-        .destination_field_identity = "other".into();
+        .calls
+        .as_mut_slice()
+    else {
+        unreachable!("checked above")
+    };
+    descriptor.destination_field_identity = "other".into();
     assert_eq!(
         unsupported_message(&checked),
         "stored dynamic descriptor drifted from checked aggregate custody"
@@ -106,10 +110,10 @@ fn lowers_stored_dynamic_result_into_console_effect_control() {
         "stored control fixture should retain descriptor storage"
     );
     let catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
-    let [plan] = catalog.stored_scalar_calls.as_slice() else {
+    let [Scalar(Stored { call, .. })] = catalog.calls.as_slice() else {
         panic!("one checked stored dynamic control plan expected, got {catalog:#?}")
     };
-    assert!(plan.call.unit_continuation.is_some());
+    assert!(call.unit_continuation.is_some());
 
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
         .expect("stored dynamic result control lowers as one module");
@@ -155,18 +159,20 @@ fn lowers_stored_dynamic_result_into_console_effect_control() {
     );
 
     let mut tampered = checked.clone();
-    let stored = &mut tampered
+    let [Scalar(Stored { descriptor, call })] = tampered
         .facts
         .flow
         .terminal_unit_effects
         .dynamic_dispatch
-        .stored_scalar_calls[0];
-    stored
-        .call
-        .unit_continuation
+        .calls
+        .as_mut_slice()
+    else {
+        unreachable!("checked above")
+    };
+    call.unit_continuation
         .as_mut()
         .expect("stored control continuation")
-        .trivial_affine_local_discard = Some(stored.storage.source_binding);
+        .trivial_affine_local_discard = Some(descriptor.storage.source_binding);
     assert_eq!(
         unsupported_message(&tampered),
         "stored dynamic continuation local cleanup drifted after checking"
@@ -178,13 +184,17 @@ fn stored_dynamic_cleanup_requires_exact_affine_establishment_and_disposal() {
     use language_semantics::{PermissionEventKind, PermissionEventSource, PermissionProvenance};
 
     let checked = checked_source_with_core_service(STORED_DYNAMIC_INTEGER_CONTROL_SOURCE);
-    let stored = &checked
+    let [Scalar(Stored { descriptor, call })] = checked
         .facts
         .flow
         .terminal_unit_effects
         .dynamic_dispatch
-        .stored_scalar_calls[0];
-    let local = stored.storage.destination_binding;
+        .calls
+        .as_slice()
+    else {
+        unreachable!("one stored dynamic plan")
+    };
+    let local = descriptor.storage.destination_binding;
     let events = checked
         .facts
         .flow
@@ -192,8 +202,8 @@ fn stored_dynamic_cleanup_requires_exact_affine_establishment_and_disposal() {
         .permissions
         .iter()
         .filter(|(_, event)| {
-            event.machine_symbol == stored.call.caller_machine
-                && event.state_symbol == stored.call.caller_state
+            event.machine_symbol == call.caller_machine
+                && event.state_symbol == call.caller_state
                 && event.root == facts::PlaceRoot::Symbol(local)
         })
         .collect::<Vec<_>>();
@@ -201,10 +211,10 @@ fn stored_dynamic_cleanup_requires_exact_affine_establishment_and_disposal() {
     assert_eq!(events[0].1.kind, PermissionEventKind::Establish);
     assert_eq!(events[1].1.kind, PermissionEventKind::AffineDrop);
     let provenance = PermissionProvenance::Established {
-        machine_symbol: stored.call.caller_machine,
-        state_symbol: stored.call.caller_state,
+        machine_symbol: call.caller_machine,
+        state_symbol: call.caller_state,
         source: PermissionEventSource::Statement {
-            statement_index: stored.storage.statement_index,
+            statement_index: descriptor.storage.statement_index,
         },
     };
     let mut reversed = checked.clone();
@@ -288,13 +298,12 @@ fn stored_dynamic_cleanup_requires_exact_affine_establishment_and_disposal() {
 fn lowers_rebound_dynamic_custody_as_verified_indirect_terminal_dispatch() {
     let mut checked = checked_source_with_core_service(REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE);
     let catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
-    assert!(catalog.direct_scalar_calls.is_empty());
-    let [plan] = catalog.rebound_scalar_calls.as_slice() else {
+    let [plan @ Scalar(Rebound { initial, latest })] = catalog.calls.as_slice() else {
         panic!("one rebound dynamic plan expected, got {catalog:#?}")
     };
-    assert_eq!(plan.initial.fact.statement_index, 0);
-    assert_eq!(plan.latest.selection.statement_index, 1);
-    assert_eq!(plan.latest.coordinate.statement_index, 2);
+    assert_eq!(initial.fact.statement_index, 0);
+    assert_eq!(latest.selection.statement_index, 1);
+    assert_eq!(latest.coordinate.statement_index, 2);
     let duplicate = plan.clone();
 
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
@@ -342,7 +351,7 @@ fn lowers_rebound_dynamic_custody_as_verified_indirect_terminal_dispatch() {
         .flow
         .terminal_unit_effects
         .dynamic_dispatch
-        .rebound_scalar_calls
+        .calls
         .push(duplicate);
     assert_eq!(
         unsupported_message(&checked),
@@ -354,15 +363,11 @@ fn lowers_rebound_dynamic_custody_as_verified_indirect_terminal_dispatch() {
 fn retains_distinct_applications_when_rebinding_to_another_conformance() {
     let checked = crate::front_end::checked_program(CHANGED_CONFORMANCE_DYNAMIC_INTEGER_SOURCE);
     let catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
-    assert!(catalog.direct_scalar_calls.is_empty());
-    let [plan] = catalog.rebound_scalar_calls.as_slice() else {
+    let [Scalar(Rebound { initial, latest })] = catalog.calls.as_slice() else {
         panic!("one changed-conformance rebound plan expected: {catalog:#?}")
     };
-    assert_ne!(
-        plan.initial.fact.conformance,
-        plan.latest.selection.conformance
-    );
-    assert_ne!(plan.initial.fact.rows, plan.latest.selection.rows);
+    assert_ne!(initial.fact.conformance, latest.selection.conformance);
+    assert_ne!(initial.fact.rows, latest.selection.rows);
 
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
         .expect("changed-conformance rebound should lower");
@@ -397,7 +402,7 @@ fn composes_one_transparent_dynamic_forwarder_without_losing_descriptor_custody(
     let [transfer] = catalog.transfers.as_slice() else {
         panic!("one checked dynamic descriptor transfer expected, got {catalog:#?}")
     };
-    let [plan] = catalog.rebound_scalar_calls.as_slice() else {
+    let [Scalar(Rebound { latest, .. })] = catalog.calls.as_slice() else {
         panic!("one forwarded rebound dynamic plan expected, got {catalog:#?}")
     };
     let checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
@@ -405,21 +410,21 @@ fn composes_one_transparent_dynamic_forwarder_without_losing_descriptor_custody(
         state,
         coordinate,
         parameter,
-    } = plan.latest.origin
+    } = latest.origin
     else {
         panic!("forwarded origin expected")
     };
     assert_eq!(coordinate.statement_index, 0);
     assert_eq!(coordinate.call_ordinal, 0);
-    assert_eq!(transfer.caller_machine, plan.latest.caller_machine);
-    assert_eq!(transfer.caller_state, plan.latest.caller_state);
-    assert_eq!(transfer.coordinate, plan.latest.coordinate);
+    assert_eq!(transfer.caller_machine, latest.caller_machine);
+    assert_eq!(transfer.caller_state, latest.caller_state);
+    assert_eq!(transfer.coordinate, latest.coordinate);
     assert_eq!(transfer.target_machine, machine);
     assert_eq!(transfer.target_state, state);
     assert_eq!(transfer.parameter, parameter);
     assert_eq!(transfer.parameter_position, 0);
-    assert_eq!(transfer.source_binding, plan.latest.receiver_binding);
-    assert_eq!(transfer.sole_selection(), Some(&plan.latest.selection));
+    assert_eq!(transfer.source_binding, latest.receiver_binding);
+    assert_eq!(transfer.sole_selection(), Some(&latest.selection));
 
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
         .expect("transparent forwarded dynamic call lowers");
@@ -453,18 +458,18 @@ fn composes_one_transparent_dynamic_forwarder_without_losing_descriptor_custody(
     );
     assert_eq!(lowered.source_call_occurrences.len(), 4);
 
-    let [plan] = checked
+    let [Scalar(Rebound { latest, .. })] = checked
         .facts
         .flow
         .terminal_unit_effects
         .dynamic_dispatch
-        .rebound_scalar_calls
+        .calls
         .as_mut_slice()
     else {
         unreachable!("checked above")
     };
     let checked_trees::CheckedDynamicScalarCallOrigin::Forwarded { coordinate, .. } =
-        &mut plan.latest.origin
+        &mut latest.origin
     else {
         unreachable!("checked above")
     };
@@ -480,8 +485,20 @@ fn composes_one_direct_dynamic_scalar_forwarder_without_fabricating_a_rebound() 
     let checked = crate::front_end::checked_program(FORWARDED_DIRECT_DYNAMIC_INTEGER_SOURCE);
     let catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
     assert_eq!(catalog.transfers.len(), 1);
-    assert_eq!(catalog.direct_scalar_calls.len(), 1);
-    assert!(catalog.rebound_scalar_calls.is_empty());
+    assert_eq!(
+        catalog
+            .calls
+            .iter()
+            .filter(|plan| matches!(plan, Scalar(Direct(_))))
+            .count(),
+        1
+    );
+    assert!(
+        catalog
+            .calls
+            .iter()
+            .all(|plan| !matches!(plan, Scalar(Rebound { .. })))
+    );
     let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
         .expect("transparent direct scalar forwarding should lower");
     terminal_verifier::validate_module(&lowered.semantic_module)
@@ -573,13 +590,19 @@ fn composes_one_direct_dynamic_scalar_forwarder_without_fabricating_a_rebound() 
 fn lowers_two_dynamic_predecessors_into_one_terminal_parameter() {
     let mut checked = crate::front_end::checked_program(JOINED_DYNAMIC_BOOLEAN_SOURCE);
     let checked_catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
-    assert!(checked_catalog.direct_scalar_calls.is_empty());
-    let [joined] = checked_catalog.joined_scalar_calls.as_slice() else {
+    let [
+        Scalar(Joined {
+            when_true,
+            when_false,
+            ..
+        }),
+    ] = checked_catalog.calls.as_slice()
+    else {
         panic!("one checked dynamic join expected: {checked_catalog:#?}")
     };
     assert_ne!(
-        joined.when_true.call.selection.conformance,
-        joined.when_false.call.selection.conformance,
+        when_true.call.selection.conformance,
+        when_false.call.selection.conformance,
     );
 
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
@@ -731,17 +754,23 @@ fn lowers_two_dynamic_predecessors_into_one_terminal_parameter() {
         );
     }
 
-    let [joined] = checked
+    let [
+        Scalar(Joined {
+            when_true,
+            when_false,
+            ..
+        }),
+    ] = checked
         .facts
         .flow
         .terminal_unit_effects
         .dynamic_dispatch
-        .joined_scalar_calls
+        .calls
         .as_mut_slice()
     else {
         unreachable!("checked above")
     };
-    joined.when_false.successor.target_state = joined.when_true.successor.target_state;
+    when_false.successor.target_state = when_true.successor.target_state;
     assert_eq!(
         unsupported_message(&checked),
         "joined dynamic control plan drifted from checked custody",

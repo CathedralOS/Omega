@@ -26,9 +26,10 @@ use super::{
 };
 use crate::execution::terminal_unit::types::{ShapeCollector, state_flow};
 
+use checked_trees::CheckedDynamicDispatchPlan;
 use descriptor_transfers::build_checked_dynamic_descriptor_transfers;
 use forwarded_calls::build_checked_forwarded_dynamic_scalar_calls;
-use receivers::{CheckedDynamicScalarCall, local_receiver_symbol, stored_dynamic_receiver};
+use receivers::{local_receiver_symbol, stored_dynamic_receiver};
 use scalar_call_plans::build_checked_dynamic_scalar_call;
 use typed_trees::name::Identifier;
 
@@ -82,7 +83,7 @@ pub(super) fn build_checked_dynamic_dispatch_plans(
 
                 match &call_site {
                     crate::semantic_calls::CallSite::Statement(_) => {
-                        let Some(call) = unit::build_checked_dynamic_unit_call(
+                        let Some(binding) = unit::build_checked_dynamic_unit_call(
                             program,
                             facts,
                             &binding_facts,
@@ -95,17 +96,10 @@ pub(super) fn build_checked_dynamic_dispatch_plans(
                         ) else {
                             continue;
                         };
-                        match call {
-                            unit::CheckedDynamicUnitCall::Direct(plan) => {
-                                plans.direct_unit_calls.push(plan);
-                            }
-                            unit::CheckedDynamicUnitCall::Rebound(plan) => {
-                                plans.rebound_unit_calls.push(plan);
-                            }
-                        }
+                        plans.calls.push(CheckedDynamicDispatchPlan::Unit(binding));
                     }
                     _ => {
-                        let Some(call) = build_checked_dynamic_scalar_call(
+                        let Some(binding) = build_checked_dynamic_scalar_call(
                             program,
                             facts,
                             &binding_facts,
@@ -120,17 +114,9 @@ pub(super) fn build_checked_dynamic_dispatch_plans(
                         ) else {
                             continue;
                         };
-                        match call {
-                            CheckedDynamicScalarCall::Direct(plan) => {
-                                plans.direct_scalar_calls.push(plan);
-                            }
-                            CheckedDynamicScalarCall::Rebound(plan) => {
-                                plans.rebound_scalar_calls.push(plan);
-                            }
-                            CheckedDynamicScalarCall::Stored(plan) => {
-                                plans.stored_scalar_calls.push(plan);
-                            }
-                        }
+                        plans
+                            .calls
+                            .push(CheckedDynamicDispatchPlan::Scalar(binding));
                     }
                 }
             }

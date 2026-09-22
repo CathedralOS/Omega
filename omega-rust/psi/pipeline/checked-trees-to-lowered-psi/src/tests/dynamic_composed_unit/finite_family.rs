@@ -15,6 +15,8 @@ use super::{
 };
 use crate::TerminalMachineSelection;
 use crate::tests::lower_machine;
+use checked_trees::CheckedDynamicBinding::{Direct, Joined, Rebound};
+use checked_trees::CheckedDynamicDispatchPlan::{Scalar, Unit};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, OperationResult};
@@ -110,12 +112,12 @@ fn assert_family_integer_artifact_executes(
 #[test]
 fn lowers_a_direct_family_call_to_the_selected_tuple_row() {
     let checked = crate::front_end::checked_program(FAMILY_DYNAMIC_INTEGER_SOURCE);
-    let [plan] = checked
+    let [Scalar(Direct(plan))] = checked
         .facts
         .flow
         .terminal_unit_effects
         .dynamic_dispatch
-        .direct_scalar_calls
+        .calls
         .as_slice()
     else {
         panic!("one checked family plan expected")
@@ -196,17 +198,17 @@ fn lowers_a_direct_family_call_to_the_selected_tuple_row() {
 #[test]
 fn rebound_family_call_retains_every_tuple_row_callable() {
     let checked = crate::front_end::checked_program(REBOUND_FAMILY_DYNAMIC_INTEGER_SOURCE);
-    let [plan] = checked
+    let [Scalar(Rebound { latest, .. })] = checked
         .facts
         .flow
         .terminal_unit_effects
         .dynamic_dispatch
-        .rebound_scalar_calls
+        .calls
         .as_slice()
     else {
         panic!("one checked rebound family plan expected")
     };
-    assert_eq!(plan.latest.family_tuple.as_ref(), [WIDTH_32.to_owned()]);
+    assert_eq!(latest.family_tuple.as_ref(), [WIDTH_32.to_owned()]);
 
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
         .expect("the rebound family call lowers");
@@ -270,12 +272,12 @@ fn rebound_family_call_retains_every_tuple_row_callable() {
 #[test]
 fn forwarded_family_call_exposes_every_tuple_row_on_the_parameter_interface() {
     let checked = crate::front_end::checked_program(FORWARDED_FAMILY_DYNAMIC_INTEGER_SOURCE);
-    let [plan] = checked
+    let [Scalar(Direct(plan))] = checked
         .facts
         .flow
         .terminal_unit_effects
         .dynamic_dispatch
-        .direct_scalar_calls
+        .calls
         .as_slice()
     else {
         panic!("one checked forwarded family plan expected")
@@ -348,24 +350,24 @@ fn forwarded_family_call_exposes_every_tuple_row_on_the_parameter_interface() {
 #[test]
 fn joined_family_call_materializes_the_tuple_roster_once() {
     let checked = crate::front_end::checked_program(JOINED_FAMILY_DYNAMIC_BOOLEAN_SOURCE);
-    let [joined] = checked
+    let [
+        Scalar(Joined {
+            when_true,
+            when_false,
+            ..
+        }),
+    ] = checked
         .facts
         .flow
         .terminal_unit_effects
         .dynamic_dispatch
-        .joined_scalar_calls
+        .calls
         .as_slice()
     else {
         panic!("one checked joined family plan expected")
     };
-    assert_eq!(
-        joined.when_true.call.family_tuple.as_ref(),
-        [WIDTH_32.to_owned()]
-    );
-    assert_eq!(
-        joined.when_false.call.family_tuple.as_ref(),
-        [WIDTH_32.to_owned()]
-    );
+    assert_eq!(when_true.call.family_tuple.as_ref(), [WIDTH_32.to_owned()]);
+    assert_eq!(when_false.call.family_tuple.as_ref(), [WIDTH_32.to_owned()]);
 
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
         .expect("the joined family call lowers");
@@ -411,12 +413,12 @@ fn joined_family_call_materializes_the_tuple_roster_once() {
 #[test]
 fn lowers_a_family_unit_call_without_a_scalar_result() {
     let checked = crate::front_end::checked_program(FAMILY_DYNAMIC_UNIT_SOURCE);
-    let [plan] = checked
+    let [Unit(Direct(plan))] = checked
         .facts
         .flow
         .terminal_unit_effects
         .dynamic_dispatch
-        .direct_unit_calls
+        .calls
         .as_slice()
     else {
         panic!("one checked family Unit plan expected")
@@ -491,12 +493,12 @@ fn lowers_a_family_unit_call_without_a_scalar_result() {
 #[test]
 fn rejects_a_family_plan_whose_tuple_drifted_from_its_realization() {
     let mut checked = crate::front_end::checked_program(FAMILY_DYNAMIC_INTEGER_SOURCE);
-    let [plan] = checked
+    let [Scalar(Direct(plan))] = checked
         .facts
         .flow
         .terminal_unit_effects
         .dynamic_dispatch
-        .direct_scalar_calls
+        .calls
         .as_mut_slice()
     else {
         unreachable!("checked above")

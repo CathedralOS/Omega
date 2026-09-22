@@ -9,6 +9,8 @@ mod structural_field_stores_and_descriptor_transfers;
 use crate::CheckingRequest;
 use crate::tests::front_end::typed_program_with_core_service;
 use crate::tests::lower_typed_trees;
+use checked_trees::CheckedDynamicBinding::{Direct, Rebound};
+use checked_trees::CheckedDynamicDispatchPlan::{Scalar, Unit};
 
 const STRUCTURAL_INTEGER_STORE_SOURCE: &str = r#"
     trait Shape {
@@ -232,8 +234,8 @@ fn sole_direct_dynamic_plan(
         .flow
         .terminal_unit_effects
         .dynamic_dispatch
-        .direct_scalar_calls;
-    let [plan] = plans.as_slice() else {
+        .calls;
+    let [Scalar(Direct(plan))] = plans.as_slice() else {
         panic!("one direct dynamic scalar plan expected, got {plans:#?}")
     };
     plan
@@ -241,7 +243,10 @@ fn sole_direct_dynamic_plan(
 
 fn sole_rebound_dynamic_plan(
     checked: &checked_trees::CheckedTrees,
-) -> &checked_trees::CheckedReboundDynamicScalarCallPlan {
+) -> (
+    &checked_trees::CheckedDynamicSelectionPlan,
+    &checked_trees::CheckedDynamicScalarCallPlan,
+) {
     assert!(
         checked
             .facts
@@ -252,49 +257,36 @@ fn sole_rebound_dynamic_plan(
             .is_empty(),
         "a receiver-local rebound call must not invent a cross-call descriptor transfer"
     );
-    assert!(
-        checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .dynamic_dispatch
-            .direct_scalar_calls
-            .is_empty(),
-        "rebound dynamic call must not enter the direct catalog"
-    );
     let plans = &checked
         .facts
         .flow
         .terminal_unit_effects
         .dynamic_dispatch
-        .rebound_scalar_calls;
-    let [plan] = plans.as_slice() else {
+        .calls;
+    let [Scalar(Rebound { initial, latest })] = plans.as_slice() else {
         panic!("one rebound dynamic scalar plan expected, got {plans:#?}")
     };
-    plan
+    (initial, latest)
 }
 
 fn sole_rebound_dynamic_unit_plan(
     checked: &checked_trees::CheckedTrees,
-) -> &checked_trees::CheckedReboundDynamicUnitCallPlan {
+) -> (
+    &checked_trees::CheckedDynamicSelectionPlan,
+    &checked_trees::CheckedDynamicUnitCallPlan,
+) {
     let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
-    assert!(dynamic.direct_scalar_calls.is_empty());
-    assert!(dynamic.rebound_scalar_calls.is_empty());
-    assert!(dynamic.direct_unit_calls.is_empty());
-    let [plan] = dynamic.rebound_unit_calls.as_slice() else {
+    let [Unit(Rebound { initial, latest })] = dynamic.calls.as_slice() else {
         panic!("one rebound dynamic Unit plan expected, got {dynamic:#?}")
     };
-    plan
+    (initial, latest)
 }
 
 fn sole_direct_dynamic_unit_plan(
     checked: &checked_trees::CheckedTrees,
 ) -> &checked_trees::CheckedDynamicUnitCallPlan {
     let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
-    assert!(dynamic.direct_scalar_calls.is_empty());
-    assert!(dynamic.rebound_scalar_calls.is_empty());
-    assert!(dynamic.rebound_unit_calls.is_empty());
-    let [plan] = dynamic.direct_unit_calls.as_slice() else {
+    let [Unit(Direct(plan))] = dynamic.calls.as_slice() else {
         panic!("one direct dynamic Unit plan expected, got {dynamic:#?}")
     };
     plan

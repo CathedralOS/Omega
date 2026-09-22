@@ -1,4 +1,6 @@
 use super::{STRUCTURAL_INTEGER_STORE_SOURCE, check_dynamic_source, sole_direct_dynamic_plan};
+use checked_trees::CheckedDynamicBinding::{Direct, Joined, Rebound};
+use checked_trees::CheckedDynamicDispatchPlan::{Scalar, Unit};
 
 #[test]
 fn structural_field_store_planning_fails_closed_on_source_disagreement() {
@@ -156,7 +158,7 @@ fn descriptor_transfer_retains_one_parameter_forwarding_hop() {
         selection_transfer.sole_selection(),
         parameter_transfer.sole_selection()
     );
-    let [plan] = dynamic.direct_scalar_calls.as_slice() else {
+    let [Scalar(Direct(plan))] = dynamic.calls.as_slice() else {
         panic!("one multi-hop dynamic scalar call expected, got {dynamic:#?}")
     };
     assert_eq!(
@@ -175,7 +177,12 @@ fn descriptor_transfer_retains_one_parameter_forwarding_hop() {
     assert_eq!(parameter_transfer.target_machine, machine);
     assert_eq!(parameter_transfer.target_state, state);
     assert_eq!(parameter_transfer.parameter, parameter);
-    assert!(dynamic.rebound_scalar_calls.is_empty());
+    assert!(
+        dynamic
+            .calls
+            .iter()
+            .all(|plan| !matches!(plan, Scalar(Rebound { .. })))
+    );
 }
 
 #[test]
@@ -205,7 +212,7 @@ fn descriptor_transfer_retains_one_unit_parameter_forwarding_hop() {
     let [selection_transfer, parameter_transfer] = dynamic.transfers.as_slice() else {
         panic!("two ordered Unit descriptor transfers expected, got {dynamic:#?}")
     };
-    let [plan] = dynamic.direct_unit_calls.as_slice() else {
+    let [Unit(Direct(plan))] = dynamic.calls.as_slice() else {
         panic!("one multi-hop dynamic Unit call expected, got {dynamic:#?}")
     };
     assert_eq!(
@@ -234,7 +241,12 @@ fn descriptor_transfer_retains_one_unit_parameter_forwarding_hop() {
     assert_eq!(parameter_transfer.target_machine, machine);
     assert_eq!(parameter_transfer.target_state, state);
     assert_eq!(parameter_transfer.parameter, parameter);
-    assert!(dynamic.rebound_unit_calls.is_empty());
+    assert!(
+        dynamic
+            .calls
+            .iter()
+            .all(|plan| !matches!(plan, Unit(Rebound { .. })))
+    );
 }
 
 #[test]
@@ -330,8 +342,18 @@ fn descriptor_transfer_retains_every_control_flow_join_alternative() {
         "the joined descriptor must retain every exact selected conformance"
     );
     assert!(joined.has_complete_source_custody(&dynamic.transfers));
-    assert!(dynamic.direct_scalar_calls.is_empty());
-    assert!(dynamic.rebound_scalar_calls.is_empty());
+    assert!(
+        dynamic
+            .calls
+            .iter()
+            .all(|plan| !matches!(plan, Scalar(Direct(_))))
+    );
+    assert!(
+        dynamic
+            .calls
+            .iter()
+            .all(|plan| !matches!(plan, Scalar(Rebound { .. })))
+    );
 
     let mut missing_path = joined.clone();
     missing_path.source_paths.pop();
@@ -422,8 +444,18 @@ fn descriptor_transfer_fences_join_with_an_unadmitted_third_predecessor() {
                 parameter_position: 0,
             }
     }));
-    assert!(dynamic.direct_scalar_calls.is_empty());
-    assert!(dynamic.rebound_scalar_calls.is_empty());
+    assert!(
+        dynamic
+            .calls
+            .iter()
+            .all(|plan| !matches!(plan, Scalar(Direct(_))))
+    );
+    assert!(
+        dynamic
+            .calls
+            .iter()
+            .all(|plan| !matches!(plan, Scalar(Rebound { .. })))
+    );
 }
 
 #[test]
@@ -497,7 +529,12 @@ fn descriptor_transfer_retains_transparent_forwarding_after_the_join() {
     assert_eq!(forwarded.source_predecessor_count, 1);
     assert_eq!(forwarded.source_paths.len(), 2);
     assert!(forwarded.has_complete_source_custody(&dynamic.transfers));
-    assert!(dynamic.rebound_scalar_calls.is_empty());
+    assert!(
+        dynamic
+            .calls
+            .iter()
+            .all(|plan| !matches!(plan, Scalar(Rebound { .. })))
+    );
 }
 
 #[test]
@@ -559,8 +596,18 @@ fn descriptor_transfer_fences_a_second_join_over_joined_custody() {
                 }
             )
     }));
-    assert!(dynamic.direct_scalar_calls.is_empty());
-    assert!(dynamic.rebound_scalar_calls.is_empty());
+    assert!(
+        dynamic
+            .calls
+            .iter()
+            .all(|plan| !matches!(plan, Scalar(Direct(_))))
+    );
+    assert!(
+        dynamic
+            .calls
+            .iter()
+            .all(|plan| !matches!(plan, Scalar(Rebound { .. })))
+    );
 }
 
 #[test]
@@ -607,17 +654,21 @@ fn two_branch_dynamic_calls_retain_both_terminal_join_predecessors() {
         "#,
     );
     let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
-    assert!(dynamic.direct_scalar_calls.is_empty(), "{dynamic:#?}");
-    assert!(dynamic.rebound_scalar_calls.is_empty());
-    assert!(dynamic.stored_scalar_calls.is_empty());
-    let [joined] = dynamic.joined_scalar_calls.as_slice() else {
+    let [
+        Scalar(Joined {
+            control,
+            when_true,
+            when_false,
+        }),
+    ] = dynamic.calls.as_slice()
+    else {
         panic!("one atomic joined call expected: {dynamic:#?}")
     };
-    let first = &joined.when_true.call;
-    let second = &joined.when_false.call;
-    assert_eq!(joined.scalar_parameters.len(), 1);
-    assert_ne!(joined.entry_state, first.caller_state);
-    assert_ne!(joined.entry_state, second.caller_state);
+    let first = &when_true.call;
+    let second = &when_false.call;
+    assert_eq!(control.scalar_parameters.len(), 1);
+    assert_ne!(control.entry_state, first.caller_state);
+    assert_ne!(control.entry_state, second.caller_state);
     assert_eq!(first.caller_machine, second.caller_machine);
     assert_ne!(first.caller_state, second.caller_state);
     assert_eq!(first.origin, second.origin);
@@ -633,7 +684,7 @@ fn two_branch_dynamic_calls_retain_both_terminal_join_predecessors() {
             .terminal_unit_effects
             .structural_types
             .iter()
-            .any(|plan| plan.identity == joined.caller_attachment_type_identity)
+            .any(|plan| plan.identity == control.caller_attachment_type_identity)
     );
     assert!(
         checked
@@ -680,18 +731,23 @@ fn two_branch_dynamic_unit_calls_share_one_checked_join() {
         "#,
     );
     let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
-    assert!(dynamic.direct_unit_calls.is_empty(), "{dynamic:#?}");
-    assert!(dynamic.rebound_unit_calls.is_empty());
-    let [joined] = dynamic.joined_unit_calls.as_slice() else {
+    let [
+        Unit(Joined {
+            control,
+            when_true,
+            when_false,
+        }),
+    ] = dynamic.calls.as_slice()
+    else {
         panic!("one atomic result-less join expected: {dynamic:#?}")
     };
     assert_ne!(
-        joined.when_true.call.selection.conformance,
-        joined.when_false.call.selection.conformance,
+        when_true.call.selection.conformance,
+        when_false.call.selection.conformance,
     );
-    assert_eq!(joined.scalar_parameters.len(), 1);
+    assert_eq!(control.scalar_parameters.len(), 1);
     assert_eq!(
-        joined.when_true.call.forwarding_transfers,
-        joined.when_false.call.forwarding_transfers,
+        when_true.call.forwarding_transfers,
+        when_false.call.forwarding_transfers,
     );
 }

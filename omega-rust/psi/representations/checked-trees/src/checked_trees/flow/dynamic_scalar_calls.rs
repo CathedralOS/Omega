@@ -12,79 +12,218 @@ use super::{
 };
 
 /// Checked dynamic-dispatch custody published by the Unit-effect planner.
-/// Direct devirtualization and rebound descriptor/table calls remain distinct
-/// lanes without widening `CheckedUnitEffectPlans` again.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedDynamicDispatchPlans {
     /// Exact descriptor movements across ordinary calls, independent of
     /// whether a particular Terminal lowering composes or preserves the call.
     pub transfers: Vec<CheckedDynamicDescriptorTransferPlan>,
-    pub direct_scalar_calls: Vec<CheckedDynamicScalarCallPlan>,
-    pub rebound_scalar_calls: Vec<CheckedReboundDynamicScalarCallPlan>,
-    /// Two branch-local exact selections entering one shared descriptor
-    /// parameter. This is one atomic source-control plan, not two competing
-    /// whole-machine lowering candidates.
-    pub joined_scalar_calls: Vec<CheckedJoinedDynamicScalarCallPlan>,
-    /// Calls through descriptors stored in local aggregate fields. These stay
-    /// separate from direct devirtualization until Terminal Psi explicitly
-    /// materializes and reloads the two-word field representation.
-    pub stored_scalar_calls: Vec<CheckedStoredDynamicScalarCallPlan>,
-    /// Exact terminal Unit-returning calls through a local descriptor. These
-    /// remain distinct from scalar-result calls: no result binding, ABI home,
-    /// or continuation may be inferred for this lane.
-    pub direct_unit_calls: Vec<CheckedDynamicUnitCallPlan>,
-    pub rebound_unit_calls: Vec<CheckedReboundDynamicUnitCallPlan>,
-    /// Result-less counterpart to `joined_scalar_calls`. Each branch retains
-    /// one exact Unit call while the enclosing row owns the shared Boolean
-    /// split and descriptor-parameter join.
-    pub joined_unit_calls: Vec<CheckedJoinedDynamicUnitCallPlan>,
+    /// One row per checked dynamic dispatch, whichever binding carries the
+    /// descriptor to the call and whichever result the call returns.
+    pub calls: Vec<CheckedDynamicDispatchPlan>,
 }
 
-/// The first source-level runtime descriptor phi. Each branch retains its
-/// complete ordinary dynamic-call plan, while the enclosing row owns the one
-/// checked Boolean control split that selects between them.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedJoinedDynamicScalarCallPlan {
-    pub caller_machine: SymbolHandle,
-    pub entry_state: SymbolHandle,
-    pub caller_attachment_type_identity: String,
-    pub scalar_parameters: Vec<crate::CheckedStructuralScalarParameterPlan>,
-    pub guard: CheckedScalarExpression,
-    pub when_true: CheckedJoinedDynamicScalarCallBranchPlan,
-    pub when_false: CheckedJoinedDynamicScalarCallBranchPlan,
+impl CheckedDynamicDispatchPlans {
+    /// Every dispatch plan whose calling machine is `machine`.
+    pub fn for_caller(
+        &self,
+        machine: SymbolHandle,
+    ) -> impl Iterator<Item = &CheckedDynamicDispatchPlan> {
+        self.calls
+            .iter()
+            .filter(move |plan| plan.caller_machine() == machine)
+    }
+
+    /// Every scalar-result call plan across every binding, both branches of
+    /// a joined binding included.
+    pub fn scalar_calls(&self) -> impl Iterator<Item = &CheckedDynamicScalarCallPlan> {
+        self.calls
+            .iter()
+            .flat_map(CheckedDynamicDispatchPlan::scalar_calls)
+    }
 }
 
+/// One checked dynamic dispatch. The variant names the result the dispatched
+/// call returns; the binding inside names how the selected descriptor reaches
+/// that call. The result wraps the binding because a joined binding owns two
+/// branch calls that must return the same result: no plan can pair a scalar
+/// branch with a Unit branch, and no result binding, ABI home, or
+/// continuation can be inferred for a Unit call.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedJoinedDynamicScalarCallBranchPlan {
-    pub successor: CheckedStructuralControlSuccessorPlan,
-    pub call: CheckedDynamicScalarCallPlan,
+pub enum CheckedDynamicDispatchPlan {
+    Scalar(CheckedDynamicBinding<CheckedDynamicScalarCallPlan>),
+    Unit(CheckedDynamicBinding<CheckedDynamicUnitCallPlan>),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedJoinedDynamicUnitCallPlan {
-    pub caller_machine: SymbolHandle,
-    pub entry_state: SymbolHandle,
-    pub caller_attachment_type_identity: String,
-    pub scalar_parameters: Vec<crate::CheckedStructuralScalarParameterPlan>,
-    pub guard: CheckedScalarExpression,
-    pub when_true: CheckedJoinedDynamicUnitCallBranchPlan,
-    pub when_false: CheckedJoinedDynamicUnitCallBranchPlan,
+impl CheckedDynamicDispatchPlan {
+    pub fn caller_machine(&self) -> SymbolHandle {
+        match self {
+            Self::Scalar(binding) => binding.first_call().caller_machine,
+            Self::Unit(binding) => binding.first_call().caller_machine,
+        }
+    }
+
+    pub fn binding_kind(&self) -> CheckedDynamicBindingKind {
+        match self {
+            Self::Scalar(binding) => binding.kind(),
+            Self::Unit(binding) => binding.kind(),
+        }
+    }
+
+    /// The scalar-result call plans this dispatch performs: none for a Unit
+    /// dispatch, one for a same-state binding, one per branch for a join.
+    pub fn scalar_calls(&self) -> impl Iterator<Item = &CheckedDynamicScalarCallPlan> {
+        match self {
+            Self::Scalar(binding) => Some(binding.calls()),
+            Self::Unit(_) => None,
+        }
+        .into_iter()
+        .flatten()
+    }
+
+    /// The Unit-result call plans this dispatch performs, mirroring
+    /// [`Self::scalar_calls`].
+    pub fn unit_calls(&self) -> impl Iterator<Item = &CheckedDynamicUnitCallPlan> {
+        match self {
+            Self::Scalar(_) => None,
+            Self::Unit(binding) => Some(binding.calls()),
+        }
+        .into_iter()
+        .flatten()
+    }
+
+    /// The realization machine every performed call selects.
+    pub fn realization_machines(&self) -> impl Iterator<Item = SymbolHandle> + '_ {
+        let scalar = self.scalar_calls().map(|call| call.realization_machine);
+        let unit = self.unit_calls().map(|call| call.realization_machine);
+        scalar.chain(unit)
+    }
+
+    /// Every structural type identity the dispatch names: the caller
+    /// attachment, each call's source type, and a rebound binding's initial
+    /// source type.
+    pub fn type_identities(&self) -> impl Iterator<Item = &str> {
+        let initial = match self {
+            Self::Scalar(binding) => binding.initial_selection(),
+            Self::Unit(binding) => binding.initial_selection(),
+        }
+        .map(|initial| initial.type_identity.as_str());
+        let scalar = self.scalar_calls().flat_map(|call| {
+            [
+                call.caller_attachment_type_identity.as_str(),
+                call.source_type_identity.as_str(),
+            ]
+        });
+        let unit = self.unit_calls().flat_map(|call| {
+            [
+                call.caller_attachment_type_identity.as_str(),
+                call.source_type_identity.as_str(),
+            ]
+        });
+        initial.into_iter().chain(scalar).chain(unit)
+    }
 }
 
+/// How one selected descriptor reaches the dispatched call.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedJoinedDynamicUnitCallBranchPlan {
-    pub successor: CheckedStructuralControlSuccessorPlan,
-    pub call: CheckedDynamicUnitCallPlan,
+pub enum CheckedDynamicBinding<Call> {
+    /// The call follows one selection in the same state.
+    Direct(Call),
+    /// The call follows exactly one same-interface reassignment; both source
+    /// versions remain descriptor/table state for the later indirect call.
+    Rebound {
+        initial: CheckedDynamicSelectionPlan,
+        latest: Call,
+    },
+    /// The descriptor reaches the receiver through an exact local aggregate
+    /// field, which Terminal Psi materializes and reloads explicitly.
+    Stored {
+        descriptor: CheckedDynamicStoredDescriptorPlan,
+        call: Call,
+    },
+    /// The first source-level runtime descriptor phi: two branch-local exact
+    /// selections entering one shared descriptor parameter. Each branch
+    /// retains its complete direct call while the control plan owns the one
+    /// checked Boolean split that selects between them.
+    Joined {
+        control: CheckedDynamicJoinControlPlan,
+        when_true: CheckedDynamicJoinBranchPlan<Call>,
+        when_false: CheckedDynamicJoinBranchPlan<Call>,
+    },
 }
 
-/// One complete checked scalar call whose descriptor reaches the receiver
-/// through an exact local aggregate field.
+impl<Call> CheckedDynamicBinding<Call> {
+    pub fn kind(&self) -> CheckedDynamicBindingKind {
+        match self {
+            Self::Direct(_) => CheckedDynamicBindingKind::Direct,
+            Self::Rebound { .. } => CheckedDynamicBindingKind::Rebound,
+            Self::Stored { .. } => CheckedDynamicBindingKind::Stored,
+            Self::Joined { .. } => CheckedDynamicBindingKind::Joined,
+        }
+    }
+
+    /// The one call, or the `when_true` branch call of a join.
+    pub fn first_call(&self) -> &Call {
+        match self {
+            Self::Direct(call) | Self::Stored { call, .. } => call,
+            Self::Rebound { latest, .. } => latest,
+            Self::Joined { when_true, .. } => &when_true.call,
+        }
+    }
+
+    /// Every call this binding dispatches, `when_true` before `when_false`.
+    pub fn calls(&self) -> impl Iterator<Item = &Call> {
+        let (first, second) = match self {
+            Self::Direct(call) | Self::Stored { call, .. } => (call, None),
+            Self::Rebound { latest, .. } => (latest, None),
+            Self::Joined {
+                when_true,
+                when_false,
+                ..
+            } => (&when_true.call, Some(&when_false.call)),
+        };
+        std::iter::once(first).chain(second)
+    }
+
+    pub fn initial_selection(&self) -> Option<&CheckedDynamicSelectionPlan> {
+        match self {
+            Self::Rebound { initial, .. } => Some(initial),
+            Self::Direct(_) | Self::Stored { .. } | Self::Joined { .. } => None,
+        }
+    }
+}
+
+/// The binding kind alone, for policy that does not need the calls.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedDynamicBindingKind {
+    Direct,
+    Rebound,
+    Stored,
+    Joined,
+}
+
+/// The exact local aggregate field a stored descriptor travels through.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedStoredDynamicScalarCallPlan {
+pub struct CheckedDynamicStoredDescriptorPlan {
     pub storage: crate::DynamicDescriptorStorageFact,
     pub destination_type_identity: String,
     pub destination_field_identity: String,
-    pub call: CheckedDynamicScalarCallPlan,
+}
+
+/// The caller-owned Boolean split of a joined binding.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedDynamicJoinControlPlan {
+    pub entry_state: SymbolHandle,
+    pub caller_attachment_type_identity: String,
+    pub scalar_parameters: Vec<crate::CheckedStructuralScalarParameterPlan>,
+    pub guard: CheckedScalarExpression,
+}
+
+/// One branch of a joined binding: the successor the split enters and the
+/// complete direct call that branch state performs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedDynamicJoinBranchPlan<Call> {
+    pub successor: CheckedStructuralControlSuccessorPlan,
+    pub call: Call,
 }
 
 /// Checked custody for one terminal Unit-returning call through a local named
@@ -146,13 +285,6 @@ pub enum CheckedDynamicUnitCallOrigin {
         coordinate: CheckedUnitCallCoordinate,
         parameter: SymbolHandle,
     },
-}
-
-/// A Unit call after exactly one same-interface descriptor reassignment.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedReboundDynamicUnitCallPlan {
-    pub initial: CheckedDynamicSelectionPlan,
-    pub latest: CheckedDynamicUnitCallPlan,
 }
 
 /// One checked call argument that transfers an already-selected dynamic
@@ -482,16 +614,6 @@ pub enum CheckedDynamicRealizationBodyPlan {
         structural_scalar_field_stores: Vec<CheckedStructuralScalarFieldStorePlan>,
         return_expression: CheckedScalarExpression,
     },
-}
-
-/// Checked custody for one local named-dynamic scalar call after exactly one
-/// same-interface reassignment. This is a separate lane from direct
-/// devirtualization: later Terminal lowering must consume both source versions
-/// as descriptor/table state.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedReboundDynamicScalarCallPlan {
-    pub initial: CheckedDynamicSelectionPlan,
-    pub latest: CheckedDynamicScalarCallPlan,
 }
 
 /// Source-normalized custody for one version of a local named-dynamic

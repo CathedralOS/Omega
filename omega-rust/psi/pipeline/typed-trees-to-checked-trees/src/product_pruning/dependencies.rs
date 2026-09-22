@@ -955,64 +955,14 @@ pub(super) fn collect_machine_edges(
     // Dynamic-dispatch plan rows bind each retained caller to its selected
     // realization machine.
     let dispatch = &facts.flow.terminal_unit_effects.dynamic_dispatch;
-    for call in &dispatch.direct_scalar_calls {
-        push_edge(
-            &mut edges,
-            call.caller_machine,
-            index.machine_of(call.realization_machine),
-        );
-    }
-    for call in &dispatch.direct_unit_calls {
-        push_edge(
-            &mut edges,
-            call.caller_machine,
-            index.machine_of(call.realization_machine),
-        );
-    }
-    for call in &dispatch.rebound_scalar_calls {
-        push_edge(
-            &mut edges,
-            call.latest.caller_machine,
-            index.machine_of(call.latest.realization_machine),
-        );
-    }
-    for call in &dispatch.rebound_unit_calls {
-        push_edge(
-            &mut edges,
-            call.latest.caller_machine,
-            index.machine_of(call.latest.realization_machine),
-        );
-    }
-    for call in &dispatch.stored_scalar_calls {
-        push_edge(
-            &mut edges,
-            call.call.caller_machine,
-            index.machine_of(call.call.realization_machine),
-        );
-    }
-    for call in &dispatch.joined_scalar_calls {
-        push_edge(
-            &mut edges,
-            call.caller_machine,
-            index.machine_of(call.when_true.call.realization_machine),
-        );
-        push_edge(
-            &mut edges,
-            call.caller_machine,
-            index.machine_of(call.when_false.call.realization_machine),
-        );
-    }
-    for call in &dispatch.joined_unit_calls {
-        push_edge(
-            &mut edges,
-            call.caller_machine,
-            index.machine_of(call.when_true.call.realization_machine),
-        );
-        push_edge(
-            &mut edges,
-            call.caller_machine,
-            index.machine_of(call.when_false.call.realization_machine),
-        );
+    for call in &dispatch.calls {
+        for realization in call.realization_machines() {
+            push_edge(
+                &mut edges,
+                call.caller_machine(),
+                index.machine_of(realization),
+            );
+        }
     }
     for transfer in &dispatch.transfers {
         push_edge(

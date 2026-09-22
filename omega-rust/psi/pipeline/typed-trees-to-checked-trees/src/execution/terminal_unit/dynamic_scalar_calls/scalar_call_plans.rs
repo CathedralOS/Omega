@@ -10,9 +10,7 @@ use crate::execution::terminal_unit::dynamic_scalar_calls::forwarded_calls::{
 use crate::execution::terminal_unit::dynamic_scalar_calls::realization_bodies::{
     checked_call_service_reach, checked_realization_scalar_body,
 };
-use crate::execution::terminal_unit::dynamic_scalar_calls::receivers::{
-    CheckedDynamicScalarCall, dynamic_receiver_place,
-};
+use crate::execution::terminal_unit::dynamic_scalar_calls::receivers::dynamic_receiver_place;
 use crate::execution::terminal_unit::types::{
     ShapeCollector, machine_binders, structural_access_for_type_reference, terminal_field_identity,
 };
@@ -22,6 +20,7 @@ use crate::execution::terminal_unit::{
     CheckedUnitStructuralPathSegment, ExpressionNode, MachineSupplyMode, ServiceReachSummary,
     StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
 };
+use checked_trees::CheckedDynamicBinding;
 use typed_trees::name::Identifier;
 use typed_trees::type_identity::TypeIdentityRequest;
 
@@ -38,7 +37,7 @@ pub(crate) fn build_checked_dynamic_scalar_call(
     boundaries: &[CheckedBoundaryMachinePlan],
     forwarded: Option<ForwardedDynamicCall<'_, '_>>,
     stored: Option<&checked_trees::DynamicDescriptorStorageFact>,
-) -> Option<CheckedDynamicScalarCall> {
+) -> Option<CheckedDynamicBinding<checked_trees::CheckedDynamicScalarCallPlan>> {
     let crate::semantic_calls::CallSite::Expression {
         expression: caller_expression,
         call: caller_call,
@@ -532,23 +531,21 @@ pub(crate) fn build_checked_dynamic_scalar_call(
             .into_string();
         let destination_field_identity =
             terminal_field_identity(program, storage.destination_field)?;
-        return Some(CheckedDynamicScalarCall::Stored(
-            checked_trees::CheckedStoredDynamicScalarCallPlan {
+        return Some(CheckedDynamicBinding::Stored {
+            descriptor: checked_trees::CheckedDynamicStoredDescriptorPlan {
                 storage: storage.clone(),
                 destination_type_identity,
                 destination_field_identity,
-                call: plan,
             },
-        ));
+            call: plan,
+        });
     }
     Some(match rebound_from {
-        Some(initial) => {
-            CheckedDynamicScalarCall::Rebound(checked_trees::CheckedReboundDynamicScalarCallPlan {
-                initial,
-                latest: plan,
-            })
-        }
-        None => CheckedDynamicScalarCall::Direct(plan),
+        Some(initial) => CheckedDynamicBinding::Rebound {
+            initial,
+            latest: plan,
+        },
+        None => CheckedDynamicBinding::Direct(plan),
     })
 }
 

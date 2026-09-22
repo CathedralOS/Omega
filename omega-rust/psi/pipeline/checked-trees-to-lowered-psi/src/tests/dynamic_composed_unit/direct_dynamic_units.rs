@@ -10,6 +10,8 @@ use super::{
 use crate::TerminalMachineSelection;
 use crate::terminal_identities::value_id;
 use crate::tests::{checked_source_with_core_service, lower_machine};
+use checked_trees::CheckedDynamicBinding::{Direct, Joined};
+use checked_trees::CheckedDynamicDispatchPlan::{Scalar, Unit};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{Operation, OperationKind, OperationResult, Terminator, ValueDeclaration};
@@ -18,16 +20,22 @@ use terminal_psi::{Operation, OperationKind, OperationResult, Terminator, ValueD
 fn lowers_transparent_forwarding_chain_after_a_two_predecessor_join() {
     let mut checked = crate::front_end::checked_program(JOINED_DYNAMIC_BOOLEAN_FORWARD_SOURCE);
     let checked_catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
-    let [joined] = checked_catalog.joined_scalar_calls.as_slice() else {
+    let [
+        Scalar(Joined {
+            when_true,
+            when_false,
+            ..
+        }),
+    ] = checked_catalog.calls.as_slice()
+    else {
         panic!("one checked forwarded dynamic join expected: {checked_catalog:#?}")
     };
-    let [joined_transfer, forwarded_transfer] =
-        joined.when_true.call.forwarding_transfers.as_slice()
+    let [joined_transfer, forwarded_transfer] = when_true.call.forwarding_transfers.as_slice()
     else {
-        panic!("two shared post-join forwarding transfers expected: {joined:#?}")
+        panic!("two shared post-join forwarding transfers expected: {when_true:#?}")
     };
     assert_eq!(
-        joined.when_false.call.forwarding_transfers,
+        when_false.call.forwarding_transfers,
         [joined_transfer.clone(), forwarded_transfer.clone()]
     );
     assert_eq!(joined_transfer.source_predecessor_count, 2);
@@ -88,19 +96,17 @@ fn lowers_transparent_forwarding_chain_after_a_two_predecessor_join() {
         lowered.semantic_module,
     );
 
-    let [joined] = checked
+    let [Scalar(Joined { when_true, .. })] = checked
         .facts
         .flow
         .terminal_unit_effects
         .dynamic_dispatch
-        .joined_scalar_calls
+        .calls
         .as_mut_slice()
     else {
         unreachable!("checked above")
     };
-    joined.when_true.call.forwarding_transfers[1]
-        .source_paths
-        .pop();
+    when_true.call.forwarding_transfers[1].source_paths.pop();
     assert_eq!(
         unsupported_message(&checked),
         "direct dynamic call drifted from checked flow custody",
@@ -110,16 +116,17 @@ fn lowers_transparent_forwarding_chain_after_a_two_predecessor_join() {
 #[test]
 fn joined_descriptor_helpers_reject_disagreeing_body_custody() {
     let mut checked = crate::front_end::checked_program(JOINED_DYNAMIC_BOOLEAN_FORWARD_SOURCE);
-    checked
+    let [Scalar(Joined { when_false, .. })] = checked
         .facts
         .flow
         .terminal_unit_effects
         .dynamic_dispatch
-        .joined_scalar_calls[0]
-        .when_false
-        .call
-        .forwarding_helpers
-        .pop();
+        .calls
+        .as_mut_slice()
+    else {
+        unreachable!("one joined dynamic plan")
+    };
+    when_false.call.forwarding_helpers.pop();
     assert_eq!(
         unsupported_message(&checked),
         "joined source-call helper chain drifted from checked custody"
@@ -130,14 +137,20 @@ fn joined_descriptor_helpers_reject_disagreeing_body_custody() {
 fn lowers_result_less_dynamic_join_through_the_shared_helper_chain() {
     let mut checked = crate::front_end::checked_program(JOINED_DYNAMIC_UNIT_FORWARD_SOURCE);
     let checked_catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
-    assert!(checked_catalog.direct_unit_calls.is_empty());
-    let [joined] = checked_catalog.joined_unit_calls.as_slice() else {
+    let [
+        Unit(Joined {
+            when_true,
+            when_false,
+            ..
+        }),
+    ] = checked_catalog.calls.as_slice()
+    else {
         panic!("one checked result-less join expected: {checked_catalog:#?}")
     };
-    assert_eq!(joined.when_true.call.forwarding_transfers.len(), 2);
+    assert_eq!(when_true.call.forwarding_transfers.len(), 2);
     assert_eq!(
-        joined.when_true.call.forwarding_transfers,
-        joined.when_false.call.forwarding_transfers,
+        when_true.call.forwarding_transfers,
+        when_false.call.forwarding_transfers,
     );
 
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
@@ -224,17 +237,23 @@ fn lowers_result_less_dynamic_join_through_the_shared_helper_chain() {
         );
     }
 
-    let [joined] = checked
+    let [
+        Unit(Joined {
+            when_true,
+            when_false,
+            ..
+        }),
+    ] = checked
         .facts
         .flow
         .terminal_unit_effects
         .dynamic_dispatch
-        .joined_unit_calls
+        .calls
         .as_mut_slice()
     else {
         unreachable!("checked above")
     };
-    joined.when_false.successor.target_state = joined.when_true.successor.target_state;
+    when_false.successor.target_state = when_true.successor.target_state;
     assert_eq!(
         unsupported_message(&checked),
         "joined dynamic control plan drifted from checked custody",
@@ -246,7 +265,7 @@ fn lowers_parameter_sourced_dynamic_forwarding_as_two_explicit_helpers() {
     let mut checked = crate::front_end::checked_program(MULTI_HOP_DYNAMIC_INTEGER_SOURCE);
     let checked_catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
     assert_eq!(checked_catalog.transfers.len(), 2);
-    let [plan] = checked_catalog.direct_scalar_calls.as_slice() else {
+    let [Scalar(Direct(plan))] = checked_catalog.calls.as_slice() else {
         panic!("one multi-hop checked plan expected: {checked_catalog:#?}")
     };
     assert_eq!(plan.forwarding_transfers.len(), 1);
@@ -292,12 +311,12 @@ fn lowers_parameter_sourced_dynamic_forwarding_as_two_explicit_helpers() {
         terminal_psi::TerminalDynamicDescriptorSource::Parameter { ordinal: 0 }
     );
 
-    let [plan] = checked
+    let [Scalar(Direct(plan))] = checked
         .facts
         .flow
         .terminal_unit_effects
         .dynamic_dispatch
-        .direct_scalar_calls
+        .calls
         .as_mut_slice()
     else {
         unreachable!("checked above")
@@ -314,7 +333,7 @@ fn retains_multi_hop_forwarded_scalar_result_control() {
     let mut checked = checked_source_with_core_service(MULTI_HOP_DYNAMIC_INTEGER_CONTROL_SOURCE);
     let checked_catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
     assert_eq!(checked_catalog.transfers.len(), 2);
-    let [plan] = checked_catalog.direct_scalar_calls.as_slice() else {
+    let [Scalar(Direct(plan))] = checked_catalog.calls.as_slice() else {
         panic!("one multi-hop checked continuation plan expected: {checked_catalog:#?}")
     };
     assert_eq!(plan.forwarding_transfers.len(), 1);
@@ -368,12 +387,12 @@ fn retains_multi_hop_forwarded_scalar_result_control() {
         .expect("multi-hop scalar result control should decode");
     assert_eq!(decoded, lowered.semantic_module);
 
-    let [plan] = checked
+    let [Scalar(Direct(plan))] = checked
         .facts
         .flow
         .terminal_unit_effects
         .dynamic_dispatch
-        .direct_scalar_calls
+        .calls
         .as_mut_slice()
     else {
         unreachable!("checked above")
@@ -537,13 +556,17 @@ fn forwarded_descriptor_helper_rejects_substituted_body_custody() {
     let checked = checked_source_with_core_service(&composed_helper_source());
     for mutation in 0..6 {
         let mut changed = checked.clone();
-        let helper = &mut changed
+        let [Scalar(Direct(plan))] = changed
             .facts
             .flow
             .terminal_unit_effects
             .dynamic_dispatch
-            .direct_scalar_calls[0]
-            .forwarding_helpers[0];
+            .calls
+            .as_mut_slice()
+        else {
+            unreachable!("one direct dynamic plan")
+        };
+        let helper = &mut plan.forwarding_helpers[0];
         match mutation {
             0 => {
                 helper.scalar_locals.remove(0);
@@ -582,7 +605,7 @@ fn lowers_parameter_sourced_dynamic_unit_forwarding_as_two_explicit_helpers() {
     let mut checked = crate::front_end::checked_program(MULTI_HOP_DYNAMIC_UNIT_SOURCE);
     let checked_catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
     assert_eq!(checked_catalog.transfers.len(), 2);
-    let [plan] = checked_catalog.direct_unit_calls.as_slice() else {
+    let [Unit(Direct(plan))] = checked_catalog.calls.as_slice() else {
         panic!("one multi-hop checked Unit plan expected: {checked_catalog:#?}")
     };
     assert_eq!(plan.forwarding_transfers.len(), 1);
@@ -633,12 +656,12 @@ fn lowers_parameter_sourced_dynamic_unit_forwarding_as_two_explicit_helpers() {
     );
     assert_dynamic_unit_artifact_executes(&artifact);
 
-    let [plan] = checked
+    let [Unit(Direct(plan))] = checked
         .facts
         .flow
         .terminal_unit_effects
         .dynamic_dispatch
-        .direct_unit_calls
+        .calls
         .as_mut_slice()
     else {
         unreachable!("checked above")

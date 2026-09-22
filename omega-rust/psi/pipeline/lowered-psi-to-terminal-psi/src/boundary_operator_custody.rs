@@ -63,17 +63,18 @@ impl CheckedBoundaryOperatorApplicationScope {
 /// and stored forms emit different catalog species and stay unadmitted here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedDynamicCallLane {
-    /// `rebound_scalar_calls`: a scalar dispatch through a materialized
+    /// A rebound scalar binding: a scalar dispatch through a materialized
     /// rebound descriptor (`CallDynamicScalar`).
     ReboundScalar,
-    /// `rebound_unit_calls`: a Unit dispatch through a materialized rebound
+    /// A rebound Unit binding: a Unit dispatch through a materialized rebound
     /// descriptor (`CallDynamicUnit`).
     ReboundUnit,
 }
 
 /// Compiler-private join from one retained checked rebound dynamic-call plan
 /// to the exact Terminal operation and descriptor-table row produced for it.
-/// `plan_index` addresses the checked `dynamic_dispatch` roster for `lane`;
+/// `plan_index` addresses the checked `dynamic_dispatch.calls` roster, whose
+/// row is the rebound binding `lane` names;
 /// the machine/operation pair names the emitted `CallDynamic*` occurrence the
 /// native projection must retain.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

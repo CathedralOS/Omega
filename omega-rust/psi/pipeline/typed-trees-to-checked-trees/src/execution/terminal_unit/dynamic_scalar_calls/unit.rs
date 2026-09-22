@@ -20,11 +20,6 @@ use crate::execution::terminal_unit::types::{
     ShapeCollector, is_unit, machine_binders, state_flow, structural_access_for_type_reference,
 };
 
-pub(super) enum CheckedDynamicUnitCall {
-    Direct(checked_trees::CheckedDynamicUnitCallPlan),
-    Rebound(checked_trees::CheckedReboundDynamicUnitCallPlan),
-}
-
 pub(super) struct ForwardedDynamicUnitCall<'program, 'facts> {
     pub machine: &'program typed_trees::machine::Machine,
     pub state: &'program typed_trees::state::State,
@@ -45,7 +40,7 @@ pub(super) fn build_checked_dynamic_unit_call(
     call_site: crate::semantic_calls::CallSite<'_>,
     shapes: &mut ShapeCollector<'_>,
     forwarded: Option<ForwardedDynamicUnitCall<'_, '_>>,
-) -> Option<CheckedDynamicUnitCall> {
+) -> Option<checked_trees::CheckedDynamicBinding<checked_trees::CheckedDynamicUnitCallPlan>> {
     let crate::semantic_calls::CallSite::Statement(caller_call) = call_site else {
         return None;
     };
@@ -411,13 +406,11 @@ pub(super) fn build_checked_dynamic_unit_call(
         checked_call_service_reach,
     };
     Some(match rebound_from {
-        Some(initial) => {
-            CheckedDynamicUnitCall::Rebound(checked_trees::CheckedReboundDynamicUnitCallPlan {
-                initial,
-                latest: plan,
-            })
-        }
-        None => CheckedDynamicUnitCall::Direct(plan),
+        Some(initial) => checked_trees::CheckedDynamicBinding::Rebound {
+            initial,
+            latest: plan,
+        },
+        None => checked_trees::CheckedDynamicBinding::Direct(plan),
     })
 }
 
@@ -493,7 +486,7 @@ pub(super) fn build_checked_forwarded_dynamic_unit_calls(
                 else {
                     continue;
                 };
-                let Some(call) = build_checked_dynamic_unit_call(
+                let Some(binding) = build_checked_dynamic_unit_call(
                     program,
                     facts,
                     binding_facts,
@@ -506,10 +499,9 @@ pub(super) fn build_checked_forwarded_dynamic_unit_calls(
                 ) else {
                     continue;
                 };
-                match call {
-                    CheckedDynamicUnitCall::Direct(plan) => plans.direct_unit_calls.push(plan),
-                    CheckedDynamicUnitCall::Rebound(plan) => plans.rebound_unit_calls.push(plan),
-                }
+                plans
+                    .calls
+                    .push(checked_trees::CheckedDynamicDispatchPlan::Unit(binding));
             }
         }
     }

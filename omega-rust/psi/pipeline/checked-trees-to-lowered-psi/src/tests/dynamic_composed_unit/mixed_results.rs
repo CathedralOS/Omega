@@ -1,5 +1,7 @@
 use crate::TerminalMachineSelection;
 use crate::tests::lower_machine;
+use checked_trees::CheckedDynamicBinding::Direct;
+use checked_trees::CheckedDynamicDispatchPlan::{Scalar, Unit};
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::ClosedConformanceCallableResult;
 
@@ -81,12 +83,10 @@ fn mixed_table_rejects_result_kind_drift_in_called_and_uncalled_members() {
         for member in 0..2 {
             let mut changed = checked.clone();
             let catalog = &mut changed.facts.flow.terminal_unit_effects.dynamic_dispatch;
-            let callables = if let [plan] = catalog.direct_scalar_calls.as_mut_slice() {
-                &mut plan.realization_callables
-            } else if let [plan] = catalog.direct_unit_calls.as_mut_slice() {
-                &mut plan.realization_callables
-            } else {
-                panic!("one mixed-table call plan")
+            let callables = match catalog.calls.as_mut_slice() {
+                [Scalar(Direct(plan))] => &mut plan.realization_callables,
+                [Unit(Direct(plan))] => &mut plan.realization_callables,
+                _ => panic!("one mixed-table call plan"),
             };
             callables[member].body = callables[1 - member].body.clone();
             assert!(
@@ -102,14 +102,18 @@ fn mixed_table_cannot_omit_an_uncalled_member() {
     for call in CALLS {
         let mut checked = crate::front_end::checked_program(&source(call));
         let catalog = &mut checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
-        if let [plan] = catalog.direct_scalar_calls.as_mut_slice() {
-            plan.realization_callables
-                .retain(|row| row.realization_machine == plan.realization_machine);
-        } else if let [plan] = catalog.direct_unit_calls.as_mut_slice() {
-            plan.realization_callables
-                .retain(|row| row.realization_machine == plan.realization_machine);
-        } else {
-            panic!("one mixed-table call plan")
+        match catalog.calls.as_mut_slice() {
+            [Scalar(Direct(plan))] => {
+                let selected = plan.realization_machine;
+                plan.realization_callables
+                    .retain(|row| row.realization_machine == selected);
+            }
+            [Unit(Direct(plan))] => {
+                let selected = plan.realization_machine;
+                plan.realization_callables
+                    .retain(|row| row.realization_machine == selected);
+            }
+            _ => panic!("one mixed-table call plan"),
         }
         assert!(
             terminal_production::TerminalProductionRequest::new(
