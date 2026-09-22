@@ -10,4 +10,7 @@
 
 mod runtime_abi;
 
-pub use runtime_abi::*;
+pub use runtime_abi::{
+    DynamicTraitDescriptorAbi, FatDescriptorAbi, FatDescriptorKind, RuntimeAbiPlan, SubsliceLayout,
+    build_runtime_abi_plan,
+};
