@@ -32,17 +32,58 @@ pub use adapter_composition::{
     UefiApplicationBootstrapAdapterReadinessError, compose_uefi_application_bootstrap_adapter,
     prepare_uefi_application_bootstrap_adapter_invocation,
 };
-pub use exit_boot_services::*;
+pub use exit_boot_services::{
+    BoundUefiExitBootServicesInvocation, ExecutedUefiExitBootServicesInvocation,
+    LifecycleScopedUefiExitBootServicesProvider, PlannedUefiExitBootServicesInvocation,
+    UefiExitBootServicesAttemptError, UefiExitBootServicesAttemptOutcome,
+    UefiExitBootServicesAttemptStatus, UefiExitBootServicesExecutionError,
+    UefiExitBootServicesInvocationBindingError, UefiExitBootServicesInvocationPlanningError,
+    UefiExitBootServicesProviderJoinError, UefiExitBootServicesProviderReleaseError,
+    admit_uefi_exit_boot_services_execution, bind_uefi_exit_boot_services_invocation,
+    execute_uefi_exit_boot_services, join_lifecycle_scoped_uefi_exit_boot_services_provider,
+    prepare_uefi_exit_boot_services_invocation,
+};
 pub use firmware_ledger::UefiApplicationFirmwareLedger;
-pub use get_memory_map::*;
-pub use handle_protocol_provider::*;
-pub use os_handoff::*;
-pub use os_handoff_cycle::*;
+pub use get_memory_map::{
+    BoundUefiGetMemoryMapInvocation, ExecutedUefiGetMemoryMapInvocation,
+    LifecycleScopedUefiGetMemoryMapProvider, PlannedUefiGetMemoryMapInvocation,
+    UefiGetMemoryMapAttemptError, UefiGetMemoryMapAttemptOutcome, UefiGetMemoryMapAttemptStatus,
+    UefiGetMemoryMapExecutionError, UefiGetMemoryMapInvocationBindingError,
+    UefiGetMemoryMapInvocationPlanningError, UefiMemoryMapAcquisition, UefiMemoryMapBuffer,
+    admit_uefi_get_memory_map_execution, bind_uefi_get_memory_map_invocation,
+    execute_uefi_get_memory_map, join_lifecycle_scoped_uefi_get_memory_map_provider,
+    prepare_uefi_get_memory_map_invocation,
+};
+pub use handle_protocol_provider::{
+    BoundUefiHandleProtocolInvocation, ExecutedUefiHandleProtocolInvocation,
+    LifecycleScopedUefiHandleProtocolProvider, LifecycleScopedUefiLoadedImageCorrespondence,
+    PlannedUefiHandleProtocolInvocation, UEFI_LOADED_IMAGE_PROTOCOL_GUID,
+    UefiHandleProtocolExecutionError, UefiHandleProtocolExecutionStatus,
+    UefiHandleProtocolInterfaceOutputSlot, UefiHandleProtocolInvocationBindingError,
+    UefiHandleProtocolInvocationPlanningError, UefiHandleProtocolLoadedImageCallError,
+    UefiHandleProtocolProviderJoinError, UefiHandleProtocolProviderReleaseError, UefiProtocolGuid,
+    admit_uefi_loaded_image_handle_protocol_execution,
+    bind_uefi_loaded_image_handle_protocol_invocation, execute_uefi_loaded_image_handle_protocol,
+    join_lifecycle_scoped_uefi_handle_protocol_provider,
+    prepare_uefi_loaded_image_handle_protocol_invocation,
+};
+pub use os_handoff::{
+    UefiErrorStatus, UefiExitBootServicesProviderResult, UefiOsHandoffComplete,
+    UefiOsHandoffExhausted, UefiOsHandoffLedger, UefiOsHandoffMapAcquired,
+    UefiOsHandoffMapAcquisitionError, UefiOsHandoffMapRequired, UefiOsHandoffProgress,
+    UefiOsHandoffTransitionError,
+};
+pub use os_handoff_cycle::{
+    UefiOsHandoffCycleRejection, UefiOsHandoffCycleResolution, drive_uefi_os_handoff_cycle,
+};
 pub use physical_arrival::{
     UefiApplicationBootstrapAdapterInvocationReadiness, UefiApplicationPhysicalArrival,
     UefiApplicationPhysicalArrivalJoinError, join_uefi_application_physical_arrival,
 };
-pub use provider_projection::*;
+pub use provider_projection::{
+    LifecycleScopedUefiBootServicesProjection, UefiBootServicesProjectionError,
+    UefiBootServicesProjectionReleaseError, project_uefi_application_boot_services,
+};
 pub use same_stack_budget::{
     UefiApplicationBootstrapSameStackBudgetPlan, UefiApplicationBootstrapSameStackDemandComponents,
     plan_uefi_application_bootstrap_same_stack_budget,

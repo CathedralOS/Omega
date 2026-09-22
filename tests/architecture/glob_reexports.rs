@@ -37,12 +37,10 @@ const GLOB_REEXPORT_CEILINGS: &[(&str, usize)] = &[
     ("omega-rust/omega/backend/machine-emission", 22),
     ("omega-rust/omega/backend/plans/program-entry-plan", 8),
     ("omega-rust/omega/backend/register-environment", 1),
-    ("omega-rust/omega/backend/runtime/component-publication", 3),
     (
         "omega-rust/omega/backend/runtime/executable-installation",
         1,
     ),
-    ("omega-rust/omega/backend/runtime/external-roots", 8),
     ("omega-rust/omega/backend/runtime/runtime-abi", 1),
     ("omega-rust/omega/build/provider-planning", 2),
     (

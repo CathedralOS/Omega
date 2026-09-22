@@ -36,9 +36,20 @@ mod callback_registration;
 mod entry_acquisition;
 mod stack_provision;
 
-pub use callback_registration::*;
-pub use entry_acquisition::*;
-pub use stack_provision::*;
+pub use callback_registration::{
+    CompletedRegisteredCompilerPrivateCallback, CompletedRegistration,
+    InstalledRunnableExternalRootRuntime, RegisteredCompilerPrivateCallback,
+    RegisteredCompilerPrivateCallbackAdmissionError,
+    RegisteredCompilerPrivateCallbackUnregistrationError, Registration,
+    RegistrationLeaseReleaseError, RegistrationLoweringError, RegistrationUnregistrationError,
+    RunnableComponentCallbackRegistrationRuntime, UnregisteredRegistration,
+};
+pub use entry_acquisition::ComponentEntryAcquisitionError;
+pub use stack_provision::{
+    AdmittedExternalStackDomainLease, ExternalStackProvisionAdmissionError,
+    ExternalStackProvisionSealError, ProvisionedExternalStackSet, ProvisionedRootInstallError,
+    admit_external_stack_domain_lease, seal_external_stack_provision,
+};
 
 /// Installed terminal artifact plus the concrete accepted progress closure
 /// committed by its canonical installation record.
