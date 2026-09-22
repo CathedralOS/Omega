@@ -12,11 +12,9 @@ no transform source was modified.
 This is the stage-crate leg of the ownership series: coordinators and entry
 files are covered by
 [coordinator_overownership_audit.md](coordinator_overownership_audit.md) and
-[coordinator_scope_audit.md](coordinator_scope_audit.md), rewrite-bearing
-module trees by
-[pipeline_rewrites_ownership_audit.md](pipeline_rewrites_ownership_audit.md),
-and entrance connectivity by
-[stage_entrance_orphan_audit.md](stage_entrance_orphan_audit.md). This leg
+[coordinator_scope_audit.md](coordinator_scope_audit.md). Rewrite-bearing
+module trees were audited clean, and entrance connectivity is now enforced by
+`tests/architecture/stage_crate_ownership.rs` rather than catalogued. This leg
 classifies the *module inventory* of each stage crate — every top-level `src/`
 entry is declared transform, declared private working state, or foreign
 (representation data, semantics algorithms, backend detail).

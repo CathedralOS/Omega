@@ -200,8 +200,8 @@ fn workspace_sources(root: &Path) -> Vec<(PathBuf, String)> {
 /// names it (`use <ident>` or `<ident>::`); `external_reachers` selects those
 /// files once per crate and `has_external_caller` then asks whether one of
 /// them names the entrance. `pub` re-export chains aliasing deeper paths stay
-/// approximate, matching wiki/drafts/stage_entrance_orphan_audit.md's
-/// resolution convention.
+/// approximate: a deeper alias counts for its crate rather than resolving to
+/// one exact item.
 fn external_reachers<'a>(
     sources: &'a [(PathBuf, String)],
     crate_root: &Path,
@@ -446,7 +446,6 @@ fn module_public_names(crate_src: &Path, module: &str) -> BTreeSet<String> {
 /// internal machinery left `pub` past the function-level entrance gate.
 /// Narrow it to `pub(crate)`, wire it into the route, or catalog it in
 /// INTERNAL_MODULES with the audit disposition.
-/// wiki/drafts/stage_entrance_orphan_audit.md's residual names this gate.
 #[test]
 fn stage_root_public_modules_have_external_consumers() {
     let root = repository();
@@ -797,8 +796,7 @@ const INTERNALLY_CALLED_REEXPORTS: [(&str, &str); 60] = [
 /// must have a caller outside its own crate's `src/` — the executable route,
 /// not just the crate-name chain, stays connected — so an unrouted public
 /// rewrite cannot accumulate silently beneath a subdirectory.
-/// wiki/drafts/stage_entrance_orphan_audit.md cataloged the live surface;
-/// PLUMBING_REEXPORTS carries its non-entrance dispositions and
+/// PLUMBING_REEXPORTS carries the non-entrance dispositions and
 /// UNEXECUTED_REWRITE_FAMILIES the one catalogued-but-unexecuted area.
 #[test]
 fn stage_entrances_stay_connected_to_external_callers() {
