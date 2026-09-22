@@ -1,52 +1,29 @@
 # Tasks
 
 Unfinished product and language work for the Rust reference compiler. The
-[completion plan](wiki/drafts/rust_compiler_completion.md) defines the full
-acceptance bar; this board identifies the remaining work, not a passing baseline.
+[completion plan](wiki/drafts/rust_compiler_completion.md) defines acceptance;
+this board identifies remaining work, not a passing baseline.
 
 | Start here | Purpose |
 | --- | --- |
-| [Immediate product closure](#immediate-product-closure) | Unchanged sample/canary programs and the dependencies preventing native execution. |
-| [P1–P5](#p1---authority-roots-and-entry) | Entry/storage, materialization, portable evidence, ABI, and Cathedral customers. |
-| [Parallel language work](#parallel-language-and-compiler-lanes) | Remaining accepted language surface; independent work can proceed when a product strategy is paused. |
+| [Immediate product closure](#immediate-product-closure) | Application, sample and canary outcomes and their native-execution blockers. |
+| [Reflection](#semantic-reflection) / [embedding](#embedding-and-interpreted-components) / [tests](#requirement-based-tests) | Accepted language and library capabilities awaiting connected implementation. |
+| [P1–P5](#p1---authority-roots-and-entry) | Entry/storage, materialization, portable evidence, ABI and Cathedral customers. |
+| [Parallel language work](#parallel-language-and-compiler-lanes) | Other accepted language capabilities and their concrete dependencies. |
 | [Rust release closure](#rust-compiler-release-closure) | Full-gate evidence and matching-host runs, separate from feature implementation. |
-| [Optimizer board](TASKS_OPTIMIZER.md) / [bootstrap board](TASKS_BOOTSTRAP.md) | Separate execution owners, not duplicated here. |
+| [Optimizer board](TASKS_OPTIMIZER.md) / [bootstrap board](TASKS_BOOTSTRAP.md) | Separate execution owners; link rather than duplicate their work. |
 
-Keep each task's missing behavior, owner, real dependencies, and acceptance
-condition. Delete completed work; Git holds checkpoint results and superseded
-diagnoses. Link the specification for semantics rather than restating it.
-Retain a dated/revision-bound failure only when it determines where to resume;
-rerun that customer before assuming the old diagnosis still applies. New
-evidence supersedes, never accrues: a landing or rerun replaces the dated
-paragraph it makes stale, so an open item states its current frontier once.
-A confirmation that changes nothing is not board evidence: record it on the
-claim's notes (`claims.py note`) and in the session verdict instead — a row
-carries at most one current verification line, and a resolved or covered row
-is not stamped again. A rerun that reproduces the recorded verdict at a newer
-revision is such a confirmation: it lands no restamp. Serial witness
-paragraphs ("re-verified a second/third time", "fourth witness") are noise —
-fold a materially new observation into the row's single verification line and
-drop the rest. Reopen a closed row only when the new evidence changes
-its frontier.
-Where a stamp does land, it stays inside its own row: append it after that
-row's last sentence, never splice it mid-sentence or mid-paragraph into the
-row's existing prose or a neighbor's, and never leave it as an orphan
-paragraph detached from its bullet. A mined stub that resolves as a pure
-re-mine of a settled row is folded into that row's sibling list rather than
-carrying its own stamp.
-Cite revisions as published on `main` (landing rewrites worktree SHAs) and
-prefer symbol or test names over line numbers, which drift.
-Live assignments belong in the [timestamped, expiring work-claim registry](tools/claims.md),
-not historical board prose. Check `python tools/claims.py status` (`python3` on
-macOS) before taking over a path; a retained checkpoint is resume material, not
-an indefinite claim. Tag an added item's provenance on its first line:
-`(new-scope)` for newly discovered work, `(split-of:<parent-item>)` when it
-decomposes an existing item. Items added before 2026-09-14 are untagged.
+Keep missing behavior, owning code, necessary dependencies and acceptance.
+Current evidence replaces stale diagnoses; a rerun confirming the same result
+does not earn another paragraph. Delete completed work and duplicate aliases;
+Git preserves history. Keep a revision-bound failure only when it changes
+where to resume, and prefer stable symbols/tests over line numbers.
 
-The [workflow](AGENTS.md#workflow) governs scoped checks, strategy pauses, and
-landing. A paused strategy is not a blocked language feature. Unsettled owner
-decisions belong in [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md); implementation
-difficulty alone is not an owner question.
+[AGENTS.md](AGENTS.md#workflow) governs task provenance, scoped checks, claims,
+strategy pauses and publication. Live assignments belong in the
+[claims registry](tools/claims.md), not the board. A paused strategy is not a
+blocked language feature. Genuine owner decisions belong in
+[OWNER_QUESTIONS.md](OWNER_QUESTIONS.md); implementation difficulty alone does not.
 
 ## Ownership firewall
 
@@ -271,12 +248,13 @@ the complete product bar; focused successes below do not establish that baseline
     still limits that call-result path to primitives. **STATE-LOCAL-VALUE-FRONTIER**
     owns structural result storage and independent lowering. Keep the reader's
     algorithm and run `runtime_stdin_command_branch_exit_canary_runs`.
-  - `host/runtime_console_bounded_line_exit`: compose its full result with
-    mutable field subslices, including `read_line(&mut self.line[0..0])`.
-    `calls/structural_arguments.rs` and `calls/byte_subslice.rs` restrict this
-    view/call transport; **STATE-LOCAL-VALUE-FRONTIER** owns the general repair.
-    Retain zero-capacity non-consumption, count and untouched-tail checks;
-    fixed-array discard-result execution is not this acceptance.
+  - `host/runtime_console_bounded_line_exit`: finish other-host native coverage
+    of the full result and mutable field windows, including zero capacity.
+    `providers_float_and_console/console_reader.rs::bounded_line_window_results_run_natively_with_zero_extent_nonconsumption`
+    now exercises the unchanged customer on macOS ARM64/Linux; Windows is
+    explicitly skipped. Run the Linux hosts and connect the Windows witness
+    through the supported-host realization work. Require exact exits/output,
+    non-consumption and untouched-tail behavior, not discard-result execution.
   - `text/runtime_stdin_line_buffering_exit`: both `echo_line` calls already
     carry `block`; finish borrowed intrinsic-service parameters through
     `write_prefix` and state edges, which still use bare `&mut Console`.
@@ -519,6 +497,17 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   failure, and identical logical names across packages/targets. Exercise Windows
   runtime behavior; source inspection and cross-compilation do not establish it.
   Measure retained state and compare the spec's separate-tool route.
+
+- **TARGET-INFERENCE-AND-PLATFORM-CERTIFICATION.** Enforce canonical target
+  spellings at compiler and CLI request boundaries under
+  [exact target requests](wiki/spec/build/configuration.md#exact-target-requests).
+  `TargetProfile::from_omega_target_name` and `ExplicitTargetSet` still accept
+  `linux_x64`, `windows_x64` and `uefi_x64`; the specification requires
+  canonical names rather than these aliases. Preserve Host convenience,
+  exact-set deduplication/order, independent child outcomes and unsupported
+  profile diagnostics. Acceptance: canonical single/multiple requests work;
+  aliases, empty sets, wildcards and unknown names reject. Target-neutral
+  checking remains distinct from native execution on a matching host.
 
 ## Embedding and interpreted components
 
@@ -997,6 +986,19 @@ syntax and other terminal services are not prerequisites.
   supply reject; legitimate issuance and identity-preserving transfers succeed
   without re-minting capacity.
 
+- **NATIVE-WRAPPER-ENCODING-AARCH64.** (new-scope) Resolve the existing
+  `aarch64-semantic-wrapper-arrival-shape` decision in
+  [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md) before adding a peer encoding.
+  `select_optimized_program_storage_semantic_wrapper_encoding` currently
+  selects the x86-64 template; its recipe assumes the UEFI indirect Extent
+  arrival and caller-owned copies. AArch64 declarations instead use register
+  fragments, and current AArch64 profiles expose hosted entry, not
+  ProgramStorage entry. Do not assume they need the UEFI wrapper.
+  Acceptance after the ruling: either implement the required arrival and
+  continuation with architecture-correct branch relocation and independent
+  substitution checks, or pin the intended refusal and remove this task.
+  AArch64 hosted execution remains with the native matrix owners.
+
 ## P2 - Materialization and placed access
 
 - **PLAN-LAID-VIEWS.** Complete executable placed-view establishment, access
@@ -1050,6 +1052,114 @@ syntax and other terminal services are not prerequisites.
   capacity. Closed generic applications already substitute literal lengths;
   do not add depth-specific reports or turn a host-validation task into an
   implementation project.
+
+- **DEVICE-EXTENT-ACCESS.** Complete the admitted device-loan/ordering route
+  through actual release and CPU-view restoration under
+  [device custody and ordering](wiki/spec/resources/device_access.md).
+  `extents::{external_loans,ordering_events}` already carries confinement,
+  role-specific event identity, exact coordinates, device, request and runtime
+  scope, with coverage/substitution controls. Those records alone do not
+  establish a Stable view, completion or emitted ordering.
+
+  Connect the provider's admitted roles to the live external loan: an intersecting
+  write invalidates the publication; notification consumes valid publication;
+  completion/acquisition restores CPU access only after exact borrower release
+  and coherence obligations. Preserve scoped ordering through Terminal and
+  target realization, including instruction-free coherent implementations.
+  Reject missing/extra/duplicate roles, stale publication, wrong request/device/
+  scope/mapping and premature restoration without consuming retry custody.
+  Pin failed-start return, failed-completion retention and permitted suspension.
+
+  Exercise the shared-memory customer using an explicit atomic/coherence lease
+  or copy-and-validate/revoke-and-validate route as the peer contract requires.
+  Hostile writable peers cannot supply Stable access merely by asserting release.
+  Preserve exact-mapping revocation/invalidation checks and retry custody.
+  Remapping must reject retained foreign pins, changed geometry or widened
+  rights, and establish a fresh mapping era before replacement backing is used.
+  Protocols, queues, isolation and translation policy remain provider/OS code;
+  do not add compiler-owned drivers or treat a CPU barrier as device completion.
+
+- **PLACED-ACCESS-NATIVE-OPS.** Realize the native indexed primitive store
+  handed off by **WRITE-ONLY-BORROW**. The checked producer, Terminal verifier,
+  codec/interpreter and verified abstract inventory already carry the runtime
+  index, array path, stored value and bounds through optimization. Target
+  lowering in
+  `abstract-operations-to-target-operations/src/lowering/control_flow/operations.rs`
+  still rejects `WriteOnlyIndexedPrimitiveStore` with
+  `UnsupportedWriteOnlyPrimitiveStore`.
+
+  Recover the original borrowed parameter address, scale by the element width,
+  and preserve independently checked bounds and access authority through the
+  ordinary target route. Start with
+  `tests/native-differential/tests/terminal_psi_indexed_receivers/indexed_stores.rs`:
+  `declared_range_runtime_index_store_reaches_verified_abstract_inventory`
+  currently expects that native refusal. Coordinate its source fixture with
+  **REMOVE-BRACKETED-RANGE-ANNOTATIONS**: use contract/domain facts, not another
+  admission of the revoked annotation syntax.
+
+  Acceptance: source-driven native `&write` and `&mut` calls mutate the
+  caller-selected element and leave its neighbors untouched; invalid indices,
+  substituted bounds or access authority reject. **PLAN-LAID-VIEWS** separately
+  owns provider-backed view establishment and access-plan realization; this
+  indexed-store delivery does not complete that larger contract.
+
+- **RECAST-SOURCE-POSITIONS.** Compose admitted representation recasts in
+  guard operands, call arguments and nested expressions without requiring a
+  reference-typed `let`. `validation/src/value_custody/recasts.rs` still
+  admits selected initializer roots and rejects remaining recasts in its
+  positional sweep; diagnostic source spans already exist. The
+  [recast contract](wiki/spec/layouts/recasts.md) requires representation
+  compatibility, not this source-position restriction.
+  Carry checked layout/validity, backing identity, lifetime and access through
+  ordinary expression sequencing and temporary loans rather than bypassing
+  the recast check. Acceptance: valid inline equivalents of supported shared
+  and mutable recasts check and execute; incompatible geometry/validity,
+  access escalation and conflicting backing use reject at the offending
+  location. Preserve precise symbolic/boundary-witness footprint refusals.
+  Migrate stale imports in `recast_position_fenced` and coordinate its carrier
+  spelling with **BINDING-CARRIER-NAME** before using it as fresh evidence.
+
+- **EXTERNAL-DATA-SCHEMA-CONVERSION.** Finish and verify the authored
+  preserving-codec customer under the [codec contract](wiki/spec/layouts/codecs.md),
+  not a compiler-special `decode_preserving` path. Admission already recognizes
+  `PreservingDecode`; `wire/wire_preserving_decode_relay_exit` validates a
+  known byte and retains the exact ordered unknown tail in a borrowed
+  `OpaqueWireRemainder`. Its landing established checked compilation, not
+  native success. Reproduce
+  `versions_wire_and_const_lengths::wire_preserving_decode_relay_exit_canary_runs`
+  before attributing a current repair.
+
+  Complete faithful relay through the same selected codec: preserve unknown
+  bytes/order while independently handling the validated known value, reject
+  incompatible codec identity and invalid known input, and retain the input
+  loan while the borrowed remainder is live. Use ordinary library machines and
+  existing call/storage/lifetime owners. Acceptance: the source customer runs
+  on a matching host, relay output preserves the required opaque bytes/order,
+  and codec-substitution, invalid-input and loan-conflict controls reject.
+  Preserve unique historical-migration selection; generated-codec verification
+  and trust remain with their existing owner.
+
+- **GENERATED-CODEC-INDEPENDENT-VERIFICATION.** Establish sufficient
+  independently checked evidence for generated codecs' `Derived` trust under
+  [public codec agreement](wiki/spec/layouts/codecs.md#agreement-and-trust).
+  The no-authored-policy route now exists, but
+  `checked-interpreter/src/interpreter/evaluator/wire_verification.rs`
+  compares Floor/Ceiling members and malformed-input probes.
+  `build-evaluation/src/admission/wire_protocol.rs` reports `Derived` when
+  that probe's gaps are empty. Finite examples do not establish the general
+  agreement law; comparing placements or a shared field classifier is not
+  independent checking of the codec body.
+
+  Connect general agreement evidence to the exact realization and public
+  schema, or retain explicit compiler-admitted trust where it is unavailable.
+  Check the authored-policy fallback against the same obligation rather than
+  treating policy agreement as proof of every codec behavior.
+  Acceptance: a no-policy generated realization earns `Derived` only from
+  independently established requirements; witnessed divergences reject and
+  unsupported obligations remain honestly admitted. Preserve the useful probe
+  controls without presenting more probes as the missing proof. This is an
+  evidence-adequacy gap, not an observed incorrect encoding; preserving codecs
+  remain with their separate owner.
 
 ## P3 - Terminal Psi, PCC, and observation
 
@@ -1471,6 +1581,54 @@ syntax and other terminal services are not prerequisites.
   layout-dependent-erasure rejection. Do not relax semantically invalid
   qualifier combinations merely to remove an implementation fence.
 
+- **BACKEND-VOCABULARY-REJECTION-AUDIT.** Finish the bounded
+  legalization-to-selection refusal audit in `target-operations-to-selected-instructions`.
+  Existing admission tests classify unsupported families and preserve operation
+  identity in `UnsupportedScalarOperation`; they do not establish that every
+  admitted family either selects on each applicable ISA or returns a structured
+  refusal through the public compiler. Trace admission ordering and downstream
+  filtering, exercise representative admitted-but-unrealizable and unsupported
+  operations through compilation, and retain exact operation/target diagnostics
+  without panics or silent omission. Attribute missing implementations to
+  existing capability owners, including **X86-FMA-PROVIDER-TRANSPORT**; do not
+  expand the accepted vocabulary or build another generic audit framework.
+
+- **COMPILER-PASS-PROFILE-TIMINGS.** Preserve timing opt-in through retained
+  and direct Terminal production. Both paths in
+  `checked-compilation-to-terminal-artifact/src/terminal_artifact.rs`
+  construct enabled Psi collectors even when surrounding `CompileTimings`
+  is disabled. Carry the request's collection state into the existing
+  Psi-owned `TerminalProductionTimings`, without a Psi-to-Omega dependency.
+  Internal stage instrumentation and prepared-project flag/report forwarding
+  already exist; do not rebuild those mechanisms.
+
+  Acceptance: untimed production performs the same work without optional clock
+  collection or retained timing rows; timed production retains its stage ladder
+  through direct and prepared-project reports. Preserve exact error propagation,
+  stderr-only CLI reporting and absence of debug files. Existing disabled-merge
+  tests prove row suppression, not absence of inner measurement; cover the
+  actual collection choice on both production paths.
+
+- **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT.** Recheck and resolve excessive
+  compile time for
+  `nominal_affine_source::integer_comparison::mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
+  in `checked-trees-to-lowered-psi --test suite`. Historical timeout evidence
+  predates further algorithmic repairs; current completion/time is unverified.
+  Run the unreduced customer with an explicit test timeout, then profile current
+  checking/lowering/certificate work if still slow. Improve measured work without
+  abandoning obligations or weakening independent verification. The first 72
+  top-level `&&` conjuncts (counting the leading parenthesized triple as one)
+  remain a profiling aid, not acceptance.
+
+  Accepted-premise indexing, unchanged-module reconstruction reuse and reachable
+  equality-roster selection already exist. Instrument the actual producer;
+  `OMEGA_PROOF_MEASUREMENTS` does not account for all certificate work.
+  Acceptance: the unreduced test completes its assertions within an ordinary
+  test timeout, proof/reconstruction controls remain valid, and subsequent crate
+  `--no-fail-fast` validation has no timeout member. Algorithmic repair needs no
+  owner decision. Introducing an aggregate proof-work refusal ceiling requires
+  the existing `compile-time-proof-work-ceiling` decision in OWNER_QUESTIONS.md.
+
 ## P4 - ABI, borrowing, and callbacks
 
 - **NORMALIZED-ABI-LOWERING.** Finish aggregate and descriptor foreign
@@ -1721,6 +1879,46 @@ syntax and other terminal services are not prerequisites.
   `retained_content_custody` and `retention/retained_borrow_custody` controls.
   Registration-specific lease custody remains REGISTERED-CALLBACK-LIFETIME.
 
+- **GENERIC-RETURNED-VIEW-LIFETIMES.** Complete caller-side attribution of
+  generic returned views under
+  [returned views](wiki/spec/language/lifetimes.md#returned-views).
+  Exact selected callable/argument substitution currently admits template-dependent
+  results only when the complete instantiated frontier is view-free. Carry the
+  instantiated result-to-input relation and exact loans for view-bearing results.
+  Owners: `checks/borrows/elision/templates.rs`, `borrow/view_link.rs` and caller
+  loan attribution. Reuse the shared complete-frontier query; unresolved structure
+  is not an empty frontier, and discarding a result cannot bypass call admission.
+
+  Acceptance: extend
+  `generic_frontiers/static_calls.rs::exact_static_callable_substitution_allows_only_closed_view_free_results`
+  to its view-bearing `Outcome<i32, Job>` customer, retaining original backing,
+  path and access. Reject writes to every possible live source, unrelated/local
+  backing, access escalation, missing/conflicting callable substitution and
+  unresolved frontiers. Preserve view-free admission, concrete carriers and
+  ambiguous-elision rejection. Explicit same-lifetime multi-source unions already
+  work; general authored outlives syntax is outside the current contract, not an
+  implementation prerequisite.
+
+- **TERMINAL-SLICE-VIEW-VOCABULARY.** (split-of:SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT)
+  Complete portable lowering and native realization of borrowed non-byte
+  `&[T]` views: runtime length, element access and subslices with exact
+  backing, extent, element identity and loan custody. Checked locals/formals
+  already retain `BorrowedSliceView { element_type_identity }` and ordinary
+  sequencing forwards them; `slice_view_locals.rs` uses an empty callee,
+  not a view-consuming implementation. Lowering still rejects the shape as
+  lacking a Terminal descriptor.
+  Extend the Terminal operation/type contract and independent checking rather
+  than erasing extent or adding a sample-specific recognizer. Core
+  `Slice::index<T [copy]>` already settles shared by-value element access.
+
+  Acceptance: a non-byte-view callee consumes `.len`, indexing and subslicing
+  through Terminal production and native realization; bounds, element-type,
+  alias and access violations reject. `fletcher_checksum` executes its real
+  entry and exits 56; `recursive_sum` establishes sum 50/count 4 and exits 70
+  on Linux x86-64, with **SAMPLE-CORPUS** retaining their complete sample
+  obligations. Reuse byte-view custody where applicable and keep general
+  cyclic/value sequencing with its existing owners.
+
 ## P5 - Cathedral over general Omega primitives
 
 - **BUMP-ALLOCATOR-CANARY.** Deliver an executable package allocator over a
@@ -1872,33 +2070,32 @@ syntax and other terminal services are not prerequisites.
 
 ## Parallel language and compiler lanes
 
-- **DISPATCHED-CALL-RECOGNIZER-GAP.** Three call recognizers exclude quotient
-  and private-layout requests but still accept a call whose
-  `static_requirement_dispatch` is set, so a satisfier's private closed
-  realization (the rewritten `target_symbol`) flows through them as if it were
-  the plain application the call spells:
-  `typed-trees-to-checked-trees/src/execution/unit/returns/guarded_call_returns.rs`
-  (guarded value-call return plans),
-  `validation/src/proof_contracts/proof_embeddings/calls.rs` (`embed` sources)
-  and `validation/src/proof_contracts/quotients/relation_plan/theorem_schema_verification.rs`
-  (theorem-schema verification, which also compares `machine_arguments` against
-  the representative telescope). Every other recognizer in those crates now
-  uses `TableCallExpression::selects_only_nominal_route`
-  (`6f9a563e19`) and rejects such calls; these three were
-  left as authored because narrowing them is a semantic change. Decide per
-  site whether a dispatched call is admissible there (the public requirement,
-  not the rewritten symbol, is the contract and proof interface per the
-  predicate's doc) and either adopt the predicate or document why the
-  dispatched realization is the right operand.
+- **DISPATCHED-CALL-RECOGNIZER-GAP.** (new-scope) Preserve public requirement
+  identity/contracts when selected private realizations reach guarded value-call
+  returns, integer-embedding source admission and quotient theorem-schema matching.
+  Audit `execution/unit/returns/guarded_call_returns.rs`,
+  `proof_contracts/proof_embeddings/calls.rs` and
+  `proof_contracts/quotients/relation_plan/theorem_schema_verification.rs`:
+  each excludes quotient/private-layout requests without excluding static
+  requirement dispatch, then consumes the rewritten target. This establishes
+  missing route discrimination, not that every dispatched source passes all
+  later gates.
 
-  Acceptance: each of the three sites either uses `selects_only_nominal_route`
-  with a fixture in which a static-requirement-dispatched call is rejected (or
-  handled through the requirement's contract) at that site, or carries a
-  comment naming why the dispatched realization is admissible there, with a
-  test pinning that admission; the residue grep
-  `grep -rn 'private_layout_operation.is_some()' omega-rust --include='*.rs' | grep -v tests`
-  then lists only the fingerprint writer in `proof/mathematical_signature.rs`
-  and the resolution-stage producer.
+  Retain exact requirement/application/realization correspondence on supported
+  routes; otherwise reject the unsupported route explicitly. Do not import
+  private strengthening, lose guarded-result evidence, or equate a selected
+  realization with the theorem's representative application. Preserve theorem
+  static-argument matching under the
+  [public/private contract rule](wiki/spec/proofs/contracts.md#identity-availability-and-erasure).
+
+  Acceptance: dispatched-call regressions at each site distinguish public
+  guarantees from private strengthening and reject mismatched requirement,
+  application and realization evidence. Admitted guarded returns retain exact
+  result-case evidence through checked planning and Terminal verification;
+  embedding preserves denotational purity/totality without a runtime call;
+  quotient checking retains the exact representative telescope and arguments.
+  Keep nominal positive and invalid controls. Comments or recognizer counts
+  are not behavioral acceptance.
 
 - **BORROWED-STORAGE-RESTORATION.** (split-of:OMEGA-PRODUCT-COMPILER-SOURCE)
   Complete consuming-transform/replacement execution under
@@ -3302,6 +3499,150 @@ syntax and other terminal services are not prerequisites.
   **COMPONENT-SUBSTRATE** owns component closure; this row owns generic
   executable custody.
 
+- **FLOAT-IDENTITY-LITERAL-CARRIER.** Complete admitted floating constant
+  evaluation/materialization under [constants](wiki/spec/language/constants.md#materialization).
+  Four arithmetic operators, six comparisons and public/imported constant
+  identity already have a connected route. Reuse it, preserving exact
+  declaration/import identity and one-time format landing.
+
+  Separate payloadless NaN meaning, usable in proof and compile-time
+  computation, from runtime bytes requiring canonicalization, explicit bits
+  or an exact selected realization. `const_generic_expressions/value.rs`
+  and `const_initializers/materialize.rs` still reject computed NaNs at
+  their current boundaries. Complete that distinction without choosing an
+  arbitrary payload or inventing new literal syntax. For the remaining
+  selected named-operation customers (classification, conversion, directed
+  rounding and fused operations), first exercise the existing general
+  evaluator; the binary-operator match alone does not establish which calls
+  are unsupported.
+
+  Acceptance: those source-authored constant customers evaluate and replay
+  with exact selected custody; determined runtime results publish stable bits,
+  while undetermined representations and forged receipts reject. A
+  payloadless NaN may participate in admitted compile-time/proof reasoning
+  without materializing. Retain signed-zero, format and imported-alias controls.
+  Owners: build-time evaluation's constant expression, materialization and
+  replay paths, with shared FloatSemantics rather than a separate arithmetic
+  definition.
+
+- **X86-FMA-PROVIDER-TRANSPORT.** Carry checked/legalized scalar FMA
+  occurrences through ordinary selected-instruction transformation,
+  register-home assignment, machine planning and image publication.
+  Reuse the feature-custodied encoder in `machine-emission/src/x86_fma.rs`
+  and independent artifact readers; their test-driven fragments are not a
+  connected provider-execution route.
+
+  Preserve exact operation/operand/result identities, selected provider and
+  AVX+FMA3 admission, XMM homes, canonical MXCSR save/install/restore, and
+  per-occurrence physical coverage. Remove the object, entry and optimization
+  fences only as their required transport is independently checked, not by
+  bypassing them. The production native realization still rejects retained
+  FMA before instruction selection.
+
+  Acceptance: the source-evaluated-import/FMA customer pinned by
+  `retained_x86_fma_and_source_evaluated_import_stop_at_fma_transport`
+  publishes and executes on a matching admitted host, including nested
+  foreign-call control custody. Both formats distinguish fused from
+  separately rounded cancellation; absent/wrong-profile feature admission,
+  operand/provider substitution and corrupted emitted evidence reject.
+  Report cross-target byte replay separately from hardware execution.
+
+- **ASM-INSTRUCTION-CATALOG-EXPANSION.** Carry accepted checked assembly
+  through the ordinary source-to-native pipeline under
+  [assembly](wiki/spec/language/assembly.md) and the
+  [catalog](omega-rust/psi/foundation/language-core/inline_assembly.md).
+  Catalog/checking coverage is not executable support.
+
+  Resume at `typed-trees-to-checked-trees/src/execution/unit/calls/call_operations.rs`:
+  dedicated asm-call planning handles `AsmPortOut`, while
+  `asm_value_intrinsic_result_types_reach_the_call_operation_frontier` pins
+  missing operation plans for value intrinsics. Complete checked plans,
+  lowering, Terminal encoding, independent verification, target realization
+  and final-span/state evidence together. Reuse ordinary assignments/transitions
+  where they express the operation: canonical unordered `ldr`/`str` already
+  lower through typed places. Do not require a new opcode per source spelling
+  or a separate asm-only body recognizer.
+
+  First acceptance is the existing `canary_suite/inline_asm.rs` x86 fence,
+  interrupt, flags, MSR and control-register byte-emission customers, followed
+  by its checked-only pipeline-directive/cache and AArch64 system-register
+  fixtures. Preserve exact target, operand widths, authority/reach, clobbers,
+  ordering and modeled exits through emitted bytes. Wrong-target, missing
+  authority, stale postcondition, invalid saved-place, omitted clobber and
+  mismatched evidence controls must reject. Cross-compilation/byte assertions
+  do not establish privileged execution on a host.
+
+  Further memory, atomic, barrier-option, cache/TLB and mode-transition families
+  need a customer and complete contracted operands/effects, not just more
+  recognized mnemonics. Memory access must retain authorized extent/view,
+  bounds, alignment, initialization and access permission; numeric addresses
+  confer none. Unknown instructions and hidden/unmodeled exits keep rejecting.
+  **PRIVILEGED-PORT-EFFECT-SETTLEMENTS** owns the port-read/write provider
+  adapter integration; do not duplicate that assignment.
+
+  Preserve the settled build authority route: hosted grants for `port_io` and
+  `interrupt_table` are independent; machine-owner authority remains
+  freestanding-only. Reach is not authority, and helper calls cannot hide
+  obligations. Keep the closed terminal-authority inventory and commitment
+  consistent when catalog mechanisms change; exercise an ordinary native
+  compile so a production inventory assertion cannot hide behind source checks.
+
+  Embedded target-specific assembly remains the `interpreted-inline-assembly`
+  owner question, not a blocker for native support. The checked interpreter's
+  unit-return arms in `interpreter/evaluator/statements_and_calls.rs` do not
+  establish fidelity for unmodeled halt/register/cache effects. Unsupported
+  effects must reject, while genuinely elidable hints retain their catalog
+  meaning; do not silently turn all asm into successful no-ops.
+
+- **RUNTIME-SIZED-ACTIVATION-CONTRACT.** Connect the ratified
+  [bounded activation claim](wiki/spec/resources/activation_storage.md) to
+  authored source and Terminal Psi. Use ordinary callable/core-declaration
+  mechanisms; an absent `claim` keyword is not an owner-design blocker.
+  `psi/foundation/extents/src/activation_claims/` supplies bookkeeping,
+  not an executable compiler route.
+
+  Expose compiler-provisioned activation backing with exact activation
+  provenance/lifetime, then retain committed extent, bound, release order and
+  suspension claim-site rows through checking, lowering, codec and independent
+  verification. Keep backing nonmoving with stable materialized addresses for
+  the claim lifetime. Owners: ordinary call admission, extent/claim evidence,
+  Terminal representation and stack-demand composition. Allocation packages
+  can manage already-held backing but cannot mint its grant from an address
+  and length. Runtime generic extents and fixed-array establishment are not
+  this supply mechanism.
+
+  Acceptance: a source-authored bounded claim supports access, reverse-order
+  release and suspension retention under its declared bound; over-bound
+  establishment returns checked failure. Escaping claims, missing/duplicate
+  sites, wrong provenance, stale loans and invalid release/suspension custody
+  reject independently. **FRAME-LAYOUT** in `TASKS_OPTIMIZER.md` owns final
+  frame, probe, unwind and native replay. Do not add implicit variable-sized
+  locals, provider-backed issuance, a new syntax category or an OS allocator.
+
+- **TRANSPARENT-TRAIT-REFINEMENTS.** Complete refinement application and exact
+  requirement selection under
+  [transparent refinements](wiki/spec/language/conformances.md#transparent-refinements).
+  Reach-subset checking, independent clause-local `_` rows, requirement
+  forwarding and concrete evidence-binder fit already exist; do not rebuild
+  them from the obsolete claim that refinements have no checked consumers.
+
+  Instantiate `refines.arguments`, including reordered/partially applied
+  heads, before comparing the selected conformance. Typed trait lowering retains
+  them, but `monomorphization/selection/refinement_fit.rs::resolve_bound_carrier`
+  keeps only the base symbol and `candidate_bounds.rs` compares the unexpanded
+  bound arguments. Targeted signature-free paths must resolve one exact
+  requirement, rejecting ambiguity instead of refining every same-named overload.
+  Also reconcile `covering_clause` and its targeted-replaces-wildcard test with
+  the specified rule that `machine *` applies to every base requirement; a
+  targeted clause must not silently discard those constraints.
+
+  Preserve structural-bound (not nominal-target) semantics, inherited axes,
+  independent bounded rows, complete-contract fit and the order-independent
+  meet of combined refinements before normalization/fingerprinting. Acceptance:
+  fitting/nonfitting parameterized applications, exact/ambiguous targets,
+  wildcard-plus-targeted constraints and consumed binder fixtures. A declaration
+  fixture that never instantiates its binder does not establish usable fit.
+
 ## Rust compiler release closure
 
 The [completion contract](wiki/drafts/rust_compiler_completion.md) requires
@@ -3310,6 +3651,8 @@ The tasks below own evidence closure; capability repairs stay with their
 implementation owners. Historical records are attribution leads, not current
 baseline results. An unavailable runner, unexplained skip, filtered/empty run,
 timeout or exhausted capacity leaves the affected gate open.
+Retain applicable checked/cross-target coverage when a runner is unavailable,
+but report the missing runtime leg explicitly; it does not close that host row.
 
 - **RC-RELEASE-RECORD-AND-CLOSURE.** Finish the existing release recorder and
   assemble the complete same-commit evidence. Owners:
@@ -3430,6 +3773,8 @@ deliverable host runs, not four implementations of the gate.
   cross-target checks and a single `cli_mvp` QEMU execution; neither closes
   the full row. Acceptance: required native/source/sample gates pass with
   actual AArch64 execution and explicit, justified skips.
+  Include Linux host, time/filesystem and `IntegerAt` projection/write paths;
+  checked-target fixtures and cross-emission do not establish runtime behavior.
 
 - **RC-NATIVE-MATRIX-MACOS-ARM64.** Run the complete native/source/sample
   gates on macOS AArch64, executing emitted Mach-O products. The
@@ -3450,6 +3795,16 @@ deliverable host runs, not four implementations of the gate.
   `_stat64` must read back Unix time 1,500,000,000 and exit 70. Its corrected
   unsigned byte assembly is not evidence that Windows execution passed.
 
+
+- **MACOS-X64-HOST-PROFILE.** Execute the compiler/runtime route on an Intel
+  macOS host. Target/provider recognition, exact physical-entry reconstruction,
+  accepted package binding, hosted receiver and x86-64 Mach-O import pairing
+  have implementations; cross-target checks do not establish host execution.
+  Exercise emitted Mach-O entry/exit, receiver and provider/import behavior,
+  recording exact commands, commit, observations and justified skips. Attribute
+  failures to their capability owners. This additional platform task is separate
+  from the completion contract's four required release hosts and does not depend
+  on an Alpha bootstrap seed.
 
 ## Omega-written compiler (after Rust completion)
 
@@ -3496,440 +3851,3 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
   is not compiler completion. C's ordinary Alpha obligation remains required;
   Rust Alpha emission is not a prerequisite. Bootstrap construction and
   `omega0 → omega` closure remain on `TASKS_BOOTSTRAP.md`.
-
-
-## Mined items (swarm wave 9 mine legs)
-
-Candidates extracted by mine legs from `wiki/drafts/`, `TASKS_OPTIMIZER.md`,
-`TASKS_BOOTSTRAP.md`, and `samples/apps/squalr/TASKS.md`, deduplicated by the
-coordinator. Each item names its source doc; the mining session's full
-`mine_report` verdict is in `build/swarm/w9/wave-9.outcomes.json`. Claim the
-named paths, verify the gap is still open on current origin/main (close as
-`superseded` if a landing already fixed it), then implement per AGENTS.md
-validation scope.
-
-- **FLOAT-IDENTITY-LITERAL-CARRIER.** Complete admitted floating constant
-  evaluation/materialization under [constants](wiki/spec/language/constants.md#materialization).
-  Four arithmetic operators, six comparisons and public/imported constant
-  identity already have a connected route. Reuse it, preserving exact
-  declaration/import identity and one-time format landing.
-
-  Separate payloadless NaN meaning, usable in proof and compile-time
-  computation, from runtime bytes requiring canonicalization, explicit bits
-  or an exact selected realization. `const_generic_expressions/value.rs`
-  and `const_initializers/materialize.rs` still reject computed NaNs at
-  their current boundaries. Complete that distinction without choosing an
-  arbitrary payload or inventing new literal syntax. For the remaining
-  selected named-operation customers (classification, conversion, directed
-  rounding and fused operations), first exercise the existing general
-  evaluator; the binary-operator match alone does not establish which calls
-  are unsupported.
-
-  Acceptance: those source-authored constant customers evaluate and replay
-  with exact selected custody; determined runtime results publish stable bits,
-  while undetermined representations and forged receipts reject. A
-  payloadless NaN may participate in admitted compile-time/proof reasoning
-  without materializing. Retain signed-zero, format and imported-alias controls.
-  Owners: build-time evaluation's constant expression, materialization and
-  replay paths, with shared FloatSemantics rather than a separate arithmetic
-  definition.
-
-Omega-side / native:
-
-- **X86-FMA-PROVIDER-TRANSPORT.** Carry checked/legalized scalar FMA
-  occurrences through ordinary selected-instruction transformation,
-  register-home assignment, machine planning and image publication.
-  Reuse the feature-custodied encoder in `machine-emission/src/x86_fma.rs`
-  and independent artifact readers; their test-driven fragments are not a
-  connected provider-execution route.
-
-  Preserve exact operation/operand/result identities, selected provider and
-  AVX+FMA3 admission, XMM homes, canonical MXCSR save/install/restore, and
-  per-occurrence physical coverage. Remove the object, entry and optimization
-  fences only as their required transport is independently checked, not by
-  bypassing them. The production native realization still rejects retained
-  FMA before instruction selection.
-
-  Acceptance: the source-evaluated-import/FMA customer pinned by
-  `retained_x86_fma_and_source_evaluated_import_stop_at_fma_transport`
-  publishes and executes on a matching admitted host, including nested
-  foreign-call control custody. Both formats distinguish fused from
-  separately rounded cancellation; absent/wrong-profile feature admission,
-  operand/provider substitution and corrupted emitted evidence reject.
-  Report cross-target byte replay separately from hardware execution.
-
-Proof/evidence:
-
-
-Build/packages:
-
-
-Platform/cross-host (structurally gated — document host limits):
-
-- **MACOS-X64-HOST-PROFILE.** Execute the compiler/runtime route on an Intel
-  macOS host. Target/provider recognition, exact physical-entry reconstruction,
-  accepted package binding, hosted receiver and x86-64 Mach-O import pairing
-  have implementations; cross-target checks do not establish host execution.
-  Exercise emitted Mach-O entry/exit, receiver and provider/import behavior,
-  recording exact commands, commit, observations and justified skips. Attribute
-  failures to their capability owners. This additional platform task is separate
-  from the completion contract's four required release hosts and does not depend
-  on an Alpha bootstrap seed.
-- **DEVICE-EXTENT-ACCESS.** Complete the admitted device-loan/ordering route
-  through actual release and CPU-view restoration under
-  [device custody and ordering](wiki/spec/resources/device_access.md).
-  `extents::{external_loans,ordering_events}` already carries confinement,
-  role-specific event identity, exact coordinates, device, request and runtime
-  scope, with coverage/substitution controls. Those records alone do not
-  establish a Stable view, completion or emitted ordering.
-
-  Connect the provider's admitted roles to the live external loan: an intersecting
-  write invalidates the publication; notification consumes valid publication;
-  completion/acquisition restores CPU access only after exact borrower release
-  and coherence obligations. Preserve scoped ordering through Terminal and
-  target realization, including instruction-free coherent implementations.
-  Reject missing/extra/duplicate roles, stale publication, wrong request/device/
-  scope/mapping and premature restoration without consuming retry custody.
-  Pin failed-start return, failed-completion retention and permitted suspension.
-
-  Exercise the shared-memory customer using an explicit atomic/coherence lease
-  or copy-and-validate/revoke-and-validate route as the peer contract requires.
-  Hostile writable peers cannot supply Stable access merely by asserting release.
-  Preserve exact-mapping revocation/invalidation checks and retry custody.
-  Remapping must reject retained foreign pins, changed geometry or widened
-  rights, and establish a fresh mapping era before replacement backing is used.
-  Protocols, queues, isolation and translation policy remain provider/OS code;
-  do not add compiler-owned drivers or treat a CPU barrier as device completion.
-- **EXTERNAL-DATA-SCHEMA-CONVERSION.** Finish and verify the authored
-  preserving-codec customer under the [codec contract](wiki/spec/layouts/codecs.md),
-  not a compiler-special `decode_preserving` path. Admission already recognizes
-  `PreservingDecode`; `wire/wire_preserving_decode_relay_exit` validates a
-  known byte and retains the exact ordered unknown tail in a borrowed
-  `OpaqueWireRemainder`. Its landing established checked compilation, not
-  native success. Reproduce
-  `versions_wire_and_const_lengths::wire_preserving_decode_relay_exit_canary_runs`
-  before attributing a current repair.
-
-  Complete faithful relay through the same selected codec: preserve unknown
-  bytes/order while independently handling the validated known value, reject
-  incompatible codec identity and invalid known input, and retain the input
-  loan while the borrowed remainder is live. Use ordinary library machines and
-  existing call/storage/lifetime owners. Acceptance: the source customer runs
-  on a matching host, relay output preserves the required opaque bytes/order,
-  and codec-substitution, invalid-input and loan-conflict controls reject.
-  Preserve unique historical-migration selection; generated-codec verification
-  and trust remain with their existing owner.
-
-Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
-
-
-
-
-## Mined items (deep-mine sweep, wave 9)
-
-
-- **ASM-INSTRUCTION-CATALOG-EXPANSION.** Carry accepted checked assembly
-  through the ordinary source-to-native pipeline under
-  [assembly](wiki/spec/language/assembly.md) and the
-  [catalog](omega-rust/psi/foundation/language-core/inline_assembly.md).
-  Catalog/checking coverage is not executable support.
-
-  Resume at `typed-trees-to-checked-trees/src/execution/unit/calls/call_operations.rs`:
-  dedicated asm-call planning handles `AsmPortOut`, while
-  `asm_value_intrinsic_result_types_reach_the_call_operation_frontier` pins
-  missing operation plans for value intrinsics. Complete checked plans,
-  lowering, Terminal encoding, independent verification, target realization
-  and final-span/state evidence together. Reuse ordinary assignments/transitions
-  where they express the operation: canonical unordered `ldr`/`str` already
-  lower through typed places. Do not require a new opcode per source spelling
-  or a separate asm-only body recognizer.
-
-  First acceptance is the existing `canary_suite/inline_asm.rs` x86 fence,
-  interrupt, flags, MSR and control-register byte-emission customers, followed
-  by its checked-only pipeline-directive/cache and AArch64 system-register
-  fixtures. Preserve exact target, operand widths, authority/reach, clobbers,
-  ordering and modeled exits through emitted bytes. Wrong-target, missing
-  authority, stale postcondition, invalid saved-place, omitted clobber and
-  mismatched evidence controls must reject. Cross-compilation/byte assertions
-  do not establish privileged execution on a host.
-
-  Further memory, atomic, barrier-option, cache/TLB and mode-transition families
-  need a customer and complete contracted operands/effects, not just more
-  recognized mnemonics. Memory access must retain authorized extent/view,
-  bounds, alignment, initialization and access permission; numeric addresses
-  confer none. Unknown instructions and hidden/unmodeled exits keep rejecting.
-  **PRIVILEGED-PORT-EFFECT-SETTLEMENTS** owns the port-read/write provider
-  adapter integration; do not duplicate that assignment.
-
-  Preserve the settled build authority route: hosted grants for `port_io` and
-  `interrupt_table` are independent; machine-owner authority remains
-  freestanding-only. Reach is not authority, and helper calls cannot hide
-  obligations. Keep the closed terminal-authority inventory and commitment
-  consistent when catalog mechanisms change; exercise an ordinary native
-  compile so a production inventory assertion cannot hide behind source checks.
-
-  Embedded target-specific assembly remains the `interpreted-inline-assembly`
-  owner question, not a blocker for native support. The checked interpreter's
-  unit-return arms in `interpreter/evaluator/statements_and_calls.rs` do not
-  establish fidelity for unmodeled halt/register/cache effects. Unsupported
-  effects must reject, while genuinely elidable hints retain their catalog
-  meaning; do not silently turn all asm into successful no-ops.
-- **BACKEND-VOCABULARY-REJECTION-AUDIT.** Finish the bounded
-  legalization-to-selection refusal audit in `target-operations-to-selected-instructions`.
-  Existing admission tests classify unsupported families and preserve operation
-  identity in `UnsupportedScalarOperation`; they do not establish that every
-  admitted family either selects on each applicable ISA or returns a structured
-  refusal through the public compiler. Trace admission ordering and downstream
-  filtering, exercise representative admitted-but-unrealizable and unsupported
-  operations through compilation, and retain exact operation/target diagnostics
-  without panics or silent omission. Attribute missing implementations to
-  existing capability owners, including **X86-FMA-PROVIDER-TRANSPORT**; do not
-  expand the accepted vocabulary or build another generic audit framework.
-
-
-
-
-
-- **COMPILER-PASS-PROFILE-TIMINGS.** Preserve timing opt-in through retained
-  and direct Terminal production. Both paths in
-  `checked-compilation-to-terminal-artifact/src/terminal_artifact.rs`
-  construct enabled Psi collectors even when surrounding `CompileTimings`
-  is disabled. Carry the request's collection state into the existing
-  Psi-owned `TerminalProductionTimings`, without a Psi-to-Omega dependency.
-  Internal stage instrumentation and prepared-project flag/report forwarding
-  already exist; do not rebuild those mechanisms.
-
-  Acceptance: untimed production performs the same work without optional clock
-  collection or retained timing rows; timed production retains its stage ladder
-  through direct and prepared-project reports. Preserve exact error propagation,
-  stderr-only CLI reporting and absence of debug files. Existing disabled-merge
-  tests prove row suppression, not absence of inner measurement; cover the
-  actual collection choice on both production paths.
-
-
-
-- **GENERATED-CODEC-INDEPENDENT-VERIFICATION.** Establish sufficient
-  independently checked evidence for generated codecs' `Derived` trust under
-  [public codec agreement](wiki/spec/layouts/codecs.md#agreement-and-trust).
-  The no-authored-policy route now exists, but
-  `checked-interpreter/src/interpreter/evaluator/wire_verification.rs`
-  compares Floor/Ceiling members and malformed-input probes.
-  `build-evaluation/src/admission/wire_protocol.rs` reports `Derived` when
-  that probe's gaps are empty. Finite examples do not establish the general
-  agreement law; comparing placements or a shared field classifier is not
-  independent checking of the codec body.
-
-  Connect general agreement evidence to the exact realization and public
-  schema, or retain explicit compiler-admitted trust where it is unavailable.
-  Check the authored-policy fallback against the same obligation rather than
-  treating policy agreement as proof of every codec behavior.
-  Acceptance: a no-policy generated realization earns `Derived` only from
-  independently established requirements; witnessed divergences reject and
-  unsupported obligations remain honestly admitted. Preserve the useful probe
-  controls without presenting more probes as the missing proof. This is an
-  evidence-adequacy gap, not an observed incorrect encoding; preserving codecs
-  remain with their separate owner.
-- **GENERIC-RETURNED-VIEW-LIFETIMES.** Complete caller-side attribution of
-  generic returned views under
-  [returned views](wiki/spec/language/lifetimes.md#returned-views).
-  Exact selected callable/argument substitution currently admits template-dependent
-  results only when the complete instantiated frontier is view-free. Carry the
-  instantiated result-to-input relation and exact loans for view-bearing results.
-  Owners: `checks/borrows/elision/templates.rs`, `borrow/view_link.rs` and caller
-  loan attribution. Reuse the shared complete-frontier query; unresolved structure
-  is not an empty frontier, and discarding a result cannot bypass call admission.
-
-  Acceptance: extend
-  `generic_frontiers/static_calls.rs::exact_static_callable_substitution_allows_only_closed_view_free_results`
-  to its view-bearing `Outcome<i32, Job>` customer, retaining original backing,
-  path and access. Reject writes to every possible live source, unrelated/local
-  backing, access escalation, missing/conflicting callable substitution and
-  unresolved frontiers. Preserve view-free admission, concrete carriers and
-  ambiguous-elision rejection. Explicit same-lifetime multi-source unions already
-  work; general authored outlives syntax is outside the current contract, not an
-  implementation prerequisite.
-- **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT.** Recheck and resolve excessive
-  compile time for
-  `nominal_affine_source::integer_comparison::mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
-  in `checked-trees-to-lowered-psi --test suite`. Historical timeout evidence
-  predates further algorithmic repairs; current completion/time is unverified.
-  Run the unreduced customer with an explicit test timeout, then profile current
-  checking/lowering/certificate work if still slow. Improve measured work without
-  abandoning obligations or weakening independent verification. The first 72
-  top-level `&&` conjuncts (counting the leading parenthesized triple as one)
-  remain a profiling aid, not acceptance.
-
-  Accepted-premise indexing, unchanged-module reconstruction reuse and reachable
-  equality-roster selection already exist. Instrument the actual producer;
-  `OMEGA_PROOF_MEASUREMENTS` does not account for all certificate work.
-  Acceptance: the unreduced test completes its assertions within an ordinary
-  test timeout, proof/reconstruction controls remain valid, and subsequent crate
-  `--no-fail-fast` validation has no timeout member. Algorithmic repair needs no
-  owner decision. Introducing an aggregate proof-work refusal ceiling requires
-  the existing `compile-time-proof-work-ceiling` decision in OWNER_QUESTIONS.md.
-
-
-
-
-
-
-- **PLACED-ACCESS-NATIVE-OPS.** Realize the native indexed primitive store
-  handed off by **WRITE-ONLY-BORROW**. The checked producer, Terminal verifier,
-  codec/interpreter and verified abstract inventory already carry the runtime
-  index, array path, stored value and bounds through optimization. Target
-  lowering in
-  `abstract-operations-to-target-operations/src/lowering/control_flow/operations.rs`
-  still rejects `WriteOnlyIndexedPrimitiveStore` with
-  `UnsupportedWriteOnlyPrimitiveStore`.
-
-  Recover the original borrowed parameter address, scale by the element width,
-  and preserve independently checked bounds and access authority through the
-  ordinary target route. Start with
-  `tests/native-differential/tests/terminal_psi_indexed_receivers/indexed_stores.rs`:
-  `declared_range_runtime_index_store_reaches_verified_abstract_inventory`
-  currently expects that native refusal. Coordinate its source fixture with
-  **REMOVE-BRACKETED-RANGE-ANNOTATIONS**: use contract/domain facts, not another
-  admission of the revoked annotation syntax.
-
-  Acceptance: source-driven native `&write` and `&mut` calls mutate the
-  caller-selected element and leave its neighbors untouched; invalid indices,
-  substituted bounds or access authority reject. **PLAN-LAID-VIEWS** separately
-  owns provider-backed view establishment and access-plan realization; this
-  indexed-store delivery does not complete that larger contract.
-
-- **RECAST-SOURCE-POSITIONS.** Compose admitted representation recasts in
-  guard operands, call arguments and nested expressions without requiring a
-  reference-typed `let`. `validation/src/value_custody/recasts.rs` still
-  admits selected initializer roots and rejects remaining recasts in its
-  positional sweep; diagnostic source spans already exist. The
-  [recast contract](wiki/spec/layouts/recasts.md) requires representation
-  compatibility, not this source-position restriction.
-  Carry checked layout/validity, backing identity, lifetime and access through
-  ordinary expression sequencing and temporary loans rather than bypassing
-  the recast check. Acceptance: valid inline equivalents of supported shared
-  and mutable recasts check and execute; incompatible geometry/validity,
-  access escalation and conflicting backing use reject at the offending
-  location. Preserve precise symbolic/boundary-witness footprint refusals.
-  Migrate stale imports in `recast_position_fenced` and coordinate its carrier
-  spelling with **BINDING-CARRIER-NAME** before using it as fresh evidence.
-
-- **REVIEW-RESEAL-ELIMINATION.** Remove repeated identity serialization of the
-  same unchanged in-memory UEFI semantic-wrapper object across construction,
-  encoding and staging validation in
-  `native-realization/src/optimized_semantic_wrapper_object`.
-  Construction already uses `validate_object_preserving_seal`; encoding and
-  trailing staging validation still invoke full object validation. Trace those
-  repeated computations before changing them. Preserve independent decoding,
-  shape/target/template checks and honest-reseal mutation controls. Acceptance:
-  demonstrate fewer duplicate identity computations on the actual staging route,
-  identical valid artifacts and unchanged rejection of corrupted/substituted
-  encoded objects. Do not remove decode-boundary checking or introduce
-  package-acceptance receipts.
-- **RUNTIME-SIZED-ACTIVATION-CONTRACT.** Connect the ratified
-  [bounded activation claim](wiki/spec/resources/activation_storage.md) to
-  authored source and Terminal Psi. Use ordinary callable/core-declaration
-  mechanisms; an absent `claim` keyword is not an owner-design blocker.
-  `psi/foundation/extents/src/activation_claims/` supplies bookkeeping,
-  not an executable compiler route.
-
-  Expose compiler-provisioned activation backing with exact activation
-  provenance/lifetime, then retain committed extent, bound, release order and
-  suspension claim-site rows through checking, lowering, codec and independent
-  verification. Keep backing nonmoving with stable materialized addresses for
-  the claim lifetime. Owners: ordinary call admission, extent/claim evidence,
-  Terminal representation and stack-demand composition. Allocation packages
-  can manage already-held backing but cannot mint its grant from an address
-  and length. Runtime generic extents and fixed-array establishment are not
-  this supply mechanism.
-
-  Acceptance: a source-authored bounded claim supports access, reverse-order
-  release and suspension retention under its declared bound; over-bound
-  establishment returns checked failure. Escaping claims, missing/duplicate
-  sites, wrong provenance, stale loans and invalid release/suspension custody
-  reject independently. **FRAME-LAYOUT** in `TASKS_OPTIMIZER.md` owns final
-  frame, probe, unwind and native replay. Do not add implicit variable-sized
-  locals, provider-backed issuance, a new syntax category or an OS allocator.
-
-- **TERMINAL-SLICE-VIEW-VOCABULARY.** (split-of:SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT)
-  Complete portable lowering and native realization of borrowed non-byte
-  `&[T]` views: runtime length, element access and subslices with exact
-  backing, extent, element identity and loan custody. Checked locals/formals
-  already retain `BorrowedSliceView { element_type_identity }` and ordinary
-  sequencing forwards them; `slice_view_locals.rs` uses an empty callee,
-  not a view-consuming implementation. Lowering still rejects the shape as
-  lacking a Terminal descriptor.
-  Extend the Terminal operation/type contract and independent checking rather
-  than erasing extent or adding a sample-specific recognizer. Core
-  `Slice::index<T [copy]>` already settles shared by-value element access.
-
-  Acceptance: a non-byte-view callee consumes `.len`, indexing and subslicing
-  through Terminal production and native realization; bounds, element-type,
-  alias and access violations reject. `fletcher_checksum` executes its real
-  entry and exits 56; `recursive_sum` establishes sum 50/count 4 and exits 70
-  on Linux x86-64, with **SAMPLE-CORPUS** retaining their complete sample
-  obligations. Reuse byte-view custody where applicable and keep general
-  cyclic/value sequencing with its existing owners.
-
-
-
-
-
-
-- **NATIVE-WRAPPER-ENCODING-AARCH64.** (new-scope) Resolve the existing
-  `aarch64-semantic-wrapper-arrival-shape` decision in
-  [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md) before adding a peer encoding.
-  `select_optimized_program_storage_semantic_wrapper_encoding` currently
-  selects the x86-64 template; its recipe assumes the UEFI indirect Extent
-  arrival and caller-owned copies. AArch64 declarations instead use register
-  fragments, and current AArch64 profiles expose hosted entry, not
-  ProgramStorage entry. Do not assume they need the UEFI wrapper.
-  Acceptance after the ruling: either implement the required arrival and
-  continuation with architecture-correct branch relocation and independent
-  substitution checks, or pin the intended refusal and remove this task.
-  AArch64 hosted execution remains with the native matrix owners.
-
-- **TARGET-INFERENCE-AND-PLATFORM-CERTIFICATION.** Enforce canonical target
-  spellings at compiler and CLI request boundaries under
-  [exact target requests](wiki/spec/build/configuration.md#exact-target-requests).
-  `TargetProfile::from_omega_target_name` and `ExplicitTargetSet` still accept
-  `linux_x64`, `windows_x64` and `uefi_x64`; the specification requires
-  canonical names rather than these aliases. Preserve Host convenience,
-  exact-set deduplication/order, independent child outcomes and unsupported
-  profile diagnostics. Acceptance: canonical single/multiple requests work;
-  aliases, empty sets, wildcards and unknown names reject. Target-neutral
-  checking remains distinct from native execution on a matching host.
-- **TRANSPARENT-TRAIT-REFINEMENTS.** Complete refinement application and exact
-  requirement selection under
-  [transparent refinements](wiki/spec/language/conformances.md#transparent-refinements).
-  Reach-subset checking, independent clause-local `_` rows, requirement
-  forwarding and concrete evidence-binder fit already exist; do not rebuild
-  them from the obsolete claim that refinements have no checked consumers.
-
-  Instantiate `refines.arguments`, including reordered/partially applied
-  heads, before comparing the selected conformance. Typed trait lowering retains
-  them, but `monomorphization/selection/refinement_fit.rs::resolve_bound_carrier`
-  keeps only the base symbol and `candidate_bounds.rs` compares the unexpanded
-  bound arguments. Targeted signature-free paths must resolve one exact
-  requirement, rejecting ambiguity instead of refining every same-named overload.
-  Also reconcile `covering_clause` and its targeted-replaces-wildcard test with
-  the specified rule that `machine *` applies to every base requirement; a
-  targeted clause must not silently discard those constraints.
-
-  Preserve structural-bound (not nominal-target) semantics, inherited axes,
-  independent bounded rows, complete-contract fit and the order-independent
-  meet of combined refinements before normalization/fingerprinting. Acceptance:
-  fitting/nonfitting parameterized applications, exact/ambiguous targets,
-  wildcard-plus-targeted constraints and consumed binder fixtures. A declaration
-  fixture that never instantiates its binder does not establish usable fit.
-
-
-## Platform-gated verification
-
-- Run Linux host/time/filesystem and `IntegerAt` runtime paths on AArch64;
-  cross-target compilation is not runtime verification.
-- Build and run the Windows GUI callback canary only through the generic ENT4
-  path.
-- Keep unavailable hosts structurally tested and report the missing runtime leg
-  explicitly.
-- Windows AArch64 has no `NativeTarget` constructor, so that ABI combination
-  stays unwitnessable until the target vocabulary grows one.
