@@ -8,7 +8,7 @@ checking, review, and publication.
 package_manager/
 ├── model.rs       commands and outcomes
 ├── planning.rs    dependency edits and exact update selections
-├── review.rs      compiler findings and per-change decisions
+├── change_decisions.rs  compiler findings rendered and the per-change decisions loaded
 ├── source_review.rs  separate bounded source-code diagnostics
 ├── old_sources.rs    exact old-source recovery through custody issuers
 ├── state.rs       retained proposal and review files

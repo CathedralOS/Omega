@@ -4,10 +4,10 @@
 //! publication custody stay with their subordinate owners; CLI parsing and
 //! printing stay in the binary. Compiler preparation is separate in [`crate::operations`].
 
+mod change_decisions;
 mod model;
 mod planning;
 mod proposal;
-mod review;
 mod source_review;
 mod state;
 
@@ -260,7 +260,8 @@ pub fn execute_package_command(
     } else {
         None
     };
-    let mut choices = review::prepare(&files, &transaction, &reviews, resume, accepted.is_none())?;
+    let mut choices =
+        change_decisions::prepare(&files, &transaction, &reviews, resume, accepted.is_none())?;
     choices.report.push_str(&source_review::prepare(
         &files,
         &transaction,

@@ -66,7 +66,7 @@ fn borrowed_source_graph_comparison_excludes_only_target_and_derived_encoding() 
     let mut changed = original.clone();
     changed.target_profile = target::TargetProfile::WindowsX64;
     changed.canonical_bytes.clear();
-    changed.fingerprint = super::super::encoding::fingerprint(b"different target bytes");
+    changed.fingerprint = super::encoding::fingerprint(b"different target bytes");
     assert!(original.same_source_graph(&changed));
 
     // Diagnostic-only copies exercise each stored source family independently;

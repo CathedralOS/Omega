@@ -1,4 +1,6 @@
-//! Render findings and load exact project choices in the install/update flow.
+//! Render the compiler's review findings and load the project's exact
+//! per-change decisions in the install/update flow. The review itself is
+//! owned by `crate::review`; this is the console adapter over it.
 
 use super::model::{PackageCommandError, failure};
 use super::state;
