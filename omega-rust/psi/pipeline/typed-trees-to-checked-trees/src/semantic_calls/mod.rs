@@ -1,6 +1,7 @@
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::name::Identifier;
 use checked_trees::statement::StatementNode;
+use language_semantics::declaration_selection::CollectionViewOperation;
 use symbols::SymbolHandle;
 mod lookup;
 mod traversal;
@@ -36,6 +37,58 @@ impl CallSite<'_> {
             Self::TransitionNamed { .. } => None,
         }
     }
+}
+
+/// The compiler-owned collection or text view an authored call selects, or
+/// `None` when the call is not a view.
+///
+/// A collection-view call is authored as a bare method spelling on a carrier
+/// (`cells.as_slice()`, `text.as_view()`, `view.bytes()`). The language owns
+/// the operation, no package declares it, and the result observes the
+/// receiver's existing storage instead of producing a new value. The spelling
+/// alone never establishes that: it is compared through
+/// [`CollectionViewOperation::from_authored_spelling`], and the call shape
+/// decides. Each condition rejects a different operation which happens to
+/// share the name:
+///
+/// * `target_symbol` must be invalid. A resolved nominal machine spelled
+///   `as_slice` is that machine's declared operation; its result may be any
+///   projection of anything it can reach, so evidence taken from the receiver
+///   would not describe it.
+/// * `receiver` must be valid. A view needs the carrier it views.
+/// * the call must carry no arguments, evidence arguments, machine arguments,
+///   static requirement dispatch, quotient operation or private layout
+///   operation. Every one of those names an operand or a dispatch decision
+///   that a compiler-owned view does not accept, so a call carrying one is a
+///   different operation regardless of how it is spelled.
+///
+/// The selected operation is returned rather than a boolean: a caller which
+/// only claims element views of a collection (the ownership and projected
+/// transfer lanes) matches on the exact operations it claims, keeping that
+/// narrowing visible at its own site.
+///
+/// Checking records the operation once as
+/// `AuthoredDeclarationSelectionIntrinsic::CollectionView`; consumers holding
+/// the selection ledger read the retained identity instead of asking here.
+pub(crate) fn collection_view_call(
+    program: &typed_trees::TypedTrees,
+    call: &typed_trees::expression::TableCallExpression,
+) -> Option<CollectionViewOperation> {
+    if call.target_symbol.is_valid()
+        || !call.receiver.is_valid()
+        || !program
+            .expression_table
+            .expression_handles(call.arguments)
+            .is_empty()
+        || !call.evidence_arguments.is_empty()
+        || !call.machine_arguments.is_empty()
+        || call.static_requirement_dispatch.is_some()
+        || call.quotient_operation.is_some()
+        || call.private_layout_operation.is_some()
+    {
+        return None;
+    }
+    CollectionViewOperation::from_authored_spelling(call.target.as_str())
 }
 
 pub(crate) fn find_call_site<'program>(

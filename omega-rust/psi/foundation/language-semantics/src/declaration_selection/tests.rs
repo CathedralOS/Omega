@@ -5,7 +5,7 @@ use super::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding,
     AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError,
     AuthoredDeclarationSelectionSuffixRebaseError, AuthoredDeclarationSelections,
-    CompilerDerivedSelectionPartition, SourceSpan, SymbolHandle,
+    CollectionViewOperation, CompilerDerivedSelectionPartition, SourceSpan, SymbolHandle,
 };
 use source::{SourceId, Span};
 
@@ -283,4 +283,31 @@ fn late_finalization_is_exact_and_transactional() {
         ),
         Err(AuthoredDeclarationSelectionFinalizationError::AlreadyResolved)
     );
+}
+
+#[test]
+fn collection_view_spellings_round_trip() {
+    for operation in CollectionViewOperation::ALL {
+        assert_eq!(
+            CollectionViewOperation::from_authored_spelling(operation.authored_spelling()),
+            Some(operation),
+            "{} must select the operation it spells",
+            operation.authored_spelling()
+        );
+    }
+}
+
+#[test]
+fn collection_view_spellings_are_the_exact_authored_vocabulary() {
+    assert_eq!(
+        CollectionViewOperation::ALL.map(CollectionViewOperation::authored_spelling),
+        ["as_slice", "as_mut_slice", "as_view", "bytes"]
+    );
+    for spelling in ["len", "capacity", "as_slices", "AS_SLICE", ""] {
+        assert_eq!(
+            CollectionViewOperation::from_authored_spelling(spelling),
+            None,
+            "`{spelling}` names no compiler-owned view"
+        );
+    }
 }

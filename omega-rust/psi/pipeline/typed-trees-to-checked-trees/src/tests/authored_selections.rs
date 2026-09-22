@@ -9,6 +9,7 @@ use language_semantics::declaration_selection::{
 };
 
 mod attached_fields;
+mod collection_views;
 mod indexed_operators;
 mod projected_receivers;
 

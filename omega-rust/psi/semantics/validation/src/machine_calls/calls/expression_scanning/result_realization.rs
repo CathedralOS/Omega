@@ -5,6 +5,8 @@
 //! unmaterialized nested result at runtime.
 
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::CollectionViewOperation;
+use symbols::BuiltinFunction;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -1535,10 +1537,7 @@ pub(crate) fn report_nested_call_in_bound_value_call(
     // builtin arguments materialize as operands through the call-result-local
     // machinery (canaried). Only a MACHINE outer call's argument context is
     // broken.
-    if matches!(
-        call.target.as_str(),
-        "min" | "max" | "sqrt" | "as_slice" | "as_mut_slice" | "as_view" | "bytes"
-    ) {
+    if call_spelling_is_composing_builtin(call.target.as_str()) {
         return;
     }
     for argument in program.expression_table.expression_handles(call.arguments) {
@@ -1556,6 +1555,22 @@ pub(crate) fn report_nested_call_in_bound_value_call(
     }
 }
 
+/// True when a call spelling names a builtin whose result composes inside an
+/// argument position: a reserved value builtin (`min`/`max`/`sqrt`) or a
+/// compiler-owned collection/text view. Both vocabularies are asked for their
+/// own names -- this scan runs before checking selects either one, so the
+/// spelling is all it has, and it must not carry a second copy of the lists.
+fn call_spelling_is_composing_builtin(target: &str) -> bool {
+    [
+        BuiltinFunction::Min,
+        BuiltinFunction::Max,
+        BuiltinFunction::Sqrt,
+    ]
+    .into_iter()
+    .any(|builtin| builtin.name() == target)
+        || CollectionViewOperation::from_authored_spelling(target).is_some()
+}
+
 /// The first NON-BUILTIN machine call nested anywhere inside `expression`
 /// (its target name, for the diagnostic), or None. Reserved value builtins
 /// (`min`/`max`/`sqrt`) and the view builtins (`as_slice`/`as_mut_slice`/
@@ -1570,10 +1585,7 @@ fn first_non_builtin_call(
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => first_non_builtin_call(program, atomic.value),
         ExpressionNode::Call(call) => {
-            if !matches!(
-                call.target.as_str(),
-                "min" | "max" | "sqrt" | "as_slice" | "as_mut_slice" | "as_view" | "bytes"
-            ) {
+            if !call_spelling_is_composing_builtin(call.target.as_str()) {
                 return Some(call.target.clone());
             }
             program

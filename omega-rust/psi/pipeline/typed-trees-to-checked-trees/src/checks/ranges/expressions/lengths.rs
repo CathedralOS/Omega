@@ -1,3 +1,4 @@
+use language_semantics::declaration_selection::CollectionViewOperation;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -22,8 +23,14 @@ pub(in crate::checks::ranges) fn expression_indexable_length(
 
     match program.expression_table.expression(expression) {
         ExpressionNode::String(bytes) => Some(bytes.len()),
+        // A compiler-owned element view spans its receiver's whole extent, so
+        // the view's length is the receiver's. A declared machine spelled
+        // `as_slice` returns whatever it chooses and contributes no length.
         ExpressionNode::Call(call)
-            if matches!(call.target.as_str(), "as_slice" | "as_mut_slice") =>
+            if matches!(
+                crate::semantic_calls::collection_view_call(program, call),
+                Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
+            ) =>
         {
             fixed_array_expression_length(program, machine, state, facts, call.receiver)
         }

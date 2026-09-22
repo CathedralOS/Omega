@@ -8,6 +8,7 @@ use super::{
     Machine, Polynomial, RankingRangeState, State, TypeReferenceNode, TypedTrees,
     unwrap_constraint_shells,
 };
+use language_semantics::declaration_selection::CollectionViewOperation;
 use symbols::SymbolHandle;
 use typed_trees::data::DataField;
 use typed_trees::expression::TableCallExpression;
@@ -554,8 +555,10 @@ fn slice_view_call_length(
     state: &State,
     call: &TableCallExpression,
 ) -> Option<u64> {
-    if !matches!(call.target.as_str(), "as_slice" | "as_mut_slice")
-        || call.target_symbol.is_valid()
+    if !matches!(
+        CollectionViewOperation::from_authored_spelling(call.target.as_str()),
+        Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
+    ) || call.target_symbol.is_valid()
         || !call.arguments.is_empty()
         || !call.evidence_arguments.is_empty()
         || !call.machine_arguments.is_empty()

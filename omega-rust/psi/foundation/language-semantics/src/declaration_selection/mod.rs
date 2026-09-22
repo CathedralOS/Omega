@@ -95,6 +95,47 @@ pub enum CollectionViewOperation {
     Bytes,
 }
 
+impl CollectionViewOperation {
+    /// Every compiler-owned view operation. Adding a variant without its
+    /// spelling stops compiling here rather than silently dropping out of the
+    /// spelling map.
+    pub const ALL: [Self; 4] = [
+        Self::SharedSlice,
+        Self::MutableSlice,
+        Self::TextView,
+        Self::Bytes,
+    ];
+
+    /// The authored method spelling which selects this operation.
+    ///
+    /// The spelling is authored vocabulary, so it belongs to the vocabulary
+    /// that owns the operation. Checking selects the operation once and every
+    /// later consumer reads the retained identity; only a consumer running
+    /// before that selection is recorded -- or one which cannot reach the
+    /// selection ledger -- asks about spelling, and it asks here.
+    pub const fn authored_spelling(self) -> &'static str {
+        match self {
+            Self::SharedSlice => "as_slice",
+            Self::MutableSlice => "as_mut_slice",
+            Self::TextView => "as_view",
+            Self::Bytes => "bytes",
+        }
+    }
+
+    /// The view operation an authored method spelling selects, or `None` when
+    /// the spelling names no compiler-owned view.
+    ///
+    /// A matching spelling is a necessary condition, never a sufficient one:
+    /// a declared machine may be spelled `as_slice` too. The caller still owes
+    /// the call-shape and receiver-type conditions which separate the
+    /// compiler-owned operation from an ordinary call of the same name.
+    pub fn from_authored_spelling(spelling: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|operation| operation.authored_spelling() == spelling)
+    }
+}
+
 /// A compiler-owned language meaning selected by authored syntax without a
 /// package declaration. Intrinsics finalize explicitly so package admission
 /// never invents a declaration symbol or leaves a successful selection

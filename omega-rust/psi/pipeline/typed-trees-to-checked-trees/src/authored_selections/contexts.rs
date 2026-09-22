@@ -107,27 +107,12 @@ pub(super) fn checked_collection_view_intrinsic_from_exact_owner(
     expression: ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic> {
-    use language_semantics::declaration_selection::{
-        AuthoredDeclarationSelectionIntrinsic as Intrinsic, CollectionViewOperation,
-    };
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
 
-    if call.target_symbol.is_valid()
-        || !call.receiver.is_valid()
-        || !program
-            .expression_table
-            .expression_handles(call.arguments)
-            .is_empty()
-    {
-        return None;
-    }
-
-    let expected = match call.target.as_str() {
-        "as_slice" => CollectionViewOperation::SharedSlice,
-        "as_mut_slice" => CollectionViewOperation::MutableSlice,
-        "as_view" => CollectionViewOperation::TextView,
-        "bytes" => CollectionViewOperation::Bytes,
-        _ => return None,
-    };
+    // The call shape decides which operation the spelling may select; this
+    // site additionally requires every exact owner environment to agree on the
+    // receiver's carrier type before the intrinsic is recorded.
+    let expected = crate::semantic_calls::collection_view_call(program, call)?;
     let mut retained = None;
     for environment in exact_owner_environments(program, facts, expression)? {
         let receiver =

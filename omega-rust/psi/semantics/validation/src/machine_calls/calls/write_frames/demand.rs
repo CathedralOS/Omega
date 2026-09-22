@@ -1049,13 +1049,14 @@ fn value_builtin_has_empty_write_frame(
     }
     // View operations remain receiver-bearing builtins. Numeric builtins are
     // free functions: an unresolved method cannot acquire their empty frame.
-    matches!(
+    language_semantics::declaration_selection::CollectionViewOperation::from_authored_spelling(
         call.target.as_str(),
-        "as_slice" | "as_mut_slice" | "as_view" | "bytes"
-    ) && program
-        .expression_table
-        .expression_handles(call.arguments)
-        .is_empty()
+    )
+    .is_some()
+        && program
+            .expression_table
+            .expression_handles(call.arguments)
+            .is_empty()
 }
 
 pub(super) fn syntactic_call_written_paths(

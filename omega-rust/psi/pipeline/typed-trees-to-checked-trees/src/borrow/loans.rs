@@ -7,6 +7,7 @@ use arena::Handle;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::name::Identifier;
 use checked_trees::statement::StatementNode;
+use language_semantics::declaration_selection::CollectionViewOperation;
 use symbols::SymbolHandle;
 
 use super::accesses::{self, borrow_access_place};
@@ -916,13 +917,25 @@ pub(crate) fn helper_call_borrow_loan_place(
     machine_symbol: SymbolHandle,
     call: &checked_trees::expression::TableCallExpression,
 ) -> Option<accesses::BorrowAccessPlace> {
+    // A checked call is the same `TableCallExpression` the typed program
+    // holds, and none of this function's callers carry `CheckFacts`, so the
+    // retained `CollectionView` selection is out of reach here and the call
+    // shape answers instead.
+    //
+    // `Bytes` stays excluded deliberately. `as_slice`/`as_mut_slice`/`as_view`
+    // hand back a borrow of the receiver's own storage, which is exactly the
+    // loan recorded below. `bytes` reads a view's byte content; whether that
+    // result borrows the same storage is a question for the byte-carrier
+    // semantics, and nothing here establishes it -- widening it would mint a
+    // loan against a place this lane never proved is the source.
     if matches!(
-        call.target.as_str(),
-        "as_slice" | "as_mut_slice" | "as_view"
+        crate::semantic_calls::collection_view_call(program, call),
+        Some(
+            CollectionViewOperation::SharedSlice
+                | CollectionViewOperation::MutableSlice
+                | CollectionViewOperation::TextView
+        )
     ) {
-        if !call.receiver.is_valid() {
-            return None;
-        }
         return borrow_access_place(
             program,
             state_symbol,
