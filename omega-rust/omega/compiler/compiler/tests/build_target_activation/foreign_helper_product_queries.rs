@@ -400,6 +400,7 @@ fn same_named_entry_in_another_package_rejoins_production_and_settlement_by_symb
         optimization_selections: psi_optimizations,
     }
     .produce(TerminalProductionCustody {
+        retain_unoptimized: false,
         entry_identity: Some(entry.source_signature().identity().bytes()),
         callback_custody: (),
         timings: &mut TerminalProductionTimings::default(),

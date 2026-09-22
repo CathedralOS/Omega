@@ -121,6 +121,7 @@ pub(in crate::tests) fn hosted_custody() -> (
         TerminalMachineSelection::Name("Main::launch"),
     )
     .produce(TerminalProductionCustody {
+        retain_unoptimized: false,
         entry_identity: Some(source.identity().bytes()),
         callback_custody: (),
         timings: &mut TerminalProductionTimings::default(),
@@ -129,6 +130,7 @@ pub(in crate::tests) fn hosted_custody() -> (
     let (
         artifact,
         receipt,
+        _,
         _,
         (),
         _,

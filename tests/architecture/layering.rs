@@ -2130,6 +2130,41 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     assert!(!lowering.contains("pub fn produce_terminal_artifact"));
     assert!(!lowering.contains("mod preterminal_optimization"));
     assert!(!lowering.contains("CanonicalTerminalArtifact::from_parts("));
+    // The terminal-artifact stage consumes the Psi-owned production request
+    // and nothing else: every Terminal composition it judges — the artifact,
+    // and the unoptimized module the behavior-exclusion admission reads — is
+    // the request's product. A direct `lower_machine(` call in its non-test
+    // sources would be a second lowering of the same entry beside the one
+    // the artifact was published from.
+    let terminal_artifact_sources =
+        root.join("omega-rust/omega/pipeline/checked-compilation-to-terminal-artifact/src");
+    let mut stack = vec![terminal_artifact_sources];
+    while let Some(directory) = stack.pop() {
+        for entry in std::fs::read_dir(&directory)
+            .unwrap_or_else(|error| panic!("read {}: {error}", directory.display()))
+            .flatten()
+        {
+            let path = entry.path();
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            if path.is_dir() {
+                if name != "tests" {
+                    stack.push(path);
+                }
+                continue;
+            }
+            if path.extension().is_none_or(|extension| extension != "rs") || name == "tests.rs" {
+                continue;
+            }
+            let source = std::fs::read_to_string(&path)
+                .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+            assert!(
+                !source.contains("lower_machine("),
+                "{} lowers a machine directly; the terminal-artifact stage reads every \
+                 composition it judges from the Terminal production request's product",
+                path.display()
+            );
+        }
+    }
 
     let compiler_terminal = [
         "omega-rust/omega/pipeline/checked-compilation-to-terminal-artifact/src/terminal_artifact.rs",

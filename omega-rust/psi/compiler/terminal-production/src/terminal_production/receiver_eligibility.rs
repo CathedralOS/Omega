@@ -586,6 +586,7 @@ mod tests {
                 TerminalMachineSelection::Name("Main::run"),
             )
             .produce(TerminalProductionCustody {
+                retain_unoptimized: false,
                 entry_identity: Some([7; 32]),
                 callback_custody: (),
                 timings: &mut TerminalProductionTimings::default(),
@@ -649,6 +650,7 @@ mod tests {
         let produced =
             TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("Main::run"))
                 .produce(TerminalProductionCustody {
+                    retain_unoptimized: false,
                     entry_identity: Some([7; 32]),
                     callback_custody: (),
                     timings: &mut TerminalProductionTimings::default(),
@@ -722,6 +724,7 @@ mod tests {
                 TerminalMachineSelection::Name("Main::run"),
             )
             .produce(TerminalProductionCustody {
+                retain_unoptimized: false,
                 entry_identity: Some([7; 32]),
                 callback_custody: (),
                 timings: &mut TerminalProductionTimings::default(),
@@ -747,6 +750,7 @@ mod tests {
         let produced =
             TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("Main::run"))
                 .produce(TerminalProductionCustody {
+                    retain_unoptimized: false,
                     entry_identity: Some([7; 32]),
                     callback_custody: (),
                     timings: &mut TerminalProductionTimings::default(),
@@ -819,6 +823,7 @@ mod tests {
                 TerminalMachineSelection::Name("Main::run"),
             )
             .produce(TerminalProductionCustody {
+                retain_unoptimized: false,
                 entry_identity: Some([7; 32]),
                 callback_custody: (),
                 timings: &mut TerminalProductionTimings::default(),
@@ -876,6 +881,7 @@ mod tests {
                 TerminalMachineSelection::Name("Main::run"),
             )
             .produce(TerminalProductionCustody {
+                retain_unoptimized: false,
                 entry_identity: Some([7; 32]),
                 callback_custody: (),
                 timings: &mut TerminalProductionTimings::default(),
@@ -907,6 +913,7 @@ mod tests {
                 TerminalMachineSelection::Name("Main::run"),
             )
             .produce(TerminalProductionCustody {
+                retain_unoptimized: false,
                 entry_identity: Some([7; 32]),
                 callback_custody: (),
                 timings: &mut TerminalProductionTimings::default(),
@@ -929,6 +936,7 @@ mod tests {
         let produced =
             TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("Main::run"))
                 .produce(TerminalProductionCustody {
+                    retain_unoptimized: false,
                     entry_identity: Some([7; 32]),
                     callback_custody: (),
                     timings: &mut TerminalProductionTimings::default(),
@@ -960,6 +968,7 @@ mod tests {
                 TerminalMachineSelection::Name("Main::run"),
             )
             .produce(TerminalProductionCustody {
+                retain_unoptimized: false,
                 entry_identity: Some([7; 32]),
                 callback_custody: (),
                 timings: &mut TerminalProductionTimings::default(),
@@ -984,6 +993,7 @@ mod tests {
         let produced =
             TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("Main::run"))
                 .produce(TerminalProductionCustody {
+                    retain_unoptimized: false,
                     entry_identity: Some([7; 32]),
                     callback_custody: (),
                     timings: &mut TerminalProductionTimings::default(),
@@ -1072,6 +1082,7 @@ mod tests {
         let produced =
             TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("Main::run"))
                 .produce(TerminalProductionCustody {
+                    retain_unoptimized: false,
                     entry_identity: Some([7; 32]),
                     callback_custody: (),
                     timings: &mut TerminalProductionTimings::default(),
@@ -1141,6 +1152,7 @@ mod tests {
                 TerminalMachineSelection::Name("Main::run"),
             )
             .produce(TerminalProductionCustody {
+                retain_unoptimized: false,
                 entry_identity: Some([9; 32]),
                 callback_custody: (),
                 timings: &mut TerminalProductionTimings::default(),
@@ -1217,6 +1229,7 @@ mod tests {
                 TerminalMachineSelection::Name("Main::run"),
             )
             .produce(TerminalProductionCustody {
+                retain_unoptimized: false,
                 entry_identity: Some([9; 32]),
                 callback_custody: (),
                 timings: &mut TerminalProductionTimings::default(),
@@ -1252,6 +1265,7 @@ mod tests {
         let produced =
             TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("Main::run"))
                 .produce(TerminalProductionCustody {
+                    retain_unoptimized: false,
                     entry_identity: Some([9; 32]),
                     callback_custody: (),
                     timings: &mut TerminalProductionTimings::default(),
@@ -1282,6 +1296,7 @@ mod tests {
         let artifact =
             TerminalProductionRequest::new(&base, TerminalMachineSelection::Name("Main::run"))
                 .produce(TerminalProductionCustody {
+                    retain_unoptimized: false,
                     entry_identity: Some([7; 32]),
                     callback_custody: (),
                     timings: &mut TerminalProductionTimings::default(),
@@ -1334,6 +1349,7 @@ mod tests {
                 TerminalMachineSelection::Symbol(machine.symbol),
             )
             .produce(TerminalProductionCustody {
+                retain_unoptimized: false,
                 entry_identity: Some([9; 32]),
                 callback_custody: (),
                 timings: &mut TerminalProductionTimings::default(),
@@ -1354,6 +1370,7 @@ mod tests {
         let produced =
             TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("Main::run"))
                 .produce(TerminalProductionCustody {
+                    retain_unoptimized: false,
                     entry_identity: Some([9; 32]),
                     callback_custody: (),
                     timings: &mut TerminalProductionTimings::default(),
@@ -1386,6 +1403,7 @@ mod tests {
                 TerminalMachineSelection::Name("Main::run"),
             )
             .produce(TerminalProductionCustody {
+                retain_unoptimized: false,
                 entry_identity: Some([9; 32]),
                 callback_custody: (),
                 timings: &mut TerminalProductionTimings::default(),

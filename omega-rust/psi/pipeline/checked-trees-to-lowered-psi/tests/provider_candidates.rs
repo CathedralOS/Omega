@@ -419,6 +419,7 @@ fn installed_program_storage_provider_transfers_and_settles_both_owned_extent_cl
         TerminalMachineSelection::Name("ProgramLocalProducer::handoff"),
     )
     .produce(TerminalProductionCustody {
+        retain_unoptimized: false,
         entry_identity: Some([0xa5; 32]),
         callback_custody: (),
         timings: &mut TerminalProductionTimings::default(),

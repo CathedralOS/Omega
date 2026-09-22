@@ -141,12 +141,13 @@ fn return_programs_publish_replayable_native_evidence_on_every_target() {
                 Vec::new(),
             )
             .unwrap();
-        let (artifact, _, scope, (), _, _, _, _) =
+        let (artifact, _, _, scope, (), _, _, _, _) =
             terminal_production::TerminalProductionRequest::new(
                 &checked,
                 TerminalMachineSelection::Name("Main::launch"),
             )
             .produce(TerminalProductionCustody {
+                retain_unoptimized: false,
                 entry_identity: Some(signature.identity().bytes()),
                 callback_custody: (),
                 timings: &mut TerminalProductionTimings::default(),

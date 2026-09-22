@@ -236,6 +236,7 @@ mod tests {
             TerminalMachineSelection::Name("Main::launch"),
         )
         .produce(TerminalProductionCustody {
+            retain_unoptimized: false,
             entry_identity: Some(signature.identity().bytes()),
             callback_custody: (),
             timings: &mut TerminalProductionTimings::default(),

@@ -166,6 +166,7 @@ fn uefi_entry_machine_plan_produces_terminal_artifact() {
         TerminalMachineSelection::Symbol(source.machine_symbol()),
     )
     .produce(TerminalProductionCustody {
+        retain_unoptimized: false,
         entry_identity: Some(source.identity().bytes()),
         callback_custody: (),
         timings: &mut TerminalProductionTimings::default(),

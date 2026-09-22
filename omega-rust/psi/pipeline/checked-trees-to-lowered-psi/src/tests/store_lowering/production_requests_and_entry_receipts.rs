@@ -37,6 +37,7 @@ fn terminal_production_request_preserves_configuration_across_evidence_products(
             .expect("checked artifact");
         let callbacks = request()
             .produce(TerminalProductionCustody {
+                retain_unoptimized: false,
                 entry_identity: None,
                 callback_custody: Box::new([11u64, 29u64]),
                 timings: &mut TerminalProductionTimings::default(),
@@ -44,6 +45,7 @@ fn terminal_production_request_preserves_configuration_across_evidence_products(
             .expect("callback artifact");
         let entry = request()
             .produce(TerminalProductionCustody {
+                retain_unoptimized: false,
                 entry_identity: Some([7; 32]),
                 callback_custody: (),
                 timings: &mut TerminalProductionTimings::default(),
@@ -103,6 +105,7 @@ fn terminal_production_request_returns_nonclone_callback_custody_after_productio
     };
     let rejected = request
         .produce(TerminalProductionCustody {
+            retain_unoptimized: false,
             entry_identity: None,
             callback_custody: custody,
             timings: &mut TerminalProductionTimings::default(),
@@ -119,12 +122,13 @@ fn terminal_production_request_returns_nonclone_callback_custody_after_productio
         terminal_production::TerminalMachineSelection::Name("Main::launch"),
     )
     .produce(TerminalProductionCustody {
+        retain_unoptimized: false,
         entry_identity: None,
         callback_custody: custody,
         timings: &mut TerminalProductionTimings::default(),
     })
     .expect("returned custody can retry identity production");
-    let (_, _, _, custody, _, _, _, _) = produced.into_parts();
+    let (_, _, _, _, custody, _, _, _, _) = produced.into_parts();
     assert_eq!(custody.0.as_ptr(), allocation);
     assert_eq!(*custody.0, [11, 29]);
 }
@@ -143,6 +147,7 @@ fn callback_custody_crosses_terminal_production_in_exact_order_and_returns_on_re
         terminal_production::TerminalMachineSelection::Name("Main::launch"),
     )
     .produce(TerminalProductionCustody {
+        retain_unoptimized: false,
         entry_identity: None,
         callback_custody: custody.clone(),
         timings: &mut TerminalProductionTimings::default(),
@@ -150,7 +155,7 @@ fn callback_custody_crosses_terminal_production_in_exact_order_and_returns_on_re
     .expect("opaque callback custody crosses canonical Terminal production");
     assert_eq!(produced.callback_custody(), &custody);
     produced.artifact().validate().expect("canonical artifact");
-    let (_, _, _, returned, _, _, _, _) = produced.into_parts();
+    let (_, _, _, _, returned, _, _, _, _) = produced.into_parts();
     assert_eq!(returned, custody);
 
     let swapped = vec![(29u64, "second"), (11u64, "first")];
@@ -159,6 +164,7 @@ fn callback_custody_crosses_terminal_production_in_exact_order_and_returns_on_re
         terminal_production::TerminalMachineSelection::Name("Main::launch"),
     )
     .produce(TerminalProductionCustody {
+        retain_unoptimized: false,
         entry_identity: None,
         callback_custody: swapped.clone(),
         timings: &mut TerminalProductionTimings::default(),
@@ -171,6 +177,7 @@ fn callback_custody_crosses_terminal_production_in_exact_order_and_returns_on_re
         terminal_production::TerminalMachineSelection::Name("Main::missing"),
     )
     .produce(TerminalProductionCustody {
+        retain_unoptimized: false,
         entry_identity: None,
         callback_custody: custody.clone(),
         timings: &mut TerminalProductionTimings::default(),
@@ -298,6 +305,7 @@ fn program_entry_receipt_binds_checked_source_to_canonical_terminal_entry() {
         terminal_production::TerminalMachineSelection::Name("Main::launch"),
     )
     .produce(TerminalProductionCustody {
+        retain_unoptimized: false,
         entry_identity: Some(source_signature_identity),
         callback_custody: (),
         timings: &mut TerminalProductionTimings::default(),
@@ -371,6 +379,7 @@ fn program_entry_receipt_retains_two_granted_extent_roots_and_their_boundary_han
         terminal_production::TerminalMachineSelection::Name("ProgramLocalProducer::handoff"),
     )
     .produce(TerminalProductionCustody {
+        retain_unoptimized: false,
         entry_identity: Some(source_signature_identity),
         callback_custody: (),
         timings: &mut TerminalProductionTimings::default(),
@@ -523,6 +532,7 @@ fn program_entry_receipt_rejects_a_scalar_result_machine() {
         terminal_production::TerminalMachineSelection::Name("Main::launch"),
     )
     .produce(TerminalProductionCustody {
+        retain_unoptimized: false,
         entry_identity: Some([0x11; 32]),
         callback_custody: (),
         timings: &mut TerminalProductionTimings::default(),

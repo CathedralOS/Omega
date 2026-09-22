@@ -239,6 +239,7 @@ pub(crate) fn fused_service_custody() -> (
         TerminalMachineSelection::Name("Main::launch"),
     )
     .produce(TerminalProductionCustody {
+        retain_unoptimized: false,
         entry_identity: Some(source.identity().bytes()),
         callback_custody: (),
         timings: &mut TerminalProductionTimings::default(),
@@ -272,6 +273,7 @@ pub(crate) fn fused_service_custody() -> (
     let (
         artifact,
         receipt,
+        _,
         _,
         (),
         _,
