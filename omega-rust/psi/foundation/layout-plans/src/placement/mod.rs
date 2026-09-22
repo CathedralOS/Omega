@@ -4,7 +4,7 @@
 
 use crate::layout_reports::IntegerInterpretation;
 use crate::materialization::MaterializationDiagnostic;
-use crate::symbolic_values::{RelocationTarget, nonzero_identity};
+use crate::symbolic_values::{RelocationTarget, normalized_layout_identity};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ByteOrder {
@@ -76,35 +76,21 @@ impl PlacementAddressRange {
     }
 }
 
-/// Compiler-issued identity of a machine-state regime (for example, x86
-/// long mode). It is a normalized policy identity, not a user-selected name.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct MachineRegimeId(u64);
+normalized_layout_identity!(
+    /// Compiler-issued identity of a machine-state regime (for example, x86
+    /// long mode). It is a normalized policy identity, not a user-selected
+    /// name.
+    MachineRegimeId,
+    "machine regime"
+);
 
-impl MachineRegimeId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, MaterializationDiagnostic> {
-        nonzero_identity("machine regime", identity).map(Self)
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
-}
-
-/// Compiler-issued identity of the attenuated artifact-installation authority
-/// required by a placement. This cites scope; it is not the capability value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ArtifactInstallationScopeId(u64);
-
-impl ArtifactInstallationScopeId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, MaterializationDiagnostic> {
-        nonzero_identity("artifact installation scope", identity).map(Self)
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
-}
+normalized_layout_identity!(
+    /// Compiler-issued identity of the attenuated artifact-installation
+    /// authority required by a placement. This cites scope; it is not the
+    /// capability value.
+    ArtifactInstallationScopeId,
+    "artifact installation scope"
+);
 
 /// Normalized requirements a concrete placement must satisfy. The layout's
 /// own alignment is joined into this record during materialization derivation;

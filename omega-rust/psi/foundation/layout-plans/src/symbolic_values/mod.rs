@@ -11,34 +11,41 @@ use crate::layout_reports::{
 };
 use crate::materialization::MaterializationDiagnostic;
 
-/// Compiler-issued identity of an inbound entry stub. The numeric identity is
-/// never a callable address and cannot be used for arithmetic or control flow.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct EntryStubId(u64);
+macro_rules! normalized_layout_identity {
+    ($(#[$meta:meta])* $name:ident, $kind:literal) => {
+        $(#[$meta])*
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name(u64);
 
-impl EntryStubId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, MaterializationDiagnostic> {
-        nonzero_identity("entry stub", identity).map(Self)
-    }
+        impl $name {
+            pub fn from_normalized_identity(
+                identity: u64,
+            ) -> Result<Self, $crate::materialization::MaterializationDiagnostic> {
+                $crate::symbolic_values::nonzero_identity($kind, identity).map(Self)
+            }
 
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
+            pub const fn normalized_identity(self) -> u64 {
+                self.0
+            }
+        }
+    };
 }
 
-/// Compiler-issued identity of statically placed data.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DataSymbolId(u64);
+pub(crate) use normalized_layout_identity;
 
-impl DataSymbolId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, MaterializationDiagnostic> {
-        nonzero_identity("data symbol", identity).map(Self)
-    }
+normalized_layout_identity!(
+    /// Compiler-issued identity of an inbound entry stub. The numeric identity
+    /// is never a callable address and cannot be used for arithmetic or
+    /// control flow.
+    EntryStubId,
+    "entry stub"
+);
 
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
-}
+normalized_layout_identity!(
+    /// Compiler-issued identity of statically placed data.
+    DataSymbolId,
+    "data symbol"
+);
 
 /// Closed source vocabulary for a toolchain-resolved value. Runtime-created
 /// addresses remain ordinary `addr` data and do not enter this plan.
