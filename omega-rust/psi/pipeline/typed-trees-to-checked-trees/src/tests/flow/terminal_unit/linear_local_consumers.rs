@@ -1,5 +1,8 @@
-//! A by-value `self` consumer takes the checker's consumption as the claim
-//! leaving the caller through the call's receiver argument.
+//! Linear and affine values held in locals compose into the calls that
+//! consume them: a by-value `self` consumer takes the checker's consumption
+//! as the claim leaving the caller, and a method-spelled receiver bound by a
+//! local, a literal, or a call result is the same structural-result argument
+//! an explicit spelling names.
 
 use super::CheckedUnitEffectOperationPlan;
 use crate::tests::flow::terminal_unit::machine_named;
@@ -69,6 +72,77 @@ fn linear_parameter_transferred_to_a_linear_formal_keeps_the_ordinary_transfer()
         "run",
     );
     assert_eq!(consumer_transfers(&operations), [0]);
+}
+
+#[test]
+fn locals_bound_from_a_parameter_a_literal_or_a_call_result_feed_the_consumer() {
+    // The claim rides the completed structural result into the by-value
+    // `self` consumer, so the call names no separate transfer row for it;
+    // only a parameter-sourced receiver transfers by row.
+    for (label, body, expected_prefix) in [
+        (
+            "linear parameter moved into a local",
+            "machine run(issued: Receipt) -> i32 { let forwarded: Receipt = issued; forwarded.ack(); 0 }",
+            "EstablishStructuralValue",
+        ),
+        (
+            "linear parameter moved into a local, explicit receiver spelling",
+            "machine run(issued: Receipt) -> i32 { let forwarded: Receipt = issued; Receipt::ack(forwarded); 0 }",
+            "EstablishStructuralValue",
+        ),
+        (
+            "linear call result bound by a local",
+            "machine issue(r: Receipt) -> Receipt { r }
+             machine run(r: Receipt) -> i32 { let returned: Receipt = issue(r); returned.ack(); 0 }",
+            "StructuralCall",
+        ),
+    ] {
+        let operations = plan(&format!("{RECEIPT}{body}"), "run");
+        let kinds = operations
+            .iter()
+            .map(|operation| {
+                format!("{operation:?}")
+                    .split([' ', '{', '('])
+                    .next()
+                    .unwrap()
+                    .to_owned()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            kinds,
+            [
+                expected_prefix,
+                "CallUnit",
+                "EstablishScalarLocal",
+                "Complete"
+            ],
+            "{label}"
+        );
+        assert!(consumer_transfers(&operations).is_empty(), "{label}");
+    }
+}
+
+#[test]
+fn affine_literal_local_consumed_through_a_method_spelled_receiver() {
+    let operations = plan(
+        "data Token { code: i32; }
+         machine Token::ack(self) {}
+         machine run() -> i32 { let issued: Token = Token { code: 7 }; issued.ack(); 0 }",
+        "run",
+    );
+    assert!(matches!(
+        operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                discard_result_on_return: false,
+                ..
+            },
+            CheckedUnitEffectOperationPlan::CallUnit { .. },
+            CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. },
+            CheckedUnitEffectOperationPlan::Complete { .. },
+        ]
+    ));
+    assert!(consumer_transfers(&operations).is_empty());
 }
 
 #[test]

@@ -299,7 +299,14 @@ pub(crate) fn structural_call_arguments(
             {
                 return None;
             }
-            let expression = *explicit_arguments.get(explicit_index.checked_sub(1)?)?;
+            // A method-spelled receiver (`local.consume()`) has no argument
+            // expression of its own: the call names it by symbol, and the
+            // result argument planner joins that symbol to the local's place.
+            let expression = if target.is_self && !explicit_self {
+                typed_trees::expression::ExpressionHandle::invalid()
+            } else {
+                *explicit_arguments.get(explicit_index.checked_sub(1)?)?
+            };
             output.push(result_arguments::argument(
                 program,
                 facts,

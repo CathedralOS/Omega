@@ -117,11 +117,15 @@ pub(super) fn argument(
     // receiver-specialized callee's application is already concrete
     // (`Task<Token>`), so it supplies the formal's real multiplicity and
     // claim-path carrier below; a non-self formal keeps its authored type.
+    // A by-value `self` formal is spelled `Self`; its referent is the
+    // receiver value's own declared type, whose identity already matched the
+    // attached data above. A local binding names that type directly.
     let formal_type = if parameter.is_self {
         crate::execution::terminal_unit::types::attached_self_application(
             program,
             parameter.type_reference,
         )
+        .or_else(|| receiver_local_type(program, source_state, place, result))
         .unwrap_or(parameter.type_reference)
     } else {
         parameter.type_reference
@@ -374,11 +378,7 @@ pub(super) fn argument(
         facts::PlaceRoot::Symbol(symbol) => {
             if usize::try_from(result.statement_index).ok()? == call.statement_index
                 || !symbol.is_valid()
-                || (!projected
-                    && !matches!(program.expression_table.expression(value_expression),
-                    ExpressionNode::Name(name) if name.symbol == symbol
-                        && name.head_symbol == symbol
-                        && program.expression_table.name_path_members(name.members).len() == 1))
+                || (!projected && !names_whole_local(program, call, value_expression, symbol))
             {
                 return None;
             }
@@ -650,4 +650,43 @@ pub(super) fn argument(
         type_identity: target_identity.to_owned(),
         access: CheckedStructuralAccess::Owned,
     })
+}
+
+/// Whether the argument spelling names exactly the whole local `symbol`: an
+/// authored `Name` expression, or a method-spelled receiver that the call
+/// fact names by symbol because no argument expression exists for it.
+fn names_whole_local(
+    program: &TypedTrees,
+    call: &checked_trees::FlowCallFact,
+    value_expression: typed_trees::expression::ExpressionHandle,
+    symbol: SymbolHandle,
+) -> bool {
+    if !value_expression.is_valid() {
+        return call.has_receiver && call.receiver_symbol == symbol;
+    }
+    matches!(program.expression_table.expression(value_expression),
+        ExpressionNode::Name(name) if name.symbol == symbol
+            && name.head_symbol == symbol
+            && program.expression_table.name_path_members(name.members).len() == 1)
+}
+
+/// The declared type of the local that binds `result` when the receiver
+/// place is exactly that whole local.
+fn receiver_local_type(
+    program: &TypedTrees,
+    source_state: &typed_trees::state::State,
+    place: &crate::flow::CanonicalPlace,
+    result: &CheckedUnitStructuralResultBindingPlan,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return None;
+    };
+    let StatementNode::LocalData(local) = program
+        .statement_table
+        .statements(source_state.statement_nodes)
+        .get(usize::try_from(result.statement_index).ok()?)?
+    else {
+        return None;
+    };
+    (place.segments.is_empty() && local.symbol == symbol).then_some(local.type_reference)
 }
