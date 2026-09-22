@@ -1685,9 +1685,10 @@ syntax and other terminal services are not prerequisites.
   endpoints and ordered compound pairs first, cutting the known backedge
   obligation to single-digit milliseconds; the named nominal-affine test may
   already pass — re-measure with an explicit timeout before profiling.
-  Parked WIP: branch `swarm/macw4-c2l-blowup` at `546fa2d83d` holds an
+  Parked WIP: branch `swarm/macw4-c2l-blowup` at `97228fe69f` holds an
   unvalidated drain checkpoint spanning `nonzero_divisor_certificate`
-  (integer_selection + affine_custody) — resume by reviewing or discarding.
+  (integer_selection + affine_custody + cast_custody/chain refactor) —
+  resume by reviewing or discarding.
   Acceptance: the unreduced test completes its assertions within an ordinary
   test timeout, proof/reconstruction controls remain valid, and subsequent crate
   `--no-fail-fast` validation has no timeout member. Algorithmic repair needs no
