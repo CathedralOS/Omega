@@ -117,6 +117,7 @@ pub(crate) fn fixture(
             }],
             installation: None,
             ieee_float_fma: &[],
+            native_callbacks: &[],
         },
     )
     .unwrap();
@@ -202,6 +203,7 @@ pub(crate) fn two_results_fixture(
             }],
             installation: None,
             ieee_float_fma: &[],
+            native_callbacks: &[],
         },
     )
     .unwrap();
@@ -370,6 +372,7 @@ fn read_byte_rejects_same_width_unsigned_payload() {
             }],
             installation: None,
             ieee_float_fma: &[],
+            native_callbacks: &[],
         },
     );
     assert!(
@@ -414,6 +417,7 @@ fn read_byte_requires_produced_octets_to_fit_retained_bounds_at_each_native_gate
                 }],
                 installation: None,
                 ieee_float_fma: &[],
+                native_callbacks: &[],
             },
         );
         assert_eq!(

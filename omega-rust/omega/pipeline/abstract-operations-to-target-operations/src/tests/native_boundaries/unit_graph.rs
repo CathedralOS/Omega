@@ -134,6 +134,7 @@ fn lower(
             }],
             installation: None,
             ieee_float_fma: &[],
+            native_callbacks: &[],
         },
     )
 }

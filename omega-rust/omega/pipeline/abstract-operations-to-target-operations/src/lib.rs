@@ -10,10 +10,6 @@
 mod lowering;
 mod validation;
 
-/// Internal plumbing delegate: both designed entrances delegate to it and the
-/// optimized route plus crate tests supply native callback admissions through
-/// it. It stays crate-visible so it is not a competing public stage entrance.
-pub(crate) use lowering::lower_to_target_operations_and_native_callbacks;
 pub use lowering::model::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedIeeeFloatFmaSettlement,
     AdmittedNativeCallbackArgument, LoweringError, PlacedViewInputTranslationError,

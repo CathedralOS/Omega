@@ -65,15 +65,15 @@ fn lower_validated_abstract_to_target_operations(
     let installed = installation
         .as_ref()
         .map(|value| value as &dyn installation_evidence::ProviderInstallationEvidence);
-    let program = crate::lower_to_target_operations_and_native_callbacks(
+    let program = crate::lower_to_target_operations(
         optimized.plan(),
         crate::TargetLoweringRequest {
             target,
             settlements,
             installation: installed,
             ieee_float_fma,
+            native_callbacks,
         },
-        native_callbacks,
     )?;
     // Semantic replay can establish that a candidate implements a boundary, but
     // cannot establish which candidate the caller selected. Join against the

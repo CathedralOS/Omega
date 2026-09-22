@@ -90,6 +90,7 @@ fn mixed_case_fixture() -> (
             settlements: &settlements,
             installation: None,
             ieee_float_fma: &[],
+            native_callbacks: &[],
         },
     )
     .unwrap();

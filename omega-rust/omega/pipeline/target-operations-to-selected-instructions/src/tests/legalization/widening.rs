@@ -61,6 +61,7 @@ fn fixture(
             }],
             installation: None,
             ieee_float_fma: &[],
+            native_callbacks: &[],
         },
     )
     .unwrap();

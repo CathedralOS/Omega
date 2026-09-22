@@ -200,6 +200,7 @@ fn lower(
             settlements: &bindings,
             installation: None,
             ieee_float_fma: &[],
+            native_callbacks: &[],
         },
     )
 }
@@ -425,6 +426,7 @@ fn lower_owned(
             }],
             installation: None,
             ieee_float_fma: &[],
+            native_callbacks: &[],
         },
     )
 }
@@ -708,6 +710,7 @@ fn hosted_read_and_write_settlements_replay_and_reject_forged_rows() {
                 settlements: &bindings,
                 installation: None,
                 ieee_float_fma: &[],
+                native_callbacks: &[],
             },
         )
         .unwrap();

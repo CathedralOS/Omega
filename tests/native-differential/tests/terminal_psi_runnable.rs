@@ -550,7 +550,7 @@ fn native_o0_lowering_rejects_a_provider_admitted_for_another_requirement() {
                     execution: AdmittedBoundaryExecution::Provider(&exit_provider),
                     realization: HostedExitProcessI32Realization.into(),
                 },
-            ], installation: None, ieee_float_fma: &[] }),
+            ], installation: None, ieee_float_fma: &[], native_callbacks: &[] }),
         Err(LoweringError::ProviderExecutionRequirementMismatch { boundary, .. })
             if boundary == write_boundary
     ));

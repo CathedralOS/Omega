@@ -48,7 +48,8 @@ fn hosted_byte_output_rejects_noncanonical_or_unsupported_targets() {
                     target,
                     settlements: std::slice::from_ref(&binding),
                     installation: None,
-                    ieee_float_fma: &[]
+                    ieee_float_fma: &[],
+                    native_callbacks: &[],
                 }
             )
             .is_err(),
@@ -140,6 +141,7 @@ fn returning_byte_output_accepts_canonical_empty_or_declared_entry_parameters() 
                     settlements: std::slice::from_ref(&binding),
                     installation: None,
                     ieee_float_fma: &[],
+                    native_callbacks: &[],
                 },
             )
         };
@@ -234,6 +236,7 @@ fn hosted_write_settlement_replays_and_rejects_forged_rows() {
                 settlements: std::slice::from_ref(&binding),
                 installation: None,
                 ieee_float_fma: &[],
+                native_callbacks: &[],
             },
         )
         .unwrap();

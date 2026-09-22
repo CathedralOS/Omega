@@ -45,6 +45,11 @@ pub struct TargetLoweringRequest<'a> {
     pub installation: Option<&'a dyn ProviderInstallationEvidence>,
     /// Retained nearest-FMA occurrence custody.
     pub ieee_float_fma: &'a [crate::AdmittedIeeeFloatFmaSettlement<'a>],
+    /// Exact target-owned native callback argument admissions. The admitted
+    /// roster is retained on the returned plan itself in
+    /// `native_callback_arguments`, joined to each consuming row by its
+    /// Terminal operation.
+    pub native_callbacks: &'a [crate::AdmittedNativeCallbackArgument],
 }
 
 impl TargetLoweringRequest<'_> {
@@ -55,6 +60,7 @@ impl TargetLoweringRequest<'_> {
             settlements: &[],
             installation: None,
             ieee_float_fma: &[],
+            native_callbacks: &[],
         }
     }
 }
@@ -64,24 +70,12 @@ pub fn lower_to_target_operations(
     plan: &AbstractOperationPlan,
     request: TargetLoweringRequest<'_>,
 ) -> Result<TargetOperationPlan, LoweringError> {
-    lower_to_target_operations_and_native_callbacks(plan, request, &[])
-}
-
-/// Lower one abstract plan while consuming exact target-owned native callback
-/// argument admissions; the admitted roster is retained on the returned plan
-/// itself in `native_callback_arguments`, joined to each consuming row by its
-/// Terminal operation. Crate-internal delegate of `lower_to_target_operations`
-/// and `lower_optimized_to_target_operations`, not a public stage entrance.
-pub(crate) fn lower_to_target_operations_and_native_callbacks(
-    plan: &AbstractOperationPlan,
-    request: TargetLoweringRequest<'_>,
-    native_callbacks: &[crate::AdmittedNativeCallbackArgument],
-) -> Result<TargetOperationPlan, LoweringError> {
     let TargetLoweringRequest {
         target,
         settlements,
         installation,
         ieee_float_fma,
+        native_callbacks,
     } = request;
     let bindings = provider_evidence::bind_provider_executions(plan, settlements)?;
     lower_to_target_operations_with_settlements_and_installation(

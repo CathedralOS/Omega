@@ -140,6 +140,7 @@ fn target(plan: &AbstractOperationPlan, native: ::target::NativeTarget) -> Targe
             }],
             installation: None,
             ieee_float_fma: &[],
+            native_callbacks: &[],
         },
     )
     .expect("both read-result arms retain ordinary return cleanup")
