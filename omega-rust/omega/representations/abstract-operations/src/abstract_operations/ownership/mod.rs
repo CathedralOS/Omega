@@ -4,4 +4,4 @@
 //! pipeline stages and consume these data types.
 
 mod completion;
-pub use completion::*;
+pub use completion::CompletionClaimSource;

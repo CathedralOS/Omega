@@ -4,8 +4,12 @@
 //! pipeline stages and consume these data types.
 
 mod placed_inputs;
-pub use placed_inputs::*;
+pub use placed_inputs::AbstractOperationPlanWithPlacedViewInputs;
 mod results;
-pub use results::*;
+pub use results::AbstractBoundaryResult;
 mod dynamic;
-pub use dynamic::*;
+pub use dynamic::{
+    AbstractDynamicDescriptorArgument, AbstractDynamicDescriptorSource,
+    AbstractParameterDynamicDispatch, AbstractReboundDynamicDispatch,
+    AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch,
+};

@@ -25,15 +25,26 @@ pub struct AbstractOperationPlan {
 
 pub mod ownership;
 mod structural_type_catalog;
-pub use ownership::*;
+pub use ownership::CompletionClaimSource;
 pub use structural_type_catalog::StructuralTypeCatalog;
 pub mod atomic;
-pub use atomic::*;
+pub use atomic::{
+    AbstractAtomicEvent, AbstractAtomicFenceOrdering, AbstractAtomicReadModifyWrite,
+    AtomicCoherenceViolation, AtomicModificationAfter, AtomicModificationAfterViolation,
+    AtomicReadsFrom, AtomicReadsFromViolation, happens_before_atomic_coherence_violation,
+};
 pub mod calls;
-pub use calls::*;
+pub use calls::{
+    AbstractBoundaryResult, AbstractDynamicDescriptorArgument, AbstractDynamicDescriptorSource,
+    AbstractOperationPlanWithPlacedViewInputs, AbstractParameterDynamicDispatch,
+    AbstractReboundDynamicDispatch, AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch,
+};
 pub mod control_flow;
-pub use control_flow::*;
+pub use control_flow::{
+    AbstractBlockEntry, AbstractFunction, AbstractStructuralBinding,
+    AbstractStructuralCasePayloadBinding, AbstractStructuralCaseSuccessor, AbstractSuccessor,
+};
 pub mod values;
-pub use values::*;
+pub use values::{AbstractFunctionResult, AbstractParameter, AbstractResult, ValueBinding};
 pub mod operations;
-pub use operations::*;
+pub use operations::AbstractOperation;
