@@ -574,20 +574,20 @@ impl<'program> Evaluator<'program> {
         if let Some(builtin @ (BuiltinFunction::Max | BuiltinFunction::Min)) =
             BuiltinFunction::from_name(target)
         {
-            let args = self
+            let arguments = self
                 .program
                 .expression_table
                 .expression_handles(call.arguments)
                 .to_vec();
-            if args.len() == 2 {
-                let left = self.eval_expression(args[0], frame)?;
-                let right = self.eval_expression(args[1], frame)?;
+            if arguments.len() == 2 {
+                let left = self.eval_expression(arguments[0], frame)?;
+                let right = self.eval_expression(arguments[1], frame)?;
                 // A u64-classed operand selects the UNSIGNED min/max witness (the
                 // same test the binary div/mod/shr path uses): `max(u64::MAX, 5)`
                 // must pick u64::MAX, not the signed -1. Native lowers these to
                 // MaxUnsigned/MinUnsigned for unsigned targets.
-                let unsigned = self.expression_is_unsigned64(args[0], frame)
-                    || self.expression_is_unsigned64(args[1], frame);
+                let unsigned = self.expression_is_unsigned64(arguments[0], frame)
+                    || self.expression_is_unsigned64(arguments[1], frame);
                 return self.eval_min_max(builtin, left, right, unsigned);
             }
         }
@@ -605,18 +605,18 @@ impl<'program> Evaluator<'program> {
                 | "float#fused_multiply_add_toward_negative_f64"
         ) && call.receiver == ExpressionHandle::invalid()
         {
-            let args = self
+            let arguments = self
                 .program
                 .expression_table
                 .expression_handles(call.arguments)
                 .to_vec();
-            if args.len() == 3 {
+            if arguments.len() == 3 {
                 let format = if target.ends_with("_f32") {
                     SemanticFloatFormat::BINARY32
                 } else {
                     SemanticFloatFormat::BINARY64
                 };
-                return self.eval_rewritten_ternary_float(&args, format, target, frame);
+                return self.eval_rewritten_ternary_float(&arguments, format, target, frame);
             }
         }
         if matches!(
@@ -647,18 +647,18 @@ impl<'program> Evaluator<'program> {
                 | "float#divide_toward_negative_f64"
         ) && call.receiver == ExpressionHandle::invalid()
         {
-            let args = self
+            let arguments = self
                 .program
                 .expression_table
                 .expression_handles(call.arguments)
                 .to_vec();
-            if args.len() == 2 {
+            if arguments.len() == 2 {
                 let format = if target.ends_with("_f32") {
                     SemanticFloatFormat::BINARY32
                 } else {
                     SemanticFloatFormat::BINARY64
                 };
-                return self.eval_rewritten_directed_binary(&args, format, target, frame);
+                return self.eval_rewritten_directed_binary(&arguments, format, target, frame);
             }
         }
         if matches!(
@@ -671,18 +671,18 @@ impl<'program> Evaluator<'program> {
                 | "float#sqrt_toward_negative_f64"
         ) && call.receiver == ExpressionHandle::invalid()
         {
-            let args = self
+            let arguments = self
                 .program
                 .expression_table
                 .expression_handles(call.arguments)
                 .to_vec();
-            if args.len() == 1 {
+            if arguments.len() == 1 {
                 let format = if target.ends_with("_f32") {
                     SemanticFloatFormat::BINARY32
                 } else {
                     SemanticFloatFormat::BINARY64
                 };
-                return self.eval_rewritten_directed_square_root(&args, format, target, frame);
+                return self.eval_rewritten_directed_square_root(&arguments, format, target, frame);
             }
         }
         // Builtin: sqrt over a single float operand. The interpreter consumes
@@ -691,21 +691,21 @@ impl<'program> Evaluator<'program> {
         if BuiltinFunction::from_name(target) == Some(BuiltinFunction::Sqrt)
             && call.receiver == ExpressionHandle::invalid()
         {
-            let args = self
+            let arguments = self
                 .program
                 .expression_table
                 .expression_handles(call.arguments)
                 .to_vec();
-            if args.len() == 1 {
+            if arguments.len() == 1 {
                 let format = if matches!(
-                    self.expression_scalar_type(args[0], frame),
+                    self.expression_scalar_type(arguments[0], frame),
                     Some((PrimitiveType::F32, _))
                 ) {
                     SemanticFloatFormat::BINARY32
                 } else {
                     SemanticFloatFormat::BINARY64
                 };
-                return match self.eval_expression(args[0], frame)? {
+                return match self.eval_expression(arguments[0], frame)? {
                     Value::Float(value) => {
                         let meaning = if format == SemanticFloatFormat::BINARY32 {
                             FloatMeaning::from_f32(value as f32)
@@ -729,18 +729,18 @@ impl<'program> Evaluator<'program> {
         if matches!(target, "float#classify_f32" | "float#classify_f64")
             && call.receiver == ExpressionHandle::invalid()
         {
-            let args = self
+            let arguments = self
                 .program
                 .expression_table
                 .expression_handles(call.arguments)
                 .to_vec();
-            if args.len() == 1 {
+            if arguments.len() == 1 {
                 let format = if target == "float#classify_f32" {
                     SemanticFloatFormat::BINARY32
                 } else {
                     SemanticFloatFormat::BINARY64
                 };
-                return match self.eval_expression(args[0], frame)? {
+                return match self.eval_expression(arguments[0], frame)? {
                     Value::Float(value) => {
                         let meaning = if format == SemanticFloatFormat::BINARY32 {
                             FloatMeaning::from_f32(value as f32)
@@ -793,21 +793,21 @@ impl<'program> Evaluator<'program> {
                 | "float#is_subnormal"
         ) && call.receiver == ExpressionHandle::invalid()
         {
-            let args = self
+            let arguments = self
                 .program
                 .expression_table
                 .expression_handles(call.arguments)
                 .to_vec();
-            if args.len() == 1 {
+            if arguments.len() == 1 {
                 let format = if matches!(
-                    self.expression_scalar_type(args[0], frame),
+                    self.expression_scalar_type(arguments[0], frame),
                     Some((PrimitiveType::F32, _))
                 ) {
                     SemanticFloatFormat::BINARY32
                 } else {
                     SemanticFloatFormat::BINARY64
                 };
-                return match self.eval_expression(args[0], frame)? {
+                return match self.eval_expression(arguments[0], frame)? {
                     Value::Float(value) => {
                         let meaning = if format == SemanticFloatFormat::BINARY32 {
                             FloatMeaning::from_f32(value as f32)
@@ -1055,7 +1055,7 @@ impl<'program> Evaluator<'program> {
                 return Err(halt);
             }
         };
-        let args = self.eval_state_arguments(
+        let arguments = self.eval_state_arguments(
             entry_state,
             self.program
                 .expression_table
@@ -1068,7 +1068,7 @@ impl<'program> Evaluator<'program> {
         let entered_guard_depth = self.guard_depth;
         self.guard_depth = 0;
         let value = self
-            .run_state_collect(machine, entry_state, instance, args)
+            .run_state_collect(machine, entry_state, instance, arguments)
             .map(|value| value.unwrap_or(Value::Unit));
         self.guard_depth = entered_guard_depth;
         let value = value?;
@@ -1623,7 +1623,7 @@ impl<'program> Evaluator<'program> {
         frame: &mut Frame,
     ) -> EvalResult<Cell> {
         // Share the same argument-evaluation rules as state calls (incl. reference
-        // forwarding for bare-place args that already hold a `&mut`).
+        // forwarding for bare-place arguments that already hold a `&mut`).
         self.eval_argument(argument, frame)
     }
 }

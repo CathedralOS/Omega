@@ -146,14 +146,14 @@ pub(crate) fn local_git_request(repository: &Path, revision: &str) -> GitSourceR
     GitSourceRequest::for_local_test_repository(repository, Some(revision.to_owned()), None)
         .expect("local Git fixture request")
 }
-pub(crate) fn run_test_git<I, S>(directory: &Path, args: I)
+pub(crate) fn run_test_git<I, S>(directory: &Path, arguments: I)
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
     let output = Command::new("git")
         .current_dir(directory)
-        .args(args)
+        .args(arguments)
         .output()
         .expect("spawn git");
     assert!(
@@ -163,14 +163,14 @@ where
     );
 }
 
-pub(crate) fn run_test_git_with_input<I, S>(directory: &Path, args: I, input: &[u8]) -> String
+pub(crate) fn run_test_git_with_input<I, S>(directory: &Path, arguments: I, input: &[u8]) -> String
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
     let mut command = Command::new("git")
         .current_dir(directory)
-        .args(args)
+        .args(arguments)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

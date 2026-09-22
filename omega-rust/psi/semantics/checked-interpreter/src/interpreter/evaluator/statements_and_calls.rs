@@ -358,7 +358,7 @@ impl<'program> Evaluator<'program> {
                         })?,
                 };
 
-                let args = self.eval_state_arguments(
+                let arguments = self.eval_state_arguments(
                     state,
                     self.program.statement_table.expression_handles(*arguments),
                     frame,
@@ -368,7 +368,7 @@ impl<'program> Evaluator<'program> {
                     state,
                     machine,
                     instance: frame.self_cell.clone(),
-                    args,
+                    arguments,
                 })
             }
         }
@@ -558,7 +558,7 @@ impl<'program> Evaluator<'program> {
             self.resolve_state_call(call, frame)?
         };
 
-        let args = self.eval_state_arguments(
+        let arguments = self.eval_state_arguments(
             state,
             self.program
                 .statement_table
@@ -566,7 +566,7 @@ impl<'program> Evaluator<'program> {
             frame,
         )?;
 
-        self.run_state_collect(machine, state, instance, args)
+        self.run_state_collect(machine, state, instance, arguments)
             .map(|value| value.unwrap_or(Value::Unit))
     }
 

@@ -907,14 +907,14 @@ impl<'program> Evaluator<'program> {
         machine: &'program Machine,
         state: &'program State,
         instance: Cell,
-        args: Vec<EvaluatedArgument>,
+        arguments: Vec<EvaluatedArgument>,
     ) -> EvalResult<Option<Value>> {
         self.call_depth += 1;
         if self.call_depth > CALL_DEPTH_BUDGET {
             self.call_depth -= 1;
             return unsupported("recursion depth budget exceeded");
         }
-        let result = self.run_state_collect_inner(machine, state, instance, args);
+        let result = self.run_state_collect_inner(machine, state, instance, arguments);
         self.call_depth -= 1;
         result
     }
@@ -924,7 +924,7 @@ impl<'program> Evaluator<'program> {
         machine: &'program Machine,
         state: &'program State,
         instance: Cell,
-        args: Vec<EvaluatedArgument>,
+        arguments: Vec<EvaluatedArgument>,
     ) -> EvalResult<Option<Value>> {
         // MR4 admission: the cross-machine tail transition REBINDS these and
         // continues the loop (a jump, mirroring the native dispatch-loop
@@ -933,10 +933,10 @@ impl<'program> Evaluator<'program> {
         let mut machine = machine;
         let mut instance = instance;
         let mut state = state;
-        let mut current_args = args;
+        let mut current_args = arguments;
         // Bindings accumulated across SAME-machine sibling transitions: the backend models a
         // machine as one frame whose slots persist, so a state re-entered through a
-        // self-targeting or sibling transition keeps its earlier bindings. New args bind on
+        // self-targeting or sibling transition keeps its earlier bindings. New arguments bind on
         // top; carried-over bindings stay in the frame.
         let mut carried: Vec<FrameLocal> = Vec::new();
 
@@ -1013,7 +1013,7 @@ impl<'program> Evaluator<'program> {
                     state: target_state,
                     machine: target_machine,
                     instance: target_instance,
-                    args,
+                    arguments,
                 }) => {
                     if target_machine.symbol == machine.symbol
                         && Cell::ptr_eq(&target_instance, &instance)
@@ -1021,7 +1021,7 @@ impl<'program> Evaluator<'program> {
                         // Carry this state's bindings forward to the sibling state.
                         carried = frame.locals;
                         state = target_state;
-                        current_args = args;
+                        current_args = arguments;
                         continue;
                     }
                     // Cross-machine named transition: a TAIL JUMP into the
@@ -1033,7 +1033,7 @@ impl<'program> Evaluator<'program> {
                     machine = target_machine;
                     instance = target_instance;
                     state = target_state;
-                    current_args = args;
+                    current_args = arguments;
                     carried = Vec::new();
                     continue;
                 }
@@ -1048,7 +1048,7 @@ impl<'program> Evaluator<'program> {
         &self,
         state: &State,
         self_cell: Cell,
-        args: &[EvaluatedArgument],
+        arguments: &[EvaluatedArgument],
         machine_symbol: SymbolHandle,
         carried: Vec<FrameLocal>,
     ) -> EvalResult<Frame> {
@@ -1065,7 +1065,7 @@ impl<'program> Evaluator<'program> {
             if parameter.is_self {
                 continue;
             }
-            let argument = match args.get(arg_index).cloned() {
+            let argument = match arguments.get(arg_index).cloned() {
                 Some(argument) => argument,
                 None => EvaluatedArgument::plain(self.allocate_cell(Value::Unit)?),
             };
