@@ -23,7 +23,11 @@ pub use lowering::placed_view_inputs::{
     lower_to_target_operations_with_placed_view_inputs, validate_placed_view_input_translation,
 };
 pub use lowering::{TargetLoweringRequest, lower_to_target_operations};
-pub use validation::*;
+pub use validation::{
+    AbstractToTargetFunctionRosterReceipt, AbstractToTargetTranslationValidationError,
+    AbstractToTargetTranslationValidationReceipt, validate_abstract_to_target_translation,
+    validate_abstract_to_target_translation_with_ieee_float_fma_settlements,
+};
 
 #[cfg(test)]
 mod tests;

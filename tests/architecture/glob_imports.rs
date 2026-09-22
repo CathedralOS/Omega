@@ -25,18 +25,10 @@ const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[
     ("omega-rust/omega/backend/machine-emission", 23),
     ("omega-rust/omega/backend/plans/program-entry-plan", 3),
     ("omega-rust/omega/backend/register-environment", 1),
-    (
-        "omega-rust/omega/backend/runtime/executable-installation",
-        1,
-    ),
     ("omega-rust/omega/packages/manager", 3),
     ("omega-rust/omega/packages/review/evidence", 52),
     (
         "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations",
-        1,
-    ),
-    (
-        "omega-rust/omega/pipeline/abstract-operations-to-target-operations",
         1,
     ),
     (
@@ -50,10 +42,6 @@ const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[
     (
         "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout",
         2,
-    ),
-    (
-        "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout",
-        1,
     ),
     (
         "omega-rust/omega/pipeline/selected-instructions-to-register-homes",

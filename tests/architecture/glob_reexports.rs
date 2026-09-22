@@ -29,16 +29,8 @@ const GLOB_REEXPORT_CEILINGS: &[(&str, usize)] = &[
     ("omega-rust/omega/backend/plans/program-entry-plan", 8),
     ("omega-rust/omega/backend/register-environment", 1),
     (
-        "omega-rust/omega/backend/runtime/executable-installation",
-        1,
-    ),
-    (
         "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations",
         11,
-    ),
-    (
-        "omega-rust/omega/pipeline/abstract-operations-to-target-operations",
-        1,
     ),
     (
         "omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding",
@@ -51,10 +43,6 @@ const GLOB_REEXPORT_CEILINGS: &[(&str, usize)] = &[
     (
         "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout",
         4,
-    ),
-    (
-        "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout",
-        1,
     ),
     (
         "omega-rust/omega/pipeline/selected-instructions-to-register-homes",
