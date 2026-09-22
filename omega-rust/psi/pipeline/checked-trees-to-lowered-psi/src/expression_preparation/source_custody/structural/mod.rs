@@ -169,8 +169,11 @@ pub(crate) fn validate(
         .map(|(_, receipt)| receipt);
     // A `&T` establishment keeps the authored reference type on its root but
     // joins the referent's structural carrier: the planned identity names the
-    // record, not the borrow shell.
-    let carrier = shared_borrow_record_referent(checked, reference).unwrap_or(reference);
+    // record or the borrowed view's slice, not the borrow shell.
+    let view_carrier = borrowed_slice_view_referent(checked, reference);
+    let carrier = shared_borrow_record_referent(checked, reference)
+        .or(view_carrier)
+        .unwrap_or(reference);
     if owner.symbol != machine
         || root.machine != machine
         || root.state != state
@@ -181,7 +184,8 @@ pub(crate) fn validate(
         || checked.type_multiplicity(reference) != result.multiplicity
         || !(validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, carrier)
             || validation::has_cleanup_owned_contents(&checked.typed, carrier)
-            || validation::reference_result_custody::is_reference_record(&checked.typed, reference))
+            || validation::reference_result_custody::is_reference_record(&checked.typed, reference)
+            || view_carrier.is_some())
     {
         return unsupported("structural construction substituted its owner or result type");
     }
@@ -1447,4 +1451,42 @@ pub(crate) fn plain_record(
                     .iter()
                     .any(|member| matches!(member, checked_trees::data::DataMember::Variant(_)))
             })
+}
+
+/// The `[T]` carrier a borrowed `&[T]` view joins: one reference shell is the
+/// borrow itself and constraint shells qualify the slice without changing it.
+/// The byte element keeps its established `ByteSequence` carrier, whose
+/// length, read and subslice obligations are already reconstructed.
+fn borrowed_slice_view_referent(
+    checked: &CheckedTrees,
+    mut reference: checked_trees::types::TypeReferenceHandle,
+) -> Option<checked_trees::types::TypeReferenceHandle> {
+    let mut borrowed = false;
+    let mut visited = Vec::new();
+    while reference.is_valid() && !visited.contains(&reference) {
+        visited.push(reference);
+        match checked.type_reference_table.type_reference(reference) {
+            checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                reference = *base_type;
+            }
+            checked_trees::types::TypeReferenceNode::Reference { referee, .. } if !borrowed => {
+                borrowed = true;
+                reference = *referee;
+            }
+            checked_trees::types::TypeReferenceNode::Slice { element_type } if borrowed => {
+                let mut element = *element_type;
+                while let checked_trees::types::TypeReferenceNode::Constrained {
+                    base_type, ..
+                } = checked.type_reference_table.type_reference(element)
+                {
+                    element = *base_type;
+                }
+                return (checked.typed.primitive_type_reference(element)
+                    != Some(PrimitiveType::U8))
+                .then_some(reference);
+            }
+            _ => return None,
+        }
+    }
+    None
 }
