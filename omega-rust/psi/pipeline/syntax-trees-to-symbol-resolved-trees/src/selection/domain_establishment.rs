@@ -299,6 +299,7 @@ fn requirement_authorizes_domain_subject(
         || requirement.return_type.as_ref().is_some_and(|return_type| {
             type_reference_domain_symbols(program, return_type).contains(&domain_symbol)
         })
+        || ensured_mutable_parameter_domain_symbols(program, requirement).contains(&domain_symbol)
         || permits_external_root_parameters
             && program
                 .state_parameters(requirement.parameters)
@@ -475,6 +476,84 @@ fn ensured_result_domain_symbols(
         }
     }
     domains
+}
+
+/// The out-parameter establishment surface: an `ensures` membership that
+/// names an exact mutable non-self parameter mints the domain into caller
+/// storage the provider writes, the same authority `ensures result in D`
+/// carries on the result. Other parameters are inputs — a provider cannot
+/// establish into them — so they stay caller premises here.
+fn ensured_mutable_parameter_domain_symbols(
+    program: &SymbolResolvedTrees,
+    requirement: &symbol_resolved_trees::signature::StateSignature,
+) -> Vec<SymbolHandle> {
+    let mut domains = Vec::new();
+    for contract in program
+        .signature_contracts(requirement.contracts)
+        .iter()
+        .filter(|contract| contract.kind == SignatureContractKind::Ensures)
+    {
+        for fact in program.proof_facts(contract.facts) {
+            let ProofFact::Membership(membership) = fact else {
+                continue;
+            };
+            let ExpressionNode::Name(path) = program
+                .tables
+                .bodies
+                .expressions
+                .expression(membership.value)
+            else {
+                continue;
+            };
+            let [name] = program
+                .tables
+                .bodies
+                .expressions
+                .name_path_members(path.members)
+            else {
+                continue;
+            };
+            let names_out_parameter =
+                program
+                    .state_parameters(requirement.parameters)
+                    .iter()
+                    .any(|parameter| {
+                        !parameter.is_self
+                            && mutable_reference_parameter(program, &parameter.type_reference)
+                            && (parameter.name.as_str() == name.as_str()
+                                || parameter.symbol == path.symbol
+                                || parameter.symbol == path.head_symbol)
+                    });
+            if !names_out_parameter {
+                continue;
+            }
+            for domain_symbol in atomic_domain_symbols(program, membership.domain_symbol) {
+                if domain_symbol.is_valid() && !domains.contains(&domain_symbol) {
+                    domains.push(domain_symbol);
+                }
+            }
+        }
+    }
+    domains
+}
+
+/// Caller-visible mutability: the parameter must borrow caller storage it
+/// can write (`&mut T`, possibly under constraints). An owned `mut` binding
+/// dies with the callee — nothing it mints reaches the caller.
+fn mutable_reference_parameter(
+    program: &SymbolResolvedTrees,
+    type_reference: &TypeReference,
+) -> bool {
+    match type_reference {
+        TypeReference::Reference(reference) => {
+            reference.storage.access == language_core::ReferenceAccess::Mutable
+        }
+        TypeReference::Constrained(constrained) => mutable_reference_parameter(
+            program,
+            program.child_type_reference(constrained.storage.base_type),
+        ),
+        _ => false,
+    }
 }
 
 fn atomic_domain_symbols(
