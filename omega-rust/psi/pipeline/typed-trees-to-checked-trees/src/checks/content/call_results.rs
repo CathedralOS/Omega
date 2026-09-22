@@ -66,24 +66,47 @@ pub(super) fn check_call_result_qualifications(
             else {
                 return None;
             };
-            let PlaceRoot::Expression(expression) = place.root else {
-                return None;
-            };
-            let Some(crate::semantic_calls::CallSite::Expression {
-                expression: actual,
-                call,
-            }) = crate::semantic_calls::find_call_site(
+            let Some(site) = crate::semantic_calls::find_call_site(
                 program,
                 machine_symbol,
                 state_symbol,
                 statement_index,
                 call_ordinal,
-            )
+            ) else {
+                return None;
+            };
+            let is_result_place = matches!(
+                (place.root, site),
+                (
+                    PlaceRoot::Expression(expression),
+                    crate::semantic_calls::CallSite::Expression {
+                        expression: actual,
+                        ..
+                    }
+                ) if expression == actual
+            );
+            if !is_result_place {
+                return call_parameter_qualification_join(
+                    program,
+                    facts,
+                    &fact.evidence,
+                    place.root,
+                    path,
+                    domain_symbol,
+                    semantic_domain,
+                    site,
+                    state_symbol,
+                    statement_index,
+                );
+            }
+            let (
+                PlaceRoot::Expression(expression),
+                crate::semantic_calls::CallSite::Expression { call, .. },
+            ) = (place.root, site)
             else {
                 return None;
             };
-            if actual != expression
-                || fact.evidence.origin != QualificationEvidenceOrigin::Propagated
+            if fact.evidence.origin != QualificationEvidenceOrigin::Propagated
                 || fact.evidence.source_symbol != call.target_symbol
                 || fact.evidence.requirement_symbol.is_valid()
                 || fact.evidence.receipt_identity != 0
@@ -296,6 +319,129 @@ pub(super) fn check_call_result_qualifications(
             )));
         }
     }
+}
+
+/// The out-parameter direction of the call-ensures join: a routed
+/// `DomainMembership` claim rooted at an exact argument place rather than the
+/// result expression. The claim joins when the callable declares
+/// `ensures <parameter> in <domain>` for the exact non-self parameter whose
+/// argument canonicalizes to this place and the claim is either owed by the
+/// callee's checked body or minted through an `established by` boundary
+/// requirement on an exact mutable parameter — immutable parameters stay
+/// caller premises, so no boundary route may establish into them.
+#[allow(clippy::too_many_arguments)]
+fn call_parameter_qualification_join(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    evidence: &facts::QualificationEvidence,
+    root: PlaceRoot,
+    path: &[PlaceSegment],
+    domain_symbol: SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
+    site: crate::semantic_calls::CallSite<'_>,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+) -> Option<()> {
+    let call_target = match site {
+        crate::semantic_calls::CallSite::Expression { call, .. } => call.target_symbol,
+        crate::semantic_calls::CallSite::Statement(call) => call.target_symbol,
+        crate::semantic_calls::CallSite::TransitionNamed { path, .. } => path.symbol,
+    };
+    if evidence.origin != QualificationEvidenceOrigin::Propagated
+        || evidence.source_symbol != call_target
+        || evidence.requirement_symbol.is_valid()
+        || evidence.receipt_identity != 0
+    {
+        return None;
+    }
+    let parameters = crate::semantic_calls::call_target_parameters(program, call_target)?;
+    let arguments = crate::semantic_calls::call_site_argument_expressions(program, &site);
+    let position = parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .enumerate()
+        .find_map(|(position, _)| {
+            let argument = arguments.get(position)?;
+            let canonical = crate::flow::canonical_place_from_expression_in_state(
+                program,
+                state_symbol,
+                statement_index,
+                *argument,
+            )?;
+            (canonical.root == root && canonical.segments.as_slice() == path).then_some(position)
+        })?;
+    if !crate::flow::call_parameter_qualification_identities(program, call_target)
+        .iter()
+        .any(|(declared, symbol, identity)| {
+            *declared == position && *symbol == domain_symbol && *identity == semantic_domain
+        })
+    {
+        return None;
+    }
+    // Checked bodies owe their authored parameter claims at every exit.
+    if crate::semantic_calls::find_state_with_machine(program, call_target)
+        .is_some_and(|(machine, _)| machine.body_is_present)
+    {
+        return Some(());
+    }
+    let parameter = parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .nth(position)?;
+    if !crate::checks::contracts::is_readable_mutable_reference(program, parameter.type_reference) {
+        return None;
+    }
+    facts
+        .proof
+        .contract_facts
+        .iter()
+        .any(|(_, contract)| {
+            let checked_trees::ContractProofFactOwner::StateSignature {
+                owner_symbol,
+                state_symbol,
+            } = contract.owner
+            else {
+                return false;
+            };
+            if state_symbol != call_target
+                || contract.kind != checked_trees::ContractProofFactKind::Ensures
+            {
+                return false;
+            }
+            let typed_trees::domain::ProofFact::Membership(membership) =
+                program.proof_facts.get(contract.fact)
+            else {
+                return false;
+            };
+            if membership.domain_symbol != domain_symbol
+                || membership.semantic_domain != semantic_domain
+                || crate::flow::ensured_parameter_position(program, parameters, membership.value)
+                    != Some(position)
+            {
+                return false;
+            }
+            program
+                .traits()
+                .iter()
+                .find(|owner| owner.symbol == owner_symbol)
+                .and_then(|owner| {
+                    program
+                        .trait_machine_signatures(owner)
+                        .iter()
+                        .find(|signature| signature.symbol == state_symbol)
+                })
+                .is_some_and(|signature| {
+                    crate::facts::qualification_evidence::boundary_qualification_authorization(
+                        program,
+                        owner_symbol,
+                        signature,
+                        typed_trees::signature::SignatureContractKind::Ensures,
+                        contract.fact,
+                    )
+                    .is_some()
+                })
+        })
+        .then_some(())
 }
 
 #[allow(clippy::too_many_arguments)]

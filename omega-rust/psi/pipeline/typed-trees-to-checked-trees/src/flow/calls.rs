@@ -100,6 +100,15 @@ pub(super) fn build_call_flow_fact<'plans>(
         borrow_call,
         &mut exit,
     );
+    append_call_parameter_domain_facts(
+        program,
+        semantic,
+        build,
+        machine,
+        state,
+        borrow_call,
+        &mut exit,
+    );
     // Every readable `&mut` referent comes back satisfying the field facts
     // the callee re-proved at its return (checks/contracts/exits).
     append_call_referent_field_domain_facts(
@@ -442,6 +451,101 @@ fn append_call_result_field_domain_facts<'plans>(
     );
 }
 
+/// Authored `ensures <parameter> in <domain>` claims the call hands back on
+/// the exact argument place. These are provisional checked-signature facts,
+/// not new issuance: the content checker independently rejoins routed
+/// parameter claims to this invocation. An `ensures` subject naming an
+/// immutable parameter asserts the caller's input still satisfies the
+/// membership; naming a mutable parameter is the out-parameter establishment
+/// the callee owed — either way the caller sees the same honest claim.
+fn append_call_parameter_domain_facts<'plans>(
+    program: &'plans typed_trees::TypedTrees,
+    semantic: &mut FactPlan,
+    build: &mut FlowBuildContext<'plans>,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    borrow_call: &BorrowCallFact,
+    exit: &mut CallFlowContexts,
+) {
+    let claims = call_parameter_qualification_identities(program, borrow_call.target_symbol);
+    if claims.is_empty() {
+        return;
+    }
+    let Some(site) = memoized_find_call_site(
+        program,
+        build,
+        machine.symbol,
+        state.symbol,
+        borrow_call.statement_index,
+        borrow_call.call_ordinal,
+    ) else {
+        return;
+    };
+    let arguments = crate::semantic_calls::call_site_argument_expressions(program, &site);
+    let point = ProgramPoint::CallEnsures {
+        machine_symbol: machine.symbol,
+        state_symbol: state.symbol,
+        statement_index: borrow_call.statement_index,
+        call_ordinal: borrow_call.call_ordinal,
+    };
+    let evidence = QualificationEvidence::from_origin(
+        language_semantics::QualificationEvidenceOrigin::Propagated,
+        borrow_call.target_symbol,
+    );
+    let mut refs = HandleSpan::empty();
+    for (position, domain_symbol, semantic_domain) in claims.iter() {
+        // Only routed domains carry provenance the checker rejoins; a
+        // predicate-domain parameter claim is vacuous there and would only
+        // add an invalidatable fact the call never minted.
+        if !crate::facts::field_domain::domain_requires_provenance(program, *domain_symbol) {
+            continue;
+        }
+        let Some(&argument) = arguments.get(*position) else {
+            continue;
+        };
+        let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            borrow_call.statement_index,
+            argument,
+        ) else {
+            continue;
+        };
+        let place = crate::semantic_places::append_place_with_segments(
+            semantic,
+            place.root,
+            &place.segments,
+        );
+        let fact = semantic.append_fact(Fact {
+            place: FactPlace::Place(place),
+            point,
+            origin: FactOrigin::CallEnsures,
+            evidence,
+            payload: FactPayload::DomainMembership {
+                value: ExpressionHandle::invalid(),
+                domain: HandleSpan::empty(),
+                domain_symbol: *domain_symbol,
+                semantic_domain: *semantic_domain,
+            },
+        });
+        semantic.append_ref(&mut refs, fact);
+    }
+    if refs.is_empty() {
+        return;
+    }
+    let context = semantic.append_context(point, refs);
+    reference_spans::append_flow_reference(
+        &mut build.contexts.semantic_context_refs,
+        &mut exit.contexts,
+        FlowSemanticContextRef { context },
+    );
+    append_constraint_ref(
+        &mut build.contexts.constraint_refs,
+        &mut exit.constraints,
+        FlowConstraintKind::SemanticContext { context },
+    );
+}
+
 pub(crate) fn call_target_return_type(
     program: &typed_trees::TypedTrees,
     target_state_symbol: SymbolHandle,
@@ -596,4 +700,90 @@ pub(crate) fn call_result_qualification_identities(
         }
     }
     domains
+}
+
+/// The out-parameter obligation vocabulary for the provisional publisher and
+/// its independent custody consumer: `ensures <parameter> in D` rows on the
+/// callable's signature contracts, keyed by the named non-self parameter's
+/// argument position. The reserved `result` subject belongs to the result
+/// obligation vocabulary above and is not repeated here.
+pub(crate) fn call_parameter_qualification_identities(
+    program: &typed_trees::TypedTrees,
+    target: SymbolHandle,
+) -> Vec<(usize, SymbolHandle, language_semantics::SemanticDomainId)> {
+    let Some(parameters) = crate::semantic_calls::call_target_parameters(program, target) else {
+        return Vec::new();
+    };
+    let mut contracts = Vec::new();
+    for machine in program.machines() {
+        for (position, state) in program.machine_states(machine).iter().enumerate() {
+            if state.symbol != target {
+                continue;
+            }
+            contracts.extend(program.state_contracts(state));
+            if position == 0 {
+                contracts.extend(program.machine_contracts(machine));
+            }
+        }
+    }
+    for owner in program.traits() {
+        for signature in program.trait_machine_signatures(owner) {
+            if signature.symbol == target {
+                contracts.extend(program.state_signature_contracts(signature));
+            }
+        }
+    }
+    let mut rows = Vec::new();
+    for contract in contracts
+        .into_iter()
+        .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Ensures)
+    {
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let typed_trees::domain::ProofFact::Membership(membership) = fact else {
+                continue;
+            };
+            let Some(position) = ensured_parameter_position(program, parameters, membership.value)
+            else {
+                continue;
+            };
+            let row = (
+                position,
+                membership.domain_symbol,
+                membership.semantic_domain,
+            );
+            if !rows.contains(&row) {
+                rows.push(row);
+            }
+        }
+    }
+    rows
+}
+
+/// The non-self argument position an `ensures` membership subject names, or
+/// none when the subject is the reserved `result`, a projection, or no exact
+/// parameter of the callable.
+pub(crate) fn ensured_parameter_position(
+    program: &typed_trees::TypedTrees,
+    parameters: &[typed_trees::signature::StateParameter],
+    value: typed_trees::expression::ExpressionHandle,
+) -> Option<usize> {
+    let typed_trees::expression::ExpressionNode::Name(path) =
+        program.expression_table.expression(value)
+    else {
+        return None;
+    };
+    let [name] = program.expression_table.name_path_members(path.members) else {
+        return None;
+    };
+    if name.as_str() == "result" {
+        return None;
+    }
+    parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .position(|parameter| {
+            parameter.name.as_str() == name.as_str()
+                || parameter.symbol == path.symbol
+                || parameter.symbol == path.head_symbol
+        })
 }

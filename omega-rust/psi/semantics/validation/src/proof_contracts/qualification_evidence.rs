@@ -35,9 +35,15 @@ fn validate_boundary_requirements(program: &TypedTrees, diagnostics: &mut Vec<Di
                         program,
                         membership.domain,
                     ) {
-                        if !expression_is_bare_result(program, membership.value) {
+                        if !expression_is_bare_result(program, membership.value)
+                            && !expression_is_mutable_parameter(
+                                program,
+                                signature,
+                                membership.value,
+                            )
+                        {
                             diagnostics.push(Diagnostic::error(format!(
-                                "boundary requirement `{}::{}` may admit carry permission `{permission}` only for its exact `result`",
+                                "boundary requirement `{}::{}` may admit carry permission `{permission}` only for its exact `result` or an exact mutable parameter",
                                 trait_definition.name, signature.name,
                             )));
                         }
@@ -54,35 +60,42 @@ fn validate_boundary_requirements(program: &TypedTrees, diagnostics: &mut Vec<Di
                         continue;
                     };
 
-                    if !expression_is_bare_result(program, membership.value) {
+                    let subject = if expression_is_bare_result(program, membership.value) {
+                        Some((signature.return_type, "result"))
+                    } else {
+                        mutable_parameter(program, signature, membership.value)
+                            .map(|parameter| (parameter.type_reference, parameter.name.as_str()))
+                    };
+                    let Some((subject, subject_name)) = subject else {
                         diagnostics.push(Diagnostic::error(format!(
-                            "boundary requirement `{}::{}` may admit domain `{}` only for its exact `result`; move the membership guarantee to `ensures result in {}`",
+                            "boundary requirement `{}::{}` may admit domain `{}` only for its exact `result` or an exact mutable parameter; move the membership guarantee to `ensures result in {}` or name a mutable parameter",
                             trait_definition.name,
                             signature.name,
                             domain.name,
                             domain.name,
                         )));
                         continue;
-                    }
+                    };
 
-                    let return_carrier = unwrapped_type_reference(program, signature.return_type);
+                    let subject_carrier = unwrapped_type_reference(program, subject);
                     let domain_carrier = unwrapped_type_reference(program, domain.target_type);
                     if !matches!(
-                        (return_carrier, domain_carrier),
-                        (Some(return_carrier), Some(domain_carrier))
-                            if type_references_match(program, return_carrier, domain_carrier)
+                        (subject_carrier, domain_carrier),
+                        (Some(subject_carrier), Some(domain_carrier))
+                            if type_references_match(program, subject_carrier, domain_carrier)
                                 || lifetime_erased_nominal_carriers_match(
                                     program,
-                                    return_carrier,
+                                    subject_carrier,
                                     domain_carrier,
                                 )
                     ) {
                         diagnostics.push(Diagnostic::error(format!(
-                            "boundary requirement `{}::{}` cannot admit `result in {}`: result carrier `{}` does not match domain target `{}`",
+                            "boundary requirement `{}::{}` cannot admit `{subject_name} in {}`: {} carrier `{}` does not match domain target `{}`",
                             trait_definition.name,
                             signature.name,
                             domain.name,
-                            program.display_type_reference_with_constraints(signature.return_type),
+                            if subject_name == "result" { "result" } else { "parameter" },
+                            program.display_type_reference_with_constraints(subject),
                             program.display_type_reference_with_constraints(domain.target_type),
                         )));
                     }
@@ -191,4 +204,57 @@ fn expression_is_bare_result(program: &TypedTrees, expression: ExpressionHandle)
         return false;
     };
     name.as_str() == "result"
+}
+
+/// An `ensures` subject that names an exact mutable non-self parameter: the
+/// provider mints the membership into caller storage it borrows mutably, the
+/// out-parameter direction of `ensures result in D`. Immutable parameters
+/// stay caller premises — nothing may establish into them.
+fn expression_is_mutable_parameter(
+    program: &TypedTrees,
+    signature: &typed_trees::signature::StateSignature,
+    expression: ExpressionHandle,
+) -> bool {
+    mutable_parameter(program, signature, expression).is_some()
+}
+
+fn mutable_parameter<'a>(
+    program: &'a TypedTrees,
+    signature: &'a typed_trees::signature::StateSignature,
+    expression: ExpressionHandle,
+) -> Option<&'a typed_trees::signature::StateParameter> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let [name] = program.expression_table.name_path_members(path.members) else {
+        return None;
+    };
+    program
+        .state_signature_parameters(signature)
+        .iter()
+        .find(|parameter| {
+            !parameter.is_self
+                && is_mutable_reference(program, parameter.type_reference)
+                && (parameter.name.as_str() == name.as_str()
+                    || parameter.symbol == path.symbol
+                    || parameter.symbol == path.head_symbol)
+        })
+}
+
+/// Caller-visible mutability: only a `&mut` borrow (possibly under
+/// constraints) lets the provider write caller storage. An owned `mut`
+/// binding dies with the callee, so its ensures cannot mint caller claims.
+fn is_mutable_reference(
+    program: &TypedTrees,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    match program.type_reference_table.type_reference(type_reference) {
+        typed_trees::types::TypeReferenceNode::Reference { access, .. } => {
+            *access == language_core::ReferenceAccess::Mutable
+        }
+        typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            is_mutable_reference(program, *base_type)
+        }
+        _ => false,
+    }
 }
