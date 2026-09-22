@@ -17,7 +17,7 @@ use crate::placements::owned_resident_custody::{
     replay_owned_admission_resources, validate_resident_observation,
 };
 use crate::placements::placement_authority::PlacementAuthorityRef;
-use crate::primitive_access::field_projection::project_placed_field;
+use crate::primitive_access::field_projection::project_admission_field;
 use crate::{
     AccessFieldKey, AccessPlanDiagnostic, AdmittedSchemaDeviceCorrespondence, BorrowPolarity,
     ObservationModel, OwnedPlacementAdmission, PlacedFieldProjection, PlacedOccurrenceId,
@@ -329,12 +329,8 @@ impl EstablishedOwnedExternalPlacement {
         key: AccessFieldKey,
         current_borrow: BorrowPolarity,
     ) -> Result<PlacedFieldProjection<'view, 'view>, AccessPlanDiagnostic> {
-        project_placed_field(
-            &self.admission.placement_plan,
-            self.admission.profile_receipt,
-            &self.admission.resources,
-            self.admission.identity,
-            self.admission.extent.base(),
+        project_admission_field(
+            &self.admission,
             key,
             current_borrow,
             BorrowPolarity::Exclusive,

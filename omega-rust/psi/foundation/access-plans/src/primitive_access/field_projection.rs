@@ -8,10 +8,36 @@ use crate::plan_policy::authorization::authorize_descriptor;
 use crate::{
     AccessFieldKey, AccessOperation, AccessPlanDiagnostic, AdmittedSchemaDeviceCorrespondence,
     AtomicAccessOperation, AuthorizedFieldAccess, BorrowPolarity, BoundaryReach, EffectFootprint,
-    EffectiveFieldSupply, ObservationModel, PlacedOccurrenceId, PlacementAdmissionId,
-    PlacementPlanId, PlacementResourceCompatibility, PrimitiveAccessRequest,
+    EffectiveFieldSupply, ObservationModel, OwnedPlacementAdmission, PlacedOccurrenceId,
+    PlacementAdmissionId, PlacementPlanId, PlacementResourceCompatibility, PrimitiveAccessRequest,
     ResourceProfileReceiptId, ValidatedPlacementPlan,
 };
+
+/// Field projection from one owned admission: every retained authority input
+/// comes out of the `OwnedPlacementAdmission`, so callers only name the key,
+/// borrow pair, observation model, and authority variant.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn project_admission_field<'view, 'extent>(
+    admission: &OwnedPlacementAdmission,
+    key: AccessFieldKey,
+    current_borrow: BorrowPolarity,
+    source_loan: BorrowPolarity,
+    required_observation: Option<ObservationModel>,
+    authority: PlacementAuthorityRef<'view, 'extent>,
+) -> Result<PlacedFieldProjection<'view, 'extent>, AccessPlanDiagnostic> {
+    project_placed_field(
+        &admission.placement_plan,
+        admission.profile_receipt,
+        &admission.resources,
+        admission.identity,
+        admission.extent.base(),
+        key,
+        current_borrow,
+        source_loan,
+        required_observation,
+        authority,
+    )
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn project_placed_field<'view, 'extent>(
