@@ -307,6 +307,66 @@ fn bound_leaf_symbol(program: &TypedTrees, base: ExpressionHandle) -> Option<Sym
     }
 }
 
+/// Resolve one bare single-segment name to the symbol of the mutable storage
+/// it names: one unique mutable local or mutable state parameter whose
+/// declared type is an exact-domain integer primitive.
+///
+/// The symbol names live storage, not an immutable identity: the bound it
+/// contributes is "the value currently stored under this symbol". Consumers
+/// may use it as a query coordinate, but stated evidence can only claim it
+/// while version evidence pins the storage to the same occurrence the claim
+/// established. Immutable bindings continue through the immutable readers.
+pub fn mutable_integer_bound_storage_symbol(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<SymbolHandle> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let members = program.expression_table.name_path_members(path.members);
+    if members.len() != 1 {
+        return None;
+    }
+    let (symbol, is_mutable, type_reference) =
+        if path.symbol.is_valid() && path.head_symbol == path.symbol {
+            match local_by_symbol(program, path.symbol) {
+                LocalLookup::Found(local) => (local.symbol, local.is_mutable, local.type_reference),
+                LocalLookup::Missing => {
+                    let parameter = parameter_by_symbol(program, path.symbol)?;
+                    (path.symbol, parameter.is_mutable, parameter.type_reference)
+                }
+                LocalLookup::Invalid => return None,
+            }
+        } else {
+            match local_by_name(program, members[0].as_str()) {
+                LocalLookup::Found(local) => (local.symbol, local.is_mutable, local.type_reference),
+                LocalLookup::Missing | LocalLookup::Invalid => return None,
+            }
+        };
+    if !is_mutable || !symbol.is_valid() {
+        return None;
+    }
+    let primitive = program
+        .type_reference_table
+        .primitive_type(type_reference)?;
+    if !matches!(
+        primitive,
+        PrimitiveType::I8
+            | PrimitiveType::I16
+            | PrimitiveType::I32
+            | PrimitiveType::I64
+            | PrimitiveType::U8
+            | PrimitiveType::U16
+            | PrimitiveType::U32
+            | PrimitiveType::U64
+    ) || program.arithmetic_domain_for_type_reference(type_reference)
+        != numerics::arithmetic::ArithmeticDomain::Exact
+    {
+        return None;
+    }
+    Some(symbol)
+}
+
 /// Normalize an integer literal or finite immutable local-copy chain to one
 /// exact host index. Symbolic parameter leaves and every unsupported alias
 /// shape remain unknown.
