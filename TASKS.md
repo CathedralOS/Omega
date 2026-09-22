@@ -1055,6 +1055,15 @@ syntax and other terminal services are not prerequisites.
   profiles, not a policy DSL. **MACOS-APPLICATION-PUBLICATION** owns actual bundle
   execution, not this evidence.
 
+  Also close producer-side failed publication in
+  `compilation-report/src/compile_report.rs`: flat publication currently writes
+  Psi bytes before their companion, so a later write/replacement failure can
+  leave the new artifact beside the old proof. Stage and validate requested
+  pairs before success; failure must not associate stale evidence with new bytes
+  or downgrade requested PCC to ordinary success. Exercise failure between pair
+  members, request-on/request-off replacement and retry, separately from receiver
+  mismatch rejection. Successful republication tests do not cover interruption.
+
 - **PSIIR.** Complete source-free Terminal execution and logical-work bounds
   across canonical encoding, independent reconstruction, interpretation,
   resource analysis, native realization and installation.
@@ -4219,9 +4228,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   stderr-only CLI reporting and absence of debug files. Existing disabled-merge
   tests prove row suppression, not absence of inner measurement; cover the
   actual collection choice on both production paths.
-- **COMPOSABLE-PAIR-DESCRIPTORS.** Compose selected-lowering pair-rule descriptors over independent axes instead of enumerated products. Landed: `PairMachineEffects` is now a struct of three axis enums — `PairNonUnitSurface` (isolated vs indexed-pointer-read fold), `PairFaultDischarge` (isolated vs discharged-by-literal vs discharged-by-obligation), `PairUnitDefRelation` (covered vs retired-when-dead vs operand-swapped) — with admission computed as the conjunction of per-axis gates and the eight prior variants expressed as named consts over the product (`literal_fold/pair_rule.rs`); the obligation gate now derives the obligation from the consumer kind's declared field instead of a variant-coupled kind list. `PairOperandShape` is now a struct of `PairLiteralPosition` (right/left/sole `Use` victim) × `PairOperandResult` (surviving operand, swapped operand, constant-of-literal, literal recompute) × `PairTailCustody` (bare, auxiliary `Use`s under zero-provenance custody, scratch `Def`s under occurrence-free custody, or the per-access mixed tail) with the twelve grammars expressed as named consts over the product; `victim_operand`, `fold_immediate`, and the action/validator matchers now read the axes directly — `compute/actions.rs`'s twelve-arm operand-shape match collapsed into one axis-driven admission (head layout from position+result, drop-tail custody from the tail axis) and `compute/constraints.rs`'s `validate_immediate_row` re-derives the row grammar from `(operand_result, result)` so a descriptor mistake still cannot self-certify. `PairUnitEffects` is now a struct of two `PairConsumerBindingAdmission` axes (`consumer_fixed_view`, `consumer_early_clobber`; `tied_to` stays a fixed rejection since no composition can rebuild a shared-home tie) with `ISOLATED`/`BOUND_CONSUMER_OPERANDS`/`BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS` as named consts. Remaining: none — every pair-rule descriptor is axis-composed. Re-witnessed at `ab6ad3e438a` (linux x86-64, pre-rebase): the landed axis decomposition is present and green — `selected-instructions-to-selected-instructions` 342/342 filtered tests pass over rewrites/selected_lowering + pair surfaces; the row now correctly records "Remaining: none".
-- **COMPOSABLE-PAIR-DESCRIPTORS.** Compose selected-lowering pair-rule descriptors over independent axes instead of enumerated products. Landed: `PairMachineEffects` is now a struct of three axis enums — `PairNonUnitSurface` (isolated vs indexed-pointer-read fold), `PairFaultDischarge` (isolated vs discharged-by-literal vs discharged-by-obligation), `PairUnitDefRelation` (covered vs retired-when-dead vs operand-swapped) — with admission computed as the conjunction of per-axis gates and the eight prior variants expressed as named consts over the product (`literal_fold/pair_rule.rs`); the obligation gate now derives the obligation from the consumer kind's declared field instead of a variant-coupled kind list. Remaining: `PairOperandShape`'s twelve-variant product (literal position × result kind × auxiliary/scratch tail) and `PairUnitEffects`'s bound-consumer pairs (`BoundConsumerOperands`, `BoundEarlyClobberConsumerOperands`).
-- **COMPOSABLE-PAIR-DESCRIPTORS.** Compose selected-lowering pair-rule descriptors over independent axes instead of enumerated products. Landed: `PairMachineEffects` is now a struct of three axis enums — `PairNonUnitSurface` (isolated vs indexed-pointer-read fold), `PairFaultDischarge` (isolated vs discharged-by-literal vs discharged-by-obligation), `PairUnitDefRelation` (covered vs retired-when-dead vs operand-swapped) — with admission computed as the conjunction of per-axis gates and the eight prior variants expressed as named consts over the product (`literal_fold/pair_rule.rs`); the obligation gate now derives the obligation from the consumer kind's declared field instead of a variant-coupled kind list. Remaining: `PairOperandShape`'s twelve-variant product (literal position × result kind × auxiliary/scratch tail) and `PairUnitEffects`'s bound-consumer pairs (`BoundConsumerOperands`, `BoundEarlyClobberConsumerOperands`).
 
 - **CONST-GENERIC-EXTENT-RANGE-DISCHARGE.** — mined candidate; verify scope then implement.
 - **CONST-GENERIC-INFERRED-EXTENT-RANGE** — mined candidate; verify scope then implement.
@@ -4241,48 +4247,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   board by **PROOF-CONTRACT-MIGRATION** and **QUOTIENT-THEOREM-LIFT**;
   replacing Real requires the relation, witness, quotient and
   receiving-axiom contracts to survive. No independent slice exists here.
-- **COORDINATOR-OVEROWNERSHIP-AUDIT** — mined candidate; scope verified, audit
-  artifact exists and its actionable finding is landed. The row re-mines
-  `wiki/drafts/coordinator_overownership_audit.md`, which swept every named
-  sequencing owner (`compiler`, `terminal-production`, `native-realization`,
-  plus the rule-named build/product owners) at `4a6bd936dc` and recorded four
-  findings. F1 (unreachable `compiler/src/compiler/native/prepared.rs`) is
-  REPAIRED on `origin/main` at `e5492eee179`. Re-verified there: F2
-  (`terminal-production`'s 1,181-line `receiver_eligibility.rs` derivation
-  resident in the sequencer — placement debt, flagged for relocation when it
-  next grows), F3 (`native-realization`'s terminal-authority policy
-  subsystem — interim verdict: load-bearing, monitor), and F4 (the orphan
-  optimized-semantic-wrapper codec — owned by REPRESENTATION-OWNERSHIP in
-  TASKS_OPTIMIZER.md, coordinated with PIPELINE-OWNER-CONSOLIDATION)
-  all stand as recorded. Residual relocations are
-  sibling items' moves, not audit work; no unclaimed slice remains.
-  Re-witnessed at `7b25940907`: F1 repair holds (`native/prepared.rs` absent,
-  no dangling references), F2 stands (`receiver_eligibility.rs` still resident
-  at 1,181 lines in `psi/compiler/terminal-production`), F4's orphan codec
-  (`optimized_semantic_wrapper_object/codec.rs`) remains unrelocated with
-  DURABLE-CODEC-EXTRACTION live (exp 07:34Z) and the wrapper dirs fenced to
-  UEFI-PHYSICAL-SEMANTIC-ENTRY (exp 08:44Z).
-  Re-witnessed at `0a0662ad27a` (z161): all four findings hold — F1's
-  `native/prepared.rs` is still absent with no dangling references, F2's
-  `receiver_eligibility.rs` is still resident at 1,181 lines in
-  `psi/compiler/terminal-production` (unfenced; placement-debt verdict
-  unchanged), F3's `terminal_authority_policy` subsystem is still resident in
-  `native-realization` and now sits under FILESYSTEM-RELEASE-CONTRACT's claim
-  (zergling-z27, exp ~14:20Z), and F4's orphan codec is still unrelocated —
-  DURABLE-CODEC-EXTRACTION is no longer live (row exists, no claim) while the
-  `optimized_semantic_wrapper_{object,encoding}` dirs stay fenced to
-  UEFI-PHYSICAL-SEMANTIC-ENTRY (z88, exp ~08:44Z). No unclaimed slice remains.
-  Re-witnessed at `3a82039327` (z150, linux x86-64): all four findings hold —
-  F1's `native/prepared.rs` still absent with no dangling references, F2's
-  `receiver_eligibility.rs` still resident at 1,181 lines, F3's
-  terminal-authority subsystem still resident and now unfenced
-  (FILESYSTEM-RELEASE-CONTRACT lapsed; BUILD-EXCLUSION-REALIZATION holds only
-  unrelated native-realization paths, ~15:52Z), F4's codec still unrelocated —
-  and the wrapper dirs are no longer fenced to UEFI-PHYSICAL-SEMANTIC-ENTRY
-  (claim lapsed) while DURABLE-CODEC-RELOCATION is live again (z120,
-  ~16:35Z, holding rewrite/selection surfaces). The relocation itself remains
-  the owning sibling's slice; the audit carries no unclaimed work.
-  The truncated duplicate stub line for this name is removed.
 - **CTTL-FAILURE-ATTRIBUTION** — mined candidate; scope verified, resolved.
   Names the attribution pass over the `typed-trees-to-checked-trees` section
   of `wiki/drafts/known_baseline_failures.md` (last recorded reading:
@@ -4422,75 +4386,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   callee signature", checked-trees-to-lowered-psi structural_arguments gate) —
   the run fixture reads `self.seed` so both overloads retain the receiver.
 
-- **EFI-MATRIX-PROMOTION.** Mined candidate; scope verified, authorization
-  gate recorded — re-mines the hosted-matrix clause of
-  `wiki/drafts/rust_compiler_completion.md`: the required matrix is exactly
-  the four hosted rows (linux x86-64, linux aarch64, macOS aarch64, Windows
-  x86-64) and "freestanding EFI work remains a separately stated target
-  milestone until it is promoted into this hosted matrix." Promotion is a
-  deliberate matrix revision per the doc's own rule (a support-matrix
-  change must revise the finite matrix in the same change, and the hosted
-  gates already keep EFI out), and it additionally waits on the UEFI legs
-  this board owns separately (UEFI-PHYSICAL-SEMANTIC-ENTRY,
-  UEFI-OS-HANDOFF — the source-authored two-surface entry and the
-  handoff that make an EFI host row possible at all). No implementable
-  slice exists inside the current matrix fence; the promotion decision is
-  a milestone statement, not a lane task. Re-verified at `7d03d489e3d9` (swarm-w9-ffival, linux x86-64): the hosted matrix in rust_compiler_completion.md is unchanged — four hosted rows, EFI still a separately stated milestone (:21) — and both named UEFI gates remain open rows (UEFI-PHYSICAL-SEMANTIC-ENTRY live-claimed by z88 to ~08:44Z; UEFI-OS-HANDOFF depends on it). Claim probe on TASKS.md exits 2 under broad board fencing. Promotion stays a milestone decision, not a lane task — nothing new to do here.
-  covered — milestone decision in rust_compiler_completion.md, not a lane task; UEFI gates are their own rows
-- **EXECUTABLE-PUBLICATION** — mined candidate; verify scope then implement.
-- **EXECUTABLE-PUBLICATION-JOIN.** Mined candidate; scope verified, resolved —
-  same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on
-  `origin/main`): the "join" is `CompileReport::publish_retained_native_artifact`
-  (`compilation-report/src/compile_report.rs:271`) joining the validated
-  retained artifact, manifest, and requested PCC pair into one staged tree that
-  `executable_publication.rs` (`publish_exact_bytes`) commits by write-to-tmp,
-  exact read-back replay, mode set, and atomic rename — a failed join leaves no
-  half-written executable or stale sidecar. `omega/src/compilation/publication.rs`
-  (`publish_compilation`/`publish_native_artifact`) is the product-owned route
-  into it, `publish_completed_build_outputs` writes companions, and
-  `output_kind` gating matches the spec's report/entry-bridge rule. Verified on
-  ea025447fe. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION,
-  EXECUTABLE-PUBLICATION-STAGE, EXECUTABLE-PUBLICATION-STEP,
-  RETAINED-ARTIFACT-EXECUTABLE-PUBLICATION.
-  covered — same landed surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (publish_retained_native_artifact)
-- **EXECUTABLE-PUBLICATION-OPERATION** — mined candidate; scope verified, resolved — same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on `origin/main`): `omega/src/compilation/publication.rs` (`publish_compilation`/`publish_native_artifact`) is the product-owned route calling `CompileReport::publish_retained_native_artifact`, which validates the retained artifact and manifest, refuses non-local output filenames, requires compiler-text/function validation evidence, self-checks a requested PCC pair pre-install, and commits one staged tree + atomic rename through `executable_publication.rs` — a failed publish leaves no half-written executable or stale sidecar. `output_kind` gating matches the spec's report/entry-bridge rule. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION, EXECUTABLE-PUBLICATION-JOIN, EXECUTABLE-PUBLICATION-STAGE, EXECUTABLE-PUBLICATION-STEP.
-- **EXECUTABLE-PUBLICATION-STAGE.** Mined candidate; scope verified, resolved — same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on `origin/main`): the "stage" is the staged tree + atomic rename committed by `CompileReport::publish_retained_native_artifact` through `executable_publication.rs` after validating the retained artifact and manifest, refusing non-local output filenames, requiring compiler-text/function validation evidence, and self-checking a requested PCC pair pre-install; a failed publish leaves no half-written executable or stale sidecar, and `omega/src/compilation/publication.rs` is the product-owned route into it. Re-verified at `dccdfd1fd11` — record stands; the sibling row's suite witness (`cargo nextest run -p compilation-report executable_publication` 15/15, `ea025447fe`) still covers this pin. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION, EXECUTABLE-PUBLICATION-JOIN, EXECUTABLE-PUBLICATION-STEP, RETAINED-ARTIFACT-EXECUTABLE-PUBLICATION.
-  covered — same landed surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (staged tree + atomic rename)
-- **EXECUTABLE-PUBLICATION-STEP** — mined candidate; scope verified, resolved — same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on `origin/main`): the publication "step" is `publish_compilation`/`publish_native_artifact` in `omega/src/compilation/publication.rs`, which gates on `output_kind`, validates the retained artifact and manifest through `CompileReport::publish_retained_native_artifact`, requires compiler-text/function validation evidence, self-checks a requested PCC pair pre-install, then `publish_completed_build_outputs` commits one staged tree + atomic rename via `executable_publication.rs` — a failed publish leaves no half-written executable or stale sidecar. Verified at `ac4e4eee9b`. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION, EXECUTABLE-PUBLICATION-JOIN, RETAINED-ARTIFACT-EXECUTABLE-PUBLICATION.
-  covered — same landed surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (publish_compilation route)
-- **COMPILER-EXECUTABLE-PUBLICATION-OPERATION.** — mined candidate;
-  scope verified, resolved — the same surface the sibling
-  EXECUTABLE-PUBLICATION-OPERATION row above already marks covered:
-  `omega/src/compilation/publication.rs` is the product-owned route
-  (`publish_compilation` → `CompileReport::publish_retained_native_
-  artifact`, dispatched at `compilation/mod.rs:279`) — it validates
-  the retained artifact + manifest, self-checks a requested PCC pair
-  pre-install, and commits one staged tree + atomic rename via
-  `executable_publication.rs`. Re-verified at `6f9a1f637e` (z181):
-  anchors unchanged; no same-item claim live. Re-verified at
-  `c924529921` (linux x86-64): `publication.rs` still owns
-  `publish_compilation`/`publish_native_artifact` →
-  `publish_retained_native_artifact` (dispatched at
-  `compilation/mod.rs:279`); `executable_publication.rs` retains the
-  stage/replay/rename discipline; `cargo nextest run -p
-  compilation-report executable_publication` 15/15 and `compiler`
-  `activation_identifiers_and_publication` 15/15 green.
-  covered — publication.rs route + executable_publication.rs discipline landed; suites 15/15 green
 
-- **EXECUTABLE-PUBLICATION-OPERATION.** — mined candidate; scope verified, resolved — same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on `origin/main`): `omega/src/compilation/publication.rs` (`publish_compilation`/`publish_native_artifact`) is the product-owned route calling `CompileReport::publish_retained_native_artifact`, which validates the retained artifact and manifest, refuses non-local output filenames, requires compiler-text/function validation evidence, self-checks a requested PCC pair pre-install, and commits one staged tree + atomic rename through `executable_publication.rs` — a failed publish leaves no half-written executable or stale sidecar. `output_kind` gating matches the spec's report/entry-bridge rule. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION, EXECUTABLE-PUBLICATION-JOIN, EXECUTABLE-PUBLICATION-STAGE, EXECUTABLE-PUBLICATION-STEP.
-- **EXECUTABLE-PUBLICATION-STAGE.** Mined candidate — resolved at
-  `0a0662ad27` (linux x86-64): settled-name marker for the sibling stub
-  the EXECUTABLE-PUBLICATION-OPERATION row names on the same resolved
-  surface. Anchors re-verified live:
-  `omega/src/compilation/publication.rs` still owns `publish_native_artifact` and the
-  `publish_compilation` → `CompileReport::publish_retained_native_artifact`
-  route; retained-artifact validation, PCC self-check, and the staged
-  tree + atomic rename through `executable_publication.rs` are
-  unchanged, with the prior green witness at `ea025447fe`
-  (compilation-report `executable_publication` 15/15, compiler
-  `activation_identifiers_and_publication` 15/15) standing. No leg
-  remains under this name.
-  covered — same landed surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (staged tree + atomic rename)
 - **NEW-TPV-DECLARATION-ORDER-NORMALIZATION-PIN.** Mined candidate; slice
   landed. The name resolves to the declaration-order normalization
   contract in `topology-plan`: `NormalizedGraph::new` sorts the supplied
@@ -4620,16 +4516,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   macos_x86_64 sources at 00:10Z+1d; final_image_validation.rs +
   installed_artifact.rs at 00:12Z+1d; native_evidence.rs at 00:24Z+1d —
   all Devin / swarm-w9-macos-x64-host-profile).
-- **INSTALLATION-ERA-JOURNAL.** Resolved — settled-name marker (do not
-  re-mine): the named surface was deliberately deleted, not implemented.
-  `20bd592af1` removed `ComponentEraJournal`, its restart fact
-  vocabulary, replay roster, tests, exports and journal-only receipt
-  accessors from `effects/src/component_eras/` — the owner rejected
-  compiler-owned deployment recovery (Cathedral's domain), and that
-  commit deleted both mined journal tasks; the entry ledger survives
-  byte-identical to `8f9b82fef2`. Re-verified at `b9635834f3`
-  (linux x86-64): zero `ComponentEraJournal`/`era_journal` references
-  remain in the tree. No leg exists under this name.
 - **LIFETIME-MULTI-SOURCE-AND-OUTLIVES.** — mined candidate; scope verified,
 - **LIFETIME-MULTI-SOURCE-AND-OUTLIVES.** Mined candidate — scope verified,
   two legs — re-mines the [lifetimes](wiki/spec/language/lifetimes.md)
@@ -4997,24 +4883,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Verified at head fetch on linux x86-64; no live claim fences the three
   scoped files.
 
-- **NEW-BOARD-DUPLICATE-STUB-SWEEP.** Inserted row — sweep executed at
-  `96bc0ef81043`+ head fetch (Zergling-52, linux x86-64). Removed 61
-  duplicate bare `- **NAME** — mined candidate; verify scope then
-  implement.` stub lines accumulated by repeated union-merge pushes,
-  keeping the first occurrence of each (61 removable of 343 bare stubs
-  across 282 unique names; top offenders were triple-copied
-  BUILD-DIRECTORY-*/RC-* rows). Policy: identical text + same name =
-  information-free duplicate; `**NAME.**` content rows and differently
-  worded stubs kept per keep-both-sides. The upstream cause — diff3
-  `|||||||` markers landing as board content — still ships on main; each
-  downstream worker strips them on rebase.
-  Follow-up sweep at `bb192d7ea9` (linux x86-64, DMS9 tranche):
-  retired 176 bare `- **NAME** — mined candidate; verify scope
-  then implement.` stubs whose name already has a verdict-bearing or
-  scope-verified content row elsewhere on the board — the bare line is
-  information-free under the same-union-merge policy; the real row keeps
-  tracking the item. Stubs with no same-named row, and non-bare
-  "mined candidate; scope verified" mini-rows, are untouched.
 
 - **NEW-LSC-MULTI-SOURCE-LIFETIME-LEAVES.** Inserted row, scope verified at `b868b9ee8f27` (planner-scoped to `typed-trees-to-checked-trees/src/borrow/view_link.rs`) — the multi-source lifetime-leaf machinery is already implemented in that file: `structural_view_return_source` enumerates input leaves via `carried_lifetimes`, an elided output requires exactly one leaf across the frontier (`ElidedMultipleInputs` at `matching.len() != 1`, covering one parameter carrying several unnamed sources), an explicit output lifetime emits one `ViewReturnFieldSource` per matching leaf. **SUPERSEDED — this row was inserted after its own blocker was already gone.** `9106b1ca03725` ("psi: explicit result lifetime unions same-lifetime inputs as view sources") landed the multi-source leg inside `view_link.rs`: an explicit result lifetime now links *every* input carrying the name and emits one `ViewReturnFieldSource` per matching leaf across inputs (`view_link.rs:256-285`, comment at :257-259). `LifetimeMatchesMultipleInputs` and its diagnostic have zero hits in any `.rs` file; the only multi-match rejection left is `ElidedMultipleInputs`, guarded by `output.lifetime.is_none() && matching.len() != 1` (:246-248). The sibling row at :12926 already calls the variant retired. No slice remains here. No live fence covers the file; the cross-file leg needs its own dispatch with `elision.rs` + `loans.rs` in scope.
 - **NEW-NATIVE-DIFF-IGNORED-OPERAND-PROBE-INTENT.** Inserted row, scope
@@ -5051,24 +4919,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   corpus migration executes against.
 - **NEW-RBRA-STD-LIBRARY-MIGRATION.** Inserted row, scope verified at `891194236afa` (planner-scoped to `source/library/std/{console,time,calling}.omg` + `source/library/std/targets/{linux_x86_64,linux_arm64,windows_x86_64,macos_x86_64}`) — no migration is pending on the scoped surface: every assigned path is byte-identical between this worktree and `origin/main` (empty `git diff --stat` per file/dir), and the std library already spells the current `Service<R>` carrier vocabulary (`time.omg:951` `host: Service<TimeHost>`; bare boundary-trait value spellings reject under `32f5182254`). The `RBRA` token occurs nowhere in the tree or boards; the only sibling in the series is NEW-RBRA-PASS-RECAST-GENERICS, which holds `tests/omega/pass/{recast,generics}` (15:22Z) — the corpus side of whatever migration the series names. Nothing to implement under this name until a concrete contract or failing customer identifies the delta.
 - **NEW-TLBR-PARAMETERIZED-REQUIREMENT-ADMISSION.** Inserted row, scope verified at `c3dd8016a74d` (planner-scoped to `psi/semantics/validation/src/machine_calls/calls/generic_bounds.rs`, byte-identical to origin/main) — the parameterized-requirement admission frontier is `is_directly_callable_top_level_requirement`: a top-level `boundary requirement` may be body-called only when public, nongeneric (`lifetime_parameters.is_empty()` AND `machine_type_parameters(callee).is_empty()`), single-state, and self-free or owned-self; generic/lifetime-parameterized requirements deliberately keep the symbol fence ("receiver custody and obligation transfer are a separate settlement shape"). Widening the predicate is not a slice inside this file: it decides which bodyless symbols may execute, which requires the selected-provider settlement to answer a generic instantiation plus the lifetime-linked return frontier — machinery in selected-dispatch/provider-planning, not validation. The instantiation-bound machinery that an admitted parameterized call would need (`validate_type_parameter_instantiation_bounds` positional pinning + `type_satisfies_declared_property`) already exists and is exercised through the resolved-target rung. No bounded slice remains under the assigned file; the cross-file leg needs a dispatch that includes selected-dispatch's provider resolution.
-- **NEW-UPPER-KEBAB.** Resolved — minted name for the uppercase-rejection
-  leg of canonical kebab-case package admission
-  ([sources.md](wiki/spec/packages/sources.md#requester-local-graph): a
-  dependency declares its own canonical package name; default aliases
-  convert kebab-case to snake_case). Already enforced and witnessed:
-  `PackageName::parse`
-  (`omega-rust/omega/packages/manager/src/declarations/identity.rs:9`)
-  routes through `build_declarations::ProjectName::parse` and
-  `package_names_require_canonical_kebab_case_and_reject_spoofs`
-  (`declarations/identity_tests.rs:15`) rejects the uppercase form
-  `Arithmetic-kernels` alongside `_`-substitution, edge/double dashes,
-  dots, leading digits and the Cyrillic lookalike `arithmetіc-kernels`;
-  the declarations read path emits the "must use canonical kebab-case
-  spelling" diagnostic (`dependencies/read/error.rs:135`). The snake_case
-  counterpart is witnessed by
-  `aliases_require_canonical_snake_case_identifiers`. Verified on linux
-  x86-64 at `c924529921dd`: nextest `-p package-manager` on both identity
-  tests — 2/2 PASS. No slice remains under this name.
 - **NON-X86-LAYOUT-RELAXATION** — mined candidate; scope verified at `8734480a01`, no authorized implementation surface. The only function-relative layout rule in the catalog is `X86RelaxConditionalBranchesToRel8V1`, deliberately `Architecture::X86_64`-scoped: selecting it for AArch64 is an explicit `UnsupportedTarget` rejection, not a silent skip (`resolved-layout-to-resolved-layout/src/x86_branch_relaxation/catalog.rs`). Non-x86 branch encodings are single fixed-width forms — there is no short/long rel8-style pair to relax between — and out-of-range AArch64 targets reject at sequence emission (`isa-aarch64/src/hosted_sequences.rs` "target is out of range"). A veneer/trampoline mechanism for >±1MB conditional branches is a different mechanism named only by `machine_state_evidence.md`'s final-artifact validation list; it needs an authorizing spec and a concrete failing customer before it is an item.
 - **NON-X86-LAYOUT-RELAXATION.** — mined candidate; scope verified at `8734480a01`, stamp refreshed `138ed79a677` (facts
   unchanged at HEAD), no authorized implementation surface. The only function-relative layout rule in the catalog is `X86RelaxConditionalBranchesToRel8V1`, deliberately `Architecture::X86_64`-scoped: selecting it for AArch64 is an explicit `UnsupportedTarget` rejection, not a silent skip (`resolved-layout-to-resolved-layout/src/x86_branch_relaxation/catalog.rs`). Non-x86 branch encodings are single fixed-width forms — there is no short/long rel8-style pair to relax between — and out-of-range AArch64 targets reject at sequence emission (`isa-aarch64/src/hosted_sequences.rs` "target is out of range"). A veneer/trampoline mechanism for >±1MB conditional branches is a different mechanism named only by `machine_state_evidence.md`'s final-artifact validation list; it needs an authorizing spec and a concrete failing customer before it is an item.
@@ -5605,7 +5455,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 
 - **RECURSIVE-ARGUMENT-OVERLOAD-DEDUP.** Mined candidate — resolved as an alias of RECURSIVE-ARGUMENT-OVERLOAD-DECL-DEDUP: the name re-mines the same `calls/statement_call_recursive_{argument,overload}_compile` dedup surface that row carries (Peano/peano_add rename at `e5912f303a` ended the `core/nat.omg` collision; negative half pinned by `duplicate_overload_and_visibility_admissions_reject`). Re-witnessed at `9e3edc7be9a3` on Linux x86-64: `OMEGA_PASS_CANARY_FILTER=statement_call_recursive_argument_compile,statement_call_recursive_overload_compile cargo nextest run -p compiler --test canary_suite entry_and_abi::pass_canary_coverage::pass_canaries_compile` → pass (94.6s), and `OMEGA_FAIL_CANARY_FILTER=duplicate_named_machine_overload_rejected,recursive_argument_imported_name_collision_rejected ... surface_and_targets::duplicate_overload_and_visibility_admissions_reject` → pass. No independent slice exists.
 - **RECURSIVE-ARGUMENT-OVERLOAD-DECL-DEDUP** — mined candidate; scope verified, resolved — same re-mine of the `calls/statement_call_recursive_{argument,overload}_compile` dedup surface the resolved sibling rows carry: `e5912f303a` renamed the argument fixture's local `Nat`/`add` to `Peano`/`peano_add` ending the `core/nat.omg` collision, both pass canaries re-witnessed green on linux x86-64 at `a1daf35f2e` (`OMEGA_PASS_CANARY_FILTER=statement_call_recursive_argument_compile,statement_call_recursive_overload_compile cargo nextest run -p compiler --test canary_suite entry_and_abi::pass_canary_coverage::pass_canaries_compile`, 74s), and the dedup's negative half stays pinned by `surface_and_targets::duplicate_overload_and_visibility_admissions_reject` covering `duplicate_named_machine_overload_rejected` + `recursive_argument_imported_name_collision_rejected`. No independent slice exists; this closes the name-surface sibling set the resolved rows name.
-- **RETAINED-ARTIFACT-EXECUTABLE-PUBLICATION** — mined candidate; scope verified, resolved — same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on `origin/main`): the retained-artifact leg is `CompileReport::publish_retained_native_artifact` in `compilation-report/src/compile_report.rs`, which validates the retained artifact and manifest, refuses non-local output filenames, requires compiler-text/function validation evidence, and self-checks a requested PCC pair pre-install before `executable_publication.rs` commits one staged tree + atomic rename — a failed publish leaves no half-written executable or stale sidecar. Witnessed green at `ea025447fe`: `cargo nextest run -p compilation-report executable_publication` 15/15 and the compiler `activation_identifiers_and_publication` suite 15/15. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION, EXECUTABLE-PUBLICATION-JOIN, EXECUTABLE-PUBLICATION-OPERATION, EXECUTABLE-PUBLICATION-STAGE, EXECUTABLE-PUBLICATION-STEP.
 - **REVIEW-INSTANTIATION-CLONE-FREE-SCRATCH.** Mined candidate; scope verified
   at `d8041919ad`, owned — names the residual the evidence README already
   records: "Operator and top-level requirement signature capture borrows the
