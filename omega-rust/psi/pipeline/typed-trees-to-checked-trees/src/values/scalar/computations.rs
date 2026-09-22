@@ -165,7 +165,17 @@ pub(crate) fn build_checked_value_computation_plans(
                         // LocalData admission rather than to a producer family
                         // of its own.
                         || (matches!(statement, StatementNode::LocalData(_))
-                            && structural_values::is_borrowed_slice_view_value(program, expected)))
+                            && structural_values::is_borrowed_slice_view_value(program, expected))
+                        // An element-wise structural array literal registers
+                        // its elements the same way a record literal registers
+                        // its fields: each owned child keeps its own value
+                        // node under the declared element type.
+                        || (matches!(statement, StatementNode::LocalData(_))
+                            && structural_values::is_fixed_array_value(
+                                program,
+                                expression,
+                                expected,
+                            )))
                     && let Some(root) =
                         builder.structural_value(expression, expected, &mut structural_values, pure)
                 {
