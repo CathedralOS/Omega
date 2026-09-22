@@ -33,7 +33,6 @@ const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[
         "omega-rust/omega/backend/runtime/executable-installation",
         1,
     ),
-    ("omega-rust/omega/backend/runtime/runtime-abi", 1),
     ("omega-rust/omega/packages/manager", 3),
     ("omega-rust/omega/packages/review/evidence", 52),
     (
