@@ -96,5 +96,9 @@ name = "glob_self_imports"
 path = "glob_self_imports.rs"
 
 [[test]]
+name = "glob_reexports"
+path = "glob_reexports.rs"
+
+[[test]]
 name = "integration_test_suites"
 path = "integration_test_suites.rs"
