@@ -196,7 +196,7 @@ fn closed_roles_rejoin_canonical_selected_plans_and_authored_templates() {
                 template,
             } => {
                 specialized += 1;
-                assert_eq!(declaration, row.realization());
+                assert_eq!(Some(declaration), row.realization());
                 assert_eq!(declaration.path(), "GenericProvider::identity");
                 assert_eq!(declaration.owner(), template.owner());
                 assert!(
@@ -208,7 +208,7 @@ fn closed_roles_rejoin_canonical_selected_plans_and_authored_templates() {
                 realization,
             } => {
                 nongeneric += 1;
-                assert_eq!(declaration, row.realization());
+                assert_eq!(Some(declaration), row.realization());
                 assert_eq!(declaration.owner(), realization.owner());
                 assert_eq!(
                     application.application(),

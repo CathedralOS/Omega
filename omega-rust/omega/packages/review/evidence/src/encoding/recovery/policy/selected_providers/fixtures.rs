@@ -126,7 +126,7 @@ pub(in crate::encoding::recovery::policy) fn complete() -> PackagePolicySelected
     let row = PackagePolicyProviderRow {
         method: method.name.clone(),
         requirement: method.requirement.clone(),
-        realization: nominal("Provider::call"),
+        realization: Some(nominal("Provider::call")),
         requirement_lifetime_partition: vec![0, 1, 0],
         binding: PackagePolicyProviderBinding::Syscall {
             number: 19,

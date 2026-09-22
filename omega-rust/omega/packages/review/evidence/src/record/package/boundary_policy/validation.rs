@@ -168,7 +168,7 @@ fn checked_body(
 ) -> Result<(), &'static str> {
     nominal(declaration)?;
     nominal(callable)?;
-    if declaration != row.realization()
+    if row.realization() != Some(declaration)
         || declaration.owner != callable.owner
         || !matches!(
             row.binding(),

@@ -29,8 +29,14 @@ impl PackagePolicySelectedProviders {
         }
         for plan in &self.plans {
             nominal(&plan.schema_declaration)?;
+            // A toolchain-owned plan (realizing package `None`, no provider
+            // declaration) may still carry its readable toolchain provider
+            // label; an authored plan's non-empty provider type always needs
+            // its exact declaration.
             if plan.plan_name.is_empty()
-                || plan.provider_type.is_empty() != plan.provider_type_declaration.is_none()
+                || (plan.provider_type.is_empty() != plan.provider_type_declaration.is_none()
+                    && !(plan.provider_type_declaration.is_none()
+                        && plan.realizing_package.is_none()))
                 || (!plan.target.is_empty() && plan.target != self.target.target_name())
                 || plan.methods.is_empty()
                 || plan.methods.len() != plan.rows.len()
@@ -65,12 +71,23 @@ impl PackagePolicySelectedProviders {
             }
             for row in &plan.rows {
                 nominal(&row.requirement)?;
-                nominal(&row.realization)?;
-                if !super::binding_validation::matches_owner(
-                    row.realization.owner,
-                    plan.realizing_package,
-                ) {
-                    return Err("provider realization disagrees with its plan's realizing owner");
+                match &row.realization {
+                    Some(realization) => {
+                        nominal(realization)?;
+                        if !super::binding_validation::matches_owner(
+                            realization.owner,
+                            plan.realizing_package,
+                        ) {
+                            return Err(
+                                "provider realization disagrees with its plan's realizing owner",
+                            );
+                        }
+                    }
+                    // A toolchain-settled row names no authored machine.
+                    None if plan.realizing_package.is_none() => {}
+                    None => {
+                        return Err("provider row omits its realization under a realizing package");
+                    }
                 }
                 let mut next = 0;
                 for ordinal in &row.requirement_lifetime_partition {
