@@ -1,6 +1,6 @@
 //! Canonical root and dependency source-selection encoding.
 
-use super::super::model::SOURCE_CLOSURE_SUBJECT_MAGIC;
+use super::super::SOURCE_CLOSURE_SUBJECT_MAGIC;
 use super::super::{
     CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
     CanonicalRootSourceRequest, CanonicalRootSourceSelection, CanonicalSourceClosureSubjectError,

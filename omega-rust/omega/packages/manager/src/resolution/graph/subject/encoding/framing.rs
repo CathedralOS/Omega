@@ -1,6 +1,6 @@
 //! Canonical byte framing, hexadecimal conversion, and subject fingerprinting.
 
-use super::super::model::SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN;
+use super::super::SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN;
 use super::super::usage::Budget;
 use super::super::{CanonicalSourceClosureSubjectError, CanonicalSourceClosureSubjectFingerprint};
 use sha2::{Digest, Sha256};

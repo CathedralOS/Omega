@@ -11,13 +11,13 @@ use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedSourceId
 use crate::resolution::source::PackageSourceNavigation;
 use target::TargetProfile;
 
-use super::super::encoding::{
+use super::encoding::{
     Decoder, decode_dependency_projection, decode_dependency_selection, decode_package_navigation,
     decode_root_selection, decode_source_identity, decode_target_profile,
     encode_subject_with_budget, fingerprint,
 };
-use super::super::usage::Budget;
-use super::super::validation::{canonical_root_request, validate_subject_with_budget};
+use super::usage::Budget;
+use super::validation::{canonical_root_request, validate_subject_with_budget};
 
 impl CanonicalSourceClosureSubject {
     /// Recheck caller limits over retained typed fields without recovering or
@@ -179,7 +179,7 @@ impl CanonicalSourceClosureSubject {
         Ok(self == &Self::from_resolved(target_closure, limits)?)
     }
 
-    pub(in super::super) fn finish_with_projections(
+    pub(super) fn finish_with_projections(
         target_profile: TargetProfile,
         root: CanonicalRootSourceSelection,
         packages: Vec<ResolvedSourceIdentity>,
@@ -200,7 +200,7 @@ impl CanonicalSourceClosureSubject {
         )
     }
 
-    pub(in super::super) fn finish_with_budget(
+    pub(super) fn finish_with_budget(
         target_profile: TargetProfile,
         root: CanonicalRootSourceSelection,
         packages: Vec<ResolvedSourceIdentity>,

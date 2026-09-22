@@ -29,7 +29,6 @@ const REPRESENTATION_ROOT_EXCEPTIONS: &[&str] = &[
 /// `model/` grab-bag directories retained inside crate source trees
 /// (AGENTS.md: "do not ... collect unrelated types in `model/`").
 const MODEL_DIRECTORY_EXCEPTIONS: &[&str] = &[
-    "omega-rust/omega/packages/manager/src/resolution/graph/subject/model",
     "omega-rust/omega/representations/optimization-unit/src/optimization_unit/rewrite/model",
 ];
 
