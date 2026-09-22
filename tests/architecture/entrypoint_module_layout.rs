@@ -30,7 +30,6 @@ const REPRESENTATION_ROOT_EXCEPTIONS: &[&str] = &[
 /// (AGENTS.md: "do not ... collect unrelated types in `model/`").
 const MODEL_DIRECTORY_EXCEPTIONS: &[&str] = &[
     "omega-rust/omega/packages/manager/src/resolution/graph/subject/model",
-    "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/model",
     "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_access_constraints/model",
     "omega-rust/omega/representations/optimization-unit/src/optimization_unit/rewrite/model",
 ];

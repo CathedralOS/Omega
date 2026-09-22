@@ -62,11 +62,11 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(super) fn reject_unsupported",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/model/error/mod.rs",
+        path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/mod.rs",
         coordination_marker: "AbstractToTargetTranslationValidationError",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/model/receipt/mod.rs",
+        path: "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/mod.rs",
         coordination_marker: "AbstractToTargetFunctionRosterReceipt",
     },
     RequiredCoordinationEntrance {
