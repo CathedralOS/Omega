@@ -260,6 +260,7 @@ version = "0.1.0"
 dependencies = [
  "checked-interpreter",
  "diagnostics",
+ "platform-custody",
  "sha2",
 ]
 
@@ -1344,6 +1345,7 @@ dependencies = [
  "package-compilation",
  "package-manager",
  "package-source",
+ "platform-custody",
  "proof-admission",
  "resolver-execution",
  "semantic-vocabulary",

@@ -337,7 +337,7 @@ fn compiler_driver_delegates_terminal_product_semantics_to_one_owner() {
 
     let mut ordered_owner = owner.as_str();
     for stage in [
-        "produce_program_entry_with_callback_custody(",
+        "produce_program_entry_with_callback_custody_timed(",
         "verify_terminal_artifact(",
         "project_terminal_native_realization_proposal(",
         "RetainedTerminalArtifact::new_with_native_realization_proposal(",

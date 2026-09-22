@@ -17,6 +17,7 @@ lowered-psi-to-terminal-psi = { path = "../psi/pipeline/lowered-psi-to-terminal-
 terminal-production = { path = "../psi/compiler/terminal-production" }
 compiler = { path = "compiler/compiler" }
 artifacts = { path = "tooling/artifacts" }
+platform-custody = { path = "tooling/platform-custody" }
 package-manager = { path = "packages/manager" }
 package-source = { path = "packages/sources/acquisition" }
 package-compilation = { path = "build/package-compilation" }

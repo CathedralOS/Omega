@@ -41,6 +41,32 @@ pub fn open_file_extended_acl_has_allow_entry(file: &File) -> io::Result<bool> {
     platform::open_file_extended_acl_has_allow_entry(file)
 }
 
+/// Report whether a filesystem object is reachable through exactly one
+/// directory entry.
+///
+/// An object with a second hard link shares its storage with a name the caller
+/// does not own, so rewriting its attributes reaches custody outside the
+/// caller's tree. Unix reads the count from the entry's own metadata; Windows
+/// reads it from the opened object, which the standard library exposes only
+/// behind an unstable interface. Symbolic links are the caller's separate
+/// question: this reports on the object the path names.
+pub fn has_single_hard_link(path: &Path) -> io::Result<bool> {
+    link_custody::has_single_hard_link(path)
+}
+
+/// Report the filesystem object a path currently names, as an opaque
+/// volume-and-object pair.
+///
+/// Two paths naming one object report equal pairs, so a caller can tell a
+/// renamed-and-recreated directory from the original at the same spelling. The
+/// pair is identity only: neither half is an address, a size, or ordered
+/// against another volume's. Unix reads device and inode; Windows reads the
+/// volume serial and file index, which the standard library exposes only
+/// behind an unstable interface.
+pub fn filesystem_object_identity(path: &Path) -> io::Result<(u64, u64)> {
+    link_custody::filesystem_object_identity(path)
+}
+
 #[cfg(target_os = "macos")]
 mod platform {
     use super::SymbolicLinkBehavior;
@@ -200,6 +226,121 @@ mod platform {
         Err(io::Error::new(
             io::ErrorKind::Unsupported,
             "native extended ACL inspection is not implemented on this platform",
+        ))
+    }
+}
+
+#[cfg(unix)]
+mod link_custody {
+    use std::io;
+    use std::os::unix::fs::MetadataExt;
+    use std::path::Path;
+
+    pub(super) fn has_single_hard_link(path: &Path) -> io::Result<bool> {
+        Ok(path.symlink_metadata()?.nlink() == 1)
+    }
+
+    pub(super) fn filesystem_object_identity(path: &Path) -> io::Result<(u64, u64)> {
+        let metadata = path.metadata()?;
+        Ok((metadata.dev(), metadata.ino()))
+    }
+}
+
+#[cfg(windows)]
+mod link_custody {
+    use std::fs::{File, OpenOptions};
+    use std::io;
+    use std::os::windows::fs::OpenOptionsExt;
+    use std::os::windows::io::{AsRawHandle, RawHandle};
+    use std::path::Path;
+
+    /// `BY_HANDLE_FILE_INFORMATION` from `<fileapi.h>`. Only the link count is
+    /// read; the remaining members retain the record's exact declared size.
+    #[repr(C)]
+    struct ByHandleFileInformation {
+        file_attributes: u32,
+        creation_time: [u32; 2],
+        last_access_time: [u32; 2],
+        last_write_time: [u32; 2],
+        volume_serial_number: u32,
+        file_size_high: u32,
+        file_size_low: u32,
+        number_of_links: u32,
+        file_index_high: u32,
+        file_index_low: u32,
+    }
+
+    unsafe extern "system" {
+        fn GetFileInformationByHandle(
+            file: RawHandle,
+            information: *mut ByHandleFileInformation,
+        ) -> i32;
+    }
+
+    // A directory handle needs backup semantics, and identity and link count
+    // are metadata rather than content, so the open requests no access at all.
+    const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+    const FILE_SHARE_READ_WRITE_DELETE: u32 = 0x0000_0007;
+
+    fn open_for_metadata(path: &Path) -> io::Result<File> {
+        OpenOptions::new()
+            .access_mode(0)
+            .share_mode(FILE_SHARE_READ_WRITE_DELETE)
+            .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+            .open(path)
+    }
+
+    fn information(path: &Path) -> io::Result<ByHandleFileInformation> {
+        let entry = open_for_metadata(path)?;
+        let mut information = ByHandleFileInformation {
+            file_attributes: 0,
+            creation_time: [0; 2],
+            last_access_time: [0; 2],
+            last_write_time: [0; 2],
+            volume_serial_number: 0,
+            file_size_high: 0,
+            file_size_low: 0,
+            number_of_links: 0,
+            file_index_high: 0,
+            file_index_low: 0,
+        };
+        // SAFETY: `entry` owns the handle for the whole call, and
+        // `information` is live writable storage of the declared record type.
+        let read = unsafe { GetFileInformationByHandle(entry.as_raw_handle(), &mut information) };
+        if read == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(information)
+    }
+
+    pub(super) fn has_single_hard_link(path: &Path) -> io::Result<bool> {
+        Ok(information(path)?.number_of_links == 1)
+    }
+
+    pub(super) fn filesystem_object_identity(path: &Path) -> io::Result<(u64, u64)> {
+        let information = information(path)?;
+        let index =
+            (u64::from(information.file_index_high) << 32) | u64::from(information.file_index_low);
+        Ok((u64::from(information.volume_serial_number), index))
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
+mod link_custody {
+    use std::io;
+    use std::path::Path;
+
+    pub(super) fn has_single_hard_link(_path: &Path) -> io::Result<bool> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "hard-link custody inspection is not implemented on this platform",
+        ))
+    }
+
+    pub(super) fn filesystem_object_identity(_path: &Path) -> io::Result<(u64, u64)> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "filesystem object identity is not implemented on this platform",
         ))
     }
 }

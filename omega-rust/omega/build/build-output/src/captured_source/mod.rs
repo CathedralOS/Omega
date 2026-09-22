@@ -606,7 +606,7 @@ fn unseal_materialized_tree(path: &Path) -> Result<(), CapturedSourceMaterializa
             })?;
             unseal_materialized_tree(&child.path())?;
         }
-    } else if !aliases_external_custody(&metadata) {
+    } else if !aliases_external_custody(&metadata, path) {
         unseal_captured_file(path)?;
     }
     Ok(())
@@ -616,25 +616,12 @@ fn unseal_materialized_tree(path: &Path) -> Result<(), CapturedSourceMaterializa
 /// not this snapshot's alone: the mode write would follow the alias or share
 /// its inode with a host file outside the tree. Removal unlinks the entry
 /// itself, so an aliased entry has no mode to restore.
-fn aliases_external_custody(metadata: &std::fs::Metadata) -> bool {
-    metadata.file_type().is_symlink() || !has_single_link(metadata)
-}
-
-#[cfg(unix)]
-fn has_single_link(metadata: &std::fs::Metadata) -> bool {
-    use std::os::unix::fs::MetadataExt;
-    metadata.nlink() == 1
-}
-
-#[cfg(windows)]
-fn has_single_link(metadata: &std::fs::Metadata) -> bool {
-    use std::os::windows::fs::MetadataExt;
-    metadata.number_of_links().ok() == Some(1)
-}
-
-#[cfg(not(any(unix, windows)))]
-fn has_single_link(_metadata: &std::fs::Metadata) -> bool {
-    true
+/// An entry whose link count cannot be read counts as aliased: refusing to
+/// unseal fails the later remove loudly, where unsealing a shared inode would
+/// rewrite a host file's attributes silently.
+fn aliases_external_custody(metadata: &std::fs::Metadata, path: &Path) -> bool {
+    metadata.file_type().is_symlink()
+        || !platform_custody::has_single_hard_link(path).unwrap_or(false)
 }
 
 #[cfg(unix)]

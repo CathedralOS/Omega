@@ -167,25 +167,8 @@ fn directory_identity(spelled: &Path) -> DirectoryIdentity {
     DirectoryIdentity { canonical, object }
 }
 
-#[cfg(unix)]
 fn directory_object(path: &Path) -> Option<(u64, u64)> {
-    use std::os::unix::fs::MetadataExt;
-    fs::metadata(path)
-        .ok()
-        .map(|metadata| (metadata.dev(), metadata.ino()))
-}
-
-#[cfg(windows)]
-fn directory_object(path: &Path) -> Option<(u64, u64)> {
-    use std::os::windows::fs::MetadataExt;
-    fs::metadata(path)
-        .ok()
-        .and_then(|metadata| Some((metadata.volume_serial_number()?, metadata.file_index()?)))
-}
-
-#[cfg(not(any(unix, windows)))]
-fn directory_object(_path: &Path) -> Option<(u64, u64)> {
-    None
+    platform_custody::filesystem_object_identity(path).ok()
 }
 
 /// The directory `spelled` names must still be the one `admitted` recorded: a
