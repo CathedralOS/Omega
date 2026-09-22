@@ -13,7 +13,7 @@ modified.
 | Module tree | Crate layer | Declared role | Verdict |
 | --- | --- | --- | --- |
 | `abstract-operations-to-abstract-operations/src/rules` | pipeline (X-to-X) | executable entrance — `PSI_PASS_CATALOG` sole enable/order table | Owned correctly |
-| `.../rules/passes` (10 families: control_flow_cleanup, copy_propagation, dead_scalar_elimination, global_value_numbering, proof_check_elision, sparse_conditional_constant_propagation, state_specialization, plus support/tests) | pipeline | per-pass local rule order | Owned correctly |
+| `.../rules` (10 pass files: control_flow_cleanup, copy_propagation, dead_scalar_elimination, global_value_numbering, proof_check_elision, sparse_conditional_constant_propagation, state_specialization, plus support/tests) | pipeline | per-pass local rule order | Owned correctly |
 | `abstract-operations-to-abstract-operations/src/ranked_rewrites` (countdown_invariant_constant_relocation, loop_invariant_scalar_motion) | pipeline | stage group — ranked-cycle custody rewrites | Owned correctly |
 | `selected-instructions-to-selected-instructions/src/rewrites` (93 entries: name.rs + name/ submodule pairs) | pipeline (X-to-X) | stage group — selected-CFG rewrites + replay evidence | Owned correctly |
 | `selected-instructions-to-register-homes/src/rewrites` (rematerialization) | pipeline (X-to-Y) | stage group | Owned correctly |
@@ -37,7 +37,7 @@ Future inventories should key on the module-role tag, not directory names.
 For each rewrite dir above: every subdirectory must have a sibling `name.rs`
 or a `mod name;` declaration in the parent's `mod.rs`, and every `*.rs` file
 must be declared or have a submodule dir. Result: zero orphans in
-`rules/passes`, `ranked_rewrites`, `selected-instructions-*/src/rewrites`
+`rules`, `ranked_rewrites`, `selected-instructions-*/src/rewrites`
 (all 93 entries declared). The `ORPHAN-REWRITE-MODULES-CATALOG` work already
 machine-checks the sis2sis roster via `module_catalog.rs`; this audit extends
 the same check by script over the other three trees.

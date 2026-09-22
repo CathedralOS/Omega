@@ -7,42 +7,42 @@ use crate::Audit;
 
 use super::inventory::{RULE_STAGES, collect_rust_files, repository_relative_path};
 
-struct RequiredExactRuleFolder {
-    directory: &'static str,
+struct RequiredExactRuleFile {
+    path: &'static str,
     rule_marker: &'static str,
 }
 
-/// Catalog rows that must descend into a same-named folder with one contract
-/// and proposal join (`mod.rs`) above a closed semantic partition (`laws.rs`).
-/// This prevents a short stage entrance from hiding many rules in a mixed
-/// `rule.rs` catch-all one rung below the catalog.
-const REQUIRED_EXACT_RULE_FOLDERS: &[RequiredExactRuleFolder] = &[
-    RequiredExactRuleFolder {
-        directory: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/global_value_numbering/identities/wrapping_neutral",
+/// Catalog rows that must descend into one file per rule holding that rule's
+/// contract and proposal join above its closed semantic partition
+/// (`fn classify`). This prevents a short stage entrance from hiding many
+/// rules in a mixed `rule.rs` catch-all one rung below the catalog.
+const REQUIRED_EXACT_RULE_FILES: &[RequiredExactRuleFile] = &[
+    RequiredExactRuleFile {
+        path: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/global_value_numbering/wrapping_neutral_arithmetic_identity.rs",
         rule_marker: "pub struct WrappingNeutralArithmeticIdentityRule",
     },
-    RequiredExactRuleFolder {
-        directory: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/global_value_numbering/identities/wrapping_shift_zero_count",
+    RequiredExactRuleFile {
+        path: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/global_value_numbering/wrapping_shift_zero_count_identity.rs",
         rule_marker: "pub struct WrappingShiftZeroCountIdentityRule",
     },
-    RequiredExactRuleFolder {
-        directory: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/global_value_numbering/identities/wrapping_multiply_zero",
+    RequiredExactRuleFile {
+        path: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/global_value_numbering/wrapping_multiply_zero_annihilation.rs",
         rule_marker: "pub struct WrappingMultiplyZeroAnnihilationRule",
     },
-    RequiredExactRuleFolder {
-        directory: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/global_value_numbering/identities/saturating_neutral",
+    RequiredExactRuleFile {
+        path: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/global_value_numbering/saturating_neutral_arithmetic_identity.rs",
         rule_marker: "pub struct SaturatingNeutralArithmeticIdentityRule",
     },
-    RequiredExactRuleFolder {
-        directory: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/global_value_numbering/identities/saturating_multiply_zero",
+    RequiredExactRuleFile {
+        path: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/global_value_numbering/saturating_multiply_zero_annihilation.rs",
         rule_marker: "pub struct SaturatingMultiplyZeroAnnihilationRule",
     },
-    RequiredExactRuleFolder {
-        directory: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/global_value_numbering/identities/bitwise_neutral",
+    RequiredExactRuleFile {
+        path: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/global_value_numbering/bitwise_neutral_literal_identity.rs",
         rule_marker: "pub struct BitwiseNeutralLiteralIdentityRule",
     },
-    RequiredExactRuleFolder {
-        directory: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/global_value_numbering/identities/bitwise_absorbing",
+    RequiredExactRuleFile {
+        path: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/global_value_numbering/bitwise_absorbing_literal_identity.rs",
         rule_marker: "pub struct BitwiseAbsorbingLiteralIdentityRule",
     },
 ];
@@ -198,39 +198,20 @@ pub(crate) fn check(audit: &mut Audit) {
         }
     }
 
-    for rule in REQUIRED_EXACT_RULE_FOLDERS {
-        let entrance = repository.join(rule.directory).join("mod.rs");
-        let laws = repository.join(rule.directory).join("laws.rs");
-        match fs::read_to_string(&entrance) {
+    for rule in REQUIRED_EXACT_RULE_FILES {
+        match fs::read_to_string(repository.join(rule.path)) {
             Ok(contents)
                 if contents.contains(rule.rule_marker)
-                    && contents.contains("propose_total_scalar_identities") => {}
+                    && contents.contains("propose_total_scalar_identities")
+                    && contents.contains("fn classify(") => {}
             Ok(_) => {
                 violations.insert(format!(
-                    "exact rule entrance lacks `{}` or its proposal join: {}/mod.rs",
-                    rule.rule_marker, rule.directory
+                    "exact rule file lacks `{}`, its proposal join, or its closed classifier: {}",
+                    rule.rule_marker, rule.path
                 ));
             }
             Err(error) => {
-                violations.insert(format!(
-                    "missing exact rule entrance {}/mod.rs: {error}",
-                    rule.directory
-                ));
-            }
-        }
-        match fs::read_to_string(&laws) {
-            Ok(contents) if contents.contains("fn classify(") => {}
-            Ok(_) => {
-                violations.insert(format!(
-                    "exact rule laws lack a closed classifier: {}/laws.rs",
-                    rule.directory
-                ));
-            }
-            Err(error) => {
-                violations.insert(format!(
-                    "missing exact rule laws {}/laws.rs: {error}",
-                    rule.directory
-                ));
+                violations.insert(format!("missing exact rule file {}: {error}", rule.path));
             }
         }
     }
