@@ -6,9 +6,8 @@ pub(crate) mod replay;
 use crate::{
     StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
-    ValidatedLogicalSpillOperations, ValidatedPostAllocationOptimizationManifest,
-    ValidatedRegisterHomes, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
-    ValidatedStackSlotColoring,
+    ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
+    ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
 };
 pub(crate) use recovery::{
     assign_source, recover, recover_after_active_resident_rematerialization,
@@ -24,73 +23,14 @@ pub(crate) struct RuntimeSpillAllocation {
     pub(crate) facts: RuntimeSpillFacts,
     pub(crate) homes: ValidatedRegisterHomes,
     pub(crate) manifest: ValidatedPostAllocationOptimizationManifest,
-    /// The sequenced logical spill-operation boundary's plan over the
-    /// recovery's input facts, produced when its bounded shape covers the
-    /// observed pressure; `None` records a declined boundary rather than a
-    /// recovered failure.
-    pub(crate) logical_operations: Option<ValidatedLogicalSpillOperations>,
-    /// The sequenced stack-slot coloring boundary's assignments over the
-    /// retained logical operations; `None` when that boundary declined or
-    /// produced no plan to color.
-    pub(crate) slot_coloring: Option<ValidatedStackSlotColoring>,
 }
 
 impl RuntimeSpillAllocation {
-    /// The validated logical spill-operation obligations produced for this
-    /// recovery's input, when the sequenced boundary covered its shape.
-    pub(crate) fn logical_operations(&self) -> Option<&ValidatedLogicalSpillOperations> {
-        self.logical_operations.as_ref()
-    }
-
-    /// The stack-slot assignments colored over the retained logical
-    /// spill-operation plan, when both sequenced boundaries covered its shape.
-    pub(crate) fn slot_coloring(&self) -> Option<&ValidatedStackSlotColoring> {
-        self.slot_coloring.as_ref()
-    }
-
     /// Replayed custody evidence for retained selection validation: the
     /// declared allocation-recovery selection this recovery's recorded
     /// prefix ran under, when the prefix came from a declared rule.
     pub(crate) fn recovery_prefix_selection(&self) -> Option<optimization_core::Optimization> {
         self.source.recovery_prefix_selection()
-    }
-
-    /// Drop the retained logical spill-operation plan so tests can prove
-    /// replay rejects the missing boundary evidence. Returns `false` when the
-    /// recovery declined the boundary and has no plan to corrupt.
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub(crate) fn corrupt_logical_operations_for_test(&mut self) -> bool {
-        if self.logical_operations.is_none() {
-            return false;
-        }
-        self.logical_operations = None;
-        true
-    }
-
-    /// Substitute a logical spill-operation plan recovered under foreign
-    /// facts so tests can prove replay rejects custody that was not produced
-    /// over this recovery's own source.
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub(crate) fn substitute_logical_operations_for_test(
-        &mut self,
-        operations: ValidatedLogicalSpillOperations,
-    ) {
-        self.logical_operations = Some(operations);
-    }
-
-    /// Drop the retained stack-slot coloring so tests can prove replay
-    /// rejects the missing sequenced-boundary evidence. Returns `false` when
-    /// the coloring boundary declined and has no evidence to corrupt.
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub(crate) fn corrupt_slot_coloring_for_test(&mut self) -> bool {
-        if self.slot_coloring.is_none() {
-            return false;
-        }
-        self.slot_coloring = None;
-        true
     }
 
     /// Corrupt the recorded active-resident prefix custody so cross-phase
@@ -405,14 +345,6 @@ pub enum RuntimeSpillAllocationError {
     /// selection binding was never earned.
     ProbeMismatch,
     CandidateMismatch,
-    /// The retained logical spill-operation plan does not match the plan
-    /// replay re-derived over the recovery's input facts — either the fact or
-    /// its source custody was forged.
-    LogicalOperationsMismatch,
-    /// The retained stack-slot coloring does not match the coloring replay
-    /// re-derived over the re-derived logical operations — either the
-    /// evidence or the plan it claims to color was forged.
-    SlotColoringMismatch,
     ReceiptMismatch,
 }
 

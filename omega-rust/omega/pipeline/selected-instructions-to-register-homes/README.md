@@ -145,15 +145,17 @@ identities and realized selected storage, not final frame authority.
 These private eight-byte slots preserve full GPR payloads. They do not widen
 source referent reads, change scalar signedness, or normalize floating bits.
 
-The [assignment group](src/assignment/mod.rs) holds only the stages that
-route sequences — including the
-[logical spill-operation boundary](src/assignment/logical_spill_operations/mod.rs),
-whose validated plan the runtime-spill recovery now produces over its input
-facts and re-derives during replay. The remaining compiler-private
-slot-coloring, recursive-recovery, pseudo, and access-constraint boundaries
-live under [unsequenced spill stages](src/unsequenced_spill_stages/mod.rs):
-`stage_register_allocation` does not call them yet, and the native-differential
-`register_allocation` tests and the architecture ladders validate them. These
+The [assignment group](src/assignment/mod.rs) holds the stages that route
+sequences plus two validated boundaries no executable route calls: the
+[logical spill-operation boundary](src/assignment/logical_spill_operations/mod.rs)
+and [stack-slot coloring](src/assignment/stack_slot_coloring/mod.rs).
+Runtime-spill recovery selects and rewrites physical victims directly rather
+than planning over their logical actions, so the native-differential
+`register_allocation` tests — not a sequenced caller — exercise them beside
+the remaining compiler-private recursive-recovery, pseudo, and
+access-constraint boundaries under
+[unsequenced spill stages](src/unsequenced_spill_stages/mod.rs). The
+architecture ladders validate them all. These
 are not additional user-selectable optimizations. Each
 boundary binds its input roots, closed policy, exact work and budget, and
 independently reconstructed output. Typed original-value and reload-action

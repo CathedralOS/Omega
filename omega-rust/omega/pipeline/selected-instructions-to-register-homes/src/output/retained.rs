@@ -73,51 +73,6 @@ impl RetainedAllocation {
         }
     }
 
-    /// Drop the retained logical spill-operation plan so tests prove replay
-    /// rejects the missing sequenced-boundary evidence. Returns `false` when
-    /// this allocation did not run the runtime-spill route or the boundary
-    /// declined the observed shape.
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub fn corrupt_runtime_spill_logical_operations_for_test(&mut self) -> bool {
-        match &mut self.replay {
-            ReplayInputs::RuntimeSpill(source) => source.corrupt_logical_operations_for_test(),
-            _ => false,
-        }
-    }
-
-    /// Substitute a logical spill-operation plan recovered under foreign
-    /// facts into runtime-spill custody so tests prove replay rejects
-    /// boundary evidence this recovery never produced. Returns `false` when
-    /// this allocation did not run the runtime-spill route.
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub fn substitute_runtime_spill_logical_operations_for_test(
-        &mut self,
-        operations: crate::ValidatedLogicalSpillOperations,
-    ) -> bool {
-        match &mut self.replay {
-            ReplayInputs::RuntimeSpill(source) => {
-                source.substitute_logical_operations_for_test(operations);
-                true
-            }
-            _ => false,
-        }
-    }
-
-    /// Drop the retained stack-slot coloring so tests prove replay rejects
-    /// the missing sequenced-boundary evidence. Returns `false` when this
-    /// allocation did not run the runtime-spill route or the boundary
-    /// declined the observed shape.
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    pub fn corrupt_runtime_spill_slot_coloring_for_test(&mut self) -> bool {
-        match &mut self.replay {
-            ReplayInputs::RuntimeSpill(source) => source.corrupt_slot_coloring_for_test(),
-            _ => false,
-        }
-    }
-
     /// Corrupt the recorded active-resident rematerialization prefix a
     /// runtime-spill composition carries, so cross-phase controls prove
     /// replay rejects the prefix before trusting its spill steps.
@@ -146,26 +101,6 @@ impl RetainedAllocation {
             ReplayInputs::LiteralFolds(source) => source.replay_allocation().map(|_| ()),
             ReplayInputs::SelectedLowering(source) => source.replay_allocation().map(|_| ()),
             ReplayInputs::Rematerialization(source) => source.replay_allocation().map(|_| ()),
-        }
-    }
-
-    /// The logical spill-operation obligations the runtime-spill route
-    /// produced over its recovery input, when that route ran and the
-    /// sequenced boundary covered its shape.
-    pub fn logical_spill_operations(&self) -> Option<&crate::ValidatedLogicalSpillOperations> {
-        match &self.replay {
-            ReplayInputs::RuntimeSpill(source) => source.logical_operations(),
-            _ => None,
-        }
-    }
-
-    /// The stack-slot assignments the runtime-spill route colored over its
-    /// retained logical spill-operation plan, when both sequenced boundaries
-    /// covered the observed shape.
-    pub fn stack_slot_coloring(&self) -> Option<&crate::ValidatedStackSlotColoring> {
-        match &self.replay {
-            ReplayInputs::RuntimeSpill(source) => source.slot_coloring(),
-            _ => None,
         }
     }
 

@@ -1,16 +1,16 @@
 //! Optimizer module role: stage group. Register homes for admitted selected-program facts.
 //!
-//! Every module here is sequenced by
-//! `crate::register_allocation::stage_register_allocation`: `transformed`
-//! homes after a completed selected-lowering run, the optional `recovery`
-//! rules, `runtime_spill` pressure recovery, `baseline` homes over the direct
-//! `home_assignment`, and the `post_allocation_manifest` every route
-//! publishes. `logical_spill_operations` is the sequenced spill boundary the
-//! runtime-spill recovery plans over its input facts, and
-//! `stack_slot_coloring` is the sequenced boundary assigning spill-area-relative
-//! storage to that plan. The crate root re-exports each owner's public names by module.
-//! Spill boundaries that route does not yet call live in
-//! `crate::unsequenced_spill_stages`.
+//! `crate::register_allocation::stage_register_allocation` sequences
+//! `transformed` homes after a completed selected-lowering run, the optional
+//! `recovery` rules, `runtime_spill` pressure recovery, `baseline` homes over
+//! the direct `home_assignment`, and the `post_allocation_manifest` every
+//! route publishes. `logical_spill_operations` and `stack_slot_coloring`
+//! remain validated boundaries with no sequenced caller: runtime-spill
+//! recovery selects and rewrites physical victims directly rather than
+//! planning over them, so only the native-differential boundary tests and
+//! the `crate::unsequenced_spill_stages` compositions consuming their
+//! receipts exercise them. The crate root re-exports each owner's public
+//! names by module.
 
 pub(crate) mod baseline;
 pub(crate) mod home_assignment;

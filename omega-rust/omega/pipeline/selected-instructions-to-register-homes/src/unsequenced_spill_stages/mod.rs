@@ -7,9 +7,11 @@
 //! spill insertion, reload-value and synthetic reload-value homes, recursive
 //! and generalized recovery worklists, victim choices and logical actions,
 //! spill-pseudo lowering, and abstract spill memory effects and access
-//! constraints. Logical spill planning is sequenced under
+//! constraints. Logical spill planning under
 //! `crate::assignment::logical_spill_operations` and stack-slot coloring over
-//! that plan under `crate::assignment::stack_slot_coloring`.
+//! that plan under `crate::assignment::stack_slot_coloring` are likewise
+//! validated but unsequenced: runtime-spill recovery rewrites physical
+//! victims directly, so no executable route produces their plans.
 //!
 //! They are exercised by the native-differential `register_allocation` tests
 //! and the architecture ladders, and machine emission's non-authoritative
