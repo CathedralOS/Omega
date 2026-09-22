@@ -409,8 +409,29 @@ fn direct_mutable_bounds_do_not_license_adjacency_without_a_snapshot() {
     }
 }
 
+fn original_symbol(checked: &checked_trees::CheckedTrees) -> symbols::SymbolHandle {
+    checked
+        .typed
+        .machines()
+        .iter()
+        .flat_map(|machine| checked.typed.machine_states(machine))
+        .find_map(|state| {
+            checked
+                .typed
+                .state_parameters(state)
+                .iter()
+                .find(|parameter| parameter.name.as_str() == "original")
+                .map(|parameter| parameter.symbol)
+        })
+        .unwrap_or_else(|| local(checked, "original").symbol)
+}
+
+/// Mutable selector bounds record their storage identity, so replay keeps a
+/// precise shape, but the storage name is a coordinate rather than positive
+/// evidence: the shared loans below are admitted only because both accesses
+/// are reads, never because the bounds proved anything.
 #[test]
-fn direct_mutable_bounds_remain_unknown_even_when_shared_loans_are_admitted() {
+fn direct_mutable_bounds_do_not_license_adjacency_even_when_shared_loans_are_admitted() {
     for parameter in [false, true] {
         for mutation in ["", "original = 1;"] {
             let source = split_source(
@@ -424,10 +445,17 @@ fn direct_mutable_bounds_remain_unknown_even_when_shared_loans_are_admitted() {
                 ),
             );
             let checked = checked_source(&source);
+            let original = original_symbol(&checked);
             let certificate = sole_certificate(&checked);
             assert_eq!(certificate.selector_snapshot.len(), 4);
-            assert_eq!(certificate.selector_snapshot[0].value, None);
-            assert_eq!(certificate.selector_snapshot[3].value, None);
+            assert_eq!(
+                certificate.selector_snapshot[0].value,
+                Some(BorrowCompatibilitySelectorValue::Symbol(original))
+            );
+            assert_eq!(
+                certificate.selector_snapshot[3].value,
+                Some(BorrowCompatibilitySelectorValue::Symbol(original))
+            );
             assert!(!certificate.conclusion.disjoint);
             assert_eq!(
                 certificate.conclusion.containment,

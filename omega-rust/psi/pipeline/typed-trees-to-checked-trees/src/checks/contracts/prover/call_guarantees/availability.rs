@@ -63,15 +63,19 @@ impl AvailableGuarantee<'_> {
     }
 
     /// The initial assignment names an occurrence; it is never evaluated.
-    /// Live provenance must independently join that immutable binding to
-    /// this exact call. Copies normalize through the existing bound reader.
-    pub(in crate::checks) fn immutable_result_binding(
+    /// Live provenance must independently join the binding to this exact
+    /// call. A mutable local supplies the guarantee only while that
+    /// provenance still pins it to the same occurrence the call produced;
+    /// reassignment retires the assigned-value row, so the guarantee stops
+    /// binding. Immutable copies normalize through the existing bound reader.
+    /// Returns the binding symbol and whether that storage is mutable.
+    pub(in crate::checks) fn result_binding(
         &self,
         program: &TypedTrees,
         semantic: &FactPlan,
         contexts: &[facts::FactContextHandle],
         state: &State,
-    ) -> Option<SymbolHandle> {
+    ) -> Option<(SymbolHandle, bool)> {
         if state.symbol != self.invocation.caller_state {
             return None;
         }
@@ -85,7 +89,7 @@ impl AvailableGuarantee<'_> {
         let CallSite::Expression { expression, .. } = self.invocation.site else {
             return None;
         };
-        if local.is_mutable || !local.symbol.is_valid() || local.initial_value != expression {
+        if !local.symbol.is_valid() || local.initial_value != expression {
             return None;
         }
         let place = captured_place(
@@ -98,7 +102,7 @@ impl AvailableGuarantee<'_> {
             },
         )?;
         (place.root == PlaceRoot::Expression(expression) && place.segments.is_empty())
-            .then_some(local.symbol)
+            .then_some((local.symbol, local.is_mutable))
     }
 }
 
