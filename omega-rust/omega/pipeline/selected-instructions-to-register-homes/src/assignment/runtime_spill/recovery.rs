@@ -414,7 +414,7 @@ fn recover_over(
                                 register,
                                 rewrite: RuntimeSpillStepRewrite::Spill(crossing),
                             });
-                            let manifest = crate::project_post_allocation_optimization_manifest(
+                            let manifest = crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest(
                                 upstream_manifest,
                                 &transformations(&prefix, &steps),
                                 &probe.ranges,
@@ -467,7 +467,7 @@ fn recover_over(
         });
         match homes {
             Ok(homes) => {
-                let manifest = crate::project_post_allocation_optimization_manifest(
+                let manifest = crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest(
                     upstream_manifest,
                     &transformations(&prefix, &steps),
                     &facts.ranges,

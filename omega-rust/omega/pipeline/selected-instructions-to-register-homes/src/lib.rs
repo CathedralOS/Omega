@@ -55,10 +55,7 @@ pub use assignment::post_allocation_manifest::{
     PostAllocationOptimizationManifestDecodeError, PostAllocationOptimizationManifestError,
     PostAllocationSelectedTransformation, PostAllocationSpillStatus, PostAllocationStatistics,
     PostAllocationUnavailableData, ValidatedPostAllocationOptimizationManifest,
-    project_post_allocation_optimization_manifest,
-    project_post_allocation_optimization_manifest_after_selected_lowering,
     validate_post_allocation_optimization_manifest,
-    validate_post_allocation_optimization_manifest_after_selected_lowering,
 };
 pub use assignment::recovery::{
     stage_active_resident_register_allocation, stage_leaf_local_fixed_view_register_allocation,
@@ -93,14 +90,12 @@ pub use rewrites::{
     OptimizedActiveResidentRematerializationCustodyFieldForTest,
     OptimizedActiveResidentRematerializationPressureCustodyFieldForTest,
     corrupt_active_resident_rematerialization_custody_for_test,
-    corrupt_active_resident_rematerialization_pressure_custody_for_test,
 };
 pub use rewrites::{
     OptimizedActiveResidentRematerializationError, StagedOptimizedActiveResidentRematerialization,
     StagedOptimizedActiveResidentRematerializationCustodyReceipt,
     StagedOptimizedActiveResidentRematerializationPressure,
     StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt,
-    complete_optimized_active_resident_rematerialization,
     stage_optimized_active_resident_rematerialization,
     stage_optimized_active_resident_rematerialization_pressure,
     validate_optimized_active_resident_rematerialization,

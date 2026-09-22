@@ -1,7 +1,7 @@
+use crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest;
+use crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest_after_selected_lowering;
 use crate::{
     ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes, assign_register_homes,
-    project_post_allocation_optimization_manifest,
-    project_post_allocation_optimization_manifest_after_selected_lowering,
 };
 
 use crate::{

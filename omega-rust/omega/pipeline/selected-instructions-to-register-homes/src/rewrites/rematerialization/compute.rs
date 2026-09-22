@@ -1,9 +1,9 @@
+use crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest;
 use crate::{
     PostAllocationSelectedTransformation, PressureRematerializationPolicy,
     RecoveryClassificationPolicy, SpillChoicePolicy, analyze_allocation_legality,
     analyze_live_ranges, analyze_liveness, assign_register_homes, choose_spill_victims,
-    classify_pressure_recovery, project_post_allocation_optimization_manifest,
-    rematerialize_selected_active_resident,
+    classify_pressure_recovery, rematerialize_selected_active_resident,
 };
 use optimization_core::OptimizationWorkBudget;
 

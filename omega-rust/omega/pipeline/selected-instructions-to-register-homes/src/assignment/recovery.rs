@@ -181,7 +181,7 @@ pub fn stage_active_resident_register_allocation(
         &environment.allocation_constraint_keys(),
     ) {
         Ok(homes) => RetainedAllocation::try_from(
-            crate::complete_optimized_active_resident_rematerialization(pressure, homes)
+            crate::rewrites::complete_optimized_active_resident_rematerialization(pressure, homes)
                 .map_err(RegisterAllocationError::Rematerialization)?,
         )
         .map_err(RegisterAllocationError::Replay),
