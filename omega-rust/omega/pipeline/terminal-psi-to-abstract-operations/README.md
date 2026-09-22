@@ -16,7 +16,7 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   results. Optimization selection does not change this projection.
 
 [Module lowering](src/lowering/mod.rs) checks entry and structural block bindings,
-then calls [machine lowering](src/lowering/machine/lower_machine.rs) directly.
+then calls [machine lowering](src/lowering/machine.rs) directly.
 That owner prepares block/value rosters, visits blocks in order, dispatches
 [operations](src/lowering/machine/operation/mod.rs) and
 [terminators](src/lowering/machine/terminator.rs), and assembles the abstract
