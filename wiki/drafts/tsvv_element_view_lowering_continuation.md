@@ -84,6 +84,25 @@ Current reject (probe `omega run`): `source_custody/structural/mod.rs`
   need the element-generalized `ElementViewSubslice` producing a NEW
   view descriptor {base + a*stride, extent b-a} fed to call arguments
   (`sum(s[1..], ...)`).
+- CONFIRMED call-arg gap (2026-09-22 bisect): `sum(s[1..], ...)` inside
+  `sum`'s own body drops `sum`'s whole unit plan — `s[1..]` canonicalizes
+  to `Symbol(s) + [PlaceSegment::Index{expr}]` (open end is dynamic, see
+  `flow/place/canonicalization.rs::index_place_segment`), then
+  `structural_call_arguments` reaches its segment-dispatch `_ => return
+  None` (~structural_arguments.rs:618). The closure pass then drops
+  `main`'s `sum(s, 0)` call — `main` omits at
+  `statement sequence: call: call operation (state 0, statement 6)`,
+  exactly the `rejoins 0 Terminal attachment identities` diagnostic both
+  samples emit. `byte_subslice::argument` (the `&[u8]` template producing
+  `ArgumentSourcePlan::ByteSequenceSubslice{parameter_index,expression,
+  start,end}` with `ByteSequenceSubslice{Start,End}` scalar roles) runs
+  only for boundary callees (call_operations.rs:318) or unit-returning
+  callees (structural_arguments.rs:133 `is_unit` gate) — so `s[1..]` to a
+  non-unit ordinary callee is unsupported even for u8. Element version
+  needs: a source variant (new `ElementViewSubslice` or a generalized
+  byte variant), bound scalar-expr roles reused or mirrored, and the
+  call-lane admission moved in front of canonical-place for view-typed
+  targets regardless of the callee's return shape.
 - New ops `ElementViewLength { source } -> u64`,
   `ElementViewRead { source, index, length, obligation } -> element`,
   `ElementViewSubslice { source, start, end, length, obligation }` in
@@ -93,9 +112,14 @@ Current reject (probe `omega run`): `source_custody/structural/mod.rs`
 - Codec + verifier + `LoweredDirectExpression` mirrors + realization:
   element-stride addressing off the descriptor base (element stride
   from the element's `structural_layout`), vs the byte ops' stride 1.
-- `recursive_sum` uses `&mut self` receivers on `Summer` — verify the
-  mutable-borrowed receiver stays ambient/graph-admissible (probe used
-  `&self`; `&mut self` may need the same carve-outs extended).
+- `recursive_sum` uses `&mut self` receivers on `Summer` — CONFIRMED
+  admissible: `is_self && is_reference` params stay ambient
+  (signatures.rs:503-508 `retain_reference_self` skip) and
+  `receiver_argument` admits (MutableBorrow, MutableBorrow) receiver
+  operands on field places. Probe bisect: `&mut self` + a live borrow of
+  the SAME field (`s` borrows `self.adder.bytes`, receiver `self.adder`)
+  correctly rejects at borrow validation — disjoint fields
+  (`self.summer` vs `self.arr`) pass through to the `s[1..]` gap above.
 - Rank/decrease: `terminates by s -> Slice::Length` machinery is
   existing; verify `s.len` after `s[1..]` retains length facts.
 

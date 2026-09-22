@@ -3,6 +3,7 @@
 
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::byte_subslice;
+use crate::execution::terminal_unit::element_subslice;
 use crate::execution::terminal_unit::calls::argument_paths::{
     byte_sequence_literal_argument, projected_argument_path, projected_argument_path_with_identity,
 };
@@ -132,6 +133,26 @@ pub(crate) fn structural_call_arguments(
             if target_machine.supply_mode == MachineSupplyMode::CheckedBody
                 && is_unit(program, target_state.return_type)
                 && let Some(subslice) = byte_subslice::argument(
+                    program,
+                    facts,
+                    caller_machine,
+                    caller_state,
+                    caller_parameters,
+                    target.type_reference,
+                    expression,
+                    statement_index,
+                    call.call_ordinal,
+                    argument_ordinal,
+                )
+            {
+                output.push(subslice);
+                continue;
+            }
+            // Borrowed element views take the same exclusive-range lane as
+            // byte views, without the byte lane's unit-result restriction:
+            // scalar-returning callees receive `s[a..b]` too.
+            if target_machine.supply_mode == MachineSupplyMode::CheckedBody
+                && let Some(subslice) = element_subslice::argument(
                     program,
                     facts,
                     caller_machine,
