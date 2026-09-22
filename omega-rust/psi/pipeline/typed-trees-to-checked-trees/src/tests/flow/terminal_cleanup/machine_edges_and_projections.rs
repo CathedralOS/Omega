@@ -613,6 +613,11 @@ fn projected_transition_cleanup_admits_wider_exact_paths() {
                         checked_trees::CheckedUnitStructuralPathSegment::Referent => {
                             panic!("{case}: projected residuals never name a referent")
                         }
+                        checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange {
+                            ..
+                        } => {
+                            panic!("{case}: projected residuals never name a byte window")
+                        }
                     })
                     .collect::<Vec<_>>()
             })
