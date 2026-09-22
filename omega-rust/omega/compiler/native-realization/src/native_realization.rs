@@ -39,14 +39,15 @@ pub use terminal_authority_policy::{
     FilesystemCohortDisposition, FilesystemOrdinaryReleaseContract,
     TERMINAL_AUTHORITY_POLICY_VERSION, TerminalAuthorityPolicy, TerminalAuthorityPolicyBuildError,
     TerminalAuthorityPolicyRow, UnclassifiedCompilerIntrinsicTerminalMechanism,
-    UnclassifiedTerminalMechanism, UnsettledFilesystemRequirement,
+    UnclassifiedTerminalMechanism, UnsettledFilesystemRequirement, UnsettledTimeHostRequirement,
     conservative_syscall_terminal_mechanism, current_compiler_intrinsic_terminal_authority_policy,
     current_terminal_authority_policy, filesystem_host_permission_row,
     filesystem_host_permission_rows, filesystem_mechanism_row,
     filesystem_ordinary_release_contract, filesystem_release_bound_mechanism,
     filesystem_release_mechanism_row, normalized_foreign_terminal_mechanism,
     normalized_foreign_terminal_mechanism_with_callback_materializations,
-    settled_filesystem_cohort, terminal_authority_policy_with_rows,
+    settled_filesystem_cohort, settled_time_host_cohort, terminal_authority_policy_with_rows,
+    time_host_mechanism_row, time_host_permission_row, time_host_permission_rows,
 };
 
 use diagnostics::Diagnostic;
