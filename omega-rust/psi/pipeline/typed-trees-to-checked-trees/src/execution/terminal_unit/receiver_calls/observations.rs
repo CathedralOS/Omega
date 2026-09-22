@@ -214,6 +214,9 @@ pub(in crate::execution::terminal_unit) fn uses_receiver_storage(
         .chain(std::iter::once(facts::PlaceRoot::Symbol(machine.symbol)))
         .collect::<Vec<_>>();
     let statements = program.statement_table.statements(state.statement_nodes);
+    // A store spelled through a reference local (`view.field = ..` after
+    // `let view: &mut Self = &mut self`) writes the storage that local
+    // aliases, so the target is judged by its resolved storage root.
     let stores_receiver = statements.iter().enumerate().any(|(index, statement)| {
         let typed_trees::statement::StatementNode::Assignment(assignment) = statement else {
             return false;
@@ -224,7 +227,22 @@ pub(in crate::execution::terminal_unit) fn uses_receiver_storage(
             index,
             assignment.target,
         )
-        .is_some_and(|place| receiver_roots.contains(&place.root))
+        .is_some_and(|place| {
+            let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
+                return receiver_roots.contains(&place.root);
+            };
+            let (root, _) =
+                crate::execution::terminal_unit::borrowed_windows::resolve_storage_place(
+                    program,
+                    machine,
+                    state,
+                    statements,
+                    index,
+                    root_symbol,
+                    &place.segments,
+                );
+            receiver_roots.contains(&root)
+        })
     });
     if stores_receiver {
         return true;

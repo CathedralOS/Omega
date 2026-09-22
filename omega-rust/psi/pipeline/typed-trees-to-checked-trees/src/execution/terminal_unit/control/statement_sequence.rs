@@ -332,6 +332,13 @@ pub(super) fn first_unsupported_statement(
                     .primitive_type_reference(local.type_reference)
                     .is_some()
                     || has_structural_result(program, facts, machine, statement)
+                    // A whole read of an existing place into an owning local
+                    // has the borrowed-window route by kind; the sequence
+                    // decides whether that place can be moved out of.
+                    || super::super::borrowed_windows::move_out_candidate(
+                        program, state, *index, local,
+                    )
+                    .is_some()
                     || u32::try_from(*index).ok().is_some_and(|ordinal| {
                         facts
                             .values

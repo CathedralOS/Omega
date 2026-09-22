@@ -92,7 +92,7 @@ fn window_place(
 /// recast chains, and whole-local reassignments, until the root names a
 /// parameter or machine rather than a local. Mirrors the checker rule that
 /// windows key on the resolved storage place, not the access route.
-fn resolve_storage_place(
+pub(in crate::execution::terminal_unit) fn resolve_storage_place(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -227,6 +227,31 @@ pub(super) struct OpenWindows {
     locals: Vec<(SymbolHandle, (u32, String))>,
 }
 
+/// The exact storage place an immutable, non-reference, ownership-carrying
+/// local reads whole from an existing place. Such a local has the window
+/// route by kind: the sequence admits it and then decides whether the place is
+/// exclusive borrowed storage it can move out of. Copy locals never open a
+/// window, and a mutable or reference-typed local binds nothing to restore.
+pub(in crate::execution::terminal_unit) fn move_out_candidate(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    local: &typed_trees::statement::TableLocalData,
+) -> Option<crate::flow::CanonicalPlace> {
+    if local.is_mutable
+        || type_reference_is_reference(program, local.type_reference)
+        || program.type_multiplicity(local.type_reference) == Multiplicity::Unrestricted
+    {
+        return None;
+    }
+    crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        statement_index,
+        local.initial_value,
+    )
+}
+
 impl OpenWindows {
     /// `let local: T = root.field...;` moving an affine or linear value out
     /// of exclusive borrowed storage. The local binds the moved value at
@@ -249,21 +274,10 @@ impl OpenWindows {
         CheckedUnitEffectOperationPlan,
         CheckedUnitStructuralResultBindingPlan,
     )> {
-        if local.is_mutable || type_reference_is_reference(program, local.type_reference) {
-            return None;
-        }
-        let multiplicity = program.type_multiplicity(local.type_reference);
-        if multiplicity == Multiplicity::Unrestricted {
-            return None;
-        }
-        let statements = program.statement_table.statements(state.statement_nodes);
         let index = usize::try_from(statement_index).ok()?;
-        let place = crate::flow::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            index,
-            local.initial_value,
-        )?;
+        let place = move_out_candidate(program, state, index, local)?;
+        let multiplicity = program.type_multiplicity(local.type_reference);
+        let statements = program.statement_table.statements(state.statement_nodes);
         let (position, path) = window_place(
             program,
             machine,
