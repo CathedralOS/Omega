@@ -4,7 +4,7 @@ use proof_admission::{PrimitiveJudgment, ProofNode, ProofRule};
 use semantic_vocabulary::{IntegerType, Proposition, PropositionContext, ScalarTerm};
 
 use super::super::definitions;
-use super::super::model::{EndpointProof, Query, SearchState};
+use super::super::{EndpointProof, Query, SearchState};
 use super::combine;
 use crate::proofs::nonzero_divisor_certificate::affine_custody::DefinitionIndex;
 use crate::proofs::nonzero_divisor_certificate::integer_selection::range;

@@ -6,7 +6,7 @@ use semantic_vocabulary::{
 
 use crate::proofs::nonzero_divisor_certificate::affine_custody::DefinitionIndex;
 
-use super::super::model::{SearchBudget, SearchOutcome};
+use super::super::{SearchBudget, SearchOutcome};
 
 pub(super) struct Fixture {
     pub(super) integer_type: IntegerType,

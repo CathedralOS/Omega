@@ -1906,7 +1906,7 @@ fn direct_add_proof_search_exposes_its_semantic_owners() {
         ),
         (
             direct_add.join("conjunction/mod.rs"),
-            &["compute", "definitions", "model"][..],
+            &["compute", "definitions"][..],
         ),
     ] {
         let source = std::fs::read_to_string(&entrance)

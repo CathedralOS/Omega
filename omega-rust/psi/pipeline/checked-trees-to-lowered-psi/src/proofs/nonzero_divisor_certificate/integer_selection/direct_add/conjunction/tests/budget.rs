@@ -1,6 +1,6 @@
 use semantic_vocabulary::IntegerSign;
 
-use super::super::model::SearchBudget;
+use super::super::SearchBudget;
 use super::fixture::{fork_join, outer_fork_join, shared_join};
 
 #[test]

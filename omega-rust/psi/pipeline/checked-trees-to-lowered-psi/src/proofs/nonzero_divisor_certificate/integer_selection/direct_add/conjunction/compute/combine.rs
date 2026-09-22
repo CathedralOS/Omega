@@ -6,7 +6,7 @@ use proof_admission::{
 };
 use semantic_vocabulary::{IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm};
 
-use super::super::model::EndpointProof;
+use super::super::EndpointProof;
 
 pub(super) fn expression_bound(
     context: &PropositionContext,

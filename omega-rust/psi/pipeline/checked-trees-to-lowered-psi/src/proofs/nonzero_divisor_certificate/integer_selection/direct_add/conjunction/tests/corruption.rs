@@ -1,7 +1,7 @@
 use proof_admission::{ProofRule, accept_certificate};
 use semantic_vocabulary::{IntegerSign, IntegerValue, Proposition};
 
-use super::super::model::SearchBudget;
+use super::super::SearchBudget;
 use super::fixture::{fork_join, literal, outer_fork_join, value};
 
 #[test]

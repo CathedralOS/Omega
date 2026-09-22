@@ -1,6 +1,6 @@
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm};
 
-use super::super::model::SearchBudget;
+use super::super::SearchBudget;
 use super::fixture::{fork_join, literal, two_computed_joins, value};
 
 #[test]
