@@ -5,14 +5,12 @@ use omega::language::std::calling;
 
 // Target-owned UEFI physical contract. It remains a planned, non-invoked
 // surface until the separate bootstrap-adapter callable is settled and built.
-repr native
 data EfiImageHandle {
     raw: addr;
 }
 
 boundary data EfiSystemTable;
 
-repr native
 data EfiStatus {
     code: u64;
 }

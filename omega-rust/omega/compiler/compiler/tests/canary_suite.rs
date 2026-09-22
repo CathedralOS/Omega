@@ -1498,7 +1498,6 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "data/case_payload_malformed",
     "data/field_default_retired",
     "data/property_zero_init_retired",
-    "data/enum_keyword_retired",
     "data/match_nonexhaustive_cases",
     "data/match_predicate_domain_needs_default",
     "data/mixed_common_field_nonscalar",
@@ -2196,7 +2195,6 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "atomics/shared_receiver_plain_field_write",
     "wire/encode_wire_spelling_renamed",
     "wire/decode_verdict_must_be_enum",
-    "wire/wire_data_form_retired",
     "wire/numbered_version_block_retired",
     "wire/reserved_spelling_retired",
     "wire/legacy_numbered_field_spelling",
@@ -2757,7 +2755,6 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "data/runtime_mixed_shape_exit",
     "data/runtime_record_field_value_pattern_exit",
     "data/runtime_struct_literal_string_field_exit",
-    "memory/repr_native_stable_layout",
     "host/runtime_console_byte_literal_exit",
     "host/runtime_tick_count_monotonic_exit",
     "wire/wire_data_field_numbers",
@@ -4854,7 +4851,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "host/runtime_gui_window_lifecycle_exit",
     "host/runtime_gui_foreground_window_exit",
     "inline_asm/asm_block_jmp_state",
-    "memory/repr_native_stable_layout",
     "operators/division_value_entry_selection",
     "operators/runtime_integer_division_value",
     "traits/trait_generic_bound_static_dispatch",
@@ -4917,7 +4913,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
-    "modules/export_item_retired",
     "float/exclusive_float_range_endpoint_rejected",
     "traits/trait_invariant_clause_retired",
     "traits/trait_contract_undeclared_self_member",

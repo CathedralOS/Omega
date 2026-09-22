@@ -9,14 +9,12 @@ use calling;
 // independent initial storage through scoped firmware providers, accounts for
 // its stack, and crosses ProgramStorageEntry::enter; this ABI alone establishes
 // no root or firmware-service authority.
-repr native
 data EfiImageHandle {
     raw: addr;
 }
 
 boundary data EfiSystemTable;
 
-repr native
 data EfiStatus {
     code: u64;
 }

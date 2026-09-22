@@ -1,12 +1,10 @@
 use omega::language::core::extent;
 use omega::language::std::calling;
 
-repr native
 data EfiImageHandle { raw: addr; }
 
 boundary data EfiSystemTable;
 
-repr native
 data EfiStatus { code: u64; }
 
 boundary trait UefiPhysicalEntry {

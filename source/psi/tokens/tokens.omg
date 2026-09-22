@@ -20,7 +20,6 @@ pub data KeywordKind [copy] {
     case Contains;
     case Data;
     case Else;
-    case Enum;
     case False;
     case Foreign;
     case Host;

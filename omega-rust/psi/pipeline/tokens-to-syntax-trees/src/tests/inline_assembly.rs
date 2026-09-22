@@ -840,22 +840,3 @@ fn parses_executable_domain_membership_union_expression() {
         ExpressionNode::Binary(_)
     ));
 }
-
-#[test]
-fn rejects_retired_export_items_with_direction() {
-    let tokens = Lexer::new("export internal_regex::Match as Match;")
-        .tokenize()
-        .expect("tokenize should succeed");
-    let error = parse_syntax_trees(&tokens).expect_err("retired export item must reject");
-
-    assert!(
-        error.message.contains("the `export` item is retired"),
-        "got: {}",
-        error.message
-    );
-
-    let tokens = Lexer::new("machine export() { }")
-        .tokenize()
-        .expect("tokenize ordinary identifier");
-    parse_syntax_trees(&tokens).expect("export remains available as an ordinary identifier");
-}
