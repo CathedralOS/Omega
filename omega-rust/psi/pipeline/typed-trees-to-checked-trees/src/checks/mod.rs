@@ -60,6 +60,32 @@ pub(crate) fn initialize_checked_borrow_call_certificates(
     borrows::initialize_checked_borrow_call_certificates(program, facts)
 }
 
+/// Independently replay the borrow evidence retained in one published
+/// checked fact table. The certificate ledgers and loan resource rows cross
+/// the publication boundary inside the checked trees as records, not as
+/// trusted authority: this entry rebuilds the pass's auxiliary indexes from
+/// the typed program, re-derives every formation's subjects and consulted
+/// premise scope, and consumes each retained row exactly once. The replay
+/// runs on a scratch copy of the published facts, so the consumer's record
+/// stays read-only; a drifted, duplicated, retargeted or unconsumed row is
+/// an ordinary diagnostic, never a rebuild in place.
+pub fn replay_checked_borrow_certificates(
+    program: &typed_trees::TypedTrees,
+    facts: &checked_trees::CheckFacts,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut scratch = facts.clone();
+    let call_frames = validation::CallFrameResolver::new(program);
+    let incoming_guards =
+        ranges::incoming_guards::IncomingGuardIndex::build(program, call_frames.as_ref());
+    borrows::check_flow_call_borrows(
+        program,
+        &mut scratch,
+        &crate::flow::StateMutationSummaryCache::default(),
+        call_frames.as_ref(),
+        &incoming_guards,
+    )
+}
+
 #[cfg(test)]
 pub(crate) fn check_checked_facts_recording(
     program: &typed_trees::TypedTrees,

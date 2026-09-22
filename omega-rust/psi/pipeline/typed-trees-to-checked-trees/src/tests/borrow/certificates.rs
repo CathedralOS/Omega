@@ -5,6 +5,7 @@ mod call_premises;
 mod computed_boundaries;
 mod domain_premises;
 mod guarded_premises;
+mod publication;
 mod stated_premises;
 mod value_snapshots;
 
