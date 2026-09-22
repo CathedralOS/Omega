@@ -1,6 +1,6 @@
 use crate::{FlowCallFact, FlowExitFact, FlowFacts, FlowStateFact, FlowStatementFact};
 
-use super::super::helpers::borrow_constraint_count;
+use super::super::evidence_counts::borrow_constraint_count;
 
 pub(super) fn state_borrow_evidence_count(
     flow: &FlowFacts,

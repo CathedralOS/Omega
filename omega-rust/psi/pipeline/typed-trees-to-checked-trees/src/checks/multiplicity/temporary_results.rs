@@ -23,9 +23,9 @@ use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceNode;
 
 mod projected;
-mod shared;
+mod shared_borrows;
 
-pub(super) use shared::append_shared_borrow;
+pub(super) use shared_borrows::append_shared_borrow;
 
 pub(super) fn append_whole_affine_transfer(
     program: &typed_trees::TypedTrees,

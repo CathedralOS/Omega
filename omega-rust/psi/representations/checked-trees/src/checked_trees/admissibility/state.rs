@@ -7,7 +7,7 @@ use crate::{
     ContractOperatorUseFact, ExitAcceptance, FlowCallFact, FlowExitFact, FlowStateFact,
     FlowStatementFact, OperatorAcceptance, StateAcceptance, StateOperationAcceptance,
     StatementAcceptance,
-    admissibility::helpers::{
+    admissibility::evidence_counts::{
         blocking_evidence_count, machine_decrease_count, service_reach_evidence_count,
         suspension_evidence_count,
     },

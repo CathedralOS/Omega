@@ -1,7 +1,7 @@
 use crate::{
     AcceptanceSummary, AcceptanceVerdict, AcceptanceView, ContractProofFactRef, ExitAcceptance,
     FlowConstraintRef, FlowExitFact, FlowSemanticContextRef,
-    admissibility::helpers::{borrow_constraint_count, constraints, semantic_contexts},
+    admissibility::evidence_counts::{borrow_constraint_count, constraints, semantic_contexts},
 };
 
 impl<'facts> AcceptanceView for ExitAcceptance<'facts> {

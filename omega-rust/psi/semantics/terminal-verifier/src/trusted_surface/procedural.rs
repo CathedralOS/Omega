@@ -681,7 +681,7 @@ rows! {
             "omega-rust/psi/semantics/terminal-verifier/src/trusted_surface/checker.rs",
             "omega-rust/psi/semantics/terminal-verifier/src/trusted_surface/reconstruction.rs",
             "omega-rust/psi/semantics/terminal-verifier/src/trusted_surface/operations.rs",
-            "omega-rust/psi/semantics/terminal-verifier/src/trusted_surface/shared.rs",
+            "omega-rust/psi/semantics/terminal-verifier/src/trusted_surface/procedural.rs",
         ]
     );
 }
