@@ -130,9 +130,12 @@ impl PremiseScope<'_> {
                                 // result operand names the call occurrence
                                 // itself, so the guarantee is consumable
                                 // inside its own statement.
-                                guarantee
-                                    .call_expression()
-                                    .map(|expression| NormalizedBound::CallResult { expression })
+                                guarantee.call_expression().map(|expression| {
+                                    NormalizedBound::CallResult {
+                                        expression,
+                                        segments: Vec::new(),
+                                    }
+                                })
                             }
                         }
                         // `result.first` — and longer resolved projections
@@ -148,9 +151,9 @@ impl PremiseScope<'_> {
                                 )
                             }) =>
                         {
-                            result.is_valid().then(|| {
+                            if result.is_valid() {
                                 let segments = segments.to_vec();
-                                if *result_mutable {
+                                Some(if *result_mutable {
                                     NormalizedBound::StorageProjected {
                                         symbol: *result,
                                         segments,
@@ -160,8 +163,19 @@ impl PremiseScope<'_> {
                                         symbol: *result,
                                         segments,
                                     }
-                                }
-                            })
+                                })
+                            } else {
+                                // A nested call's projected result binds the
+                                // occurrence at that segment path — the same
+                                // intra-statement context the bare-result arm
+                                // supplies.
+                                guarantee.call_expression().map(|expression| {
+                                    NormalizedBound::CallResult {
+                                        expression,
+                                        segments: segments.to_vec(),
+                                    }
+                                })
+                            }
                         }
                         _ => None,
                     }
@@ -956,16 +970,19 @@ fn bound_shift(value: NormalizedBound, base: NormalizedBound) -> Option<i64> {
         ) if value_first == base_first && value_second == base_second => {
             value_offset.checked_sub(base_offset)
         }
-        // The same call occurrence names one produced value: a premise
-        // minted at the call sits on the query's zero-offset line.
+        // The same call occurrence at the same projected path names one
+        // produced value: a premise minted at the call sits on the query's
+        // zero-offset line.
         (
             NormalizedBound::CallResult {
                 expression: value_expression,
+                segments: value_segments,
             },
             NormalizedBound::CallResult {
                 expression: base_expression,
+                segments: base_segments,
             },
-        ) if value_expression == base_expression => Some(0),
+        ) if value_expression == base_expression && value_segments == base_segments => Some(0),
         _ => None,
     }
 }

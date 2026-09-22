@@ -50,13 +50,17 @@ pub(super) enum NormalizedBound {
         offset: i64,
     },
     /// The value produced by one exact call occurrence, named by its
-    /// expression handle. A call result carries no place identity, so a
-    /// nested call's `ensures` binds the occurrence itself — the
+    /// expression handle plus the resolved segment path projected through
+    /// it (`choose(seed).first` carries `[Field{first}]`; a bare result
+    /// carries the empty path). A call result carries no place identity,
+    /// so a nested call's `ensures` binds the occurrence itself — the
     /// intra-statement fact context for guarantees produced and consumed
-    /// within one statement. Equal only to the same occurrence; a call
-    /// result never shifts or carries a storage coordinate.
+    /// within one statement. Equal only to the same occurrence at the same
+    /// projected path; a call result never shifts or carries a storage
+    /// coordinate.
     CallResult {
         expression: ExpressionHandle,
+        segments: Vec<facts::PlaceSegment>,
     },
 }
 
@@ -86,9 +90,13 @@ pub(super) fn selector_value(bound: NormalizedBound) -> BorrowCompatibilitySelec
             second,
             offset,
         },
-        NormalizedBound::CallResult { expression } => {
-            BorrowCompatibilitySelectorValue::CallResult { expression }
-        }
+        NormalizedBound::CallResult {
+            expression,
+            segments,
+        } => BorrowCompatibilitySelectorValue::CallResult {
+            expression,
+            segments,
+        },
     }
 }
 
@@ -134,11 +142,13 @@ fn bound_terms_equal(left: NormalizedBound, right: NormalizedBound) -> bool {
         (
             NormalizedBound::CallResult {
                 expression: left_expression,
+                segments: left_segments,
             },
             NormalizedBound::CallResult {
                 expression: right_expression,
+                segments: right_segments,
             },
-        ) => left_expression == right_expression,
+        ) => left_expression == right_expression && left_segments == right_segments,
         _ => false,
     }
 }
@@ -842,9 +852,28 @@ pub(super) fn normalized_bound(
 ) -> Option<NormalizedBound> {
     // A call result has no place identity: the occurrence's own expression
     // handle is its bound, so a nested call's `ensures` minted in the same
-    // statement names this exact production.
+    // statement names this exact production — and any resolved projection
+    // through it (`choose(seed).first`) names that occurrence's path.
     if let ExpressionNode::Call(_) = program.expression_table.expression(expression) {
-        return Some(NormalizedBound::CallResult { expression });
+        return Some(NormalizedBound::CallResult {
+            expression,
+            segments: Vec::new(),
+        });
+    }
+    if matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_) | ExpressionNode::Borrow(_)
+    ) && let Some(place) = crate::flow::canonical_place_from_expression(program, expression)
+        && let facts::PlaceRoot::Expression(root) = place.root
+        && matches!(
+            program.expression_table.expression(root),
+            ExpressionNode::Call(_)
+        )
+    {
+        return Some(NormalizedBound::CallResult {
+            expression: root,
+            segments: place.segments,
+        });
     }
     if let Some(offset) = validation::immutable_integer_bound_symbol_offset(program, expression) {
         return Some(NormalizedBound::Symbol {
