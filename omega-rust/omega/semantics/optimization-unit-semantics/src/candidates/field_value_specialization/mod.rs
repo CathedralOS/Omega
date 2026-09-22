@@ -34,7 +34,6 @@ pub fn validate_field_value_specialization_candidate(
                 AnalysisKind::EffectSummaries,
             ])
         || candidate.safety_class() != OptimizationSafetyClass::StructuralIdentity
-        || !candidate.substitutions().is_empty()
     {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }

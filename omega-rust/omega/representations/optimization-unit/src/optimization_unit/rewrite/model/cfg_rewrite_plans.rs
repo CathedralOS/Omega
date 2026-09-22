@@ -184,7 +184,7 @@ pub struct CaseMembershipSpecializationRewrite {
     pub memberships: Vec<FoldedCaseMembershipRow>,
 }
 
-/// The scalar value a folded field observation is proven to hold: either a
+/// The scalar literal a folded field observation is proven to hold: either a
 /// proven Boolean or a proven integer literal. The read's own result type
 /// decides which alternative is meaningful — replay rejects a `Boolean` fold
 /// claimed for an integer read and vice versa.
@@ -194,16 +194,41 @@ pub enum FoldedFieldValue {
     Integer(IntegerValue),
 }
 
-/// One folded scalar field observation: a `BooleanStructuralField` or
+/// One initializer substitution a proven nonconstant field observation
+/// carries. The establishing producer stores `initializer` into the observed
+/// field permanently, so the read's `result` and `initializer` are the same
+/// value: every scalar-operand use of `result` rebinds to `initializer`, the
+/// observation node retires, and its provenance and fuel settlement fuse
+/// into the immediately following node. `uses` names every node site holding
+/// a covered scalar-operand use of `result`, in canonical order — replay
+/// recomputes the complete set rather than trusting it.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ForwardedFieldValue {
+    pub initializer: ValueId,
+    pub scalar_type: ScalarType,
+    pub uses: Vec<NodeLocation>,
+}
+
+/// What one proven field observation resolves to. `Constant` folds the read
+/// to a `BooleanConstant`/`IntegerConstant` in place; `Forward` substitutes
+/// the establishing producer's proven nonconstant initializer at every use
+/// of the read's result and retires the observation node.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FieldValueResolution {
+    Constant(FoldedFieldValue),
+    Forward(ForwardedFieldValue),
+}
+
+/// One resolved scalar field observation: a `BooleanStructuralField` or
 /// `IntegerStructuralField` read whose stored value the unit proves, carried
 /// with the exact site, custody identity, observed place, canonical path,
-/// field, proof witness, and folded value. `producer` is the establishing
+/// field, proof witness, and resolution. `producer` is the establishing
 /// operation the row's proof draws on — `Some` for an `EstablishRecord`
 /// basis at an empty path or an `EstablishScalarCase` basis at a lone
 /// `Case` path, `None` when the field's declared `BoundedInteger` bound
 /// closes over exactly one value independently of how the place arrived.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FoldedFieldValueRow {
+pub struct FieldValueRow {
     pub site: NodeLocation,
     pub psi_operation: OperationId,
     pub result: ValueId,
@@ -211,14 +236,16 @@ pub struct FoldedFieldValueRow {
     pub path: Vec<CanonicalStructuralPathSegment>,
     pub field: StructuralFieldId,
     pub producer: Option<OperationId>,
-    pub value: FoldedFieldValue,
+    pub resolution: FieldValueResolution,
 }
 
-/// Fold every proven scalar field read observing `place` in `machine` to a
-/// `BooleanConstant`/`IntegerConstant` carrying the proven stored value at
-/// the same node. Each folded node keeps its operation custody identity,
-/// result value, successors, definitions, uses, ownership events, and fuel
-/// settlement; only the operation and the recomputed unit identity differ.
+/// Resolve every proven scalar field read observing `place` in `machine`.
+/// A `Constant` row folds its read to a `BooleanConstant`/`IntegerConstant`
+/// carrying the proven stored value at the same node, keeping the read's
+/// operation custody identity, result value, successors, definitions, uses,
+/// ownership events, and fuel settlement. A `Forward` row substitutes the
+/// proven initializer at every use of the read's result and retires the
+/// observation node, fusing the read's custody into the following node.
 /// `producer` is the place's establishing operation-result witness — an
 /// `EstablishRecord` or `EstablishScalarCase` — when one exists; rows still
 /// carry their own basis, so a bound-only candidate may hold `None`. Rows
@@ -228,5 +255,5 @@ pub struct FieldValueSpecializationRewrite {
     pub machine: MachineId,
     pub place: PlaceId,
     pub producer: Option<OperationId>,
-    pub reads: Vec<FoldedFieldValueRow>,
+    pub reads: Vec<FieldValueRow>,
 }
